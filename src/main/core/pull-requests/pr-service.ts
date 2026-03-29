@@ -25,10 +25,6 @@ import { db } from '@main/db/client';
 import { pullRequests } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 
-// ---------------------------------------------------------------------------
-// Public payload types
-// ---------------------------------------------------------------------------
-
 export type TaskPrsPayload = {
   prs: PullRequest[];
   nameWithOwner: string | null;
@@ -39,10 +35,6 @@ export type ListPrOptions = {
   limit?: number;
   searchQuery?: string;
 };
-
-// ---------------------------------------------------------------------------
-// GraphQL response shapes (internal)
-// ---------------------------------------------------------------------------
 
 interface GqlPrNode {
   number: number;
@@ -110,10 +102,6 @@ interface GqlCheckRunsResponse {
     } | null;
   };
 }
-
-// ---------------------------------------------------------------------------
-// Bucket mappers
-// ---------------------------------------------------------------------------
 
 function mapCheckRunBucket(status: string, conclusion: string | null): CheckRunBucket {
   if (

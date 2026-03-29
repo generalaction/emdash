@@ -15,6 +15,7 @@ import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
+import { useIsActiveTask } from '../hooks/use-is-active-task';
 
 interface EditorContextValue {
   /**
@@ -41,8 +42,10 @@ export const EditorProvider = observer(function EditorProvider({
   taskId: string;
   projectId: string;
 }) {
-  const editorView = asProvisioned(getTaskStore(projectId, taskId))!.editorView;
+  const taskStore = asProvisioned(getTaskStore(projectId, taskId));
+  const editorView = taskStore!.editorView;
   const { effectiveTheme } = useTheme();
+  const isActive = useIsActiveTask(taskId);
 
   // Conflict dialog — shown when editorView.pendingConflictUri is set.
   const showConflictModal = useShowModal('conflictDialog');
@@ -50,6 +53,7 @@ export const EditorProvider = observer(function EditorProvider({
   // Single Monaco editor per task — leased once on mount, released on unmount.
   const leaseRef = useRef<CodePoolEntry | null>(null);
   const editorRef = useRef<monacoNS.editor.IStandaloneCodeEditor | null>(null);
+  const focusPendingRef = useRef(false);
 
   // Stable host element provided by EditorMainPanel via setEditorHost.
   const hostRef = useRef<HTMLElement | null>(null);
@@ -87,6 +91,19 @@ export const EditorProvider = observer(function EditorProvider({
             void editorView.saveAllFiles();
           },
         });
+      }
+
+      // Track focusedRegion when the user focuses the editor.
+      lease.disposables.push(
+        lease.editor.onDidFocusEditorWidget(() => {
+          taskStore?.setFocusedRegion('main');
+        })
+      );
+
+      // Satisfy any pending focus request that arrived before the lease resolved.
+      if (focusPendingRef.current && lease.editor.getModel()) {
+        focusPendingRef.current = false;
+        lease.editor.focus();
       }
 
       // Append to the host element if it was already set before the lease arrived.
@@ -210,6 +227,22 @@ export const EditorProvider = observer(function EditorProvider({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
+
+  // ---------------------------------------------------------------------------
+  // Focus restore — when this task becomes active and focusedRegion is 'main',
+  // focus Monaco if an editable model is loaded; otherwise queue the intent so
+  // it is satisfied once the lease arrives or a model is attached.
+  // ---------------------------------------------------------------------------
+  const focusedRegion = taskStore?.focusedRegion;
+  useEffect(() => {
+    if (!isActive || focusedRegion !== 'main') return;
+    const editor = editorRef.current;
+    if (editor?.getModel()) {
+      editor.focus();
+    } else {
+      focusPendingRef.current = true;
+    }
+  }, [isActive, focusedRegion]);
 
   // ---------------------------------------------------------------------------
   // setEditorHost — called by EditorMainPanel to give the editor a stable DOM node.

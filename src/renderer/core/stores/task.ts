@@ -50,6 +50,7 @@ export interface IProvisionedTask {
   diffView: DiffViewStore;
   view: MainPanelView;
   rightPanelView: RightPanelView;
+  focusedRegion: 'main' | 'right';
   editorView: EditorViewStore;
   updateLinkedIssue: (issue?: Issue) => Promise<void>;
 }
@@ -73,6 +74,7 @@ export class TaskStore {
   // View state — populated once provisioned
   view: MainPanelView | null = null;
   rightPanelView: RightPanelView | null = null;
+  focusedRegion: 'main' | 'right' = 'main';
   editorView: EditorViewStore | null = null;
 
   constructor(
@@ -95,6 +97,7 @@ export class TaskStore {
     this.diffView = new DiffViewStore(this.git);
     this.view = 'agents';
     this.rightPanelView = 'changes';
+    this.focusedRegion = 'main';
     this.editorView = new EditorViewStore(data.projectId, data.id);
     this.data = data;
     this.state = 'provisioned';
@@ -155,6 +158,10 @@ export class TaskStore {
 
   setRightPanelView(v: RightPanelView): void {
     this.rightPanelView = v;
+  }
+
+  setFocusedRegion(region: 'main' | 'right'): void {
+    this.focusedRegion = region;
   }
 
   async rename(name: string) {

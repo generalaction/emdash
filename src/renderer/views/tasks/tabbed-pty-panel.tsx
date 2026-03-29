@@ -13,6 +13,8 @@ export interface TabbedPtyPanelProps<TEntity> {
   paneId: string;
   tabBar: React.ReactNode;
   emptyState: React.ReactNode;
+  autoFocus?: boolean;
+  onFocusChange?: (focused: boolean) => void;
 }
 
 export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
@@ -22,6 +24,8 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   paneId,
   tabBar,
   emptyState,
+  autoFocus,
+  onFocusChange,
 }: TabbedPtyPanelProps<TEntity>) {
   const tabs = useMemo(() => store?.tabs ?? [], [store?.tabs]);
   const activeTab = store?.activeTab;
@@ -36,12 +40,30 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   const activeSession = activeTab ? getSession(activeTab) : null;
 
   const terminalRef = useRef<{ focus: () => void }>(null);
+  const focusPendingRef = useRef(false);
   const [isFocused, setIsFocused] = useState(false);
 
-  // Re-focus the terminal whenever the active session changes
+  // Fire when autoFocus becomes true (task switch) or the active session changes.
+  // If the terminal is already mounted, focus immediately; otherwise queue intent.
   useEffect(() => {
-    terminalRef.current?.focus();
-  }, [activeSessionId]);
+    if (!autoFocus) return;
+    if (terminalRef.current) {
+      terminalRef.current.focus();
+      focusPendingRef.current = false;
+    } else {
+      focusPendingRef.current = true;
+    }
+  }, [autoFocus, activeSessionId]);
+
+  // Fire when the session transitions to 'ready' (MobX observer re-renders automatically
+  // because activeSession?.status is read in the render body below).
+  const sessionStatus = activeSession?.status;
+  useEffect(() => {
+    if (sessionStatus === 'ready' && focusPendingRef.current) {
+      focusPendingRef.current = false;
+      terminalRef.current?.focus();
+    }
+  }, [sessionStatus]);
 
   if (tabs.length === 0) {
     return <>{emptyState}</>;
@@ -50,10 +72,14 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   return (
     <div
       className="flex h-full flex-col"
-      onFocus={() => setIsFocused(true)}
+      onFocus={() => {
+        setIsFocused(true);
+        onFocusChange?.(true);
+      }}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
           setIsFocused(false);
+          onFocusChange?.(false);
         }
       }}
     >

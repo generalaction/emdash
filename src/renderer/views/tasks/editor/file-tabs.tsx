@@ -107,7 +107,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
         onDoubleClick={onDoubleClick}
         title={tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path}
       >
-        <div className="flex items-center pl-3 pr-1 h-full gap-1.5">
+        <div className="flex items-center pl-3 pr-2 h-full gap-1.5">
           <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
             {showSpinner ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -115,21 +115,24 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
               <FileIcon filename={fileName} isDirectory={false} />
             )}
           </span>
-          <span className={cn('max-w-[200px] truncate p-1', tab.isPreview && 'italic')}>
+          <span className={cn('max-w-[200px] text-sm truncate p-1', tab.isPreview && 'italic')}>
             {fileName}
           </span>
-          {tab.isDirty && (
-            <span className="text-foreground-muted" title="Unsaved changes">
-              ●
-            </span>
-          )}
-          <button
-            className="size-5 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
-            onClick={onClose}
-            aria-label={`Close ${fileName}`}
-          >
-            <X className="size-4" />
-          </button>
+          <div className="relative size-5 flex items-center justify-center shrink-0">
+            {tab.isDirty && (
+              <div
+                className="size-2 rounded-full bg-foreground group-hover:opacity-0"
+                title="Unsaved changes"
+              />
+            )}
+            <button
+              className="absolute inset-0 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
+              onClick={onClose}
+              aria-label={`Close ${fileName}`}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
         </div>
       </button>
       <Separator orientation="vertical" />

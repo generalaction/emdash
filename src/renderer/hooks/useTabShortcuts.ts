@@ -13,6 +13,15 @@ export interface TabNavigationProvider {
   closeActiveTab: () => void;
 }
 
+export interface UseTabShortcutsOptions {
+  /**
+   * When false, all tab shortcuts are disabled. Use this to scope shortcuts
+   * to a specific panel so they only fire when that panel is focused.
+   * Defaults to true (always enabled when store is present).
+   */
+  focused?: boolean;
+}
+
 /**
  * Registers keyboard shortcuts for tab navigation within any TabNavigationProvider.
  *
@@ -24,24 +33,30 @@ export interface TabNavigationProvider {
  *
  * Note: Mod+] and Mod+[ are reserved for task-level navigation
  * (nextProject / prevProject) in useKeyboardShortcuts.ts.
+ *
+ * Pass `focused: false` to disable shortcuts when the panel is not focused,
+ * preventing conflicts when multiple tab panels are mounted simultaneously.
  */
-export function useTabShortcuts(store: TabNavigationProvider | undefined): void {
+export function useTabShortcuts(
+  store: TabNavigationProvider | undefined,
+  options?: UseTabShortcutsOptions
+): void {
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const enabled = !!store;
+  const enabled = !!store && (options?.focused ?? true);
 
   useHotkey(
     getEffectiveHotkey('tabNext', keyboard),
     () => {
       store?.setNextTabActive();
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     getEffectiveHotkey('tabPrev', keyboard),
     () => {
       store?.setPreviousTabActive();
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     getEffectiveHotkey('tabClose', keyboard),
@@ -49,7 +64,7 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.closeActiveTab();
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+1',
@@ -57,7 +72,7 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.setTabActiveIndex(0);
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+2',
@@ -65,7 +80,7 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.setTabActiveIndex(1);
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+3',
@@ -73,7 +88,7 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.setTabActiveIndex(2);
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+4',
@@ -81,7 +96,7 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.setTabActiveIndex(3);
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+5',
@@ -89,7 +104,7 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.setTabActiveIndex(4);
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+6',
@@ -97,7 +112,7 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.setTabActiveIndex(5);
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+7',
@@ -105,7 +120,7 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.setTabActiveIndex(6);
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+8',
@@ -113,7 +128,7 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.setTabActiveIndex(7);
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+9',
@@ -121,6 +136,6 @@ export function useTabShortcuts(store: TabNavigationProvider | undefined): void 
       e.preventDefault();
       store?.setTabActiveIndex(8);
     },
-    { enabled }
+    { enabled, conflictBehavior: 'allow' }
   );
 }

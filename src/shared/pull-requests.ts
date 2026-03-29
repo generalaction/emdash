@@ -9,10 +9,15 @@ export interface GitHubReviewer {
   state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
 }
 
-export type PullRequestAuthor = {
+export type User = {
   userName: string;
   displayName: string;
   avatarUrl?: string;
+};
+
+export type Label = {
+  name: string;
+  color?: string;
 };
 
 // Common fields all forges share
@@ -23,7 +28,9 @@ interface PullRequestBase {
   url: string;
   title: string;
   status: PullRequestStatus;
-  author: PullRequestAuthor | null;
+  labels: Label[];
+  assignees: User[];
+  author: User | null;
   isDraft: boolean;
   createdAt: string;
   updatedAt: string;
@@ -57,7 +64,6 @@ export type GitHubPullRequest = PullRequestBase & {
   metadata: GitHubPrMetadata;
 };
 
-// Discriminated union — add new forges here
 export type PullRequest = GitHubPullRequest;
 
 // ── Pass-through types (service → renderer) ────────────────────────
