@@ -91,6 +91,7 @@ export const tasks = sqliteTable(
     updatedAt: text('updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
+    lastInteractedAt: text('last_interacted_at'),
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),

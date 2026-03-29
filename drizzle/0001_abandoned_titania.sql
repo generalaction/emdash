@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `last_interacted_at` text;

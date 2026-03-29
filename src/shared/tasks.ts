@@ -25,6 +25,7 @@ export type Task = {
   createdAt: string;
   updatedAt: string;
   archivedAt?: string;
+  lastInteractedAt?: string;
   linkedIssue?: Issue;
 };
 

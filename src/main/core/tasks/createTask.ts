@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { CreateTaskParams, Task, TaskLifecycleStatus } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
@@ -72,9 +72,15 @@ export async function createTask(params: CreateTaskParams): Promise<Task> {
     throw new Error(`Failed to provision task: ${provisionResult.error.message}`);
   }
 
+  const lastInteractedAt = new Date().toISOString();
+  await db
+    .update(tasks)
+    .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP` })
+    .where(eq(tasks.id, id));
+
   if (params.initialConversation) {
     await createConversation(params.initialConversation);
   }
 
-  return task;
+  return { ...task, lastInteractedAt };
 }

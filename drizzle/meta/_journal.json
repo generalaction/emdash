@@ -8,6 +8,13 @@
       "when": 1774036008845,
       "tag": "0000_mean_wither",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774764754597,
+      "tag": "0001_abandoned_titania",
+      "breakpoints": true
     }
   ]
 }

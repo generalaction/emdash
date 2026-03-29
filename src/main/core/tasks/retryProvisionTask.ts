@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
@@ -29,4 +29,9 @@ export async function retryProvisionTask(taskId: string): Promise<void> {
 
   const result = await project.retryTaskProvision(task, existingConversations, existingTerminals);
   if (!result.success) throw new Error(`Failed to provision task: ${result.error.message}`);
+
+  await db
+    .update(tasks)
+    .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP` })
+    .where(eq(tasks.id, taskId));
 }
