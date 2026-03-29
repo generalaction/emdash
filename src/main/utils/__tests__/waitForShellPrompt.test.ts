@@ -379,7 +379,7 @@ describe('waitForShellPrompt', () => {
     expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
   });
 
-  it('detects prompt when > arrives alone after accumulated context', () => {
+  it('detects prompt when $ arrives alone after accumulated context', () => {
     const pty = createMockPty();
     waitForShellPrompt({
       subscribe: pty.subscribe,
