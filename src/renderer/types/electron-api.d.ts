@@ -5,6 +5,7 @@ import type { AutoMergeRequest } from '../lib/prStatus';
 import type { DiffPayload } from '../../shared/diff/types';
 import type { GitIndexUpdateArgs } from '../../shared/git/types';
 import type { ResourceMetricsSnapshot } from '../../shared/performanceTypes';
+import type { SentryIssue } from '../../shared/integrations/sentryTypes';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -528,6 +529,7 @@ declare global {
         draft?: boolean;
         web?: boolean;
         fill?: boolean;
+        skipPrePush?: boolean;
       }) => Promise<{
         success: boolean;
         url?: string;
@@ -1056,6 +1058,37 @@ declare global {
         threads?: any[];
         error?: string;
       }>;
+      // Sentry integration
+      sentrySaveToken?: (
+        token: string,
+        organizationSlug?: string
+      ) => Promise<{
+        success: boolean;
+        organizationName?: string;
+        error?: string;
+      }>;
+      sentryCheckConnection?: () => Promise<{
+        connected: boolean;
+        organizationName?: string;
+        error?: string;
+      }>;
+      sentryClearToken?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      sentryInitialFetch?: (limit?: number) => Promise<{
+        success: boolean;
+        issues?: SentryIssue[];
+        error?: string;
+      }>;
+      sentrySearchIssues?: (
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{
+        success: boolean;
+        issues?: SentryIssue[];
+        error?: string;
+      }>;
       // Forgejo
       forgejoSaveCredentials?: (args: {
         instanceUrl: string;
@@ -1336,6 +1369,75 @@ declare global {
       mcpRefreshProviders: () => Promise<{
         success: boolean;
         data?: import('../../shared/mcp/types').McpProvidersResponse[];
+        error?: string;
+      }>;
+
+      // Automations
+      automationsList: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation[];
+        error?: string;
+      }>;
+      automationsGet: (args: { id: string }) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation | null;
+        error?: string;
+      }>;
+      automationsCreate: (
+        args: import('../../shared/automations/types').CreateAutomationInput
+      ) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation;
+        error?: string;
+      }>;
+      automationsUpdate: (
+        args: import('../../shared/automations/types').UpdateAutomationInput
+      ) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation | null;
+        error?: string;
+      }>;
+      automationsDelete: (args: { id: string }) => Promise<{
+        success: boolean;
+        data?: boolean;
+        error?: string;
+      }>;
+      automationsToggle: (args: { id: string }) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation | null;
+        error?: string;
+      }>;
+      automationsRunLogs: (args: { automationId: string; limit?: number }) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').AutomationRunLog[];
+        error?: string;
+      }>;
+      automationsTriggerNow: (args: { id: string }) => Promise<{
+        success: boolean;
+        data?: import('../../shared/automations/types').Automation;
+        error?: string;
+      }>;
+      automationsCompleteRun: (args: {
+        runLogId: string;
+        automationId: string;
+        taskId?: string;
+        status: 'success' | 'failure';
+        error?: string;
+      }) => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      automationsDrainTriggers: () => Promise<{
+        success: boolean;
+        data?: Array<import('../../shared/automations/types').Automation & { _runLogId: string }>;
+        error?: string;
+      }>;
+      onAutomationTriggerAvailable: (listener: () => void) => () => void;
+
+      // Integrations
+      integrationsStatusMap: () => Promise<{
+        success: boolean;
+        data?: import('../../shared/integrations/types').IntegrationStatusMap;
         error?: string;
       }>;
 
@@ -1645,6 +1747,7 @@ export interface ElectronAPI {
     draft?: boolean;
     web?: boolean;
     fill?: boolean;
+    skipPrePush?: boolean;
   }) => Promise<{
     success: boolean;
     url?: string;
@@ -1916,6 +2019,38 @@ export interface ElectronAPI {
     error?: string;
   }>;
 
+  // Sentry integration
+  sentrySaveToken?: (
+    token: string,
+    organizationSlug?: string
+  ) => Promise<{
+    success: boolean;
+    organizationName?: string;
+    error?: string;
+  }>;
+  sentryCheckConnection?: () => Promise<{
+    connected: boolean;
+    organizationName?: string;
+    error?: string;
+  }>;
+  sentryClearToken?: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  sentryInitialFetch?: (limit?: number) => Promise<{
+    success: boolean;
+    issues?: SentryIssue[];
+    error?: string;
+  }>;
+  sentrySearchIssues?: (
+    searchTerm: string,
+    limit?: number
+  ) => Promise<{
+    success: boolean;
+    issues?: SentryIssue[];
+    error?: string;
+  }>;
+
   // Debug helpers
   debugAppendLog: (
     filePath: string,
@@ -2032,6 +2167,75 @@ export interface ElectronAPI {
   mcpRefreshProviders: () => Promise<{
     success: boolean;
     data?: import('../../shared/mcp/types').McpProvidersResponse[];
+    error?: string;
+  }>;
+
+  // Automations
+  automationsList: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation[];
+    error?: string;
+  }>;
+  automationsGet: (args: { id: string }) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation | null;
+    error?: string;
+  }>;
+  automationsCreate: (
+    args: import('../../shared/automations/types').CreateAutomationInput
+  ) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation;
+    error?: string;
+  }>;
+  automationsUpdate: (
+    args: import('../../shared/automations/types').UpdateAutomationInput
+  ) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation | null;
+    error?: string;
+  }>;
+  automationsDelete: (args: { id: string }) => Promise<{
+    success: boolean;
+    data?: boolean;
+    error?: string;
+  }>;
+  automationsToggle: (args: { id: string }) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation | null;
+    error?: string;
+  }>;
+  automationsRunLogs: (args: { automationId: string; limit?: number }) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').AutomationRunLog[];
+    error?: string;
+  }>;
+  automationsTriggerNow: (args: { id: string }) => Promise<{
+    success: boolean;
+    data?: import('../../shared/automations/types').Automation;
+    error?: string;
+  }>;
+  automationsCompleteRun: (args: {
+    runLogId: string;
+    automationId: string;
+    taskId?: string;
+    status: 'success' | 'failure';
+    error?: string;
+  }) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  automationsDrainTriggers: () => Promise<{
+    success: boolean;
+    data?: Array<import('../../shared/automations/types').Automation & { _runLogId: string }>;
+    error?: string;
+  }>;
+  onAutomationTriggerAvailable: (listener: () => void) => () => void;
+
+  // Integrations
+  integrationsStatusMap: () => Promise<{
+    success: boolean;
+    data?: import('../../shared/integrations/types').IntegrationStatusMap;
     error?: string;
   }>;
 

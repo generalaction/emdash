@@ -854,6 +854,7 @@ export class GitHubService {
         'additions',
         'deletions',
         'statusCheckRollup',
+        'labels',
       ];
       const searchFlag = searchQuery ? ` --search ${quoteShellArg(searchQuery)}` : '';
       const { stdout } = await this.execGH(
@@ -884,6 +885,7 @@ export class GitHubService {
           additions: typeof item?.additions === 'number' ? item.additions : undefined,
           deletions: typeof item?.deletions === 'number' ? item.deletions : undefined,
           checksStatus: this.deriveChecksStatus(item?.statusCheckRollup),
+          labels: Array.isArray(item?.labels) ? item.labels : [],
         }))
       );
 
@@ -1378,6 +1380,111 @@ export class GitHubService {
       return null;
     }
   }
+  // -----------------------------------------------------------------------
+  // Repo events API — efficient polling with ETag caching
+  // -----------------------------------------------------------------------
+
+  /** ETag cache: repoNwo → { etag, rawEvents (unfiltered) } */
+  private eventEtags = new Map<string, { etag: string; rawEvents: any[] }>();
+
+  /**
+   * Fetch recent repo events via the GitHub Events API.
+   * Uses ETag conditional requests: returns cached events on 304 (no new activity)
+   * so repeated polls are nearly free against the rate limit.
+   *
+   * Returns issue and PR creation/update events for automation triggers.
+   */
+  async fetchRepoEvents(projectPath: string, eventTypes?: string[]): Promise<RepoEvent[]> {
+    try {
+      // Get repo nwo (owner/repo)
+      const { stdout: nwoOut } = await this.execGH(
+        'gh repo view --json nameWithOwner --jq .nameWithOwner',
+        { cwd: projectPath }
+      );
+      const nwo = nwoOut.trim();
+      if (!nwo) return [];
+
+      const cached = this.eventEtags.get(nwo);
+
+      // Build gh api call with conditional ETag header
+      const etagHeader = cached?.etag
+        ? ` -H ${quoteShellArg(`If-None-Match: ${cached.etag}`)}`
+        : '';
+      const cmd = `gh api /repos/${nwo}/events?per_page=30${etagHeader} --include`;
+
+      const typesFilter = eventTypes
+        ? new Set(eventTypes)
+        : new Set(['IssuesEvent', 'PullRequestEvent']);
+
+      const filterRawEvents = (raw: any[]): RepoEvent[] =>
+        raw
+          .filter((e: any) => typesFilter.has(e.type))
+          .map((e: any) => {
+            const item = e.payload?.issue ?? e.payload?.pull_request;
+            return {
+              id: String(e.id),
+              type: e.type,
+              action: e.payload?.action ?? '',
+              title: item?.title ?? '',
+              number: item?.number ?? 0,
+              url: item?.html_url ?? '',
+              labels: (item?.labels ?? []).map((l: any) => l?.name ?? '').filter(Boolean),
+              assignee: item?.assignee?.login ?? item?.user?.login ?? undefined,
+              branch: e.payload?.pull_request?.head?.ref ?? undefined,
+              createdAt: e.created_at ?? '',
+            };
+          });
+
+      let stdout: string;
+      try {
+        const result = await this.execGH(cmd, { cwd: projectPath });
+        stdout = result.stdout;
+      } catch (err: any) {
+        // gh api exits with non-zero on 304 — that means nothing changed
+        const msg = err?.stderr || err?.message || '';
+        if (msg.includes('304') || msg.includes('Not Modified')) {
+          return filterRawEvents(cached?.rawEvents ?? []);
+        }
+        throw err;
+      }
+
+      // Parse response: --include prepends HTTP headers before the JSON body
+      const headerEnd = stdout.indexOf('\r\n\r\n');
+      const headerBlock = headerEnd >= 0 ? stdout.slice(0, headerEnd) : '';
+      const jsonBody = headerEnd >= 0 ? stdout.slice(headerEnd + 4) : stdout;
+
+      // Extract ETag from response headers
+      const etagMatch = headerBlock.match(/ETag:\s*"?([^"\r\n]+)"?/i);
+      const newEtag = etagMatch?.[1] ?? '';
+
+      const rawEvents = JSON.parse(jsonBody || '[]');
+      if (!Array.isArray(rawEvents)) return filterRawEvents(cached?.rawEvents ?? []);
+
+      // Cache unfiltered events for next poll (so different eventTypes can reuse the cache)
+      if (newEtag) {
+        this.eventEtags.set(nwo, { etag: newEtag, rawEvents });
+      }
+
+      return filterRawEvents(rawEvents);
+    } catch (error) {
+      console.error('Failed to fetch repo events:', error);
+      return [];
+    }
+  }
+}
+
+/** Structured repo event from the GitHub Events API */
+export interface RepoEvent {
+  id: string;
+  type: string;
+  action: string;
+  title: string;
+  number: number;
+  url: string;
+  labels: string[];
+  assignee?: string;
+  branch?: string;
+  createdAt: string;
 }
 
 // Export singleton instance

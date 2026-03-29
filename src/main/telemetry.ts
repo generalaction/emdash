@@ -77,6 +77,9 @@ type TelemetryEvent =
   | 'plain_disconnected'
   | 'plain_threads_searched'
   | 'plain_thread_selected'
+  // Sentry integration
+  | 'sentry_connected'
+  | 'sentry_disconnected'
   // Container & Dev Environment
   | 'container_connect_clicked'
   | 'container_connect_success'

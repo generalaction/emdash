@@ -27,11 +27,13 @@ import { useTaskManagementContext } from '@/contexts/TaskManagementContext';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import { useAgentEvents } from '@/hooks/useAgentEvents';
 import { useAutoPrRefresh } from '@/hooks/useAutoPrRefresh';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { usePanelLayout } from '@/hooks/usePanelLayout';
 import { useProjectRemoteInfo } from '@/hooks/useProjectRemoteInfo';
 import { useProjectManagementContext } from '@/contexts/ProjectManagementProvider';
 import { useTheme } from '@/hooks/useTheme';
 import useUpdateNotifier from '@/hooks/useUpdateNotifier';
+import { useAutomationTrigger } from '@/hooks/useAutomationTrigger';
 import { activityStore } from '@/lib/activityStore';
 import { agentStatusStore } from '@/lib/agentStatusStore';
 import { handleMenuUndo, handleMenuRedo } from '@/lib/menuUndoRedo';
@@ -77,6 +79,7 @@ const BrowserAwareShortcuts: React.FC<
 };
 
 export function Workspace() {
+  const automationsEnabled = useFeatureFlag('automations');
   useTheme(); // Initialize theme on app startup
   const { showModal } = useModalContext();
   const { settings } = useAppSettings();
@@ -248,6 +251,7 @@ export function Workspace() {
     showSettingsPage,
     showSkillsView: projectMgmt.showSkillsView,
     showMcpView: projectMgmt.showMcpView,
+    showAutomationsView: projectMgmt.showAutomationsView,
     selectedProject: projectMgmt.selectedProject,
     activeTask: taskMgmt.activeTask,
   });
@@ -268,6 +272,9 @@ export function Workspace() {
 
   // Auto-refresh PR status
   useAutoPrRefresh(taskMgmt.activeTask?.path);
+
+  // Listen for automation triggers from the main process (scheduled + manual)
+  useAutomationTrigger(automationsEnabled);
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;

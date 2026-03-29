@@ -1125,7 +1125,22 @@ export function startSshPty(options: {
     args.push(remoteInitCommand);
   }
 
-  const proc = pty.spawn('ssh', args, {
+  // On Windows, resolve `ssh` to its full path. node-pty's ConPTY does not
+  // reliably find bare command names via PATH (unlike Unix forkpty+execvp).
+  // This mirrors the resolution done in startDirectPty / startPty.
+  let sshCommand = 'ssh';
+  if (process.platform === 'win32') {
+    const resolved = resolveCommandPathCached('ssh');
+    if (!resolved) {
+      throw new Error(
+        'SSH client not found. Install OpenSSH Client via Windows Settings → Apps → Optional Features, or install Git for Windows.'
+      );
+    }
+    sshCommand = resolved;
+  }
+
+  const spawnSpec = resolveWindowsPtySpawn(sshCommand, args);
+  const proc = pty.spawn(spawnSpec.command, spawnSpec.args, {
     name: 'xterm-256color',
     cols,
     rows,
