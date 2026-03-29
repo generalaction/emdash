@@ -122,7 +122,7 @@ const AutomationRow: React.FC<AutomationRowProps> = ({
               tabIndex={0}
               role="status"
               aria-label={`${INTEGRATION_LABELS[requiredIntegration]} setup required`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+              className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
               <span className="hidden sm:inline">Setup required</span>
