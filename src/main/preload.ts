@@ -600,6 +600,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('plain:initialFetch', limit, statuses),
   plainSearchThreads: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('plain:searchThreads', searchTerm, limit),
+
+  // Sentry integration
+  sentrySaveToken: (token: string, organizationSlug?: string) =>
+    ipcRenderer.invoke('sentry:saveToken', token, organizationSlug),
+  sentryCheckConnection: () => ipcRenderer.invoke('sentry:checkConnection'),
+  sentryClearToken: () => ipcRenderer.invoke('sentry:clearToken'),
+  sentryInitialFetch: (limit?: number) => ipcRenderer.invoke('sentry:initialFetch', limit),
+  sentrySearchIssues: (searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('sentry:searchIssues', searchTerm, limit),
+
   // Forgejo integration
   forgejoSaveCredentials: (args: { instanceUrl: string; token: string }) =>
     ipcRenderer.invoke('forgejo:saveCredentials', args),

@@ -653,6 +653,8 @@ class AutomationsService {
           return await this.fetchForgejoEvents(projectPath);
         case 'plain_thread':
           return await this.fetchPlainEvents();
+        case 'sentry_issue':
+          return await this.fetchSentryEvents();
         default:
           return [];
       }
@@ -795,6 +797,28 @@ class AutomationsService {
       type: 'Plain Thread',
       extra: thread.title ?? thread.subject ?? '',
       assignee: thread.assignee?.name ?? thread.assignee?.email ?? undefined,
+    }));
+  }
+
+  private async fetchSentryEvents(): Promise<RawEvent[]> {
+    const { sentryService } = await import('./SentryService');
+
+    let issues: import('./SentryService').SentryIssue[];
+    try {
+      issues = await sentryService.initialFetch(30);
+    } catch {
+      return [];
+    }
+    return issues.map((issue) => ({
+      id: `sentry-${issue.id}`,
+      title: issue.title ?? '',
+      url: issue.permalink ?? undefined,
+      type: 'Sentry Issue',
+      extra: issue.shortId
+        ? `${issue.shortId}: ${issue.title}${issue.culprit ? ` in ${issue.culprit}` : ''}`
+        : issue.title,
+      labels: issue.level ? [issue.level] : undefined,
+      assignee: issue.assignedTo?.name ?? issue.assignedTo?.email ?? undefined,
     }));
   }
 

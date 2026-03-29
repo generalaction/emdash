@@ -61,6 +61,15 @@ async function checkForgejo(): Promise<boolean> {
   }
 }
 
+async function checkSentry(): Promise<boolean> {
+  try {
+    const { sentryService } = await import('../services/SentryService');
+    return !!(await sentryService.checkConnection()).connected;
+  } catch {
+    return false;
+  }
+}
+
 const checkers: Record<IntegrationId, () => Promise<boolean>> = {
   github: checkGitHub,
   linear: checkLinear,
@@ -68,6 +77,7 @@ const checkers: Record<IntegrationId, () => Promise<boolean>> = {
   gitlab: checkGitLab,
   plain: checkPlain,
   forgejo: checkForgejo,
+  sentry: checkSentry,
 };
 
 export function registerIntegrationsIpc(): void {

@@ -8,6 +8,7 @@ const DEFAULT_STATUS: IntegrationStatusMap = {
   gitlab: false,
   plain: false,
   forgejo: false,
+  sentry: false,
 };
 
 /**

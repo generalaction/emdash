@@ -21,6 +21,7 @@ import jiraSvg from '../../../assets/images/Jira.svg?raw';
 import gitlabSvg from '../../../assets/images/GitLab.svg?raw';
 import forgejoSvg from '../../../assets/images/Forgejo.svg?raw';
 import plainSvg from '../../../assets/images/Plain.svg?raw';
+import sentrySvg from '../../../assets/images/Sentry.svg?raw';
 
 const GitHubIcon: React.FC<{ className?: string }> = ({ className }) => (
   <img src={githubPng} alt="" className={`dark:invert ${className ?? 'h-5 w-5'}`} />
@@ -40,6 +41,10 @@ const SvgIcon: React.FC<{ raw: string; className?: string }> = ({ raw, className
     className={`inline-flex items-center justify-center dark:invert [&_svg]:h-full [&_svg]:w-full ${className ?? 'h-5 w-5'}`}
     dangerouslySetInnerHTML={{ __html: raw }}
   />
+);
+
+const SentryIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <SvgIcon raw={sentrySvg} className={className} />
 );
 
 interface ExampleAutomation {
@@ -150,6 +155,24 @@ const TRIGGER_EXAMPLES: ExampleAutomation[] = [
     description: 'Auto-respond to support threads',
     mode: 'trigger',
     triggerType: 'plain_thread',
+  },
+  {
+    icon: <SentryIcon />,
+    name: 'Fix Sentry Errors',
+    prompt:
+      'A new unresolved error was reported in Sentry. Analyze the error details including the stack trace, exception type, and affected file. Locate the root cause in the codebase, implement a fix, add a regression test if possible, and create a PR with a clear description of what caused the issue and how the fix addresses it.',
+    description: 'Auto-fix new Sentry errors',
+    mode: 'trigger',
+    triggerType: 'sentry_issue',
+  },
+  {
+    icon: <SentryIcon />,
+    name: 'Sentry Error Triage',
+    prompt:
+      'A new error appeared in Sentry. Analyze the error, stack trace, and frequency. Investigate the codebase to understand the root cause. Add a detailed comment to the issue with your findings: affected code paths, potential impact, reproduction steps if identifiable, and a suggested fix approach.',
+    description: 'Triage & analyze new errors',
+    mode: 'trigger',
+    triggerType: 'sentry_issue',
   },
 ];
 

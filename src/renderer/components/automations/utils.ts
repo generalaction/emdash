@@ -125,6 +125,7 @@ export const TRIGGER_TYPE_LABELS: Record<TriggerType, string> = {
   gitlab_mr: 'GitLab MR Created',
   forgejo_issue: 'Forgejo Issue Created',
   plain_thread: 'Plain Thread Created',
+  sentry_issue: 'Sentry Issue Created',
 };
 
 export const TRIGGER_TYPES: { value: TriggerType; label: string; integration: IntegrationId }[] = [
@@ -136,6 +137,7 @@ export const TRIGGER_TYPES: { value: TriggerType; label: string; integration: In
   { value: 'gitlab_mr', label: 'New GitLab Merge Request', integration: 'gitlab' },
   { value: 'forgejo_issue', label: 'New Forgejo Issue', integration: 'forgejo' },
   { value: 'plain_thread', label: 'New Plain Thread', integration: 'plain' },
+  { value: 'sentry_issue', label: 'New Sentry Issue', integration: 'sentry' },
 ];
 
 export function formatTriggerLabel(triggerType: TriggerType | null): string {

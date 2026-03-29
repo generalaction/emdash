@@ -9,6 +9,7 @@ import linearSvg from '../../assets/images/Linear.svg?raw';
 import gitlabSvg from '../../assets/images/GitLab.svg?raw';
 import plainSvg from '../../assets/images/Plain.svg?raw';
 import forgejoSvg from '../../assets/images/Forgejo.svg?raw';
+import sentrySvg from '../../assets/images/Sentry.svg?raw';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import {
@@ -58,7 +59,7 @@ const IntegrationsCard: React.FC = () => {
 
   // Modal state: which integration setup is open
   const [integrationSetupModal, setIntegrationSetupModal] = useState<
-    null | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo'
+    null | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'sentry'
   >(null);
   const [showGithubModal, setShowGithubModal] = useState(false);
 
@@ -87,6 +88,11 @@ const IntegrationsCard: React.FC = () => {
   const [forgejoToken, setForgejoToken] = useState('');
   const [forgejoLoading, setForgejoLoading] = useState(false);
 
+  // Sentry state
+  const [sentryConnected, setSentryConnected] = useState(false);
+  const [sentryInput, setSentryInput] = useState('');
+  const [sentryLoading, setSentryLoading] = useState(false);
+
   // Error states
   const [githubError, setGithubError] = useState<string | null>(null);
   const [linearError, setLinearError] = useState<string | null>(null);
@@ -94,6 +100,7 @@ const IntegrationsCard: React.FC = () => {
   const [gitlabError, setGitlabError] = useState<string | null>(null);
   const [plainError, setPlainError] = useState<string | null>(null);
   const [forgejoError, setForgejoError] = useState<string | null>(null);
+  const [sentryError, setSentryError] = useState<string | null>(null);
   // Check connection statuses on mount
   useEffect(() => {
     const checkLinear = async () => {
@@ -141,11 +148,21 @@ const IntegrationsCard: React.FC = () => {
       }
     };
 
+    const checkSentry = async () => {
+      try {
+        const result = await window.electronAPI.sentryCheckConnection?.();
+        setSentryConnected(!!result?.connected);
+      } catch {
+        setSentryConnected(false);
+      }
+    };
+
     void checkLinear();
     void checkJira();
     void checkGitlab();
     void checkPlain();
     void checkForgejo();
+    void checkSentry();
   }, []);
 
   // GitHub handlers
@@ -418,6 +435,43 @@ const IntegrationsCard: React.FC = () => {
     }
   }, []);
 
+  // Sentry handlers
+  const handleSentryConnect = useCallback(async () => {
+    const token = sentryInput.trim();
+    if (!token) return;
+
+    setSentryLoading(true);
+    setSentryError(null);
+
+    try {
+      const result = await window.electronAPI.sentrySaveToken?.(token);
+      if (result?.success) {
+        setSentryConnected(true);
+        setSentryInput('');
+        setIntegrationSetupModal(null);
+      } else {
+        setSentryError(result?.error || 'Could not connect. Try again.');
+      }
+    } catch (error) {
+      console.error('Sentry connect failed:', error);
+      setSentryError('Could not connect. Try again.');
+    } finally {
+      setSentryLoading(false);
+    }
+  }, [sentryInput]);
+
+  const handleSentryDisconnect = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.sentryClearToken?.();
+      if (result?.success) {
+        setSentryConnected(false);
+        setSentryInput('');
+      }
+    } catch (error) {
+      console.error('Sentry disconnect failed:', error);
+    }
+  }, []);
+
   const integrations = [
     {
       id: 'github',
@@ -494,6 +548,19 @@ const IntegrationsCard: React.FC = () => {
       },
       onDisconnect: handleForgejoDisconnect,
     },
+    {
+      id: 'sentry',
+      name: 'Sentry',
+      description: 'Fix errors from Sentry',
+      logoSvg: sentrySvg,
+      connected: sentryConnected,
+      loading: sentryLoading,
+      onConnect: () => {
+        setSentryError(null);
+        setIntegrationSetupModal('sentry');
+      },
+      onDisconnect: handleSentryDisconnect,
+    },
   ];
 
   return (
@@ -563,6 +630,7 @@ const IntegrationsCard: React.FC = () => {
             setGitlabError(null);
             setPlainError(null);
             setForgejoError(null);
+            setSentryError(null);
           }
         }}
       >
@@ -779,6 +847,61 @@ const IntegrationsCard: React.FC = () => {
                   disabled={!(gitlabInstanceUrl.trim() && gitlabToken.trim()) || gitlabLoading}
                 >
                   {gitlabLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Connect
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {integrationSetupModal === 'sentry' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Connect Sentry</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Enter your Sentry auth token to connect your organization.
+                </DialogDescription>
+              </DialogHeader>
+              <Separator />
+              <div className="space-y-4">
+                <Input
+                  type="password"
+                  value={sentryInput}
+                  onChange={(e) => setSentryInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && sentryInput.trim() && !sentryLoading) {
+                      void handleSentryConnect();
+                    }
+                  }}
+                  placeholder="Enter Sentry auth token"
+                  className="h-9"
+                  disabled={sentryLoading}
+                  autoFocus
+                />
+                {sentryError && (
+                  <p className="text-xs text-destructive" role="alert">
+                    {sentryError}
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIntegrationSetupModal(null);
+                    setSentryError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handleSentryConnect()}
+                  disabled={!sentryInput.trim() || sentryLoading}
+                >
+                  {sentryLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Connect
                 </Button>
               </DialogFooter>

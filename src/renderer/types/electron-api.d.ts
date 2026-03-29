@@ -5,6 +5,7 @@ import type { AutoMergeRequest } from '../lib/prStatus';
 import type { DiffPayload } from '../../shared/diff/types';
 import type { GitIndexUpdateArgs } from '../../shared/git/types';
 import type { ResourceMetricsSnapshot } from '../../shared/performanceTypes';
+import type { SentryIssue } from '../../shared/integrations/sentryTypes';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -1054,6 +1055,37 @@ declare global {
         threads?: any[];
         error?: string;
       }>;
+      // Sentry integration
+      sentrySaveToken?: (
+        token: string,
+        organizationSlug?: string
+      ) => Promise<{
+        success: boolean;
+        organizationName?: string;
+        error?: string;
+      }>;
+      sentryCheckConnection?: () => Promise<{
+        connected: boolean;
+        organizationName?: string;
+        error?: string;
+      }>;
+      sentryClearToken?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+      sentryInitialFetch?: (limit?: number) => Promise<{
+        success: boolean;
+        issues?: SentryIssue[];
+        error?: string;
+      }>;
+      sentrySearchIssues?: (
+        searchTerm: string,
+        limit?: number
+      ) => Promise<{
+        success: boolean;
+        issues?: SentryIssue[];
+        error?: string;
+      }>;
       // Forgejo
       forgejoSaveCredentials?: (args: {
         instanceUrl: string;
@@ -1978,6 +2010,38 @@ export interface ElectronAPI {
   ) => Promise<{
     success: boolean;
     threads?: any[];
+    error?: string;
+  }>;
+
+  // Sentry integration
+  sentrySaveToken?: (
+    token: string,
+    organizationSlug?: string
+  ) => Promise<{
+    success: boolean;
+    organizationName?: string;
+    error?: string;
+  }>;
+  sentryCheckConnection?: () => Promise<{
+    connected: boolean;
+    organizationName?: string;
+    error?: string;
+  }>;
+  sentryClearToken?: () => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+  sentryInitialFetch?: (limit?: number) => Promise<{
+    success: boolean;
+    issues?: SentryIssue[];
+    error?: string;
+  }>;
+  sentrySearchIssues?: (
+    searchTerm: string,
+    limit?: number
+  ) => Promise<{
+    success: boolean;
+    issues?: SentryIssue[];
     error?: string;
   }>;
 

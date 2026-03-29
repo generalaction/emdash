@@ -27,6 +27,7 @@ import { createRPCRouter, registerRPCRouter } from '../../shared/ipc/rpc';
 import { ipcMain } from 'electron';
 import { registerGitlabIpc } from './gitlabIpc';
 import { registerPlainIpc } from './plainIpc';
+import { registerSentryIpc } from './sentryIpc';
 import { registerForgejoIpc } from './forgejoIpc';
 import { registerAccountIpc } from './accountIpc';
 import { changelogController } from './changelogIpc';
@@ -76,6 +77,7 @@ export function registerAllIpc() {
   registerMcpIpc();
   registerGitlabIpc();
   registerPlainIpc();
+  registerSentryIpc();
   registerForgejoIpc();
   registerAutomationsIpc();
   registerIntegrationsIpc();

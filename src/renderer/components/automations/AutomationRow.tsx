@@ -9,6 +9,7 @@ import {
   GitPullRequest,
   CircleDot,
   AlertTriangle,
+  Bug,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
@@ -42,6 +43,7 @@ interface AutomationRowProps {
 function getTriggerIcon(triggerType: string): React.ReactNode {
   if (triggerType === 'github_pr') return <GitPullRequest className="h-3 w-3" />;
   if (triggerType === 'linear_issue') return <CircleDot className="h-3 w-3" />;
+  if (triggerType === 'sentry_issue') return <Bug className="h-3 w-3" />;
   return <Zap className="h-3 w-3" />;
 }
 

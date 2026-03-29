@@ -24,7 +24,8 @@ export type TriggerType =
   | 'gitlab_issue'
   | 'gitlab_mr'
   | 'forgejo_issue'
-  | 'plain_thread';
+  | 'plain_thread'
+  | 'sentry_issue';
 
 export interface TriggerConfig {
   /** Filter PRs/issues by branch pattern (glob), e.g. "feature/*" */
@@ -112,6 +113,7 @@ export const TRIGGER_INTEGRATION_MAP: Record<TriggerType, IntegrationId> = {
   gitlab_mr: 'gitlab',
   forgejo_issue: 'forgejo',
   plain_thread: 'plain',
+  sentry_issue: 'sentry',
 };
 
 export interface UpdateAutomationInput {
