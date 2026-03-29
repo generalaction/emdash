@@ -11,6 +11,7 @@ import { Button } from '../ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogContentArea,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -240,8 +241,7 @@ const IntegrationsCard: React.FC = () => {
                   Enter your Linear API key to connect your workspace.
                 </DialogDescription>
               </DialogHeader>
-              <Separator />
-              <div className="space-y-4">
+              <DialogContentArea>
                 <Input
                   type="password"
                   value={linearInput}
@@ -261,7 +261,7 @@ const IntegrationsCard: React.FC = () => {
                     {linearError}
                   </p>
                 )}
-              </div>
+              </DialogContentArea>
               <DialogFooter>
                 <Button type="button" variant="outline" size="sm" onClick={closeModal}>
                   Cancel
@@ -287,8 +287,7 @@ const IntegrationsCard: React.FC = () => {
                   Enter your Jira site URL, email, and API token to connect.
                 </DialogDescription>
               </DialogHeader>
-              <Separator />
-              <div className="space-y-4">
+              <DialogContentArea>
                 <JiraSetupForm
                   site={jiraSite}
                   email={jiraEmail}
@@ -305,7 +304,7 @@ const IntegrationsCard: React.FC = () => {
                   hideHeader
                   hideFooter
                 />
-              </div>
+              </DialogContentArea>
               <DialogFooter>
                 <Button type="button" variant="outline" size="sm" onClick={closeModal}>
                   Cancel

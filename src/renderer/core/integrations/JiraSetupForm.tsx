@@ -33,13 +33,13 @@ const JiraSetupForm: React.FC<Props> = ({
     <div className="w-full">
       {!hideHeader && (
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-xs font-medium">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40  py-0.5 text-xs font-medium">
             <img src={jiraLogo} alt="Jira" className="h-3.5 w-3.5" />
             Jira
           </span>
         </div>
       )}
-      <div className={hideHeader ? 'grid gap-2' : 'mt-2 grid gap-2'}>
+      <div className="grid gap-2">
         <Input
           placeholder="https://your-domain.atlassian.net"
           value={site}
@@ -70,7 +70,7 @@ const JiraSetupForm: React.FC<Props> = ({
         </p>
       ) : null}
       {!hideFooter && (
-        <div className="mt-3 flex justify-end gap-2">
+        <div className="flex justify-end gap-2">
           <button
             type="button"
             className="inline-flex h-8 items-center justify-center rounded-md border border-border/70 bg-background px-2.5 text-xs font-medium"
