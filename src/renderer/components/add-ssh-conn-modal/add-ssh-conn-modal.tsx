@@ -16,6 +16,7 @@ import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogClose,
   DialogContent,
+  DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -155,52 +156,23 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
           </Button>
           <DialogTitle>Add SSH Connection</DialogTitle>
         </div>
-        <DialogClose
-          render={
-            <Button variant="ghost" size="icon-sm" className="-mr-2">
-              <XIcon className="w-4 h-4" />
-            </Button>
-          }
-        />
       </DialogHeader>
-      <form
-        id="add-ssh-conn-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          form.handleSubmit();
-        }}
-      >
-        <FieldGroup>
-          {/* Connection name */}
-          <form.Field name="name">
-            {(field) => {
-              const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
-              return (
-                <Field data-invalid={isInvalid}>
-                  <FieldLabel htmlFor={field.name}>Connection Name</FieldLabel>
-                  <Input
-                    id={field.name}
-                    name={field.name}
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    aria-invalid={isInvalid}
-                    placeholder="My Server"
-                  />
-                  {isInvalid && <FieldError errors={field.state.meta.errors} />}
-                </Field>
-              );
-            }}
-          </form.Field>
-
-          {/* Host + Port */}
-          <div className="grid grid-cols-[1fr_6rem] gap-3">
-            <form.Field name="host">
+      <DialogContentArea>
+        <form
+          id="add-ssh-conn-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            form.handleSubmit();
+          }}
+        >
+          <FieldGroup>
+            {/* Connection name */}
+            <form.Field name="name">
               {(field) => {
                 const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
                 return (
                   <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>Host</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>Connection Name</FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -208,168 +180,192 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
                       onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={isInvalid}
-                      placeholder="example.com"
+                      placeholder="My Server"
                     />
                     {isInvalid && <FieldError errors={field.state.meta.errors} />}
                   </Field>
                 );
               }}
             </form.Field>
-            <form.Field name="port">
+
+            {/* Host + Port */}
+            <div className="grid grid-cols-[1fr_6rem] gap-3">
+              <form.Field name="host">
+                {(field) => {
+                  const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                  return (
+                    <Field data-invalid={isInvalid}>
+                      <FieldLabel htmlFor={field.name}>Host</FieldLabel>
+                      <Input
+                        id={field.name}
+                        name={field.name}
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        aria-invalid={isInvalid}
+                        placeholder="example.com"
+                      />
+                      {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
+                }}
+              </form.Field>
+              <form.Field name="port">
+                {(field) => {
+                  const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                  return (
+                    <Field data-invalid={isInvalid}>
+                      <FieldLabel htmlFor={field.name}>Port</FieldLabel>
+                      <Input
+                        id={field.name}
+                        name={field.name}
+                        type="number"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(Number(e.target.value))}
+                        aria-invalid={isInvalid}
+                      />
+                      {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
+                }}
+              </form.Field>
+            </div>
+
+            {/* Username */}
+            <form.Field name="username">
               {(field) => {
                 const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
                 return (
                   <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>Port</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>Username</FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
-                      type="number"
                       value={field.state.value}
                       onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(Number(e.target.value))}
+                      onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={isInvalid}
+                      placeholder="ubuntu"
+                      autoComplete="off"
                     />
                     {isInvalid && <FieldError errors={field.state.meta.errors} />}
                   </Field>
                 );
               }}
             </form.Field>
-          </div>
 
-          {/* Username */}
-          <form.Field name="username">
-            {(field) => {
-              const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
-              return (
-                <Field data-invalid={isInvalid}>
-                  <FieldLabel htmlFor={field.name}>Username</FieldLabel>
-                  <Input
-                    id={field.name}
-                    name={field.name}
+            {/* Auth type */}
+            <form.Field name="authType">
+              {(field) => (
+                <FieldSet>
+                  <FieldLegend variant="label">Authentication</FieldLegend>
+                  <RadioGroup
                     value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    aria-invalid={isInvalid}
-                    placeholder="ubuntu"
-                    autoComplete="off"
-                  />
-                  {isInvalid && <FieldError errors={field.state.meta.errors} />}
-                </Field>
-              );
-            }}
-          </form.Field>
+                    onValueChange={(v) => field.handleChange(v as AuthType)}
+                    className="grid-cols-3"
+                  >
+                    {(['password', 'key', 'agent'] as const).map((type) => (
+                      <label
+                        key={type}
+                        className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+                      >
+                        <RadioGroupItem value={type} />
+                        {type === 'password' ? 'Password' : type === 'key' ? 'SSH Key' : 'Agent'}
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </FieldSet>
+              )}
+            </form.Field>
 
-          {/* Auth type */}
-          <form.Field name="authType">
-            {(field) => (
-              <FieldSet>
-                <FieldLegend variant="label">Authentication</FieldLegend>
-                <RadioGroup
-                  value={field.state.value}
-                  onValueChange={(v) => field.handleChange(v as AuthType)}
-                  className="grid-cols-3"
-                >
-                  {(['password', 'key', 'agent'] as const).map((type) => (
-                    <label
-                      key={type}
-                      className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-                    >
-                      <RadioGroupItem value={type} />
-                      {type === 'password' ? 'Password' : type === 'key' ? 'SSH Key' : 'Agent'}
-                    </label>
-                  ))}
-                </RadioGroup>
-              </FieldSet>
-            )}
-          </form.Field>
-
-          {/* Auth credential fields — reactive to authType */}
-          <form.Subscribe selector={(state) => state.values.authType}>
-            {(authType) => {
-              if (authType === 'password') {
-                return (
-                  <form.Field name="password">
-                    {(field) => {
-                      const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
-                      return (
-                        <Field data-invalid={isInvalid}>
-                          <FieldLabel htmlFor={field.name}>Password</FieldLabel>
-                          <Input
-                            id={field.name}
-                            name={field.name}
-                            type="password"
-                            value={field.state.value ?? ''}
-                            onBlur={field.handleBlur}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                            aria-invalid={isInvalid}
-                            autoComplete="current-password"
-                          />
-                          {isInvalid && <FieldError errors={field.state.meta.errors} />}
-                        </Field>
-                      );
-                    }}
-                  </form.Field>
-                );
-              }
-
-              if (authType === 'key') {
-                return (
-                  <>
-                    <form.Field name="privateKeyPath">
+            {/* Auth credential fields — reactive to authType */}
+            <form.Subscribe selector={(state) => state.values.authType}>
+              {(authType) => {
+                if (authType === 'password') {
+                  return (
+                    <form.Field name="password">
                       {(field) => {
                         const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
                         return (
                           <Field data-invalid={isInvalid}>
-                            <FieldLabel htmlFor={field.name}>Private Key Path</FieldLabel>
+                            <FieldLabel htmlFor={field.name}>Password</FieldLabel>
                             <Input
                               id={field.name}
                               name={field.name}
+                              type="password"
                               value={field.state.value ?? ''}
                               onBlur={field.handleBlur}
                               onChange={(e) => field.handleChange(e.target.value)}
                               aria-invalid={isInvalid}
-                              placeholder="~/.ssh/id_rsa"
+                              autoComplete="current-password"
                             />
                             {isInvalid && <FieldError errors={field.state.meta.errors} />}
                           </Field>
                         );
                       }}
                     </form.Field>
-                    <form.Field name="passphrase">
-                      {(field) => (
-                        <Field>
-                          <FieldLabel htmlFor={field.name}>Passphrase</FieldLabel>
-                          <Input
-                            id={field.name}
-                            name={field.name}
-                            type="password"
-                            value={field.state.value ?? ''}
-                            onBlur={field.handleBlur}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                            placeholder="Optional"
-                            autoComplete="off"
-                          />
-                          <FieldDescription>
-                            Leave empty if your key has no passphrase.
-                          </FieldDescription>
-                        </Field>
-                      )}
-                    </form.Field>
-                  </>
-                );
-              }
+                  );
+                }
 
-              return (
-                <FieldDescription>
-                  The SSH agent running on this machine will be used for authentication. Make sure
-                  your key is loaded into the agent.
-                </FieldDescription>
-              );
-            }}
-          </form.Subscribe>
-        </FieldGroup>
-      </form>
+                if (authType === 'key') {
+                  return (
+                    <>
+                      <form.Field name="privateKeyPath">
+                        {(field) => {
+                          const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                          return (
+                            <Field data-invalid={isInvalid}>
+                              <FieldLabel htmlFor={field.name}>Private Key Path</FieldLabel>
+                              <Input
+                                id={field.name}
+                                name={field.name}
+                                value={field.state.value ?? ''}
+                                onBlur={field.handleBlur}
+                                onChange={(e) => field.handleChange(e.target.value)}
+                                aria-invalid={isInvalid}
+                                placeholder="~/.ssh/id_rsa"
+                              />
+                              {isInvalid && <FieldError errors={field.state.meta.errors} />}
+                            </Field>
+                          );
+                        }}
+                      </form.Field>
+                      <form.Field name="passphrase">
+                        {(field) => (
+                          <Field>
+                            <FieldLabel htmlFor={field.name}>Passphrase</FieldLabel>
+                            <Input
+                              id={field.name}
+                              name={field.name}
+                              type="password"
+                              value={field.state.value ?? ''}
+                              onBlur={field.handleBlur}
+                              onChange={(e) => field.handleChange(e.target.value)}
+                              placeholder="Optional"
+                              autoComplete="off"
+                            />
+                            <FieldDescription>
+                              Leave empty if your key has no passphrase.
+                            </FieldDescription>
+                          </Field>
+                        )}
+                      </form.Field>
+                    </>
+                  );
+                }
+
+                return (
+                  <FieldDescription>
+                    The SSH agent running on this machine will be used for authentication. Make sure
+                    your key is loaded into the agent.
+                  </FieldDescription>
+                );
+              }}
+            </form.Subscribe>
+          </FieldGroup>
+        </form>
+      </DialogContentArea>
 
       {/* Test connection result */}
       {testState !== 'idle' && (
