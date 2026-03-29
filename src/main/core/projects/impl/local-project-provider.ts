@@ -5,7 +5,7 @@ import { LocalProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { createScriptTerminalId, type Terminal } from '@shared/terminals';
+import { type Terminal } from '@shared/terminals';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -168,7 +168,11 @@ export class LocalProjectProvider implements ProjectProvider {
       portSeed: workDir,
     });
     const tmuxEnabled = settings.tmux ?? false;
-    const scripts = settings.scripts;
+
+    // Read task-level settings from the worktree path — scripts live in the worktree's
+    // .emdash.json, not the project root (consistent with getTaskSettings RPC behavior).
+    const taskLevelSettings = await new LocalProjectSettingsProvider(workDir).get();
+    const scripts = taskLevelSettings.scripts;
 
     const exec = getLocalExec();
     const taskGit = new GitService(workDir, exec, taskFs);
@@ -190,6 +194,17 @@ export class LocalProjectProvider implements ProjectProvider {
       taskEnvVars,
     });
 
+    const taskLifecycleService = new TaskLifecycleService({
+      projectId: this.project.id,
+      taskId: task.id,
+      taskPath: workDir,
+      terminals: terminalProvider,
+      tmux: tmuxEnabled,
+      shellSetup: taskLevelSettings.shellSetup ?? settings.shellSetup,
+      exec,
+      taskEnvVars,
+    });
+
     const taskEnv: TaskProvider = {
       taskId: task.id,
       taskPath: workDir,
@@ -201,22 +216,20 @@ export class LocalProjectProvider implements ProjectProvider {
       conversations: conversationProvider,
       terminals: terminalProvider,
       settings: this.settings,
+      lifecycleService: taskLifecycleService,
     };
 
     if (scripts?.setup) {
-      const userShell =
-        process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+      void taskLifecycleService.runLifecycleScript(
+        { type: 'setup', script: scripts.setup },
+        { shouldRespawn: false }
+      );
+    }
 
-      const id = await createScriptTerminalId({
-        projectId: this.project.id,
-        taskId: task.id,
-        type: 'setup',
-        script: scripts.setup,
-      });
-      terminalProvider.spawnTerminal(
-        { id, projectId: this.project.id, taskId: task.id, name: '' },
-        { cols: 80, rows: 24 },
-        { command: userShell, args: ['-c', scripts.setup] }
+    if (scripts?.run) {
+      void taskLifecycleService.runLifecycleScript(
+        { type: 'run', script: scripts.run },
+        { shouldRespawn: false }
       );
     }
 
@@ -285,24 +298,12 @@ export class LocalProjectProvider implements ProjectProvider {
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
     const settings = await this.settings.get();
-
-    const taskLifecycleService = new TaskLifecycleService({
-      projectId: this.project.id,
-      taskId: task.taskId,
-      taskPath: task.taskPath,
-      terminals: task.terminals,
-      tmux: settings.tmux ?? false,
-      shellSetup: settings.shellSetup,
-      exec: getLocalExec(),
-      taskEnvVars: task.taskEnvVars,
-    });
-
     const scripts = settings.scripts;
 
     if (scripts?.teardown) {
-      taskLifecycleService.runLifecycleScript({
+      task.lifecycleService?.runLifecycleScript({
         type: 'teardown',
-        script: scripts?.teardown,
+        script: scripts.teardown,
       });
     }
 

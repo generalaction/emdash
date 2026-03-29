@@ -8,10 +8,13 @@ import { EmptyState } from '@renderer/components/ui/empty-state';
 import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
+import { TabViewProvider } from '@renderer/core/stores/generic-tab-view';
+import { PtySession } from '@renderer/core/stores/pty-session';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
+import { cn } from '@renderer/lib/utils';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TabbedPtyPanel } from '../tabbed-pty-panel';
 import { useTaskViewContext } from '../task-view-context';
@@ -23,6 +26,8 @@ import {
 } from './terminal-tabs';
 
 type PanelMode = 'terminals' | 'scripts';
+
+type AnyPtyEntity = { data: { id: string }; session: PtySession };
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -62,51 +67,88 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   });
 
   const toggleButton = lifecycleScriptsMgr ? (
-    <Tooltip>
-      <TooltipTrigger>
-        <button
-          className={`size-10 justify-center items-center flex border-l hover:bg-background ${
-            mode === 'scripts' ? 'text-foreground' : 'text-foreground-muted hover:text-foreground'
-          }`}
-          onClick={() => setMode((m) => (m === 'terminals' ? 'scripts' : 'terminals'))}
-        >
-          <LayoutList className="size-4" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>
-        {mode === 'terminals' ? 'Show lifecycle scripts' : 'Show terminals'}
-      </TooltipContent>
-    </Tooltip>
+    <div className="flex items-center border-l">
+      <Tooltip>
+        <TooltipTrigger>
+          <button
+            className={cn(
+              'size-10 flex items-center justify-center',
+              mode === 'terminals'
+                ? 'text-foreground bg-background-2'
+                : 'text-foreground-muted hover:text-foreground'
+            )}
+            onClick={() => setMode('terminals')}
+          >
+            <Terminal className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Terminals</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger>
+          <button
+            className={cn(
+              'size-10 flex items-center justify-center',
+              mode === 'scripts'
+                ? 'text-foreground bg-background-2'
+                : 'text-foreground-muted hover:text-foreground'
+            )}
+            onClick={() => setMode('scripts')}
+          >
+            <LayoutList className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Lifecycle Scripts</TooltipContent>
+      </Tooltip>
+    </div>
   ) : null;
 
-  if (mode === 'scripts') {
-    return (
-      <TabbedPtyPanel
-        autoFocus={autoFocus}
-        onFocusChange={(focused) => {
-          setIsPanelFocused(focused);
-          if (focused) taskStore?.setFocusedRegion('right');
-        }}
-        store={lifecycleScriptsMgr ?? undefined}
-        paneId="lifecycle-scripts"
-        getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
-        getSession={(s) => s.session}
-        tabBar={<ScriptsTabs lifecycleScriptsMgr={lifecycleScriptsMgr} actions={toggleButton} />}
-        emptyState={
-          <EmptyState
-            icon={<LayoutList className="h-5 w-5 text-muted-foreground" />}
-            label="No lifecycle scripts"
-            description="Add setup or run scripts to .emdash.json to see them here."
-            action={
-              <Button size="sm" variant="outline" onClick={() => setMode('terminals')}>
-                Back to terminals
-              </Button>
-            }
-          />
+  const store = (mode === 'terminals' ? terminalMgr : lifecycleScriptsMgr) as
+    | TabViewProvider<AnyPtyEntity, never>
+    | undefined;
+
+  const tabBar =
+    mode === 'terminals' ? (
+      <TerminalsTabs
+        projectId={projectId}
+        taskId={taskId}
+        terminalMgr={terminalMgr ?? null}
+        actions={toggleButton}
+      />
+    ) : (
+      <ScriptsTabs lifecycleScriptsMgr={lifecycleScriptsMgr} actions={toggleButton} />
+    );
+
+  const emptyState =
+    mode === 'terminals' ? (
+      <EmptyState
+        icon={<Terminal className="h-5 w-5 text-muted-foreground" />}
+        label="No terminals yet"
+        description="Add a terminal to run shell commands in this task's working directory."
+        action={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCreate}
+            className="flex items-center gap-2"
+          >
+            New terminal
+            <ShortcutHint settingsKey="newTerminal" />
+          </Button>
+        }
+      />
+    ) : (
+      <EmptyState
+        icon={<LayoutList className="h-5 w-5 text-muted-foreground" />}
+        label="No lifecycle scripts"
+        description="Add setup or run scripts to .emdash.json to see them here."
+        action={
+          <Button size="sm" variant="outline" onClick={() => setMode('terminals')}>
+            Back to terminals
+          </Button>
         }
       />
     );
-  }
 
   return (
     <TabbedPtyPanel
@@ -115,36 +157,12 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         setIsPanelFocused(focused);
         if (focused) taskStore?.setFocusedRegion('right');
       }}
-      store={terminalMgr}
-      paneId="terminals"
+      store={store}
+      paneId={mode === 'terminals' ? 'terminals' : 'lifecycle-scripts'}
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}
-      tabBar={
-        <TerminalsTabs
-          projectId={projectId}
-          taskId={taskId}
-          terminalMgr={terminalMgr ?? null}
-          actions={toggleButton}
-        />
-      }
-      emptyState={
-        <EmptyState
-          icon={<Terminal className="h-5 w-5 text-muted-foreground" />}
-          label="No terminals yet"
-          description="Add a terminal to run shell commands in this task's working directory."
-          action={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCreate}
-              className="flex items-center gap-2"
-            >
-              New terminal
-              <ShortcutHint settingsKey="newTerminal" />
-            </Button>
-          }
-        />
-      }
+      tabBar={tabBar}
+      emptyState={emptyState}
     />
   );
 });

@@ -4,7 +4,7 @@ import { spawnLocalPty } from '../pty/local-pty';
 import { Pty } from '../pty/pty';
 import { buildTerminalEnv } from '../pty/pty-env';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
-import { resolveSpawnParams } from '../pty/spawn-utils';
+import { buildTmuxParams } from '../pty/spawn-utils';
 import { killTmuxSession, makeTmuxSessionName } from '../pty/tmux-session-name';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { ExecFn } from '../utils/exec';
@@ -86,13 +86,19 @@ export class TaskLifecycleService {
     const sessionId = makePtySessionId(this.projectId, this.taskId, id);
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
-    const params = resolveSpawnParams('general', {
-      cwd: this.taskPath,
-      shellSetup: this.shellSetup,
-      tmuxSessionName,
-      command: userShell,
-      args: ['-c', script.script],
-    });
+    // Build the script command directly. Do NOT pass userShell as cfg.command into
+    // resolveSpawnParams('general') — that path joins shell+args as a single string
+    // then re-wraps in another shell -c, double-wrapping the command and breaking it.
+    //
+    // Always drop into an interactive shell after the script completes so the terminal
+    // stays live. `exec` replaces the -c shell in-place; the new shell detects the PTY
+    // and starts interactively (sources .zshrc/.bashrc, shows a prompt, etc.).
+    const scriptBody = this.shellSetup ? `${this.shellSetup} && ${script.script}` : script.script;
+    const scriptCmd = `${scriptBody}; exec ${userShell}`;
+
+    const params = tmuxSessionName
+      ? buildTmuxParams(userShell, tmuxSessionName, scriptCmd, this.taskPath)
+      : { command: userShell, args: ['-c', scriptCmd], cwd: this.taskPath };
 
     const pty = spawnLocalPty({
       id: sessionId,
@@ -104,13 +110,15 @@ export class TaskLifecycleService {
       rows: initialSize.rows,
     });
 
-    ptySessionRegistry.register(sessionId, pty);
+    ptySessionRegistry.register(sessionId, pty, { preserveBufferOnExit: true });
     this.sessions.set(id, pty);
 
     return new Promise<void>((resolve) => {
       pty.onExit(() => {
         this.sessions.delete(id);
-        ptySessionRegistry.unregister(sessionId);
+        // Do NOT call ptySessionRegistry.unregister here — the register() call above uses
+        // preserveBufferOnExit: true, which keeps the ring buffer so late-connecting renderers
+        // can replay output. Explicit unregister (ring buffer deletion) happens at teardown.
         if (tmuxSessionName) {
           killTmuxSession(this.exec, tmuxSessionName);
         }

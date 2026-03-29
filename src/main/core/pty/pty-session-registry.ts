@@ -11,7 +11,9 @@ export class PtySessionRegistry {
   private ringBuffers: Map<string, string> = new Map();
   private activeConsumers: Set<string> = new Set();
 
-  register(sessionId: string, pty: Pty): void {
+  register(sessionId: string, pty: Pty, options?: { preserveBufferOnExit?: boolean }): void {
+    const preserveBufferOnExit = options?.preserveBufferOnExit ?? false;
+
     // Clear any stale ring buffer and consumer from a previous PTY at this sessionId (respawn)
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
@@ -47,7 +49,14 @@ export class PtySessionRegistry {
         flush();
       }
       events.emit(ptyExitChannel, info, sessionId);
-      this.unregister(sessionId);
+      if (preserveBufferOnExit) {
+        // Partial cleanup: keep ring buffer so late-connecting renderers can replay output
+        this.ptyMap.delete(sessionId);
+        this.ptyInputSubscriptions.get(sessionId)?.();
+        this.ptyInputSubscriptions.delete(sessionId);
+      } else {
+        this.unregister(sessionId);
+      }
     });
 
     const off = events.on(

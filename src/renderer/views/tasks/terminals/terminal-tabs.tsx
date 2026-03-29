@@ -80,7 +80,7 @@ export const TerminalsTabs = observer(function TerminalsTabs({
       onRename={(id, name) => void terminalMgr.renameTerminal(id, name)}
       onReorder={(from, to) => terminalMgr.reorderTabs(from, to)}
       actions={
-        <>
+        <div className="flex items-center">
           <Tooltip>
             <TooltipTrigger>
               <button
@@ -96,7 +96,7 @@ export const TerminalsTabs = observer(function TerminalsTabs({
             </TooltipContent>
           </Tooltip>
           {actions}
-        </>
+        </div>
       }
     />
   );

@@ -31,7 +31,7 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
       <PrProvider projectId={projectId} taskId={taskId}>
-        <EditorProvider taskId={taskId} projectId={projectId}>
+        <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
           {children}
         </EditorProvider>
       </PrProvider>

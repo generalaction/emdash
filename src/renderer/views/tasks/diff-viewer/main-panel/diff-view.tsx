@@ -29,7 +29,7 @@ export const DiffView = observer(function DiffView() {
         diffStyle={diffStyle}
         onDiffStyleChange={(style) => diffView?.setDiffStyle(style)}
       />
-      <DiffEditorProvider>
+      <DiffEditorProvider key={taskId}>
         <div className="min-h-0 flex-1">
           {viewMode === 'stacked' ? <StackedDiffView /> : <FileDiffView />}
         </div>
