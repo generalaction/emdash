@@ -131,6 +131,19 @@ export interface AppSettings {
   changelog?: {
     dismissedVersions: string[];
   };
+  ciAutoFix?: CiAutoFixSettings;
+}
+
+export interface CiAutoFixCheckFilters {
+  include?: string[];
+  exclude?: string[];
+}
+
+export interface CiAutoFixSettings {
+  enabled: boolean;
+  mode: 'auto' | 'review';
+  maxRetries: number;
+  checkFilters?: CiAutoFixCheckFilters;
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -217,6 +230,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   hiddenOpenInApps: [],
   changelog: {
     dismissedVersions: [],
+  },
+  ciAutoFix: {
+    enabled: false,
+    mode: 'review',
+    maxRetries: 3,
   },
 };
 

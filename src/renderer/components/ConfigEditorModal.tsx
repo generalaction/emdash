@@ -21,12 +21,22 @@ type WorkspaceProviderConfig = {
   terminateCommand: string;
 };
 
+type CiAutoFixConfig = {
+  enabled?: boolean;
+  mode?: 'auto' | 'review';
+  checkFilters?: {
+    include?: string[];
+    exclude?: string[];
+  };
+};
+
 type ConfigShape = Record<string, unknown> & {
   preservePatterns?: string[];
   scripts?: Partial<LifecycleScripts>;
   shellSetup?: string;
   tmux?: boolean;
   workspaceProvider?: WorkspaceProviderConfig;
+  ciAutoFix?: CiAutoFixConfig;
 };
 
 interface ConfigEditorModalProps {
@@ -139,6 +149,22 @@ function applyWorkspaceProvider(
   };
 }
 
+function ciAutoFixFromConfig(config: ConfigShape): CiAutoFixConfig | null {
+  const ci = config.ciAutoFix;
+  if (!ci || typeof ci !== 'object') return null;
+  return {
+    enabled: ci.enabled,
+    mode: ci.mode,
+    checkFilters: ci.checkFilters,
+  };
+}
+
+function applyCiAutoFix(config: ConfigShape, ciAutoFix: CiAutoFixConfig | null): ConfigShape {
+  const { ciAutoFix: _ci, ...rest } = config;
+  if (!ciAutoFix?.enabled) return rest;
+  return { ...rest, ciAutoFix };
+}
+
 export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   isOpen,
   onClose,
@@ -160,6 +186,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [originalWpProvisionCommand, setOriginalWpProvisionCommand] = useState('');
   const [wpTerminateCommand, setWpTerminateCommand] = useState('');
   const [originalWpTerminateCommand, setOriginalWpTerminateCommand] = useState('');
+  const [ciAutoFixEnabled, setCiAutoFixEnabled] = useState(false);
+  const [originalCiAutoFixEnabled, setOriginalCiAutoFixEnabled] = useState(false);
+  const [ciAutoFixMode, setCiAutoFixMode] = useState<'auto' | 'review'>('review');
+  const [originalCiAutoFixMode, setOriginalCiAutoFixMode] = useState<'auto' | 'review'>('review');
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -176,13 +206,27 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   );
 
   const normalizedConfigContent = useMemo(() => {
+    const ciAutoFixConfig: CiAutoFixConfig | null = ciAutoFixEnabled
+      ? { enabled: true, mode: ciAutoFixMode }
+      : null;
     const withPatterns = applyPreservePatterns(config, preservePatterns);
     const withShellSetup = applyShellSetup(withPatterns, shellSetup);
     const withTmux = applyTmux(withShellSetup, tmux);
     const withWp = applyWorkspaceProvider(withTmux, wpProvisionCommand, wpTerminateCommand);
-    const withScripts = applyScripts(withWp, scripts);
+    const withCiAutoFix = applyCiAutoFix(withWp, ciAutoFixConfig);
+    const withScripts = applyScripts(withCiAutoFix, scripts);
     return `${JSON.stringify(withScripts, null, 2)}\n`;
-  }, [config, preservePatterns, shellSetup, tmux, wpProvisionCommand, wpTerminateCommand, scripts]);
+  }, [
+    config,
+    preservePatterns,
+    shellSetup,
+    tmux,
+    wpProvisionCommand,
+    wpTerminateCommand,
+    scripts,
+    ciAutoFixEnabled,
+    ciAutoFixMode,
+  ]);
 
   const scriptsDirty = useMemo(
     () =>

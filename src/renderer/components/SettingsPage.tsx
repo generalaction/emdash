@@ -10,6 +10,7 @@ import TelemetryCard from './TelemetryCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import { UpdateCard } from './UpdateCard';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
+import CiAutoFixSettingsCard from './CiAutoFixSettingsCard';
 import {
   AutoApproveByDefaultRow,
   AutoGenerateTaskNamesRow,
@@ -215,6 +216,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
         },
         {
           component: <AutoTrustWorktreesRow taskSettings={taskSettings} />,
+        },
+        {
+          component: <CiAutoFixSettingsCard />,
         },
         {
           component: <NotificationSettingsCard />,

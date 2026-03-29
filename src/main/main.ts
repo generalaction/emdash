@@ -10,6 +10,8 @@ try {
 
 import { app, BrowserWindow, dialog } from 'electron';
 import { initializeShellEnvironment } from './utils/shellEnv';
+import { ciMonitorService } from './services/CiMonitorService';
+import { setupCiIpc } from './ipc/ciIpc';
 // Ensure PATH matches the user's shell when launched from Finder (macOS)
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
 try {
@@ -195,6 +197,9 @@ app.whenReady().then(async () => {
       rmSync(filePath, { force: true });
     }
   };
+
+  ciMonitorService.start();
+  setupCiIpc();
 
   // Initialize database
   let dbInitOk = false;
@@ -386,4 +391,6 @@ app.on('before-quit', () => {
 
   // Disconnect all SSH connections to avoid orphaned sessions on remote hosts
   sshService.disconnectAll().catch(() => {});
+
+  ciMonitorService.stop();
 });
