@@ -23,6 +23,8 @@ export interface PromptWaitHandle {
 
 /**
  * Waits for a shell prompt to appear in PTY output before writing data.
+ * Accumulates output across chunks so prompts split across TCP segments
+ * (common with fish shell over SSH) are detected reliably.
  * Falls back to writing after a configurable timeout.
  */
 export function waitForShellPrompt(options: PromptWaitOptions): PromptWaitHandle {
@@ -51,7 +53,12 @@ export function waitForShellPrompt(options: PromptWaitOptions): PromptWaitHandle
   const unsubscribe = subscribe((chunk: string) => {
     if (done) return;
 
-    const clean = stripAnsi(chunk, { includePrivateCsiParams: true });
+    const clean = stripAnsi(chunk, {
+      includePrivateCsiParams: true,
+      stripOtherEscapes: true,
+      stripOscSt: true,
+      stripCarriageReturn: true,
+    });
     if (!clean) return;
 
     promptBuffer += clean;

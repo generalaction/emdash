@@ -345,4 +345,92 @@ describe('waitForShellPrompt', () => {
     pty.emit('user@server:~$ ');
     expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
   });
+
+  it('detects fish shell prompt (user@host ~>)', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    pty.emit('Welcome to fish, the friendly interactive shell\r\n');
+    pty.emit('Type `help` for instructions on how to use fish\r\n');
+    expect(pty.write).not.toHaveBeenCalled();
+
+    pty.emit('user@hostname ~> ');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
+  it('detects fish prompt split across TCP segments (#1597)', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    pty.emit('Welcome to fish, the friendly interactive shell\r\n');
+    // Fish may split the prompt across multiple writes over SSH
+    pty.emit('user@hostname ~');
+    expect(pty.write).not.toHaveBeenCalled();
+
+    pty.emit('> ');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
+  it('detects prompt when > arrives alone after accumulated context', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    // Prompt character arrives in its own chunk but there's context in the buffer
+    pty.emit('user@host:~');
+    expect(pty.write).not.toHaveBeenCalled();
+
+    pty.emit('$ ');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
+  it('strips Fe escape sequences (cursor save/restore) used by fish', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    // Fish uses \x1b7 (save cursor) and \x1b8 (restore cursor) for right-prompt rendering
+    pty.emit('user@hostname ~> \x1b7\x1b8');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
+  it('strips OSC sequences with ST terminator', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    // Some terminals/shells use \x1b\\ (ST) instead of \x07 (BEL) to terminate OSC
+    pty.emit('\x1b]0;fish /home/user\x1b\\user@hostname ~> ');
+    expect(pty.write).toHaveBeenCalledWith('cd /foo\n');
+  });
+
+  it('does not match bare > without accumulated context', () => {
+    const pty = createMockPty();
+    waitForShellPrompt({
+      subscribe: pty.subscribe,
+      write: pty.write,
+      data: 'cd /foo\n',
+    });
+
+    // Bare > with no preceding non-whitespace context should not match
+    pty.emit('> ');
+    expect(pty.write).not.toHaveBeenCalled();
+  });
 });
