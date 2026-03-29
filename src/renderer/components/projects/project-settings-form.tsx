@@ -1,14 +1,12 @@
 import { GitBranch } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Branch } from '@shared/git';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { Button } from '@renderer/components/ui/button';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
-import { DialogFooter } from '@renderer/components/ui/dialog';
 import { Field, FieldDescription, FieldGroup, FieldTitle } from '@renderer/components/ui/field';
 import { Input } from '@renderer/components/ui/input';
-import { ScrollArea } from '@renderer/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -77,8 +75,6 @@ export interface ProjectSettingsFormProps {
   projectId: string;
   initial: ProjectSettings;
   onSuccess: () => void;
-  /** When provided, a Cancel button is rendered that calls this handler. */
-  onClose?: () => void;
   save: (settings: ProjectSettings) => Promise<void>;
   isSaving: boolean;
 }
@@ -87,17 +83,20 @@ export function ProjectSettingsForm({
   projectId,
   initial,
   onSuccess,
-  onClose,
   save,
   isSaving,
 }: ProjectSettingsFormProps) {
   const { branches } = useBranches(projectId);
   const { remotes } = useRemotes(projectId);
 
-  const [form, setForm] = useState<FormState>(() => settingsToForm(initial));
-  const [original] = useState<FormState>(() => settingsToForm(initial));
+  const baseline = useMemo(() => settingsToForm(initial), [initial]);
+  const [form, setForm] = useState<FormState>(baseline);
 
-  const isDirty = JSON.stringify(form) !== JSON.stringify(original);
+  useEffect(() => {
+    setForm(baseline);
+  }, [baseline]);
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -109,9 +108,10 @@ export function ProjectSettingsForm({
   }
 
   return (
-    <>
-      <ScrollArea className="max-h-[62vh]">
-        <FieldGroup className="pr-1">
+    <div className="flex flex-col max-w-3xl mx-auto w-full h-full overflow-hidden px-10">
+      <h1 className="text-lg font-medium pt-10 pb-5">Project Settings</h1>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none' }}>
+        <FieldGroup>
           <Field>
             <FieldTitle>Preserve patterns</FieldTitle>
             <FieldDescription>
@@ -263,18 +263,15 @@ export function ProjectSettingsForm({
             </Field>
           </div>
         </FieldGroup>
-      </ScrollArea>
-
-      <DialogFooter>
-        {onClose && (
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>
-            Cancel
-          </Button>
-        )}
+      </div>
+      <div className="flex justify-end gap-2 pt-5 pb-10">
+        <Button variant="outline" onClick={() => setForm(baseline)} disabled={!isDirty || isSaving}>
+          Cancel
+        </Button>
         <ConfirmButton onClick={() => void handleSave()} disabled={!isDirty || isSaving}>
           {isSaving ? 'Saving…' : 'Save'}
         </ConfirmButton>
-      </DialogFooter>
-    </>
+      </div>
+    </div>
   );
 }

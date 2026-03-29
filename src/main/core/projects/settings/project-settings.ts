@@ -2,7 +2,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import { log } from '@main/lib/logger';
 import { ProjectSettings, ProjectSettingsProvider, projectSettingsSchema } from './schema';
+
+const defaults = () => projectSettingsSchema.parse({});
+
+function parseSettingsOrDefault(raw: string, source: string): ProjectSettings {
+  try {
+    return projectSettingsSchema.parse(JSON.parse(raw));
+  } catch (err) {
+    log.warn(`Failed to parse ${source}, using defaults`, err);
+    return defaults();
+  }
+}
 
 export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
   constructor(
@@ -13,11 +25,9 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
   async get(): Promise<ProjectSettings> {
     const settingsPath = path.join(this.projectPath, '.emdash.json');
     if (!fs.existsSync(settingsPath)) {
-      const defaultSettings = projectSettingsSchema.parse(JSON.parse('{}'));
-      return defaultSettings;
+      return defaults();
     }
-    const settings = projectSettingsSchema.parse(JSON.parse(fs.readFileSync(settingsPath, 'utf8')));
-    return settings;
+    return parseSettingsOrDefault(fs.readFileSync(settingsPath, 'utf8'), settingsPath);
   }
 
   async update(settings: ProjectSettings): Promise<void> {
@@ -28,8 +38,7 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
   async ensure(): Promise<void> {
     const settingsPath = path.join(this.projectPath, '.emdash.json');
     if (!fs.existsSync(settingsPath)) {
-      const defaultSettings = projectSettingsSchema.parse(JSON.parse('{}'));
-      fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
+      fs.writeFileSync(settingsPath, JSON.stringify(defaults(), null, 2));
     }
   }
 
@@ -61,15 +70,15 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
   async get(): Promise<ProjectSettings> {
     const exists = await this.fs.exists('.emdash.json');
     if (!exists) {
-      const defaultSettings = projectSettingsSchema.parse(JSON.parse('{}'));
+      const defaultSettings = defaults();
       await this.fs.write('.emdash.json', JSON.stringify(defaultSettings, null, 2));
       return defaultSettings;
     }
 
-    const settings = projectSettingsSchema.parse(
-      JSON.parse((await this.fs.read('.emdash.json')).content)
+    return parseSettingsOrDefault(
+      (await this.fs.read('.emdash.json')).content,
+      '.emdash.json (ssh)'
     );
-    return settings;
   }
 
   async update(settings: ProjectSettings): Promise<void> {
@@ -79,8 +88,7 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
   async ensure(): Promise<void> {
     const exists = await this.fs.exists('.emdash.json');
     if (!exists) {
-      const defaultSettings = projectSettingsSchema.parse(JSON.parse('{}'));
-      await this.fs.write('.emdash.json', JSON.stringify(defaultSettings, null, 2));
+      await this.fs.write('.emdash.json', JSON.stringify(defaults(), null, 2));
     }
   }
 
