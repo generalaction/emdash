@@ -321,6 +321,7 @@ const TerminalSettingsCard: React.FC = () => {
           </p>
         </div>
         <Switch
+          aria-label="Auto-copy selected text"
           checked={autoCopyOnSelection}
           disabled={loading || saving}
           onCheckedChange={toggleAutoCopy}
@@ -335,6 +336,7 @@ const TerminalSettingsCard: React.FC = () => {
             </p>
           </div>
           <Switch
+            aria-label="Use Option as Meta key"
             checked={macOptionIsMeta}
             disabled={loading || saving}
             onCheckedChange={toggleMacOptionIsMeta}
