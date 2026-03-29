@@ -65,10 +65,6 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
     }
   }, [sessionStatus]);
 
-  if (tabs.length === 0) {
-    return <>{emptyState}</>;
-  }
-
   return (
     <div
       className="flex h-full flex-col"
@@ -84,23 +80,27 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
       }}
     >
       <div className="shrink-0">{tabBar}</div>
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col transition-opacity duration-150',
-          !isFocused && 'opacity-50'
+      <PaneSizingProvider paneId={paneId} sessionIds={allSessionIds}>
+        {tabs.length === 0 ? (
+          emptyState
+        ) : (
+          <div
+            className={cn(
+              'flex min-h-0 flex-1 flex-col transition-opacity duration-150',
+              !isFocused && 'opacity-50'
+            )}
+          >
+            {activeSessionId && activeSession?.status === 'ready' && activeSession.pty && (
+              <TerminalPane
+                ref={terminalRef}
+                sessionId={activeSessionId}
+                pty={activeSession.pty}
+                className="h-full w-full"
+              />
+            )}
+          </div>
         )}
-      >
-        <PaneSizingProvider paneId={paneId} sessionIds={allSessionIds}>
-          {activeSessionId && activeSession?.status === 'ready' && activeSession.pty && (
-            <TerminalPane
-              ref={terminalRef}
-              sessionId={activeSessionId}
-              pty={activeSession.pty}
-              className="h-full w-full"
-            />
-          )}
-        </PaneSizingProvider>
-      </div>
+      </PaneSizingProvider>
     </div>
   );
 }) as <TEntity>(props: TabbedPtyPanelProps<TEntity>) => React.ReactElement;

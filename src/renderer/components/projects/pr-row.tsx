@@ -1,6 +1,5 @@
 import { formatDistanceToNow } from 'date-fns';
 import {
-  ArrowUpRight,
   ExternalLink,
   GitMerge,
   GitPullRequestArrow,
@@ -11,7 +10,6 @@ import { memo } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { rpc } from '@renderer/core/ipc';
 import { SeparatorDot } from '../ui/dot';
 

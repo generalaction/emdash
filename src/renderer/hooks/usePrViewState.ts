@@ -23,7 +23,7 @@ export function usePrViewState(projectId: string, nameWithOwner: string | null) 
   const [selectedLabelNames, setSelectedLabelNames] = useState<string[]>([]);
   const [selectedAssigneeLogin, setSelectedAssigneeLogin] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const debouncedQuery = useDebounce(query, 300);
+  const debouncedQuery = useDebounce(query, 200);
   const [syncing, setSyncing] = useState(false);
 
   const filters: PrFilters = {
