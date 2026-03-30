@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@renderer/components/ui/button';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
-import { DialogClose, DialogContent } from '@renderer/components/ui/dialog';
+import { DialogClose } from '@renderer/components/ui/dialog';
 import { Input } from '@renderer/components/ui/input';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { rpc } from '@renderer/core/ipc';
@@ -87,10 +87,7 @@ export function CreatePrModal({ nameWithOwner, branchName, draft, onSuccess, onC
   };
 
   return (
-    <DialogContent
-      className="flex max-h-[70vh] flex-col gap-0 p-0 sm:max-w-2xl"
-      showCloseButton={false}
-    >
+    <>
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
         <span className="text-sm font-medium">
           {draft ? 'Create Draft PR' : 'Create Pull Request'}
@@ -133,6 +130,6 @@ export function CreatePrModal({ nameWithOwner, branchName, draft, onSuccess, onC
           {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
         </ConfirmButton>
       </div>
-    </DialogContent>
+    </>
   );
 }

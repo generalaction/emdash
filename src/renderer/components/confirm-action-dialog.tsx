@@ -2,7 +2,6 @@ import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { Button } from './ui/button';
 import { ConfirmButton } from './ui/confirm-button';
 import {
-  DialogContent,
   DialogContentArea,
   DialogDescription,
   DialogFooter,
@@ -28,7 +27,7 @@ export function ConfirmActionDialog({
   onClose,
 }: Props) {
   return (
-    <DialogContent className="sm:max-w-xs">
+    <>
       <DialogHeader showCloseButton={false}>
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
@@ -43,6 +42,6 @@ export function ConfirmActionDialog({
           {confirmLabel}
         </ConfirmButton>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 }

@@ -11,7 +11,6 @@ import { useGithubContext } from '../core/github-context-provider';
 import { events, rpc } from '../core/ipc';
 import { useToast } from '../hooks/use-toast';
 import { Button } from './ui/button';
-import { DialogContent } from './ui/dialog';
 import { Spinner } from './ui/spinner';
 
 interface GithubDeviceFlowModalProps {
@@ -241,7 +240,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
   }, [userCode]);
 
   return (
-    <DialogContent className="max-w-[480px] p-0">
+    <>
       <div className="flex flex-col items-center px-8 py-12">
         <img src={emdashLogo} alt="Emdash" className="mb-8 h-8 opacity-90" />
 
@@ -389,6 +388,6 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
           </div>
         )}
       </div>
-    </DialogContent>
+    </>
   );
 }

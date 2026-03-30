@@ -4,7 +4,6 @@ import { AgentProviderId } from '@shared/agent-provider-registry';
 import { AgentSelector } from '@renderer/components/agent-selector';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
-  DialogContent,
   DialogContentArea,
   DialogFooter,
   DialogHeader,
@@ -63,7 +62,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   }, [conversationMgr, providerId, title, onSuccess, projectId, taskId, skipPermissions]);
 
   return (
-    <DialogContent>
+    <>
       <DialogHeader>
         <DialogTitle>Create Conversation</DialogTitle>
       </DialogHeader>
@@ -88,6 +87,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
       <DialogFooter>
         <ConfirmButton onClick={handleCreateConversation}>Create</ConfirmButton>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 });

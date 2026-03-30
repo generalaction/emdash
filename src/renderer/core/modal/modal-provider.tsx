@@ -1,5 +1,7 @@
-import { createContext, ReactNode, useCallback, useContext, useRef, useState } from 'react';
+import { observer } from 'mobx-react-lite';
+import { createContext, ReactNode, useCallback, useContext } from 'react';
 import { modalRegistry } from './modal-registry';
+import { modalStore } from './modal-store';
 
 export interface BaseModalProps<TResult = unknown> {
   onSuccess: (result: TResult) => void;
@@ -19,80 +21,71 @@ export type ModalComponent<TProps = unknown, TResult = unknown> = (
 
 type ModalId = keyof typeof modalRegistry;
 
-type ModalArgs<TId extends ModalId> = Parameters<(typeof modalRegistry)[TId]>[0];
+type ModalArgs<TId extends ModalId> = Parameters<(typeof modalRegistry)[TId]['component']>[0];
 
 type ModalContext = {
-  activeModalId: ModalId | null;
-  renderModal: () => ReactNode;
   closeModal: () => void;
   showModal: <TId extends ModalId>(modal: TId, args: UserArgs<TId>) => void;
+  transitionModal: <TId extends ModalId>(modal: TId, args: UserArgs<TId>) => void;
   hasActiveCloseGuard: boolean;
   setCloseGuard: (active: boolean) => void;
 };
 
 const ModalContext = createContext<ModalContext | undefined>(undefined);
 
-export function ModalProvider({ children }: { children: ReactNode }) {
-  const [activeModalId, setActiveModalId] = useState<ModalId | null>(null);
-  const activeModalArgs = useRef<ModalArgs<ModalId> | null>(null);
-  const [closeGuardActive, setCloseGuardActive] = useState(false);
-
-  const renderModal = useCallback((): ReactNode => {
-    if (!activeModalId || !activeModalArgs.current) return null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function wrapArgs<TId extends ModalId>(args: UserArgs<TId>): Record<string, any> {
+  return {
+    ...args,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const Component = modalRegistry[activeModalId] as React.ComponentType<any>;
-    return <Component {...activeModalArgs.current} />;
-  }, [activeModalId]);
-
-  const dispatchOverlayEvent = (open: boolean) => {
-    window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open } }));
+    onSuccess: (result: any) => {
+      modalStore.closeModal();
+      args.onSuccess?.(result);
+    },
+    onClose: () => {
+      modalStore.closeModal();
+      args.onClose?.();
+    },
   };
+}
+
+export const ModalProvider = observer(function ModalProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const showModal = useCallback(<TId extends ModalId>(id: TId, args: UserArgs<TId>) => {
+    modalStore.setModal(id, wrapArgs(args));
+    window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open: true } }));
+  }, []);
+
+  const transitionModal = useCallback(<TId extends ModalId>(id: TId, args: UserArgs<TId>) => {
+    modalStore.setModal(id, wrapArgs(args));
+    // No overlay event — the dialog stays open; AnimatedHeight handles the content swap.
+  }, []);
 
   const closeModal = useCallback(() => {
-    setCloseGuardActive(false);
-    setActiveModalId(null);
-    activeModalArgs.current = null;
-    dispatchOverlayEvent(false);
-  }, [setActiveModalId, activeModalArgs]);
+    modalStore.closeModal();
+  }, []);
 
-  const showModal = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <TId extends ModalId>(id: TId, args: UserArgs<TId>) => {
-      const wrappedArgs = {
-        ...args,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        onSuccess: (result: any) => {
-          closeModal();
-          args.onSuccess?.(result);
-        },
-        onClose: () => {
-          closeModal();
-          args.onClose?.();
-        },
-      };
-      setActiveModalId(id);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      activeModalArgs.current = wrappedArgs as any;
-      dispatchOverlayEvent(true);
-    },
-    [setActiveModalId, activeModalArgs, closeModal]
-  );
+  const setCloseGuard = useCallback((active: boolean) => {
+    modalStore.closeGuardActive = active;
+  }, []);
 
   return (
     <ModalContext.Provider
       value={{
-        activeModalId: activeModalId,
-        renderModal: renderModal,
-        closeModal: closeModal,
-        showModal: showModal,
-        hasActiveCloseGuard: closeGuardActive,
-        setCloseGuard: setCloseGuardActive,
+        closeModal,
+        showModal,
+        transitionModal,
+        hasActiveCloseGuard: modalStore.closeGuardActive,
+        setCloseGuard,
       }}
     >
       {children}
     </ModalContext.Provider>
   );
-}
+});
 
 export function useModalContext() {
   const context = useContext(ModalContext);
@@ -105,4 +98,9 @@ export function useModalContext() {
 export function useShowModal<MId extends ModalId>(id: MId) {
   const { showModal } = useModalContext();
   return (args: UserArgs<MId>) => showModal(id, args);
+}
+
+export function useTransitionModal<MId extends ModalId>(id: MId) {
+  const { transitionModal } = useModalContext();
+  return (args: UserArgs<MId>) => transitionModal(id, args);
 }

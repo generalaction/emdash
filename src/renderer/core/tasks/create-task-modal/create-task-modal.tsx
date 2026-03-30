@@ -6,14 +6,13 @@ import { AnimatedHeight } from '@renderer/components/ui/animated-height';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
-  DialogContent,
   DialogContentArea,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@renderer/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
-import { BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { BaseModalProps, useTransitionModal } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
 import { MountedProject } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
@@ -39,6 +38,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const { branches, defaultBranch } = useRepository(selectedProjectId);
   const { navigate } = useNavigate();
+  const transitionToConversation = useTransitionModal('createConversationModal');
 
   const projectData = selectedProjectId
     ? mountedProjectData(projectManagerStore.projects.get(selectedProjectId))
@@ -97,12 +97,20 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         break;
     }
 
-    onClose();
     navigate('task', { projectId: selectedProjectId, taskId: id });
-  }, [selectedProjectId, selectedStrategy, fromBranch, fromIssue, fromPR, onClose, navigate]);
+    transitionToConversation({ projectId: selectedProjectId, taskId: id });
+  }, [
+    selectedProjectId,
+    selectedStrategy,
+    fromBranch,
+    fromIssue,
+    fromPR,
+    navigate,
+    transitionToConversation,
+  ]);
 
   return (
-    <DialogContent>
+    <>
       <DialogHeader className="flex items-center gap-2">
         <ProjectSelector
           value={selectedProjectId}
@@ -158,6 +166,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           Create
         </ConfirmButton>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 });

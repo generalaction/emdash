@@ -15,7 +15,6 @@ import { Button } from '@renderer/components/ui/button';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogClose,
-  DialogContent,
   DialogContentArea,
   DialogFooter,
   DialogHeader,
@@ -148,8 +147,11 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
   };
 
   return (
-    <DialogContent showCloseButton={false}>
-      <DialogHeader className="flex-row items-center gap-2 -mt-2 w-full justify-between">
+    <>
+      <DialogHeader
+        showCloseButton={false}
+        className="flex-row items-center gap-2 -mt-2 w-full justify-between"
+      >
         <div className="flex items-center gap-2 -ml-2">
           <Button variant="ghost" size="icon-sm" onClick={onClose}>
             <ArrowLeftIcon className="w-4 h-4" />
@@ -434,6 +436,6 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
           </ConfirmButton>
         </div>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 }

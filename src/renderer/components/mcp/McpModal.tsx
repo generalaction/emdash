@@ -4,13 +4,7 @@ import React, { useRef, useState } from 'react';
 import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/mcp/types';
 import { Button } from '../ui/button';
 import { ConfirmButton } from '../ui/confirm-button';
-import {
-  DialogContent,
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
+import { DialogContentArea, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '../ui/field';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -99,7 +93,7 @@ export const McpModal: React.FC<McpModalProps> = ({
   };
 
   return (
-    <DialogContent>
+    <>
       <DialogHeader>
         <DialogTitle>
           {isEdit
@@ -311,7 +305,7 @@ export const McpModal: React.FC<McpModalProps> = ({
           }}
         </form.Subscribe>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 };
 

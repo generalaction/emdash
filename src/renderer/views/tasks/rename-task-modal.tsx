@@ -3,7 +3,6 @@ import { useCallback, useState } from 'react';
 import { Button } from '@renderer/components/ui/button';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
-  DialogContent,
   DialogContentArea,
   DialogFooter,
   DialogHeader,
@@ -78,8 +77,8 @@ export const RenameTaskModal = observer(function RenameTaskModal({
   }, [isValid, taskManager, taskId, normalizedName, onSuccess]);
 
   return (
-    <DialogContent showCloseButton={false} className="sm:max-w-xs">
-      <DialogHeader>
+    <>
+      <DialogHeader showCloseButton={false}>
         <DialogTitle>Rename task</DialogTitle>
       </DialogHeader>
       <DialogContentArea className="pt-0">
@@ -110,6 +109,6 @@ export const RenameTaskModal = observer(function RenameTaskModal({
           {isSubmitting ? 'Renaming...' : 'Rename'}
         </ConfirmButton>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 });

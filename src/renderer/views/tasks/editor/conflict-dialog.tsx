@@ -1,6 +1,5 @@
 import { Button } from '@renderer/components/ui/button';
 import {
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -20,8 +19,8 @@ export function ConflictDialog({ filePath, onSuccess }: Props) {
   useCloseGuard(true);
 
   return (
-    <DialogContent showCloseButton={false} className="sm:max-w-sm">
-      <DialogHeader>
+    <>
+      <DialogHeader showCloseButton={false}>
         <DialogTitle>File Modified Externally</DialogTitle>
         <DialogDescription>
           <code className="rounded bg-muted px-1 py-0.5 text-xs">{shortPath}</code> was changed
@@ -34,6 +33,6 @@ export function ConflictDialog({ filePath, onSuccess }: Props) {
         </Button>
         <Button onClick={() => onSuccess(true)}>Accept Incoming</Button>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 }

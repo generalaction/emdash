@@ -8,12 +8,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { Button } from '@renderer/components/ui/button';
-import {
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@renderer/components/ui/dialog';
+import { DialogDescription, DialogHeader, DialogTitle } from '@renderer/components/ui/dialog';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { EMDASH_RELEASES_URL, useUpdater } from '@renderer/hooks/useUpdater';
 import { rpc } from '../../core/ipc';
@@ -59,7 +54,7 @@ function UpdateModal({ onClose }: UpdateModalProps): JSX.Element {
   };
 
   return (
-    <DialogContent className="max-w-sm focus:outline-none">
+    <>
       <DialogHeader>
         <DialogTitle>Software Update</DialogTitle>
         <DialogDescription>
@@ -178,7 +173,7 @@ function UpdateModal({ onClose }: UpdateModalProps): JSX.Element {
           </>
         )}
       </div>
-    </DialogContent>
+    </>
   );
 }
 

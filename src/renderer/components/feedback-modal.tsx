@@ -5,7 +5,6 @@ import { useAttachments } from '../hooks/use-attachments';
 import { useFeedbackSubmit } from '../hooks/use-feedback-submit';
 import { Button } from './ui/button';
 import {
-  DialogContent,
   DialogContentArea,
   DialogDescription,
   DialogFooter,
@@ -75,7 +74,7 @@ export function FeedbackModal({ onSuccess, githubUser, blurb }: Props) {
   };
 
   return (
-    <DialogContent>
+    <>
       <DialogHeader>
         <div className="flex flex-col gap-0.5">
           <DialogTitle>Feedback</DialogTitle>
@@ -202,6 +201,6 @@ export function FeedbackModal({ onSuccess, githubUser, blurb }: Props) {
           )}
         </Button>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 }

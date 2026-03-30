@@ -8,13 +8,7 @@ import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
 import { AnimatedHeight } from '../ui/animated-height';
 import { ConfirmButton } from '../ui/confirm-button';
-import {
-  DialogContent,
-  DialogContentArea,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
+import { DialogContentArea, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Field, FieldLabel } from '../ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
@@ -158,7 +152,7 @@ export function AddProjectModal({
   };
 
   return (
-    <DialogContent>
+    <>
       <DialogHeader>
         <DialogTitle>Add Project</DialogTitle>
       </DialogHeader>
@@ -230,6 +224,6 @@ export function AddProjectModal({
           Create
         </ConfirmButton>
       </DialogFooter>
-    </DialogContent>
+    </>
   );
 }
