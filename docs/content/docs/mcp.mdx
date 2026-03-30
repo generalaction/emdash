@@ -82,3 +82,58 @@ Each catalog entry includes a link to the server's documentation for setup detai
 - You can sync a single MCP server to multiple agents at once — no need to configure each one separately.
 - Environment variables with credential keys are highlighted in the modal so you know what to fill in.
 - Click **Refresh** to re-detect installed agents if you've installed a new CLI since opening Emdash.
+
+---
+
+## Emdash as an MCP Server
+
+Emdash can also act as an MCP server itself, letting external AI agents (like Claude Code running in your terminal) create tasks inside Emdash.
+
+### Enabling the built-in MCP endpoint
+
+1. Open **Settings → Integrations**
+2. Find the **MCP Server** section and toggle it on
+3. The MCP URL appears below the toggle (e.g. `http://127.0.0.1:17823/mcp`)
+
+The server only listens on `127.0.0.1` and is restarted automatically when Emdash starts (if enabled). The URL is stable as long as port 17823 is free; if not, Emdash tries 17824–17827 and then an ephemeral port.
+
+### Connecting Claude Code
+
+Add the MCP URL to your Claude Code config (`.claude/mcp.json` in your project or `~/.claude/mcp.json` globally):
+
+```json
+{
+  "mcpServers": {
+    "emdash": {
+      "type": "http",
+      "url": "http://127.0.0.1:17823/mcp"
+    }
+  }
+}
+```
+
+### Available tools
+
+| Tool            | Description                                                        |
+| --------------- | ------------------------------------------------------------------ |
+| `list_projects` | Returns all projects in Emdash (id, name, path)                    |
+| `list_tasks`    | Lists active tasks for a project                                   |
+| `create_task`   | Queues a new task with a prompt, optional name, and optional agent |
+
+Tasks created via MCP run exactly like tasks you create manually — Emdash opens a git worktree and starts the agent automatically.
+
+### Standalone MCP package
+
+If you need the MCP bridge without Emdash running (e.g. in a CI environment), a lightweight stdio bridge is available in the `mcp/` directory of the Emdash repository. It reads the port written by the desktop app and proxies calls over the REST API. Emdash must still be running for tasks to execute.
+
+```json
+{
+  "mcpServers": {
+    "emdash": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "/path/to/emdash/mcp/src/index.ts"]
+    }
+  }
+}
+```
