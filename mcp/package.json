@@ -1,0 +1,21 @@
+{
+  "name": "@emdash/mcp",
+  "version": "0.1.0",
+  "description": "Standalone MCP server for Emdash (alternative to the built-in HTTP endpoint)",
+  "type": "module",
+  "bin": {
+    "emdash-mcp": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "tsx": "^4.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.3.3"
+  }
+}
