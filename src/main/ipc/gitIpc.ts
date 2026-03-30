@@ -1380,18 +1380,29 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       ];
       const cmd = `gh pr view --json ${queryFields.join(',')} -q .`;
       try {
-        const { stdout } = await execAsync(cmd, { cwd: taskPath });
-        const json = (stdout || '').trim();
-        let data = json ? JSON.parse(json) : null;
+        // Attempt 1: gh pr view (works when branch tracking points to a PR)
+        let data: any = null;
+        try {
+          const { stdout } = await execAsync(cmd, { cwd: taskPath });
+          const json = (stdout || '').trim();
+          data = json ? JSON.parse(json) : null;
+        } catch (viewErr) {
+          const viewMsg = String(viewErr);
+          // Re-throw unexpected errors; swallow "no PR found" so fallbacks can run
+          if (!/no pull requests? found/i.test(viewMsg) && !/not found/i.test(viewMsg)) {
+            throw viewErr;
+          }
+        }
 
         // Fallback: If gh pr view didn't find a PR (e.g. detached head, upstream not set, or fresh branch),
         // try finding it by branch name via gh pr list.
+        let currentBranch = '';
         if (!data) {
           try {
             const { stdout: branchOut } = await execAsync('git branch --show-current', {
               cwd: taskPath,
             });
-            const currentBranch = branchOut.trim();
+            currentBranch = branchOut.trim();
             if (currentBranch) {
               const listCmd = `gh pr list --head ${JSON.stringify(currentBranch)} --json ${queryFields.join(',')} --limit 1`;
               const { stdout: listOut } = await execAsync(listCmd, { cwd: taskPath });
@@ -1407,7 +1418,32 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           }
         }
 
-        if (!data) return { success: false, error: 'No PR data returned' };
+        // Fork fallback: if still no PR found, check if this repo is a fork and search
+        // the parent/upstream repo for a PR with head "<fork-owner>:<branch>".
+        if (!data && currentBranch) {
+          try {
+            const { stdout: repoOut } = await execAsync('gh repo view --json owner,parent', {
+              cwd: taskPath,
+            });
+            const repoData = repoOut.trim() ? JSON.parse(repoOut.trim()) : null;
+            const parentOwner = repoData?.parent?.owner?.login;
+            const parentName = repoData?.parent?.name;
+            const parentRepo = parentOwner && parentName ? `${parentOwner}/${parentName}` : null;
+            if (parentRepo) {
+              const forkListCmd = `gh pr list --head ${JSON.stringify(currentBranch)} --repo ${JSON.stringify(parentRepo)} --state open --json ${queryFields.join(',')} --limit 1`;
+              const { stdout: forkOut } = await execAsync(forkListCmd, { cwd: taskPath });
+              const forkJson = (forkOut || '').trim();
+              const forkData = forkJson ? JSON.parse(forkJson) : [];
+              if (forkData.length > 0) {
+                data = forkData[0];
+              }
+            }
+          } catch (forkFallbackErr) {
+            log.warn('Failed to check fork parent for PR:', forkFallbackErr);
+          }
+        }
+
+        if (!data) return { success: true, pr: null };
 
         // Fallback: if GH CLI didn't return diff stats, try to compute locally
         const asNumber = (v: any): number | null =>
@@ -1707,28 +1743,91 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
 
       const fields = 'bucket,completedAt,description,event,link,name,startedAt,state,workflow';
+
+      // Resolve the PR number and repo to use for gh commands.
+      // For forks, the PR lives in the parent repo, so we detect that here once.
+      let prRef: string | null = null; // PR number as string, or null to use implicit (current branch)
+      let repoFlag: string[] = []; // ['--repo', 'owner/repo'] or empty
+      let headRefOidArgs: string[] = ['pr', 'view', '--json', 'headRefOid', '--jq', '.headRefOid'];
+      let checkRunsApiRepo = 'repos/{owner}/{repo}'; // used in gh api call
+
       try {
-        const { stdout } = await execFileAsync('gh', ['pr', 'checks', '--json', fields], {
-          cwd: taskPath,
-        });
+        // Detect fork: if this repo has a parent, find the PR number there
+        const { stdout: repoOut } = await execFileAsync(
+          'gh',
+          ['repo', 'view', '--json', 'owner,parent'],
+          { cwd: taskPath }
+        );
+        const repoData = repoOut.trim() ? JSON.parse(repoOut.trim()) : null;
+        const parentOwner = repoData?.parent?.owner?.login;
+        const parentName = repoData?.parent?.name;
+        const parentRepo = parentOwner && parentName ? `${parentOwner}/${parentName}` : null;
+        if (parentRepo) {
+          const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], {
+            cwd: taskPath,
+          });
+          const currentBranch = branchOut.trim();
+          if (currentBranch) {
+            const { stdout: listOut } = await execFileAsync(
+              'gh',
+              [
+                'pr',
+                'list',
+                '--head',
+                currentBranch,
+                '--repo',
+                parentRepo,
+                '--state',
+                'open',
+                '--json',
+                'number,headRefOid',
+                '--limit',
+                '1',
+              ],
+              { cwd: taskPath }
+            );
+            const listData = listOut.trim() ? JSON.parse(listOut.trim()) : [];
+            if (listData.length > 0) {
+              prRef = String(listData[0].number);
+              repoFlag = ['--repo', parentRepo];
+              headRefOidArgs = [
+                'pr',
+                'view',
+                prRef,
+                '--repo',
+                parentRepo,
+                '--json',
+                'headRefOid',
+                '--jq',
+                '.headRefOid',
+              ];
+              checkRunsApiRepo = `repos/${parentRepo}`;
+            }
+          }
+        }
+      } catch {
+        // Not a fork or detection failed — proceed with default (current-branch) behavior
+      }
+
+      try {
+        const checksArgs = prRef
+          ? ['pr', 'checks', prRef, ...repoFlag, '--json', fields]
+          : ['pr', 'checks', '--json', fields];
+        const { stdout } = await execFileAsync('gh', checksArgs, { cwd: taskPath });
         const json = (stdout || '').trim();
         const checks = json ? JSON.parse(json) : [];
 
         // Fetch html_url from the GitHub API instead, which always points to the
         // actual check run page on GitHub.
         try {
-          const { stdout: shaOut } = await execFileAsync(
-            'gh',
-            ['pr', 'view', '--json', 'headRefOid', '--jq', '.headRefOid'],
-            { cwd: taskPath }
-          );
+          const { stdout: shaOut } = await execFileAsync('gh', headRefOidArgs, { cwd: taskPath });
           const sha = shaOut.trim();
           if (sha) {
             const { stdout: apiOut } = await execFileAsync(
               'gh',
               [
                 'api',
-                `repos/{owner}/{repo}/commits/${sha}/check-runs`,
+                `${checkRunsApiRepo}/commits/${sha}/check-runs`,
                 '--jq',
                 '.check_runs | map({name: .name, html_url: .html_url}) | .[]',
               ],
