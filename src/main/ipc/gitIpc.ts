@@ -1694,11 +1694,57 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       if (remoteProject) {
         const connId = remoteProject.sshConnectionId;
         const fields = 'bucket,completedAt,description,event,link,name,startedAt,state,workflow';
-        const checksResult = await remoteGitService.execGh(
-          connId,
-          taskPath,
-          `pr checks --json ${fields}`
-        );
+
+        // Detect fork on remote: find PR in parent repo if applicable
+        let prRef: string | null = null;
+        let remoteParentRepo: string | null = null;
+        let remoteChecksApiRepo = 'repos/{owner}/{repo}';
+        let remoteHeadRefOidCmd = "pr view --json headRefOid --jq '.headRefOid'";
+        try {
+          const repoResult = await remoteGitService.execGh(
+            connId,
+            taskPath,
+            'repo view --json owner,parent'
+          );
+          const repoData = repoResult.stdout.trim() ? JSON.parse(repoResult.stdout.trim()) : null;
+          const parentOwner = repoData?.parent?.owner?.login;
+          const parentName = repoData?.parent?.name;
+          const parentRepo = parentOwner && parentName ? `${parentOwner}/${parentName}` : null;
+          if (parentRepo) {
+            const branchResult = await remoteGitService.execGit(
+              connId,
+              taskPath,
+              'branch --show-current'
+            );
+            const currentBranch = branchResult.stdout.trim();
+            if (currentBranch) {
+              const listResult = await remoteGitService.execGh(
+                connId,
+                taskPath,
+                `pr list --head ${quoteGhArg(currentBranch)} --repo ${quoteGhArg(parentRepo)} --state open --json number,headRefOid,headRepositoryOwner --limit 10`
+              );
+              const forkOwnerLogin = repoData?.owner?.login;
+              const listData = listResult.stdout.trim() ? JSON.parse(listResult.stdout.trim()) : [];
+              const matched = forkOwnerLogin
+                ? listData.find((pr: any) => pr?.headRepositoryOwner?.login === forkOwnerLogin)
+                : listData[0];
+              if (matched) {
+                prRef = String(matched.number);
+                remoteParentRepo = parentRepo;
+                remoteChecksApiRepo = `repos/${parentRepo}`;
+                remoteHeadRefOidCmd = `pr view ${prRef} --repo ${quoteGhArg(parentRepo)} --json headRefOid --jq '.headRefOid'`;
+              }
+            }
+          }
+        } catch {
+          // Not a fork or detection failed — proceed with default behavior
+        }
+
+        const checksCmd =
+          prRef && remoteParentRepo
+            ? `pr checks ${prRef} --repo ${quoteGhArg(remoteParentRepo)} --json ${fields}`
+            : `pr checks --json ${fields}`;
+        const checksResult = await remoteGitService.execGh(connId, taskPath, checksCmd);
         if (checksResult.exitCode !== 0) {
           const msg = checksResult.stderr || '';
           if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
@@ -1713,17 +1759,13 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         // Fetch html_url from API
         try {
-          const shaResult = await remoteGitService.execGh(
-            connId,
-            taskPath,
-            "pr view --json headRefOid --jq '.headRefOid'"
-          );
+          const shaResult = await remoteGitService.execGh(connId, taskPath, remoteHeadRefOidCmd);
           const sha = shaResult.stdout.trim();
           if (sha) {
             const apiResult = await remoteGitService.execGh(
               connId,
               taskPath,
-              `api repos/{owner}/{repo}/commits/${sha}/check-runs --jq '.check_runs | map({name: .name, html_url: .html_url}) | .[]'`
+              `api ${remoteChecksApiRepo}/commits/${sha}/check-runs --jq '.check_runs | map({name: .name, html_url: .html_url}) | .[]'`
             );
             const urlMap = new Map<string, string>();
             for (const line of apiResult.stdout.trim().split('\n')) {
