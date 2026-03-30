@@ -42,6 +42,7 @@ const ICON_PATHS = {
   phpstorm: 'phpstorm.svg',
   'android-studio': 'android-studio.svg',
   kiro: 'kiro.png',
+  kitty: 'kitty.png',
   windsurf: 'windsurf.svg',
 } as const;
 
@@ -261,6 +262,18 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
           'foot --working-directory={{path}}',
         ],
         checkCommands: ['footclient', 'foot'],
+      },
+    },
+  },
+  {
+    id: 'kitty',
+    label: 'Kitty',
+    iconPath: ICON_PATHS.kitty,
+    supportsRemote: true,
+    platforms: {
+      linux: {
+        openCommands: ['kitty --directory={{path}}'],
+        checkCommands: ['kitty'],
       },
     },
   },

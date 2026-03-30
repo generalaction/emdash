@@ -22,7 +22,7 @@ describe('isOpenInAppSupportedForWorkspace', () => {
 
     expect(remoteAppIds).not.toContain('zed');
     expect(remoteAppIds).toEqual(
-      expect.arrayContaining(['cursor', 'vscode', 'terminal', 'warp', 'iterm2', 'ghostty'])
+      expect.arrayContaining(['cursor', 'vscode', 'terminal', 'warp', 'iterm2', 'ghostty', 'kitty'])
     );
     expect(remoteAppIds).not.toContain('vscodium');
   });
