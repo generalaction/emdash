@@ -30,17 +30,28 @@ const McpSettingsCard: React.FC = () => {
       setServerInfo({ running: false });
       return;
     }
+    let cancelled = false;
     // Short delay so a port-change restart has time to complete before we query.
     const timer = setTimeout(() => {
-      window.electronAPI.mcpGetServerInfo().then((info) => {
-        setServerInfo(
-          info.running
-            ? { running: true, port: info.port, mcpUrl: info.mcpUrl }
-            : { running: false }
-        );
-      });
+      window.electronAPI
+        .mcpGetServerInfo()
+        .then((info) => {
+          if (!cancelled) {
+            setServerInfo(
+              info.running
+                ? { running: true, port: info.port, mcpUrl: info.mcpUrl }
+                : { running: false }
+            );
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setServerInfo({ running: false });
+        });
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [enabled, configuredPort]);
 
   const handlePortBlur = () => {
