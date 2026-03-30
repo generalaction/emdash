@@ -1430,12 +1430,17 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
             const parentName = repoData?.parent?.name;
             const parentRepo = parentOwner && parentName ? `${parentOwner}/${parentName}` : null;
             if (parentRepo) {
-              const forkListCmd = `gh pr list --head ${JSON.stringify(currentBranch)} --repo ${JSON.stringify(parentRepo)} --state open --json ${queryFields.join(',')} --limit 1`;
+              const forkOwnerLogin = repoData?.owner?.login;
+              const forkFields = [...queryFields, 'headRepositoryOwner'];
+              const forkListCmd = `gh pr list --head ${JSON.stringify(currentBranch)} --repo ${JSON.stringify(parentRepo)} --state open --json ${forkFields.join(',')} --limit 10`;
               const { stdout: forkOut } = await execAsync(forkListCmd, { cwd: taskPath });
               const forkJson = (forkOut || '').trim();
               const forkData = forkJson ? JSON.parse(forkJson) : [];
-              if (forkData.length > 0) {
-                data = forkData[0];
+              const match = forkOwnerLogin
+                ? forkData.find((pr: any) => pr?.headRepositoryOwner?.login === forkOwnerLogin)
+                : forkData[0];
+              if (match) {
+                data = match;
               }
             }
           } catch (forkFallbackErr) {
@@ -1780,15 +1785,19 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
                 '--state',
                 'open',
                 '--json',
-                'number,headRefOid',
+                'number,headRefOid,headRepositoryOwner',
                 '--limit',
-                '1',
+                '10',
               ],
               { cwd: taskPath }
             );
+            const forkOwnerLogin = repoData?.owner?.login;
             const listData = listOut.trim() ? JSON.parse(listOut.trim()) : [];
-            if (listData.length > 0) {
-              prRef = String(listData[0].number);
+            const matched = forkOwnerLogin
+              ? listData.find((pr: any) => pr?.headRepositoryOwner?.login === forkOwnerLogin)
+              : listData[0];
+            if (matched) {
+              prRef = String(matched.number);
               repoFlag = ['--repo', parentRepo];
               headRefOidArgs = [
                 'pr',
