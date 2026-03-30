@@ -271,6 +271,11 @@ export const OPEN_IN_APPS: OpenInAppConfigShape[] = [
     iconPath: ICON_PATHS.kitty,
     supportsRemote: true,
     platforms: {
+      darwin: {
+        openCommands: ['open -b net.kovidgoyal.kitty {{path}}', 'open -a "kitty" {{path}}'],
+        bundleIds: ['net.kovidgoyal.kitty'],
+        appNames: ['kitty'],
+      },
       linux: {
         openCommands: ['kitty --directory={{path}}'],
         checkCommands: ['kitty'],
