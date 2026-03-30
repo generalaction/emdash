@@ -1,5 +1,7 @@
 type Level = 'debug' | 'info' | 'warn' | 'error';
 
+type ConsoleMethod = (...args: any[]) => void;
+
 function envLevel(): Level {
   const hasDebugFlag = process.argv.includes('--debug-logs') || process.argv.includes('--dev');
   if (hasDebugFlag) return 'debug';
@@ -11,29 +13,41 @@ function enabled(target: Level, current: Level): boolean {
   return order[target] >= order[current];
 }
 
+function safeConsoleCall(method: ConsoleMethod, ...args: any[]): void {
+  try {
+    method(...args);
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err?.code === 'EPIPE') {
+      return;
+    }
+    throw error;
+  }
+}
+
 const current = envLevel();
 
 export const log = {
   debug: (...args: any[]) => {
     if (enabled('debug', current)) {
       // eslint-disable-next-line no-console
-      console.debug(...args);
+      safeConsoleCall(console.debug, ...args);
     }
   },
   info: (...args: any[]) => {
     if (enabled('info', current)) {
       // eslint-disable-next-line no-console
-      console.info(...args);
+      safeConsoleCall(console.info, ...args);
     }
   },
   warn: (...args: any[]) => {
     if (enabled('warn', current)) {
       // eslint-disable-next-line no-console
-      console.warn(...args);
+      safeConsoleCall(console.warn, ...args);
     }
   },
   error: (...args: any[]) => {
     // eslint-disable-next-line no-console
-    console.error(...args);
+    safeConsoleCall(console.error, ...args);
   },
 };
