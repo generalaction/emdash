@@ -6,10 +6,13 @@ import {
   ResizablePanelGroup,
 } from '@renderer/components/ui/resizable';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
+import { getTaskGitStore } from '@renderer/core/stores/task-selectors';
 import { cn } from '@renderer/lib/utils';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import {
+  useRequireProvisionedTask,
+  useTaskViewContext,
+} from '@renderer/views/tasks/task-view-context';
 import { GitStatusSection } from './git-status-section';
 import { PullRequestEntry } from './pr-section/pr-section';
 import { PullRequestSectionHeader } from './section-header';
@@ -18,8 +21,8 @@ import { UnstagedSection } from './unstaged-section';
 import { SECTION_HEADER_HEIGHT, usePanelLayout } from './use-panel-layout';
 
 export const ChangesPanel = observer(function ChangesPanel() {
+  const changesView = useRequireProvisionedTask().diffView.changesView;
   const { projectId, taskId } = useTaskViewContext();
-  const changesView = asProvisioned(getTaskStore(projectId, taskId))!.diffView.changesView;
 
   const {
     expanded,
@@ -80,6 +83,8 @@ export const ChangesPanel = observer(function ChangesPanel() {
           className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
         >
           <PullRequestsSection
+            projectId={projectId}
+            taskId={taskId}
             onToggleCollapsed={() => toggleExpanded('pullRequests')}
             collapsed={!expanded.pullRequests}
           />
@@ -101,12 +106,23 @@ export const ChangesPanel = observer(function ChangesPanel() {
 function PullRequestsSection({
   collapsed,
   onToggleCollapsed,
+  projectId,
+  taskId,
 }: {
   collapsed: boolean;
+  projectId: string;
+  taskId: string;
   onToggleCollapsed: () => void;
 }) {
   const { pullRequests, nameWithOwner, taskBranch } = usePrContext();
   const showCreatePrModal = useShowModal('createPrModal');
+
+  const git = getTaskGitStore(projectId, taskId);
+
+  const activePr = pullRequests.find((pr) => pr.status === 'open') || pullRequests[0];
+
+  const hasOpenPr = Boolean(activePr);
+  const hasUpstream = Boolean(git?.branchStatus?.upstream);
 
   return (
     <>
@@ -114,6 +130,8 @@ function PullRequestsSection({
         count={pullRequests.length}
         collapsed={collapsed}
         onToggleCollapsed={onToggleCollapsed}
+        hasUpstream={hasUpstream}
+        hasOpenPr={hasOpenPr}
         onCreatePr={
           taskBranch
             ? () =>
@@ -133,9 +151,7 @@ function PullRequestsSection({
             description="Push your branch and create a PR to start a review."
           />
         )}
-        {pullRequests.map((pr) => (
-          <PullRequestEntry key={pr.id} pr={pr} />
-        ))}
+        {activePr && <PullRequestEntry key={activePr.id} pr={activePr} />}
       </div>
     </>
   );

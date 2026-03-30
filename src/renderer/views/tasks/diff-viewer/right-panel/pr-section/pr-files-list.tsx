@@ -1,16 +1,15 @@
 import { observer } from 'mobx-react-lite';
 import type { GitChange } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { usePrefetchModels } from '@renderer/views/tasks/diff-viewer/right-panel/use-prefetch-models';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { VirtualizedChangesList } from '../virtualized-changes-list';
 
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {
   const { prFilesMap, activePrFilePath, setActivePrFilePath } = usePrContext();
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = asProvisioned(getTaskStore(projectId, taskId));
+  const provisioned = useProvisionedTask();
   const diffView = provisioned?.diffView;
   const setView = (v: string) => provisioned?.setView(v as 'agents' | 'editor' | 'diff');
 
@@ -27,6 +26,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
 
   return (
     <VirtualizedChangesList
+      className="py-3"
       changes={prFiles}
       activePath={activePrFilePath ?? undefined}
       onSelectChange={handleSelectChange}

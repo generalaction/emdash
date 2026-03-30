@@ -10,6 +10,7 @@ import type {
   DiffLine,
   DiffResult,
   FetchError,
+  FetchPrRefError,
   GitChange,
   GitInfo,
   LocalBranch,
@@ -1095,6 +1096,31 @@ export class GitService implements GitProvider {
         stderr.includes("'.' is not a valid branch name")
       ) {
         return err({ type: 'invalid_name', name });
+      }
+      return err({ type: 'error', message: stderr });
+    }
+  }
+
+  async fetchPrRef(
+    prNumber: number,
+    localBranchName: string,
+    remote = 'origin'
+  ): Promise<Result<void, FetchPrRefError>> {
+    try {
+      await this.exec(
+        'git',
+        ['fetch', remote, `refs/pull/${prNumber}/head:refs/heads/${localBranchName}`],
+        { cwd: this.path }
+      );
+      return ok();
+    } catch (error: unknown) {
+      const stderr = (error as { stderr?: string })?.stderr || String(error);
+      if (
+        stderr.includes('not found') ||
+        stderr.includes("couldn't find remote ref") ||
+        stderr.includes('unknown revision')
+      ) {
+        return err({ type: 'not_found', prNumber });
       }
       return err({ type: 'error', message: stderr });
     }

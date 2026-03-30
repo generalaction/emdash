@@ -7,7 +7,8 @@ import { ProjectSettingsProvider } from '../settings/schema';
 
 export type ServeWorktreeError =
   | { type: 'reserve-failed'; sourceBranch: string; cause: unknown }
-  | { type: 'worktree-setup-failed'; cause: unknown };
+  | { type: 'worktree-setup-failed'; cause: unknown }
+  | { type: 'branch-not-found'; branch: string };
 
 function createStableWorktreeReserveId(sourceBranch: string) {
   // Replace slashes with dashes so the reserve always lives as a flat directory
@@ -234,6 +235,30 @@ export class WorktreeService {
     try {
       await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
       await this.exec('git', ['fetch', 'origin'], { cwd: this.repoPath }).catch(() => {});
+
+      // Check if a local branch ref exists; if not, try to create one from the remote.
+      let localExists = false;
+      try {
+        await this.exec('git', ['rev-parse', '--verify', `refs/heads/${branchName}`], {
+          cwd: this.repoPath,
+        });
+        localExists = true;
+      } catch {}
+
+      if (!localExists) {
+        // Verify the remote-tracking ref exists before attempting to create a local branch.
+        try {
+          await this.exec('git', ['rev-parse', '--verify', `refs/remotes/origin/${branchName}`], {
+            cwd: this.repoPath,
+          });
+        } catch {
+          return err({ type: 'branch-not-found', branch: branchName });
+        }
+        await this.exec('git', ['branch', '--track', branchName, `origin/${branchName}`], {
+          cwd: this.repoPath,
+        });
+      }
+
       await this.exec('git', ['worktree', 'add', targetPath, branchName], {
         cwd: this.repoPath,
       });

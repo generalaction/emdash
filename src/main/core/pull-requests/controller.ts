@@ -92,6 +92,19 @@ export const pullRequestController = createRPCController({
     }
   },
 
+  markReadyForReview: async (nameWithOwner: string, prNumber: number) => {
+    try {
+      await prService.markReadyForReview(nameWithOwner, prNumber);
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to mark pull request ready for review:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unable to mark PR ready for review',
+      };
+    }
+  },
+
   // ── Pass-through reads ─────────────────────────────────────────────────
   getCheckRuns: async (nameWithOwner: string, prNumber: number) => {
     try {

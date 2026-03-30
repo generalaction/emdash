@@ -2,6 +2,7 @@ import { ChevronDown, Plus } from 'lucide-react';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { SelectionState } from '@renderer/core/stores/changes-view-store';
 import { cn } from '@renderer/lib/utils';
 
@@ -57,11 +58,15 @@ export function PullRequestSectionHeader({
   count,
   collapsed,
   onToggleCollapsed,
+  hasUpstream,
+  hasOpenPr,
   onCreatePr,
 }: {
   count: number;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  hasUpstream: boolean;
+  hasOpenPr: boolean;
   onCreatePr?: () => void;
 }) {
   return (
@@ -83,10 +88,26 @@ export function PullRequestSectionHeader({
             </span>
           </span>
         </button>
-        <Button variant="outline" size="xs" onClick={onCreatePr}>
-          <Plus className="size-3" />
-          Create PR
-        </Button>
+        <Tooltip>
+          <TooltipTrigger>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={onCreatePr}
+              disabled={!hasUpstream || hasOpenPr}
+            >
+              <Plus className="size-3" />
+              Create PR
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {!hasUpstream
+              ? 'No upstream branch'
+              : hasOpenPr
+                ? 'A pull request is already open'
+                : 'Create a pull request'}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

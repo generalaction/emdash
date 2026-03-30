@@ -61,6 +61,29 @@ Start here. Load only the linked `agents/` docs that are relevant to the task.
 - Config files and repo rules: `agents/conventions/config-files.md`
 - Never do re exports always import from the original source
 
+### State Guard Conventions (renderer stores)
+
+`ProjectStore` and `TaskStore` are mutable MobX class instances that transition through states. Use the following layers — do not mix them:
+
+**Selectors** (`task-selectors.ts`, `project-selectors.ts`) — pure functions, safe in observer components, effects, and event handlers:
+- `getTaskStore(projectId, taskId)` → `TaskStore | undefined`
+- `asProvisioned(store)` → `ProvisionedTask | undefined` (use with explicit null check, never `!`)
+- `taskViewKind(store, projectId)` → `TaskViewKind`
+- `getTaskManagerStore(projectId)` → `TaskManagerStore | undefined` (use this instead of reaching through project store)
+- `getProjectStore(projectId)` → `ProjectStore | undefined`
+- `asMounted(store)` → `MountedProject | undefined` (use with explicit null check, never `!`)
+
+**Hooks** (`task-view-context.tsx`) — for `observer` components inside the task view tree:
+- `useTaskViewKind()` — routing/state-gating
+- `useProvisionedTask()` → `ProvisionedTask | null` — when the component handles a non-provisioned state
+- `useRequireProvisionedTask()` → `ProvisionedTask` — when the component must only render when provisioned (throws with a descriptive error if the invariant is violated)
+
+**Rules:**
+- Never `asProvisioned(...)!` or `asMounted(...)!` — use the hook or an explicit null check
+- State guards must use `kind !== 'ready'`, never enumerate non-ready states (new states would silently fall through)
+- Access task manager via `getTaskManagerStore(projectId)`, not through `project.taskManager`
+- Access mounted project via `asMounted(getProjectStore(id))`, not via inline `isMountedProject` guards
+
 ## Non-Negotiables
 
 - Run `pnpm run format`, `pnpm run lint`, `pnpm run type-check`, and `pnpm exec vitest run` before merging.

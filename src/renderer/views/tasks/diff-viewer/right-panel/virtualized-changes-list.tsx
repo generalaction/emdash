@@ -1,6 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
 import { GitChange } from '@shared/git';
+import { cn } from '@renderer/lib/utils';
 import { ChangesListItem } from './changes-list-item';
 
 export interface VirtualizedChangesListProps {
@@ -10,6 +11,7 @@ export interface VirtualizedChangesListProps {
   onToggleSelect?: (path: string) => void;
   onPrefetch?: (change: GitChange) => void;
   activePath?: string;
+  className?: string;
 }
 
 const ITEM_HEIGHT = 28;
@@ -21,6 +23,7 @@ export function VirtualizedChangesList({
   onToggleSelect,
   onPrefetch,
   activePath,
+  className,
 }: VirtualizedChangesListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -32,7 +35,7 @@ export function VirtualizedChangesList({
     overscan: 5,
   });
   return (
-    <div ref={parentRef} className="overflow-y-auto h-full">
+    <div ref={parentRef} className={cn('overflow-y-auto h-full', className)}>
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const change = changes[virtualItem.index]!;

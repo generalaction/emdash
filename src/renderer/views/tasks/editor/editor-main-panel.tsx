@@ -7,17 +7,15 @@ import { SvgRenderer } from '@renderer/core/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/core/editor/too-large-renderer';
 import type { ManagedFile } from '@renderer/core/editor/types';
 import { EditorViewStore } from '@renderer/core/stores/editor-view-store';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
 import { FileTabs } from '@renderer/views/tasks/editor/file-tabs';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
 import { useEditorContext } from './editor-provider';
 
 export const EditorMainPanel = observer(function EditorMainPanel() {
-  const { projectId, taskId } = useTaskViewContext();
   const { setEditorHost } = useEditorContext();
 
-  const editorView = asProvisioned(getTaskStore(projectId, taskId))!.editorView;
+  const editorView = useRequireProvisionedTask().editorView;
   useTabShortcuts(editorView);
   const tabs = editorView.tabs;
   const activeTab = editorView.activeTab;

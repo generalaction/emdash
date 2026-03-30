@@ -3,8 +3,10 @@ import { observer } from 'mobx-react-lite';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { selectAheadCount } from '@renderer/core/stores/diff-selectors';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import {
+  useRequireProvisionedTask,
+  useTaskViewContext,
+} from '@renderer/views/tasks/task-view-context';
 import { ActionCard } from './action-card';
 import { CommitCard } from './commit-card';
 import { PushCard } from './push-card';
@@ -14,7 +16,7 @@ import { VirtualizedChangesList } from './virtualized-changes-list';
 
 export const StagedSection = observer(function StagedSection() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = asProvisioned(getTaskStore(projectId, taskId))!;
+  const provisioned = useRequireProvisionedTask();
   const git = provisioned.git;
   const changesView = provisioned.diffView.changesView;
   const diffView = provisioned.diffView;

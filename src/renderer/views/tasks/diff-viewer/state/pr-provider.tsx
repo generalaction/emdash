@@ -24,6 +24,7 @@ interface PrContextValue {
     id: string,
     options: { strategy: MergeMode; commitHeadOid?: string }
   ) => Promise<MergeResult>;
+  markReadyForReview: (id: string) => Promise<void>;
   refreshPullRequest: (id: string) => void;
   /** Changed files between each PR's base ref and HEAD, keyed by PR id. */
   prFilesMap: Record<string, GitChange[]>;
@@ -100,6 +101,18 @@ export function PrProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileChanges, projectId, taskId, queryClient]);
 
+  const markReadyForReview = useCallback(
+    async (id: string) => {
+      const pr = pullRequests.find((p) => p.id === id);
+      if (!pr) return;
+      await rpc.pullRequests.markReadyForReview(pr.nameWithOwner, pr.metadata.number);
+      void queryClient.invalidateQueries({
+        queryKey: ['pullRequests', 'task', projectId, taskId],
+      });
+    },
+    [pullRequests, projectId, taskId, queryClient]
+  );
+
   const mergePr = useCallback(
     async (id: string, options: { strategy: MergeMode; commitHeadOid?: string }) => {
       const pr = pullRequests.find((p) => p.id === id);
@@ -143,6 +156,7 @@ export function PrProvider({
         nameWithOwner,
         taskBranch,
         mergePr,
+        markReadyForReview,
         refreshPullRequest,
         prFilesMap,
         activePrFilePath,

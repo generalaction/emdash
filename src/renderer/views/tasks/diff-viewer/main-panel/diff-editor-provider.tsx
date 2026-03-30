@@ -6,10 +6,9 @@ import { diffEditorPool } from '@renderer/core/monaco/monaco-diff-pool';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { useMonacoLease } from '@renderer/core/monaco/use-monaco-lease';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
 interface DiffEditorContextValue {
   /**
@@ -33,7 +32,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
   children: ReactNode;
 }) {
   const { projectId, taskId } = useTaskViewContext();
-  const diffView = asProvisioned(getTaskStore(projectId, taskId))?.diffView;
+  const diffView = useProvisionedTask()?.diffView;
   const { effectiveTheme } = useTheme();
 
   // Lease is exposed as a MobX observable box — all three async signals

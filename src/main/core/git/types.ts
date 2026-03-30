@@ -9,6 +9,7 @@ import {
   DiffBase,
   DiffResult,
   FetchError,
+  FetchPrRefError,
   GitChange,
   GitInfo,
   PullError,
@@ -69,6 +70,11 @@ export interface GitProvider {
     syncWithRemote?: boolean,
     remote?: string
   ): Promise<Result<void, CreateBranchError>>;
+  fetchPrRef(
+    prNumber: number,
+    localBranchName: string,
+    remote?: string
+  ): Promise<Result<void, FetchPrRefError>>;
   renameBranch(
     oldBranch: string,
     newBranch: string

@@ -1,18 +1,11 @@
-import {
-  ArrowLeft,
-  CircleDot,
-  GitBranch,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-  RefreshCw,
-} from 'lucide-react';
+import { GitMerge, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
-import type { PullRequest, PullRequestStatus } from '@shared/pull-requests';
-import { Badge } from '@renderer/components/ui/badge';
+import type { PullRequest } from '@shared/pull-requests';
+import { PrMergeLine } from '@renderer/components/projects/pr-merge-line';
+import { PrNumberBadge, StatusIcon } from '@renderer/components/projects/pr-row';
 import { Button } from '@renderer/components/ui/button';
 import { SplitButton, type SplitButtonAction } from '@renderer/components/ui/split-button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { cn } from '@renderer/lib/utils';
@@ -20,55 +13,6 @@ import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provide
 import { PrChecksList } from './pr-checks-list';
 import { PrCommitsList } from './pr-commits-list';
 import { PrFilesList } from './pr-files-list';
-
-function PullRequestStatusBadge({
-  status,
-  isDraft,
-}: {
-  status: PullRequestStatus;
-  isDraft?: boolean;
-}) {
-  const renderIcon = () => {
-    switch (status) {
-      case 'open':
-        return <CircleDot className="size-3" />;
-      case 'closed':
-        return <GitPullRequestClosed className="size-3" />;
-      case 'merged':
-        return <GitMerge className="size-3" />;
-      default:
-        return isDraft ? <GitPullRequest className="size-3" /> : <CircleDot className="size-3" />;
-    }
-  };
-
-  const statusLabel = () => {
-    switch (status) {
-      case 'open':
-        return 'Open';
-      case 'closed':
-        return 'Closed';
-      case 'merged':
-        return 'Merged';
-      default:
-        return isDraft ? 'Draft' : 'Open';
-    }
-  };
-
-  return (
-    <Badge
-      variant="secondary"
-      className={cn('shrink-0 gap-1', {
-        'text-green-600 bg-green-50 border border-green-600': status === 'open',
-        'text-red-600 bg-red-50 border border-red-600': status === 'closed',
-        'text-purple-600 bg-purple-50 border border-purple-600': status === 'merged',
-        'text-muted-foreground bg-muted-foreground/10 border border-muted-foreground': isDraft,
-      })}
-    >
-      {renderIcon()}
-      {statusLabel()}
-    </Badge>
-  );
-}
 
 type MergeMode = 'merge' | 'squash' | 'rebase';
 
@@ -153,17 +97,22 @@ function computeMergeUiState(pr: PullRequest): MergeUiState {
 
 const REFRESHABLE_KINDS = new Set<MergeUiState['kind']>(['unstable', 'unknown']);
 
-function MergeObstacleBanner({
+function MergeFooter({
   uiState,
+  mergeActions,
+  isMerging,
   onRefresh,
+  onMarkReady,
 }: {
   uiState: MergeUiState;
-  onRefresh?: () => void;
+  mergeActions: SplitButtonAction[];
+  isMerging: boolean;
+  onRefresh: () => void;
+  onMarkReady: () => void;
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
-    if (!onRefresh) return;
     setIsRefreshing(true);
     try {
       onRefresh();
@@ -173,33 +122,61 @@ function MergeObstacleBanner({
     }
   };
 
-  const showRefresh = onRefresh && REFRESHABLE_KINDS.has(uiState.kind);
+  const isReady = uiState.kind === 'ready';
+  const isDraft = uiState.kind === 'draft';
+  const showRefresh = REFRESHABLE_KINDS.has(uiState.kind);
 
   return (
-    <div className="flex items-center justify-between gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-2">
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className="font-medium shrink-0">{uiState.title}</span>
-        {uiState.detail && <span className="text-amber-600 truncate">{uiState.detail}</span>}
-      </div>
-      {showRefresh && (
-        <button
-          onClick={() => void handleRefresh()}
-          disabled={isRefreshing}
-          className="shrink-0 text-amber-600 hover:text-amber-800 disabled:opacity-40 transition-colors"
-          title="Refresh PR status"
+    <div className="shrink-0 border-t border-border p-2.5 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5 min-w-0 text-xs">
+        <span
+          className={cn('font-medium shrink-0', isReady ? 'text-foreground' : 'text-amber-700')}
         >
-          <RefreshCw className={cn('size-3', { 'animate-spin': isRefreshing })} />
-        </button>
-      )}
+          {uiState.title}
+        </span>
+        {uiState.detail && (
+          <span className={cn('truncate', isReady ? 'text-muted-foreground' : 'text-amber-600')}>
+            {uiState.detail}
+          </span>
+        )}
+        {showRefresh && (
+          <button
+            onClick={() => void handleRefresh()}
+            disabled={isRefreshing}
+            className="shrink-0 text-amber-600 hover:text-amber-800 disabled:opacity-40 transition-colors"
+            title="Refresh PR status"
+          >
+            <RefreshCw className={cn('size-3', { 'animate-spin': isRefreshing })} />
+          </button>
+        )}
+      </div>
+      <div className="shrink-0">
+        {isDraft && (
+          <Button variant="outline" size="xs" onClick={onMarkReady}>
+            Mark ready
+          </Button>
+        )}
+        {isReady && (
+          <SplitButton
+            size="xs"
+            variant="outline"
+            loading={isMerging}
+            loadingLabel="Merging..."
+            icon={<GitMerge className="size-3" />}
+            actions={mergeActions}
+          />
+        )}
+      </div>
     </div>
   );
 }
 
 export function PullRequestEntry({ pr }: { pr: PullRequest }) {
   const prStatus = pr.status;
-  const { mergePr, refreshPullRequest } = usePrContext();
+  const { mergePr, markReadyForReview, refreshPullRequest } = usePrContext();
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
+  const [tab, setTab] = useState<'files' | 'commits' | 'checks'>('files');
 
   const uiState = computeMergeUiState(pr);
 
@@ -235,84 +212,59 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
     })
   );
 
-  const renderPrAction = () => {
-    if (prStatus !== 'open') return null;
-    if (pr.isDraft) {
-      return (
-        <Button variant="outline" size="xs" onClick={() => {}}>
-          Ready for review
-        </Button>
-      );
-    }
-    return (
-      <SplitButton
-        size="xs"
-        disabled={!uiState.canMerge}
-        variant="outline"
-        loading={isMerging}
-        loadingLabel="Merging..."
-        icon={<GitMerge className="size-3" />}
-        actions={mergeActions}
-      />
-    );
-  };
-
   return (
-    <div className={cn('flex flex-col gap-4 px-2 pt-1')}>
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 border-t pt-3 justify-between">
+    <div className={cn('flex min-h-0 flex-1 flex-col border-t border-border')}>
+      <div className="flex flex-col gap-3 p-2.5 w-full">
+        <div className="flex items-center gap-2 justify-between">
           <button
             className="flex gap-2 items-center min-w-0"
             onClick={() => rpc.app.openExternal(pr.url)}
           >
-            <span className="flex-1 min-w-0 truncate text-md font-normal">{pr.title}</span>
-            <span className="text-sm text-muted-foreground">{`#${pr.metadata.number}`}</span>
+            <StatusIcon className="size-4" status={prStatus} />
+            <span className="flex-1 min-w-0 truncate text-sm font-normal">{pr.title}</span>
+            <PrNumberBadge number={pr.metadata.number} />
           </button>
-          <div className="shrink-0 flex items-center gap-1">{renderPrAction()}</div>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <PullRequestStatusBadge status={prStatus} isDraft={pr.isDraft} />
-          <span className="truncate">{pr.nameWithOwner}</span>
-          <div className="flex items-center gap-1 shrink-0">
-            <Badge variant="secondary" className="gap-1 font-mono text-xs">
-              <GitBranch className="size-3" />
-              {pr.metadata.baseRefName}
-            </Badge>
-            <ArrowLeft className="size-3" />
-            <Badge variant="secondary" className="gap-1 font-mono text-xs">
-              <GitBranch className="size-3" />
-              {pr.metadata.headRefName}
-            </Badge>
-          </div>
-        </div>
-        {!uiState.canMerge && prStatus === 'open' && !pr.isDraft && (
-          <MergeObstacleBanner uiState={uiState} onRefresh={() => refreshPullRequest(pr.id)} />
-        )}
+        <PrMergeLine pr={pr} />
       </div>
-      <div className="min-h-0">
-        <Tabs defaultValue="files" className="flex flex-col min-h-0 flex-1">
-          <TabsList className="w-full">
-            <TabsTrigger className="text-xs font-normal" value="files">
-              Files
-            </TabsTrigger>
-            <TabsTrigger className="text-xs font-normal" value="commits">
-              Commits
-            </TabsTrigger>
-            <TabsTrigger className="text-xs font-normal" value="checks">
-              Checks
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="files">
-            <PrFilesList pr={pr} />
-          </TabsContent>
-          <TabsContent value="commits">
-            <PrCommitsList />
-          </TabsContent>
-          <TabsContent value="checks">
+      <div className="min-h-0 flex flex-1 flex-col px-2.5">
+        <ToggleGroup
+          value={[tab]}
+          size={'sm'}
+          className="w-full"
+          onValueChange={([value]) => {
+            if (value) {
+              setTab(value as 'files' | 'commits' | 'checks');
+            }
+          }}
+        >
+          <ToggleGroupItem className="flex-1" value="files">
+            Files
+          </ToggleGroupItem>
+          <ToggleGroupItem className="flex-1" value="commits">
+            Commits
+          </ToggleGroupItem>
+          <ToggleGroupItem className="flex-1" value="checks">
+            Checks
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {tab === 'files' && <PrFilesList pr={pr} />}
+          {tab === 'commits' && <PrCommitsList />}
+          {tab === 'checks' && (
             <PrChecksList nameWithOwner={pr.nameWithOwner} prNumber={pr.metadata.number} />
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
       </div>
+      {prStatus === 'open' && (
+        <MergeFooter
+          uiState={uiState}
+          mergeActions={mergeActions}
+          isMerging={isMerging}
+          onRefresh={() => refreshPullRequest(pr.id)}
+          onMarkReady={() => void markReadyForReview(pr.id)}
+        />
+      )}
     </div>
   );
 }

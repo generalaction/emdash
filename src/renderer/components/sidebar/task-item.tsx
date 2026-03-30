@@ -8,9 +8,8 @@ import {
   ContextMenuTrigger,
 } from '@renderer/components/ui/context-menu';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { isMountedProject } from '@renderer/core/stores/project';
-import { getProjectStore } from '@renderer/core/stores/project-selectors';
 import { TaskStore } from '@renderer/core/stores/task';
+import { getTaskManagerStore } from '@renderer/core/stores/task-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
 import { SidebarItemMiniButton, SidebarMenuRow } from './sidebar-primitives';
@@ -37,21 +36,14 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const taskId = task.data.id;
   const taskName = task.data.name;
+  const taskManager = getTaskManagerStore(projectId);
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
-    const project = getProjectStore(projectId);
-    if (project && isMountedProject(project)) {
-      project.taskManager.provisionTask(taskId);
-    }
+    taskManager?.provisionTask(taskId);
   };
 
-  const handleArchive = () => {
-    const project = getProjectStore(projectId);
-    if (project && isMountedProject(project)) {
-      void project.taskManager.archiveTask(taskId);
-    }
-  };
+  const handleArchive = () => void taskManager?.archiveTask(taskId);
 
   const handleRename = () => showRename({ projectId, taskId, currentName: taskName });
 
@@ -60,12 +52,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       title: 'Delete task',
       description: `"${taskName}" will be permanently deleted. This action cannot be undone.`,
       confirmLabel: 'Delete',
-      onSuccess: () => {
-        const project = getProjectStore(projectId);
-        if (project && isMountedProject(project)) {
-          void project.taskManager.deleteTask(taskId);
-        }
-      },
+      onSuccess: () => void taskManager?.deleteTask(taskId),
     });
 
   return (

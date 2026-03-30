@@ -1,14 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { isBinaryForDiff } from '@renderer/core/editor/fileKind';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 import { useDiffEditorContext } from './diff-editor-provider';
 
 export const FileDiffView = observer(function FileDiffView() {
-  const { projectId, taskId } = useTaskViewContext();
   const { setDiffEditorHost } = useDiffEditorContext();
-  const diffView = asProvisioned(getTaskStore(projectId, taskId))?.diffView;
+  const diffView = useProvisionedTask()?.diffView;
   const activeFile = diffView?.activeFile ?? null;
 
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;

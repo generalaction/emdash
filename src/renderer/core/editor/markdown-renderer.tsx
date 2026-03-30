@@ -3,8 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { MarkdownRenderer } from '@renderer/components/ui/markdown-renderer';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
 
 interface MarkdownEditorRendererProps {
   filePath: string;
@@ -17,8 +16,7 @@ interface MarkdownEditorRendererProps {
 export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   filePath,
 }: MarkdownEditorRendererProps) {
-  const { projectId, taskId } = useTaskViewContext();
-  const editorView = asProvisioned(getTaskStore(projectId, taskId))!.editorView;
+  const editorView = useRequireProvisionedTask().editorView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
   // Reading bufferVersions creates a MobX tracking dependency so this observer()
   // component re-renders whenever the buffer content changes or is first populated.

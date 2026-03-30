@@ -6,22 +6,48 @@ import {
   GitPullRequestClosed,
   ScanSearch,
 } from 'lucide-react';
-import { memo } from 'react';
+import { memo, ReactNode } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { SeparatorDot } from '../ui/dot';
+import { cn } from '@renderer/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { PrMergeLine } from './pr-merge-line';
 
-function StatusIcon({ status }: { status: PullRequest['status'] }) {
+export function StatusIcon({
+  status,
+  className,
+}: {
+  status: PullRequest['status'];
+  className?: string;
+}) {
+  const renderTooltip = (children: ReactNode, text: string) => {
+    return (
+      <Tooltip>
+        <TooltipTrigger>{children}</TooltipTrigger>
+        <TooltipContent>{text}</TooltipContent>
+      </Tooltip>
+    );
+  };
+
   if (status === 'merged') {
-    return <GitMerge className="size-4 shrink-0 text-purple-500" />;
+    return renderTooltip(
+      <GitMerge className={cn('size-4 shrink-0 text-purple-500', className)} />,
+      'Merged'
+    );
   }
   if (status === 'closed') {
-    return <GitPullRequestClosed className="size-4 shrink-0 text-red-500" />;
+    return renderTooltip(
+      <GitPullRequestClosed className={cn('size-4 shrink-0 text-red-500', className)} />,
+      'Closed'
+    );
   }
-  return <GitPullRequestArrow className="size-4 shrink-0 text-green-500" />;
+  return renderTooltip(
+    <GitPullRequestArrow className={cn('size-4 shrink-0 text-green-600', className)} />,
+    'Open'
+  );
 }
 
 function ReviewBadge({
@@ -71,6 +97,14 @@ function ReviewBadge({
   }
 }
 
+export function PrNumberBadge({ number }: { number: number }) {
+  return (
+    <span className="font-mono text-xs text-foreground-muted shrink-0 tracking-wide">
+      #{number}
+    </span>
+  );
+}
+
 export const PrRow = memo(function PrRow({
   pr,
   projectId,
@@ -86,58 +120,32 @@ export const PrRow = memo(function PrRow({
       <div className="pt-0.5 shrink-0">
         <StatusIcon status={pr.status} />
       </div>
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <span className="text-sm text-foreground leading-snug truncate min-w-0">{pr.title}</span>
-        </div>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <span className="font-mono text-xs text-foreground-muted shrink-0 tracking-wide">
-            #{pr.metadata.number}
-          </span>
-          <SeparatorDot />
-          {pr.author && (
-            <span className="flex items-center gap-1 text-xs text-foregrond-muted font-medium">
-              {pr.author.userName}
+      <div className="flex-1 min-w-0 flex flex-col gap-2">
+        <div className="flex items-center gap-2 justify-between">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <span className="text-sm text-foreground leading-snug truncate min-w-0">
+              {pr.title}
             </span>
-          )}
-          <SeparatorDot />
-          {pr.labels && pr.labels.length > 0 && (
-            <>
-              <div className="flex items-center gap-1 flex-wrap">
-                {pr.labels.map((label) => (
-                  <span
-                    key={label.name}
-                    className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs leading-none"
-                    style={
-                      label.color
-                        ? {
-                            borderColor: `#${label.color}40`,
-                            backgroundColor: `#${label.color}20`,
-                            color: `#${label.color}`,
-                          }
-                        : undefined
-                    }
-                  >
-                    {label.name}
-                  </span>
-                ))}
-              </div>
-              <SeparatorDot />
-            </>
-          )}
-          <span className="text-xs text-foreground-muted">opened {openedAgo}</span>
-          <SeparatorDot />
-          <ReviewBadge decision={pr.metadata.reviewDecision} isDraft={pr.isDraft} />
+            <PrNumberBadge number={pr.metadata.number} />
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => rpc.app.openExternal(pr.url)}
+                >
+                  <ExternalLink className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Open PR on github</TooltipContent>
+            </Tooltip>
+          </div>
+          <span className="text-xs text-foreground-passive">opened {openedAgo}</span>
         </div>
+        <PrMergeLine pr={pr} />
       </div>
-
-      {/* Actions */}
       <div className="shrink-0 absolute top-0 flex h-full items-center gap-1 right-3  opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button variant="outline" size="sm" onClick={() => rpc.app.openExternal(pr.url)}>
-          Open
-          <ExternalLink className="size-3.5" />
-        </Button>
-
         <Button
           variant="outline"
           size="sm"

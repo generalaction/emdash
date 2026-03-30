@@ -1,8 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
-import { isMountedProject } from '@renderer/core/stores/project';
-import { getProjectStore } from '@renderer/core/stores/project-selectors';
+import { asMounted, getProjectStore } from '@renderer/core/stores/project-selectors';
 import type { ProjectView } from '@renderer/core/stores/project-view';
 import { useParams } from '@renderer/core/view/navigation-provider';
 
@@ -19,7 +18,7 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
         ? store.name
         : null;
 
-  const mounted = store && isMountedProject(store) ? store : null;
+  const mounted = asMounted(store) ?? null;
 
   return (
     <Titlebar
@@ -46,12 +45,6 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
             </ToggleGroupItem>
             <ToggleGroupItem value="pull-request" size="sm">
               Pull Requests
-            </ToggleGroupItem>
-            <ToggleGroupItem value="repository" size="sm">
-              Repository
-            </ToggleGroupItem>
-            <ToggleGroupItem value="commits" size="sm">
-              Commits
             </ToggleGroupItem>
             <ToggleGroupItem value="settings" size="sm">
               Settings

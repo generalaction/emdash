@@ -380,6 +380,21 @@ export class PrService {
     return { sha: response.data.sha ?? null, merged: response.data.merged };
   }
 
+  async markReadyForReview(nameWithOwner: string, prNumber: number): Promise<void> {
+    const octokit = await this.getOctokit();
+    const { owner, repo } = splitRepo(nameWithOwner);
+    const { data } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
+    await octokit.graphql(
+      `mutation MarkReadyForReview($id: ID!) {
+        markPullRequestReadyForReview(input: { pullRequestId: $id }) {
+          pullRequest { isDraft }
+        }
+      }`,
+      { id: data.node_id }
+    );
+    await this.getPullRequest(nameWithOwner, prNumber, true);
+  }
+
   // ── Pass-through reads (no DB involvement) ───────────────────────────────
 
   async getCheckRuns(nameWithOwner: string, prNumber: number): Promise<PrCheckRun[]> {

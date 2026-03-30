@@ -28,17 +28,16 @@ import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { rpc } from '@renderer/core/ipc';
-import {
-  asProvisioned,
-  getTaskStore,
-  taskDisplayName,
-  taskViewKind,
-} from '@renderer/core/stores/task-selectors';
+import { getTaskStore, taskDisplayName, taskViewKind } from '@renderer/core/stores/task-selectors';
 import { RightPanelView } from '@renderer/core/tasks/types';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
-import { useTaskViewContext } from './task-view-context';
+import {
+  useProvisionedTask,
+  useRequireProvisionedTask,
+  useTaskViewContext,
+} from './task-view-context';
 import { useGitActions } from './use-git-actions';
 
 function formatUrl(url: string): string {
@@ -51,15 +50,13 @@ function formatUrl(url: string): string {
 }
 
 const DevServerPills = observer(function DevServerPills({
-  projectId,
-  taskId,
+  projectId: _projectId,
+  taskId: _taskId,
 }: {
   projectId: string;
   taskId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId);
-  const taskState = asProvisioned(taskStore);
-  const urls = taskState?.devServers?.urls ?? [];
+  const urls = useProvisionedTask()?.devServers?.urls ?? [];
 
   if (urls.length === 0) return null;
 
@@ -92,14 +89,7 @@ export const TaskTitlebar = observer(function TaskTitlebar() {
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
 
-  const isNotReady =
-    kind === 'creating' ||
-    kind === 'create-error' ||
-    kind === 'provisioning' ||
-    kind === 'idle' ||
-    kind === 'provision-error';
-
-  if (isNotReady) {
+  if (kind !== 'ready') {
     return <PendingTaskTitlebar name={taskDisplayName(taskStore)} />;
   }
 
@@ -126,7 +116,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   taskId: string;
 }) {
   const taskStore = getTaskStore(projectId, taskId);
-  const taskState = asProvisioned(taskStore)!;
+  const taskState = useRequireProvisionedTask();
   const { view, rightPanelView } = taskState;
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
   const delayedIsPending = useDelayedBoolean(isPending, 200);

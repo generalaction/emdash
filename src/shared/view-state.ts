@@ -21,7 +21,6 @@ export type TaskViewSnapshot = {
 export type ProjectViewSnapshot = {
   activeView: string;
   taskViewTab: 'active' | 'archived';
-  openTaskIds: string[];
 };
 
 export type NavigationSnapshot = {

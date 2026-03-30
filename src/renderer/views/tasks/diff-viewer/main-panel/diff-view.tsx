@@ -1,16 +1,15 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { diffEditorPool } from '@renderer/core/monaco/monaco-diff-pool';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { DiffEditorProvider } from './diff-editor-provider';
 import { DiffToolbar } from './diff-toolbar';
 import { FileDiffView } from './file-diff-view';
 import { StackedDiffView } from './stacked-diff-view';
 
 export const DiffView = observer(function DiffView() {
-  const { projectId, taskId } = useTaskViewContext();
-  const diffView = asProvisioned(getTaskStore(projectId, taskId))?.diffView;
+  const { taskId } = useTaskViewContext();
+  const diffView = useProvisionedTask()?.diffView;
   const viewMode = diffView?.viewMode ?? 'stacked';
   const diffStyle = diffView?.diffStyle ?? 'unified';
   const activeFile = diffView?.activeFile ?? null;

@@ -2,7 +2,7 @@ import { makeAutoObservable } from 'mobx';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import type { Snapshottable } from './snapshottable';
 
-export type ProjectView = 'tasks' | 'pull-request' | 'repository' | 'commits' | 'settings';
+export type ProjectView = 'tasks' | 'pull-request' | 'settings';
 
 export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
   activeView: ProjectView = 'tasks';
@@ -20,9 +20,6 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
     return {
       activeView: this.activeView,
       taskViewTab: this.taskView.tab,
-      // openTaskIds is aggregated at ProjectStore level since it requires
-      // access to TaskManagerStore.
-      openTaskIds: [],
     };
   }
 

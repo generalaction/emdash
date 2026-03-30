@@ -436,12 +436,12 @@ describe('WorktreeService', () => {
       expect(fs.existsSync(result.data)).toBe(true);
     });
 
-    it('returns worktree-setup-failed when branch does not exist', async () => {
+    it('returns branch-not-found when branch does not exist locally or on remote', async () => {
       const svc = makeService();
       const result = await svc.checkoutExistingBranch('nonexistent-branch');
       expect(result.success).toBe(false);
       if (result.success) throw new Error('expected failure');
-      expect(result.error.type).toBe('worktree-setup-failed');
+      expect(result.error.type).toBe('branch-not-found');
     });
   });
 

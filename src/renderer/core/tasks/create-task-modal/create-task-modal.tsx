@@ -76,8 +76,13 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           name: fromBranch.taskName,
           sourceBranch: { branch: fromBranch.selectedBranch?.branch ?? '', remote: 'origin' },
-          taskBranch: fromBranch.createBranchAndWorktree ? fromBranch.taskName : undefined,
-          pushBranch: fromBranch.createBranchAndWorktree ? fromBranch.pushBranch : undefined,
+          strategy: fromBranch.createBranchAndWorktree
+            ? {
+                kind: 'new-branch',
+                taskBranch: fromBranch.taskName,
+                pushBranch: fromBranch.pushBranch,
+              }
+            : { kind: 'no-worktree' },
         });
         break;
       case 'from-issue':
@@ -86,6 +91,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           name: fromIssue.taskName,
           sourceBranch: { branch: fromIssue.selectedBranch?.branch ?? '', remote: 'origin' },
+          strategy: { kind: 'no-worktree' },
           linkedIssue: fromIssue.linkedIssue ?? undefined,
         });
         break;
@@ -96,8 +102,19 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           name: fromPR.taskName,
           sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName, remote: 'origin' },
-          taskBranch: fromPR.checkoutMode === 'new-branch' ? fromPR.taskName : undefined,
-          checkoutInWorktree: fromPR.checkoutMode === 'checkout',
+          strategy:
+            fromPR.checkoutMode === 'checkout'
+              ? {
+                  kind: 'from-pull-request',
+                  prNumber: fromPR.linkedPR.metadata.number,
+                  headBranch: fromPR.linkedPR.metadata.headRefName,
+                }
+              : {
+                  kind: 'from-pull-request',
+                  prNumber: fromPR.linkedPR.metadata.number,
+                  headBranch: fromPR.linkedPR.metadata.headRefName,
+                  taskBranch: fromPR.taskName,
+                },
         });
         break;
     }

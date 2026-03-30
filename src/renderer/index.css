@@ -141,6 +141,9 @@
     --ring: hsl(0 0% 3.9%);
     --radius: 0.5rem;
 
+    --selection: color(display-p3 0.953 0.75 0.698);
+    --selection-foreground: color(display-p3 0.335 0.165 0.132);
+
     /* Monaco editor */
     --monaco-bg: #f8fafc;
     --monaco-fg: #1e293b;

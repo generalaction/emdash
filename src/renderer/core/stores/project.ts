@@ -3,7 +3,6 @@ import type { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { ProjectViewStore } from './project-view';
 import { snapshotRegistry } from './snapshot-registry';
-import { isProvisioned } from './task';
 import { TaskManagerStore } from './task-manager';
 
 export type UnregisteredProjectPhase =
@@ -56,9 +55,6 @@ export class ProjectStore {
     return {
       activeView: this.view?.activeView ?? 'tasks',
       taskViewTab: this.view?.taskView.tab ?? 'active',
-      openTaskIds: [...(this.taskManager?.tasks.values() ?? [])]
-        .filter(isProvisioned)
-        .map((t) => t.data.id),
     };
   }
 

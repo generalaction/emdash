@@ -1,5 +1,7 @@
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useRef } from 'react';
 import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
 import {
@@ -16,11 +18,11 @@ import ShortcutHint from '@renderer/components/ui/shortcut-hint';
 import { Spinner } from '@renderer/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { isMountedProject } from '@renderer/core/stores/project';
-import { getProjectStore } from '@renderer/core/stores/project-selectors';
+import { asMounted, getProjectStore } from '@renderer/core/stores/project-selectors';
 import { ProvisionedTask, UnprovisionedTask } from '@renderer/core/stores/task';
 import { getTaskManagerStore } from '@renderer/core/stores/task-selectors';
 import { useNavigate, useParams } from '@renderer/core/view/navigation-provider';
+import { cn } from '@renderer/lib/utils';
 
 type ReadyTask = UnprovisionedTask | ProvisionedTask;
 
@@ -69,7 +71,7 @@ const TaskRow = observer(function TaskRow({
         handleProvision();
         navigate('task', { projectId: task.data.projectId, taskId: task.data.id });
       }}
-      className="group flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-background-1"
+      className="group flex items-center gap-3 rounded-lg p-3 py-4 hover:bg-background-1 transition-colors"
     >
       <div onClick={(e) => e.stopPropagation()}>
         <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} aria-label="Select task" />
@@ -123,7 +125,7 @@ const TaskRow = observer(function TaskRow({
   );
 });
 
-function TaskRows({
+function TaskVirtualList({
   tasks,
   selectedIds,
   onToggleSelect,
@@ -132,20 +134,57 @@ function TaskRows({
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
 }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: tasks.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 60,
+    overscan: 5,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+
   if (tasks.length === 0) {
     return <EmptyState label="No tasks" description="No tasks found" />;
   }
 
   return (
-    <div className="flex flex-col">
-      {tasks.map((task) => (
-        <TaskRow
-          key={task.data.id}
-          task={task}
-          isSelected={selectedIds.has(task.data.id)}
-          onToggleSelect={() => onToggleSelect(task.data.id)}
-        />
-      ))}
+    <div
+      ref={parentRef}
+      className="overflow-y-auto min-h-0 flex-1"
+      style={{ scrollbarWidth: 'none' }}
+    >
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        {virtualItems.map((virtualItem) => {
+          const task = tasks[virtualItem.index]!;
+          return (
+            <div
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
+              className={cn(
+                'border-b border-border py-1',
+                virtualItem.index === tasks.length - 1 && 'border-b-0'
+              )}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              <TaskRow
+                task={task}
+                isSelected={selectedIds.has(task.data.id)}
+                onToggleSelect={() => onToggleSelect(task.data.id)}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -198,12 +237,12 @@ export const TaskList = observer(function TaskList() {
   const {
     params: { projectId },
   } = useParams('project');
-  const store = getProjectStore(projectId);
+  const store = asMounted(getProjectStore(projectId));
   const taskManager = getTaskManagerStore(projectId);
   const showConfirm = useShowModal('confirmActionModal');
   const showCreateTaskModal = useShowModal('taskModal');
 
-  const taskView = store && isMountedProject(store) ? store.view.taskView : null;
+  const taskView = store?.view.taskView ?? null;
 
   const allTasks = taskManager
     ? Array.from(taskManager.tasks.values()).filter(
@@ -250,32 +289,34 @@ export const TaskList = observer(function TaskList() {
   };
 
   return (
-    <div className="flex flex-col gap-4 max-w-3xl mx-auto w-full pt-10 px-10">
-      <div className="flex relative items-center gap-3 justify-between">
-        <ToggleGroup
-          multiple={false}
-          value={[taskView.tab]}
-          onValueChange={([value]) => {
-            if (value) taskView.setTab(value as 'active' | 'archived');
-          }}
-        >
-          <ToggleGroupItem value="active">Active ({activeTasks.length})</ToggleGroupItem>
-          <ToggleGroupItem value="archived">Archived ({archivedTasks.length})</ToggleGroupItem>
-        </ToggleGroup>
-        <div className="flex items-center gap-2">
-          <SearchInput
-            placeholder="Search tasks…"
-            value={taskView.searchQuery}
-            onChange={(e) => taskView.setSearchQuery(e.target.value)}
-            className="flex-1"
-          />
-          <Button onClick={() => showCreateTaskModal({ projectId })}>
-            Create Task <ShortcutHint settingsKey="newTask" />
-          </Button>
+    <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
+      <div className="flex flex-col gap-4 border-b border-border pb-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap justify-between">
+          <ToggleGroup
+            multiple={false}
+            value={[taskView.tab]}
+            onValueChange={([value]) => {
+              if (value) taskView.setTab(value as 'active' | 'archived');
+            }}
+          >
+            <ToggleGroupItem value="active">Active ({activeTasks.length})</ToggleGroupItem>
+            <ToggleGroupItem value="archived">Archived ({archivedTasks.length})</ToggleGroupItem>
+          </ToggleGroup>
+          <div className="flex items-center gap-2">
+            <SearchInput
+              placeholder="Search tasks…"
+              value={taskView.searchQuery}
+              onChange={(e) => taskView.setSearchQuery(e.target.value)}
+              className="flex-1"
+            />
+            <Button onClick={() => showCreateTaskModal({ projectId })}>
+              Create Task <ShortcutHint settingsKey="newTask" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      <TaskRows
+      <TaskVirtualList
         tasks={filteredTasks}
         selectedIds={taskView.selectedIds}
         onToggleSelect={(id) => taskView.toggleSelect(id)}

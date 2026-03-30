@@ -10,11 +10,10 @@ import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { PooledDiffEditor } from '@renderer/core/monaco/pooled-diff-editor';
 import { useModelStatus } from '@renderer/core/monaco/use-model';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
 import { cn } from '@renderer/lib/utils';
 import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
 const LARGE_DIFF_LINE_THRESHOLD = 2500;
 
@@ -25,8 +24,7 @@ const LARGE_DIFF_LINE_THRESHOLD = 2500;
 const MAX_STACKED_FILES = 75;
 
 export const StackedDiffView = observer(function StackedDiffView() {
-  const { projectId, taskId } = useTaskViewContext();
-  const provisioned = asProvisioned(getTaskStore(projectId, taskId));
+  const provisioned = useProvisionedTask();
   const git = provisioned?.git;
   const activeFile = provisioned?.diffView.activeFile ?? null;
   const stagedFileChanges = git?.stagedFileChanges ?? [];
@@ -60,7 +58,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
   originalRef,
 }: StackedDiffPanelProps) {
   const { projectId, taskId } = useTaskViewContext();
-  const diffView = asProvisioned(getTaskStore(projectId, taskId))?.diffView;
+  const diffView = useProvisionedTask()?.diffView;
   const activeFile = diffView?.activeFile ?? null;
   const viewMode = diffView?.viewMode ?? 'stacked';
   const diffStyle = diffView?.diffStyle ?? 'unified';

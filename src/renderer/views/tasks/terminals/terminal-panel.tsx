@@ -10,14 +10,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui
 import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { TabViewProvider } from '@renderer/core/stores/generic-tab-view';
 import { PtySession } from '@renderer/core/stores/pty-session';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
 import { cn } from '@renderer/lib/utils';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TabbedPtyPanel } from '../tabbed-pty-panel';
-import { useTaskViewContext } from '../task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '../task-view-context';
 import {
   getTerminalsPaneSize,
   nextTerminalName,
@@ -31,7 +30,7 @@ type AnyPtyEntity = { data: { id: string }; session: PtySession };
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
-  const taskStore = asProvisioned(getTaskStore(projectId, taskId));
+  const taskStore = useProvisionedTask();
   const terminalMgr = taskStore?.terminals;
   const lifecycleScriptsMgr = taskStore?.lifecycleScripts ?? null;
   const { value: keyboard } = useAppSettingsKey('keyboard');

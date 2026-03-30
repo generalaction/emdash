@@ -3,12 +3,10 @@ import { observer } from 'mobx-react-lite';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { selectAheadCount } from '@renderer/core/stores/diff-selectors';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 
 export const PushCard = observer(function PushCard() {
-  const { projectId, taskId } = useTaskViewContext();
-  const git = asProvisioned(getTaskStore(projectId, taskId))?.git;
+  const git = useProvisionedTask()?.git;
   const ahead = git ? selectAheadCount(git) : 0;
 
   return (

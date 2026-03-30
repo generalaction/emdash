@@ -13,10 +13,10 @@ import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { defineMonacoThemes, getMonacoTheme } from '@renderer/core/monaco/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { useMonacoLease } from '@renderer/core/monaco/use-monaco-lease';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
+import { useRequireProvisionedTask } from '../task-view-context';
 
 interface EditorContextValue {
   /**
@@ -37,14 +37,14 @@ export function useEditorContext(): EditorContextValue {
 export const EditorProvider = observer(function EditorProvider({
   children,
   taskId,
-  projectId,
+  projectId: _projectId,
 }: {
   children: ReactNode;
   taskId: string;
   projectId: string;
 }) {
-  const taskStore = asProvisioned(getTaskStore(projectId, taskId));
-  const editorView = taskStore!.editorView;
+  const taskStore = useRequireProvisionedTask();
+  const editorView = taskStore.editorView;
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
 
@@ -110,7 +110,7 @@ export const EditorProvider = observer(function EditorProvider({
 
           lease.disposables.push(
             lease.editor.onDidFocusEditorWidget(() => {
-              taskStore?.setFocusedRegion('main');
+              taskStore.setFocusedRegion('main');
             })
           );
 
@@ -211,7 +211,7 @@ export const EditorProvider = observer(function EditorProvider({
   // focus Monaco if an editable model is loaded; otherwise queue the intent so
   // it is satisfied once the lease arrives (handled in the lease reaction above).
   // ---------------------------------------------------------------------------
-  const focusedRegion = taskStore?.focusedRegion;
+  const focusedRegion = taskStore.focusedRegion;
   useEffect(() => {
     if (!isActive || focusedRegion !== 'main') return;
     const editor = editorRef.current;

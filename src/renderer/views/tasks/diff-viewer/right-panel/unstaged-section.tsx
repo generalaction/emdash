@@ -3,8 +3,10 @@ import { observer } from 'mobx-react-lite';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import {
+  useRequireProvisionedTask,
+  useTaskViewContext,
+} from '@renderer/views/tasks/task-view-context';
 import { ActionCard } from './action-card';
 import { SectionHeader } from './section-header';
 import { usePrefetchModels } from './use-prefetch-models';
@@ -12,7 +14,7 @@ import { VirtualizedChangesList } from './virtualized-changes-list';
 
 export const UnstagedSection = observer(function UnstagedSection() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = asProvisioned(getTaskStore(projectId, taskId))!;
+  const provisioned = useRequireProvisionedTask();
   const git = provisioned.git;
   const changesView = provisioned.diffView.changesView;
   const diffView = provisioned.diffView;

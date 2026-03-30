@@ -5,9 +5,8 @@ import React, { useRef } from 'react';
 import type { FileNode } from '@shared/fs';
 import { FileIcon } from '@renderer/core/editor/file-icon';
 import { buildVisibleRows } from '@renderer/core/stores/files-store-utils';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { cn } from '@renderer/lib/utils';
-import { useTaskViewContext } from '../task-view-context';
+import { useRequireProvisionedTask } from '../task-view-context';
 
 const FileTreeRow = observer(function FileTreeRow({
   node,
@@ -16,8 +15,7 @@ const FileTreeRow = observer(function FileTreeRow({
   node: FileNode;
   style: React.CSSProperties;
 }) {
-  const { projectId, taskId } = useTaskViewContext();
-  const taskState = asProvisioned(getTaskStore(projectId, taskId))!;
+  const taskState = useRequireProvisionedTask();
   const editorView = taskState.editorView;
 
   const isExpanded = editorView.expandedPaths.has(node.path);
@@ -122,9 +120,7 @@ const FileTreeRow = observer(function FileTreeRow({
 });
 
 export const EditorFileTree = observer(function EditorFileTree() {
-  const { projectId, taskId } = useTaskViewContext();
-
-  const taskState = asProvisioned(getTaskStore(projectId, taskId))!;
+  const taskState = useRequireProvisionedTask();
   const files = taskState.files;
   const editorView = taskState.editorView;
 

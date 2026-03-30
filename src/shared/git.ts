@@ -80,6 +80,10 @@ export type FetchError =
   | { type: 'remote_not_found'; message: string }
   | { type: 'error'; message: string };
 
+export type FetchPrRefError =
+  | { type: 'not_found'; prNumber: number }
+  | { type: 'error'; message: string };
+
 export type CommitError =
   | { type: 'empty_message' }
   | { type: 'nothing_to_commit' }

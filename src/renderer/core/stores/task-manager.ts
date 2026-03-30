@@ -1,5 +1,5 @@
 import { makeObservable, observable, runInAction } from 'mobx';
-import type { CreateTaskParams } from '@shared/tasks';
+import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/core/ipc';
 import { projectManagerStore } from './project-manager';
@@ -12,6 +12,25 @@ import {
   isUnregistered,
   TaskStore,
 } from './task';
+
+function formatCreateTaskError(error: CreateTaskError): string {
+  switch (error.type) {
+    case 'project-not-found':
+      return 'Project not found.';
+    case 'branch-not-found':
+      return `Branch "${error.branch}" was not found locally or on the remote. Make sure the PR branch exists.`;
+    case 'branch-already-exists':
+      return `Branch "${error.branch}" already exists. Try a different task name.`;
+    case 'invalid-base-branch':
+      return `Source branch "${error.branch}" is not a valid base. Check that the branch exists on the remote.`;
+    case 'worktree-setup-failed':
+      return `Could not set up the worktree: ${error.message}`;
+    case 'pr-fetch-failed':
+      return `Could not fetch the pull request branch: ${error.message}`;
+    case 'provision-failed':
+      return `Task could not be provisioned: ${error.message}`;
+  }
+}
 
 export class TaskManagerStore {
   private readonly projectId: string;
@@ -44,27 +63,37 @@ export class TaskManagerStore {
       this.tasks.set(params.id, createUnregisteredTask({ id: params.id, name: params.name }));
     });
 
-    await rpc.tasks
-      .createTask(params)
-      .then((task) => {
-        runInAction(() => {
-          const current = this.tasks.get(params.id);
-          if (current && isUnregistered(current)) {
-            current.transitionToUnprovisioned(task, 'provision');
-          }
-        });
-        return task;
-      })
-      .catch((err: unknown) => {
-        runInAction(() => {
-          const current = this.tasks.get(params.id);
-          if (current && isUnregistered(current)) {
-            current.phase = 'create-error';
-            current.errorMessage = err instanceof Error ? err.message : String(err);
-          }
-        });
-        throw err;
+    const result = await rpc.tasks.createTask(params).catch((e: unknown) => {
+      // Network/IPC-level failure — surface as a generic error.
+      const message = e instanceof Error ? e.message : String(e);
+      runInAction(() => {
+        const current = this.tasks.get(params.id);
+        if (current && isUnregistered(current)) {
+          current.phase = 'create-error';
+          current.errorMessage = message;
+        }
       });
+      throw e;
+    });
+
+    if (!result.success) {
+      const message = formatCreateTaskError(result.error);
+      runInAction(() => {
+        const current = this.tasks.get(params.id);
+        if (current && isUnregistered(current)) {
+          current.phase = 'create-error';
+          current.errorMessage = message;
+        }
+      });
+      throw new Error(message);
+    }
+
+    runInAction(() => {
+      const current = this.tasks.get(params.id);
+      if (current && isUnregistered(current)) {
+        current.transitionToUnprovisioned(result.data, 'provision');
+      }
+    });
 
     await this.provisionTask(params.id);
   }

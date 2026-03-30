@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import { MountedProject } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
+import { asMounted } from '@renderer/core/stores/project-selectors';
 import {
   Combobox,
   ComboboxCollection,
@@ -33,10 +34,10 @@ export const ProjectSelector = observer(function ProjectSelector({
   const [open, setOpen] = useState(false);
 
   const options: ProjectOption[] = Array.from(projectManagerStore.projects.entries())
-    .filter(([, store]) => store.state === 'mounted')
+    .filter((entry): entry is [string, MountedProject] => asMounted(entry[1]) !== undefined)
     .map(([id, store]) => ({
       value: id,
-      label: (store as MountedProject).data.name,
+      label: store.data.name,
     }));
 
   const selectedOption = options.find((o) => o.value === value) ?? null;

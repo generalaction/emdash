@@ -6,8 +6,8 @@ import { TabBar } from '@renderer/components/ui/tab-bar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { ConversationStore } from '@renderer/core/stores/conversation-manager';
-import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { agentConfig } from '@renderer/lib/agentConfig';
+import { useProvisionedTask } from '../task-view-context';
 
 export const ConversationsTabs = observer(function ConversationsTabs({
   projectId,
@@ -16,7 +16,7 @@ export const ConversationsTabs = observer(function ConversationsTabs({
   projectId: string;
   taskId: string;
 }) {
-  const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
+  const conversationMgr = useProvisionedTask()?.conversations;
   const showCreateConversationModal = useShowModal('createConversationModal');
 
   if (!conversationMgr) return null;

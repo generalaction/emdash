@@ -2,6 +2,7 @@ import { makeObservable, observable, runInAction } from 'mobx';
 import { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/core/ipc';
+import { appState } from './app-state';
 import {
   createUnmountedProject,
   createUnregisteredProject,
@@ -218,7 +219,6 @@ export class ProjectManagerStore {
       rpc.viewState.get(`project:${projectId}`),
     ])
       .then(async ([, savedSnapshot]) => {
-        let openTaskIds: string[] = [];
         runInAction(() => {
           const current = this.projects.get(projectId);
           if (current && isUnmountedProject(current)) {
@@ -226,15 +226,22 @@ export class ProjectManagerStore {
               current.data,
               savedSnapshot as ProjectViewSnapshot | undefined
             );
-            openTaskIds = (savedSnapshot as ProjectViewSnapshot)?.openTaskIds ?? [];
           }
         });
         // Load the task list before provisioning so the tasks map is populated.
         const taskManager = this.projects.get(projectId)?.taskManager;
         if (taskManager) {
           await taskManager.loadTasks();
-          for (const taskId of openTaskIds) {
-            taskManager.provisionTask(taskId).catch(() => {});
+          const nav = appState.navigation;
+          const navParams = nav.viewParamsStore['task'] as
+            | { projectId?: string; taskId?: string }
+            | undefined;
+          const navTaskId =
+            nav.currentViewId === 'task' && navParams?.projectId === projectId
+              ? navParams.taskId
+              : undefined;
+          if (navTaskId) {
+            taskManager.provisionTask(navTaskId).catch(() => {});
           }
         }
       })

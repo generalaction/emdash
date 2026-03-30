@@ -3,6 +3,7 @@ import {
   isMountedProject,
   isUnmountedProject,
   isUnregisteredProject,
+  MountedProject,
   ProjectStore,
 } from './project';
 import { projectManagerStore } from './project-manager';
@@ -30,6 +31,12 @@ export function projectViewKind(store: ProjectStore | undefined): ProjectViewKin
     return 'idle_unmounted';
   }
   return 'ready';
+}
+
+/** Returns the mounted project if ready, otherwise undefined. */
+export function asMounted(store: ProjectStore | undefined): MountedProject | undefined {
+  if (store && isMountedProject(store)) return store;
+  return undefined;
 }
 
 export function mountedProjectData(
