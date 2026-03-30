@@ -17,6 +17,14 @@ vi.mock('../ssh/SshService', () => ({
   })),
 }));
 
+const mockGetAppSettings = vi.fn().mockReturnValue({
+  repository: { branchPrefix: 'emdash' },
+});
+
+vi.mock('../../settings', () => ({
+  getAppSettings: (...args: any[]) => mockGetAppSettings(...args),
+}));
+
 describe('RemoteGitService', () => {
   let service: RemoteGitService;
   let mockSshService: SshService;
@@ -144,7 +152,7 @@ describe('RemoteGitService', () => {
         expect.stringContaining('git worktree add'),
         '/home/user/project'
       );
-      expect(result.branch).toContain('task-name');
+      expect(result.branch).toMatch(/^emdash\/task-name-/);
       expect(result.isMain).toBe(false);
       expect(result.path).toContain('.emdash/worktrees');
     });
@@ -184,12 +192,30 @@ describe('RemoteGitService', () => {
         'task with spaces & symbols!@#'
       );
 
-      expect(result.branch).toMatch(/^task-with-spaces-/);
+      expect(result.branch).toMatch(/^emdash\/task-with-spaces-/);
       expect(result.branch).not.toContain(' ');
       expect(result.branch).not.toContain('&');
       expect(result.branch).not.toContain('!');
       expect(result.branch).not.toContain('@');
       expect(result.branch).not.toContain('#');
+    });
+
+    it('should use custom branch prefix from settings', async () => {
+      mockGetAppSettings.mockReturnValue({
+        repository: { branchPrefix: 'custom-prefix' },
+      });
+
+      mockExecuteCommand.mockResolvedValue({
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      } as ExecResult);
+
+      const result = await service.createWorktree('conn-1', '/home/user/project', 'my-task');
+
+      expect(result.branch).toMatch(/^custom-prefix\/my-task-/);
+      // Directory path should not contain the prefix
+      expect(result.path).toMatch(/\.emdash\/worktrees\/my-task-\d+$/);
     });
 
     it('should throw error when worktree creation fails', async () => {
