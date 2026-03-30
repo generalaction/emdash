@@ -193,7 +193,10 @@
         }
       ],
       "icon": "src/assets/images/emdash/emdash.icns",
-      "notarize": false
+      "notarize": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Emdash needs microphone access to support voice input for coding agents like Claude Code."
+      }
     },
     "dmg": {
       "icon": "src/assets/images/emdash/emdash.icns"
