@@ -14,6 +14,16 @@ export interface CatalogEntryDef {
 }
 
 export const catalogData: Record<string, CatalogEntryDef> = {
+  emdash: {
+    config: {
+      type: 'http',
+      url: 'http://127.0.0.1:17823/mcp',
+    },
+    name: 'Emdash',
+    description: 'Create and manage tasks in the local Emdash desktop app',
+    docsUrl: 'https://emdash.ai/docs/mcp',
+    credentialKeys: [],
+  },
   playwright: {
     config: {
       command: 'npx',
