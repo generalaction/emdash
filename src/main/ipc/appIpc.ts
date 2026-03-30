@@ -438,6 +438,16 @@ export function registerAppIpc() {
 
               if (lastError instanceof Error) throw lastError;
               throw new Error('Unable to launch Ghostty');
+            } else if (appId === 'kitty') {
+              const kittyExecArgs = buildGhosttyRemoteExecArgs({
+                host: connection.host,
+                username: connection.username,
+                port: connection.port,
+                targetPath: target,
+              });
+
+              await execFileCommand('kitty', ['-e', ...kittyExecArgs]);
+              return { success: true };
             } else if (appConfig.supportsRemote) {
               // App claims to support remote but we don't have a handler
               return {
