@@ -30,21 +30,6 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   const { closeModal } = useModalContext();
   const [currentViewId, setCurrentViewId] = useState<ViewId>(() => {
     const v = appState.navigation.currentViewId;
-    // #region agent log
-    fetch('http://127.0.0.1:7430/ingest/6ccbb4c2-4905-4756-889f-988f583bdf2f', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f1d8e3' },
-      body: JSON.stringify({
-        sessionId: 'f1d8e3',
-        location: 'provider.tsx:useState-viewId',
-        message: 'useState currentViewId initializer',
-        data: { currentViewId: v, viewParams: appState.navigation.viewParamsStore },
-        timestamp: Date.now(),
-        runId: 'run2',
-        hypothesisId: 'D',
-      }),
-    }).catch(() => {});
-    // #endregion
     return v;
   });
   const [viewParamsStore, setViewParamsStore] = useState<ViewParamsStore>(
@@ -55,21 +40,6 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   // Sync React state back to the MobX persistence mirror after every commit.
   // The SnapshotRegistry reaction then debounces the RPC write by 1 s.
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7430/ingest/6ccbb4c2-4905-4756-889f-988f583bdf2f', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f1d8e3' },
-      body: JSON.stringify({
-        sessionId: 'f1d8e3',
-        location: 'provider.tsx:sync-effect',
-        message: 'sync useEffect fired',
-        data: { currentViewId, viewParams: viewParamsStore },
-        timestamp: Date.now(),
-        runId: 'run2',
-        hypothesisId: 'F',
-      }),
-    }).catch(() => {});
-    // #endregion
     runInAction(() => appState.navigation.sync(currentViewId, viewParamsStore));
   }, [currentViewId, viewParamsStore]);
 

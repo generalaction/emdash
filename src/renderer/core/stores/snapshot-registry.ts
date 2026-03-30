@@ -23,57 +23,7 @@ export class SnapshotRegistry {
     const disposer = reaction(
       () => getSnapshot(),
       (snapshot) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7430/ingest/6ccbb4c2-4905-4756-889f-988f583bdf2f', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f1d8e3' },
-          body: JSON.stringify({
-            sessionId: 'f1d8e3',
-            location: 'snapshot-registry:reaction',
-            message: 'reaction fired, saving snapshot',
-            data: { key, snapshot },
-            timestamp: Date.now(),
-            runId: 'run5',
-            hypothesisId: 'F-G',
-          }),
-        }).catch(() => {});
-        // #endregion
-        rpc.viewState
-          .save(key, snapshot)
-          .then(() => {
-            // #region agent log
-            fetch('http://127.0.0.1:7430/ingest/6ccbb4c2-4905-4756-889f-988f583bdf2f', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f1d8e3' },
-              body: JSON.stringify({
-                sessionId: 'f1d8e3',
-                location: 'snapshot-registry:save-resolved',
-                message: 'rpc.viewState.save resolved',
-                data: { key },
-                timestamp: Date.now(),
-                runId: 'run5',
-                hypothesisId: 'I',
-              }),
-            }).catch(() => {});
-            // #endregion
-          })
-          .catch((e) => {
-            // #region agent log
-            fetch('http://127.0.0.1:7430/ingest/6ccbb4c2-4905-4756-889f-988f583bdf2f', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f1d8e3' },
-              body: JSON.stringify({
-                sessionId: 'f1d8e3',
-                location: 'snapshot-registry:save-error',
-                message: 'rpc.viewState.save failed',
-                data: { key, error: String(e) },
-                timestamp: Date.now(),
-                runId: 'run5',
-                hypothesisId: 'G',
-              }),
-            }).catch(() => {});
-            // #endregion
-          });
+        rpc.viewState.save(key, snapshot);
       },
       { equals: comparer.structural, delay: 1000, fireImmediately: false }
     );
