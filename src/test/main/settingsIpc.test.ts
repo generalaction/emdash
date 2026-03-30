@@ -32,7 +32,7 @@ const { updateAppSettingsMock } = vi.hoisted(() => ({
 
 vi.mock('../../main/settings', () => ({
   getAppSettings: () => currentSettings,
-  updateAppSettings: (...args: any[]) => updateAppSettingsMock(...args),
+  updateAppSettings: (partial: any) => updateAppSettingsMock(partial),
 }));
 
 vi.mock('electron', () => ({
