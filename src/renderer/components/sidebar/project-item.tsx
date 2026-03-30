@@ -149,6 +149,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
                 'text-foreground-tertiary-passive'
             )}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => navigate('project', { projectId })}
           >
             {project.name}

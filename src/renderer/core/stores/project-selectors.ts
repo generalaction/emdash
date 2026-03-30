@@ -46,6 +46,11 @@ export function mountedProjectData(
   return null;
 }
 
+/** Returns the display name from any project store variant. */
+export function projectDisplayName(store: ProjectStore | undefined): string | undefined {
+  return store?.name ?? undefined;
+}
+
 export function unmountedMountErrorMessage(store: ProjectStore | undefined): string {
   if (store && isUnmountedProject(store) && store.phase === 'error') {
     return store.error ?? 'Failed to open project';

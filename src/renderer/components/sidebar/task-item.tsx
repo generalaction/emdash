@@ -67,6 +67,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
               'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
               isBootstrapping && 'text-foreground/40'
             )}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               handleProvision();
               navigate('task', { projectId, taskId });

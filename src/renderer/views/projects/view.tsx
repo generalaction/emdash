@@ -10,7 +10,7 @@ import { useParams } from '@renderer/core/view/navigation-provider';
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
 import { ActiveProject } from './active-project';
 import { PendingProjectStatus } from './pending-project';
-import { ProjectTitlebar } from './titlebar';
+import { ProjectTitlebar } from './project-titlebar';
 
 export const ProjectMainPanel = observer(function ProjectMainPanel() {
   const {

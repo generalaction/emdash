@@ -122,7 +122,7 @@ export class TaskManagerStore {
           if (current && isUnprovisioned(current)) {
             current.transitionToProvisioned(
               { ...current.data },
-              result?.path ?? '',
+              result.path,
               savedSnapshot as TaskViewSnapshot | undefined
             );
             current.activate();

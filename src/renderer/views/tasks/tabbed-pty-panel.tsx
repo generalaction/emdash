@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { PaneSizingProvider } from '@renderer/core/pty/pane-sizing-context';
 import { TerminalPane } from '@renderer/core/pty/pty-pane';
 import { TabViewProvider } from '@renderer/core/stores/generic-tab-view';
@@ -39,18 +39,20 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   const activeSessionId = activeTab ? getSessionId(activeTab) : null;
   const activeSession = activeTab ? getSession(activeTab) : null;
 
+  const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<{ focus: () => void }>(null);
   const focusPendingRef = useRef(false);
-  const [isFocused, setIsFocused] = useState(false);
 
   // Fire when autoFocus becomes true (task switch) or the active session changes.
-  // If the terminal is already mounted, focus immediately; otherwise queue intent.
+  // If the terminal is already mounted, focus immediately; otherwise hold focus on
+  // the container so keyboard input has a home while the PTY is connecting.
   useEffect(() => {
     if (!autoFocus) return;
     if (terminalRef.current) {
       terminalRef.current.focus();
       focusPendingRef.current = false;
     } else {
+      containerRef.current?.focus();
       focusPendingRef.current = true;
     }
   }, [autoFocus, activeSessionId]);
@@ -67,14 +69,14 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
 
   return (
     <div
-      className="flex h-full flex-col"
+      ref={containerRef}
+      tabIndex={-1}
+      className="flex h-full flex-col outline-none"
       onFocus={() => {
-        setIsFocused(true);
         onFocusChange?.(true);
       }}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-          setIsFocused(false);
           onFocusChange?.(false);
         }
       }}
@@ -87,7 +89,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
           <div
             className={cn(
               'flex min-h-0 flex-1 flex-col transition-opacity duration-150',
-              !isFocused && 'opacity-50'
+              !autoFocus && 'opacity-50'
             )}
           >
             {activeSessionId && activeSession?.status === 'ready' && activeSession.pty && (

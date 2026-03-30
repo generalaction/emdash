@@ -14,7 +14,12 @@ export async function provisionTask(taskId: string) {
   const project = projectManager.getProject(task.projectId);
   if (!project) throw new Error(`Project not found: ${task.projectId}`);
 
-  if (project.getTask(taskId)) return;
+  const existingTask = project.getTask(taskId);
+
+  if (existingTask)
+    return {
+      path: existingTask.taskPath,
+    };
 
   const [existingTerminals, existingConversations] = await Promise.all([
     db

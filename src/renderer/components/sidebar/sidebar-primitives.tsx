@@ -82,6 +82,7 @@ export const SidebarItemMiniButton = React.forwardRef<
       'w-6 h-6 flex items-center justify-center text-foreground-tertiary-muted hover:text-foreground-tertiary rounded-md hover:bg-background-tertiary-2 group-data-[active=true]/row:hover:bg-background-tertiary-3',
       className
     )}
+    onMouseDown={(e) => e.preventDefault()}
     {...props}
   />
 ));
@@ -99,6 +100,7 @@ export const SidebarMenuButton = React.forwardRef<HTMLButtonElement, SidebarMenu
       ref={ref}
       data-active={isActive || undefined}
       className={cn(sidebarMenuItemClass, className)}
+      onMouseDown={(e) => e.preventDefault()}
       {...props}
     />
   )

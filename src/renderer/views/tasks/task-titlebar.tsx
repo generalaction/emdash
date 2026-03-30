@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { IssueSelector } from '@renderer/components/issue-selector';
-import { OpenInMenu } from '@renderer/components/titlebar/OpenInMenu';
+import { OpenInMenu } from '@renderer/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
@@ -293,6 +293,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       rightSlot={
         <div className="flex items-center gap-2 mr-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
+          <OpenInMenu path={taskState.path} className="h-7  bg-background" />
           <ToggleGroup
             disabled={delayedIsPending}
             variant="outline"

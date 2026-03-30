@@ -1,30 +1,34 @@
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useMemo } from 'react';
 import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { rpc } from '@renderer/core/ipc';
 import { useToast } from '@renderer/hooks/use-toast';
+import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useOpenInApps } from '@renderer/hooks/useOpenInApps';
-import { Button } from '../ui/button';
+import { cn } from '@renderer/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '../ui/select';
+import { ShortcutHint } from '../ui/shortcut-hint';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 interface OpenInMenuProps {
   path: string;
-  align?: 'left' | 'right';
   isRemote?: boolean;
   sshConnectionId?: string | null;
+  className?: string;
 }
 
 export const OpenInMenu: React.FC<OpenInMenuProps> = ({
   path,
-  align = 'right',
+  className,
   isRemote = false,
   sshConnectionId = null,
 }) => {
   const { toast } = useToast();
   const { icons, labels, installedApps, availability, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
+  const { value: keyboard } = useAppSettingsKey('keyboard');
 
   const defaultApp: OpenInAppId | null =
     openIn?.default && isValidOpenInAppId(openIn.default) ? openIn.default : null;
@@ -87,10 +91,24 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
 
   const buttonAppLabel = buttonAppId ? (labels[buttonAppId] ?? buttonAppId) : null;
 
+  useHotkey(
+    getEffectiveHotkey('openInEditor', keyboard),
+    () => {
+      if (!buttonAppId) return;
+      void triggerOpenIn(buttonAppId);
+    },
+    { enabled: !!buttonAppId && !loading }
+  );
+
   const shortenedPath = useMemo(() => path.split('/').slice(-2).join('/'), [path]);
 
   return (
-    <div className="border border-border rounded-md h-6 flex items-center text-foreground-muted overflow-hidden">
+    <div
+      className={cn(
+        'border border-border rounded-md h-6 flex items-center text-foreground-muted overflow-hidden',
+        className
+      )}
+    >
       <TooltipProvider delay={0}>
         <Tooltip>
           <TooltipTrigger className="flex-1 flex min-w-0">
@@ -116,7 +134,12 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
               <span>{shortenedPath}</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Open in {buttonAppLabel || 'editor'}</TooltipContent>
+          <TooltipContent side="bottom">
+            <div className="flex flex-col gap-1">
+              <span>Open in {buttonAppLabel || 'editor'}</span>
+              <ShortcutHint settingsKey="openInEditor" />
+            </div>
+          </TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <Select
