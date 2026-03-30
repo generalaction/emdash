@@ -37,7 +37,9 @@ export function stripAnsi(input: string, options: StripAnsiOptions = {}): string
   }
 
   if (stripOtherEscapes) {
-    output = output.replace(/\x1b[A-Za-z]/g, '');
+    // Strip remaining single-byte escape sequences (Fe/Fp/Fs: \e0-\e~ range)
+    // while preserving multi-byte sequence openers: \e[ (CSI) and \e] (OSC)
+    output = output.replace(/\x1b[^[\]]/g, '');
   }
 
   if (stripCarriageReturn) {
