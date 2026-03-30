@@ -283,3 +283,45 @@ describe('normalizeSettings – terminal settings', () => {
     expect(result.terminal?.macOptionIsMeta).toBe(true);
   });
 });
+
+describe('normalizeSettings - mcp settings', () => {
+  it('defaults mcp.enabled to false when omitted', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.mcp?.enabled).toBe(false);
+  });
+
+  it('preserves mcp.enabled when set to true', () => {
+    const result = normalizeSettings(makeSettings({ mcp: { enabled: true } }));
+    expect(result.mcp?.enabled).toBe(true);
+  });
+
+  it('coerces a truthy value to true', () => {
+    const result = normalizeSettings(makeSettings({ mcp: { enabled: 1 as any } }));
+    expect(result.mcp?.enabled).toBe(true);
+  });
+
+  it('accepts a valid port', () => {
+    const result = normalizeSettings(makeSettings({ mcp: { enabled: false, port: 18000 } }));
+    expect(result.mcp?.port).toBe(18000);
+  });
+
+  it('rejects a port below 1024', () => {
+    const result = normalizeSettings(makeSettings({ mcp: { enabled: false, port: 80 } }));
+    expect(result.mcp?.port).toBeUndefined();
+  });
+
+  it('rejects a port above 65535', () => {
+    const result = normalizeSettings(makeSettings({ mcp: { enabled: false, port: 99999 } }));
+    expect(result.mcp?.port).toBeUndefined();
+  });
+
+  it('rejects a non-integer port', () => {
+    const result = normalizeSettings(makeSettings({ mcp: { enabled: false, port: 17823.5 } }));
+    expect(result.mcp?.port).toBeUndefined();
+  });
+
+  it('omits port when not provided', () => {
+    const result = normalizeSettings(makeSettings({ mcp: { enabled: false } }));
+    expect(result.mcp?.port).toBeUndefined();
+  });
+});
