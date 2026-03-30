@@ -34,6 +34,7 @@ import { changelogController } from './changelogIpc';
 import { registerAutomationsIpc } from './automationsIpc';
 import { registerIntegrationsIpc } from './integrationsIpc';
 import { registerPerformanceIpc } from './performanceIpc';
+import { registerMcpTaskIpc } from './mcpTaskIpc';
 
 export const rpcRouter = createRPCRouter({
   db: databaseController,
@@ -82,4 +83,5 @@ export function registerAllIpc() {
   registerAutomationsIpc();
   registerIntegrationsIpc();
   registerPerformanceIpc();
+  registerMcpTaskIpc();
 }

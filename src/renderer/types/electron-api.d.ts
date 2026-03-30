@@ -1433,6 +1433,21 @@ declare global {
         error?: string;
       }>;
       onAutomationTriggerAvailable: (listener: () => void) => () => void;
+      mcpDrainTaskQueue: () => Promise<{
+        success: boolean;
+        data?: Array<{
+          id: string;
+          projectId: string;
+          prompt: string;
+          taskName?: string;
+          agentId?: string;
+        }>;
+        error?: string;
+      }>;
+      onMcpTaskAvailable: (listener: () => void) => () => void;
+      mcpGetServerInfo: () => Promise<
+        { running: false } | { running: true; port: number; mcpUrl: string }
+      >;
 
       // Integrations
       integrationsStatusMap: () => Promise<{
@@ -2231,6 +2246,21 @@ export interface ElectronAPI {
     error?: string;
   }>;
   onAutomationTriggerAvailable: (listener: () => void) => () => void;
+  mcpDrainTaskQueue: () => Promise<{
+    success: boolean;
+    data?: Array<{
+      id: string;
+      projectId: string;
+      prompt: string;
+      taskName?: string;
+      agentId?: string;
+    }>;
+    error?: string;
+  }>;
+  onMcpTaskAvailable: (listener: () => void) => () => void;
+  mcpGetServerInfo: () => Promise<
+    { running: false } | { running: true; port: number; mcpUrl: string }
+  >;
 
   // Integrations
   integrationsStatusMap: () => Promise<{

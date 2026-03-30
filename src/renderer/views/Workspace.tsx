@@ -34,6 +34,7 @@ import { useProjectManagementContext } from '@/contexts/ProjectManagementProvide
 import { useTheme } from '@/hooks/useTheme';
 import useUpdateNotifier from '@/hooks/useUpdateNotifier';
 import { useAutomationTrigger } from '@/hooks/useAutomationTrigger';
+import { useMcpTaskTrigger } from '@/hooks/useMcpTaskTrigger';
 import { activityStore } from '@/lib/activityStore';
 import { agentStatusStore } from '@/lib/agentStatusStore';
 import { handleMenuUndo, handleMenuRedo } from '@/lib/menuUndoRedo';
@@ -275,6 +276,9 @@ export function Workspace() {
 
   // Listen for automation triggers from the main process (scheduled + manual)
   useAutomationTrigger(automationsEnabled);
+
+  // Listen for MCP task requests from the local MCP server
+  useMcpTaskTrigger();
 
   // --- Convenience aliases and SSH-derived remote connection info ---
   const { selectedProject } = projectMgmt;

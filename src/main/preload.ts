@@ -939,6 +939,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('automation:trigger-available', wrapped);
     };
   },
+  mcpDrainTaskQueue: () => ipcRenderer.invoke('mcp:drainTaskQueue'),
+  mcpGetServerInfo: () => ipcRenderer.invoke('mcp:getServerInfo'),
+  onMcpTaskAvailable: (listener: () => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent) => listener();
+    ipcRenderer.on('mcp:taskAvailable', wrapped);
+    return () => {
+      ipcRenderer.removeListener('mcp:taskAvailable', wrapped);
+    };
+  },
 
   // Integrations
   integrationsStatusMap: () => ipcRenderer.invoke('integrations:statusMap'),
