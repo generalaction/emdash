@@ -64,6 +64,39 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 - AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage
 - Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb
 
+### NixOS / Nix Flake
+
+This repository exposes a Nix flake with `packages.<system>.emdash`. You can run it directly:
+
+```bash
+nix run github:generalaction/emdash
+```
+
+To install it as part of a NixOS or home-manager configuration, add the flake input and use the package:
+
+```nix
+# flake.nix
+{
+  inputs.emdash.url = "github:generalaction/emdash";
+
+  # ... in your outputs:
+  # packages = [ inputs.emdash.packages.${system}.default ];
+}
+```
+
+> **Note:** The `pnpmDeps` hash is pinned against the flake's own nixpkgs. If you
+> override `emdash.inputs.nixpkgs.follows` to a different nixpkgs, the pnpm version
+> may differ and produce a hash mismatch. In that case, run `nix build` once — Nix
+> will print the correct hash in the error — then apply it:
+>
+> ```nix
+> inputs.emdash.packages.${pkgs.system}.default.overrideAttrs (old: {
+>   pnpmDeps = old.pnpmDeps.overrideAttrs {
+>     outputHash = "<hash from error>";
+>   };
+> });
+> ```
+
 ### Release Overview
 
 **[Latest Releases (macOS • Windows • Linux)](https://github.com/generalaction/emdash/releases/latest)**

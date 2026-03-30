@@ -9,7 +9,7 @@
   outputs = { self, nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs { inherit system; };
+        pkgs = import nixpkgs { localSystem = system; };
         lib = pkgs.lib;
         packageJson = builtins.fromJSON (builtins.readFile ./package.json);
         pnpmPackageManager = packageJson.packageManager or "";
@@ -84,10 +84,10 @@
             pkgs.automake
             pkgs.coreutils
           ]
-          ++ lib.optionals pkgs.stdenv.isDarwin [
+          ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
             pkgs.libiconv
           ]
-          ++ lib.optionals pkgs.stdenv.isLinux [
+          ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
             pkgs.libsecret
             pkgs.sqlite
             pkgs.zlib
@@ -96,7 +96,7 @@
           ];
         cleanSrc = lib.cleanSource ./.;
         emdashPackage =
-          if pkgs.stdenv.isLinux then
+          if pkgs.stdenv.hostPlatform.isLinux then
             pkgs.stdenv.mkDerivation rec {
               pname = "emdash";
               version = packageJson.version;
@@ -144,16 +144,15 @@
                 pkgs.libdrm
                 pkgs.pango
                 pkgs.cairo
-                pkgs.xorg.libX11
-                pkgs.xorg.libXcomposite
-                pkgs.xorg.libXdamage
-                pkgs.xorg.libXext
-                pkgs.xorg.libXfixes
-                pkgs.xorg.libXrandr
-                pkgs.xorg.libxcb
+                pkgs.libx11
+                pkgs.libxcomposite
+                pkgs.libxdamage
+                pkgs.libxext
+                pkgs.libxfixes
+                pkgs.libxrandr
+                pkgs.libxcb
                 pkgs.libxkbcommon
                 pkgs.expat
-                pkgs.mesa.drivers
               ];
               env = {
                 HOME = "$TMPDIR/emdash-home";
