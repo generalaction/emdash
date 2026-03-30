@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@renderer/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
-import { BaseModalProps, useTransitionModal } from '@renderer/core/modal/modal-provider';
+import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
 import { MountedProject } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
@@ -38,7 +38,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const { branches, defaultBranch } = useRepository(selectedProjectId);
   const { navigate } = useNavigate();
-  const transitionToConversation = useTransitionModal('createConversationModal');
 
   const projectData = selectedProjectId
     ? mountedProjectData(projectManagerStore.projects.get(selectedProjectId))
@@ -98,16 +97,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     }
 
     navigate('task', { projectId: selectedProjectId, taskId: id });
-    transitionToConversation({ projectId: selectedProjectId, taskId: id });
-  }, [
-    selectedProjectId,
-    selectedStrategy,
-    fromBranch,
-    fromIssue,
-    fromPR,
-    navigate,
-    transitionToConversation,
-  ]);
+    onClose();
+  }, [selectedProjectId, selectedStrategy, fromBranch, fromIssue, fromPR, navigate, onClose]);
 
   return (
     <>
@@ -155,6 +146,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           {selectedStrategy === 'from-pull-request' && (
             <FromPrContent
               state={fromPR}
+              projectId={selectedProjectId}
               nameWithOwner={nameWithOwner}
               disabled={isTransitioning}
             />

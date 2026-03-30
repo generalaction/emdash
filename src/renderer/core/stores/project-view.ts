@@ -1,8 +1,10 @@
 import { makeAutoObservable } from 'mobx';
+import type { ProjectViewSnapshot } from '@shared/view-state';
+import type { Snapshottable } from './snapshottable';
 
 export type ProjectView = 'tasks' | 'pull-request' | 'repository' | 'commits' | 'settings';
 
-export class ProjectViewStore {
+export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
   activeView: ProjectView = 'tasks';
   taskView: TaskViewStore = new TaskViewStore();
 
@@ -12,6 +14,21 @@ export class ProjectViewStore {
 
   setProjectView(view: ProjectView) {
     this.activeView = view;
+  }
+
+  get snapshot(): ProjectViewSnapshot {
+    return {
+      activeView: this.activeView,
+      taskViewTab: this.taskView.tab,
+      // openTaskIds is aggregated at ProjectStore level since it requires
+      // access to TaskManagerStore.
+      openTaskIds: [],
+    };
+  }
+
+  restoreSnapshot(snapshot: Partial<ProjectViewSnapshot>): void {
+    if (snapshot.activeView) this.activeView = snapshot.activeView as ProjectView;
+    if (snapshot.taskViewTab) this.taskView.setTab(snapshot.taskViewTab);
   }
 }
 

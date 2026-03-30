@@ -1,5 +1,6 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import type { EditorViewSnapshot } from '@shared/view-state';
 import { getMonacoLanguageId } from '../../lib/diffUtils';
 import { getFileKind } from '../editor/fileKind';
 import { getDefaultRenderer } from '../editor/renderer-utils';
@@ -8,8 +9,9 @@ import { events, rpc } from '../ipc';
 import { modelRegistry } from '../monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '../monaco/monacoModelPath';
 import { FileRendererData } from '../tasks/types';
+import type { Snapshottable } from './snapshottable';
 
-export class EditorViewStore {
+export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
   readonly modelRootPath: string;
 
   private readonly _tabs = observable.array<EditorTab>();
@@ -56,6 +58,28 @@ export class EditorViewStore {
 
   get previewTab(): (EditorTab & { isDirty: boolean; bufferUri: string }) | undefined {
     return this.tabs.find((t) => t.isPreview);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Snapshottable
+  // ---------------------------------------------------------------------------
+
+  get snapshot(): EditorViewSnapshot {
+    return {
+      tabs: this._tabs.map((t) => ({ tabId: t.tabId, path: t.path, isPreview: t.isPreview })),
+      activeTabId: this.activeTabId,
+      expandedPaths: [...this.expandedPaths],
+    };
+  }
+
+  restoreSnapshot(snapshot: Partial<EditorViewSnapshot>): void {
+    if (snapshot.tabs) {
+      this._tabs.replace(snapshot.tabs.map((t) => this._makeTab(t.path, t.isPreview, t.tabId)));
+    }
+    if (snapshot.activeTabId !== undefined) this.activeTabId = snapshot.activeTabId;
+    if (snapshot.expandedPaths) {
+      this.expandedPaths.replace(snapshot.expandedPaths);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -310,10 +334,10 @@ export class EditorViewStore {
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  private _makeTab(filePath: string, isPreview: boolean): EditorTab {
+  private _makeTab(filePath: string, isPreview: boolean, tabId?: string): EditorTab {
     const kind = getFileKind(filePath);
     return {
-      tabId: crypto.randomUUID(),
+      tabId: tabId ?? crypto.randomUUID(),
       path: filePath,
       kind,
       renderer: getDefaultRenderer(kind),

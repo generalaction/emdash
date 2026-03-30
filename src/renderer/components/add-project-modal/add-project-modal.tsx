@@ -6,10 +6,10 @@ import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-pr
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
-import { AnimatedHeight } from '../ui/animated-height';
 import { ConfirmButton } from '../ui/confirm-button';
 import { DialogContentArea, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Field, FieldLabel } from '../ui/field';
+import { ModalLayout } from '../ui/modal-layout';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
@@ -152,10 +152,20 @@ export function AddProjectModal({
   };
 
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Add Project</DialogTitle>
-      </DialogHeader>
+    <ModalLayout
+      header={
+        <DialogHeader>
+          <DialogTitle>Add Project</DialogTitle>
+        </DialogHeader>
+      }
+      footer={
+        <DialogFooter>
+          <ConfirmButton type="button" onClick={() => void handleSubmit()} disabled={!canCreate}>
+            Create
+          </ConfirmButton>
+        </DialogFooter>
+      }
+    >
       <DialogContentArea className="gap-4">
         <div className="flex items-center gap-2">
           <ToggleGroup
@@ -207,23 +217,16 @@ export function AddProjectModal({
             />
           </Field>
         )}
-        <AnimatedHeight>
-          {mode === 'pick' && (
-            <PickExistingPanel strategy={strategy} connectionId={connectionId} state={pickState} />
-          )}
-          {mode === 'new' && (
-            <CreateNewPanel strategy={strategy} connectionId={connectionId} state={newState} />
-          )}
-          {mode === 'clone' && (
-            <ClonePanel strategy={strategy} connectionId={connectionId} state={cloneState} />
-          )}
-        </AnimatedHeight>
+        {mode === 'pick' && (
+          <PickExistingPanel strategy={strategy} connectionId={connectionId} state={pickState} />
+        )}
+        {mode === 'new' && (
+          <CreateNewPanel strategy={strategy} connectionId={connectionId} state={newState} />
+        )}
+        {mode === 'clone' && (
+          <ClonePanel strategy={strategy} connectionId={connectionId} state={cloneState} />
+        )}
       </DialogContentArea>
-      <DialogFooter>
-        <ConfirmButton type="button" onClick={() => void handleSubmit()} disabled={!canCreate}>
-          Create
-        </ConfirmButton>
-      </DialogFooter>
-    </>
+    </ModalLayout>
   );
 }

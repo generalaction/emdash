@@ -1,5 +1,6 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import { Issue, Task } from '@shared/tasks';
+import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '../ipc';
 import { MainPanelView, RightPanelView } from '../tasks/types';
 import { ConversationManagerStore } from './conversation-manager';
@@ -8,6 +9,7 @@ import { EditorViewStore } from './editor-view-store';
 import { FilesStore } from './files-store';
 import { GitStore } from './git';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
+import { snapshotRegistry } from './snapshot-registry';
 import { TerminalManagerStore } from './terminal-manager';
 
 export type UnregisteredTaskPhase = 'creating' | 'create-error';
@@ -77,6 +79,19 @@ export class TaskStore {
   focusedRegion: 'main' | 'right' = 'main';
   editorView: EditorViewStore | null = null;
 
+  private _snapshotDisposer: (() => void) | null = null;
+
+  get snapshot(): TaskViewSnapshot {
+    return {
+      view: this.view,
+      rightPanelView: this.rightPanelView,
+      focusedRegion: this.focusedRegion,
+      conversations: this.conversations?.snapshot,
+      terminals: this.terminals?.snapshot,
+      editor: this.editorView?.snapshot,
+    };
+  }
+
   constructor(
     data: UnregisteredTaskData | Task,
     state: TaskStore['state'],
@@ -88,17 +103,32 @@ export class TaskStore {
     makeAutoObservable(this, { diffView: false });
   }
 
-  transitionToProvisioned(data: Task, path: string): void {
+  transitionToProvisioned(data: Task, path: string, savedSnapshot?: TaskViewSnapshot): void {
     this.terminals = new TerminalManagerStore(data.projectId, data.id);
     this.conversations = new ConversationManagerStore(data.projectId, data.id);
     this.git = new GitStore(data.projectId, data.id);
     this.files = new FilesStore(data.projectId, data.id);
     this.lifecycleScripts = new LifecycleScriptsStore(data.projectId, data.id);
     this.diffView = new DiffViewStore(this.git);
-    this.view = 'agents';
-    this.rightPanelView = 'changes';
-    this.focusedRegion = 'main';
     this.editorView = new EditorViewStore(data.projectId, data.id);
+
+    // Apply saved snapshot before registering the reaction so the initial
+    // state doesn't trigger a spurious write.
+    if (savedSnapshot) {
+      this.view = (savedSnapshot.view as MainPanelView) ?? 'agents';
+      this.rightPanelView = (savedSnapshot.rightPanelView as RightPanelView) ?? 'changes';
+      this.focusedRegion = savedSnapshot.focusedRegion ?? 'main';
+      this.conversations.restoreSnapshot(savedSnapshot.conversations ?? {});
+      this.terminals.restoreSnapshot(savedSnapshot.terminals ?? {});
+      this.editorView.restoreSnapshot(savedSnapshot.editor ?? {});
+    } else {
+      this.view = 'agents';
+      this.rightPanelView = 'changes';
+      this.focusedRegion = 'main';
+    }
+
+    this._snapshotDisposer = snapshotRegistry.register(`task:${data.id}`, () => this.snapshot);
+
     this.data = data;
     this.state = 'provisioned';
     this.path = path;
@@ -107,6 +137,8 @@ export class TaskStore {
   }
 
   transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
+    this._snapshotDisposer?.();
+    this._snapshotDisposer = null;
     this._disposeSubStores();
     this.terminals = null;
     this.conversations = null;
@@ -124,6 +156,8 @@ export class TaskStore {
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {
+    this._snapshotDisposer?.();
+    this._snapshotDisposer = null;
     this._disposeSubStores();
     this.terminals = null;
     this.conversations = null;

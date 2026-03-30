@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import ReorderList from '@renderer/components/reorder-list';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { usePrefetchRepository } from '@renderer/core/projects/use-repository';
+import { sidebarStore } from '@renderer/core/stores/app-state';
 import {
   isUnregisteredProject,
   MountedProject,
@@ -11,7 +12,6 @@ import {
   UnregisteredProject,
 } from '@renderer/core/stores/project';
 import { getProjectStore, projectViewKind } from '@renderer/core/stores/project-selectors';
-import { sidebarStore } from '@renderer/core/stores/sidebar-store';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';

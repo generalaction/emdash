@@ -8,11 +8,12 @@ import { CheckoutMode, FromPullRequestModeState } from './use-from-pull-request-
 
 interface FromPrContentProps {
   state: FromPullRequestModeState;
+  projectId?: string;
   nameWithOwner?: string;
   disabled?: boolean;
 }
 
-export function FromPrContent({ state, nameWithOwner, disabled }: FromPrContentProps) {
+export function FromPrContent({ state, projectId, nameWithOwner, disabled }: FromPrContentProps) {
   const [isSelecting, setIsSelecting] = useState(!state.linkedPR);
 
   const handleValueChange = (pr: Parameters<typeof state.setLinkedPR>[0]) => {
@@ -31,6 +32,7 @@ export function FromPrContent({ state, nameWithOwner, disabled }: FromPrContentP
         <InlinePrSelector
           value={state.linkedPR}
           onValueChange={handleValueChange}
+          projectId={projectId}
           nameWithOwner={nameWithOwner}
           disabled={disabled}
         />

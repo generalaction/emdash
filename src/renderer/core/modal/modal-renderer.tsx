@@ -1,7 +1,6 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
-import { AnimatedHeight } from '@renderer/components/ui/animated-height';
 import { Dialog, DialogOverlay, DialogPortal } from '@renderer/components/ui/dialog';
 import { cn } from '@renderer/lib/utils';
 import { modalRegistry, type ModalRegistryEntry } from './modal-registry';
@@ -65,9 +64,7 @@ export const ModalRenderer = observer(function ModalRenderer() {
             entry?.popupClassName
           )}
         >
-          <AnimatedHeight>
-            {DisplayComponent && displayArgs ? <DisplayComponent {...displayArgs} /> : null}
-          </AnimatedHeight>
+          {DisplayComponent && displayArgs ? <DisplayComponent {...displayArgs} /> : null}
         </DialogPrimitive.Popup>
       </DialogPortal>
     </Dialog>

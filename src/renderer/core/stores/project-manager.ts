@@ -1,5 +1,6 @@
-import { makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import { makeObservable, observable, runInAction } from 'mobx';
 import { LocalProject, SshProject } from '@shared/projects';
+import type { ProjectViewSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/core/ipc';
 import {
   createUnmountedProject,
@@ -35,21 +36,23 @@ export type ModeData = PickModeData | CloneModeData | NewModeData;
 
 export type ProjectType = { type: 'local' } | { type: 'ssh'; connectionId: string };
 
-class ProjectManagerStore {
+export class ProjectManagerStore {
   projects = observable.map<string, ProjectStore>();
   private _projectMountPromises = new Map<string, Promise<void>>();
-  private _loaded = false;
+  private _loadPromise: Promise<void> | null = null;
 
   constructor() {
     makeObservable(this, { projects: observable });
-    onBecomeObserved(this, 'projects', () => {
-      if (this._loaded) return;
-      this.load();
-    });
   }
 
-  async load(): Promise<void> {
-    this._loaded = true;
+  load(): Promise<void> {
+    if (!this._loadPromise) {
+      this._loadPromise = this._doLoad();
+    }
+    return this._loadPromise;
+  }
+
+  private async _doLoad(): Promise<void> {
     const rawProjects = await rpc.projects.getProjects();
     const toMount: string[] = [];
     runInAction(() => {
@@ -59,7 +62,7 @@ class ProjectManagerStore {
         toMount.push(p.id);
       }
     });
-    for (const id of toMount) this.mountProject(id);
+    await Promise.allSettled(toMount.map((id) => this.mountProject(id)));
   }
 
   async createProject(
@@ -210,15 +213,30 @@ class ProjectManagerStore {
       project.error = undefined;
     });
 
-    const promise = rpc.projects
-      .openProject(projectId)
-      .then(() => {
+    const promise = Promise.all([
+      rpc.projects.openProject(projectId),
+      rpc.viewState.get(`project:${projectId}`),
+    ])
+      .then(async ([, savedSnapshot]) => {
+        let openTaskIds: string[] = [];
         runInAction(() => {
           const current = this.projects.get(projectId);
           if (current && isUnmountedProject(current)) {
-            current.transitionToMounted(current.data);
+            current.transitionToMounted(
+              current.data,
+              savedSnapshot as ProjectViewSnapshot | undefined
+            );
+            openTaskIds = (savedSnapshot as ProjectViewSnapshot)?.openTaskIds ?? [];
           }
         });
+        // Load the task list before provisioning so the tasks map is populated.
+        const taskManager = this.projects.get(projectId)?.taskManager;
+        if (taskManager) {
+          await taskManager.loadTasks();
+          for (const taskId of openTaskIds) {
+            taskManager.provisionTask(taskId).catch(() => {});
+          }
+        }
       })
       .catch((err: unknown) => {
         runInAction(() => {

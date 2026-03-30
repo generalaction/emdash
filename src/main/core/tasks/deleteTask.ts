@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -11,6 +12,7 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
   const project = projectManager.getProject(projectId);
 
   await db.delete(tasks).where(eq(tasks.id, taskId));
+  void viewStateService.del(`task:${taskId}`);
 
   if (project) {
     project.teardownTask(taskId).catch((e) => {

@@ -1,5 +1,6 @@
-import { makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import { makeObservable, observable, runInAction } from 'mobx';
 import type { CreateTaskParams } from '@shared/tasks';
+import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/core/ipc';
 import { projectManagerStore } from './project-manager';
 import {
@@ -14,7 +15,7 @@ import {
 
 export class TaskManagerStore {
   private readonly projectId: string;
-  private _loaded = false;
+  private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
 
@@ -23,20 +24,19 @@ export class TaskManagerStore {
   constructor(projectId: string) {
     this.projectId = projectId;
     makeObservable(this, { tasks: observable });
-    onBecomeObserved(this, 'tasks', () => {
-      if (this._loaded) return;
-      this.loadTasks();
-    });
   }
 
-  async loadTasks(): Promise<void> {
-    this._loaded = true;
-    const tasks = await rpc.tasks.getTasks(this.projectId);
-    runInAction(() => {
-      for (const t of tasks) {
-        this.tasks.set(t.id, createUnprovisionedTask(t));
-      }
-    });
+  loadTasks(): Promise<void> {
+    if (!this._loadPromise) {
+      this._loadPromise = rpc.tasks.getTasks(this.projectId).then((tasks) => {
+        runInAction(() => {
+          for (const t of tasks) {
+            this.tasks.set(t.id, createUnprovisionedTask(t));
+          }
+        });
+      });
+    }
+    return this._loadPromise;
   }
 
   async createTask(params: CreateTaskParams) {
@@ -71,6 +71,7 @@ export class TaskManagerStore {
 
   async provisionTask(taskId: string): Promise<void> {
     await projectManagerStore.mountProject(this.projectId);
+    await this.loadTasks();
 
     const inFlight = this._provisionPromises.get(taskId);
     if (inFlight) return inFlight;
@@ -82,13 +83,19 @@ export class TaskManagerStore {
       task.phase = 'provision';
     });
 
-    const promise = rpc.tasks
-      .provisionTask(taskId)
-      .then((result) => {
+    const promise = Promise.all([
+      rpc.tasks.provisionTask(taskId),
+      rpc.viewState.get(`task:${taskId}`),
+    ])
+      .then(([result, savedSnapshot]) => {
         runInAction(() => {
           const current = this.tasks.get(taskId);
           if (current && isUnprovisioned(current)) {
-            current.transitionToProvisioned({ ...current.data }, result?.path ?? '');
+            current.transitionToProvisioned(
+              { ...current.data },
+              result?.path ?? '',
+              savedSnapshot as TaskViewSnapshot | undefined
+            );
             current.activate();
           }
         });

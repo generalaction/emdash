@@ -22,6 +22,7 @@ import { sshController } from './core/ssh/controller';
 import { taskController } from './core/tasks/controller';
 import { terminalsController } from './core/terminals/controller';
 import { updateController } from './core/updates/controller';
+import { viewStateController } from './core/view-state/controller';
 
 export const rpcRouter = createRPCRouter({
   account: accountController,
@@ -47,6 +48,7 @@ export const rpcRouter = createRPCRouter({
   mcp: mcpController,
   editorBuffer: editorBufferController,
   pullRequests: pullRequestController,
+  viewState: viewStateController,
 });
 
 export type RpcRouter = typeof rpcRouter;

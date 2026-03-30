@@ -1,19 +1,19 @@
 import { makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { MountedProject, ProjectStore, UnmountedProject, UnregisteredProject } from './project';
-import { projectManagerStore } from './project-manager';
+import type { ProjectManagerStore } from './project-manager';
 import type { TaskStore } from './task';
 
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 const TASK_ORDER_BY_PROJECT_KEY = 'sidebarTaskOrderByProject';
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
 
-class SidebarStore {
+export class SidebarStore {
   projectOrder: string[] = [];
   taskOrderByProject: Record<string, string[]> = {};
   forceOpenIds = observable.set<string>();
   pinnedTaskIds: string[] = [];
 
-  constructor() {
+  constructor(private readonly projectManager: ProjectManagerStore) {
     makeAutoObservable(this, { forceOpenIds: false });
 
     try {
@@ -36,7 +36,7 @@ class SidebarStore {
     reaction(
       () => {
         const counts: [string, number][] = [];
-        for (const [id, project] of projectManagerStore.projects) {
+        for (const [id, project] of this.projectManager.projects) {
           if (project.state === 'mounted' && project.taskManager) {
             counts.push([id, project.taskManager.tasks.size]);
           }
@@ -58,7 +58,7 @@ class SidebarStore {
   }
 
   get orderedProjects(): ProjectStore[] {
-    const all = Array.from(projectManagerStore.projects.values());
+    const all = Array.from(this.projectManager.projects.values());
 
     const unregistered = all.filter((p): p is UnregisteredProject => p.state === 'unregistered');
     const real = all.filter(
@@ -78,7 +78,7 @@ class SidebarStore {
   }
 
   get isEmpty(): boolean {
-    return projectManagerStore.projects.size === 0;
+    return this.projectManager.projects.size === 0;
   }
 
   setProjectOrder(ids: string[]): void {
@@ -143,5 +143,3 @@ class SidebarStore {
     } catch {}
   }
 }
-
-export const sidebarStore = new SidebarStore();

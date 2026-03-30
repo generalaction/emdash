@@ -6,7 +6,6 @@ import {
   ChevronUp,
   LoaderCircle,
   XCircle,
-  XIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 import * as z from 'zod';
@@ -14,7 +13,6 @@ import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
 import { Button } from '@renderer/components/ui/button';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
-  DialogClose,
   DialogContentArea,
   DialogFooter,
   DialogHeader,
@@ -30,6 +28,7 @@ import {
   FieldSet,
 } from '@renderer/components/ui/field';
 import { Input } from '@renderer/components/ui/input';
+import { ModalLayout } from '@renderer/components/ui/modal-layout';
 import { RadioGroup, RadioGroupItem } from '@renderer/components/ui/radio-group';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useSshConnectionContext } from '@renderer/core/ssh/ssh-connection-provider';
@@ -147,18 +146,52 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
   };
 
   return (
-    <>
-      <DialogHeader
-        showCloseButton={false}
-        className="flex-row items-center gap-2 -mt-2 w-full justify-between"
-      >
-        <div className="flex items-center gap-2 -ml-2">
-          <Button variant="ghost" size="icon-sm" onClick={onClose}>
-            <ArrowLeftIcon className="w-4 h-4" />
+    <ModalLayout
+      header={
+        <DialogHeader
+          showCloseButton={false}
+          className="flex-row items-center gap-2 -mt-2 w-full justify-between"
+        >
+          <div className="flex items-center gap-2 -ml-2">
+            <Button variant="ghost" size="icon-sm" onClick={onClose}>
+              <ArrowLeftIcon className="w-4 h-4" />
+            </Button>
+            <DialogTitle>Add SSH Connection</DialogTitle>
+          </div>
+        </DialogHeader>
+      }
+      footer={
+        <DialogFooter className="sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleTestConnection}
+            disabled={testState === 'testing'}
+          >
+            {testState === 'testing' ? (
+              <>
+                <LoaderCircle className="size-4 animate-spin" />
+                Testing…
+              </>
+            ) : (
+              'Test Connection'
+            )}
           </Button>
-          <DialogTitle>Add SSH Connection</DialogTitle>
-        </div>
-      </DialogHeader>
+          <div className="flex gap-2">
+            <ConfirmButton type="submit" form="add-ssh-conn-form" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <LoaderCircle className="size-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                'Save'
+              )}
+            </ConfirmButton>
+          </div>
+        </DialogFooter>
+      }
+    >
       <DialogContentArea>
         <form
           id="add-ssh-conn-form"
@@ -371,7 +404,7 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
 
       {/* Test connection result */}
       {testState !== 'idle' && (
-        <div className="rounded-md border border-input px-3 py-2 text-sm">
+        <div className="mx-4 rounded-md border border-input px-3 py-2 text-sm">
           <div className="flex items-center gap-2">
             {testState === 'testing' && (
               <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
@@ -406,36 +439,6 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
           )}
         </div>
       )}
-
-      <DialogFooter className="sm:justify-between">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleTestConnection}
-          disabled={testState === 'testing'}
-        >
-          {testState === 'testing' ? (
-            <>
-              <LoaderCircle className="size-4 animate-spin" />
-              Testing…
-            </>
-          ) : (
-            'Test Connection'
-          )}
-        </Button>
-        <div className="flex gap-2">
-          <ConfirmButton type="submit" form="add-ssh-conn-form" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <LoaderCircle className="size-4 animate-spin" />
-                Saving…
-              </>
-            ) : (
-              'Save'
-            )}
-          </ConfirmButton>
-        </div>
-      </DialogFooter>
-    </>
+    </ModalLayout>
   );
 }

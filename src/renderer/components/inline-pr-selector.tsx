@@ -1,10 +1,14 @@
-import { Check } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Check, ChevronDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
-import { usePullRequests } from '@renderer/hooks/usePullRequests';
+import { rpc } from '@renderer/core/ipc';
 import { cn } from '@renderer/lib/utils';
-import { InputGroup, InputGroupInput } from './ui/input-group';
+import { InputGroup, InputGroupAddon, InputGroupInput } from './ui/input-group';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import ShortcutHint from './ui/shortcut-hint';
+
+type StatusFilter = 'open' | 'not-open';
 
 export interface InlinePrSelectorProps {
   value: PullRequest | null;
@@ -48,7 +52,24 @@ export function InlinePrSelector({
   nameWithOwner = '',
   disabled,
 }: InlinePrSelectorProps) {
-  const { prs } = usePullRequests(projectId, nameWithOwner || undefined);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
+
+  const { data } = useQuery({
+    queryKey: ['pull-requests-inline', projectId, nameWithOwner, statusFilter],
+    queryFn: async () => {
+      const response = await rpc.pullRequests.listPullRequests(projectId!, nameWithOwner!, {
+        limit: 50,
+        offset: 0,
+        filters: { status: statusFilter },
+      });
+      if (!response?.success) throw new Error(response?.error ?? 'Failed to load pull requests');
+      return (response.prs ?? []) as PullRequest[];
+    },
+    enabled: !!projectId && !!nameWithOwner,
+    staleTime: 30_000,
+  });
+
+  const prs = data ?? [];
 
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -124,12 +145,41 @@ export function InlinePrSelector({
           placeholder="Search pull requests…"
           autoFocus
         />
+        <InputGroupAddon align="inline-end">
+          <Popover>
+            <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
+              {statusFilter === 'open' ? 'Open' : 'Closed'}
+              <ChevronDown className="size-3.5" />
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-36 p-1">
+              {(['open', 'not-open'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                  onClick={() => {
+                    setStatusFilter(s);
+                    setQuery('');
+                    setHighlightedIndex(0);
+                  }}
+                >
+                  <span className="flex-1 text-left">{s === 'open' ? 'Open' : 'Closed'}</span>
+                  {statusFilter === s && <Check className="size-3.5 shrink-0 text-foreground" />}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+        </InputGroupAddon>
       </InputGroup>
 
       <div ref={listRef} className="overflow-y-auto overflow-x-hidden h-52 p-1">
         {filteredPrs.length === 0 ? (
           <div className="py-6 text-center text-sm text-muted-foreground">
-            {query ? 'No pull requests found' : 'No open pull requests to show'}
+            {query
+              ? 'No pull requests found'
+              : statusFilter === 'open'
+                ? 'No open pull requests to show'
+                : 'No closed pull requests to show'}
           </div>
         ) : (
           filteredPrs.map((pr, index) => {

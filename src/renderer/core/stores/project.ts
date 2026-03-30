@@ -1,6 +1,9 @@
 import { makeAutoObservable } from 'mobx';
 import type { LocalProject, SshProject } from '@shared/projects';
+import type { ProjectViewSnapshot } from '@shared/view-state';
 import { ProjectViewStore } from './project-view';
+import { snapshotRegistry } from './snapshot-registry';
+import { isProvisioned } from './task';
 import { TaskManagerStore } from './task-manager';
 
 export type UnregisteredProjectPhase =
@@ -47,6 +50,18 @@ export class ProjectStore {
   taskManager: TaskManagerStore | null = null;
   view: ProjectViewStore | null = null;
 
+  private _snapshotDisposer: (() => void) | null = null;
+
+  get snapshot(): ProjectViewSnapshot {
+    return {
+      activeView: this.view?.activeView ?? 'tasks',
+      taskViewTab: this.view?.taskView.tab ?? 'active',
+      openTaskIds: [...(this.taskManager?.tasks.values() ?? [])]
+        .filter(isProvisioned)
+        .map((t) => t.data.id),
+    };
+  }
+
   constructor(
     state: ProjectStore['state'],
     id: string,
@@ -64,7 +79,7 @@ export class ProjectStore {
     makeAutoObservable(this);
   }
 
-  transitionToMounted(data: LocalProject | SshProject): void {
+  transitionToMounted(data: LocalProject | SshProject, savedSnapshot?: ProjectViewSnapshot): void {
     this.taskManager = new TaskManagerStore(data.id);
     this.data = data;
     this.id = data.id;
@@ -73,12 +88,16 @@ export class ProjectStore {
     this.phase = null;
     this.error = undefined;
     this.view = new ProjectViewStore();
+    if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
+    this._snapshotDisposer = snapshotRegistry.register(`project:${data.id}`, () => this.snapshot);
   }
 
   transitionToUnmounted(
     data: LocalProject | SshProject,
     phase: UnmountedProjectPhase = 'opening'
   ): void {
+    this._snapshotDisposer?.();
+    this._snapshotDisposer = null;
     this.taskManager = null;
     this.data = data;
     this.id = data.id;

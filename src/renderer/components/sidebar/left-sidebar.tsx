@@ -5,7 +5,7 @@ import ReorderList from '@renderer/components/reorder-list';
 import { useAppContext } from '@renderer/core/app/AppContextProvider';
 import { useGithubContext } from '@renderer/core/github-context-provider';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { sidebarStore } from '@renderer/core/stores/sidebar-store';
+import { sidebarStore } from '@renderer/core/stores/app-state';
 import {
   isCurrentView,
   useNavigate,
