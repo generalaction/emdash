@@ -9,6 +9,7 @@ import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
+import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 import { TerminalProvider } from '../terminal-provider';
 
 const DEFAULT_COLS = 80;
@@ -78,6 +79,8 @@ export class LocalTerminalProvider implements TerminalProvider {
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
+
+    wireTerminalDevServerWatcher({ pty, taskId: this.taskId, terminalId: terminal.id });
 
     pty.onExit(() => {
       ptySessionRegistry.unregister(sessionId);

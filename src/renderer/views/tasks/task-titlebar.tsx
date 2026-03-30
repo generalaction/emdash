@@ -3,10 +3,12 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  ExternalLink,
   FileDiff,
   Files,
   GitBranch,
   GitCommit,
+  Globe,
   ListTree,
   MessageSquare,
   Pen,
@@ -25,6 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui
 import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
+import { rpc } from '@renderer/core/ipc';
 import {
   asProvisioned,
   getTaskStore,
@@ -38,6 +41,52 @@ import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
 import { useTaskViewContext } from './task-view-context';
 import { useGitActions } from './use-git-actions';
 
+function formatUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.port ? `${u.hostname}:${u.port}` : u.hostname;
+  } catch {
+    return url;
+  }
+}
+
+const DevServerPills = observer(function DevServerPills({
+  projectId,
+  taskId,
+}: {
+  projectId: string;
+  taskId: string;
+}) {
+  const taskStore = getTaskStore(projectId, taskId);
+  const taskState = asProvisioned(taskStore);
+  const urls = taskState?.devServers?.urls ?? [];
+
+  if (urls.length === 0) return null;
+
+  return (
+    <>
+      {urls.map((url) => (
+        <Tooltip key={url}>
+          <TooltipTrigger>
+            <button
+              type="button"
+              onClick={() => rpc.app.openExternal(url)}
+              className="flex h-7 rounded-md items-center gap-1.5 border border-green-300 bg-green-50 px-2 py-1 text-xs text-foreground-muted transition-colors hover:border-green-400 hover:text-foreground"
+            >
+              <Globe className="size-3 shrink-0 text-green-700" />
+              <span className="text-green-700">{formatUrl(url)}</span>
+              <ExternalLink className="size-3 shrink-0 text-green-700" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            Dev server running at {url}
+          </TooltipContent>
+        </Tooltip>
+      ))}
+    </>
+  );
+});
+
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
@@ -47,6 +96,7 @@ export const TaskTitlebar = observer(function TaskTitlebar() {
     kind === 'creating' ||
     kind === 'create-error' ||
     kind === 'provisioning' ||
+    kind === 'idle' ||
     kind === 'provision-error';
 
   if (isNotReady) {
@@ -252,6 +302,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       }
       rightSlot={
         <div className="flex items-center gap-2 mr-2">
+          <DevServerPills projectId={projectId} taskId={taskId} />
           <ToggleGroup
             disabled={delayedIsPending}
             variant="outline"

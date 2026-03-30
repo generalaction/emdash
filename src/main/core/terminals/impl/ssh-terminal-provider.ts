@@ -10,6 +10,7 @@ import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
+import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -91,6 +92,13 @@ export class SshTerminalProvider implements TerminalProvider {
       return;
     }
     const pty = result.data;
+
+    wireTerminalDevServerWatcher({
+      pty,
+      taskId: this.taskId,
+      terminalId: terminal.id,
+      probe: false,
+    });
 
     pty.onExit(() => {
       ptySessionRegistry.unregister(sessionId);

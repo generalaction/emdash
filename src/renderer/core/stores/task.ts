@@ -4,6 +4,7 @@ import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '../ipc';
 import { MainPanelView, RightPanelView } from '../tasks/types';
 import { ConversationManagerStore } from './conversation-manager';
+import { DevServerStore } from './dev-server-store';
 import { DiffViewStore } from './diff-view-store';
 import { EditorViewStore } from './editor-view-store';
 import { FilesStore } from './files-store';
@@ -50,6 +51,7 @@ export interface IProvisionedTask {
   files: FilesStore;
   lifecycleScripts: LifecycleScriptsStore;
   diffView: DiffViewStore;
+  devServers: DevServerStore;
   view: MainPanelView;
   rightPanelView: RightPanelView;
   focusedRegion: 'main' | 'right';
@@ -72,6 +74,7 @@ export class TaskStore {
   files: FilesStore | null = null;
   lifecycleScripts: LifecycleScriptsStore | null = null;
   diffView: DiffViewStore | null = null;
+  devServers: DevServerStore | null = null;
 
   // View state — populated once provisioned
   view: MainPanelView | null = null;
@@ -110,6 +113,7 @@ export class TaskStore {
     this.files = new FilesStore(data.projectId, data.id);
     this.lifecycleScripts = new LifecycleScriptsStore(data.projectId, data.id);
     this.diffView = new DiffViewStore(this.git);
+    this.devServers = new DevServerStore(data.id);
     this.editorView = new EditorViewStore(data.projectId, data.id);
 
     // Apply saved snapshot before registering the reaction so the initial
@@ -146,6 +150,7 @@ export class TaskStore {
     this.files = null;
     this.lifecycleScripts = null;
     this.diffView = null;
+    this.devServers = null;
     this.view = null;
     this.rightPanelView = null;
     this.editorView = null;
@@ -165,6 +170,7 @@ export class TaskStore {
     this.files = null;
     this.lifecycleScripts = null;
     this.diffView = null;
+    this.devServers = null;
     this.view = null;
     this.rightPanelView = null;
     this.editorView = null;
@@ -243,6 +249,7 @@ export class TaskStore {
     this.git?.dispose();
     this.files?.dispose();
     this.diffView?.dispose();
+    this.devServers?.dispose();
     if (this.conversations) {
       for (const conv of this.conversations.conversations.values()) {
         conv.dispose();

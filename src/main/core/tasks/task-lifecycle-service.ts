@@ -6,6 +6,7 @@ import { buildTerminalEnv } from '../pty/pty-env';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import { buildTmuxParams } from '../pty/spawn-utils';
 import { killTmuxSession, makeTmuxSessionName } from '../pty/tmux-session-name';
+import { wireTerminalDevServerWatcher } from '../terminals/dev-server-watcher';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { ExecFn } from '../utils/exec';
 
@@ -109,6 +110,10 @@ export class TaskLifecycleService {
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
+
+    if (script.type === 'run') {
+      wireTerminalDevServerWatcher({ pty, taskId: this.taskId, terminalId: id, probe: false });
+    }
 
     ptySessionRegistry.register(sessionId, pty, { preserveBufferOnExit: true });
     this.sessions.set(id, pty);

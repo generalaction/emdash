@@ -344,6 +344,7 @@ export const PullRequestView = observer(function PullRequestView() {
       </div>
       <PrVirtualList
         prs={prs}
+        projectId={projectId}
         loading={loading}
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}

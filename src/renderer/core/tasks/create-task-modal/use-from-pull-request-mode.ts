@@ -10,10 +10,11 @@ export type FromPullRequestModeState = ReturnType<typeof useFromPullRequestMode>
 
 export function useFromPullRequestMode(
   selectedProjectId: string | undefined,
-  defaultBranch: DefaultBranch | undefined
+  defaultBranch: DefaultBranch | undefined,
+  initialPR?: PullRequest
 ) {
   const taskName = useTaskName();
-  const [linkedPR, setLinkedPR] = useState<PullRequest | null>(null);
+  const [linkedPR, setLinkedPR] = useState<PullRequest | null>(initialPR ?? null);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
   const branchSelection = useBranchSelection(selectedProjectId, defaultBranch);
 

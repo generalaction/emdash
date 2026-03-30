@@ -11,6 +11,7 @@ import type { PullRequest } from '@shared/pull-requests';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { rpc } from '@renderer/core/ipc';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { SeparatorDot } from '../ui/dot';
 
 function StatusIcon({ status }: { status: PullRequest['status'] }) {
@@ -70,8 +71,15 @@ function ReviewBadge({
   }
 }
 
-export const PrRow = memo(function PrRow({ pr }: { pr: PullRequest }) {
+export const PrRow = memo(function PrRow({
+  pr,
+  projectId,
+}: {
+  pr: PullRequest;
+  projectId: string;
+}) {
   const openedAgo = formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true });
+  const showCreateTaskModal = useShowModal('taskModal');
 
   return (
     <div className="flex relative items-start gap-3 rounded-lg p-3 py-4 hover:bg-background-1 transition-colors group">
@@ -130,7 +138,13 @@ export const PrRow = memo(function PrRow({ pr }: { pr: PullRequest }) {
           <ExternalLink className="size-3.5" />
         </Button>
 
-        <Button variant="outline" size="sm">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            showCreateTaskModal({ projectId, strategy: 'from-pull-request', initialPR: pr })
+          }
+        >
           <ScanSearch className="size-3.5" />
           Review in Task
         </Button>

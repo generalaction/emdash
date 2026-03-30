@@ -1,6 +1,7 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
+import type { PullRequest } from '@shared/pull-requests';
 import { ProjectSelector } from '@renderer/components/project-selector';
 import { AnimatedHeight } from '@renderer/components/ui/animated-height';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox';
@@ -31,8 +32,13 @@ type CreateTaskStrategy = 'from-branch' | 'from-issue' | 'from-pull-request';
 export const CreateTaskModal = observer(function CreateTaskModal({
   projectId,
   strategy = 'from-branch',
+  initialPR,
   onClose,
-}: BaseModalProps & { projectId?: string; strategy?: CreateTaskStrategy }) {
+}: BaseModalProps & {
+  projectId?: string;
+  strategy?: CreateTaskStrategy;
+  initialPR?: PullRequest;
+}) {
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(projectId);
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -48,7 +54,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch);
-  const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch);
+  const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, initialPR);
 
   const activeMode = {
     'from-branch': fromBranch,

@@ -7,6 +7,7 @@ import { PrRow } from './pr-row';
 
 interface PrVirtualListProps {
   prs: PullRequest[];
+  projectId: string;
   loading: boolean;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
@@ -15,6 +16,7 @@ interface PrVirtualListProps {
 
 export function PrVirtualList({
   prs,
+  projectId,
   loading,
   hasNextPage,
   isFetchingNextPage,
@@ -75,7 +77,7 @@ export function PrVirtualList({
               transform: `translateY(${virtualItem.start}px)`,
             }}
           >
-            <PrRow pr={prs[virtualItem.index]!} />
+            <PrRow pr={prs[virtualItem.index]!} projectId={projectId} />
           </div>
         ))}
       </div>
