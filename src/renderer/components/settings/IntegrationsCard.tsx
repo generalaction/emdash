@@ -24,7 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
+  const isDark = effectiveTheme === 'emdark';
 
   const processed = isDark
     ? raw

@@ -3,7 +3,7 @@ import { useTheme } from '@renderer/hooks/useTheme';
 
 export function Toaster() {
   const { effectiveTheme } = useTheme();
-  const theme = effectiveTheme === 'light' ? 'light' : 'dark';
+  const theme = effectiveTheme === 'emlight' ? 'light' : 'dark';
 
   return (
     <SonnerToaster

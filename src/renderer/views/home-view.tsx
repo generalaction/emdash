@@ -17,11 +17,7 @@ export function HomeMainPanel() {
             <div className="logo-shimmer-container">
               <img
                 key={effectiveTheme}
-                src={
-                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                    ? emdashLogoWhite
-                    : emdashLogo
-                }
+                src={effectiveTheme === 'emdark' ? emdashLogoWhite : emdashLogo}
                 alt="Emdash"
                 className="logo-shimmer-image"
               />
@@ -29,8 +25,8 @@ export function HomeMainPanel() {
                 className="logo-shimmer-overlay"
                 aria-hidden="true"
                 style={{
-                  WebkitMaskImage: `url(${effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo})`,
-                  maskImage: `url(${effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo})`,
+                  WebkitMaskImage: `url(${effectiveTheme === 'emdark' ? emdashLogoWhite : emdashLogo})`,
+                  maskImage: `url(${effectiveTheme === 'emdark' ? emdashLogoWhite : emdashLogo})`,
                   WebkitMaskRepeat: 'no-repeat',
                   maskRepeat: 'no-repeat',
                   WebkitMaskSize: 'contain',

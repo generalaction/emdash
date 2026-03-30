@@ -1,18 +1,9 @@
-import { Circle, Monitor, Moon, Sun } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import React from 'react';
 import { useTheme } from '../../hooks/useTheme';
 
 const ThemeCard: React.FC = () => {
   const { theme, setTheme } = useTheme();
-
-  const options = [
-    { value: 'light' as const, label: 'Light', icon: Sun },
-    { value: 'dark' as const, label: 'Dark Navy', icon: Moon },
-    { value: 'dark-black' as const, label: 'Dark Black', icon: Circle },
-    { value: 'system' as const, label: 'System', icon: Monitor },
-    { value: 'emlight' as const, label: 'Emdash Light', icon: Sun },
-    { value: 'emdark' as const, label: 'Emdash Dark', icon: Moon },
-  ];
 
   return (
     <div className="grid gap-3">
@@ -21,30 +12,40 @@ const ThemeCard: React.FC = () => {
         <div className="text-sm text-muted-foreground">Choose how Emdash looks.</div>
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] gap-2">
-        {options.map(({ value, label, icon: Icon }) => (
-          <button
-            key={value}
-            type="button"
-            onClick={async () => {
-              if (theme !== value) {
-                void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-                  captureTelemetry('theme_changed', { theme: value });
-                });
-              }
-              setTheme(value);
-            }}
-            className={`flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg border px-2 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3 ${
-              theme === value
-                ? 'border-primary bg-primary/10 text-foreground'
-                : 'border-border/60 bg-background text-muted-foreground hover:border-border hover:bg-muted/40'
-            }`}
-            aria-pressed={theme === value}
-            aria-label={`Set theme to ${label}`}
-          >
-            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="text-center leading-tight">{label}</span>
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={async () => {
+            if (theme !== 'emlight') {
+              void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+                captureTelemetry('theme_changed', { theme: 'emlight' });
+              });
+            }
+            setTheme('emlight');
+          }}
+          className={`flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg border px-2 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3 ${
+            theme === 'emlight'
+              ? 'border-primary bg-primary/10 text-foreground'
+              : 'border-border/60 bg-background text-muted-foreground hover:border-border hover:bg-muted/40'
+          }`}
+          aria-pressed={theme === 'emlight'}
+          aria-label="Set theme to Emdash Light"
+        >
+          <Sun className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="text-center leading-tight">Emdash Light</span>
+        </button>
+        <button
+          type="button"
+          disabled
+          className="flex min-h-24 cursor-not-allowed flex-col items-center justify-center gap-2 rounded-lg border border-border/40 bg-background px-2 py-2.5 text-sm font-medium text-muted-foreground/50 opacity-60 sm:px-3"
+          aria-label="Emdash Dark (coming soon)"
+        >
+          <Moon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="text-center leading-tight">
+            Emdash Dark
+            <br />
+            <span className="text-xs">(coming soon)</span>
+          </span>
+        </button>
       </div>
     </div>
   );

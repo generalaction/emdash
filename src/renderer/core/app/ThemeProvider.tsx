@@ -1,29 +1,18 @@
-import { createContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useEffect, type ReactNode } from 'react';
 import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { applyThemeToAll } from '@renderer/core/pty/pty';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
-type Theme = 'light' | 'dark' | 'dark-black' | 'system' | 'emlight' | 'emdark';
-type EffectiveTheme = 'light' | 'dark' | 'dark-black' | 'emlight' | 'emdark';
+type Theme = 'emlight' | 'emdark';
+type EffectiveTheme = 'emlight' | 'emdark';
 
-function getSystemTheme(): EffectiveTheme {
-  if (typeof window === 'undefined') return 'light';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark-black' : 'light';
-}
-
-function applyTheme(theme: Theme, systemTheme: EffectiveTheme) {
+function applyTheme(theme: Theme) {
   if (typeof document === 'undefined') return;
 
   const root = document.documentElement;
-  const effectiveTheme = theme === 'system' ? systemTheme : theme;
-
   root.classList.remove('dark', 'dark-black', 'emlight', 'emdark');
 
-  if (effectiveTheme === 'dark') {
-    root.classList.add('dark');
-  } else if (effectiveTheme === 'dark-black') {
-    root.classList.add('dark', 'dark-black');
-  } else if (effectiveTheme === 'emlight') {
+  if (theme === 'emlight') {
     root.classList.add('emlight');
   }
 }
@@ -39,46 +28,32 @@ export const ThemeContext = createContext<ThemeContextType | undefined>(undefine
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { value: themeValue, isLoading, update } = useAppSettingsKey('theme');
-  const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => getSystemTheme());
-  const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', 'system');
+  const [, setCachedTheme] = useLocalStorage<Theme>('emdash-theme', 'emlight');
 
-  const theme: Theme = themeValue ?? 'system';
-  const effectiveTheme: EffectiveTheme = theme === 'system' ? systemTheme : theme;
+  const theme: Theme = themeValue ?? 'emlight';
+  const effectiveTheme: EffectiveTheme = theme;
 
   useEffect(() => {
     // Don't touch DOM classes or overwrite the localStorage cache until the real
     // setting has loaded — the inline <script> in index.html already applied the
     // correct classes from the cached value and we must not stomp them with the
-    // 'system' fallback that's used while the IPC call is in-flight.
+    // 'emlight' fallback that's used while the IPC call is in-flight.
     if (isLoading) return;
-    applyTheme(theme, systemTheme);
+    applyTheme(theme);
     setCachedTheme(theme);
-  }, [theme, isLoading, systemTheme, setCachedTheme]);
+  }, [theme, isLoading, setCachedTheme]);
 
   // Re-apply xterm theme after CSS classes have been updated by the effect above.
   useEffect(() => {
     applyThemeToAll();
   }, [effectiveTheme]);
 
-  // Listen for OS theme changes when preference is 'system'
-  useEffect(() => {
-    if (theme !== 'system') return undefined;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => setSystemTheme(getSystemTheme());
-
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
-  }, [theme]);
-
   const setTheme = (newTheme: Theme) => {
     update(newTheme);
   };
 
   const toggleTheme = () => {
-    const base = theme === 'system' ? effectiveTheme : theme;
-    const next: Theme = base === 'light' ? 'dark' : base === 'dark' ? 'dark-black' : 'light';
-    setTheme(next);
+    setTheme(theme === 'emlight' ? 'emdark' : 'emlight');
   };
 
   return (
