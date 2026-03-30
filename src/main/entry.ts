@@ -11,7 +11,9 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { initializeShellEnvironment } = require('./utils/shellEnv');
   initializeShellEnvironment();
-} catch {}
+} catch (err) {
+  process.stderr.write(`[entry.ts] Failed to initializeShellEnvironment: ${err}\n`);
+}
 
 // Ensure app name is set BEFORE any module reads app.getPath('userData').
 // In dev builds, if userData is resolved before app name is set, Electron defaults to

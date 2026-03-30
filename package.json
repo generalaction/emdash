@@ -178,6 +178,12 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "LSEnvironment": {
+          "LANG": "en_US.UTF-8",
+          "LC_CTYPE": "en_US.UTF-8"
+        }
+      },
       "target": [
         {
           "target": "dmg",
