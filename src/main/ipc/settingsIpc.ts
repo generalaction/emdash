@@ -23,6 +23,7 @@ export const appSettingsController = createRPCController({
     } else if (wasEnabled && !isEnabled) {
       mcpTaskServer.stop();
     } else if (isEnabled && portChanged) {
+      const prevPort = mcpTaskServer.getPort() || undefined;
       mcpTaskServer.stop();
       try {
         await mcpTaskServer.start(after?.port);
@@ -30,6 +31,12 @@ export const appSettingsController = createRPCController({
         log.warn('[settingsIpc] Failed to restart MCP server on port change', {
           error: String(err),
         });
+        // Best-effort: try to bring the server back up on the previous port
+        try {
+          await mcpTaskServer.start(prevPort);
+        } catch {
+          // ignore — server stays down
+        }
       }
     }
 

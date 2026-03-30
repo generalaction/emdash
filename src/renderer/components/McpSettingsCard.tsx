@@ -44,7 +44,9 @@ const McpSettingsCard: React.FC = () => {
   }, [enabled, configuredPort]);
 
   const handlePortBlur = () => {
-    const parsed = parseInt(portInput, 10);
+    const trimmed = portInput.trim();
+    const isDigitsOnly = /^\d+$/.test(trimmed);
+    const parsed = isDigitsOnly ? parseInt(trimmed, 10) : NaN;
     if (
       !isNaN(parsed) &&
       parsed >= 1024 &&

@@ -68,6 +68,9 @@ function httpRequest(
         resolve({ statusCode: res.statusCode ?? 0, body: data });
       });
     });
+    req.setTimeout(15_000, () => {
+      req.destroy(new Error('Request timed out after 15 s'));
+    });
     req.on('error', reject);
     if (body) req.write(body);
     req.end();
@@ -93,6 +96,28 @@ async function getProjects(
     projects: Array<{ id: string; name: string; path: string; isRemote: boolean }>;
   };
   return parsed.projects;
+}
+
+async function listTasks(
+  config: McpTaskServerConfig,
+  projectId: string
+): Promise<Array<{ id: string; name: string; status: string; agentId?: string; branch?: string }>> {
+  const result = await httpRequest({
+    hostname: '127.0.0.1',
+    port: config.port,
+    path: `/api/tasks?project_id=${encodeURIComponent(projectId)}`,
+    method: 'GET',
+    headers: { 'x-emdash-token': config.token },
+  });
+
+  if (result.statusCode !== 200) {
+    throw new Error(`Failed to list tasks: HTTP ${result.statusCode}`);
+  }
+
+  const parsed = JSON.parse(result.body) as {
+    tasks: Array<{ id: string; name: string; status: string; agentId?: string; branch?: string }>;
+  };
+  return parsed.tasks;
 }
 
 async function createTask(
@@ -152,6 +177,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: 'object' as const,
         properties: {},
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'list_tasks',
+      description:
+        'List active (non-archived) tasks for a project. ' +
+        'Use this to confirm a task was created or to check which tasks are currently running. ' +
+        'Returns each task\'s id, name, status ("idle" | "running" | "active"), agent, and branch.',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          project_id: {
+            type: 'string',
+            description: 'ID of the project to list tasks for. Obtain from list_projects.',
+          },
+        },
+        required: ['project_id'],
         additionalProperties: false,
       },
     },
@@ -228,6 +271,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           {
             type: 'text' as const,
             text: `Error listing projects: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  if (name === 'list_tasks') {
+    const typedArgs = args as Record<string, unknown>;
+    const projectId = typedArgs['project_id'];
+    if (typeof projectId !== 'string' || !projectId) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: project_id is required' }],
+        isError: true,
+      };
+    }
+    try {
+      const tasks = await listTasks(config, projectId);
+      if (tasks.length === 0) {
+        return {
+          content: [{ type: 'text' as const, text: 'No active tasks found for this project.' }],
+        };
+      }
+      const lines = tasks.map(
+        (t) =>
+          `• ${t.name} (id: ${t.id})\n  status: ${t.status}  agent: ${t.agentId ?? 'unknown'}  branch: ${t.branch ?? 'unknown'}`
+      );
+      return {
+        content: [{ type: 'text' as const, text: lines.join('\n') }],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Error listing tasks: ${err instanceof Error ? err.message : String(err)}`,
           },
         ],
         isError: true,

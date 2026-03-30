@@ -52,6 +52,7 @@ export function useMcpTaskTrigger(): void {
       let taskPath = '';
       let branch = '';
       let worktreeCreated = false;
+      let taskSaved = false;
 
       try {
         // ---------------------------------------------------------------
@@ -89,6 +90,7 @@ export function useMcpTaskTrigger(): void {
           useWorktree: true,
         });
 
+        taskSaved = true;
         void queryClient.invalidateQueries({ queryKey: ['tasks', project.id] });
 
         // ---------------------------------------------------------------
@@ -129,6 +131,15 @@ export function useMcpTaskTrigger(): void {
           variant: 'destructive',
         });
 
+        // Best-effort rollback: remove the saved task and its worktree
+        if (taskSaved && taskId) {
+          try {
+            await rpc.db.deleteTask(taskId);
+            void queryClient.invalidateQueries({ queryKey: ['tasks', project.id] });
+          } catch {
+            // ignore
+          }
+        }
         if (worktreeCreated && taskId && taskPath) {
           try {
             await window.electronAPI.worktreeRemove({

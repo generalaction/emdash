@@ -11,7 +11,11 @@ const { startMock, stopMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../main/services/McpTaskServer', () => ({
-  mcpTaskServer: { start: (...args: any[]) => startMock(...args), stop: stopMock },
+  mcpTaskServer: {
+    start: (...args: any[]) => startMock(...args),
+    stop: stopMock,
+    getPort: vi.fn(() => 17823),
+  },
 }));
 
 vi.mock('../../main/lib/logger', () => ({

@@ -93,20 +93,20 @@ Emdash can also act as an MCP server itself, letting external AI agents (like Cl
 
 1. Open **Settings → Integrations**
 2. Find the **MCP Server** section and toggle it on
-3. The MCP URL appears below the toggle (e.g. `http://127.0.0.1:17823/mcp`)
+3. The MCP URL appears below the toggle — copy it from there
 
-The server only listens on `127.0.0.1` and is restarted automatically when Emdash starts (if enabled). The URL is stable as long as port 17823 is free; if not, Emdash tries 17824–17827 and then an ephemeral port.
+The server only listens on `127.0.0.1` and is restarted automatically when Emdash starts (if enabled). It tries port 17823 first; if that port is in use, it falls back to 17824–17827 and then an ephemeral port. The exact URL is always shown in Settings after the server starts.
 
 ### Connecting Claude Code
 
-Add the MCP URL to your Claude Code config (`.claude/mcp.json` in your project or `~/.claude/mcp.json` globally):
+Copy the MCP URL from **Settings → Integrations → MCP Server**, then add it to your Claude Code config (`.claude/mcp.json` in your project or `~/.claude/mcp.json` globally):
 
 ```json
 {
   "mcpServers": {
     "emdash": {
       "type": "http",
-      "url": "http://127.0.0.1:17823/mcp"
+      "url": "<paste MCP URL from Settings here>"
     }
   }
 }
@@ -124,7 +124,7 @@ Tasks created via MCP run exactly like tasks you create manually — Emdash open
 
 ### Standalone MCP package
 
-If you need the MCP bridge without Emdash running (e.g. in a CI environment), a lightweight stdio bridge is available in the `mcp/` directory of the Emdash repository. It reads the port written by the desktop app and proxies calls over the REST API. Emdash must still be running for tasks to execute.
+A lightweight stdio bridge is available in the `mcp/` directory of the Emdash repository. It reads the port and token written by the desktop app and proxies calls over the REST API. **Emdash must still be running** — the bridge is just an alternative MCP transport, not a standalone server.
 
 ```json
 {

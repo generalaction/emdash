@@ -1,5 +1,4 @@
 import http from 'http';
-import net from 'net';
 import crypto from 'crypto';
 import { BrowserWindow, app } from 'electron';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
@@ -85,26 +84,6 @@ interface McpToolResult {
 }
 
 // ---------------------------------------------------------------------------
-// Port preference helpers
-// ---------------------------------------------------------------------------
-
-/** Returns true if the given port is available on 127.0.0.1. */
-function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const probe = net.createServer();
-    probe.once('error', () => resolve(false));
-    probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(true)));
-  });
-}
-
-async function findPort(preferred: number[]): Promise<number> {
-  for (const port of preferred) {
-    if (await isPortAvailable(port)) return port;
-  }
-  return 0; // let the OS pick an ephemeral port
-}
-
-// ---------------------------------------------------------------------------
 // Server class
 // ---------------------------------------------------------------------------
 
@@ -125,8 +104,9 @@ class McpTaskServer {
   /**
    * Start the server.
    *
-   * Tries the preferred port first (default 17823, easy to hard-code in Claude Code config),
-   * then falls back to subsequent candidates and finally an ephemeral port.
+   * Tries each candidate port by attempting to listen directly — no probe step,
+   * which avoids a probe-then-listen TOCTOU race. Falls back to an ephemeral
+   * port (0) as a last resort.
    */
   async start(preferredPort?: number): Promise<void> {
     if (this.server) return;
@@ -135,25 +115,51 @@ class McpTaskServer {
     const candidates = preferredPort
       ? [preferredPort, 17823, 17824, 17825, 17826, 17827].filter((p, i, a) => a.indexOf(p) === i)
       : [17823, 17824, 17825, 17826, 17827];
-    const port = await findPort(candidates);
+    // Append 0 as final fallback — OS assigns an ephemeral port
+    candidates.push(0);
 
-    this.server = http.createServer((req, res) => {
-      void this.handleRequest(req, res);
+    const server = http.createServer((req, res) => {
+      this.handleRequest(req, res).catch((err) => {
+        log.error('[McpTaskServer] unhandled request error', { error: String(err) });
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal server error' }));
+        }
+      });
     });
 
-    return new Promise<void>((resolve, reject) => {
-      this.server!.listen(port, '127.0.0.1', () => {
-        const addr = this.server!.address();
+    for (const port of candidates) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const onError = (err: Error) => {
+            server.removeListener('error', onError);
+            reject(err);
+          };
+          server.once('error', onError);
+          server.listen(port, '127.0.0.1', () => {
+            server.removeListener('error', onError);
+            resolve();
+          });
+        });
+        // Bind succeeded — commit
+        const addr = server.address();
         if (addr && typeof addr === 'object') this.port = addr.port;
+        this.server = server;
         this.persistConfig();
         log.info('[McpTaskServer] started', { port: this.port });
-        resolve();
-      });
-      this.server!.on('error', (err) => {
+        return;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE' && port !== 0) {
+          continue; // Try the next candidate
+        }
+        server.close();
         log.error('[McpTaskServer] failed to start', { error: String(err) });
-        reject(err);
-      });
-    });
+        throw err;
+      }
+    }
+
+    server.close();
+    throw new Error('No available port found for MCP task server');
   }
 
   stop(): void {
@@ -213,6 +219,11 @@ class McpTaskServer {
 
     if (req.method === 'GET' && req.url === '/api/projects') {
       await this.handleApiProjects(res);
+      return;
+    }
+
+    if (req.method === 'GET' && req.url?.startsWith('/api/tasks')) {
+      await this.handleApiGetTasks(req, res);
       return;
     }
 
@@ -429,6 +440,34 @@ class McpTaskServer {
     } catch {
       res.writeHead(500);
       res.end(JSON.stringify({ error: 'Failed to list projects' }));
+    }
+  }
+
+  private async handleApiGetTasks(
+    req: http.IncomingMessage,
+    res: http.ServerResponse
+  ): Promise<void> {
+    const url = new URL(req.url!, 'http://127.0.0.1');
+    const projectId = url.searchParams.get('project_id');
+    if (!projectId) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ error: 'project_id is required' }));
+      return;
+    }
+    try {
+      const tasks = await databaseService.getTasks(projectId);
+      const sanitized = tasks.map((t) => ({
+        id: t.id,
+        name: t.name,
+        status: t.status,
+        agentId: t.agentId,
+        branch: t.branch,
+      }));
+      res.writeHead(200);
+      res.end(JSON.stringify({ tasks: sanitized }));
+    } catch {
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: 'Failed to list tasks' }));
     }
   }
 
