@@ -18,6 +18,7 @@ import {
   AutoTrustWorktreesRow,
 } from './TaskSettingsRows';
 import IntegrationsCard from './IntegrationsCard';
+import McpSettingsCard from './McpSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ThemeCard from './ThemeCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
@@ -245,6 +246,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
       description: 'Connect external services and tools.',
       sections: [
         { title: 'Integrations', component: <IntegrationsCard /> },
+        { component: <McpSettingsCard /> },
         { component: <WorkspaceProviderInfoCard /> },
       ],
     },
