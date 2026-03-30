@@ -147,22 +147,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             </PopoverTrigger>
             <PopoverContent align="start" className="w-96 p-4 flex flex-col gap-2">
               <div className="flex flex-col gap-1 w-full">
-                <div className="flex items-center gap-1 justify-between w-full">
-                  <MicroLabel className="text-foreground-passive items-center flex">
-                    Task
-                  </MicroLabel>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="outline" size="icon-xs">
-                      <Pen className="size-3" />
-                    </Button>
-                    <Button variant="outline" size="icon-xs">
-                      <Archive className="size-3" />
-                    </Button>
-                    <Button variant="outline" size="icon-xs">
-                      <Trash2 className="size-3" />
-                    </Button>
-                  </div>
-                </div>
+                <MicroLabel className="text-foreground-passive items-center flex">Task</MicroLabel>
                 <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
               </div>
               <OpenInMenu path={taskState.path} />
