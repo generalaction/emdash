@@ -2,7 +2,7 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
-import { useNavigate, useParams } from '@renderer/core/view/navigation-provider';
+import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useTheme } from '@renderer/hooks/useTheme';
 
@@ -21,9 +21,15 @@ export function AppKeyboardShortcuts() {
   const { navigate } = useNavigate();
 
   // Resolve current project context from whichever view is active
+  const { currentView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
   const { params: projectParams } = useParams('project');
-  const currentProjectId = taskParams?.projectId ?? projectParams?.projectId;
+  const currentProjectId =
+    currentView === 'task'
+      ? taskParams.projectId
+      : currentView === 'project'
+        ? projectParams.projectId
+        : undefined;
 
   useHotkey(getEffectiveHotkey('commandPalette', keyboard), () => showCmdPalette({}));
 

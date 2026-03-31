@@ -18,7 +18,6 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { Input } from '../ui/input';
-import { Separator } from '../ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */

@@ -59,11 +59,13 @@ export function usePullRequests(
     if (!projectId || !nameWithOwner) return;
     await rpc.pullRequests.syncPullRequests(projectId, nameWithOwner);
     await queryClient.resetQueries({ queryKey: ['pull-requests', projectId, nameWithOwner] });
+    await queryClient.invalidateQueries({ queryKey: ['pr-filter-options', nameWithOwner] });
   }, [queryClient, projectId, nameWithOwner]);
 
   return {
     prs,
     loading: query.isLoading,
+    dataUpdatedAt: query.dataUpdatedAt,
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage,
     fetchNextPage: query.fetchNextPage,

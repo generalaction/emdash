@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, formatDistanceToNowStrict } from 'date-fns';
 import {
   ExternalLink,
   GitMerge,
@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { memo, ReactNode } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
-import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
@@ -50,53 +49,6 @@ export function StatusIcon({
   );
 }
 
-function ReviewBadge({
-  decision,
-  isDraft,
-}: {
-  decision: PullRequest['metadata']['reviewDecision'];
-  isDraft: boolean;
-}) {
-  if (isDraft) {
-    return (
-      <Badge variant="outline" className="text-xs text-muted-foreground border-none p-0">
-        Draft
-      </Badge>
-    );
-  }
-  switch (decision) {
-    case 'REVIEW_REQUIRED':
-      return (
-        <Badge
-          variant="outline"
-          className="gap-1.5 text-xs border-none font-normal text-foreground-muted p-0"
-        >
-          Review required
-        </Badge>
-      );
-    case 'APPROVED':
-      return (
-        <Badge
-          variant="outline"
-          className="gap-1.5 text-xs border-none font-normal text-foreground-muted p-0"
-        >
-          Approved
-        </Badge>
-      );
-    case 'CHANGES_REQUESTED':
-      return (
-        <Badge
-          variant="outline"
-          className="gap-1.5 text-xs border-none font-normal text-foreground-muted p-0"
-        >
-          Changes requested
-        </Badge>
-      );
-    default:
-      return null;
-  }
-}
-
 export function PrNumberBadge({ number }: { number: number }) {
   return (
     <span className="font-mono text-xs text-foreground-muted shrink-0 tracking-wide">
@@ -112,7 +64,23 @@ export const PrRow = memo(function PrRow({
   pr: PullRequest;
   projectId: string;
 }) {
-  const openedAgo = formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true });
+  const openedAgoShort = formatDistanceToNowStrict(new Date(pr.createdAt), {
+    roundingMethod: 'floor',
+    addSuffix: false,
+  })
+    .replace(' seconds', 's')
+    .replace(' second', 's')
+    .replace(' minutes', 'm')
+    .replace(' minute', 'm')
+    .replace(' hours', 'h')
+    .replace(' hour', 'h')
+    .replace(' days', 'd')
+    .replace(' day', 'd')
+    .replace(' months', 'mo')
+    .replace(' month', 'mo')
+    .replace(' years', 'y')
+    .replace(' year', 'y');
+  const openedAgoLong = formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true });
   const showCreateTaskModal = useShowModal('taskModal');
 
   return (
@@ -141,7 +109,12 @@ export const PrRow = memo(function PrRow({
               <TooltipContent>Open PR on github</TooltipContent>
             </Tooltip>
           </div>
-          <span className="text-xs text-foreground-passive">opened {openedAgo}</span>
+          <Tooltip>
+            <TooltipTrigger>
+              <span className="text-xs text-foreground-passive">{openedAgoShort}</span>
+            </TooltipTrigger>
+            <TooltipContent>opened {openedAgoLong}</TooltipContent>
+          </Tooltip>
         </div>
         <PrMergeLine pr={pr} />
       </div>

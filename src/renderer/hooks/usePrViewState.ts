@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { PrFilters, PrSortField } from '@shared/pull-requests';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
@@ -17,6 +18,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export function usePrViewState(projectId: string, nameWithOwner: string | null) {
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [sortFilter, setSortFilter] = useState<PrSortField>('newest');
   const [selectedAuthorLogin, setSelectedAuthorLogin] = useState<string | null>(null);
@@ -33,15 +35,18 @@ export function usePrViewState(projectId: string, nameWithOwner: string | null) 
     ...(selectedAssigneeLogin ? { assigneeLogins: [selectedAssigneeLogin] } : {}),
   };
 
-  const { prs, refresh, loading, fetchNextPage, hasNextPage, isFetchingNextPage } = usePullRequests(
-    projectId,
-    nameWithOwner ?? undefined,
-    {
+  const { prs, refresh, loading, dataUpdatedAt, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    usePullRequests(projectId, nameWithOwner ?? undefined, {
       filters,
       sort: sortFilter,
       searchQuery: debouncedQuery || undefined,
+    });
+
+  useEffect(() => {
+    if (dataUpdatedAt > 0 && nameWithOwner) {
+      void queryClient.invalidateQueries({ queryKey: ['pr-filter-options', nameWithOwner] });
     }
-  );
+  }, [dataUpdatedAt, nameWithOwner, queryClient]);
 
   const { data: filterOptions } = useFilterOptions(projectId, nameWithOwner ?? undefined);
 

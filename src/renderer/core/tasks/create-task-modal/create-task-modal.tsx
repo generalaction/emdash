@@ -15,6 +15,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
+import { appState } from '@renderer/core/stores/app-state';
 import { MountedProject } from '@renderer/core/stores/project';
 import { projectManagerStore } from '@renderer/core/stores/project-manager';
 import { mountedProjectData } from '@renderer/core/stores/project-selectors';
@@ -39,7 +40,22 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   strategy?: CreateTaskStrategy;
   initialPR?: PullRequest;
 }) {
-  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(projectId);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(() => {
+    if (projectId) return projectId;
+    const nav = appState.navigation;
+    const navProjectId =
+      nav.currentViewId === 'task'
+        ? (nav.viewParamsStore['task'] as { projectId?: string } | undefined)?.projectId
+        : nav.currentViewId === 'project'
+          ? (nav.viewParamsStore['project'] as { projectId?: string } | undefined)?.projectId
+          : undefined;
+    return (
+      navProjectId ??
+      Array.from(projectManagerStore.projects.values())
+        .reverse()
+        .find((p) => p.state === 'mounted')?.data?.id
+    );
+  });
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const { branches, defaultBranch } = useRepository(selectedProjectId);
