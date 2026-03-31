@@ -110,6 +110,31 @@ describe('initializeShellEnvironment — CLAUDE_CONFIG_DIR', () => {
     expect(process.env.CLAUDE_CONFIG_DIR).toBe('/existing/path');
   });
 
+  it('treats whitespace-only CLAUDE_CONFIG_DIR as unset and falls back to shell', async () => {
+    process.env.CLAUDE_CONFIG_DIR = '   ';
+    execSyncMock.mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && cmd.includes('CLAUDE_CONFIG_DIR')) {
+        return '/shell/custom/claude\n';
+      }
+      return '';
+    });
+
+    const { initializeShellEnvironment } = await import('../../main/utils/shellEnv');
+    initializeShellEnvironment();
+
+    expect(process.env.CLAUDE_CONFIG_DIR).toBe('/shell/custom/claude');
+  });
+
+  it('trims a padded CLAUDE_CONFIG_DIR already present in process.env', async () => {
+    process.env.CLAUDE_CONFIG_DIR = '  /existing/path  ';
+    execSyncMock.mockReturnValue('/shell/custom/claude\n');
+
+    const { initializeShellEnvironment } = await import('../../main/utils/shellEnv');
+    initializeShellEnvironment();
+
+    expect(process.env.CLAUDE_CONFIG_DIR).toBe('/existing/path');
+  });
+
   it('leaves CLAUDE_CONFIG_DIR unset when the shell returns nothing', async () => {
     execSyncMock.mockReturnValue('');
 
