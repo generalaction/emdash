@@ -12,7 +12,7 @@ import {
 } from '@renderer/core/stores/tab-utils';
 import { PtySession } from './pty-session';
 
-export type ScriptType = 'setup' | 'run';
+export type ScriptType = 'setup' | 'run' | 'teardown';
 
 export type LifecycleScriptData = {
   id: string;
@@ -116,6 +116,9 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
     }
     if (settings.scripts?.run) {
       entries.push({ type: 'run', command: settings.scripts.run, label: 'Run' });
+    }
+    if (settings.scripts?.teardown) {
+      entries.push({ type: 'teardown', command: settings.scripts.teardown, label: 'Teardown' });
     }
 
     const resolved = await Promise.all(
