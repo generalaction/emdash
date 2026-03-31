@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/components/ui/dropdown-menu';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
 import {
   asMounted,
   getProjectManagerStore,
@@ -29,23 +30,40 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
   const kind = projectViewKind(store);
   const displayName = projectDisplayName(store);
 
+  const showConfirmDeleteProject = useShowModal('confirmActionModal');
+
   const nameSlot = displayName ? (
-    <div className="flex items-center px-2">
+    <div className="flex items-center px-2 gap-2">
       <span className="text-sm text-muted-foreground">{displayName}</span>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon-xs" aria-label="Project actions" />}
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Project actions"
+              className="text-foreground-muted hover:text-foreground"
+            />
+          }
         >
           <Ellipsis className="size-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent>
+        <DropdownMenuContent className="min-w-40">
           <DropdownMenuItem
-            onSelect={() => {
-              void getProjectManagerStore().deleteProject(projectId);
-              navigate('home');
+            className="flex items-center gap-2 text-foreground-destructive"
+            onClick={() => {
+              showConfirmDeleteProject({
+                title: 'Delete project',
+                description: `"${displayName}" will be deleted. The project folder and worktrees will stay on the filesystem.`,
+                confirmLabel: 'Delete',
+                onSuccess: () => {
+                  void getProjectManagerStore().deleteProject(projectId);
+                  navigate('home');
+                },
+              });
             }}
           >
-            <Trash2 className="size-4" />
+            <Trash2 className="size-4 " />
             Remove Project
           </DropdownMenuItem>
         </DropdownMenuContent>
