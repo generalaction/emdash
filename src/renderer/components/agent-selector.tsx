@@ -12,6 +12,7 @@ import {
   ComboboxGroup,
   ComboboxInput,
   ComboboxItem,
+  ComboboxLabel,
   ComboboxList,
   ComboboxTrigger,
 } from './ui/combobox';
@@ -20,6 +21,13 @@ interface AgentOption {
   value: string;
   label: string;
   agentId: AgentProviderId;
+  disabled: boolean;
+}
+
+interface AgentGroup {
+  value: string;
+  label: string;
+  items: AgentOption[];
 }
 
 interface AgentSelectorProps {
@@ -42,19 +50,29 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
   const installedAgents = connectionId ? (remoteAgents ?? []) : localAgents;
   const [open, setOpen] = useState(false);
 
-  const options: AgentOption[] = installedAgents
-    .filter((id): id is AgentProviderId => id in agentConfig)
-    .map((id) => ({
-      value: id,
-      label: agentConfig[id as AgentProviderId].name,
-      agentId: id as AgentProviderId,
-    }));
+  const installedSet = new Set(installedAgents.filter((id) => id in agentConfig));
+  const allAgentIds = Object.keys(agentConfig) as AgentProviderId[];
+
+  const installedOptions: AgentOption[] = allAgentIds
+    .filter((id) => installedSet.has(id))
+    .map((id) => ({ value: id, label: agentConfig[id].name, agentId: id, disabled: false }));
+
+  const notInstalledOptions: AgentOption[] = allAgentIds
+    .filter((id) => !installedSet.has(id))
+    .map((id) => ({ value: id, label: agentConfig[id].name, agentId: id, disabled: true }));
+
+  const groups: AgentGroup[] = [
+    { value: 'installed', label: 'Installed', items: installedOptions },
+    { value: 'not-installed', label: 'Not installed', items: notInstalledOptions },
+  ].filter((g) => g.items.length > 0);
+
+  const allOptions = [...installedOptions, ...notInstalledOptions];
 
   const selectedConfig = agentConfig[value];
-  const selectedOption = options.find((o) => o.value === value);
+  const selectedOption = allOptions.find((o) => o.value === value);
 
   function handleValueChange(item: AgentOption | null) {
-    if (!item || disabled) return;
+    if (!item || disabled || item.disabled) return;
     onChange(item.agentId);
     setOpen(false);
   }
@@ -62,7 +80,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
   return (
     <div className={cn('relative block min-w-0', className)}>
       <Combobox
-        items={[{ value: 'options', items: options }]}
+        items={groups}
         value={selectedOption ?? null}
         onValueChange={handleValueChange}
         open={open}
@@ -98,13 +116,14 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
         <ComboboxContent className="min-w-(--anchor-width)">
           <ComboboxInput showTrigger={false} placeholder="Search agents..." />
           <ComboboxList className="pb-0">
-            {(group: { value: string; items: AgentOption[] }) => (
+            {(group: AgentGroup) => (
               <ComboboxGroup key={group.value} items={group.items} className="py-1">
+                <ComboboxLabel>{group.label}</ComboboxLabel>
                 <ComboboxCollection>
                   {(item: AgentOption) => {
                     const config = agentConfig[item.agentId];
                     return (
-                      <ComboboxItem key={item.value} value={item}>
+                      <ComboboxItem key={item.value} value={item} disabled={item.disabled}>
                         {config && (
                           <AgentLogo
                             logo={config.logo}
