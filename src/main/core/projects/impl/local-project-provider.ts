@@ -236,17 +236,18 @@ export class LocalProjectProvider implements ProjectProvider {
     };
 
     if (scripts?.setup) {
-      void taskLifecycleService.runLifecycleScript(
-        { type: 'setup', script: scripts.setup },
-        { shouldRespawn: false }
-      );
+      void taskLifecycleService.runLifecycleScript({ type: 'setup', script: scripts.setup });
     }
 
     if (scripts?.run) {
-      void taskLifecycleService.runLifecycleScript(
-        { type: 'run', script: scripts.run },
-        { shouldRespawn: false }
-      );
+      void taskLifecycleService.runLifecycleScript({ type: 'run', script: scripts.run });
+    }
+
+    if (scripts?.teardown) {
+      void taskLifecycleService.prepareLifecycleScript({
+        type: 'teardown',
+        script: scripts.teardown,
+      });
     }
 
     Promise.all(
@@ -313,14 +314,14 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
-    const settings = await this.settings.get();
-    const scripts = settings.scripts;
+    const taskLevelSettings = await new LocalProjectSettingsProvider(task.taskPath).get();
+    const scripts = taskLevelSettings.scripts;
 
-    if (scripts?.teardown) {
-      task.lifecycleService?.runLifecycleScript({
-        type: 'teardown',
-        script: scripts.teardown,
-      });
+    if (scripts?.teardown && task.lifecycleService) {
+      await task.lifecycleService.executeLifecycleScript(
+        { type: 'teardown', script: scripts.teardown },
+        { exit: true }
+      );
     }
 
     await task.conversations.destroyAll();
