@@ -1,4 +1,4 @@
-import { Play, Plus, Settings, Terminal } from 'lucide-react';
+import { CircleFadingArrowUp, CirclePlayIcon, Plus, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import ShortcutHint from '@renderer/components/ui/shortcut-hint';
@@ -31,7 +31,9 @@ export function nextTerminalName(names: string[]): string {
 }
 
 function scriptIcon(type: ScriptType): React.ReactNode {
-  return type === 'run' ? <Play className="size-3.5" /> : <Settings className="size-3.5" />;
+  if (type === 'setup') return <CircleFadingArrowUp className="size-3.5" />;
+  if (type === 'run') return <CirclePlayIcon className="size-3.5" />;
+  return <CircleFadingArrowUp className="size-3.5 rotate-180" />;
 }
 
 interface TerminalsTabsProps {
