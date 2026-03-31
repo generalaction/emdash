@@ -494,8 +494,18 @@ export class TerminalSessionManager {
       // receives a SIGWINCH right after startup, which desynchronises its
       // statusLine line-count counter and breaks statusLine rendering.
       try {
-        this.fitAddon.fit();
-        this.options.initialSize = { cols: this.terminal.cols, rows: this.terminal.rows };
+        const width = this.container.clientWidth;
+        const height = this.container.clientHeight;
+        if (
+          width >= MIN_RENDERABLE_TERMINAL_WIDTH_PX &&
+          height >= MIN_RENDERABLE_TERMINAL_HEIGHT_PX
+        ) {
+          this.fitAddon.fit();
+          this.options.initialSize = {
+            cols: Math.max(MIN_TERMINAL_COLS, this.terminal.cols),
+            rows: Math.max(MIN_TERMINAL_ROWS, this.terminal.rows),
+          };
+        }
       } catch {
         // If fit fails (e.g. zero-size container), leave initialSize unchanged.
       }

@@ -294,7 +294,7 @@ export function initializeShellEnvironment(): void {
     const claudeConfigDir = getShellEnvVar('CLAUDE_CONFIG_DIR');
     if (claudeConfigDir) {
       process.env.CLAUDE_CONFIG_DIR = claudeConfigDir;
-      console.log('[shellEnv] Detected CLAUDE_CONFIG_DIR:', claudeConfigDir);
+      console.log('[shellEnv] Detected CLAUDE_CONFIG_DIR');
     }
   }
 
