@@ -1,4 +1,5 @@
 import type { LocalProject, SshProject } from '@shared/projects';
+import { appState } from './app-state';
 import {
   isMountedProject,
   isUnmountedProject,
@@ -6,11 +7,16 @@ import {
   MountedProject,
   ProjectStore,
 } from './project';
-import { projectManagerStore } from './project-manager';
+import type { ProjectManagerStore } from './project-manager';
+
+/** Returns the ProjectManagerStore from appState. Call only inside `observer` components (or other MobX reactions). */
+export function getProjectManagerStore(): ProjectManagerStore {
+  return appState.projects;
+}
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getProjectStore(projectId: string): ProjectStore | undefined {
-  return projectManagerStore.projects.get(projectId);
+  return getProjectManagerStore().projects.get(projectId);
 }
 
 /** Summary for routing the project shell; call only inside `observer` (or other MobX reactions). */

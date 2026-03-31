@@ -2,7 +2,7 @@ import { AlertCircle, Check, Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { Button } from '@renderer/components/ui/button';
 import { UnregisteredProject } from '@renderer/core/stores/project';
-import { projectManagerStore } from '@renderer/core/stores/project-manager';
+import { getProjectManagerStore } from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 
 type Stage = 'creating-repo' | 'cloning' | 'registering';
@@ -30,7 +30,7 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
   const isError = project.phase === 'error';
 
   const handleDismiss = () => {
-    projectManagerStore.removeUnregisteredProject(project.id);
+    getProjectManagerStore().removeUnregisteredProject(project.id);
     navigate('home');
   };
 

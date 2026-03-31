@@ -1,12 +1,12 @@
 import { GitStore } from './git';
 import { isMountedProject, isUnmountedProject } from './project';
-import { projectManagerStore } from './project-manager';
+import { getProjectManagerStore } from './project-selectors';
 import { isProvisioned, isUnprovisioned, isUnregistered, ProvisionedTask, TaskStore } from './task';
 import type { TaskManagerStore } from './task-manager';
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskManagerStore(projectId: string): TaskManagerStore | undefined {
-  const p = projectManagerStore.projects.get(projectId);
+  const p = getProjectManagerStore().projects.get(projectId);
   return p && isMountedProject(p) ? p.taskManager : undefined;
 }
 
@@ -40,7 +40,7 @@ export type TaskViewKind =
  * "task genuinely missing". Call only inside `observer` components.
  */
 export function taskViewKind(store: TaskStore | undefined, projectId: string): TaskViewKind {
-  const projectStore = projectManagerStore.projects.get(projectId);
+  const projectStore = getProjectManagerStore().projects.get(projectId);
 
   // Project doesn't exist at all
   if (!projectStore) return 'missing';
@@ -104,7 +104,7 @@ export function taskErrorMessage(store: TaskStore | undefined): string | undefin
 
 /** Returns the mount error message for the project. */
 export function projectMountErrorMessage(projectId: string): string {
-  const store = projectManagerStore.projects.get(projectId);
+  const store = getProjectManagerStore().projects.get(projectId);
   if (store && isUnmountedProject(store) && store.phase === 'error') {
     return store.error ?? 'Failed to open project';
   }

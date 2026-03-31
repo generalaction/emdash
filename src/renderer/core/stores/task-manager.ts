@@ -2,7 +2,7 @@ import { makeObservable, observable, runInAction } from 'mobx';
 import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/core/ipc';
-import { projectManagerStore } from './project-manager';
+import { getProjectManagerStore } from './project-selectors';
 import {
   createUnprovisionedTask,
   createUnregisteredTask,
@@ -99,7 +99,7 @@ export class TaskManagerStore {
   }
 
   async provisionTask(taskId: string): Promise<void> {
-    await projectManagerStore.mountProject(this.projectId);
+    await getProjectManagerStore().mountProject(this.projectId);
     await this.loadTasks();
 
     const inFlight = this._provisionPromises.get(taskId);

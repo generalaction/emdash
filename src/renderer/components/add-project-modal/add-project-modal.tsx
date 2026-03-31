@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-provider';
-import { projectManagerStore } from '@renderer/core/stores/project-manager';
+import { getProjectManagerStore } from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
 import { ConfirmButton } from '../ui/confirm-button';
@@ -114,14 +114,14 @@ export function AddProjectModal({
 
     switch (mode) {
       case 'pick':
-        void projectManagerStore.createProject(
+        void getProjectManagerStore().createProject(
           projectType,
           { mode: 'pick', name: pickState.name, path: pickState.path },
           id
         );
         break;
       case 'new':
-        void projectManagerStore.createProject(
+        void getProjectManagerStore().createProject(
           projectType,
           {
             mode: 'new',
@@ -135,7 +135,7 @@ export function AddProjectModal({
         );
         break;
       case 'clone':
-        void projectManagerStore.createProject(
+        void getProjectManagerStore().createProject(
           projectType,
           {
             mode: 'clone',

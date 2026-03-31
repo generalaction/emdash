@@ -17,8 +17,10 @@ import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
 import { appState } from '@renderer/core/stores/app-state';
 import { MountedProject } from '@renderer/core/stores/project';
-import { projectManagerStore } from '@renderer/core/stores/project-manager';
-import { mountedProjectData } from '@renderer/core/stores/project-selectors';
+import {
+  getProjectManagerStore,
+  mountedProjectData,
+} from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { parseGithubNameWithOwner } from '@renderer/views/tasks/diff-viewer/utils';
 import { FromBranchContent } from './from-branch-content';
@@ -51,7 +53,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           : undefined;
     return (
       navProjectId ??
-      Array.from(projectManagerStore.projects.values())
+      Array.from(getProjectManagerStore().projects.values())
         .reverse()
         .find((p) => p.state === 'mounted')?.data?.id
     );
@@ -62,7 +64,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const { navigate } = useNavigate();
 
   const projectData = selectedProjectId
-    ? mountedProjectData(projectManagerStore.projects.get(selectedProjectId))
+    ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
     : null;
   const nameWithOwner = projectData?.gitRemote
     ? (parseGithubNameWithOwner(projectData.gitRemote) ?? undefined)
@@ -82,7 +84,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
     const id = crypto.randomUUID();
-    const projectStore = projectManagerStore.projects.get(selectedProjectId);
+    const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
     switch (selectedStrategy) {

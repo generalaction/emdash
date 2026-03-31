@@ -316,5 +316,3 @@ export class ProjectManagerStore {
     });
   }
 }
-
-export const projectManagerStore = new ProjectManagerStore();

@@ -2,7 +2,7 @@ import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { useRightSidebar } from '@renderer/components/ui/right-sidebar';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
-import { projectManagerStore } from '@renderer/core/stores/project-manager';
+import { getProjectManagerStore } from '@renderer/core/stores/project-selectors';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { useTheme } from '@renderer/hooks/useTheme';
@@ -17,7 +17,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = observer(
     const { toggleTheme } = useTheme();
     const { navigate } = useNavigate();
 
-    const projects = Array.from(projectManagerStore.projects.values())
+    const projects = Array.from(getProjectManagerStore().projects.values())
       .filter((p) => p.state === 'mounted' || p.state === 'unmounted')
       .map((p) => (p as { data: unknown }).data);
 

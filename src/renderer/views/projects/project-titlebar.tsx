@@ -1,20 +1,30 @@
+import { Ellipsis, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { OpenInMenu } from '@renderer/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
+import { Button } from '@renderer/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@renderer/components/ui/dropdown-menu';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import {
   asMounted,
+  getProjectManagerStore,
   getProjectStore,
   projectDisplayName,
   projectViewKind,
 } from '@renderer/core/stores/project-selectors';
 import type { ProjectView } from '@renderer/core/stores/project-view';
-import { useParams } from '@renderer/core/view/navigation-provider';
+import { useNavigate, useParams } from '@renderer/core/view/navigation-provider';
 
 export const ProjectTitlebar = observer(function ProjectTitlebar() {
   const {
     params: { projectId },
   } = useParams('project');
+  const { navigate } = useNavigate();
   const store = getProjectStore(projectId);
   const kind = projectViewKind(store);
   const displayName = projectDisplayName(store);
@@ -22,6 +32,24 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
   const nameSlot = displayName ? (
     <div className="flex items-center px-2">
       <span className="text-sm text-muted-foreground">{displayName}</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button variant="ghost" size="icon-xs" aria-label="Project actions" />}
+        >
+          <Ellipsis className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem
+            onSelect={() => {
+              void getProjectManagerStore().deleteProject(projectId);
+              navigate('home');
+            }}
+          >
+            <Trash2 className="size-4" />
+            Remove Project
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   ) : null;
 

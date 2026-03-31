@@ -1,5 +1,5 @@
 import { NavigationStore } from './navigation-store';
-import { ProjectManagerStore, projectManagerStore } from './project-manager';
+import { ProjectManagerStore } from './project-manager';
 import { SidebarStore } from './sidebar-store';
 import { snapshotRegistry, SnapshotRegistry } from './snapshot-registry';
 
@@ -11,10 +11,8 @@ class AppState {
 
   constructor() {
     this.snapshots = snapshotRegistry;
-    // projectManagerStore is instantiated in project-manager.ts to preserve the
-    // existing circular-dependency resolution (task-manager → project-manager).
-    this.projects = projectManagerStore;
-    this.sidebar = new SidebarStore(projectManagerStore);
+    this.projects = new ProjectManagerStore();
+    this.sidebar = new SidebarStore(this.projects);
     this.navigation = new NavigationStore();
     snapshotRegistry.register('navigation', () => this.navigation.snapshot);
   }
