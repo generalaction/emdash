@@ -23,6 +23,7 @@ import codebuffIcon from '../../assets/images/codebuff.png';
 import mistralIcon from '../../assets/images/mistral.png';
 import piIcon from '../../assets/images/pi.png';
 import autohandIcon from '../../assets/images/autohand.svg?raw';
+import forgeIcon from '../../assets/images/forge.svg?raw';
 
 export type UiAgent = ProviderId;
 
@@ -50,6 +51,7 @@ const ICONS: Record<string, string> = {
   'mistral.png': mistralIcon,
   'pi.png': piIcon,
   'autohand.svg': autohandIcon,
+  'forge.svg': forgeIcon,
 };
 
 export type AgentMeta = {
