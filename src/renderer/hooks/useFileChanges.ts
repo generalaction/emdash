@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToFileChanges } from '@/lib/fileChangeEvents';
-import { getCachedGitStatus } from '@/lib/gitStatusCache';
+import {
+  buildCacheKey,
+  getCachedGitStatus,
+  getCachedResult,
+  onCacheRevalidated,
+} from '@/lib/gitStatusCache';
+import type { GitStatusChange } from '@/lib/gitStatusCache';
 import { filterVisibleGitStatusChanges } from '@/lib/gitStatusFilters';
 import { useGitStatusAutoRefresh } from '@/hooks/internal/useGitStatusAutoRefresh';
 
@@ -11,6 +17,17 @@ export interface FileChange {
   deletions: number | null;
   isStaged: boolean;
   diff?: string;
+}
+
+function toFileChange(change: GitStatusChange): FileChange {
+  return {
+    path: change.path,
+    status: change.status as 'added' | 'modified' | 'deleted' | 'renamed',
+    additions: change.additions ?? null,
+    deletions: change.deletions ?? null,
+    isStaged: change.isStaged || false,
+    diff: change.diff,
+  };
 }
 
 interface UseFileChangesOptions {
@@ -30,6 +47,7 @@ export function shouldRefreshFileChanges(
 export function useFileChanges(taskPath?: string, options: UseFileChangesOptions = {}) {
   const [fileChanges, setFileChanges] = useState<FileChange[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRevalidating, setIsRevalidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDocumentVisible, setIsDocumentVisible] = useState(() => {
     if (typeof document === 'undefined') return true;
@@ -38,6 +56,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
 
   const { isActive = true, idleIntervalMs = 60000, taskId } = options;
   const taskPathRef = useRef(taskPath);
+  const taskIdRef = useRef(taskId);
   const inFlightRef = useRef(false);
   const hasLoadedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -52,13 +71,36 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   }, []);
 
   useEffect(() => {
-    setFileChanges([]); // Clear stale state immediately
-    if (taskPath) {
+    taskPathRef.current = taskPath;
+    taskIdRef.current = taskId;
+    hasLoadedRef.current = false;
+
+    setIsRevalidating(false);
+
+    if (!taskPath) {
+      setFileChanges([]);
+      return;
+    }
+
+    const cached = getCachedResult(taskPath, taskId);
+    if (cached) {
+      // Show cached data immediately (even if stale)
+      if (cached.result?.success && cached.result.changes && cached.result.changes.length > 0) {
+        setFileChanges(filterVisibleGitStatusChanges(cached.result.changes).map(toFileChange));
+      } else {
+        setFileChanges([]);
+      }
+      setIsRevalidating(cached.isStale);
+    } else {
+      setFileChanges([]);
       setIsLoading(true);
     }
-    taskPathRef.current = taskPath;
-    hasLoadedRef.current = false;
-  }, [taskPath]);
+
+    // Kick off a fetch immediately so same-path/taskId changes don't wait
+    // for the idle poll or a watcher event to trigger a load.
+    void fetchFileChanges(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchFileChanges is stable (deps: [queueRefresh]) and reads taskPath/taskId from refs
+  }, [taskPath, taskId]);
 
   useEffect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') return;
@@ -78,7 +120,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
     pendingRefreshRef.current = true;
     if (shouldSetLoading) {
       pendingInitialLoadRef.current = true;
-      if (mountedRef.current) {
+      if (mountedRef.current && !getCachedResult(taskPathRef.current ?? '', taskIdRef.current)) {
         setIsLoading(true);
         setError(null);
       }
@@ -98,48 +140,54 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
       }
 
       inFlightRef.current = true;
-      if (isInitialLoad && mountedRef.current) {
+      if (isInitialLoad && mountedRef.current && !getCachedResult(currentPath, taskIdRef.current)) {
         setIsLoading(true);
         setError(null);
       }
 
       const requestPath = currentPath;
+      const requestTaskId = taskIdRef.current;
+
+      const isStale = () =>
+        requestPath !== taskPathRef.current || requestTaskId !== taskIdRef.current;
 
       try {
-        const result = await getCachedGitStatus(requestPath, { force: options?.force, taskId });
+        const result = await getCachedGitStatus(requestPath, {
+          force: options?.force,
+          taskId: requestTaskId,
+        });
 
         if (!mountedRef.current) return;
 
-        if (requestPath !== taskPathRef.current) {
+        if (isStale()) {
           queueRefresh(true);
           return;
         }
 
-        if (result?.success && result.changes && result.changes.length > 0) {
-          const visibleChanges = filterVisibleGitStatusChanges(result.changes);
-          const changes: FileChange[] = visibleChanges.map((change) => ({
-            path: change.path,
-            status: change.status as 'added' | 'modified' | 'deleted' | 'renamed',
-            additions: change.additions ?? null,
-            deletions: change.deletions ?? null,
-            isStaged: change.isStaged || false,
-            diff: change.diff,
-          }));
-          setFileChanges(changes);
+        if (result?.success) {
+          setFileChanges(
+            result.changes?.length
+              ? filterVisibleGitStatusChanges(result.changes).map(toFileChange)
+              : []
+          );
+          setError(null);
+        } else if (hasLoadedRef.current) {
+          setError(result?.error || 'Failed to refresh file changes');
         } else {
           setFileChanges([]);
+          setError(result?.error || 'Failed to load file changes');
         }
       } catch (err) {
         if (!mountedRef.current) return;
-        if (requestPath !== taskPathRef.current) {
+        if (isStale()) {
           queueRefresh(true);
           return;
         }
         console.error('Failed to fetch file changes:', err);
-        if (isInitialLoad) {
-          setError('Failed to load file changes');
+        setError('Failed to load file changes');
+        if (!hasLoadedRef.current) {
+          setFileChanges([]);
         }
-        setFileChanges([]);
       } finally {
         const isCurrentPath = requestPath === taskPathRef.current;
         if (mountedRef.current && isInitialLoad && !pendingInitialLoadRef.current) {
@@ -173,6 +221,35 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
 
   useEffect(() => {
     if (!taskPath) return undefined;
+    const expectedKey = buildCacheKey(taskPath, taskId);
+
+    const unsubRevalidate = onCacheRevalidated((key, result) => {
+      if (!mountedRef.current || key !== expectedKey) return;
+
+      setIsLoading(false);
+      setIsRevalidating(false);
+
+      if (result.success) {
+        setError(null);
+        setFileChanges(
+          result.changes?.length
+            ? filterVisibleGitStatusChanges(result.changes).map(toFileChange)
+            : []
+        );
+        return;
+      }
+
+      // Preserve existing fileChanges on background refresh failure
+      setError(result.error || 'Failed to refresh file changes');
+    });
+
+    return () => {
+      unsubRevalidate();
+    };
+  }, [taskPath, taskId]);
+
+  useEffect(() => {
+    if (!taskPath) return undefined;
 
     const unsubscribe = subscribeToFileChanges((event) => {
       if (event.detail.taskPath === taskPath && shouldPollRef.current) {
@@ -193,6 +270,7 @@ export function useFileChanges(taskPath?: string, options: UseFileChangesOptions
   return {
     fileChanges,
     isLoading,
+    isRevalidating,
     error,
     refreshChanges,
   };

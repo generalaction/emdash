@@ -224,7 +224,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
-  const { fileChanges, isLoading, refreshChanges } = useFileChanges(safeTaskPath, {
+  const { fileChanges, isLoading, isRevalidating, refreshChanges } = useFileChanges(safeTaskPath, {
     taskId: resolvedTaskId,
   });
   const { toast } = useToast();
@@ -664,6 +664,9 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   <span className="font-medium text-red-600 dark:text-red-400">
                     -{formatDiffCount(totalChanges.deletions)}
                   </span>
+                  {isRevalidating && (
+                    <Loader2 className="ml-1 h-3 w-3 animate-spin text-muted-foreground" />
+                  )}
                 </div>
                 {hasStagedChanges && (
                   <span className="shrink-0 rounded bg-muted-foreground/10 px-2 py-0.5 text-xs font-medium text-muted-foreground">

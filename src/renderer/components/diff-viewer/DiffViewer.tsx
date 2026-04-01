@@ -25,7 +25,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   const isPrReview = Boolean(prNumber && (taskPath || scopedTaskPath));
 
   const [activeTab, setActiveTab] = useState<Tab>('changes');
-  const { fileChanges: localFileChanges, refreshChanges } = useFileChanges(taskPath);
+  const { fileChanges: localFileChanges, refreshChanges } = useFileChanges(taskPath, { taskId });
 
   // PR review mode: fetch PR diff changes and base branch
   const [prFileChanges, setPrFileChanges] = useState<FileChange[]>([]);

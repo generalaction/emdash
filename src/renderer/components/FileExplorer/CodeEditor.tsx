@@ -97,7 +97,7 @@ export default function CodeEditor({
   } = useFileManager({ taskId, taskPath, connectionId, remotePath });
 
   // Get file changes status from git
-  const { fileChanges } = useFileChanges(taskPath);
+  const { fileChanges } = useFileChanges(taskPath, { taskId });
 
   // UI state
   const [explorerWidth, setExplorerWidth] = useState(EXPLORER_WIDTH.DEFAULT);
