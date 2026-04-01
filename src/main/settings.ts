@@ -602,9 +602,10 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   }
   out.terminal = { fontFamily, fontSize, autoCopyOnSelection, macOptionIsMeta };
 
-  // Custom Open In Apps
+  // Custom Open In Apps (deduplicate by id, first occurrence wins)
   const rawCustom = (input as any)?.customOpenInApps;
   if (Array.isArray(rawCustom)) {
+    const seenIds = new Set<string>();
     out.customOpenInApps = rawCustom
       .filter(
         (c: unknown): c is CustomOpenInApp =>
@@ -634,6 +635,11 @@ export function normalizeSettings(input: AppSettings): AppSettings {
           entry.iconPath = c.iconPath.trim();
         }
         return entry;
+      })
+      .filter((c) => {
+        if (seenIds.has(c.id)) return false;
+        seenIds.add(c.id);
+        return true;
       });
   } else {
     out.customOpenInApps = [];
@@ -641,21 +647,23 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const customIds = new Set((out.customOpenInApps ?? []).map((c) => c.id));
 
   // Default Open In App (accept both built-in and custom IDs)
-  const defaultOpenInApp = (input as any)?.defaultOpenInApp;
+  const rawDefaultOpenInApp =
+    typeof (input as any)?.defaultOpenInApp === 'string'
+      ? ((input as any).defaultOpenInApp as string).trim()
+      : '';
   out.defaultOpenInApp =
-    typeof defaultOpenInApp === 'string' &&
-    defaultOpenInApp.trim() &&
-    (isValidOpenInAppId(defaultOpenInApp) || customIds.has(defaultOpenInApp))
-      ? defaultOpenInApp
+    rawDefaultOpenInApp &&
+    (isValidOpenInAppId(rawDefaultOpenInApp) || customIds.has(rawDefaultOpenInApp))
+      ? rawDefaultOpenInApp
       : DEFAULT_SETTINGS.defaultOpenInApp!;
 
   // Hidden Open In Apps (accept both built-in and custom IDs)
   const rawHidden = (input as any)?.hiddenOpenInApps;
   if (Array.isArray(rawHidden)) {
-    const validated = rawHidden.filter(
-      (v: unknown): v is string =>
-        typeof v === 'string' && v.trim() !== '' && (isValidOpenInAppId(v) || customIds.has(v))
-    );
+    const validated = rawHidden
+      .filter((v: unknown): v is string => typeof v === 'string')
+      .map((v) => v.trim())
+      .filter((v) => v !== '' && (isValidOpenInAppId(v) || customIds.has(v)));
     out.hiddenOpenInApps = [...new Set(validated)];
   } else {
     out.hiddenOpenInApps = [];

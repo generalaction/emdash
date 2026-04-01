@@ -1459,8 +1459,12 @@ declare global {
   }
 }
 
-// Explicit type export for better TypeScript recognition
-export interface ElectronAPI {
+// Re-export the Window.electronAPI shape so consumers can import the type directly.
+// Previously a hand-maintained duplicate that drifted out of sync.
+export type ElectronAPI = Window['electronAPI'];
+
+/* eslint-disable @typescript-eslint/no-unused-vars -- kept for reference, replaced by the alias above */
+interface _DeprecatedElectronAPI {
   // Menu events (main → renderer)
   onMenuOpenSettings: (listener: () => void) => () => void;
   onMenuCheckForUpdates: (listener: () => void) => () => void;

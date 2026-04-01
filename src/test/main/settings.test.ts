@@ -418,4 +418,41 @@ describe('normalizeSettings - customOpenInApps', () => {
     expect(result.customOpenInApps![0].checkCommand).toBe('safe-cmd');
     expect(result.customOpenInApps![1].checkCommand).toBeUndefined();
   });
+
+  it('deduplicates custom tools by id, keeping the first occurrence', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        customOpenInApps: [
+          { id: 'dup', label: 'First', openCommand: 'first {{path}}' },
+          { id: 'dup', label: 'Second', openCommand: 'second {{path}}' },
+          { id: 'unique', label: 'Unique', openCommand: 'unique {{path}}' },
+        ],
+      })
+    );
+
+    expect(result.customOpenInApps).toHaveLength(2);
+    expect(result.customOpenInApps![0].label).toBe('First');
+    expect(result.customOpenInApps![1].id).toBe('unique');
+  });
+
+  it('trims defaultOpenInApp before validating', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        defaultOpenInApp: '  terminal  ',
+      })
+    );
+
+    expect(result.defaultOpenInApp).toBe('terminal');
+  });
+
+  it('trims hiddenOpenInApps entries before validating', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        hiddenOpenInApps: ['  terminal  ', '  vscode  '],
+      })
+    );
+
+    expect(result.hiddenOpenInApps).toContain('terminal');
+    expect(result.hiddenOpenInApps).toContain('vscode');
+  });
 });
