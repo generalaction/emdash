@@ -747,19 +747,22 @@ export function registerGitIpc() {
   // Git: Status (moved from Codex IPC)
   ipcMain.handle(
     'git:get-status',
-    async (_, arg: string | { taskPath: string; taskId?: string }) => {
+    async (_, arg: string | { taskPath: string; taskId?: string; includeUntracked?: boolean }) => {
       const taskPath = typeof arg === 'string' ? arg : arg.taskPath;
       const taskId = typeof arg === 'string' ? undefined : arg.taskId;
+      const includeUntracked = typeof arg === 'string' ? true : (arg.includeUntracked ?? true);
       try {
         const remote = await resolveRemoteContext(taskPath, taskId);
         if (remote) {
           const changes = await remoteGitService.getStatusDetailed(
             remote.connectionId,
-            remote.remotePath
+            remote.remotePath,
+            { includeUntracked }
           );
           return { success: true, changes };
         }
-        const changes = await gitGetStatus(taskPath);
+
+        const changes = await gitGetStatus(taskPath, { includeUntracked });
         return { success: true, changes };
       } catch (error) {
         log.error('git:get-status error', error);

@@ -81,4 +81,24 @@ describe('GitService.getStatus', () => {
     expect(change?.status).toBe('renamed');
     expect(change?.isStaged).toBe(true);
   });
+
+  it('excludes untracked files when includeUntracked is false', async () => {
+    await commitFile(repo, 'tracked.txt', 'content\n', 'init');
+
+    // Create an untracked file
+    await fs.promises.writeFile(path.join(repo, 'untracked.txt'), 'new file\n');
+    // Modify a tracked file
+    await fs.promises.writeFile(path.join(repo, 'tracked.txt'), 'modified\n');
+
+    const withUntracked = await getStatus(repo, { includeUntracked: true });
+    const withoutUntracked = await getStatus(repo, { includeUntracked: false });
+
+    expect(withUntracked.some((e) => e.path === 'untracked.txt')).toBe(true);
+    expect(withUntracked.some((e) => e.path === 'tracked.txt')).toBe(true);
+
+    expect(withoutUntracked.some((e) => e.path === 'untracked.txt')).toBe(false);
+    const tracked = withoutUntracked.find((e) => e.path === 'tracked.txt');
+    expect(tracked).toBeDefined();
+    expect(tracked?.status).toBe('modified');
+  });
 });

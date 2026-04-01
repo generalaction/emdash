@@ -574,6 +574,19 @@ describe('RemoteGitService', () => {
       expect(result[1].additions).toBe(100);
     });
 
+    it('should use --untracked-files=no when includeUntracked is false', async () => {
+      mockExecuteCommand
+        .mockResolvedValueOnce({ stdout: 'true', stderr: '', exitCode: 0 } as ExecResult) // rev-parse
+        .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 } as ExecResult); // status
+
+      await service.getStatusDetailed('conn-1', '/home/user/project', {
+        includeUntracked: false,
+      });
+
+      const statusCall = mockExecuteCommand.mock.calls[1];
+      expect(statusCall[1]).toContain('--untracked-files=no');
+    });
+
     it('should handle renamed files', async () => {
       mockExecuteCommand
         .mockResolvedValueOnce({ stdout: 'true', stderr: '', exitCode: 0 } as ExecResult)

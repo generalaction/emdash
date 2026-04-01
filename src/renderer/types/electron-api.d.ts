@@ -357,7 +357,9 @@ declare global {
         rootPath?: string;
         error?: string;
       }>;
-      getGitStatus: (arg: string | { taskPath: string; taskId?: string }) => Promise<{
+      getGitStatus: (
+        arg: string | { taskPath: string; taskId?: string; includeUntracked?: boolean }
+      ) => Promise<{
         success: boolean;
         changes?: Array<{
           path: string;

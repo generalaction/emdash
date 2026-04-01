@@ -340,7 +340,13 @@ export class RemoteGitService {
    * Detailed git status matching the shape returned by local GitService.getStatus().
    * Parses porcelain output, numstat diffs, and untracked file line counts.
    */
-  async getStatusDetailed(connectionId: string, worktreePath: string): Promise<GitChange[]> {
+  async getStatusDetailed(
+    connectionId: string,
+    worktreePath: string,
+    options?: { includeUntracked?: boolean }
+  ): Promise<GitChange[]> {
+    const includeUntracked = options?.includeUntracked ?? true;
+    const untrackedMode = includeUntracked ? 'all' : 'no';
     const cwd = this.normalizeRemotePath(worktreePath);
     // Verify git repo
     const verifyResult = await this.sshService.executeCommand(
@@ -355,16 +361,15 @@ export class RemoteGitService {
     let statusOutput = '';
     const statusV2Result = await this.sshService.executeCommand(
       connectionId,
-      'git status --porcelain=v2 -z --untracked-files=all',
+      `git status --porcelain=v2 -z --untracked-files=${untrackedMode}`,
       cwd
     );
     if (statusV2Result.exitCode === 0) {
       statusOutput = statusV2Result.stdout || '';
     } else {
-      // Fallback for older remote git versions.
       const statusV1Result = await this.sshService.executeCommand(
         connectionId,
-        'git status --porcelain --untracked-files=all',
+        `git status --porcelain --untracked-files=${untrackedMode}`,
         cwd
       );
       if (statusV1Result.exitCode !== 0) {

@@ -383,7 +383,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
-  getGitStatus: (arg: string | { taskPath: string; taskId?: string }) =>
+  getGitStatus: (arg: string | { taskPath: string; taskId?: string; includeUntracked?: boolean }) =>
     ipcRenderer.invoke('git:get-status', arg),
   getDeleteRisks: (args: {
     targets: Array<{ id: string; taskPath: string }>;

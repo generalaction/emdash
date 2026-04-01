@@ -144,7 +144,18 @@ async function resolveReviewBaseRef(taskPath: string, baseRef: string): Promise<
   return baseRef;
 }
 
-export async function getStatus(taskPath: string): Promise<GitChange[]> {
+/**
+ * Returns the list of changed files in the worktree.
+ *
+ * @param taskPath Absolute path to the worktree.
+ * @param [options.includeUntracked=true] Whether to include untracked files.
+ *   Disabling this avoids a full directory walk which can be slow in large repos.
+ */
+export async function getStatus(
+  taskPath: string,
+  options?: { includeUntracked?: boolean }
+): Promise<GitChange[]> {
+  const includeUntracked = options?.includeUntracked ?? true;
   try {
     try {
       await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
@@ -157,6 +168,9 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
     // Run git commands in parallel with flags tuned for performance:
     //   --no-optional-locks: avoid blocking on concurrent git processes
     //   --no-ahead-behind:   skip commit-graph walk for tracking info
+    //   --untracked-files:   'no' for fast pass (~50ms), 'all' for full pass (~8s+)
+    //     The untracked directory walk is the main bottleneck in large monorepos.
+    const untrackedMode = includeUntracked ? 'all' : 'no';
     const statusPromise = (async () => {
       try {
         const { stdout } = await execFileAsync(
@@ -167,7 +181,7 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
             '--porcelain=v2',
             '-z',
             '--no-ahead-behind',
-            '--untracked-files=all',
+            `--untracked-files=${untrackedMode}`,
           ],
           {
             cwd: taskPath,
@@ -176,10 +190,9 @@ export async function getStatus(taskPath: string): Promise<GitChange[]> {
         );
         return stdout;
       } catch {
-        // Fallback for older git versions that do not support porcelain v2.
         const { stdout } = await execFileAsync(
           'git',
-          ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=all'],
+          ['--no-optional-locks', 'status', '--porcelain', `--untracked-files=${untrackedMode}`],
           {
             cwd: taskPath,
             maxBuffer: MAX_DIFF_OUTPUT_BYTES,
