@@ -1,6 +1,7 @@
 import * as toml from 'smol-toml';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
@@ -41,10 +42,13 @@ function makeCodexNotifyCommand(): string[] {
 }
 
 export class HookConfigWriter {
-  constructor(private readonly fs: FileSystemProvider) {}
+  constructor(
+    private readonly fs: FileSystemProvider,
+    private readonly exec: ExecFn
+  ) {}
 
   async writeClaudeHooks(): Promise<void> {
-    if (!(await resolveCommandPath('claude'))) return;
+    if (!(await resolveCommandPath('claude', this.exec))) return;
 
     const config: Record<string, unknown> = await this.fs
       .read(CLAUDE_SETTINGS_PATH)
@@ -62,11 +66,11 @@ export class HookConfigWriter {
   }
 
   async writeCodexNotify(): Promise<void> {
-    if (!(await resolveCommandPath('codex'))) return;
+    if (!(await resolveCommandPath('codex', this.exec))) return;
 
     const config: Record<string, unknown> = await this.fs
       .read(CODEX_CONFIG_PATH)
-      .then((result) => JSON.parse(result.content) ?? {})
+      .then((result) => toml.parse(result.content) ?? {})
       .catch(() => ({}));
 
     config.notify = makeCodexNotifyCommand();

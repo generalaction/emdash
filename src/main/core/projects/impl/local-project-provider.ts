@@ -170,8 +170,9 @@ export class LocalProjectProvider implements ProjectProvider {
       workDir = this.project.path;
     }
 
+    const exec = getLocalExec();
     const taskFs = new LocalFileSystem(workDir);
-    await new HookConfigWriter(taskFs).writeAll();
+    await new HookConfigWriter(taskFs, exec).writeAll();
 
     const settings = await this.settings.get();
     const defaultBranch = await this.settings.getDefaultBranch();
@@ -190,7 +191,6 @@ export class LocalProjectProvider implements ProjectProvider {
     const taskLevelSettings = await new LocalProjectSettingsProvider(workDir).get();
     const scripts = taskLevelSettings.scripts;
 
-    const exec = getLocalExec();
     const taskGit = new GitService(workDir, exec, taskFs);
     const conversationProvider = new LocalConversationProvider({
       projectId: this.project.id,
