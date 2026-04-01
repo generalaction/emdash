@@ -549,7 +549,7 @@ export function registerGithubIpc() {
         owner: string;
         isPrivate: boolean;
         gitignoreTemplate?: string;
-        template?: 'blank' | 't3' | 'vite-react';
+        template?: 'blank' | 't3' | 'vite-react' | 'gStack';
       }
     ) => {
       let githubRepoCreated = false;
@@ -634,6 +634,14 @@ export function registerGithubIpc() {
               templateRepo: 'create-t3-app',
               localPath: localPath!,
             });
+          } else if (template === 'gStack') {
+            repoInfo = await githubService.createGstackProject({
+              name,
+              description,
+              owner,
+              isPrivate,
+              localPath: localPath!,
+            });
           } else {
             repoInfo = await githubService.createRepository({
               name,
@@ -653,25 +661,27 @@ export function registerGithubIpc() {
         githubRepoCreated = true;
         repoUrl = repoInfo.url;
 
-        // Clone repository
-        const cloneResult = await githubService.cloneRepository(repoUrl, localPath);
-        if (!cloneResult.success) {
-          // Cleanup: delete GitHub repo on clone failure
-          try {
-            // Security: Use quoteShellArg to prevent command injection
-            const repoRef = `${quoteShellArg(owner)}/${quoteShellArg(name)}`;
-            await execAsync(`gh repo delete ${repoRef} --yes`, {
-              timeout: 10000,
-            });
-          } catch (cleanupError) {
-            log.warn('Failed to cleanup GitHub repo after clone failure:', cleanupError);
+        // Clone repository (skip for gStack since createGstackProject already handles it)
+        if (template !== 'gStack') {
+          const cloneResult = await githubService.cloneRepository(repoUrl, localPath);
+          if (!cloneResult.success) {
+            // Cleanup: delete GitHub repo on clone failure
+            try {
+              // Security: Use quoteShellArg to prevent command injection
+              const repoRef = `${quoteShellArg(owner)}/${quoteShellArg(name)}`;
+              await execAsync(`gh repo delete ${repoRef} --yes`, {
+                timeout: 10000,
+              });
+            } catch (cleanupError) {
+              log.warn('Failed to cleanup GitHub repo after clone failure:', cleanupError);
+            }
+            return {
+              success: false,
+              error: cloneResult.error || 'Failed to clone repository',
+            };
           }
-          return {
-            success: false,
-            error: cloneResult.error || 'Failed to clone repository',
-          };
+          localDirCreated = true;
         }
-        localDirCreated = true;
 
         // Initialize project (create README, commit, push) - skip for templates as they already have content
         if (!template || template === 'blank') {

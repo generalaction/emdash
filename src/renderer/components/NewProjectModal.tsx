@@ -18,18 +18,20 @@ interface Owner {
   type: 'User' | 'Organization';
 }
 
-type TemplateType = 'blank' | 't3' | 'vite-react';
+type TemplateType = 'blank' | 't3' | 'vite-react' | 'gStack';
 
 interface TemplateOption {
   value: TemplateType;
   label: string;
   description: string;
+  isNew?: boolean;
 }
 
 const TEMPLATE_OPTIONS: TemplateOption[] = [
   { value: 'blank', label: 'Blank', description: 'Start from scratch' },
   { value: 't3', label: 'T3 Stack', description: 'Full-stack T3 app' },
   { value: 'vite-react', label: 'Vite + React', description: 'Fast React setup with Vite' },
+  { value: 'gStack', label: 'gStack', description: 'Garry Tan gstack starter repo', isNew: true },
 ];
 
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuccess }) => {
@@ -215,7 +217,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
                   key={option.value}
                   type="button"
                   onClick={() => setTemplate(option.value)}
-                  className={`flex flex-col items-start rounded-lg border p-3 transition-all ${
+                  className={`relative flex flex-col items-start rounded-lg border p-3 transition-all ${
                     template === option.value
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-muted-foreground'
@@ -225,6 +227,11 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
                   <span className="text-left text-xs text-muted-foreground">
                     {option.description}
                   </span>
+                  {option.isNew && (
+                    <span className="absolute right-2 top-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                      New
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

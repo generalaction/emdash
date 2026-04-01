@@ -1503,6 +1503,167 @@ export class GitHubService {
   }
 
   /**
+   * Create a new gstack project
+   */
+  async createGstackProject(params: {
+    name: string;
+    description?: string;
+    owner: string;
+    isPrivate: boolean;
+    localPath: string;
+  }): Promise<{ url: string; defaultBranch: string; fullName: string }> {
+    const { name, description, owner, isPrivate, localPath } = params;
+    const tempDir = path.join(os.tmpdir(), `emdash-gstack-${Date.now()}`);
+
+    try {
+      console.log('[gstack] Starting gstack project creation...');
+
+      if (fs.existsSync(localPath)) {
+        fs.rmSync(localPath, { recursive: true, force: true });
+      }
+      fs.mkdirSync(localPath, { recursive: true });
+
+      const readmeContent = description ? `# ${name}\n\n${description}\n` : `# ${name}\n`;
+      fs.writeFileSync(path.join(localPath, 'README.md'), readmeContent, 'utf8');
+
+      console.log('[gstack] Cloning gstack repo...');
+      await execAsync(
+        `git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "${tempDir}"`
+      );
+
+      console.log('[gstack] Building skills directory from gstack repo...');
+
+      const gstackSkillDirs = [
+        'office-hours',
+        'ship',
+        'qa',
+        'review',
+        'benchmark',
+        'canary',
+        'connect-chrome',
+        'design-consultation',
+        'design-html',
+        'design-review',
+        'design-shotgun',
+        'document-release',
+        'gstack-upgrade',
+        'investigate',
+        'land-and-deploy',
+        'learn',
+        'plan-ceo-review',
+        'plan-design-review',
+        'plan-eng-review',
+        'qa-only',
+        'retro',
+        'setup-browser-cookies',
+        'setup-deploy',
+        'codex',
+        'cso',
+        'autoplan',
+        'careful',
+        'freeze',
+        'guard',
+        'unfreeze',
+        'checkpoint',
+        'health',
+      ];
+
+      const gstackSkillsDir = path.join(tempDir, '.claude', 'skills', 'gstack');
+      fs.mkdirSync(gstackSkillsDir, { recursive: true });
+
+      for (const skillDir of gstackSkillDirs) {
+        const srcDir = path.join(tempDir, skillDir);
+        const destDir = path.join(gstackSkillsDir, skillDir);
+        if (fs.existsSync(srcDir)) {
+          fs.cpSync(srcDir, destDir, { recursive: true });
+        }
+      }
+
+      const binDir = path.join(tempDir, 'bin');
+      if (fs.existsSync(binDir)) {
+        fs.cpSync(binDir, path.join(gstackSkillsDir, 'bin'), { recursive: true });
+      }
+      const browseDir = path.join(tempDir, 'browse');
+      if (fs.existsSync(browseDir)) {
+        fs.cpSync(browseDir, path.join(gstackSkillsDir, 'browse'), { recursive: true });
+      }
+      const ethosPath = path.join(tempDir, 'ETHOS.md');
+      if (fs.existsSync(ethosPath)) {
+        fs.copyFileSync(ethosPath, path.join(gstackSkillsDir, 'ETHOS.md'));
+      }
+
+      const gstackDestDir = path.join(localPath, '.claude', 'skills', 'gstack');
+
+      console.log('[gstack] Copying .claude/skills/gstack to project...');
+      fs.mkdirSync(path.dirname(gstackDestDir), { recursive: true });
+      fs.cpSync(gstackSkillsDir, gstackDestDir, { recursive: true });
+
+      const gstackGitDir = path.join(gstackDestDir, '.git');
+      if (fs.existsSync(gstackGitDir)) {
+        fs.rmSync(gstackGitDir, { recursive: true, force: true });
+      }
+
+      const claudeMdPath = path.join(localPath, 'CLAUDE.md');
+      const gstackSection = `
+## gstack
+Use /browse from gstack for all web browsing. Never use mcp__claude-in-chrome__* tools.
+Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review,
+/design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy,
+/canary, /benchmark, /browse, /connect-chrome, /qa, /qa-only, /design-review,
+/setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex,
+/cso, /autoplan, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, /learn.
+`;
+
+      fs.writeFileSync(claudeMdPath, gstackSection, 'utf8');
+
+      console.log('[gstack] Creating GitHub repo:', owner + '/' + name);
+      const visibilityFlag = isPrivate ? '--private' : '--public';
+      await this.execGH(`gh repo create ${owner}/${name} ${visibilityFlag} --confirm`);
+
+      console.log('[gstack] Initializing git and pushing...');
+      await execAsync('/bin/sh -c "git init"', { cwd: localPath });
+      await execAsync('/bin/sh -c "git add -A"', { cwd: localPath });
+      await execAsync('/bin/sh -c "git commit -m \'Initial commit from gstack template\'"', {
+        cwd: localPath,
+      });
+
+      await execAsync(
+        '/bin/sh -c "git remote add origin https://github.com/' + owner + '/' + name + '.git"',
+        { cwd: localPath }
+      );
+      await execAsync('/bin/sh -c "git push -u origin main"', { cwd: localPath }).catch(
+        async () => {
+          try {
+            await execAsync('/bin/sh -c "git push -u origin master"', { cwd: localPath });
+          } catch {
+            throw new Error('Failed to push to remote repository');
+          }
+        }
+      );
+
+      console.log('[gstack] Getting repo info...');
+      const repoInfoOutput = await this.execGH(
+        `gh repo view ${owner}/${name} --json name,nameWithOwner,url,defaultBranchRef`
+      );
+      const repoInfo = JSON.parse(repoInfoOutput.stdout);
+
+      console.log('[gstack] Project creation complete!');
+      return {
+        url: repoInfo.url || `https://github.com/${repoInfo.nameWithOwner}`,
+        defaultBranch: repoInfo.defaultBranchRef?.name || 'main',
+        fullName: repoInfo.nameWithOwner || `${owner}/${name}`,
+      };
+    } catch (error) {
+      console.error('[gstack] Error creating gstack project:', error);
+      throw error;
+    } finally {
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    }
+  }
+
+  /**
    * Initialize a new project with initial files and commit
    */
   async createNextJsProject(params: {

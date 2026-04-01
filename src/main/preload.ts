@@ -554,7 +554,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     owner: string;
     isPrivate: boolean;
     gitignoreTemplate?: string;
-    template?: 'blank' | 't3' | 'vite-react';
+    template?: 'blank' | 't3' | 'vite-react' | 'gStack';
   }) => ipcRenderer.invoke('github:createNewProject', params),
   githubListPullRequests: (args: { projectPath: string; limit?: number; searchQuery?: string }) =>
     ipcRenderer.invoke('github:listPullRequests', args),
