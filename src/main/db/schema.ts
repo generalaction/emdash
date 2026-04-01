@@ -178,6 +178,64 @@ export const workspaceInstances = sqliteTable(
   })
 );
 
+export const automations = sqliteTable(
+  'automations',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    projectName: text('project_name').notNull().default(''),
+    name: text('name').notNull(),
+    prompt: text('prompt').notNull(),
+    agentId: text('agent_id').notNull(),
+    mode: text('mode').notNull().default('schedule'), // 'schedule' | 'trigger'
+    schedule: text('schedule').notNull(), // JSON encoded AutomationSchedule
+    triggerType: text('trigger_type'), // 'github_pr' | 'github_issue' | 'linear_issue'
+    triggerConfig: text('trigger_config'), // JSON encoded TriggerConfig
+    useWorktree: integer('use_worktree').notNull().default(1), // boolean
+    status: text('status').notNull().default('active'),
+    lastRunAt: text('last_run_at'),
+    nextRunAt: text('next_run_at'),
+    runCount: integer('run_count').notNull().default(0),
+    lastRunResult: text('last_run_result'),
+    lastRunError: text('last_run_error'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    projectIdIdx: index('idx_automations_project_id').on(table.projectId),
+    statusNextRunIdx: index('idx_automations_status_next_run').on(table.status, table.nextRunAt),
+    updatedAtIdx: index('idx_automations_updated_at').on(table.updatedAt),
+  })
+);
+
+export const automationRunLogs = sqliteTable(
+  'automation_run_logs',
+  {
+    id: text('id').primaryKey(),
+    automationId: text('automation_id')
+      .notNull()
+      .references(() => automations.id, { onDelete: 'cascade' }),
+    startedAt: text('started_at').notNull(),
+    finishedAt: text('finished_at'),
+    status: text('status').notNull(),
+    error: text('error'),
+    taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  },
+  (table) => ({
+    automationStartedIdx: index('idx_automation_run_logs_automation_started').on(
+      table.automationId,
+      table.startedAt
+    ),
+    statusIdx: index('idx_automation_run_logs_status').on(table.status),
+  })
+);
+
 export type WorkspaceInstanceRow = typeof workspaceInstances.$inferSelect;
 export type WorkspaceInstanceInsert = typeof workspaceInstances.$inferInsert;
 
@@ -202,6 +260,7 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   conversations: many(conversations),
   lineComments: many(lineComments),
   workspaceInstances: many(workspaceInstances),
+  automationRunLogs: many(automationRunLogs),
 }));
 
 export const workspaceInstancesRelations = relations(workspaceInstances, ({ one }) => ({
@@ -237,6 +296,25 @@ export const lineCommentsRelations = relations(lineComments, ({ one }) => ({
   }),
 }));
 
+export const automationsRelations = relations(automations, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [automations.projectId],
+    references: [projects.id],
+  }),
+  runLogs: many(automationRunLogs),
+}));
+
+export const automationRunLogsRelations = relations(automationRunLogs, ({ one }) => ({
+  automation: one(automations, {
+    fields: [automationRunLogs.automationId],
+    references: [automations.id],
+  }),
+  task: one(tasks, {
+    fields: [automationRunLogs.taskId],
+    references: [tasks.id],
+  }),
+}));
+
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
@@ -245,3 +323,7 @@ export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type LineCommentRow = typeof lineComments.$inferSelect;
 export type LineCommentInsert = typeof lineComments.$inferInsert;
+export type AutomationRow = typeof automations.$inferSelect;
+export type AutomationInsert = typeof automations.$inferInsert;
+export type AutomationRunLogRow = typeof automationRunLogs.$inferSelect;
+export type AutomationRunLogInsert = typeof automationRunLogs.$inferInsert;

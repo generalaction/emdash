@@ -154,6 +154,45 @@ describe('normalizeSettings - changelog dismissed versions', () => {
   });
 });
 
+describe('normalizeSettings - notification sound profile', () => {
+  it('defaults to the current sound profile when missing', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.notifications?.soundProfile).toBe('default');
+  });
+
+  it('preserves the gilfoyle sound profile when selected', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        notifications: {
+          enabled: true,
+          sound: true,
+          osNotifications: true,
+          soundFocusMode: 'always',
+          soundProfile: 'gilfoyle',
+        },
+      })
+    );
+
+    expect(result.notifications?.soundProfile).toBe('gilfoyle');
+  });
+
+  it('falls back to default for unknown sound profiles', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        notifications: {
+          enabled: true,
+          sound: true,
+          osNotifications: true,
+          soundFocusMode: 'always',
+          soundProfile: 'unknown' as any,
+        },
+      })
+    );
+
+    expect(result.notifications?.soundProfile).toBe('default');
+  });
+});
+
 describe('normalizeSettings - keyboard shortcuts', () => {
   it('preserves explicitly removed shortcuts', () => {
     const result = normalizeSettings(
@@ -226,5 +265,21 @@ describe('normalizeSettings - review preset', () => {
       agent: DEFAULT_REVIEW_AGENT,
       prompt: DEFAULT_REVIEW_PROMPT,
     });
+  });
+});
+
+describe('normalizeSettings – terminal settings', () => {
+  it('preserves macOptionIsMeta: true', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        terminal: {
+          fontFamily: '',
+          fontSize: 0,
+          autoCopyOnSelection: false,
+          macOptionIsMeta: true,
+        },
+      })
+    );
+    expect(result.terminal?.macOptionIsMeta).toBe(true);
   });
 });

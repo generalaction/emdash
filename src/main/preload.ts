@@ -446,6 +446,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     draft?: boolean;
     web?: boolean;
     fill?: boolean;
+    skipPrePush?: boolean;
   }) => ipcRenderer.invoke('git:create-pr', args),
   mergeToMain: (args: { taskPath: string; taskId?: string }) =>
     ipcRenderer.invoke('git:merge-to-main', args),
@@ -609,6 +610,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('plain:initialFetch', limit, statuses),
   plainSearchThreads: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('plain:searchThreads', searchTerm, limit),
+
+  // Sentry integration
+  sentrySaveToken: (token: string, organizationSlug?: string) =>
+    ipcRenderer.invoke('sentry:saveToken', token, organizationSlug),
+  sentryCheckConnection: () => ipcRenderer.invoke('sentry:checkConnection'),
+  sentryClearToken: () => ipcRenderer.invoke('sentry:clearToken'),
+  sentryInitialFetch: (limit?: number) => ipcRenderer.invoke('sentry:initialFetch', limit),
+  sentrySearchIssues: (searchTerm: string, limit?: number) =>
+    ipcRenderer.invoke('sentry:searchIssues', searchTerm, limit),
+
   // Forgejo integration
   forgejoSaveCredentials: (args: { instanceUrl: string; token: string }) =>
     ipcRenderer.invoke('forgejo:saveCredentials', args),
@@ -865,6 +876,72 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcpRemoveServer: (serverName: string) => ipcRenderer.invoke('mcp:remove-server', serverName),
   mcpGetProviders: () => ipcRenderer.invoke('mcp:get-providers'),
   mcpRefreshProviders: () => ipcRenderer.invoke('mcp:refresh-providers'),
+
+  // Automations
+  automationsList: () => ipcRenderer.invoke('automations:list'),
+  automationsGet: (args: { id: string }) => ipcRenderer.invoke('automations:get', args),
+  automationsCreate: (args: {
+    name: string;
+    projectId: string;
+    projectName?: string;
+    prompt: string;
+    agentId: string;
+    mode?: string;
+    schedule: {
+      type: string;
+      hour?: number;
+      minute?: number;
+      dayOfWeek?: string;
+      dayOfMonth?: number;
+    };
+    triggerType?: string;
+    triggerConfig?: Record<string, unknown>;
+    useWorktree?: boolean;
+  }) => ipcRenderer.invoke('automations:create', args),
+  automationsUpdate: (args: {
+    id: string;
+    name?: string;
+    projectId?: string;
+    projectName?: string;
+    prompt?: string;
+    agentId?: string;
+    mode?: string;
+    schedule?: {
+      type: string;
+      hour?: number;
+      minute?: number;
+      dayOfWeek?: string;
+      dayOfMonth?: number;
+    };
+    triggerType?: string | null;
+    triggerConfig?: Record<string, unknown> | null;
+    status?: string;
+    useWorktree?: boolean;
+  }) => ipcRenderer.invoke('automations:update', args),
+  automationsDelete: (args: { id: string }) => ipcRenderer.invoke('automations:delete', args),
+  automationsToggle: (args: { id: string }) => ipcRenderer.invoke('automations:toggle', args),
+  automationsRunLogs: (args: { automationId: string; limit?: number }) =>
+    ipcRenderer.invoke('automations:runLogs', args),
+  automationsTriggerNow: (args: { id: string }) =>
+    ipcRenderer.invoke('automations:triggerNow', args),
+  automationsCompleteRun: (args: {
+    runLogId: string;
+    automationId: string;
+    taskId?: string;
+    status: 'success' | 'failure';
+    error?: string;
+  }) => ipcRenderer.invoke('automations:completeRun', args),
+  automationsDrainTriggers: () => ipcRenderer.invoke('automations:drainTriggers'),
+  onAutomationTriggerAvailable: (listener: () => void) => {
+    const wrapped = (_: Electron.IpcRendererEvent) => listener();
+    ipcRenderer.on('automation:trigger-available', wrapped);
+    return () => {
+      ipcRenderer.removeListener('automation:trigger-available', wrapped);
+    };
+  },
+
+  // Integrations
+  integrationsStatusMap: () => ipcRenderer.invoke('integrations:statusMap'),
 
   // Performance Monitor
   perfSubscribe: () => ipcRenderer.invoke('perf:subscribe'),
@@ -1189,6 +1266,7 @@ export interface ElectronAPI {
     draft?: boolean;
     web?: boolean;
     fill?: boolean;
+    skipPrePush?: boolean;
   }) => Promise<{ success: boolean; url?: string; output?: string; error?: string }>;
   connectToGitHub: (
     projectPath: string

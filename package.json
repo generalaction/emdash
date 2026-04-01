@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.4.41",
+  "version": "0.4.45",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "main": "dist/main/main/entry.js",
   "packageManager": "pnpm@10.28.2",
@@ -46,6 +46,9 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20.10.0",
     "@types/pidusage": "^2.0.5",
     "@types/react": "^18.2.45",
@@ -64,6 +67,7 @@
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.0",
     "husky": "^9.1.7",
+    "jsdom": "^29.0.1",
     "lint-staged": "^16.3.0",
     "postcss": "^8.4.32",
     "prettier": "3.6.2",
@@ -174,6 +178,12 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "LSEnvironment": {
+          "LANG": "en_US.UTF-8",
+          "LC_CTYPE": "en_US.UTF-8"
+        }
+      },
       "target": [
         {
           "target": "dmg",

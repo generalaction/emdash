@@ -5,11 +5,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { soundPlayer } from '@/lib/soundPlayer';
+import type { NotificationSoundProfile } from '@shared/notificationSounds';
 
 const NotificationSettingsCard: React.FC = () => {
   const { settings, updateSettings, isLoading: loading } = useAppSettings();
 
   const { notifications } = settings ?? {};
+
+  const handleSoundProfileChange = (next: string) => {
+    const nextProfile = next as NotificationSoundProfile;
+    soundPlayer.preview(nextProfile);
+    updateSettings({
+      notifications: { soundProfile: nextProfile },
+    });
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -84,6 +94,27 @@ const NotificationSettingsCard: React.FC = () => {
             <SelectContent>
               <SelectItem value="always">Always</SelectItem>
               <SelectItem value="unfocused">Only when unfocused</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-1 flex-col gap-0.5">
+            <p className="text-sm font-medium text-foreground">Sound profile</p>
+            <p className="text-sm text-muted-foreground">
+              Switch between the classic Emdash chime and the Gilfoyle bitcoin alert.
+            </p>
+          </div>
+          <Select
+            value={notifications?.soundProfile ?? 'default'}
+            onValueChange={handleSoundProfileChange}
+          >
+            <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="gilfoyle">Gilfoyle Bitcoin Alert</SelectItem>
             </SelectContent>
           </Select>
         </div>

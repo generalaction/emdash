@@ -3,7 +3,13 @@ import { readServers, writeServers } from './mcp/configIO';
 import { getAgentMcpMeta, getAllMcpAgentIds } from './mcp/configPaths';
 import { adaptForward, adaptReverse } from './mcp/adapters';
 import { loadCatalog } from './mcp/catalog';
-import type { McpServer, McpLoadAllResponse, ServerMap, RawServerEntry } from '@shared/mcp/types';
+import type {
+  AgentMcpMeta,
+  McpServer,
+  McpLoadAllResponse,
+  ServerMap,
+  RawServerEntry,
+} from '@shared/mcp/types';
 
 export class McpService {
   private _writeLock = Promise.resolve();
@@ -83,8 +89,9 @@ export class McpService {
       const allAgentIds = getAllMcpAgentIds();
       const selectedProviders = new Set(server.providers);
       const raw = mcpServerToRaw(server);
-
-      const failures: string[] = [];
+      const pendingWrites: PendingWrite[] = [];
+      const readFailures: string[] = [];
+      const writeFailures: string[] = [];
 
       for (const agentId of allAgentIds) {
         const meta = getAgentMcpMeta(agentId);
@@ -93,34 +100,49 @@ export class McpService {
         let existing: ServerMap;
         try {
           existing = await readServers(meta);
-        } catch {
-          existing = {};
+        } catch (err) {
+          log.error(`Failed to read MCP config for ${agentId}:`, err);
+          readFailures.push(agentId);
+          continue;
         }
 
         if (selectedProviders.has(agentId)) {
           // Add/update: forward-adapt the single server and merge into existing
           const adapted = adaptForward(meta.adapter, { [server.name]: raw });
           const adaptedEntry = adapted[server.name];
-          if (adaptedEntry) {
-            existing[server.name] = adaptedEntry;
-          }
-        } else if (server.name in existing) {
-          // Remove from deselected provider
-          delete existing[server.name];
-        } else {
-          continue; // no change needed
+          if (!adaptedEntry) continue;
+
+          pendingWrites.push({
+            agentId,
+            meta,
+            servers: { ...existing, [server.name]: adaptedEntry },
+          });
+          continue;
         }
 
-        try {
-          await writeServers(meta, existing);
-        } catch (err) {
-          log.error(`Failed to write MCP config for ${agentId}:`, err);
-          failures.push(agentId);
+        if (server.name in existing) {
+          const next = { ...existing };
+          delete next[server.name];
+          pendingWrites.push({ agentId, meta, servers: next });
         }
       }
 
-      if (failures.length) {
-        throw new Error(`Failed to write config for: ${failures.join(', ')}`);
+      if (readFailures.length) {
+        throw buildConfigFailureError('read', readFailures);
+      }
+
+      for (const { agentId, meta, servers } of pendingWrites) {
+        try {
+          await writeServers(meta, servers);
+        } catch (err) {
+          log.error(`Failed to write MCP config for ${agentId}:`, err);
+          writeFailures.push(agentId);
+        }
+      }
+
+      if (writeFailures.length) {
+        const successfulWrites = getSuccessfulWriteAgentIds(pendingWrites, writeFailures);
+        throw buildConfigFailureError('write', writeFailures, successfulWrites);
       }
     });
   }
@@ -128,7 +150,9 @@ export class McpService {
   async removeServer(serverName: string): Promise<void> {
     return this.withWriteLock(async () => {
       const allAgentIds = getAllMcpAgentIds();
-      const failures: string[] = [];
+      const pendingWrites: PendingWrite[] = [];
+      const readFailures: string[] = [];
+      const writeFailures: string[] = [];
 
       for (const agentId of allAgentIds) {
         const meta = getAgentMcpMeta(agentId);
@@ -137,27 +161,66 @@ export class McpService {
         let existing: ServerMap;
         try {
           existing = await readServers(meta);
-        } catch {
+        } catch (err) {
+          log.error(`Failed to read MCP config for ${agentId}:`, err);
+          readFailures.push(agentId);
           continue;
         }
 
         if (!(serverName in existing)) continue;
 
-        delete existing[serverName];
+        const next = { ...existing };
+        delete next[serverName];
+        pendingWrites.push({ agentId, meta, servers: next });
+      }
 
+      if (readFailures.length) {
+        throw buildConfigFailureError('read', readFailures);
+      }
+
+      for (const { agentId, meta, servers } of pendingWrites) {
         try {
-          await writeServers(meta, existing);
+          await writeServers(meta, servers);
         } catch (err) {
           log.error(`Failed to write MCP config for ${agentId}:`, err);
-          failures.push(agentId);
+          writeFailures.push(agentId);
         }
       }
 
-      if (failures.length) {
-        throw new Error(`Failed to write config for: ${failures.join(', ')}`);
+      if (writeFailures.length) {
+        const successfulWrites = getSuccessfulWriteAgentIds(pendingWrites, writeFailures);
+        throw buildConfigFailureError('write', writeFailures, successfulWrites);
       }
     });
   }
+}
+
+type PendingWrite = {
+  agentId: string;
+  meta: AgentMcpMeta;
+  servers: ServerMap;
+};
+
+function getSuccessfulWriteAgentIds(
+  pendingWrites: PendingWrite[],
+  writeFailures: string[]
+): string[] {
+  return pendingWrites
+    .map(({ agentId }) => agentId)
+    .filter((agentId) => !writeFailures.includes(agentId));
+}
+
+function buildConfigFailureError(
+  action: 'read' | 'write',
+  failures: string[],
+  successes: string[] = []
+): Error {
+  const baseMessage = `Failed to ${action} config for: ${failures.join(', ')}`;
+  if (action !== 'write' || successes.length === 0) {
+    return new Error(baseMessage);
+  }
+
+  return new Error(`${baseMessage}. Updated before failure: ${successes.join(', ')}`);
 }
 
 // ── Conversion helpers ─────────────────────────────────────────────────────

@@ -19,6 +19,19 @@ interface GitLabIssueSummary {
   updated_at?: string | null;
 }
 
+interface GitLabMRSummary {
+  id: number;
+  iid: number; // project-scoped MR number
+  title: string;
+  web_url?: string | null;
+  state?: string | null; // "opened" | "closed" | "merged" | "locked"
+  source_branch?: string | null;
+  target_branch?: string | null;
+  assignee?: { name: string; username: string } | null;
+  labels?: string[] | null;
+  updated_at?: string | null;
+}
+
 type GitLabCreds = {
   siteUrl: string;
 };
@@ -102,6 +115,34 @@ export class GitLabService {
       }
       const issues = await this.fetchIssues(id, limit);
       return { success: true, issues: issues };
+    } catch (e: any) {
+      return { success: false, error: e?.message };
+    }
+  }
+
+  async initialFetchMRs(
+    projectPath?: string,
+    limit: number = 10
+  ): Promise<{ success: boolean; mrs?: GitLabMRSummary[]; error?: string }> {
+    try {
+      const path = projectPath?.trim();
+      const clampedLimit = Math.max(1, Math.min(typeof limit === 'number' ? limit : 10, 100));
+      const { siteUrl, token } = await this.requireAuth();
+      if (!siteUrl || !token) {
+        return { success: false, error: 'GitLab is not configured' };
+      }
+      if (!path) {
+        return { success: false, error: 'Project path is required' };
+      }
+      const { success, id, error } = await this.resolveProjectId(path);
+      if (!success) {
+        return { success: false, error };
+      }
+      if (!id) {
+        return { success: false, error: 'Unable to resolve project ID' };
+      }
+      const mrs = await this.fetchMergeRequests(id, clampedLimit);
+      return { success: true, mrs };
     } catch (e: any) {
       return { success: false, error: e?.message };
     }
@@ -218,6 +259,36 @@ export class GitLabService {
     } catch (e: any) {
       throw e;
     }
+  }
+
+  private async fetchMergeRequests(
+    projectId: string,
+    limit: number = 10
+  ): Promise<GitLabMRSummary[]> {
+    const { siteUrl, token } = await this.requireAuth();
+    if (!siteUrl || !token) {
+      throw new Error('GitLab is not configured');
+    }
+    const url = new URL(
+      `${siteUrl}/api/v4/projects/${projectId}/merge_requests?state=opened&order_by=updated_at&sort=desc&per_page=${limit}`
+    );
+    const response = await this.doRequest(url, token, 'GET');
+    if (!response.ok) {
+      throw new Error('Could not fetch merge requests');
+    }
+    const data = (await response.json()) as any[];
+    return data.map((mr) => ({
+      id: mr.id,
+      iid: mr.iid,
+      title: mr.title,
+      web_url: mr.web_url,
+      state: mr.state,
+      source_branch: mr.source_branch,
+      target_branch: mr.target_branch,
+      assignee: mr.assignee ?? (Array.isArray(mr.assignees) ? (mr.assignees[0] ?? null) : null),
+      labels: mr.labels,
+      updated_at: mr.updated_at,
+    }));
   }
 
   private normalizeIssues(issues: any[]): GitLabIssueSummary[] {

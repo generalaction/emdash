@@ -405,6 +405,48 @@ describe('ptyIpc notification lifecycle', () => {
     expect(written).toContain('claude');
   });
 
+  it('writes remote init keystrokes before timeout when a fish prompt is split across chunks', async () => {
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('claude', 'main', 'task-remote-fish');
+    await startDirect!(
+      { sender: createSender() },
+      {
+        id,
+        providerId: 'claude',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:remote-alias' },
+        cols: 120,
+        rows: 32,
+      }
+    );
+
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+
+    proc!.emitData('Welcome to fish, the friendly interactive shell\r\n');
+    proc!.emitData('Type help for instructions on how to use fish\r\n');
+    proc!.emitData('user@host /tmp/task');
+    expect(proc!.write).not.toHaveBeenCalled();
+
+    proc!.emitData('> ');
+
+    expect(proc!.write).toHaveBeenCalled();
+    expect(proc!.write).toHaveBeenCalledTimes(1);
+
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).toContain('cd');
+    expect(written).toContain('/tmp/task');
+    expect(written).toContain('sh -ilc');
+
+    vi.advanceTimersByTime(14999);
+    expect(proc!.write).toHaveBeenCalledTimes(1);
+  });
+
   it('does not show completion notification on process exit (moved to AgentEventService)', async () => {
     const { registerPtyIpc } = await import('../../main/services/ptyIpc');
     registerPtyIpc();
@@ -426,6 +468,26 @@ describe('ptyIpc notification lifecycle', () => {
     // OS notifications are now driven by hook events in AgentEventService, not PTY exit
     expect(notificationCtor).not.toHaveBeenCalled();
     expect(notificationShow).not.toHaveBeenCalled();
+  });
+
+  it('forwards non-ASCII PTY data to the renderer unchanged', async () => {
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const start = ipcHandleHandlers.get('pty:start');
+    expect(start).toBeTypeOf('function');
+
+    const id = makePtyId('codex', 'main', 'task-unicode');
+    const sender = createSender();
+    await start!({ sender }, { id, cwd: '/tmp/task', shell: 'codex', cols: 120, rows: 32 });
+
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+
+    proc!.emitData('Marko Ranđelović');
+    await vi.runAllTimersAsync();
+
+    expect(sender.send).toHaveBeenCalledWith(`pty:data:${id}`, 'Marko Ranđelović');
   });
 
   it('keeps replacement PTY writable after direct CLI exit triggers shell respawn', async () => {

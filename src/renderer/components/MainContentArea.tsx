@@ -6,6 +6,7 @@ import ProjectMainView from './ProjectMainView';
 import HomeView from './HomeView';
 import SkillsView from './skills/SkillsView';
 import { McpPage } from './mcp/McpPage';
+import AutomationsView from './automations/AutomationsView';
 import { SettingsPage, type SettingsPageTab } from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
 import WorkspaceProvisioningOverlay from './WorkspaceProvisioningOverlay';
@@ -25,6 +26,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
   settingsPageInitialTab,
   handleCloseSettingsPage,
 }) => {
+  const automationsEnabled = useFeatureFlag('automations');
   const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { connectionId: projectRemoteConnectionId, remotePath: projectRemotePath } =
     useProjectRemoteInfo();
@@ -33,6 +35,7 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
     showHomeView,
     showSkillsView,
     showMcpView,
+    showAutomationsView,
     showKanban,
     setShowKanban,
     projectDefaultBranch,
@@ -91,6 +94,10 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
 
   if (showMcpView) {
     return <McpPage />;
+  }
+
+  if (showAutomationsView && automationsEnabled) {
+    return <AutomationsView />;
   }
 
   if (showHomeView) {

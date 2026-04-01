@@ -78,6 +78,20 @@
       "when": 1741017600000,
       "tag": "0010_add_workspace_instances",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1742860800000,
+      "tag": "0011_add_automations_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1743033600000,
+      "tag": "0012_add_automation_triggers",
+      "breakpoints": true
     }
   ]
 }

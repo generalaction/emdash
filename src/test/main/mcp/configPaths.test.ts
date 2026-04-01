@@ -8,6 +8,10 @@ vi.mock('os', () => ({
 import { getAgentMcpMeta, getAllMcpAgentIds } from '../../../main/services/mcp/configPaths';
 
 describe('getAgentMcpMeta', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('returns correct meta for claude', () => {
     const meta = getAgentMcpMeta('claude');
     expect(meta).toBeDefined();
@@ -54,11 +58,12 @@ describe('getAgentMcpMeta', () => {
     expect(meta!.adapter).toBe('gemini');
   });
 
-  it('returns correct meta for opencode', () => {
+  it('returns correct meta for opencode and marks it jsonc-capable', () => {
     const meta = getAgentMcpMeta('opencode');
     expect(meta).toBeDefined();
-    expect(meta!.configPath).toContain('opencode');
+    expect(meta!.configPath).toBe('/home/testuser/.config/opencode/opencode.json');
     expect(meta!.adapter).toBe('opencode');
+    expect(meta!.isJsonc).toBe(true);
   });
 
   it('returns correct meta for copilot', () => {

@@ -29,7 +29,7 @@ import {
   normalizeTaskName,
   MAX_TASK_NAME_LENGTH,
 } from '../lib/taskNames';
-import BranchSelect from './BranchSelect';
+import BranchSelect, { pickDefaultBranch } from './BranchSelect';
 import { generateTaskNameFromContext } from '../lib/branchNameGenerator';
 import type { Project } from '../types/app';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
@@ -208,9 +208,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
 
   useEffect(() => {
     if (!userChangedBranchRef.current) {
-      setSelectedBranch(defaultBranch);
+      const branch = defaultBranch || pickDefaultBranch(branchOptions);
+      if (branch) setSelectedBranch((prev) => (prev === branch ? prev : branch));
     }
-  }, [defaultBranch]);
+  }, [defaultBranch, branchOptions]);
 
   const handleBranchChange = (value: string) => {
     setSelectedBranch(value);

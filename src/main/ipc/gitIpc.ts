@@ -1076,9 +1076,10 @@ export function registerGitIpc() {
         draft?: boolean;
         web?: boolean;
         fill?: boolean;
+        skipPrePush?: boolean;
       }
     ) => {
-      const { taskPath, title, body, base, head, draft, web, fill } =
+      const { taskPath, title, body, base, head, draft, web, fill, skipPrePush } =
         args ||
         ({} as {
           taskPath: string;
@@ -1089,6 +1090,7 @@ export function registerGitIpc() {
           draft?: boolean;
           web?: boolean;
           fill?: boolean;
+          skipPrePush?: boolean;
         });
       try {
         const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
@@ -1124,64 +1126,71 @@ export function registerGitIpc() {
           enrichedBody: prBody,
         });
 
-        // Stage and commit any pending changes
-        try {
-          const { stdout: statusOut } = await execAsync(
-            'git status --porcelain --untracked-files=all',
-            {
-              cwd: taskPath,
-            }
-          );
-          if (statusOut && statusOut.trim().length > 0) {
-            const { stdout: addOut, stderr: addErr } = await execAsync('git add -A', {
-              cwd: taskPath,
-            });
-            if (addOut?.trim()) outputs.push(addOut.trim());
-            if (addErr?.trim()) outputs.push(addErr.trim());
+        // Stage, commit, and push — skip when the caller already did this (skipPrePush)
+        if (!skipPrePush) {
+          try {
+            const { stdout: statusOut } = await execAsync(
+              'git status --porcelain --untracked-files=all',
+              {
+                cwd: taskPath,
+              }
+            );
+            if (statusOut && statusOut.trim().length > 0) {
+              const { stdout: addOut, stderr: addErr } = await execAsync('git add -A', {
+                cwd: taskPath,
+              });
+              if (addOut?.trim()) outputs.push(addOut.trim());
+              if (addErr?.trim()) outputs.push(addErr.trim());
 
-            const commitMsg = 'stagehand: prepare pull request';
-            try {
-              const { stdout: commitOut, stderr: commitErr } = await execAsync(
-                `git commit -m ${JSON.stringify(commitMsg)}`,
-                { cwd: taskPath }
-              );
-              if (commitOut?.trim()) outputs.push(commitOut.trim());
-              if (commitErr?.trim()) outputs.push(commitErr.trim());
-            } catch (commitErr) {
-              const msg = commitErr instanceof Error ? commitErr.message : String(commitErr);
-              if (msg && /nothing to commit/i.test(msg)) {
-                outputs.push('git commit: nothing to commit');
-              } else {
-                throw commitErr;
+              const commitMsg = 'stagehand: prepare pull request';
+              try {
+                const { stdout: commitOut, stderr: commitErr } = await execAsync(
+                  `git commit -m ${JSON.stringify(commitMsg)}`,
+                  { cwd: taskPath }
+                );
+                if (commitOut?.trim()) outputs.push(commitOut.trim());
+                if (commitErr?.trim()) outputs.push(commitErr.trim());
+              } catch (commitErr) {
+                const msg = commitErr instanceof Error ? commitErr.message : String(commitErr);
+                if (msg && /nothing to commit/i.test(msg)) {
+                  outputs.push('git commit: nothing to commit');
+                } else {
+                  throw commitErr;
+                }
               }
             }
+          } catch (stageErr) {
+            const stageMsg = stageErr instanceof Error ? stageErr.message : String(stageErr);
+            if (/nothing to commit/i.test(stageMsg)) {
+              outputs.push('git: nothing to commit');
+            } else {
+              log.error('Failed to stage/commit changes before PR:', stageMsg);
+              throw stageErr;
+            }
           }
-        } catch (stageErr) {
-          log.warn('Failed to stage/commit changes before PR:', stageErr as string);
-          // Continue; PR may still be created for existing commits
-        }
 
-        // Ensure branch is pushed to origin so PR includes latest commit
-        try {
-          await execAsync('git push', { cwd: taskPath });
-          outputs.push('git push: success');
-        } catch (pushErr) {
+          // Ensure branch is pushed to origin so PR includes latest commit
           try {
-            const { stdout: branchOut } = await execAsync('git rev-parse --abbrev-ref HEAD', {
-              cwd: taskPath,
-            });
-            const branch = branchOut.trim();
-            await execAsync(`git push --set-upstream origin ${JSON.stringify(branch)}`, {
-              cwd: taskPath,
-            });
-            outputs.push(`git push --set-upstream origin ${branch}: success`);
-          } catch (pushErr2) {
-            log.error('Failed to push branch before PR:', pushErr2 as string);
-            return {
-              success: false,
-              error:
-                'Failed to push branch to origin. Please check your Git remotes and authentication.',
-            };
+            await execAsync('git push', { cwd: taskPath });
+            outputs.push('git push: success');
+          } catch (pushErr) {
+            try {
+              const { stdout: branchOut } = await execAsync('git rev-parse --abbrev-ref HEAD', {
+                cwd: taskPath,
+              });
+              const branch = branchOut.trim();
+              await execAsync(`git push --set-upstream origin ${JSON.stringify(branch)}`, {
+                cwd: taskPath,
+              });
+              outputs.push(`git push --set-upstream origin ${branch}: success`);
+            } catch (pushErr2) {
+              log.error('Failed to push branch before PR:', pushErr2 as string);
+              return {
+                success: false,
+                error:
+                  'Failed to push branch to origin. Please check your Git remotes and authentication.',
+              };
+            }
           }
         }
 

@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Switch } from './ui/switch';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { useAppContext } from '@/contexts/AppContextProvider';
 
 type FontOption = {
   id: string;
@@ -37,6 +38,7 @@ const dedupeAndSort = (fonts: string[]) =>
 
 const TerminalSettingsCard: React.FC = () => {
   const { settings, updateSettings, isLoading: loading, isSaving: saving } = useAppSettings();
+  const { platform } = useAppContext();
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [search, setSearch] = useState<string>('');
   const [installedFonts, setInstalledFonts] = useState<string[] | null>(null);
@@ -45,6 +47,7 @@ const TerminalSettingsCard: React.FC = () => {
   const fontFamily = settings?.terminal?.fontFamily ?? '';
   const fontSize = settings?.terminal?.fontSize ?? 0;
   const autoCopyOnSelection = settings?.terminal?.autoCopyOnSelection ?? false;
+  const macOptionIsMeta = settings?.terminal?.macOptionIsMeta ?? false;
 
   const popularOptions = useMemo<FontOption[]>(() => {
     return [
@@ -137,6 +140,18 @@ const TerminalSettingsCard: React.FC = () => {
       updateSettings({ terminal: { autoCopyOnSelection: next } });
       window.dispatchEvent(
         new CustomEvent('terminal-auto-copy-changed', { detail: { autoCopyOnSelection: next } })
+      );
+    },
+    [updateSettings]
+  );
+
+  const toggleMacOptionIsMeta = useCallback(
+    (next: boolean) => {
+      updateSettings({ terminal: { macOptionIsMeta: next } });
+      window.dispatchEvent(
+        new CustomEvent('terminal-mac-option-is-meta-changed', {
+          detail: { macOptionIsMeta: next },
+        })
       );
     },
     [updateSettings]
@@ -306,11 +321,28 @@ const TerminalSettingsCard: React.FC = () => {
           </p>
         </div>
         <Switch
+          aria-label="Auto-copy selected text"
           checked={autoCopyOnSelection}
           disabled={loading || saving}
           onCheckedChange={toggleAutoCopy}
         />
       </div>
+      {platform === 'darwin' ? (
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-1 flex-col gap-0.5">
+            <p className="text-sm font-medium text-foreground">Use Option as Meta key</p>
+            <p className="text-sm text-muted-foreground">
+              Treat the Option key as the Meta key in the terminal.
+            </p>
+          </div>
+          <Switch
+            aria-label="Use Option as Meta key"
+            checked={macOptionIsMeta}
+            disabled={loading || saving}
+            onCheckedChange={toggleMacOptionIsMeta}
+          />
+        </div>
+      ) : null}
     </div>
   );
 };

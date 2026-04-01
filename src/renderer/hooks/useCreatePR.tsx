@@ -46,47 +46,40 @@ export function useCreatePR() {
         return { success: false, error: 'Electron bridge unavailable' } as any;
       }
 
-      // Auto-generate PR title and description if not provided
       const finalPrOptions = { ...(prOptions || {}) };
+      const inferredName = taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
 
+      // Start PR content generation in parallel with commit+push when title/body not provided.
+      // This saves 10-30s by overlapping the LLM call with git operations.
+      let generatePromise: Promise<any> | null = null;
       if (!finalPrOptions.title || !finalPrOptions.body) {
-        try {
-          // Get default branch for comparison
-          let defaultBranch = 'main';
+        generatePromise = (async () => {
           try {
-            const branchStatus = await api.getBranchStatus?.({ taskPath });
-            if (branchStatus?.success && branchStatus.defaultBranch) {
-              defaultBranch = branchStatus.defaultBranch;
-            }
-          } catch {}
+            let defaultBranch = 'main';
+            try {
+              const branchStatus = await api.getBranchStatus?.({ taskPath });
+              if (branchStatus?.success && branchStatus.defaultBranch) {
+                defaultBranch = branchStatus.defaultBranch;
+              }
+            } catch {}
 
-          // Generate PR content
-          if (api.generatePrContent) {
-            const generated = await api.generatePrContent({
-              taskPath,
-              base: finalPrOptions.base || defaultBranch,
-            });
-
-            if (generated?.success && generated.title) {
-              finalPrOptions.title = finalPrOptions.title || generated.title;
-              finalPrOptions.body = finalPrOptions.body || generated.description || '';
+            if (api.generatePrContent) {
+              return await api.generatePrContent({
+                taskPath,
+                base: finalPrOptions.base || defaultBranch,
+              });
             }
+          } catch {
+            // Non-fatal: fallback title will be used
           }
-        } catch (error) {
-          // Non-fatal: continue with fallback title
-          // Silently fail - fallback title will be used
-        }
+          return null;
+        })();
       }
 
-      // Fallback to inferred title if still not set
-      if (!finalPrOptions.title) {
-        finalPrOptions.title = taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
-      }
+      // Use a simple commit message derived from task path while generation runs in parallel
+      const commitMessage = explicitCommitMessage || finalPrOptions.title || inferredName;
 
-      // Use the generated PR title as commit message when no explicit one was provided
-      const commitMessage =
-        explicitCommitMessage || finalPrOptions.title || 'chore: apply task changes';
-
+      // Run commit+push concurrently with PR content generation
       const commitRes = await api.gitCommitAndPush({
         taskPath,
         commitMessage,
@@ -103,9 +96,28 @@ export function useCreatePR() {
         return { success: false, error: commitRes?.error || 'Commit/push failed' } as any;
       }
 
+      // Now await the parallel generation result (if started) and apply it
+      if (generatePromise) {
+        const generated = await generatePromise;
+        if (generated?.success) {
+          if (!finalPrOptions.title && generated.title) {
+            finalPrOptions.title = generated.title;
+          }
+          if (!finalPrOptions.body && generated.description) {
+            finalPrOptions.body = generated.description;
+          }
+        }
+      }
+
+      // Fallback to inferred title if still not set
+      if (!finalPrOptions.title) {
+        finalPrOptions.title = inferredName;
+      }
+
       const res = await api.createPullRequest({
         taskPath,
         fill: true,
+        skipPrePush: true, // commit+push already done above
         ...finalPrOptions,
       });
 

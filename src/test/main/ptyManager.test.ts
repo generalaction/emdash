@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const providerStatusGetMock = vi.fn();
@@ -12,6 +13,16 @@ const fsReaddirSyncMock = vi.fn();
 const agentEventGetPortMock = vi.fn(() => 0);
 const agentEventGetTokenMock = vi.fn(() => '');
 const nodePtySpawnMock = vi.fn();
+const childProcessSpawnMock = vi.fn();
+
+function restoreEnvVar(key: 'LANG' | 'LC_ALL' | 'LC_CTYPE', value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+}
 
 vi.mock('../../main/services/providerStatusCache', () => ({
   providerStatusCache: {
@@ -63,6 +74,10 @@ vi.mock('node-pty', () => ({
   spawn: (...args: any[]) => nodePtySpawnMock(...args),
 }));
 
+vi.mock('node:child_process', () => ({
+  spawn: (...args: any[]) => childProcessSpawnMock(...args),
+}));
+
 vi.mock('../../main/services/AgentEventService', () => ({
   agentEventService: {
     getPort: () => agentEventGetPortMock(),
@@ -87,6 +102,8 @@ describe('ptyManager provider command resolution', () => {
       throw new Error('ENOENT');
     });
     fsAccessSyncMock.mockImplementation(() => undefined);
+    childProcessSpawnMock.mockReset();
+    delete process.env.EMDASH_DISABLE_PTY;
   });
 
   it('resolves provider command config from custom settings', async () => {
@@ -439,6 +456,155 @@ describe('ptyManager provider command resolution', () => {
         Object.defineProperty(process, 'platform', originalPlatformDescriptor);
       }
     }
+  });
+
+  it('collects locale env vars for PTY environments', async () => {
+    const originalLang = process.env.LANG;
+    const originalLcAll = process.env.LC_ALL;
+    const originalLcCtype = process.env.LC_CTYPE;
+
+    process.env.LANG = 'en_US.UTF-8';
+    process.env.LC_ALL = 'sr_RS.UTF-8';
+    process.env.LC_CTYPE = 'sr_RS.UTF-8';
+
+    try {
+      const { getLocaleEnv } = await import('../../main/services/ptyManager');
+
+      expect(getLocaleEnv()).toEqual({
+        LANG: 'en_US.UTF-8',
+        LC_ALL: 'sr_RS.UTF-8',
+        LC_CTYPE: 'sr_RS.UTF-8',
+      });
+    } finally {
+      restoreEnvVar('LANG', originalLang);
+      restoreEnvVar('LC_ALL', originalLcAll);
+      restoreEnvVar('LC_CTYPE', originalLcCtype);
+    }
+  });
+
+  it('falls back to C.UTF-8 when PTY environments have no UTF-8 locale vars', async () => {
+    const originalLang = process.env.LANG;
+    const originalLcAll = process.env.LC_ALL;
+    const originalLcCtype = process.env.LC_CTYPE;
+
+    process.env.LANG = 'C';
+    process.env.LC_ALL = 'POSIX';
+    process.env.LC_CTYPE = 'C';
+
+    try {
+      const { getLocaleEnv } = await import('../../main/services/ptyManager');
+
+      expect(getLocaleEnv()).toEqual({
+        LANG: 'C.UTF-8',
+        LC_CTYPE: 'C.UTF-8',
+      });
+    } finally {
+      restoreEnvVar('LANG', originalLang);
+      restoreEnvVar('LC_ALL', originalLcAll);
+      restoreEnvVar('LC_CTYPE', originalLcCtype);
+    }
+  });
+
+  it('preserves UTF-8 LANG without forcing LC_ALL fallback', async () => {
+    const originalLang = process.env.LANG;
+    const originalLcAll = process.env.LC_ALL;
+    const originalLcCtype = process.env.LC_CTYPE;
+
+    process.env.LANG = 'en_US.UTF-8';
+    process.env.LC_ALL = 'C';
+    delete process.env.LC_CTYPE;
+
+    try {
+      const { getLocaleEnv } = await import('../../main/services/ptyManager');
+
+      expect(getLocaleEnv()).toEqual({
+        LANG: 'en_US.UTF-8',
+      });
+    } finally {
+      restoreEnvVar('LANG', originalLang);
+      restoreEnvVar('LC_ALL', originalLcAll);
+      restoreEnvVar('LC_CTYPE', originalLcCtype);
+    }
+  });
+
+  it('strips inherited non-UTF-8 locale vars when composing PTY env', async () => {
+    const { mergeEnvWithNormalizedLocale } = await import('../../main/services/ptyManager');
+
+    expect(
+      mergeEnvWithNormalizedLocale(
+        {
+          LANG: 'en_US.UTF-8',
+          LC_ALL: 'C',
+          LC_CTYPE: 'C',
+          PATH: '/usr/bin',
+        },
+        {
+          LC_ALL: 'POSIX',
+          CUSTOM_FLAG: '1',
+        }
+      )
+    ).toEqual({
+      LANG: 'en_US.UTF-8',
+      PATH: '/usr/bin',
+      CUSTOM_FLAG: '1',
+    });
+  });
+
+  it('decodes split UTF-8 chunks correctly in the lifecycle fallback forwarder', async () => {
+    const { createUtf8StreamForwarder } = await import('../../main/services/ptyManager');
+    const received: string[] = [];
+    const forwarder = createUtf8StreamForwarder((data) => {
+      received.push(data);
+    });
+
+    forwarder.pushStdout(Buffer.from('Marko Ran', 'utf8'));
+    forwarder.pushStdout(Buffer.from([0xc4]));
+    forwarder.pushStdout(Buffer.from([0x91, 0x65, 0x6c, 0x6f, 0x76, 0x69, 0xc4]));
+    forwarder.pushStdout(Buffer.from([0x87]));
+    forwarder.flush();
+
+    expect(received.join('')).toBe('Marko Ranđelović');
+  });
+
+  it('waits for close before flushing UTF-8 fallback output and emitting exit', async () => {
+    const stdout = new EventEmitter();
+    const stderr = new EventEmitter();
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    child.stdout = stdout;
+    child.stderr = stderr;
+
+    const { attachLifecycleSpawnFallbackHandlers } = await import('../../main/services/ptyManager');
+    const received: string[] = [];
+    const exits: Array<[number | null, string | null]> = [];
+    const errors: Error[] = [];
+    attachLifecycleSpawnFallbackHandlers(child, {
+      onData: (data) => {
+        received.push(data);
+      },
+      onExit: (code, signal) => {
+        exits.push([code, signal]);
+      },
+      onError: (error) => {
+        errors.push(error);
+      },
+    });
+
+    stdout.emit('data', Buffer.from('Marko Ran', 'utf8'));
+    stdout.emit('data', Buffer.from([0xc4]));
+    child.emit('exit', 0, null);
+
+    expect(received.join('')).toBe('Marko Ran');
+    expect(exits).toEqual([]);
+    expect(errors).toEqual([]);
+
+    stdout.emit('data', Buffer.from([0x91]));
+    child.emit('close', 0, null);
+
+    expect(received.join('')).toBe('Marko Ranđ');
+    expect(exits).toEqual([[0, null]]);
   });
 });
 

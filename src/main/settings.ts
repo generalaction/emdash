@@ -6,6 +6,10 @@ import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
 import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import {
+  isNotificationSoundProfile,
+  type NotificationSoundProfile,
+} from '@shared/notificationSounds';
+import {
   DEFAULT_REVIEW_AGENT,
   DEFAULT_REVIEW_PROMPT,
   type ReviewSettings,
@@ -99,6 +103,7 @@ export interface AppSettings {
     sound: boolean;
     osNotifications: boolean;
     soundFocusMode: 'always' | 'unfocused';
+    soundProfile: NotificationSoundProfile;
   };
   defaultProvider?: ProviderId;
   review?: ReviewSettings;
@@ -119,6 +124,7 @@ export interface AppSettings {
     fontFamily: string;
     fontSize: number;
     autoCopyOnSelection: boolean;
+    macOptionIsMeta: boolean;
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
@@ -161,6 +167,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     sound: true,
     osNotifications: true,
     soundFocusMode: 'always',
+    soundProfile: 'default',
   },
   defaultProvider: DEFAULT_PROVIDER_ID,
   review: {
@@ -204,6 +211,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     fontFamily: '',
     fontSize: 0,
     autoCopyOnSelection: false,
+    macOptionIsMeta: false,
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
@@ -378,6 +386,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       sound: DEFAULT_SETTINGS.notifications!.sound,
       osNotifications: DEFAULT_SETTINGS.notifications!.osNotifications,
       soundFocusMode: DEFAULT_SETTINGS.notifications!.soundFocusMode,
+      soundProfile: DEFAULT_SETTINGS.notifications!.soundProfile,
     },
   };
 
@@ -420,6 +429,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       rawFocusMode === 'always' || rawFocusMode === 'unfocused'
         ? rawFocusMode
         : DEFAULT_SETTINGS.notifications!.soundFocusMode,
+    soundProfile: isNotificationSoundProfile(notif?.soundProfile)
+      ? notif.soundProfile
+      : DEFAULT_SETTINGS.notifications!.soundProfile,
   };
 
   // Default provider
@@ -579,13 +591,14 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const term = (input as any)?.terminal || {};
   const fontFamily = String(term?.fontFamily ?? '').trim();
   const autoCopyOnSelection = Boolean(term?.autoCopyOnSelection ?? false);
+  const macOptionIsMeta = Boolean(term?.macOptionIsMeta ?? false);
   const rawFontSize = term?.fontSize;
   let fontSize = 0;
   if (typeof rawFontSize === 'number' && Number.isFinite(rawFontSize)) {
     const clamped = Math.round(rawFontSize);
     fontSize = clamped >= 8 && clamped <= 24 ? clamped : 0;
   }
-  out.terminal = { fontFamily, fontSize, autoCopyOnSelection };
+  out.terminal = { fontFamily, fontSize, autoCopyOnSelection, macOptionIsMeta };
 
   // Default Open In App
   const defaultOpenInApp = (input as any)?.defaultOpenInApp;

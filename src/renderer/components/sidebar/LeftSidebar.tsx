@@ -21,6 +21,7 @@ import {
   FolderClosed,
   Puzzle,
   Plug,
+  Timer,
   Archive,
   RotateCcw,
   ChevronRight,
@@ -38,6 +39,7 @@ import { useProjectManagementContext } from '../../contexts/ProjectManagementPro
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useAppSettings } from '../../contexts/AppSettingsProvider';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { useFeatureFlag } from '../../hooks/useFeatureFlag';
 import { ProjectsGroupLabel } from './ProjectsGroupLabel';
 import { useChangelogNotification } from '@/hooks/useChangelogNotification';
 import { useModalContext } from '@/contexts/ModalProvider';
@@ -208,6 +210,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onOpenAccountSettings,
 }) => {
   const { open, isMobile, setOpen } = useSidebar();
+  const automationsEnabled = useFeatureFlag('automations');
   const { showModal } = useModalContext();
   const {
     projects,
@@ -215,11 +218,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     showHomeView: isHomeView,
     showSkillsView: isSkillsView,
     showMcpView: isMcpView,
+    showAutomationsView: isAutomationsView,
     handleSelectProject: onSelectProject,
     handleGoHome: onGoHome,
     handleOpenProject: onOpenProject,
     handleGoToSkills: onGoToSkills,
     handleGoToMcp: onGoToMcp,
+    handleGoToAutomations: onGoToAutomations,
   } = useProjectManagementContext();
 
   const [projectOrder, setProjectOrder] = useLocalStorage<string[]>(PROJECT_ORDER_KEY, []);
@@ -401,6 +406,24 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   >
                     <Plug className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
                     <span className="text-sm font-medium">MCP</span>
+                  </Button>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+            {automationsEnabled && onGoToAutomations && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  className={`min-w-0 ${isAutomationsView ? 'bg-black/[0.06] dark:bg-white/[0.08]' : ''}`}
+                >
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleNavigationWithCloseSettings(onGoToAutomations)}
+                    aria-label="Automations"
+                    className="w-full justify-start"
+                  >
+                    <Timer className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
+                    <span className="text-sm font-medium">Automations</span>
                   </Button>
                 </SidebarMenuButton>
               </SidebarMenuItem>

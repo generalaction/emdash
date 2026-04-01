@@ -138,8 +138,12 @@ export class RemoteGitService {
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
-    const worktreeName = `${slug || 'task'}-${Date.now()}`;
-    const relWorktreePath = `.emdash/worktrees/${worktreeName}`;
+    const { getAppSettings } = await import('../settings');
+    const settings = getAppSettings();
+    const branchPrefix = settings?.repository?.branchPrefix || 'emdash';
+    const dirName = `${slug || 'task'}-${Date.now()}`;
+    const worktreeName = `${branchPrefix}/${dirName}`;
+    const relWorktreePath = `.emdash/worktrees/${dirName}`;
     const worktreePath = `${normalizedProjectPath}/${relWorktreePath}`.replace(/\/+/g, '/');
 
     // Create worktrees directory (relative so we avoid quoting issues)
