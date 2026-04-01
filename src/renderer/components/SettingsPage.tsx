@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink, Plus, X } from 'lucide-react';
 import { Separator } from './ui/separator';
 import type { CliAgentStatus } from '../types/connections';
 import { BASE_CLI_AGENTS, CliAgentsList } from './CliAgentsList';
@@ -26,11 +26,13 @@ import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import TaskHoverActionCard from './TaskHoverActionCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
+import CustomToolModal from './CustomToolModal';
 import ReviewAgentSettingsCard from './ReviewAgentSettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import { AccountTab } from './settings/AccountTab';
 import { WorkspaceProviderInfoCard } from './WorkspaceProviderInfoCard';
 import { useTaskSettings } from '../hooks/useTaskSettings';
+import { useAppSettings } from '../contexts/AppSettingsProvider';
 
 export type SettingsPageTab =
   | 'general'
@@ -105,6 +107,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
   const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab || 'general');
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
   const taskSettings = useTaskSettings();
+  const { settings, updateSettings } = useAppSettings();
+  const [addToolOpen, setAddToolOpen] = useState(false);
+  const [toolsRefreshKey, setToolsRefreshKey] = useState(0);
 
   useEffect(() => {
     setActiveTab(initialTab || 'general');
@@ -273,7 +278,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
         },
         {
           title: 'Tools',
-          component: <HiddenToolsSettingsCard />,
+          action: (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setAddToolOpen(true)}
+              aria-label="Add custom tool"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          ),
+          component: <HiddenToolsSettingsCard refreshKey={toolsRefreshKey} />,
         },
       ],
     },
@@ -375,6 +390,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           )}
         </div>
       </div>
+
+      <CustomToolModal
+        open={addToolOpen}
+        onOpenChange={setAddToolOpen}
+        onSave={(tool) => {
+          const existing = settings?.customOpenInApps ?? [];
+          updateSettings({ customOpenInApps: [...existing, tool] });
+          setToolsRefreshKey((k) => k + 1);
+        }}
+      />
     </div>
   );
 };

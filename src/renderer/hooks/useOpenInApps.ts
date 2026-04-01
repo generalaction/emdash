@@ -23,7 +23,10 @@ export function useOpenInApps({
 
   const loading = settingsLoading || appsListLoading || availabilityLoading;
 
-  // Load resolved apps, icons, and labels
+  // Stable key to detect when customOpenInApps changes
+  const customAppsKey = JSON.stringify((settings?.customOpenInApps ?? []).map((c) => c.id).sort());
+
+  // Load resolved apps, icons, and labels — refetch when custom tools change
   useEffect(() => {
     const load = async () => {
       try {
@@ -61,7 +64,7 @@ export function useOpenInApps({
       }
     };
     void load();
-  }, []);
+  }, [customAppsKey]);
 
   // Fetch app availability
   useEffect(() => {
@@ -76,7 +79,7 @@ export function useOpenInApps({
       }
     };
     void fetchAvailability();
-  }, []);
+  }, [customAppsKey]);
 
   // Filter to only installed and visible apps (return all while loading)
   const installedApps = useMemo(() => {
