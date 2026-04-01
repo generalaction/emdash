@@ -129,6 +129,11 @@ export const agentInfo: Record<UiAgent, AgentInfo> = {
     description:
       'Terminal coding agent with auto-commit, dry-run previews, community skills, and headless CI/CD mode. Supports multiple LLM providers and unrestricted auto-approve for hands-free operation.',
   },
+  forge: {
+    title: 'Forge',
+    description:
+      'AI coding agent by Antinomy with deep Zsh integration, multi-provider support (OpenRouter, Anthropic, OpenAI), workflows, and interactive or prompt-driven modes.',
+  },
 };
 
 type Props = {
