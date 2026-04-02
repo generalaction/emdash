@@ -1,8 +1,17 @@
+import { ptyExitChannel } from '@shared/events/ptyEvents';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { createScriptTerminalId } from '@shared/terminals';
+import { events } from '@main/lib/events';
+import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
+
+type LifecycleScript = {
+  type: 'setup' | 'run' | 'teardown';
+  script: string;
+};
 
 export class TaskLifecycleService {
   private readonly projectId: string;
@@ -23,30 +32,93 @@ export class TaskLifecycleService {
     this.terminals = terminals;
   }
 
-  async runLifecycleScript(
-    script: {
-      type: 'setup' | 'run' | 'teardown';
-      script: string;
-    },
-    options: { shouldRespawn?: boolean; initialSize?: { cols: number; rows: number } } = {}
-  ): Promise<void> {
-    const { shouldRespawn = false, initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS } } =
-      options;
-
-    const id = await createScriptTerminalId({
+  private async resolveIds(script: LifecycleScript): Promise<{
+    terminalId: string;
+    sessionId: string;
+  }> {
+    const terminalId = await createScriptTerminalId({
       projectId: this.projectId,
       taskId: this.taskId,
       type: script.type,
       script: script.script,
     });
+    const sessionId = makePtySessionId(this.projectId, this.taskId, terminalId);
+    return { terminalId, sessionId };
+  }
+
+  async prepareLifecycleScript(
+    script: LifecycleScript,
+    options: { initialSize?: { cols: number; rows: number } } = {}
+  ): Promise<void> {
+    const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS } } = options;
+    const { terminalId } = await this.resolveIds(script);
 
     await this.terminals.spawnLifecycleScript({
-      terminal: { id, projectId: this.projectId, taskId: this.taskId, name: script.type },
-      command: script.script,
+      terminal: {
+        id: terminalId,
+        projectId: this.projectId,
+        taskId: this.taskId,
+        name: script.type,
+      },
+      command: '',
       initialSize,
-      respawnOnExit: shouldRespawn,
-      preserveBufferOnExit: !shouldRespawn,
+      respawnOnExit: false,
+      preserveBufferOnExit: true,
       watchDevServer: script.type === 'run',
     });
+  }
+
+  async runLifecycleScript(
+    script: LifecycleScript,
+    options: {
+      waitForExit?: boolean;
+      exit?: boolean;
+      initialSize?: { cols: number; rows: number };
+    } = {}
+  ): Promise<void> {
+    const {
+      waitForExit = false,
+      exit = false,
+      initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    } = options;
+
+    const { sessionId } = await this.resolveIds(script);
+
+    if (!ptySessionRegistry.get(sessionId)) {
+      await this.prepareLifecycleScript(script, { initialSize });
+    }
+
+    const pty = ptySessionRegistry.get(sessionId);
+    if (!pty) {
+      throw new Error(
+        `Lifecycle script session unavailable for ${script.type} in task ${this.taskId}`
+      );
+    }
+
+    const exitPromise = waitForExit
+      ? new Promise<void>((resolve) => {
+          events.once(ptyExitChannel, () => resolve(), sessionId);
+        })
+      : null;
+
+    const command = exit ? `${script.script}; exit` : script.script;
+    pty.write(`${command}\n`);
+
+    if (exitPromise) {
+      await exitPromise;
+    }
+  }
+
+  async prepareAndRunLifecycleScript(
+    script: LifecycleScript,
+    options: {
+      waitForExit?: boolean;
+      exit?: boolean;
+      initialSize?: { cols: number; rows: number };
+    } = {}
+  ): Promise<void> {
+    const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS }, ...executeOptions } = options;
+    await this.prepareLifecycleScript(script, { initialSize });
+    await this.runLifecycleScript(script, { initialSize, ...executeOptions });
   }
 }

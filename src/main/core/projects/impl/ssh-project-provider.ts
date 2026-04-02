@@ -280,17 +280,24 @@ export class SshProjectProvider implements ProjectProvider {
     };
 
     if (scripts?.setup) {
-      void taskLifecycleService.runLifecycleScript(
-        { type: 'setup', script: scripts.setup },
-        { shouldRespawn: false }
-      );
+      void taskLifecycleService.prepareAndRunLifecycleScript({
+        type: 'setup',
+        script: scripts.setup,
+      });
     }
 
     if (scripts?.run) {
-      void taskLifecycleService.runLifecycleScript(
-        { type: 'run', script: scripts.run },
-        { shouldRespawn: false }
-      );
+      void taskLifecycleService.prepareAndRunLifecycleScript({
+        type: 'run',
+        script: scripts.run,
+      });
+    }
+
+    if (scripts?.teardown) {
+      void taskLifecycleService.prepareLifecycleScript({
+        type: 'teardown',
+        script: scripts.teardown,
+      });
     }
 
     Promise.all(
@@ -368,11 +375,14 @@ export class SshProjectProvider implements ProjectProvider {
 
     const scripts = settings.scripts;
 
-    if (scripts?.teardown) {
-      task.lifecycleService?.runLifecycleScript({
-        type: 'teardown',
-        script: scripts.teardown,
-      });
+    if (scripts?.teardown && task.lifecycleService) {
+      await task.lifecycleService.runLifecycleScript(
+        {
+          type: 'teardown',
+          script: scripts.teardown,
+        },
+        { waitForExit: true, exit: true }
+      );
     }
 
     await task.conversations.destroyAll();

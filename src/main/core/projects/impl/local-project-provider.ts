@@ -237,11 +237,17 @@ export class LocalProjectProvider implements ProjectProvider {
     };
 
     if (scripts?.setup) {
-      void taskLifecycleService.runLifecycleScript({ type: 'setup', script: scripts.setup });
+      void taskLifecycleService.prepareAndRunLifecycleScript({
+        type: 'setup',
+        script: scripts.setup,
+      });
     }
 
     if (scripts?.run) {
-      void taskLifecycleService.runLifecycleScript({ type: 'run', script: scripts.run });
+      void taskLifecycleService.prepareAndRunLifecycleScript({
+        type: 'run',
+        script: scripts.run,
+      });
     }
 
     if (scripts?.teardown) {
@@ -322,9 +328,9 @@ export class LocalProjectProvider implements ProjectProvider {
     const scripts = settings.scripts;
 
     if (scripts?.teardown && task.lifecycleService) {
-      await task.lifecycleService.executeLifecycleScript(
+      await task.lifecycleService.runLifecycleScript(
         { type: 'teardown', script: scripts.teardown },
-        { exit: true }
+        { waitForExit: true, exit: true }
       );
     }
 

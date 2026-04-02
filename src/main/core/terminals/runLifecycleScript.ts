@@ -29,5 +29,5 @@ export async function runLifecycleScript({
     terminals: task.terminals,
   });
 
-  await lifecycle.runLifecycleScript({ type, script }, { shouldRespawn: true });
+  await lifecycle.runLifecycleScript({ type, script });
 }
