@@ -1,5 +1,5 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { LayoutList, Terminal } from 'lucide-react';
+import { LayoutList, Play, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -8,6 +8,7 @@ import { EmptyState } from '@renderer/components/ui/empty-state';
 import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
+import { rpc } from '@renderer/core/ipc';
 import { TabViewProvider } from '@renderer/core/stores/generic-tab-view';
 import { PtySession } from '@renderer/core/stores/pty-session';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
@@ -59,11 +60,35 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     }
   };
 
+  const handleRunScript = () => {
+    const activeScript = lifecycleScriptsMgr?.activeTab;
+    if (!activeScript) return;
+    void rpc.terminals.runLifecycleScript({
+      projectId,
+      taskId,
+      type: activeScript.data.type,
+    });
+  };
+
   const activeStore = mode === 'terminals' ? terminalMgr : lifecycleScriptsMgr;
   useTabShortcuts(activeStore ?? undefined, { focused: isPanelFocused });
   useHotkey(getEffectiveHotkey('newTerminal', keyboard), () => void handleCreate(), {
     enabled: mode === 'terminals',
   });
+
+  const runScriptButton = (
+    <Tooltip>
+      <TooltipTrigger>
+        <button
+          className="size-10 justify-center items-center flex border-l hover:bg-background text-foreground-muted hover:text-foreground"
+          onClick={handleRunScript}
+        >
+          <Play className="size-4" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Run script</TooltipContent>
+    </Tooltip>
+  );
 
   const toggleButton = lifecycleScriptsMgr ? (
     <div className="flex items-center border-l">
@@ -115,7 +140,15 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         actions={toggleButton}
       />
     ) : (
-      <ScriptsTabs lifecycleScriptsMgr={lifecycleScriptsMgr} actions={toggleButton} />
+      <ScriptsTabs
+        lifecycleScriptsMgr={lifecycleScriptsMgr}
+        actions={
+          <div className="flex items-center">
+            {runScriptButton}
+            {toggleButton}
+          </div>
+        }
+      />
     );
 
   const emptyState =
