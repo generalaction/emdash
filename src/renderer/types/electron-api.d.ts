@@ -1515,6 +1515,7 @@ export interface ElectronAPI {
     rows?: number;
     autoApprove?: boolean;
     fastMode?: boolean;
+    effort?: string;
     initialPrompt?: string;
     env?: Record<string, string>;
     resume?: boolean;
@@ -1793,7 +1794,7 @@ export interface ElectronAPI {
   ) => () => void;
   listProviderModels?: (providerId: string) => Promise<{
     success: boolean;
-    models?: Array<{ id: string; name: string }>;
+    models?: Array<{ id: string; name: string; supportsFast: boolean }>;
     error?: string;
   }>;
   // Telemetry
