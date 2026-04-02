@@ -24,6 +24,7 @@ export function PrVirtualList({
 }: PrVirtualListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: prs.length,
     getScrollElement: () => parentRef.current,
