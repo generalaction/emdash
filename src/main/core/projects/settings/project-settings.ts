@@ -70,9 +70,7 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
   async get(): Promise<ProjectSettings> {
     const exists = await this.fs.exists('.emdash.json');
     if (!exists) {
-      const defaultSettings = defaults();
-      await this.fs.write('.emdash.json', JSON.stringify(defaultSettings, null, 2));
-      return defaultSettings;
+      return defaults();
     }
 
     return parseSettingsOrDefault(
