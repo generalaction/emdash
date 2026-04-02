@@ -125,11 +125,6 @@ export function ConversationTabButton({
     });
   }, [isEditing]);
 
-  useEffect(() => {
-    if (isEditing) return;
-    setEditValue(tabLabel);
-  }, [isEditing, tabLabel]);
-
   return (
     <div
       role="button"
