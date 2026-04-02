@@ -1,9 +1,7 @@
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { request } from 'node:https';
-import { join } from 'node:path';
 import { URL } from 'node:url';
-import { app } from 'electron';
 import type { Issue } from '@shared/tasks';
+import { KV } from '@main/db/kv';
 import { capture } from '@main/lib/telemetry';
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -56,6 +54,12 @@ export function toGeneralIssue(issue: JiraIssue): Issue {
 // ── Internal types ───────────────────────────────────────────────────────────
 
 type JiraCreds = { siteUrl: string; email: string };
+
+interface JiraKVSchema extends Record<string, unknown> {
+  creds: JiraCreds;
+}
+
+const jiraKV = new KV<JiraKVSchema>('jira');
 
 interface JiraUser {
   accountId?: string;
@@ -110,14 +114,11 @@ function encodeBasic(email: string, token: string) {
 export default class JiraService {
   private readonly SERVICE = 'emdash-jira';
   private readonly ACCOUNT = 'api-token';
-  private readonly CONF_FILE = join(app.getPath('userData'), 'jira.json');
   private projectKeys: string[] = [];
 
-  private readCreds(): JiraCreds | null {
+  private async readCreds(): Promise<JiraCreds | null> {
     try {
-      if (!existsSync(this.CONF_FILE)) return null;
-      const raw = readFileSync(this.CONF_FILE, 'utf8');
-      const obj = JSON.parse(raw) as Partial<JiraCreds>;
+      const obj = await jiraKV.get('creds');
       const siteUrl = String(obj?.siteUrl || '').trim();
       const email = String(obj?.email || '').trim();
       if (!siteUrl || !email) return null;
@@ -127,9 +128,9 @@ export default class JiraService {
     }
   }
 
-  private writeCreds(creds: JiraCreds) {
+  private async writeCreds(creds: JiraCreds): Promise<void> {
     const { siteUrl, email } = creds;
-    writeFileSync(this.CONF_FILE, JSON.stringify({ siteUrl, email }), 'utf8');
+    await jiraKV.set('creds', { siteUrl, email });
   }
 
   async saveCredentials(
@@ -145,7 +146,7 @@ export default class JiraService {
       const me = await this.getMyself(siteUrl, email, token);
       const keytar = await import('keytar');
       await keytar.setPassword(this.SERVICE, this.ACCOUNT, token);
-      this.writeCreds({ siteUrl, email });
+      await this.writeCreds({ siteUrl, email });
       capture('jira_connected');
       return { success: true, displayName: me?.displayName };
     } catch (e) {
@@ -161,7 +162,7 @@ export default class JiraService {
         await keytar.deletePassword(this.SERVICE, this.ACCOUNT);
       } catch {}
       try {
-        if (existsSync(this.CONF_FILE)) unlinkSync(this.CONF_FILE);
+        await jiraKV.del('creds');
       } catch {}
       capture('jira_disconnected');
       return { success: true };
@@ -172,7 +173,7 @@ export default class JiraService {
 
   async checkConnection(): Promise<JiraConnectionStatus> {
     try {
-      const creds = this.readCreds();
+      const creds = await this.readCreds();
       if (!creds) return { connected: false };
       const keytar = await import('keytar');
       const token = await keytar.getPassword(this.SERVICE, this.ACCOUNT);
@@ -245,7 +246,7 @@ export default class JiraService {
   }
 
   private async requireAuth(): Promise<{ siteUrl: string; email: string; token: string }> {
-    const creds = this.readCreds();
+    const creds = await this.readCreds();
     if (!creds) throw new Error('Jira credentials not set.');
     const keytar = await import('keytar');
     const token = await keytar.getPassword(this.SERVICE, this.ACCOUNT);
