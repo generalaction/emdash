@@ -6,7 +6,7 @@ import type { SshProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { createScriptTerminalId, Terminal } from '@shared/terminals';
+import { Terminal } from '@shared/terminals';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -259,6 +259,12 @@ export class SshProjectProvider implements ProjectProvider {
       taskEnvVars,
     });
 
+    const taskLifecycleService = new TaskLifecycleService({
+      projectId: this.project.id,
+      taskId: task.id,
+      terminals: terminalProvider,
+    });
+
     const taskEnv: TaskProvider = {
       taskId: task.id,
       taskPath: workDir,
@@ -270,19 +276,20 @@ export class SshProjectProvider implements ProjectProvider {
       conversations: conversationProvider,
       terminals: terminalProvider,
       settings: this.settings,
+      lifecycleService: taskLifecycleService,
     };
 
     if (scripts?.setup) {
-      const id = await createScriptTerminalId({
-        projectId: this.project.id,
-        taskId: task.id,
-        type: 'setup',
-        script: scripts.setup,
-      });
-      terminalProvider.spawnTerminal(
-        { id, projectId: this.project.id, taskId: task.id, name: '' },
-        { cols: 80, rows: 24 },
-        { command: scripts.setup, args: [] }
+      void taskLifecycleService.runLifecycleScript(
+        { type: 'setup', script: scripts.setup },
+        { shouldRespawn: false }
+      );
+    }
+
+    if (scripts?.run) {
+      void taskLifecycleService.runLifecycleScript(
+        { type: 'run', script: scripts.run },
+        { shouldRespawn: false }
       );
     }
 
@@ -354,18 +361,15 @@ export class SshProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
-    const settings = await this.settings.get();
-
-    const taskLifecycleService = new TaskLifecycleService({
-      projectId: this.project.id,
-      taskId: task.taskId,
-      terminals: task.terminals,
+    const settings = await getEffectiveTaskSettings({
+      projectSettings: this.settings,
+      taskFs: task.fs,
     });
 
     const scripts = settings.scripts;
 
     if (scripts?.teardown) {
-      taskLifecycleService.runLifecycleScript({
+      task.lifecycleService?.runLifecycleScript({
         type: 'teardown',
         script: scripts.teardown,
       });
