@@ -6,7 +6,7 @@ import { selectAheadCount } from '@renderer/core/stores/diff-selectors';
 import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 
 export const PushCard = observer(function PushCard() {
-  const git = useProvisionedTask()?.git;
+  const git = useProvisionedTask()?.workspace.git;
   const ahead = git ? selectAheadCount(git) : 0;
 
   return (

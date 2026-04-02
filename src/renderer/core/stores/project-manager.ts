@@ -229,7 +229,7 @@ export class ProjectManagerStore {
           }
         });
         // Load the task list before provisioning so the tasks map is populated.
-        const taskManager = this.projects.get(projectId)?.taskManager;
+        const taskManager = this.projects.get(projectId)?.mountedProject?.taskManager;
         if (taskManager) {
           await taskManager.loadTasks();
           const nav = appState.navigation;

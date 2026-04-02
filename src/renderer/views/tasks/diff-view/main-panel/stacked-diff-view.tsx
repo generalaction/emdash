@@ -19,8 +19,8 @@ const LARGE_DIFF_LINE_THRESHOLD = 2500;
 
 export const StackedDiffView = observer(function StackedDiffView() {
   const provisioned = useProvisionedTask();
-  const git = provisioned?.git;
-  const pr = provisioned?.pr;
+  const git = provisioned?.workspace.git;
+  const pr = provisioned?.workspace.pr;
   const activeFile = provisioned?.diffView.activeFile ?? null;
   const stagedFileChanges = git?.stagedFileChanges ?? [];
   const unstagedFileChanges = git?.unstagedFileChanges ?? [];

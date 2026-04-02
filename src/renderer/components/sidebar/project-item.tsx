@@ -166,8 +166,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         </SidebarItemMiniButton>
       </SidebarMenuRow>
       <CollapsibleContent className=" min-w-0 data-open:mt-0.5 data-closed:mt-0 data-closed:hidden">
-        {project.state === 'mounted' && (
-          <TaskList taskManager={(project as MountedProject).taskManager} projectId={projectId} />
+        {project.mountedProject && (
+          <TaskList taskManager={project.mountedProject.taskManager} projectId={projectId} />
         )}
       </CollapsibleContent>
     </Collapsible>

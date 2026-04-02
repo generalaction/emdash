@@ -55,7 +55,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
                       .filter((p) => (p as (typeof orderedProjects)[0]).state !== 'unregistered')
                       .map((p) => {
                         const store = p as (typeof orderedProjects)[0];
-                        return store.state !== 'unregistered' ? store.data.id : '';
+                        return store.state !== 'unregistered' ? store.data!.id : '';
                       })
                       .filter(Boolean);
                     sidebarStore.setProjectOrder(ids);
@@ -64,7 +64,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
                   itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
                   getKey={(item) => {
                     const store = item as (typeof orderedProjects)[0];
-                    return store.state === 'unregistered' ? store.id : store.data.id;
+                    return store.state === 'unregistered' ? store.id : store.data!.id;
                   }}
                 >
                   {(item) => <SidebarProjectItem project={item as (typeof orderedProjects)[0]} />}

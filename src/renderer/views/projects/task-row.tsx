@@ -1,5 +1,6 @@
 import { Archive, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { type Task } from '@shared/tasks';
 import { Button } from '@renderer/components/ui/button';
 import { Checkbox } from '@renderer/components/ui/checkbox';
 import {
@@ -10,11 +11,11 @@ import {
 } from '@renderer/components/ui/dropdown-menu';
 import RelativeTime from '@renderer/components/ui/relative-time';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { ProvisionedTask, UnprovisionedTask } from '@renderer/core/stores/task';
+import { type TaskStore } from '@renderer/core/stores/task';
 import { getTaskManagerStore } from '@renderer/core/stores/task-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 
-export type ReadyTask = UnprovisionedTask | ProvisionedTask;
+export type ReadyTask = TaskStore & { data: Task };
 
 export const TaskRow = observer(function TaskRow({
   task,

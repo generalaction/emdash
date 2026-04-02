@@ -2,7 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { createContext, ReactNode, useContext } from 'react';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { useProjectSettings } from '@renderer/components/projects/use-project-settings';
-import { ProvisionedTask } from '@renderer/core/stores/task';
+import { type ProvisionedTask } from '@renderer/core/stores/task';
 import {
   asProvisioned,
   getTaskStore,

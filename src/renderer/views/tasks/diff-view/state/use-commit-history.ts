@@ -6,7 +6,7 @@ import { useRequireProvisionedTask } from '../../task-view-context';
  * stays cached as long as the task is provisioned.
  */
 export function useCommitHistory() {
-  const prStore = useRequireProvisionedTask().pr;
+  const prStore = useRequireProvisionedTask().workspace.pr;
   const resource = prStore.commitHistory;
 
   return {

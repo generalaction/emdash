@@ -1,13 +1,12 @@
-import { GitStore } from './git';
-import { isMountedProject, isUnmountedProject } from './project';
+import { isUnmountedProject } from './project';
 import { getProjectManagerStore } from './project-selectors';
-import { isProvisioned, isUnprovisioned, isUnregistered, ProvisionedTask, TaskStore } from './task';
+import { isUnprovisioned, isUnregistered, ProvisionedTask, TaskStore } from './task';
 import type { TaskManagerStore } from './task-manager';
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskManagerStore(projectId: string): TaskManagerStore | undefined {
   const p = getProjectManagerStore().projects.get(projectId);
-  return p && isMountedProject(p) ? p.taskManager : undefined;
+  return p?.mountedProject?.taskManager;
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */
@@ -15,9 +14,8 @@ export function getTaskStore(projectId: string, taskId: string): TaskStore | und
   return getTaskManagerStore(projectId)?.tasks.get(taskId);
 }
 
-export function getTaskGitStore(projectId: string, taskId: string): GitStore | undefined {
-  const taskStore = getTaskStore(projectId, taskId);
-  return taskStore && taskStore.git ? taskStore.git : undefined;
+export function getTaskGitStore(projectId: string, taskId: string) {
+  return asProvisioned(getTaskStore(projectId, taskId))?.workspace.git;
 }
 
 export type TaskViewKind =
@@ -73,10 +71,9 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
   return 'ready';
 }
 
-/** Returns the provisioned task if ready, otherwise undefined. */
+/** Returns the provisioned task payload if ready, otherwise undefined. */
 export function asProvisioned(store: TaskStore | undefined): ProvisionedTask | undefined {
-  if (store && isProvisioned(store)) return store;
-  return undefined;
+  return store?.provisionedTask ?? undefined;
 }
 
 /** Returns the display name from any task store variant. */

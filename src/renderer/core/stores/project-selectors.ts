@@ -1,12 +1,6 @@
 import type { LocalProject, SshProject } from '@shared/projects';
 import { appState } from './app-state';
-import {
-  isMountedProject,
-  isUnmountedProject,
-  isUnregisteredProject,
-  MountedProject,
-  ProjectStore,
-} from './project';
+import { isUnmountedProject, isUnregisteredProject, MountedProject, ProjectStore } from './project';
 import type { ProjectManagerStore } from './project-manager';
 
 /** Returns the ProjectManagerStore from appState. Call only inside `observer` components (or other MobX reactions). */
@@ -39,17 +33,15 @@ export function projectViewKind(store: ProjectStore | undefined): ProjectViewKin
   return 'ready';
 }
 
-/** Returns the mounted project if ready, otherwise undefined. */
+/** Returns the mounted project payload if ready, otherwise undefined. */
 export function asMounted(store: ProjectStore | undefined): MountedProject | undefined {
-  if (store && isMountedProject(store)) return store;
-  return undefined;
+  return store?.mountedProject ?? undefined;
 }
 
 export function mountedProjectData(
   store: ProjectStore | undefined
 ): LocalProject | SshProject | null {
-  if (store && isMountedProject(store)) return store.data;
-  return null;
+  return store?.mountedProject?.data ?? null;
 }
 
 /** Returns the display name from any project store variant. */

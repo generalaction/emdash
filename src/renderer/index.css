@@ -130,19 +130,19 @@
     --background-destructive: color(display-p3 0.995 0.971 0.971);
     --foreground-destructive: color(display-p3 0.744 0.234 0.222);
 
-    --primary: color(display-p3 0.87 0.409 0.164);
+    --primary: color(display-p3 0.125 0.125 0.125);
 
     --border: color(display-p3 0.88 0.88 0.88);
     --border-1: color(display-p3 0.732 0.732 0.732);
     --border-2: color(display-p3 0.553 0.553 0.553);
     --border-destructive: color(display-p3 0.872 0.575 0.572);
-    --border-primary: color(display-p3 0.9 0.45 0.2);
+    --border-primary: color(display-p3 0.553 0.553 0.553);
 
     --ring: hsl(0 0% 3.9%);
     --radius: 0.5rem;
 
-    --selection: color(display-p3 0.953 0.75 0.698);
-    --selection-foreground: color(display-p3 0.335 0.165 0.132);
+    --selection: color(display-p3 0.709 0.843 0.976);
+    --selection-foreground: color(display-p3 0.102 0.193 0.379);
 
     /* Monaco editor */
     --monaco-bg: #f8fafc;

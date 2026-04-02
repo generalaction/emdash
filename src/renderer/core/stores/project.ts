@@ -1,4 +1,4 @@
-import { makeAutoObservable } from 'mobx';
+import { makeAutoObservable, observable } from 'mobx';
 import type { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { ProjectViewStore } from './project-view';
@@ -15,29 +15,50 @@ export type UnmountedProjectPhase = 'opening' | 'error' | 'closing' | 'idle';
 
 export type ProjectMode = 'pick' | 'clone' | 'new';
 
-export interface IUnregisteredProject {
-  readonly state: 'unregistered';
-  id: string;
-  name: string;
-  phase: UnregisteredProjectPhase;
-  mode: ProjectMode;
-  error: string | undefined;
+/**
+ * Holds all mounted-only state for a project. Created atomically by
+ * ProjectStore.transitionToMounted and disposed on unmount or deletion.
+ */
+export class MountedProject {
+  readonly taskManager: TaskManagerStore;
+  readonly view: ProjectViewStore;
+  readonly data: LocalProject | SshProject;
+
+  private _snapshotDisposer: (() => void) | null = null;
+
+  get snapshot(): ProjectViewSnapshot {
+    return {
+      activeView: this.view.activeView,
+      taskViewTab: this.view.taskView.tab,
+    };
+  }
+
+  constructor(data: LocalProject | SshProject, savedSnapshot?: ProjectViewSnapshot) {
+    this.data = data;
+    this.taskManager = new TaskManagerStore(data.id);
+    this.view = new ProjectViewStore();
+
+    if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
+
+    makeAutoObservable(this, {
+      taskManager: false,
+      view: false,
+    });
+
+    this._snapshotDisposer = snapshotRegistry.register(`project:${data.id}`, () => this.snapshot);
+  }
+
+  dispose(): void {
+    this._snapshotDisposer?.();
+    this._snapshotDisposer = null;
+  }
 }
 
-export interface IUnmountedProject {
-  readonly state: 'unmounted';
-  data: LocalProject | SshProject;
-  phase: UnmountedProjectPhase;
-  error: string | undefined;
-}
-
-export interface IMountedProject {
-  readonly state: 'mounted';
-  data: LocalProject | SshProject;
-  taskManager: TaskManagerStore;
-  view: ProjectViewStore;
-}
-
+/**
+ * Container class — holds a stable reference in the ObservableMap across all
+ * lifecycle transitions. Transitioning replaces `mountedProject` atomically
+ * rather than nulling out individual fields.
+ */
 export class ProjectStore {
   state: 'unregistered' | 'unmounted' | 'mounted';
   id: string;
@@ -46,17 +67,7 @@ export class ProjectStore {
   phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
   error: string | undefined = undefined;
   mode: ProjectMode | null;
-  taskManager: TaskManagerStore | null = null;
-  view: ProjectViewStore | null = null;
-
-  private _snapshotDisposer: (() => void) | null = null;
-
-  get snapshot(): ProjectViewSnapshot {
-    return {
-      activeView: this.view?.activeView ?? 'tasks',
-      taskViewTab: this.view?.taskView.tab ?? 'active',
-    };
-  }
+  mountedProject: MountedProject | null = null;
 
   constructor(
     state: ProjectStore['state'],
@@ -72,29 +83,25 @@ export class ProjectStore {
     this.data = data;
     this.phase = phase;
     this.mode = mode;
-    makeAutoObservable(this);
+    makeAutoObservable(this, { mountedProject: observable.ref });
   }
 
   transitionToMounted(data: LocalProject | SshProject, savedSnapshot?: ProjectViewSnapshot): void {
-    this.taskManager = new TaskManagerStore(data.id);
+    this.mountedProject = new MountedProject(data, savedSnapshot);
     this.data = data;
     this.id = data.id;
     this.name = data.name;
     this.state = 'mounted';
     this.phase = null;
     this.error = undefined;
-    this.view = new ProjectViewStore();
-    if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
-    this._snapshotDisposer = snapshotRegistry.register(`project:${data.id}`, () => this.snapshot);
   }
 
   transitionToUnmounted(
     data: LocalProject | SshProject,
     phase: UnmountedProjectPhase = 'opening'
   ): void {
-    this._snapshotDisposer?.();
-    this._snapshotDisposer = null;
-    this.taskManager = null;
+    this.mountedProject?.dispose();
+    this.mountedProject = null;
     this.data = data;
     this.id = data.id;
     this.name = data.name;
@@ -109,7 +116,8 @@ export class ProjectStore {
     phase: UnregisteredProjectPhase,
     mode: ProjectMode
   ): void {
-    this.taskManager = null;
+    this.mountedProject?.dispose();
+    this.mountedProject = null;
     this.data = null;
     this.id = id;
     this.name = name;
@@ -120,9 +128,21 @@ export class ProjectStore {
   }
 }
 
-export type UnregisteredProject = ProjectStore & IUnregisteredProject;
-export type UnmountedProject = ProjectStore & IUnmountedProject;
-export type MountedProject = ProjectStore & IMountedProject;
+export type UnregisteredProject = ProjectStore & {
+  state: 'unregistered';
+  id: string;
+  name: string;
+  phase: UnregisteredProjectPhase;
+  mode: ProjectMode;
+  error: string | undefined;
+};
+
+export type UnmountedProject = ProjectStore & {
+  state: 'unmounted';
+  data: LocalProject | SshProject;
+  phase: UnmountedProjectPhase;
+  error: string | undefined;
+};
 
 export function isUnregisteredProject(p: ProjectStore): p is UnregisteredProject {
   return p.state === 'unregistered';
@@ -132,7 +152,11 @@ export function isUnmountedProject(p: ProjectStore): p is UnmountedProject {
   return p.state === 'unmounted';
 }
 
-export function isMountedProject(p: ProjectStore): p is MountedProject {
+export function isMountedProject(p: ProjectStore): p is ProjectStore & {
+  state: 'mounted';
+  mountedProject: MountedProject;
+  data: LocalProject | SshProject;
+} {
   return p.state === 'mounted';
 }
 

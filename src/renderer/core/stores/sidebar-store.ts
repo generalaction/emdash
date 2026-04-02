@@ -1,5 +1,6 @@
 import { makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import { MountedProject, ProjectStore, UnmountedProject, UnregisteredProject } from './project';
+import { LocalProject, SshProject } from '@shared/projects';
+import { ProjectStore, UnregisteredProject } from './project';
 import type { ProjectManagerStore } from './project-manager';
 import type { TaskStore } from './task';
 
@@ -37,8 +38,8 @@ export class SidebarStore {
       () => {
         const counts: [string, number][] = [];
         for (const [id, project] of this.projectManager.projects) {
-          if (project.state === 'mounted' && project.taskManager) {
-            counts.push([id, project.taskManager.tasks.size]);
+          if (project.mountedProject) {
+            counts.push([id, project.mountedProject.taskManager.tasks.size]);
           }
         }
         return counts;
@@ -62,7 +63,7 @@ export class SidebarStore {
 
     const unregistered = all.filter((p): p is UnregisteredProject => p.state === 'unregistered');
     const real = all.filter(
-      (p): p is UnmountedProject | MountedProject => p.state !== 'unregistered'
+      (p): p is ProjectStore & { data: LocalProject | SshProject } => p.state !== 'unregistered'
     );
 
     const sorted = [...real].sort((a, b) => {

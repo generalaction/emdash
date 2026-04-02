@@ -15,7 +15,7 @@ import { VirtualizedChangesList } from './virtualized-changes-list';
 export const UnstagedSection = observer(function UnstagedSection() {
   const { projectId, taskId } = useTaskViewContext();
   const provisioned = useRequireProvisionedTask();
-  const git = provisioned.git;
+  const git = provisioned.workspace.git;
   const changesView = provisioned.diffView.changesView;
   const diffView = provisioned.diffView;
 

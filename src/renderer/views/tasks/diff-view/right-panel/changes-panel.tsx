@@ -103,13 +103,13 @@ function PullRequestsSection({
   onToggleCollapsed: () => void;
 }) {
   const provisioned = useRequireProvisionedTask();
-  const { pullRequests, nameWithOwner, taskBranch } = provisioned.pr;
+  const { pullRequests, nameWithOwner, taskBranch } = provisioned.workspace.pr;
   const showCreatePrModal = useShowModal('createPrModal');
 
   const activePr = pullRequests.find((pr) => pr.status === 'open') || pullRequests[0];
 
   const hasOpenPr = Boolean(activePr);
-  const hasUpstream = provisioned.git.isBranchPublished;
+  const hasUpstream = provisioned.workspace.git.isBranchPublished;
 
   return (
     <>

@@ -20,7 +20,7 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const isExpanded = editorView.expandedPaths.has(node.path);
   const isSelected = taskState.view === 'editor' && editorView.activeFilePath === node.path;
-  const fileStatus = taskState.git.fileChanges?.find((c) => c.path === node.path)?.status;
+  const fileStatus = taskState.workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = node.depth * 12 + 4;
 
   const handleClick = (e: React.MouseEvent) => {
@@ -58,8 +58,8 @@ const FileTreeRow = observer(function FileTreeRow({
       editorView.expandedPaths.delete(node.path);
     } else {
       editorView.expandedPaths.add(node.path);
-      if (!taskState.files?.loadedPaths.has(node.path)) {
-        void taskState.files?.loadDir(node.path);
+      if (!taskState.workspace.files.loadedPaths.has(node.path)) {
+        void taskState.workspace.files.loadDir(node.path);
       }
     }
   };
@@ -121,7 +121,7 @@ const FileTreeRow = observer(function FileTreeRow({
 
 export const EditorFileTree = observer(function EditorFileTree() {
   const taskState = useRequireProvisionedTask();
-  const files = taskState.files;
+  const files = taskState.workspace.files;
   const editorView = taskState.editorView;
 
   const visibleRows = files

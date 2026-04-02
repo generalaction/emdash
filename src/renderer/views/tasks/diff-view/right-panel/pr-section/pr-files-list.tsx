@@ -12,7 +12,7 @@ import { VirtualizedChangesList } from '../virtualized-changes-list';
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {
   const { projectId, taskId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
-  const prStore = useRequireProvisionedTask().pr;
+  const prStore = useRequireProvisionedTask().workspace.pr;
   const diffView = provisioned?.diffView;
   const setView = (v: string) => provisioned?.setView(v as 'agents' | 'editor' | 'diff');
 

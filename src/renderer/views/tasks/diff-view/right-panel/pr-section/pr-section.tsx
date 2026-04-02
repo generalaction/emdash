@@ -173,7 +173,7 @@ function MergeFooter({
 
 export function PullRequestEntry({ pr }: { pr: PullRequest }) {
   const prStatus = pr.status;
-  const prStore = useRequireProvisionedTask().pr;
+  const prStore = useRequireProvisionedTask().workspace.pr;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
   const [tab, setTab] = useState<'files' | 'commits' | 'checks'>('files');

@@ -5,7 +5,7 @@ import { formatRelativeTime } from '@renderer/lib/github';
 import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
 
 export const PrCommitsList = observer(function PrCommitsList() {
-  const prStore = useRequireProvisionedTask().pr;
+  const prStore = useRequireProvisionedTask().workspace.pr;
   const { data, loading } = prStore.commitHistory;
 
   const aheadCount = data?.aheadCount ?? 0;

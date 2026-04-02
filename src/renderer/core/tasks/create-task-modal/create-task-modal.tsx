@@ -17,7 +17,6 @@ import { parseGithubNameWithOwner } from '@renderer/core/git/utils';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
 import { appState } from '@renderer/core/stores/app-state';
-import { MountedProject } from '@renderer/core/stores/project';
 import {
   getProjectManagerStore,
   mountedProjectData,
@@ -89,7 +88,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
     switch (selectedStrategy) {
       case 'from-branch':
-        void (projectStore as MountedProject).taskManager.createTask({
+        void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromBranch.taskName,
@@ -104,7 +103,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         });
         break;
       case 'from-issue':
-        void (projectStore as MountedProject).taskManager.createTask({
+        void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromIssue.taskName,
@@ -115,7 +114,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         break;
       case 'from-pull-request':
         if (!fromPR.linkedPR) return;
-        void (projectStore as MountedProject).taskManager.createTask({
+        void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromPR.taskName,

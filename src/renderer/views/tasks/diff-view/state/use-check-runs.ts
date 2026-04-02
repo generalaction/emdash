@@ -4,7 +4,7 @@ import { computeCheckRunsSummary, type CheckRun } from '@renderer/lib/github';
 import { useRequireProvisionedTask } from '../../task-view-context';
 
 export function useCheckRuns(pr: PullRequest) {
-  const prStore = useRequireProvisionedTask().pr;
+  const prStore = useRequireProvisionedTask().workspace.pr;
   const resource = prStore.getCheckRuns(pr);
 
   const checks = useMemo(

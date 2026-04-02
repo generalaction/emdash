@@ -15,8 +15,8 @@ import { SshConnectionProvider } from './core/ssh/ssh-connection-provider';
 import { WorkspaceLayoutContextProvider } from './core/view/layout-provider';
 import { WorkspaceViewProvider } from './core/view/provider';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { WelcomeScreen } from './views/Welcome';
-import { Workspace } from './views/Workspace';
+import { WelcomeScreen } from './views/welcome';
+import { Workspace } from './views/workspace';
 
 export const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 
