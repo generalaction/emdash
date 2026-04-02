@@ -1,9 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app, BrowserWindow } from 'electron';
-import _electronUpdater, { type UpdateInfo } from 'electron-updater';
+import _electronUpdater, {
+  type ProgressInfo,
+  type UpdateInfo,
+  type Logger as UpdaterLogger,
+} from 'electron-updater';
 import { log } from '@main/lib/logger';
-import { formatUpdaterError, sanitizeUpdaterLogArgs } from '@main/lib/updaterError';
+import { formatUpdaterError, sanitizeUpdaterLogArgs } from './updaterError';
 
 const { autoUpdater } = _electronUpdater;
 
@@ -167,11 +171,12 @@ class AutoUpdateService {
     autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };
 
     // Custom logger for production
-    autoUpdater.logger = {
-      info: (...args: any[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-      warn: (...args: any[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-      error: (...args: any[]) => log.error('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
-    } as any;
+    const updaterLogger: UpdaterLogger = {
+      info: (...args: unknown[]) => log.debug('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+      warn: (...args: unknown[]) => log.warn('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+      error: (...args: unknown[]) => log.error('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
+    };
+    autoUpdater.logger = updaterLogger;
   }
 
   /**
@@ -231,7 +236,7 @@ class AutoUpdateService {
       // Don't automatically retry on error - let user decide
     });
 
-    autoUpdater.on('download-progress', (progressObj: any) => {
+    autoUpdater.on('download-progress', (progressObj: ProgressInfo) => {
       this.updateState.status = 'downloading';
 
       // Calculate remaining time
@@ -361,7 +366,7 @@ class AutoUpdateService {
       this.scheduleNextCheck();
 
       return result?.updateInfo || null;
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage = formatUpdaterError(error);
       log.error('Update check failed:', errorMessage, error);
       this.updateState.status = 'error';
@@ -403,7 +408,7 @@ class AutoUpdateService {
       this.notifyWindows('downloading', { version: this.updateState.availableVersion });
 
       await autoUpdater.downloadUpdate();
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage = formatUpdaterError(error);
       log.error('Update download failed:', errorMessage, error);
 
@@ -499,10 +504,19 @@ class AutoUpdateService {
       }
 
       // Try to get from updateInfo first
-      const releaseNotes = (this.updateState.updateInfo as any).releaseNotes;
+      const releaseNotes = this.updateState.updateInfo.releaseNotes;
       if (releaseNotes) {
-        this.updateState.releaseNotes = releaseNotes;
-        return releaseNotes;
+        const normalizedReleaseNotes =
+          typeof releaseNotes === 'string'
+            ? releaseNotes
+            : releaseNotes
+                .map((note) => note.note)
+                .filter((note): note is string => typeof note === 'string' && note.length > 0)
+                .join('\n\n');
+        if (normalizedReleaseNotes) {
+          this.updateState.releaseNotes = normalizedReleaseNotes;
+          return normalizedReleaseNotes;
+        }
       }
 
       // Otherwise fetch from GitHub API
@@ -565,7 +579,7 @@ class AutoUpdateService {
   /**
    * Notify all windows about update events
    */
-  private notifyWindows(event: string, payload?: any): void {
+  private notifyWindows(event: string, payload?: unknown): void {
     const channel = `update:${event}`;
     for (const win of BrowserWindow.getAllWindows()) {
       try {

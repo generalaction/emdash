@@ -21,14 +21,14 @@ export function UpdateModalOverlay({ onClose }: BaseModalProps<void>) {
   return <UpdateModal onClose={onClose} />;
 }
 
-function UpdateModal({ onClose }: UpdateModalProps): JSX.Element {
+function UpdateModal({ onClose }: UpdateModalProps): React.JSX.Element {
   const updater = useUpdater();
   const [appVersion, setAppVersion] = useState('');
 
   useEffect(() => {
     rpc.app
       .getAppVersion()
-      .then((r: any) => setAppVersion(typeof r === 'string' ? r : (r?.version ?? 'Unknown')))
+      .then(setAppVersion)
       .catch(() => setAppVersion('Unknown'));
   }, []);
 

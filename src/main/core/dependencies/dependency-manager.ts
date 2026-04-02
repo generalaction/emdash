@@ -179,35 +179,33 @@ export class DependencyManager {
   private runWithLocalPty(command: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const shell = process.env.SHELL ?? '/bin/sh';
-      const result = spawnLocalPty({
-        id: `install:${crypto.randomUUID()}`,
-        command: shell,
-        args: ['-c', command],
-        cwd: os.homedir(),
-        env: process.env as Record<string, string>,
-        cols: 80,
-        rows: 24,
-      });
+      try {
+        const pty = spawnLocalPty({
+          id: `install:${crypto.randomUUID()}`,
+          command: shell,
+          args: ['-c', command],
+          cwd: os.homedir(),
+          env: process.env as Record<string, string>,
+          cols: 80,
+          rows: 24,
+        });
 
-      if (!result.success) {
-        const msg =
-          result.error.kind === 'spawn-failed' ? result.error.message : 'PTY support is disabled';
-        reject(new Error(msg));
-        return;
+        const chunks: string[] = [];
+        pty.onData((chunk: string) => chunks.push(chunk));
+        pty.onExit(({ exitCode }) => {
+          if (exitCode === 0) {
+            log.info(`[DependencyManager] Install succeeded`);
+            resolve();
+          } else {
+            const output = chunks.join('').trim();
+            log.error(`[DependencyManager] Install failed`, { exitCode, output });
+            reject(new Error(`Install failed (exit ${exitCode ?? '?'}): ${output}`));
+          }
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        reject(new Error(message));
       }
-
-      const chunks: string[] = [];
-      result.data.onData((chunk: string) => chunks.push(chunk));
-      result.data.onExit(({ exitCode }) => {
-        if (exitCode) {
-          log.info(`[DependencyManager] Install succeeded`);
-          resolve();
-        } else {
-          const output = chunks.join('').trim();
-          log.error(`[DependencyManager] Install failed`, { exitCode, output });
-          reject(new Error(`Install failed (exit ${exitCode ?? '?'}): ${output}`));
-        }
-      });
     });
   }
 

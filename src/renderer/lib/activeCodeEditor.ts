@@ -1,6 +1,8 @@
-let activeEditor: any | null = null;
+import type * as monaco from 'monaco-editor';
 
-function isEditorFocused(editor: any): boolean {
+let activeEditor: monaco.editor.ICodeEditor | null = null;
+
+function isEditorFocused(editor: monaco.editor.ICodeEditor | null): boolean {
   if (!editor) return false;
 
   try {
@@ -14,7 +16,7 @@ function isEditorFocused(editor: any): boolean {
   return false;
 }
 
-export function registerActiveCodeEditor(editor: any): () => void {
+export function registerActiveCodeEditor(editor: monaco.editor.ICodeEditor | null): () => void {
   if (!editor) return () => {};
 
   const focusDisposable = editor.onDidFocusEditorText?.(() => {

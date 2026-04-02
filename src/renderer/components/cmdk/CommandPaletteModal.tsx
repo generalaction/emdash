@@ -17,15 +17,15 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = observer(
     const { toggleTheme } = useTheme();
     const { navigate } = useNavigate();
 
-    const projects = Array.from(getProjectManagerStore().projects.values())
-      .filter((p) => p.state === 'mounted' || p.state === 'unmounted')
-      .map((p) => (p as { data: unknown }).data);
+    const projects = Array.from(getProjectManagerStore().projects.values()).flatMap((project) =>
+      project.data ? [project.data] : []
+    );
 
     return (
       <CommandPalette
         isOpen={true}
         onClose={onClose}
-        projects={projects as any}
+        projects={projects}
         onSelectProject={(projectId) => {
           navigate('project', { projectId });
           onClose();

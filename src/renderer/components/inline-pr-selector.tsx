@@ -69,14 +69,13 @@ export function InlinePrSelector({
     staleTime: 30_000,
   });
 
-  const prs = data ?? [];
-
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const filteredPrs = useMemo(() => {
+    const prs = data ?? [];
     if (!query.trim()) return prs;
     const lower = query.trim().toLowerCase();
     return prs.filter(
@@ -85,7 +84,7 @@ export function InlinePrSelector({
         pr.metadata.headRefName.toLowerCase().includes(lower) ||
         String(pr.metadata.number).includes(lower)
     );
-  }, [prs, query]);
+  }, [data, query]);
 
   useEffect(() => {
     const list = listRef.current;

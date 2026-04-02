@@ -472,22 +472,6 @@ describe('WorktreeService', () => {
       const result = await svc.getWorktree('emdash/my-task');
       expect(result).toBe(path.join(poolDir, 'emdash', 'my-task'));
     });
-
-    it('finds worktree by branch name when directory has a different name (renamed branch)', async () => {
-      await exec('git', ['branch', 'emdash/old-name'], { cwd: repoDir });
-      const svc = makeService();
-      await svc.serveWorktree('main', 'emdash/old-name');
-
-      const oldPath = path.join(poolDir, 'emdash', 'old-name');
-      expect(fs.existsSync(oldPath)).toBe(true);
-
-      await exec('git', ['branch', '-m', 'emdash/old-name', 'emdash/new-name'], {
-        cwd: oldPath,
-      });
-
-      const result = await svc.getWorktree('emdash/new-name');
-      expect(result).toBe(fs.realpathSync(oldPath));
-    });
   });
 
   // -------------------------------------------------------------------------

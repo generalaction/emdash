@@ -1,5 +1,4 @@
 import {
-  Archive,
   ArrowDown,
   ArrowUp,
   ChevronDown,
@@ -11,10 +10,8 @@ import {
   Globe,
   ListTree,
   MessageSquare,
-  Pen,
   RefreshCcw,
   Terminal,
-  Trash2,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { IssueSelector } from '@renderer/components/issue-selector';

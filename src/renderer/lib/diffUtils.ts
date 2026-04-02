@@ -2,7 +2,7 @@
  * Utilities for converting diff formats and working with Monaco Editor
  */
 
-import type { DiffLine } from '../hooks/useFileDiff';
+import type { DiffLine } from '@shared/git';
 
 /**
  * Convert DiffLine[] format to original/modified strings for Monaco Editor

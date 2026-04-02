@@ -35,18 +35,6 @@ export type PlanEvent = {
 
 export const planEventChannel = defineEvent<PlanEvent>('plan:event');
 
-export type ProviderStatus = {
-  installed: boolean;
-  path?: string | null;
-  version?: string | null;
-  lastChecked: number;
-};
-
-export const providerStatusUpdatedChannel = defineEvent<{
-  providerId: string;
-  status: ProviderStatus;
-}>('provider:status-updated');
-
 export const ptyDataChannel = defineEvent<string>('pty:data');
 
 export const ptyExitChannel = defineEvent<{
