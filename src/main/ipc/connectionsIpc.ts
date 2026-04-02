@@ -45,7 +45,12 @@ const MODEL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /** Fetch available models from the Anthropic API. Returns null when unavailable. */
 async function fetchAnthropicModels(): Promise<ClaudeModel[] | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Prefer a key saved in the provider custom config (e.g. via Settings → Providers)
+  // so users who configure Claude that way also get live model lists.
+  const configuredKey = getProviderCustomConfig('claude')?.env?.['ANTHROPIC_API_KEY'];
+  const apiKey =
+    (typeof configuredKey === 'string' && configuredKey.trim() ? configuredKey.trim() : null) ??
+    process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
   return new Promise((resolve) => {

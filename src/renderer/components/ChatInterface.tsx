@@ -223,7 +223,7 @@ const ChatInterface: React.FC<Props> = ({
     return {
       model: typeof parsed.model === 'string' && parsed.model ? parsed.model : undefined,
       effort: typeof parsed.effort === 'string' && parsed.effort ? parsed.effort : undefined,
-      fastMode: parsed.fastMode === true,
+      fastMode: typeof parsed.fastMode === 'boolean' ? parsed.fastMode : undefined,
     };
   }, [activeConversation]);
 
@@ -1303,7 +1303,7 @@ const ChatInterface: React.FC<Props> = ({
                     conversationClaudeOptions?.effort ?? task.metadata?.agentEffort ?? undefined
                   }
                   fastMode={
-                    conversationClaudeOptions?.fastMode || task.metadata?.agentFastMode || false
+                    conversationClaudeOptions?.fastMode ?? task.metadata?.agentFastMode ?? false
                   }
                   env={taskEnv}
                   keepAlive={true}

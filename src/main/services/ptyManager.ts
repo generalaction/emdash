@@ -839,6 +839,30 @@ export function resolveProviderCommandConfig(
   };
 }
 
+const ALLOWED_CLAUDE_EFFORTS = new Set(['low', 'medium', 'high', 'max']);
+
+/**
+ * Builds and validates Claude Code-specific runtime args.
+ * - Only appends --effort for known valid levels.
+ * - Only appends --settings fastMode when the model is Opus (or unspecified).
+ */
+export function buildClaudeRuntimeArgs(options: {
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
+}): string[] {
+  const args: string[] = [];
+  const model = options.model?.trim();
+  const effort = options.effort?.trim();
+  const modelSupportsfast = !model || model.toLowerCase().includes('opus');
+
+  if (model) args.push('--model', model);
+  if (effort && ALLOWED_CLAUDE_EFFORTS.has(effort)) args.push('--effort', effort);
+  if (options.fastMode && modelSupportsfast) args.push('--settings', '{"fastMode":true}');
+
+  return args;
+}
+
 export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] {
   const args: string[] = [];
 
@@ -1269,13 +1293,7 @@ export function startDirectPty(options: {
 
     cliArgs.push(...exactResumeArgs);
     const claudeRuntimeArgs =
-      providerId === 'claude'
-        ? [
-            ...(model ? ['--model', model] : []),
-            ...(effort ? ['--effort', effort] : []),
-            ...(fastMode ? ['--settings', '{"fastMode":true}'] : []),
-          ]
-        : [];
+      providerId === 'claude' ? buildClaudeRuntimeArgs({ model, effort, fastMode }) : [];
     cliArgs.push(
       ...buildProviderCliArgs({
         resume: exactResumeArgs.length === 0 && !usedSessionIsolation && !!resume,
@@ -1537,13 +1555,7 @@ export async function startPty(options: {
 
         cliArgs.push(...exactResumeArgs);
         const shellClaudeArgs =
-          provider.id === 'claude'
-            ? [
-                ...(model ? ['--model', model] : []),
-                ...(effort ? ['--effort', effort] : []),
-                ...(fastMode ? ['--settings', '{"fastMode":true}'] : []),
-              ]
-            : [];
+          provider.id === 'claude' ? buildClaudeRuntimeArgs({ model, effort, fastMode }) : [];
         cliArgs.push(
           ...buildProviderCliArgs({
             resume: exactResumeArgs.length === 0 && !usedSessionIsolation && !skipResume,

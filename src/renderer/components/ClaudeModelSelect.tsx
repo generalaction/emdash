@@ -40,6 +40,9 @@ export function ClaudeModelSelect({ value, onChange, onModelsLoaded }: Props) {
     return () => {
       cancelled = true;
     };
+    // onModelsLoaded is always a stable state setter from the parent, so
+    // including it in deps would only cause unnecessary re-fetches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectValue = value || DEFAULT_MODEL_SENTINEL;
