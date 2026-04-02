@@ -7,7 +7,7 @@ import _electronUpdater, {
   type Logger as UpdaterLogger,
 } from 'electron-updater';
 import { log } from '@main/lib/logger';
-import { formatUpdaterError, sanitizeUpdaterLogArgs } from '@main/lib/updaterError';
+import { formatUpdaterError, sanitizeUpdaterLogArgs } from './updaterError';
 
 const { autoUpdater } = _electronUpdater;
 

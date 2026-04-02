@@ -1,10 +1,11 @@
 import { AlertCircle, Check, Copy, ExternalLink } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   githubAuthDeviceCodeChannel,
   githubAuthErrorChannel,
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
+import type { GitHubUser } from '@shared/github';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
 import { useGithubContext } from '../core/github-context-provider';
@@ -48,7 +49,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
   const [copied, setCopied] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<GitHubUser | null>(null);
   const [browserOpening, setBrowserOpening] = useState(false);
   const [browserOpenCountdown, setBrowserOpenCountdown] = useState(3);
 
@@ -65,6 +66,85 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
       }
     };
   }, [cancelGithubConnect]);
+
+  // Countdown timer for code expiration
+  useEffect(() => {
+    if (success || error) return;
+
+    countdownIntervalRef.current = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          setError('Code expired. Please try again.');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [success, error]);
+
+  // Reset state on mount (new auth flow)
+  useEffect(() => {
+    setSuccess(false);
+    setError(null);
+    setUser(null);
+    setCopied(false);
+    hasAutocopied.current = false;
+    hasOpenedBrowser.current = false;
+  }, []);
+
+  const copyToClipboard = useCallback(
+    async (code: string, isAutomatic = false) => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+        } else {
+          // Fallback for older browsers
+          const textArea = document.createElement('textarea');
+          textArea.value = code;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+        }
+
+        setCopied(true);
+
+        if (!isAutomatic) {
+          toast({
+            title: '✓ Code copied',
+            description: 'Paste it in GitHub to authorize',
+          });
+        }
+
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+        if (!isAutomatic) {
+          toast({
+            title: 'Copy failed',
+            description: 'Please copy the code manually',
+            variant: 'destructive',
+          });
+        }
+      }
+    },
+    [toast]
+  );
+
+  const openGitHub = useCallback(() => {
+    if (verificationUri) {
+      rpc.app.openExternal(verificationUri);
+    }
+  }, [verificationUri]);
 
   // Subscribe to auth events from main process
   useEffect(() => {
@@ -133,83 +213,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
       cleanupSuccess();
       cleanupError();
     };
-  }, [onError, onClose, toast]);
-
-  // Countdown timer for code expiration
-  useEffect(() => {
-    if (success || error) return;
-
-    countdownIntervalRef.current = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          setError('Code expired. Please try again.');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-    };
-  }, [success, error]);
-
-  // Reset state on mount (new auth flow)
-  useEffect(() => {
-    setSuccess(false);
-    setError(null);
-    setUser(null);
-    setCopied(false);
-    hasAutocopied.current = false;
-    hasOpenedBrowser.current = false;
-  }, []);
-
-  const copyToClipboard = async (code: string, isAutomatic = false) => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(code);
-      } else {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = code;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-      }
-
-      setCopied(true);
-
-      if (!isAutomatic) {
-        toast({
-          title: '✓ Code copied',
-          description: 'Paste it in GitHub to authorize',
-        });
-      }
-
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-      if (!isAutomatic) {
-        toast({
-          title: 'Copy failed',
-          description: 'Please copy the code manually',
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-
-  const openGitHub = () => {
-    if (verificationUri) {
-      rpc.app.openExternal(verificationUri);
-    }
-  };
+  }, [copyToClipboard, onError, onClose, toast]);
 
   const handleClose = () => {
     onClose();
@@ -237,7 +241,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [userCode]);
+  }, [copyToClipboard, openGitHub, userCode]);
 
   return (
     <>

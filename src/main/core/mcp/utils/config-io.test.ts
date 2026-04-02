@@ -75,7 +75,7 @@ describe('readServers', () => {
     );
     const result = await readServers(meta);
     expect(result.myserver).toBeDefined();
-    expect((result.myserver as any).command).toBe('npx');
+    expect(result.myserver.command).toBe('npx');
   });
 });
 
