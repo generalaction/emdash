@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveCommandPath } from '@main/core/dependencies/probe';
 import {
   FileSystemError,
   FileSystemErrorCodes,
@@ -6,7 +7,12 @@ import {
   type ReadResult,
   type WriteResult,
 } from '@main/core/fs/types';
+import type { ExecFn } from '@main/core/utils/exec';
 import { HookConfigWriter } from './hook-config';
+
+vi.mock('@main/core/dependencies/probe', () => ({
+  resolveCommandPath: vi.fn().mockResolvedValue('/usr/bin/mock-agent'),
+}));
 
 vi.mock('@main/lib/logger', () => ({
   log: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
@@ -41,11 +47,14 @@ function makeMockFs(overrides: Partial<FileSystemProvider> = {}): FileSystemProv
 describe('HookConfigWriter.writeClaudeHooks', () => {
   let fs: FileSystemProvider;
   let writer: HookConfigWriter;
+  let exec: ExecFn;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(resolveCommandPath).mockResolvedValue('/usr/bin/mock-agent');
     fs = makeMockFs();
-    writer = new HookConfigWriter(fs);
+    exec = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    writer = new HookConfigWriter(fs, exec);
   });
 
   it('writes hooks when settings file does not exist', async () => {
@@ -135,11 +144,14 @@ describe('HookConfigWriter.writeClaudeHooks', () => {
 describe('HookConfigWriter.writeCodexNotify', () => {
   let fs: FileSystemProvider;
   let writer: HookConfigWriter;
+  let exec: ExecFn;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(resolveCommandPath).mockResolvedValue('/usr/bin/mock-agent');
     fs = makeMockFs();
-    writer = new HookConfigWriter(fs);
+    exec = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    writer = new HookConfigWriter(fs, exec);
   });
 
   it('writes notify when config file does not exist', async () => {
@@ -171,7 +183,8 @@ describe('HookConfigWriter.writeAll', () => {
       read: vi.fn().mockRejectedValue(new Error('permission denied')),
       write: vi.fn().mockRejectedValue(new Error('permission denied')),
     });
-    const writer = new HookConfigWriter(fs);
+    const exec: ExecFn = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    const writer = new HookConfigWriter(fs, exec);
 
     await expect(writer.writeAll()).resolves.toBeUndefined();
   });

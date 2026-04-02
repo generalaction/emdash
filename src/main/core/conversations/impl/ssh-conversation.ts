@@ -3,7 +3,9 @@ import { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
+import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
@@ -73,6 +75,13 @@ export class SshConversationProvider implements ConversationProvider {
     );
 
     if (this.sessions.has(sessionId)) return;
+
+    await claudeTrustService.maybeAutoTrustSsh({
+      providerId: conversation.providerId,
+      cwd: this.taskPath,
+      exec: this.exec,
+      remoteFs: new SshFileSystem(this.proxy, '/'),
+    });
 
     const { command, args } = await buildAgentCommand({
       providerId: conversation.providerId,

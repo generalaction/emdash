@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import { getProvider } from '@shared/agent-provider-registry';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import { Conversation } from '@shared/conversations';
@@ -6,6 +7,7 @@ import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
+import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
@@ -71,6 +73,12 @@ export class LocalConversationProvider implements ConversationProvider {
       conversation.id
     );
     if (this.sessions.has(sessionId)) return;
+
+    await claudeTrustService.maybeAutoTrustLocal({
+      providerId: conversation.providerId,
+      cwd: this.taskPath,
+      homedir: homedir(),
+    });
 
     const { command, args } = await buildAgentCommand({
       providerId: conversation.providerId,
