@@ -1,36 +1,28 @@
 import { AlignJustify, Columns2, FileText, Layers } from 'lucide-react';
-import React, { useMemo } from 'react';
+import { observer } from 'mobx-react-lite';
+import { useMemo } from 'react';
 import { Badge } from '@renderer/components/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { FileIcon } from '@renderer/core/editor/file-icon';
-import type { ActiveFile } from '@renderer/core/stores/diff-view-store';
-import { splitPath } from '@renderer/views/tasks/diff-viewer/utils';
+import { splitPath } from '@renderer/core/git/utils';
+import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 
-interface DiffToolbarProps {
-  viewMode: 'stacked' | 'file';
-  diffSource?: ActiveFile['type'];
-  filePath?: string;
-  onViewModeChange: (mode: 'stacked' | 'file') => void;
-  diffStyle: 'unified' | 'split';
-  onDiffStyleChange: (style: 'unified' | 'split') => void;
-}
+export const DiffToolbar = observer(function DiffToolbar() {
+  const diffView = useProvisionedTask()?.diffView;
+  const viewMode = diffView?.viewMode ?? 'stacked';
+  const diffStyle = diffView?.diffStyle ?? 'unified';
+  const activeFile = diffView?.activeFile ?? null;
+  const stackedDiffDisabled = diffView?.stackedDiffDisabled ?? false;
 
-export const DiffToolbar: React.FC<DiffToolbarProps> = ({
-  viewMode,
-  diffSource,
-  onViewModeChange,
-  diffStyle,
-  filePath,
-  onDiffStyleChange,
-}) => {
+  const filePath = viewMode === 'file' ? (activeFile?.path ?? undefined) : undefined;
   const { filename, directory } = filePath ? splitPath(filePath) : { filename: '', directory: '' };
 
   const diffSourceLabel = useMemo(() => {
-    if (diffSource === 'staged') return 'Staged';
-    if (diffSource === 'disk') return 'Changed';
-    if (diffSource === 'git') return 'Git';
+    if (activeFile?.type === 'staged') return 'Staged';
+    if (activeFile?.type === 'disk') return 'Changed';
+    if (activeFile?.type === 'git') return 'Git';
     return undefined;
-  }, [diffSource]);
+  }, [activeFile?.type]);
 
   return (
     <div className="flex h-[41px] items-center gap-2 border-b border-border px-2 justify-between">
@@ -53,11 +45,11 @@ export const DiffToolbar: React.FC<DiffToolbarProps> = ({
           value={[viewMode]}
           onValueChange={([value]) => {
             if (value) {
-              onViewModeChange(value as 'stacked' | 'file');
+              diffView?.setViewMode(value as 'stacked' | 'file');
             }
           }}
         >
-          <ToggleGroupItem value="stacked">
+          <ToggleGroupItem value="stacked" disabled={stackedDiffDisabled}>
             <Layers className="h-3.5 w-3.5" />
           </ToggleGroupItem>
           <ToggleGroupItem value="file">
@@ -70,7 +62,7 @@ export const DiffToolbar: React.FC<DiffToolbarProps> = ({
           value={[diffStyle]}
           onValueChange={([value]) => {
             if (value) {
-              onDiffStyleChange(value as 'unified' | 'split');
+              diffView?.setDiffStyle(value as 'unified' | 'split');
             }
           }}
         >
@@ -84,4 +76,4 @@ export const DiffToolbar: React.FC<DiffToolbarProps> = ({
       </div>
     </div>
   );
-};
+});

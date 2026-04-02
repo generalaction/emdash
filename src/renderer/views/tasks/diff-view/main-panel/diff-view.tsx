@@ -11,8 +11,6 @@ export const DiffView = observer(function DiffView() {
   const { taskId } = useTaskViewContext();
   const diffView = useProvisionedTask()?.diffView;
   const viewMode = diffView?.viewMode ?? 'stacked';
-  const diffStyle = diffView?.diffStyle ?? 'unified';
-  const activeFile = diffView?.activeFile ?? null;
 
   useEffect(() => {
     diffEditorPool.init().catch((err: unknown) => console.warn('[monaco-pool] init failed:', err));
@@ -20,14 +18,7 @@ export const DiffView = observer(function DiffView() {
 
   return (
     <div className="flex h-full flex-col">
-      <DiffToolbar
-        diffSource={activeFile?.type}
-        filePath={activeFile?.path}
-        viewMode={viewMode}
-        onViewModeChange={(mode) => diffView?.setViewMode(mode)}
-        diffStyle={diffStyle}
-        onDiffStyleChange={(style) => diffView?.setDiffStyle(style)}
-      />
+      <DiffToolbar />
       <DiffEditorProvider key={taskId}>
         <div className="min-h-0 flex-1">
           {viewMode === 'stacked' ? <StackedDiffView /> : <FileDiffView />}

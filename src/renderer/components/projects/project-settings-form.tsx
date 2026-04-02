@@ -2,6 +2,7 @@ import { GitBranch } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { Branch } from '@shared/git';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
+import { BranchSelector } from '@renderer/components/branch-selector';
 import { Button } from '@renderer/components/ui/button';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
@@ -19,7 +20,6 @@ import { Switch } from '@renderer/components/ui/switch';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { useBranches } from '@renderer/core/projects/repository/use-branches';
 import { useRemotes } from '@renderer/core/projects/repository/use-remotes';
-import { BranchSelector } from '@renderer/views/projects/branch-selector';
 
 type FormState = {
   preservePatterns: string;

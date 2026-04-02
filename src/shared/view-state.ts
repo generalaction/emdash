@@ -9,6 +9,11 @@ export type EditorViewSnapshot = {
   expandedPaths: string[];
 };
 
+export type DiffViewSnapshot = {
+  diffStyle: 'unified' | 'split';
+  viewMode: 'stacked' | 'file';
+};
+
 export type TaskViewSnapshot = {
   view: string | null;
   rightPanelView: string | null;
@@ -16,6 +21,7 @@ export type TaskViewSnapshot = {
   conversations?: TabViewSnapshot;
   terminals?: TabViewSnapshot;
   editor?: EditorViewSnapshot;
+  diffView?: DiffViewSnapshot;
 };
 
 export type ProjectViewSnapshot = {

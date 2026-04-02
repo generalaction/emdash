@@ -8,7 +8,7 @@ import {
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { getTaskGitStore } from '@renderer/core/stores/task-selectors';
 import { cn } from '@renderer/lib/utils';
-import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
+import { usePrContext } from '@renderer/views/tasks/diff-view/state/pr-provider';
 import {
   useRequireProvisionedTask,
   useTaskViewContext,

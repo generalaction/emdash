@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@renderer/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
+import { parseGithubNameWithOwner } from '@renderer/core/git/utils';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
 import { appState } from '@renderer/core/stores/app-state';
@@ -22,7 +23,6 @@ import {
   mountedProjectData,
 } from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
-import { parseGithubNameWithOwner } from '@renderer/views/tasks/diff-viewer/utils';
 import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';

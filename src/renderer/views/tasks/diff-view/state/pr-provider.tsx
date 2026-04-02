@@ -86,6 +86,17 @@ export function PrProvider({
     prFilesMap[pr.id] = prFileQueries[i]?.data ?? [];
   });
 
+  // Keep DiffViewStore informed of per-PR file counts so it can enforce the
+  // stacked diff limit for git-type diffs.
+  useEffect(() => {
+    const diffView = asProvisioned(getTaskStore(projectId, taskId))?.diffView;
+    if (!diffView) return;
+    pullRequests.forEach((pr, i) => {
+      diffView.setPrBaseRefFileCount(pr.metadata.baseRefName, prFileQueries[i]?.data?.length ?? 0);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pullRequests, prFileQueries, projectId, taskId]);
+
   // Invalidate PR file queries whenever the git store reloads (i.e. after any
   // .git FS change). fileChanges is a MobX observable — React re-runs this
   // effect each time its reference changes after a reload.

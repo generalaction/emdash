@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@renderer/core/ipc';
-import { extractErrorMessage } from '../utils';
+import { extractErrorMessage } from '../../../../core/git/utils';
 
 export function useCommitHistory({ projectId, taskId }: { projectId: string; taskId: string }) {
   const commitHistoryQuery = useQuery({

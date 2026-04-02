@@ -10,18 +10,13 @@ import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { PooledDiffEditor } from '@renderer/core/monaco/pooled-diff-editor';
 import { useModelStatus } from '@renderer/core/monaco/use-model';
+import { MAX_STACKED_FILES } from '@renderer/core/stores/diff-view-store';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
 import { cn } from '@renderer/lib/utils';
-import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
+import { usePrContext } from '@renderer/views/tasks/diff-view/state/pr-provider';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
 const LARGE_DIFF_LINE_THRESHOLD = 2500;
-
-/**
- * Maximum number of files for which models are bulk-registered at panel mount.
- * Above this threshold a warning is shown instead of the full diff list.
- */
-const MAX_STACKED_FILES = 75;
 
 export const StackedDiffView = observer(function StackedDiffView() {
   const provisioned = useProvisionedTask();

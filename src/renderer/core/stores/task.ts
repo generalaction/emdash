@@ -92,6 +92,7 @@ export class TaskStore {
       conversations: this.conversations?.snapshot,
       terminals: this.terminals?.snapshot,
       editor: this.editorView?.snapshot,
+      diffView: this.diffView?.snapshot,
     };
   }
 
@@ -125,6 +126,7 @@ export class TaskStore {
       this.conversations.restoreSnapshot(savedSnapshot.conversations ?? {});
       this.terminals.restoreSnapshot(savedSnapshot.terminals ?? {});
       this.editorView.restoreSnapshot(savedSnapshot.editor ?? {});
+      this.diffView.restoreSnapshot(savedSnapshot.diffView ?? {});
     } else {
       this.view = 'agents';
       this.rightPanelView = 'changes';

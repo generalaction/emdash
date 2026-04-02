@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
-import { ChangesPanel } from './diff-viewer/right-panel/changes-panel';
+import { ChangesPanel } from './diff-view/right-panel/changes-panel';
 import { EditorFileTree } from './editor/editor-file-tree';
 import { useProvisionedTask } from './task-view-context';
 import { TerminalsPanel } from './terminals/terminal-panel';

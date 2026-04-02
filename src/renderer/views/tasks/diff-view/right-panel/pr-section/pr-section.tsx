@@ -9,7 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-gro
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { cn } from '@renderer/lib/utils';
-import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
+import { usePrContext } from '@renderer/views/tasks/diff-view/state/pr-provider';
 import { PrChecksList } from './pr-checks-list';
 import { PrCommitsList } from './pr-commits-list';
 import { PrFilesList } from './pr-files-list';

@@ -1,5 +1,6 @@
 import { ChevronDown, GitBranch } from 'lucide-react';
 import { Branch } from '@shared/git';
+import { BranchSelector } from '@renderer/components/branch-selector';
 import {
   Collapsible,
   CollapsibleContent,
@@ -9,7 +10,6 @@ import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox
 import { Field, FieldLabel } from '@renderer/components/ui/field';
 import { Switch } from '@renderer/components/ui/switch';
 import { cn } from '@renderer/lib/utils';
-import { BranchSelector } from '@renderer/views/projects/branch-selector';
 import { BranchSelectionState } from './use-branch-selection';
 
 interface BranchPickerFieldProps {

@@ -2,9 +2,9 @@ import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'l
 import { ButtonHTMLAttributes, forwardRef, useMemo } from 'react';
 import { GitChange, GitChangeStatus } from '@shared/git';
 import { Checkbox } from '@renderer/components/ui/checkbox';
+import { FileIcon } from '@renderer/core/editor/file-icon';
+import { splitPath } from '@renderer/core/git/utils';
 import { cn } from '@renderer/lib/utils';
-import { splitPath } from '@renderer/views/tasks/diff-viewer/utils';
-import { FileIcon } from '../../../../core/editor/file-icon';
 
 interface ChangesListItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   change: GitChange;

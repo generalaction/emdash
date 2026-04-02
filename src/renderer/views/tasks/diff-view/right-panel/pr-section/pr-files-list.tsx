@@ -1,8 +1,8 @@
 import { observer } from 'mobx-react-lite';
 import type { GitChange } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
-import { usePrefetchModels } from '@renderer/views/tasks/diff-viewer/right-panel/use-prefetch-models';
-import { usePrContext } from '@renderer/views/tasks/diff-viewer/state/pr-provider';
+import { usePrefetchModels } from '@renderer/views/tasks/diff-view/right-panel/use-prefetch-models';
+import { usePrContext } from '@renderer/views/tasks/diff-view/state/pr-provider';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { VirtualizedChangesList } from '../virtualized-changes-list';
 

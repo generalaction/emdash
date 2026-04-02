@@ -7,7 +7,7 @@ import {
 } from '@renderer/core/stores/task-selectors';
 import type { ViewDefinition } from '@renderer/core/view/registry';
 import { TaskViewWrapper } from '@renderer/views/tasks/task-view-context';
-import { PrProvider } from './diff-viewer/state/pr-provider';
+import { PrProvider } from './diff-view/state/pr-provider';
 import { EditorProvider } from './editor/editor-provider';
 import { TaskMainPanel } from './main-panel';
 import { TaskRightSidebar } from './right-panel';

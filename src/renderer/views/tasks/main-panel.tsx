@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { getTaskStore, taskErrorMessage, taskViewKind } from '@renderer/core/stores/task-selectors';
 import { ConversationsPanel } from './conversations/conversations-panel';
-import { DiffView } from './diff-viewer/main-panel/diff-view';
+import { DiffView } from './diff-view/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
 import { useProvisionedTask, useTaskViewContext } from './task-view-context';
 

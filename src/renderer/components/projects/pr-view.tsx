@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/components/ui/select';
+import { parseGithubNameWithOwner } from '@renderer/core/git/utils';
 import { getProjectStore, mountedProjectData } from '@renderer/core/stores/project-selectors';
 import { useParams } from '@renderer/core/view/navigation-provider';
 import {
@@ -21,7 +22,6 @@ import {
   type StatusFilter,
   type UserItem,
 } from '@renderer/hooks/usePrViewState';
-import { parseGithubNameWithOwner } from '@renderer/views/tasks/diff-viewer/utils';
 import { SearchInput } from '../ui/search-input';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { PrVirtualList } from './pr-virtual-list';
