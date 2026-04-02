@@ -19,7 +19,7 @@ export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, classNa
   return (
     <span className={`flex items-center gap-1 text-xs text-muted-foreground ${className ?? ''}`}>
       <KbdGroup>
-        {display.split('+').map((key, i) => (
+        {display.split('+').map((key, _) => (
           <Kbd key={key}>{key.trim()}</Kbd>
         ))}
       </KbdGroup>

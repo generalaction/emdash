@@ -29,10 +29,12 @@ export function useDiffDecorations(
 
   useEffect(() => {
     if (!bufferUri) return;
+    let lastEditor: monacoNS.editor.IStandaloneCodeEditor | null = null;
 
     const applyDecorations = () => {
       const editor = editorRef.current;
       if (!editor) return;
+      lastEditor = editor;
 
       const bufModel = modelRegistry.getModelByUri(bufferUri);
       const gitModel = modelRegistry.getModelByUri(gitUri);
@@ -98,7 +100,7 @@ export function useDiffDecorations(
       d1?.dispose();
       d2?.dispose();
       // Clear decorations from the editor when the file changes or unmounts.
-      const editor = editorRef.current;
+      const editor = lastEditor;
       if (editor && decorationIdsRef.current.length > 0) {
         try {
           decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, []);
