@@ -21,6 +21,7 @@ import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
 import piLogo from '../../assets/images/pi.png';
 import autohandLogoSvg from '../../assets/images/autohand.svg?raw';
+import forgeLogoSvg from '../../assets/images/forge.svg?raw';
 import type { UiAgent } from './meta';
 
 export type AgentAsset = {
@@ -56,4 +57,5 @@ export const agentAssets: Record<UiAgent, AgentAsset> = {
   mistral: { name: 'Mistral AI', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
   pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
   autohand: { name: 'Autohand', logo: autohandLogoSvg, alt: 'Autohand Code CLI', isSvg: true },
+  forge: { name: 'Forge', logo: forgeLogoSvg, alt: 'Forge CLI', isSvg: true },
 };

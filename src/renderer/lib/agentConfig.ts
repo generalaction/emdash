@@ -22,6 +22,7 @@ import codebuffLogo from '../../assets/images/codebuff.png';
 import mistralLogo from '../../assets/images/mistral.png';
 import piLogo from '../../assets/images/pi.png';
 import autohandLogoSvg from '../../assets/images/autohand.svg?raw';
+import forgeLogoSvg from '../../assets/images/forge.svg?raw';
 
 export type AgentInfo = {
   name: string;
@@ -57,4 +58,5 @@ export const agentConfig: Record<Agent, AgentInfo> = {
   copilot: { name: 'Copilot', logo: copilotLogoSvg, alt: 'GitHub Copilot CLI', isSvg: true },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush', invertInDark: true },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev' },
+  forge: { name: 'Forge', logo: forgeLogoSvg, alt: 'Forge CLI', isSvg: true },
 };
