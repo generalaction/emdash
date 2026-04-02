@@ -20,7 +20,7 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
     });
 
     if (task.taskBranch) {
-      project.removeTaskWorktree(task.taskBranch).catch((e) => {
+      await project.removeTaskWorktree(task.taskBranch).catch((e) => {
         log.warn('deleteTask: worktree removal failed', { taskId, error: String(e) });
       });
       if (task.taskBranch !== task.sourceBranch) {

@@ -52,7 +52,10 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       title: 'Delete task',
       description: `"${taskName}" will be permanently deleted. This action cannot be undone.`,
       confirmLabel: 'Delete',
-      onSuccess: () => void taskManager?.deleteTask(taskId),
+      onSuccess: () => {
+        void taskManager?.deleteTask(taskId);
+        if (isActive) navigate('project', { projectId });
+      },
     });
 
   return (
