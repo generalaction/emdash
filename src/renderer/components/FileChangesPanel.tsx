@@ -764,13 +764,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   <Spinner size="sm" className="h-3.5 w-3.5" />
                 </div>
               ) : pr ? (
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 px-2 text-xs"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (pr.url) window.electronAPI?.openExternal?.(pr.url);
                   }}
-                  className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                   title={`${pr.title || 'Pull Request'} (#${pr.number})`}
                 >
                   {pr.isDraft
@@ -778,8 +779,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     : String(pr.state).toUpperCase() === 'OPEN'
                       ? 'View PR'
                       : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
-                  <ArrowUpRight className="size-3" />
-                </button>
+                  <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
+                </Button>
               ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
                 <PrActionButton
                   mode={prMode}
