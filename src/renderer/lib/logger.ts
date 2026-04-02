@@ -17,25 +17,25 @@ function enabled(target: Level, current: Level): boolean {
 const current = envLevel();
 
 export const log = {
-  debug: (...args: any[]) => {
+  debug: (...args: unknown[]) => {
     if (enabled('debug', current)) {
       // eslint-disable-next-line no-console
       console.debug(...args);
     }
   },
-  info: (...args: any[]) => {
+  info: (...args: unknown[]) => {
     if (enabled('info', current)) {
       // eslint-disable-next-line no-console
       console.info(...args);
     }
   },
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     if (enabled('warn', current)) {
       // eslint-disable-next-line no-console
       console.warn(...args);
     }
   },
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     // Always log errors
     // eslint-disable-next-line no-console
     console.error(...args);

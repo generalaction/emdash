@@ -83,17 +83,17 @@ export function generateTaskNameFromContext(context: TaskNameContext): string | 
 
 function getIssueText(context: TaskNameContext): string | null {
   if (context.linearIssue) {
-    const { title, description } = context.linearIssue as any;
+    const { title, description } = context.linearIssue;
     const parts = [title, description].filter(Boolean);
     return parts.length > 0 ? parts.join(' ') : null;
   }
   if (context.githubIssue) {
-    const { title, body } = context.githubIssue as any;
+    const { title, body } = context.githubIssue;
     const parts = [title, body].filter(Boolean);
     return parts.length > 0 ? parts.join(' ') : null;
   }
   if (context.jiraIssue) {
-    const { summary, description } = context.jiraIssue as any;
+    const { summary, description } = context.jiraIssue;
     const parts = [summary, description].filter(Boolean);
     return parts.length > 0 ? parts.join(' ') : null;
   }
