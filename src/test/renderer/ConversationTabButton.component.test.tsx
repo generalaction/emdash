@@ -11,6 +11,12 @@ vi.mock('../../renderer/hooks/useStatusUnread', () => ({
   useStatusUnread: () => false,
 }));
 
+vi.mock('../../renderer/lib/rpc', () => ({
+  rpc: {
+    db: {},
+  },
+}));
+
 vi.mock('../../renderer/components/AgentLogo', () => ({
   default: () => <div data-testid="agent-logo" />,
 }));
@@ -76,7 +82,7 @@ describe('ConversationTabButton', () => {
   it('starts inline rename on title double-click while keeping the icon visible', async () => {
     renderConversationTabButton();
 
-    fireEvent.doubleClick(screen.getByTitle('Codex'));
+    fireEvent.doubleClick(screen.getByText('Codex'));
 
     const input = await screen.findByRole('textbox', { name: 'Rename chat Codex' });
     await waitFor(() => expect(input).toHaveFocus());
@@ -86,7 +92,7 @@ describe('ConversationTabButton', () => {
   it('submits the trimmed title on Enter', async () => {
     const { onRenameConversation } = renderConversationTabButton();
 
-    fireEvent.doubleClick(screen.getByTitle('Codex'));
+    fireEvent.doubleClick(screen.getByText('Codex'));
     const input = await screen.findByRole('textbox', { name: 'Rename chat Codex' });
     fireEvent.change(input, { target: { value: '  Codex Review  ' } });
     fireEvent.keyDown(input, { key: 'Enter' });
@@ -99,12 +105,12 @@ describe('ConversationTabButton', () => {
   it('cancels on Escape and ignores blank or unchanged titles', async () => {
     const { onRenameConversation } = renderConversationTabButton();
 
-    fireEvent.doubleClick(screen.getByTitle('Codex'));
+    fireEvent.doubleClick(screen.getByText('Codex'));
     const input = await screen.findByRole('textbox', { name: 'Rename chat Codex' });
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(onRenameConversation).not.toHaveBeenCalled();
 
-    fireEvent.doubleClick(screen.getByTitle('Codex'));
+    fireEvent.doubleClick(screen.getByText('Codex'));
     const unchangedInput = await screen.findByRole('textbox', { name: 'Rename chat Codex' });
     fireEvent.keyDown(unchangedInput, { key: 'Enter' });
 
@@ -113,7 +119,7 @@ describe('ConversationTabButton', () => {
     );
     expect(onRenameConversation).not.toHaveBeenCalled();
 
-    fireEvent.doubleClick(screen.getByTitle('Codex'));
+    fireEvent.doubleClick(screen.getByText('Codex'));
     const blankInput = await screen.findByRole('textbox', { name: 'Rename chat Codex' });
     fireEvent.change(blankInput, { target: { value: '   ' } });
     fireEvent.keyDown(blankInput, { key: 'Enter' });
