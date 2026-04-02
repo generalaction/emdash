@@ -854,11 +854,11 @@ export function buildClaudeRuntimeArgs(options: {
   const args: string[] = [];
   const model = options.model?.trim();
   const effort = options.effort?.trim();
-  const modelSupportsfast = !model || model.toLowerCase().includes('opus');
+  const modelSupportsFast = !model || model.toLowerCase().includes('opus');
 
   if (model) args.push('--model', model);
   if (effort && ALLOWED_CLAUDE_EFFORTS.has(effort)) args.push('--effort', effort);
-  if (options.fastMode && modelSupportsfast) args.push('--settings', '{"fastMode":true}');
+  if (options.fastMode && modelSupportsFast) args.push('--settings', '{"fastMode":true}');
 
   return args;
 }
@@ -1584,7 +1584,9 @@ export async function startPty(options: {
 
         const cliCommand = resolvedCli;
         const commandString =
-          cliArgs.length > 0 ? `${cliCommand} ${cliArgs.map(quoteShellArg).join(' ')}` : cliCommand;
+          cliArgs.length > 0
+            ? `${quoteShellArg(cliCommand)} ${cliArgs.map(quoteShellArg).join(' ')}`
+            : quoteShellArg(cliCommand);
 
         const shellBase = (defaultShell.split('/').pop() || '').toLowerCase();
 

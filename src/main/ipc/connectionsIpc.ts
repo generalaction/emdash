@@ -66,6 +66,10 @@ async function fetchAnthropicModels(): Promise<ClaudeModel[] | null> {
         timeout: 5000,
       },
       (res) => {
+        if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+          resolve(null);
+          return;
+        }
         let data = '';
         res.on('data', (chunk: Buffer) => (data += chunk.toString()));
         res.on('end', () => {
