@@ -7,7 +7,10 @@ import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import { TerminalProvider } from '@main/core/terminals/terminal-provider';
+import {
+  type LifecycleScriptSpawnRequest,
+  type TerminalProvider,
+} from '@main/core/terminals/terminal-provider';
 import { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
@@ -15,6 +18,13 @@ import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const MAX_RESPAWNS = 2;
+
+type SpawnPolicy = {
+  respawnOnExit: boolean;
+  preserveBufferOnExit: boolean;
+  watchDevServer: boolean;
+  trackForRehydrate: boolean;
+};
 
 export class SshTerminalProvider implements TerminalProvider {
   private sessions = new Map<string, Pty>();
@@ -63,8 +73,41 @@ export class SshTerminalProvider implements TerminalProvider {
     initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     command?: { command: string; args: string[] }
   ): Promise<void> {
-    this.terminals.set(terminal.id, terminal);
+    return this.spawnWithPolicy(terminal, initialSize, command, {
+      respawnOnExit: true,
+      preserveBufferOnExit: false,
+      watchDevServer: true,
+      trackForRehydrate: true,
+    });
+  }
+
+  async spawnLifecycleScript({
+    terminal,
+    command,
+    initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    respawnOnExit = false,
+    preserveBufferOnExit = true,
+    watchDevServer = false,
+  }: LifecycleScriptSpawnRequest): Promise<void> {
+    return this.spawnWithPolicy(terminal, initialSize, { command, args: [] }, {
+      respawnOnExit,
+      preserveBufferOnExit,
+      watchDevServer,
+      trackForRehydrate: false,
+    });
+  }
+
+  private async spawnWithPolicy(
+    terminal: Terminal,
+    initialSize: { cols: number; rows: number },
+    command: { command: string; args: string[] } | undefined,
+    policy: SpawnPolicy
+  ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+    if (this.sessions.has(sessionId)) return;
+    if (policy.trackForRehydrate) {
+      this.terminals.set(terminal.id, terminal);
+    }
 
     const cfg: GeneralSessionConfig = {
       taskId: this.taskId,
@@ -93,17 +136,21 @@ export class SshTerminalProvider implements TerminalProvider {
     }
     const pty = result.data;
 
-    wireTerminalDevServerWatcher({
-      pty,
-      taskId: this.taskId,
-      terminalId: terminal.id,
-      probe: false,
-    });
+    if (policy.watchDevServer) {
+      wireTerminalDevServerWatcher({
+        pty,
+        taskId: this.taskId,
+        terminalId: terminal.id,
+        probe: false,
+      });
+    }
 
     pty.onExit(() => {
-      ptySessionRegistry.unregister(sessionId);
-      const shouldRespawn = this.sessions.has(sessionId);
+      const shouldRespawn = policy.respawnOnExit && this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
+      if (!policy.preserveBufferOnExit) {
+        ptySessionRegistry.unregister(sessionId);
+      }
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
@@ -118,7 +165,7 @@ export class SshTerminalProvider implements TerminalProvider {
         }
 
         setTimeout(() => {
-          this.spawnTerminal(terminal).catch((e) => {
+          this.spawnWithPolicy(terminal, initialSize, command, policy).catch((e) => {
             log.error('SshTerminalProvider: respawn failed', {
               terminalId: terminal.id,
               error: String(e),
@@ -128,7 +175,9 @@ export class SshTerminalProvider implements TerminalProvider {
       }
     });
 
-    ptySessionRegistry.register(sessionId, pty);
+    ptySessionRegistry.register(sessionId, pty, {
+      preserveBufferOnExit: policy.preserveBufferOnExit,
+    });
     this.sessions.set(sessionId, pty);
   }
 
