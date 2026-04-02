@@ -6,7 +6,7 @@ import { EMDASH_RELEASES_URL, useUpdater } from '@renderer/hooks/useUpdater';
 import { rpc } from '../../core/ipc';
 import { SettingRow } from './SettingRow';
 
-export function UpdateCard(): JSX.Element {
+export function UpdateCard(): React.JSX.Element {
   const updater = useUpdater();
   const [appVersion, setAppVersion] = useState<string>('');
   const [isDev, setIsDev] = useState(false);
@@ -14,7 +14,7 @@ export function UpdateCard(): JSX.Element {
   useEffect(() => {
     rpc.app
       .getAppVersion()
-      .then((r: any) => setAppVersion(typeof r === 'string' ? r : (r?.version ?? 'Unknown')))
+      .then(setAppVersion)
       .catch(() => setAppVersion('Unknown'));
 
     setIsDev(window.location.hostname === 'localhost' || !window.electronAPI);
