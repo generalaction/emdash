@@ -12,6 +12,7 @@ import type { BaseModalProps } from '@/contexts/ModalProvider';
 import { SlugInput } from './ui/slug-input';
 import { Label } from './ui/label';
 import { MultiAgentDropdown } from './MultiAgentDropdown';
+import { ClaudeOptionsSection } from './ClaudeOptionsSection';
 import { TaskAdvancedSettings } from './TaskAdvancedSettings';
 import { useIntegrationStatus } from './hooks/useIntegrationStatus';
 import { type Agent } from '../types';
@@ -170,6 +171,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
   );
   const [autoApprove, setAutoApprove] = useState(false);
   const [useWorktree, setUseWorktree] = useState(true);
+  const [claudeModel, setClaudeModel] = useState('');
+  const [claudeEffort, setClaudeEffort] = useState('');
+  const [claudeFastMode, setClaudeFastMode] = useState(false);
   const [useRemoteWorkspace, setUseRemoteWorkspace] = useState(false);
   const [workspaceProviderConfig, setWorkspaceProviderConfig] = useState<{
     provisionCommand: string;
@@ -234,6 +238,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
   // Computed values
   const activeAgents = useMemo(() => agentRuns.map((ar) => ar.agent), [agentRuns]);
   const hasAutoApproveSupport = activeAgents.every((id) => !!agentMeta[id]?.autoApproveFlag);
+  const hasClaudeAgent = activeAgents.some((id) => id === 'claude');
   const hasInitialPromptSupport = activeAgents.every(
     (id) => agentMeta[id]?.initialPromptFlag !== undefined
   );
@@ -292,6 +297,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
     setSelectedForgejoIssue(null);
     setAutoApprove(false);
     setUseWorktree(true);
+    setClaudeModel('');
+    setClaudeEffort('');
+    setClaudeFastMode(false);
     userHasTypedRef.current = false;
     autoNameInitializedRef.current = false;
     customNameTrackedRef.current = false;
@@ -440,11 +448,22 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
 
     setIsCreating(true);
 
+    // Inject Claude-specific options into every Claude run
+    const enrichedAgentRuns = agentRuns.map((ar) => {
+      if (ar.agent !== 'claude') return ar;
+      return {
+        ...ar,
+        ...(claudeModel ? { model: claudeModel } : {}),
+        ...(claudeEffort ? { effort: claudeEffort } : {}),
+        ...(claudeFastMode ? { fastMode: true } : {}),
+      };
+    });
+
     try {
       await onCreateTask(
         finalName,
         hasInitialPromptSupport && initialPrompt.trim() ? initialPrompt.trim() : undefined,
-        agentRuns,
+        enrichedAgentRuns,
         selectedLinearIssue,
         selectedGithubIssue,
         selectedJiraIssue,
@@ -534,6 +553,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, initialProject, onCreate
             <Label className="shrink-0">Agent</Label>
             <MultiAgentDropdown agentRuns={agentRuns} onChange={setAgentRuns} />
           </div>
+
+          {hasClaudeAgent && (
+            <ClaudeOptionsSection
+              model={claudeModel}
+              onModelChange={setClaudeModel}
+              effort={claudeEffort}
+              onEffortChange={setClaudeEffort}
+              fastMode={claudeFastMode}
+              onFastModeChange={setClaudeFastMode}
+            />
+          )}
 
           <TaskAdvancedSettings
             isOpen={true}

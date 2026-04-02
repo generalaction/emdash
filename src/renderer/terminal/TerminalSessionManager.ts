@@ -88,6 +88,9 @@ export interface TerminalSessionOptions {
   } | null;
   autoApprove?: boolean;
   initialPrompt?: string;
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
   mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
@@ -1420,8 +1423,19 @@ export class TerminalSessionManager {
 
     this.ptyConnectPromise = (async () => {
       this.ptyConnectStartTime = performance.now();
-      const { taskId, cwd, providerId, shell, env, initialSize, autoApprove, initialPrompt } =
-        this.options;
+      const {
+        taskId,
+        cwd,
+        providerId,
+        shell,
+        env,
+        initialSize,
+        autoApprove,
+        initialPrompt,
+        model,
+        effort,
+        fastMode,
+      } = this.options;
       const id = taskId;
 
       // Provider CLIs use direct spawn (bypasses shell config loading)
@@ -1439,6 +1453,9 @@ export class TerminalSessionManager {
               initialPrompt,
               env,
               resume: hasExistingSession,
+              model,
+              effort,
+              fastMode,
             })
           : window.electronAPI.ptyStart({
               id,

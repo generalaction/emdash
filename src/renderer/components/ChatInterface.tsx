@@ -215,6 +215,18 @@ const ChatInterface: React.FC<Props> = ({
     [activeConversation?.metadata]
   );
 
+  // Per-conversation Claude options (model/effort/fastMode set when adding an agent via CreateChatModal)
+  const conversationClaudeOptions = useMemo(() => {
+    if (!activeConversation || activeConversation.isMain) return null;
+    const parsed = parseConversationMetadata(activeConversation.metadata);
+    if (!parsed || parsed.mode) return null; // skip review/mode conversations
+    return {
+      model: typeof parsed.model === 'string' && parsed.model ? parsed.model : undefined,
+      effort: typeof parsed.effort === 'string' && parsed.effort ? parsed.effort : undefined,
+      fastMode: parsed.fastMode === true,
+    };
+  }, [activeConversation]);
+
   // Update terminal ID to include conversation ID and agent - unique per conversation
   const terminalId = useMemo(() => {
     if (activeConversation?.isMain) {
@@ -1286,6 +1298,13 @@ const ChatInterface: React.FC<Props> = ({
                   remote={effectiveRemote}
                   providerId={agent}
                   autoApprove={autoApproveEnabled}
+                  model={conversationClaudeOptions?.model ?? task.metadata?.agentModel ?? undefined}
+                  effort={
+                    conversationClaudeOptions?.effort ?? task.metadata?.agentEffort ?? undefined
+                  }
+                  fastMode={
+                    conversationClaudeOptions?.fastMode || task.metadata?.agentFastMode || false
+                  }
                   env={taskEnv}
                   keepAlive={true}
                   mapShiftEnterToCtrlJ
