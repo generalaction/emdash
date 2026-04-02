@@ -30,7 +30,7 @@ describe('adaptForward (canonical → agent)', () => {
     it('does not overwrite existing Accept header', () => {
       const server = { type: 'http', url: 'https://x.com', headers: { Accept: 'custom' } };
       const result = adaptForward('gemini', { s1: server });
-      expect((result.s1 as any).headers.Accept).toBe('custom');
+      expect(result.s1).toMatchObject({ headers: { Accept: 'custom' } });
     });
   });
 
@@ -38,7 +38,7 @@ describe('adaptForward (canonical → agent)', () => {
     it('keeps only url and headers for HTTP servers', () => {
       const result = adaptForward('cursor', { s1: httpServer });
       expect(result.s1).toEqual({ url: 'https://example.com/mcp', headers: { 'X-Key': 'abc' } });
-      expect((result.s1 as any).type).toBeUndefined();
+      expect(result.s1).not.toHaveProperty('type');
     });
 
     it('leaves stdio servers unchanged', () => {
@@ -79,13 +79,13 @@ describe('adaptForward (canonical → agent)', () => {
   describe('copilot', () => {
     it('adds tools: ["*"] if missing', () => {
       const result = adaptForward('copilot', { s1: stdioServer });
-      expect((result.s1 as any).tools).toEqual(['*']);
+      expect(result.s1).toHaveProperty('tools', ['*']);
     });
 
     it('preserves existing tools', () => {
       const server = { ...stdioServer, tools: ['read'] };
       const result = adaptForward('copilot', { s1: server });
-      expect((result.s1 as any).tools).toEqual(['read']);
+      expect(result.s1).toHaveProperty('tools', ['read']);
     });
   });
 });
@@ -108,7 +108,7 @@ describe('adaptReverse (agent → canonical)', () => {
       };
       const result = adaptReverse('gemini', servers);
       expect(result.s1).toMatchObject({ type: 'http', url: 'https://example.com' });
-      expect((result.s1 as any).httpUrl).toBeUndefined();
+      expect(result.s1).not.toHaveProperty('httpUrl');
     });
 
     it('strips injected Accept header during reverse', () => {
@@ -119,7 +119,7 @@ describe('adaptReverse (agent → canonical)', () => {
         },
       };
       const result = adaptReverse('gemini', servers);
-      expect((result.s1 as any).headers).toEqual({ 'X-Key': 'abc' });
+      expect(result.s1).toHaveProperty('headers', { 'X-Key': 'abc' });
     });
 
     it('removes headers entirely when only injected Accept remains', () => {
@@ -130,7 +130,7 @@ describe('adaptReverse (agent → canonical)', () => {
         },
       };
       const result = adaptReverse('gemini', servers);
-      expect((result.s1 as any).headers).toBeUndefined();
+      expect(result.s1).not.toHaveProperty('headers');
     });
 
     it('preserves custom Accept header', () => {
@@ -141,7 +141,7 @@ describe('adaptReverse (agent → canonical)', () => {
         },
       };
       const result = adaptReverse('gemini', servers);
-      expect((result.s1 as any).headers).toEqual({ Accept: 'text/html' });
+      expect(result.s1).toHaveProperty('headers', { Accept: 'text/html' });
     });
   });
 
@@ -149,7 +149,7 @@ describe('adaptReverse (agent → canonical)', () => {
     it('adds type: http when url is present and no command', () => {
       const servers: ServerMap = { s1: { url: 'https://example.com', headers: {} } };
       const result = adaptReverse('cursor', servers);
-      expect((result.s1 as any).type).toBe('http');
+      expect(result.s1).toHaveProperty('type', 'http');
     });
 
     it('leaves stdio servers unchanged', () => {
@@ -173,7 +173,7 @@ describe('adaptReverse (agent → canonical)', () => {
       };
       const result = adaptReverse('opencode', servers);
       expect(result.s1).toMatchObject({ type: 'http', url: 'https://example.com' });
-      expect((result.s1 as any).enabled).toBeUndefined();
+      expect(result.s1).not.toHaveProperty('enabled');
     });
 
     it('strips injected Accept header during reverse', () => {
@@ -186,7 +186,7 @@ describe('adaptReverse (agent → canonical)', () => {
         },
       };
       const result = adaptReverse('opencode', servers);
-      expect((result.s1 as any).headers).toEqual({ 'X-Key': 'abc' });
+      expect(result.s1).toHaveProperty('headers', { 'X-Key': 'abc' });
     });
 
     it('converts local type back to stdio canonical', () => {
@@ -195,7 +195,7 @@ describe('adaptReverse (agent → canonical)', () => {
       };
       const result = adaptReverse('opencode', servers);
       expect(result.s1).toMatchObject({ command: 'npx', args: ['-y', 'foo'] });
-      expect((result.s1 as any).type).toBeUndefined();
+      expect(result.s1).not.toHaveProperty('type');
     });
   });
 
@@ -203,13 +203,13 @@ describe('adaptReverse (agent → canonical)', () => {
     it('strips tools: ["*"]', () => {
       const servers: ServerMap = { s1: { command: 'npx', args: ['foo'], tools: ['*'] } };
       const result = adaptReverse('copilot', servers);
-      expect((result.s1 as any).tools).toBeUndefined();
+      expect(result.s1).not.toHaveProperty('tools');
     });
 
     it('preserves non-wildcard tools', () => {
       const servers: ServerMap = { s1: { command: 'npx', args: ['foo'], tools: ['read'] } };
       const result = adaptReverse('copilot', servers);
-      expect((result.s1 as any).tools).toEqual(['read']);
+      expect(result.s1).toHaveProperty('tools', ['read']);
     });
   });
 });
