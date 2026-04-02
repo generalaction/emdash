@@ -62,11 +62,12 @@ interface Props {
   onRenameTask?: (project: Project, task: Task, newName: string) => Promise<void>;
 }
 
-function ConversationTabButton({
+export function ConversationTabButton({
   conversation,
   activeConversationId,
   onSwitchChat,
   onCloseChat,
+  onRenameConversation,
   totalConversationCount,
   fallbackBusy,
   taskId,
@@ -75,6 +76,7 @@ function ConversationTabButton({
   activeConversationId: string | null;
   onSwitchChat: (conversationId: string) => void;
   onCloseChat: (conversationId: string) => void;
+  onRenameConversation: (conversationId: string, newTitle: string) => void | Promise<void>;
   totalConversationCount: number;
   fallbackBusy: boolean;
   taskId: string;
@@ -83,6 +85,9 @@ function ConversationTabButton({
   const convAgent = conversation.provider ?? 'claude';
   const config = agentConfig[convAgent as Agent];
   const tabLabel = getConversationTabLabel(conversation);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(tabLabel);
+  const inputRef = useRef<HTMLInputElement>(null);
   const semanticStatus = useConversationStatus({
     statusId: conversation.isMain ? taskId : conversation.id,
     ptySuffix: conversation.isMain ? taskId : conversation.id,
@@ -91,9 +96,55 @@ function ConversationTabButton({
   const unread = useStatusUnread(conversation.isMain ? taskId : conversation.id);
   const displayStatus = semanticStatus === 'unknown' && fallbackBusy ? 'working' : semanticStatus;
 
+  const handleStartRename = useCallback(() => {
+    setEditValue(tabLabel);
+    setIsEditing(true);
+  }, [tabLabel]);
+
+  const handleCancelRename = useCallback(() => {
+    setIsEditing(false);
+    setEditValue(tabLabel);
+  }, [tabLabel]);
+
+  const handleConfirmRename = useCallback(async () => {
+    const nextTitle = editValue.trim();
+    if (!nextTitle || nextTitle === conversation.title) {
+      handleCancelRename();
+      return;
+    }
+
+    setIsEditing(false);
+    await onRenameConversation(conversation.id, nextTitle);
+  }, [conversation.id, conversation.title, editValue, handleCancelRename, onRenameConversation]);
+
+  useEffect(() => {
+    if (!isEditing || !inputRef.current) return;
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  }, [isEditing]);
+
+  useEffect(() => {
+    if (isEditing) return;
+    setEditValue(tabLabel);
+  }, [isEditing, tabLabel]);
+
   return (
-    <button
-      onClick={() => onSwitchChat(conversation.id)}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        if (isEditing) return;
+        onSwitchChat(conversation.id);
+      }}
+      onKeyDown={(e) => {
+        if (isEditing) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSwitchChat(conversation.id);
+        }
+      }}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
         'inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors',
@@ -113,7 +164,40 @@ function ConversationTabButton({
           className="h-3.5 w-3.5 flex-shrink-0"
         />
       )}
-      <span className="max-w-[10rem] truncate">{tabLabel}</span>
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          type="text"
+          aria-label={`Rename chat ${conversation.title}`}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void handleConfirmRename();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              handleCancelRename();
+            }
+          }}
+          onBlur={() => {
+            void handleConfirmRename();
+          }}
+          className="min-w-0 flex-1 rounded border border-border bg-background/80 px-1 py-0.5 text-xs font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+        />
+      ) : (
+        <span
+          className="max-w-[10rem] truncate"
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            handleStartRename();
+          }}
+        >
+          {tabLabel}
+        </span>
+      )}
       {totalConversationCount > 1 ? (
         <TaskStatusIndicator status={displayStatus} unread={unread && !isActive} />
       ) : null}
@@ -138,7 +222,7 @@ function ConversationTabButton({
           <X className="h-3 w-3" />
         </span>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -766,6 +850,47 @@ const ChatInterface: React.FC<Props> = ({
     [conversations, task.id, activeConversationId, toast, applyStableConversationTitles]
   );
 
+  const handleRenameConversation = useCallback(
+    async (conversationId: string, newTitle: string) => {
+      const currentConversation = conversations.find(
+        (conversation) => conversation.id === conversationId
+      );
+      const trimmedTitle = newTitle.trim();
+      if (!currentConversation || !trimmedTitle || trimmedTitle === currentConversation.title)
+        return;
+
+      const previousTitle = currentConversation.title;
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, title: trimmedTitle }
+            : conversation
+        )
+      );
+
+      try {
+        await rpc.db.updateConversationTitle({
+          conversationId,
+          title: trimmedTitle,
+        });
+      } catch (error) {
+        setConversations((prev) =>
+          prev.map((conversation) =>
+            conversation.id === conversationId
+              ? { ...conversation, title: previousTitle }
+              : conversation
+          )
+        );
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to rename chat.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [conversations, toast]
+  );
+
   // Persist last-selected agent per task (including Droid)
   useEffect(() => {
     try {
@@ -1181,6 +1306,7 @@ const ChatInterface: React.FC<Props> = ({
                         activeConversationId={activeConversationId}
                         onSwitchChat={handleSwitchChat}
                         onCloseChat={handleCloseChat}
+                        onRenameConversation={handleRenameConversation}
                         totalConversationCount={conversations.length}
                         fallbackBusy={isBusy}
                         taskId={task.id}

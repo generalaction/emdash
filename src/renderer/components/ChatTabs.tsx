@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Edit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { agentConfig } from '../lib/agentConfig';
@@ -30,6 +30,9 @@ export function ChatTabs({
   onRenameTab,
 }: ChatTabsProps) {
   const [draggedTab, setDraggedTab] = useState<string | null>(null);
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDragStart = (e: React.DragEvent, tabId: string) => {
     setDraggedTab(tabId);
@@ -50,17 +53,48 @@ export function ChatTabs({
     setDraggedTab(null);
   };
 
-  const handleRename = (tabId: string, currentTitle: string) => {
-    const newTitle = prompt('Rename chat:', currentTitle);
-    if (newTitle && newTitle.trim() && newTitle !== currentTitle) {
-      onRenameTab(tabId, newTitle.trim());
+  const handleStartRename = useCallback((tabId: string, currentTitle: string) => {
+    setEditingTabId(tabId);
+    setEditValue(currentTitle);
+  }, []);
+
+  const handleCancelRename = useCallback(() => {
+    setEditingTabId(null);
+    setEditValue('');
+  }, []);
+
+  const handleConfirmRename = useCallback(() => {
+    if (!editingTabId) return;
+
+    const currentTab = tabs.find((tab) => tab.id === editingTabId);
+    if (!currentTab) {
+      handleCancelRename();
+      return;
     }
-  };
+
+    const nextTitle = editValue.trim();
+    if (!nextTitle || nextTitle === currentTab.title) {
+      handleCancelRename();
+      return;
+    }
+
+    onRenameTab(editingTabId, nextTitle);
+    handleCancelRename();
+  }, [editValue, editingTabId, handleCancelRename, onRenameTab, tabs]);
+
+  useEffect(() => {
+    if (!editingTabId || !inputRef.current) return;
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  }, [editingTabId]);
 
   return (
     <div className="flex items-center gap-1 overflow-x-auto border-b bg-background/95 px-2 py-1 backdrop-blur">
       {tabs.map((tab) => {
         const config = tab.provider ? agentConfig[tab.provider as Agent] : null;
+        const isEditing = editingTabId === tab.id;
         return (
           <div
             key={tab.id}
@@ -85,15 +119,45 @@ export function ChatTabs({
                 className="h-4 w-4 flex-shrink-0"
               />
             )}
-            <span className="flex-1 truncate text-sm font-medium" title={tab.title}>
-              {tab.title}
-            </span>
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                type="text"
+                aria-label={`Rename chat ${tab.title}`}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirmRename();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    handleCancelRename();
+                  }
+                }}
+                onBlur={handleConfirmRename}
+                className="min-w-0 flex-1 rounded border border-border bg-background/80 px-1.5 py-0.5 text-sm font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+              />
+            ) : (
+              <span
+                className="flex-1 truncate text-sm font-medium"
+                title={tab.title}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  handleStartRename(tab.id, tab.title);
+                }}
+              >
+                {tab.title}
+              </span>
+            )}
 
             <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleRename(tab.id, tab.title);
+                  handleStartRename(tab.id, tab.title);
                 }}
                 className="rounded p-0.5 hover:bg-background/20"
                 title="Rename chat"
