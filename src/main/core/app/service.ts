@@ -1,6 +1,4 @@
 import { exec } from 'node:child_process';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { clipboard, dialog, shell } from 'electron';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';

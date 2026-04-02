@@ -1,13 +1,7 @@
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { Button } from './ui/button';
 import { ConfirmButton } from './ui/confirm-button';
-import {
-  DialogContentArea,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
+import { DialogContentArea, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 
 export type ConfirmActionDialogArgs = {
   title: string;

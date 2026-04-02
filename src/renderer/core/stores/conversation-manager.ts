@@ -176,8 +176,6 @@ export class ConversationManagerStore
   }
 }
 
-type ConversationStatus = 'connecting' | 'ready';
-
 export class ConversationStore {
   data: Conversation;
   session: PtySession;

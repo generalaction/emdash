@@ -1,4 +1,4 @@
-import type { McpLoadAllResponse, McpServer, RawServerEntry, ServerMap } from '@shared/mcp/types';
+import type { McpLoadAllResponse, McpServer, ServerMap } from '@shared/mcp/types';
 import { log } from '@main/lib/logger';
 import { adaptForward, adaptReverse } from '../utils/adapters';
 import { loadCatalog } from '../utils/catalog';

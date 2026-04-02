@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
 import { useIsMonochrome } from '../../hooks/useIsMonochrome';
-import { AlertDialogContent } from '../ui/alert-dialog';
 import { Button } from '../ui/button';
 import { ConfirmButton } from '../ui/confirm-button';
 import {
@@ -15,7 +14,6 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { MarkdownRenderer } from '../ui/markdown-renderer';
-import { Separator } from '../ui/separator';
 
 const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
   const letter = skill.displayName.charAt(0).toUpperCase();

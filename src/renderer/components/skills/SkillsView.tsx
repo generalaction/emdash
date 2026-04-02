@@ -13,7 +13,6 @@ import {
 } from '@renderer/components/ui/dialog';
 import { Input } from '@renderer/components/ui/input';
 import { Label } from '@renderer/components/ui/label';
-import { Separator } from '@renderer/components/ui/separator';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { rpc } from '@renderer/core/ipc';
 import { captureTelemetry } from '@renderer/lib/telemetryClient';
