@@ -4,7 +4,7 @@ import { getTaskGitStore } from '@renderer/core/stores/task-selectors';
 export function useGitActions(projectId: string, taskId: string) {
   const git = getTaskGitStore(projectId, taskId)!;
 
-  const hasUpstream = git?.branchStatus?.upstream;
+  const hasUpstream = git?.isBranchPublished;
 
   const gitFetchMutation = useMutation({
     mutationFn: () => git.fetchRemote(),

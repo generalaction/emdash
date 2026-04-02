@@ -10,6 +10,7 @@ import { EditorViewStore } from './editor-view-store';
 import { FilesStore } from './files-store';
 import { GitStore } from './git';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
+import { PrStore } from './pr-store';
 import { snapshotRegistry } from './snapshot-registry';
 import { TerminalManagerStore } from './terminal-manager';
 
@@ -52,6 +53,7 @@ export interface IProvisionedTask {
   lifecycleScripts: LifecycleScriptsStore;
   diffView: DiffViewStore;
   devServers: DevServerStore;
+  pr: PrStore;
   view: MainPanelView;
   rightPanelView: RightPanelView;
   focusedRegion: 'main' | 'right';
@@ -75,6 +77,7 @@ export class TaskStore {
   lifecycleScripts: LifecycleScriptsStore | null = null;
   diffView: DiffViewStore | null = null;
   devServers: DevServerStore | null = null;
+  pr: PrStore | null = null;
 
   // View state — populated once provisioned
   view: MainPanelView | null = null;
@@ -113,7 +116,8 @@ export class TaskStore {
     this.git = new GitStore(data.projectId, data.id);
     this.files = new FilesStore(data.projectId, data.id);
     this.lifecycleScripts = new LifecycleScriptsStore(data.projectId, data.id);
-    this.diffView = new DiffViewStore(this.git);
+    this.pr = new PrStore(data.projectId, data.id, this.git);
+    this.diffView = new DiffViewStore(this.git, this.pr);
     this.devServers = new DevServerStore(data.id);
     this.editorView = new EditorViewStore(data.projectId, data.id);
 
@@ -153,6 +157,7 @@ export class TaskStore {
     this.lifecycleScripts = null;
     this.diffView = null;
     this.devServers = null;
+    this.pr = null;
     this.view = null;
     this.rightPanelView = null;
     this.editorView = null;
@@ -173,6 +178,7 @@ export class TaskStore {
     this.lifecycleScripts = null;
     this.diffView = null;
     this.devServers = null;
+    this.pr = null;
     this.view = null;
     this.rightPanelView = null;
     this.editorView = null;
@@ -183,10 +189,9 @@ export class TaskStore {
   }
 
   activate(): void {
-    void this.git!.load();
     this.git!.startWatching();
-    void this.files!.loadRoot();
     this.files!.startWatching();
+    this.pr!.start();
     this.editorView!.initialize();
   }
 
@@ -252,6 +257,7 @@ export class TaskStore {
     this.files?.dispose();
     this.diffView?.dispose();
     this.devServers?.dispose();
+    this.pr?.dispose();
     if (this.conversations) {
       for (const conv of this.conversations.conversations.values()) {
         conv.dispose();

@@ -13,7 +13,6 @@ import { useModelStatus } from '@renderer/core/monaco/use-model';
 import { MAX_STACKED_FILES } from '@renderer/core/stores/diff-view-store';
 import { getLanguageFromPath } from '@renderer/lib/languageUtils';
 import { cn } from '@renderer/lib/utils';
-import { usePrContext } from '@renderer/views/tasks/diff-view/state/pr-provider';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
 const LARGE_DIFF_LINE_THRESHOLD = 2500;
@@ -21,15 +20,15 @@ const LARGE_DIFF_LINE_THRESHOLD = 2500;
 export const StackedDiffView = observer(function StackedDiffView() {
   const provisioned = useProvisionedTask();
   const git = provisioned?.git;
+  const pr = provisioned?.pr;
   const activeFile = provisioned?.diffView.activeFile ?? null;
   const stagedFileChanges = git?.stagedFileChanges ?? [];
   const unstagedFileChanges = git?.unstagedFileChanges ?? [];
-  const { pullRequests, prFilesMap } = usePrContext();
 
   if (activeFile?.type === 'git') {
     const originalRef = activeFile.originalRef;
-    const pr = pullRequests.find((p) => p.metadata.baseRefName === originalRef);
-    const files = pr ? (prFilesMap[pr.id] ?? []) : [];
+    const activePr = pr?.pullRequests.find((p) => p.metadata.baseRefName === originalRef);
+    const files = activePr ? (pr?.getFiles(activePr).data ?? []) : [];
     return <StackedDiffPanel files={files} diffType="git" originalRef={originalRef} />;
   }
 

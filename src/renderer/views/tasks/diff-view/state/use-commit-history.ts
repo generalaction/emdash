@@ -1,19 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
-import { rpc } from '@renderer/core/ipc';
-import { extractErrorMessage } from '../../../../core/git/utils';
+import { useRequireProvisionedTask } from '../../task-view-context';
 
-export function useCommitHistory({ projectId, taskId }: { projectId: string; taskId: string }) {
-  const commitHistoryQuery = useQuery({
-    queryKey: ['commit-history', projectId, taskId],
-    queryFn: async () => {
-      const result = await rpc.git.getLog(projectId, taskId);
-      if (!result.success) throw new Error(extractErrorMessage(result.error));
-      return result.data.commits;
-    },
-  });
+/**
+ * Reads the task's commit history from PrStore.commitHistory.
+ * The Resource uses a 'demand' strategy — it loads on first observation and
+ * stays cached as long as the task is provisioned.
+ */
+export function useCommitHistory() {
+  const prStore = useRequireProvisionedTask().pr;
+  const resource = prStore.commitHistory;
 
   return {
-    isLoading: commitHistoryQuery.isLoading,
-    commits: commitHistoryQuery.data ?? [],
+    isLoading: resource.loading,
+    commits: resource.data?.commits ?? [],
+    aheadCount: resource.data?.aheadCount ?? 0,
   };
 }

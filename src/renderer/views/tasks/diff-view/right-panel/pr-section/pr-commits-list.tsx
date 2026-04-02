@@ -1,22 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
 import { GitCommitHorizontal, Loader2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import type { Commit } from '@shared/git';
-import { rpc } from '@renderer/core/ipc';
 import { formatRelativeTime } from '@renderer/lib/github';
-import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
 
-export function PrCommitsList() {
-  const { projectId, taskId } = useTaskViewContext();
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['commit-history', projectId, taskId],
-    queryFn: async () => {
-      const result = await rpc.git.getLog(projectId, taskId);
-      if (!result.success) return { commits: [] as Commit[], aheadCount: 0 };
-      return result.data;
-    },
-    staleTime: 30_000,
-  });
+export const PrCommitsList = observer(function PrCommitsList() {
+  const prStore = useRequireProvisionedTask().pr;
+  const { data, loading } = prStore.commitHistory;
 
   const aheadCount = data?.aheadCount ?? 0;
   const allCommits = data?.commits ?? [];
@@ -24,7 +14,7 @@ export function PrCommitsList() {
   // If aheadCount is 0 (e.g. upstream not configured), fall back to all commits.
   const commits = aheadCount > 0 ? allCommits.slice(0, aheadCount) : allCommits;
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-6">
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -43,7 +33,7 @@ export function PrCommitsList() {
       ))}
     </div>
   );
-}
+});
 
 function CommitItem({ commit }: { commit: Commit }) {
   const shortHash = commit.hash.slice(0, 7);

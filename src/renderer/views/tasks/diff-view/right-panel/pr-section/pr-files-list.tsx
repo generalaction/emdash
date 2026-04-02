@@ -2,24 +2,29 @@ import { observer } from 'mobx-react-lite';
 import type { GitChange } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 import { usePrefetchModels } from '@renderer/views/tasks/diff-view/right-panel/use-prefetch-models';
-import { usePrContext } from '@renderer/views/tasks/diff-view/state/pr-provider';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
+import {
+  useProvisionedTask,
+  useRequireProvisionedTask,
+  useTaskViewContext,
+} from '@renderer/views/tasks/task-view-context';
 import { VirtualizedChangesList } from '../virtualized-changes-list';
 
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {
-  const { prFilesMap, activePrFilePath, setActivePrFilePath } = usePrContext();
   const { projectId, taskId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
+  const prStore = useRequireProvisionedTask().pr;
   const diffView = provisioned?.diffView;
   const setView = (v: string) => provisioned?.setView(v as 'agents' | 'editor' | 'diff');
 
   const baseRef = pr.metadata.baseRefName;
-  const prFiles = prFilesMap[pr.id] ?? [];
+  const prFiles = prStore.getFiles(pr).data ?? [];
 
   const prefetchPrDiff = usePrefetchModels(projectId, taskId, 'git', baseRef);
 
+  // Use diffView.activeFile to derive the active path — avoids separate React state.
+  const activePath = diffView?.activeFile?.type === 'git' ? diffView.activeFile.path : undefined;
+
   const handleSelectChange = (change: GitChange) => {
-    setActivePrFilePath(change.path);
     diffView?.setActiveFile({ path: change.path, type: 'git', originalRef: baseRef });
     setView('diff');
   };
@@ -28,7 +33,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
     <VirtualizedChangesList
       className="py-3"
       changes={prFiles}
-      activePath={activePrFilePath ?? undefined}
+      activePath={activePath}
       onSelectChange={handleSelectChange}
       onPrefetch={(change) => prefetchPrDiff(change.path)}
     />

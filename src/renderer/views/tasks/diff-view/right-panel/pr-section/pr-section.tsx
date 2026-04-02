@@ -9,7 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-gro
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { cn } from '@renderer/lib/utils';
-import { usePrContext } from '@renderer/views/tasks/diff-view/state/pr-provider';
+import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
 import { PrChecksList } from './pr-checks-list';
 import { PrCommitsList } from './pr-commits-list';
 import { PrFilesList } from './pr-files-list';
@@ -173,7 +173,7 @@ function MergeFooter({
 
 export function PullRequestEntry({ pr }: { pr: PullRequest }) {
   const prStatus = pr.status;
-  const { mergePr, markReadyForReview, refreshPullRequest } = usePrContext();
+  const prStore = useRequireProvisionedTask().pr;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
   const [tab, setTab] = useState<'files' | 'commits' | 'checks'>('files');
@@ -183,7 +183,7 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
   const doMerge = async (strategy: MergeMode) => {
     setIsMerging(true);
     try {
-      await mergePr(pr.id, { strategy, commitHeadOid: pr.metadata.headRefOid });
+      await prStore.mergePr(pr.id, { strategy, commitHeadOid: pr.metadata.headRefOid });
     } finally {
       setIsMerging(false);
     }
@@ -251,9 +251,7 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {tab === 'files' && <PrFilesList pr={pr} />}
           {tab === 'commits' && <PrCommitsList />}
-          {tab === 'checks' && (
-            <PrChecksList nameWithOwner={pr.nameWithOwner} prNumber={pr.metadata.number} />
-          )}
+          {tab === 'checks' && <PrChecksList pr={pr} />}
         </div>
       </div>
       {prStatus === 'open' && (
@@ -261,8 +259,10 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
           uiState={uiState}
           mergeActions={mergeActions}
           isMerging={isMerging}
-          onRefresh={() => refreshPullRequest(pr.id)}
-          onMarkReady={() => void markReadyForReview(pr.id)}
+          onRefresh={() => prStore.refresh(pr.id)}
+          onMarkReady={() => {
+            prStore.markReadyForReview(pr.id).catch(() => {});
+          }}
         />
       )}
     </div>

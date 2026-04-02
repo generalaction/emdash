@@ -1,9 +1,14 @@
-import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { computed, makeObservable, reaction } from 'mobx';
 import { toast } from 'sonner';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { GitChange } from '@shared/git';
 import { err, ok } from '@shared/result';
 import { events, rpc } from '@renderer/core/ipc';
+import { Resource } from './resource';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface BranchStatus {
   branch: string;
@@ -12,124 +17,173 @@ export interface BranchStatus {
   behind: number;
 }
 
+interface GitStatusData {
+  changes: GitChange[];
+  totalLinesAdded: number;
+  totalLinesDeleted: number;
+}
+
+// ---------------------------------------------------------------------------
+// GitStore
+// ---------------------------------------------------------------------------
+
 export class GitStore {
-  fileChanges: GitChange[] = [];
-  stagedFileChanges: GitChange[] = [];
-  unstagedFileChanges: GitChange[] = [];
-  totalLinesAdded = 0;
-  totalLinesDeleted = 0;
-  isLoading = false;
-  error: string | undefined = undefined;
-
-  branchStatus: BranchStatus | null = null;
-  branchStatusLoading = false;
-  branchStatusError: string | undefined = undefined;
-
-  private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private _unsubscribe: (() => void) | null = null;
-  private _branchStatusPollTimer: ReturnType<typeof setInterval> | null = null;
+  readonly status: Resource<GitStatusData>;
+  readonly branchStatus: Resource<BranchStatus>;
 
   constructor(
     private readonly projectId: string,
     private readonly taskId: string
   ) {
+    this.status = new Resource<GitStatusData>(
+      () => this._fetchStatus(),
+      [
+        {
+          kind: 'event',
+          subscribe: (handler) => {
+            rpc.fs.watchSetPaths(projectId, taskId, ['.git'], 'git-store').catch(() => {});
+            const unsub = events.on(fsWatchEventChannel, () => handler(), taskId);
+            return () => {
+              unsub();
+              rpc.fs.watchStop(projectId, taskId, 'git-store').catch(() => {});
+            };
+          },
+          onEvent: 'reload',
+          debounceMs: 400,
+        },
+      ]
+    );
+
+    this.branchStatus = new Resource<BranchStatus>(
+      () => this._fetchBranchStatus(),
+      [{ kind: 'poll', intervalMs: 10_000, pauseWhenHidden: true, demandGated: true }]
+    );
+
     makeObservable(this, {
-      fileChanges: observable,
-      stagedFileChanges: observable,
-      unstagedFileChanges: observable,
-      totalLinesAdded: observable,
-      totalLinesDeleted: observable,
-      isLoading: observable,
-      error: observable,
-      branchStatus: observable,
-      branchStatusLoading: observable,
-      branchStatusError: observable,
-      load: action,
-      loadBranchStatus: action,
-      stageFiles: action,
-      stageAllFiles: action,
-      unstageFiles: action,
-      unstageAllFiles: action,
-      discardFiles: action,
-      discardAllFiles: action,
-      commit: action,
-      fetchRemote: action,
-      push: action,
-      publishBranch: action,
-      pull: action,
+      fileChanges: computed,
+      stagedFileChanges: computed,
+      unstagedFileChanges: computed,
+      totalLinesAdded: computed,
+      totalLinesDeleted: computed,
+      isLoading: computed,
+      error: computed,
       isBranchPublished: computed,
       aheadCount: computed,
       behindCount: computed,
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Forwarded computed getters — all existing consumer sites unchanged
+  // ---------------------------------------------------------------------------
+
+  get fileChanges(): GitChange[] {
+    return this.status.data?.changes ?? [];
+  }
+
+  get stagedFileChanges(): GitChange[] {
+    return this.status.data?.changes.filter((c) => c.isStaged) ?? [];
+  }
+
+  get unstagedFileChanges(): GitChange[] {
+    return this.status.data?.changes.filter((c) => !c.isStaged) ?? [];
+  }
+
+  get totalLinesAdded(): number {
+    return this.status.data?.totalLinesAdded ?? 0;
+  }
+
+  get totalLinesDeleted(): number {
+    return this.status.data?.totalLinesDeleted ?? 0;
+  }
+
+  get isLoading(): boolean {
+    return this.status.loading;
+  }
+
+  get error(): string | undefined {
+    return this.status.error;
+  }
+
   get isBranchPublished(): boolean {
-    return this.branchStatus?.upstream !== undefined;
+    return this.branchStatus.data?.upstream !== undefined;
   }
 
   get aheadCount(): number {
-    return this.branchStatus?.ahead ?? 0;
+    return this.branchStatus.data?.ahead ?? 0;
   }
 
   get behindCount(): number {
-    return this.branchStatus?.behind ?? 0;
+    return this.branchStatus.data?.behind ?? 0;
   }
 
-  async load(): Promise<void> {
-    runInAction(() => {
-      this.isLoading = true;
-      this.error = undefined;
-    });
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
-    try {
-      const result = await rpc.git.getStatus(this.projectId, this.taskId);
-      runInAction(() => {
-        if (!result.success) {
-          this.error = result.error.type;
-          this.isLoading = false;
-          return;
-        }
-        const changes = result.data.changes;
-        this.fileChanges = changes;
-        this.stagedFileChanges = changes.filter((c) => c.isStaged);
-        this.unstagedFileChanges = changes.filter((c) => !c.isStaged);
-        this.totalLinesAdded = changes.reduce((sum, c) => sum + c.additions, 0);
-        this.totalLinesDeleted = changes.reduce((sum, c) => sum + c.deletions, 0);
-        this.isLoading = false;
-      });
-    } catch (e) {
-      runInAction(() => {
-        this.error = e instanceof Error ? e.message : String(e);
-        this.isLoading = false;
-      });
-    }
-
-    void this.loadBranchStatus();
+  /**
+   * Start watching — triggers initial load and activates the FS-event strategy.
+   * Called from TaskStore.activate().
+   */
+  startWatching(): void {
+    this.status.start();
   }
 
-  async loadBranchStatus(): Promise<void> {
-    runInAction(() => {
-      this.branchStatusLoading = true;
-      this.branchStatusError = undefined;
-    });
-    const result = await rpc.git.getBranchStatus(this.projectId, this.taskId);
+  dispose(): void {
+    this.status.dispose();
+    this.branchStatus.dispose();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mutation methods — invalidate relevant resources after each mutation
+  // ---------------------------------------------------------------------------
+
+  async stageFiles(paths: string[]): Promise<void> {
+    await rpc.git.stageFiles(this.projectId, this.taskId, paths);
+    this.status.invalidate();
+  }
+
+  async stageAllFiles(): Promise<void> {
+    await rpc.git.stageAllFiles(this.projectId, this.taskId);
+    this.status.invalidate();
+  }
+
+  async unstageFiles(paths: string[]): Promise<void> {
+    await rpc.git.unstageFiles(this.projectId, this.taskId, paths);
+    this.status.invalidate();
+  }
+
+  async unstageAllFiles(): Promise<void> {
+    await rpc.git.unstageAllFiles(this.projectId, this.taskId);
+    this.status.invalidate();
+  }
+
+  async discardFiles(paths: string[]): Promise<void> {
+    await rpc.git.revertFiles(this.projectId, this.taskId, paths);
+    this.status.invalidate();
+  }
+
+  async discardAllFiles(): Promise<void> {
+    await rpc.git.revertAllFiles(this.projectId, this.taskId);
+    this.status.invalidate();
+  }
+
+  async commit(message: string) {
+    const result = await rpc.git.commit(this.projectId, this.taskId, message);
     if (result.success) {
-      runInAction(() => {
-        this.branchStatus = result.data;
-        this.branchStatusLoading = false;
-      });
+      this.status.invalidate();
+      this.branchStatus.invalidate();
+      return ok();
     } else {
-      runInAction(() => {
-        this.branchStatusError = result.error.type;
-        this.branchStatusLoading = false;
-      });
+      toast.error(`Failed to commit changes: ${result.error.type} `);
+      return err(result.error);
     }
   }
 
   async fetchRemote() {
     const result = await rpc.git.fetch(this.projectId, this.taskId);
     if (result.success) {
-      await this.loadBranchStatus();
+      this.branchStatus.invalidate();
       return ok();
     } else {
       toast.error(`Failed to fetch remote changes: ${result.error.type} `);
@@ -140,7 +194,7 @@ export class GitStore {
   async push() {
     const result = await rpc.git.push(this.projectId, this.taskId);
     if (result.success) {
-      await this.loadBranchStatus();
+      this.branchStatus.invalidate();
       return ok();
     } else {
       const detail =
@@ -151,11 +205,11 @@ export class GitStore {
   }
 
   async publishBranch() {
-    const branchName = this.branchStatus?.branch;
+    const branchName = this.branchStatus.data?.branch;
     if (!branchName) return err({ type: 'git_error' as const, message: 'No branch checked out' });
     const result = await rpc.git.publishBranch(this.projectId, this.taskId, branchName);
     if (result.success) {
-      await this.loadBranchStatus();
+      this.branchStatus.invalidate();
       return ok();
     } else {
       const detail =
@@ -168,7 +222,8 @@ export class GitStore {
   async pull() {
     const result = await rpc.git.pull(this.projectId, this.taskId);
     if (result.success) {
-      await this.load();
+      this.status.invalidate();
+      this.branchStatus.invalidate();
       return ok();
     } else {
       toast.error(`Failed to pull changes: ${result.error.type} `);
@@ -176,75 +231,32 @@ export class GitStore {
     }
   }
 
-  startWatching(): void {
-    rpc.fs.watchSetPaths(this.projectId, this.taskId, ['.git'], 'git-store').catch(() => {});
+  // ---------------------------------------------------------------------------
+  // Private fetch helpers
+  // ---------------------------------------------------------------------------
 
-    this._unsubscribe = events.on(
-      fsWatchEventChannel,
-      () => {
-        if (this._debounceTimer) clearTimeout(this._debounceTimer);
-        this._debounceTimer = setTimeout(() => void this.load(), 400);
-      },
-      this.taskId
-    );
-
-    this._branchStatusPollTimer = setInterval(() => {
-      void this.loadBranchStatus();
-    }, 10_000);
+  private async _fetchStatus(): Promise<GitStatusData> {
+    const result = await rpc.git.getStatus(this.projectId, this.taskId);
+    if (!result.success) throw new Error(result.error.type);
+    const changes = result.data.changes;
+    return {
+      changes,
+      totalLinesAdded: changes.reduce((sum, c) => sum + c.additions, 0),
+      totalLinesDeleted: changes.reduce((sum, c) => sum + c.deletions, 0),
+    };
   }
 
-  dispose(): void {
-    if (this._debounceTimer) {
-      clearTimeout(this._debounceTimer);
-      this._debounceTimer = null;
-    }
-    if (this._branchStatusPollTimer) {
-      clearInterval(this._branchStatusPollTimer);
-      this._branchStatusPollTimer = null;
-    }
-    this._unsubscribe?.();
-    this._unsubscribe = null;
-    rpc.fs.watchStop(this.projectId, this.taskId, 'git-store').catch(() => {});
+  private async _fetchBranchStatus(): Promise<BranchStatus> {
+    const result = await rpc.git.getBranchStatus(this.projectId, this.taskId);
+    if (!result.success) throw new Error(result.error.type);
+    return result.data;
   }
+}
 
-  async stageFiles(paths: string[]): Promise<void> {
-    await rpc.git.stageFiles(this.projectId, this.taskId, paths);
-    await this.load();
-  }
-
-  async stageAllFiles(): Promise<void> {
-    await rpc.git.stageAllFiles(this.projectId, this.taskId);
-    await this.load();
-  }
-
-  async unstageFiles(paths: string[]): Promise<void> {
-    await rpc.git.unstageFiles(this.projectId, this.taskId, paths);
-    await this.load();
-  }
-
-  async unstageAllFiles(): Promise<void> {
-    await rpc.git.unstageAllFiles(this.projectId, this.taskId);
-    await this.load();
-  }
-
-  async discardFiles(paths: string[]): Promise<void> {
-    await rpc.git.revertFiles(this.projectId, this.taskId, paths);
-    await this.load();
-  }
-
-  async discardAllFiles(): Promise<void> {
-    await rpc.git.revertAllFiles(this.projectId, this.taskId);
-    await this.load();
-  }
-
-  async commit(message: string) {
-    const result = await rpc.git.commit(this.projectId, this.taskId, message);
-    if (result.success) {
-      await this.load();
-      return ok();
-    } else {
-      toast.error(`Failed to commit changes: ${result.error.type} `);
-      return err(result.error);
-    }
-  }
+// ---------------------------------------------------------------------------
+// Keep reaction helper for PrStore and DiffViewStore that need to react to
+// git file changes (replaces the old direct observable reference).
+// ---------------------------------------------------------------------------
+export function subscribeToGitFileChanges(git: GitStore, handler: () => void): () => void {
+  return reaction(() => git.status.data, handler);
 }

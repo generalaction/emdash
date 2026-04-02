@@ -6,13 +6,8 @@ import {
   ResizablePanelGroup,
 } from '@renderer/components/ui/resizable';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { getTaskGitStore } from '@renderer/core/stores/task-selectors';
 import { cn } from '@renderer/lib/utils';
-import { usePrContext } from '@renderer/views/tasks/diff-view/state/pr-provider';
-import {
-  useRequireProvisionedTask,
-  useTaskViewContext,
-} from '@renderer/views/tasks/task-view-context';
+import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
 import { GitStatusSection } from './git-status-section';
 import { PullRequestEntry } from './pr-section/pr-section';
 import { PullRequestSectionHeader } from './section-header';
@@ -22,7 +17,6 @@ import { SECTION_HEADER_HEIGHT, usePanelLayout } from './use-panel-layout';
 
 export const ChangesPanel = observer(function ChangesPanel() {
   const changesView = useRequireProvisionedTask().diffView.changesView;
-  const { projectId, taskId } = useTaskViewContext();
 
   const {
     expanded,
@@ -83,8 +77,6 @@ export const ChangesPanel = observer(function ChangesPanel() {
           className={cn('flex flex-col overflow-hidden', panelTransitionClass)}
         >
           <PullRequestsSection
-            projectId={projectId}
-            taskId={taskId}
             onToggleCollapsed={() => toggleExpanded('pullRequests')}
             collapsed={!expanded.pullRequests}
           />
@@ -106,23 +98,18 @@ export const ChangesPanel = observer(function ChangesPanel() {
 function PullRequestsSection({
   collapsed,
   onToggleCollapsed,
-  projectId,
-  taskId,
 }: {
   collapsed: boolean;
-  projectId: string;
-  taskId: string;
   onToggleCollapsed: () => void;
 }) {
-  const { pullRequests, nameWithOwner, taskBranch } = usePrContext();
+  const provisioned = useRequireProvisionedTask();
+  const { pullRequests, nameWithOwner, taskBranch } = provisioned.pr;
   const showCreatePrModal = useShowModal('createPrModal');
-
-  const git = getTaskGitStore(projectId, taskId);
 
   const activePr = pullRequests.find((pr) => pr.status === 'open') || pullRequests[0];
 
   const hasOpenPr = Boolean(activePr);
-  const hasUpstream = Boolean(git?.branchStatus?.upstream);
+  const hasUpstream = provisioned.git.isBranchPublished;
 
   return (
     <>

@@ -1,50 +1,47 @@
-import { action, computed, makeObservable, observable } from 'mobx';
 import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
+import type { HostPreviewEvent } from '@shared/hostPreview';
 import { events } from '@renderer/core/ipc';
+import { Resource } from './resource';
 
 export class DevServerStore {
-  private readonly taskId: string;
-  private readonly _unsubscribe: () => void;
-
-  servers = observable.map<string, string>();
+  /**
+   * Event-driven resource — starts empty, updated by `hostPreviewEventChannel`
+   * events. Each event atomically replaces the map to trigger MobX reactivity.
+   */
+  readonly servers: Resource<Map<string, string>, HostPreviewEvent>;
 
   constructor(taskId: string) {
-    this.taskId = taskId;
-    makeObservable(this, {
-      servers: observable,
-      urls: computed,
-      addServer: action,
-      removeServer: action,
-      clear: action,
-    });
+    this.servers = new Resource<Map<string, string>, HostPreviewEvent>(
+      null,
+      [
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(hostPreviewEventChannel, (event) => {
+              if (event.taskId === taskId) handler(event);
+            }),
+          onEvent: (event, ctx) => {
+            const next = new Map(ctx.data ?? []);
+            if (event.type === 'url' && event.terminalId && event.url) {
+              next.set(event.terminalId, event.url);
+            } else if (event.type === 'exit' && event.terminalId) {
+              next.delete(event.terminalId);
+            }
+            ctx.set(next);
+          },
+        },
+      ],
+      { init: new Map() }
+    );
 
-    this._unsubscribe = events.on(hostPreviewEventChannel, (event) => {
-      if (event.taskId !== this.taskId) return;
-      if (event.type === 'url' && event.terminalId && event.url) {
-        this.addServer(event.terminalId, event.url);
-      } else if (event.type === 'exit' && event.terminalId) {
-        this.removeServer(event.terminalId);
-      }
-    });
+    this.servers.start();
   }
 
   get urls(): string[] {
-    return Array.from(this.servers.values());
-  }
-
-  addServer(terminalId: string, url: string): void {
-    this.servers.set(terminalId, url);
-  }
-
-  removeServer(terminalId: string): void {
-    this.servers.delete(terminalId);
-  }
-
-  clear(): void {
-    this.servers.clear();
+    return Array.from(this.servers.data?.values() ?? []);
   }
 
   dispose(): void {
-    this._unsubscribe();
+    this.servers.dispose();
   }
 }

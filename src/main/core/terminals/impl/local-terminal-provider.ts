@@ -10,10 +10,7 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
-import {
-  type LifecycleScriptSpawnRequest,
-  type TerminalProvider,
-} from '../terminal-provider';
+import { type LifecycleScriptSpawnRequest, type TerminalProvider } from '../terminal-provider';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -82,11 +79,16 @@ export class LocalTerminalProvider implements TerminalProvider {
     preserveBufferOnExit = true,
     watchDevServer = false,
   }: LifecycleScriptSpawnRequest): Promise<void> {
-    return this.spawnWithPolicy(terminal, initialSize, { command, args: [] }, {
-      respawnOnExit,
-      preserveBufferOnExit,
-      watchDevServer,
-    });
+    return this.spawnWithPolicy(
+      terminal,
+      initialSize,
+      { command, args: [] },
+      {
+        respawnOnExit,
+        preserveBufferOnExit,
+        watchDevServer,
+      }
+    );
   }
 
   private async spawnWithPolicy(

@@ -10,5 +10,5 @@ export function selectStagedSelectionState(store: ChangesViewStore): SelectionSt
 }
 
 export function selectAheadCount(git: GitStore): number {
-  return git.branchStatus?.ahead ?? 0;
+  return git.aheadCount;
 }

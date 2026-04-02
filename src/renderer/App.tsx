@@ -4,8 +4,9 @@ import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AppContextProvider } from './core/app/AppContextProvider';
 import { ThemeProvider } from './core/app/ThemeProvider';
-import { AgentProvider } from './core/conversations/AgentProvider';
 import { DependenciesProvider } from './core/dependencies-provider';
+// Import to ensure singleton initialises and subscribes to agentEventChannel.
+import './core/stores/agent-notification-store';
 import { GithubContextProvider } from './core/github-context-provider';
 import { IntegrationsProvider } from './core/integrations/integrations-provider';
 import { ModalProvider } from './core/modal/modal-provider';
@@ -43,13 +44,11 @@ export function App() {
                     <GithubContextProvider>
                       <IntegrationsProvider>
                         <WorkspaceViewProvider>
-                          <AgentProvider>
-                            <RightSidebarProvider>
-                              <ThemeProvider>
-                                <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                              </ThemeProvider>
-                            </RightSidebarProvider>
-                          </AgentProvider>
+                          <RightSidebarProvider>
+                            <ThemeProvider>
+                              <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                            </ThemeProvider>
+                          </RightSidebarProvider>
                         </WorkspaceViewProvider>
                       </IntegrationsProvider>
                     </GithubContextProvider>

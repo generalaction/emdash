@@ -1,164 +1,126 @@
-import { action, makeObservable, observable, runInAction } from 'mobx';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { FileNode, FileWatchEvent } from '@shared/fs';
 import { events, rpc } from '@renderer/core/ipc';
 import { isExcluded, makeNode, sortedChildPaths } from '@renderer/core/stores/files-store-utils';
+import { Resource } from './resource';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface FilesData {
+  nodes: Map<string, FileNode>;
+  childIndex: Map<string | null, string[]>;
+}
+
+// ---------------------------------------------------------------------------
+// FilesStore
+// ---------------------------------------------------------------------------
 
 export class FilesStore {
-  // Non-observable imperative maps — generation drives reactive re-renders.
-  readonly nodes = new Map<string, FileNode>();
-  readonly childIndex = new Map<string | null, string[]>();
-  readonly loadedPaths = new Set<string>();
-  readonly pendingPaths = new Set<string>();
-
-  isLoading = false;
-  error: string | undefined = undefined;
-  generation = 0;
-
-  private _unsubscribe: (() => void) | null = null;
+  // Non-observable imperative maps — tree.data drives reactive re-renders.
+  private readonly _nodes = new Map<string, FileNode>();
+  private readonly _childIndex = new Map<string | null, string[]>();
+  private readonly _loadedPaths = new Set<string>();
+  private readonly _pendingPaths = new Set<string>();
   private _bumpTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * The reactive container for the file tree. Components observe `tree.data`
+   * (or access `nodes`/`childIndex` getters which read through `tree.data`).
+   * The data object reference is replaced whenever the tree structure changes,
+   * triggering MobX re-renders — replacing the old `generation` counter.
+   */
+  readonly tree: Resource<FilesData, FileWatchEvent[]>;
 
   constructor(
     private readonly projectId: string,
     private readonly taskId: string
   ) {
-    makeObservable(this, {
-      isLoading: observable,
-      error: observable,
-      generation: observable,
-      loadRoot: action,
-      loadDir: action,
-      applyWatchEvents: action,
-    });
-  }
-
-  private bump(): void {
-    this.generation++;
-  }
-
-  private bumpDebounced(): void {
-    if (this._bumpTimer) clearTimeout(this._bumpTimer);
-    this._bumpTimer = setTimeout(() => {
-      runInAction(() => this.bump());
-    }, 50);
-  }
-
-  private addNode(node: FileNode): void {
-    this.nodes.set(node.path, node);
-    const parent = node.parentPath;
-    const existing = this.childIndex.get(parent) ?? [];
-    if (!existing.includes(node.path)) {
-      this.childIndex.set(parent, sortedChildPaths([...existing, node.path], this.nodes));
-    }
-  }
-
-  private removeNode(path: string): void {
-    const node = this.nodes.get(path);
-    if (!node) return;
-
-    const siblings = this.childIndex.get(node.parentPath) ?? [];
-    this.childIndex.set(
-      node.parentPath,
-      siblings.filter((p) => p !== path)
+    this.tree = new Resource<FilesData, FileWatchEvent[]>(
+      () => this._fetchAll(),
+      [
+        {
+          kind: 'event',
+          subscribe: (handler) => {
+            rpc.fs.watchSetPaths(projectId, taskId, [''], 'filetree').catch(() => {});
+            const unsub = events.on(fsWatchEventChannel, (data) => handler(data.events), taskId);
+            return () => {
+              unsub();
+              rpc.fs.watchStop(projectId, taskId, 'filetree').catch(() => {});
+            };
+          },
+          onEvent: (watchEvents, ctx) => {
+            if (!ctx.data) {
+              ctx.reload();
+              return;
+            }
+            const changed = this._applyWatchEventsInternal(watchEvents);
+            if (changed) ctx.set({ nodes: this._nodes, childIndex: this._childIndex });
+          },
+        },
+      ]
     );
-
-    const toRemove: string[] = [path];
-    while (toRemove.length) {
-      const p = toRemove.pop()!;
-      this.nodes.delete(p);
-      this.loadedPaths.delete(p);
-      const children = this.childIndex.get(p) ?? [];
-      toRemove.push(...children);
-      this.childIndex.delete(p);
-    }
   }
 
-  private applyEntries(
-    dirPath: string,
-    entries: Array<{ path: string; type: 'file' | 'dir'; mtime?: Date }>
-  ): void {
-    const affectedParents = new Set<string | null>();
+  // ---------------------------------------------------------------------------
+  // Public reactive getters
+  // ---------------------------------------------------------------------------
 
-    for (const entry of entries) {
-      if (isExcluded(entry.path)) continue;
-      const node = makeNode(entry.path, entry.type === 'dir' ? 'directory' : 'file', entry.mtime);
-
-      this.nodes.set(node.path, node);
-
-      const parent = node.parentPath;
-      const siblings = this.childIndex.get(parent) ?? [];
-      if (!siblings.includes(node.path)) {
-        siblings.push(node.path);
-        this.childIndex.set(parent, siblings);
-      }
-      affectedParents.add(parent);
-    }
-
-    for (const parent of affectedParents) {
-      const children = this.childIndex.get(parent);
-      if (children) {
-        this.childIndex.set(parent, sortedChildPaths(children, this.nodes));
-      }
-    }
-
-    this.loadedPaths.add(dirPath);
+  /**
+   * Reading `nodes` establishes a MobX dependency on `tree.data`.
+   * When the tree structure changes (`tree.data` gets a new object reference),
+   * observer components re-render. The `??` fallback covers the initial null
+   * state; once set, `tree.data.nodes` and `_nodes` are the same Map instance.
+   */
+  get nodes(): Map<string, FileNode> {
+    return this.tree.data?.nodes ?? this._nodes;
   }
+
+  get childIndex(): Map<string | null, string[]> {
+    return this.tree.data?.childIndex ?? this._childIndex;
+  }
+
+  get loadedPaths(): Set<string> {
+    return this._loadedPaths;
+  }
+
+  get pendingPaths(): Set<string> {
+    return this._pendingPaths;
+  }
+
+  get isLoading(): boolean {
+    return this.tree.loading;
+  }
+
+  get error(): string | undefined {
+    return this.tree.error;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
+  /** Start watching — triggers initial load and subscribes to FS events. */
+  startWatching(): void {
+    this.tree.start();
+  }
+
+  dispose(): void {
+    if (this._bumpTimer) {
+      clearTimeout(this._bumpTimer);
+      this._bumpTimer = null;
+    }
+    this.tree.dispose();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public incremental loading (called from UI on expand/reveal)
+  // ---------------------------------------------------------------------------
 
   async loadDir(dirPath: string, force = false): Promise<void> {
-    if (!force && (this.loadedPaths.has(dirPath) || this.pendingPaths.has(dirPath))) return;
-    this.pendingPaths.add(dirPath);
-
-    try {
-      const result = await rpc.fs.listFiles(this.projectId, this.taskId, dirPath || '.', {
-        recursive: false,
-        includeHidden: true,
-      });
-
-      if (!result.success) {
-        if (dirPath === '') {
-          runInAction(() => {
-            this.error = 'Failed to load files';
-            this.isLoading = false;
-          });
-        }
-        return;
-      }
-
-      this.applyEntries(dirPath, result.data.entries);
-
-      runInAction(() => {
-        if (dirPath === '') {
-          this.error = undefined;
-          this.isLoading = false;
-          this.bump();
-        } else {
-          this.bumpDebounced();
-        }
-      });
-
-      for (const entry of result.data.entries) {
-        if (entry.type === 'dir' && !isExcluded(entry.path)) {
-          void this.loadDir(entry.path);
-        }
-      }
-    } catch (e) {
-      if (dirPath === '') {
-        runInAction(() => {
-          this.error = e instanceof Error ? e.message : 'Failed to load files';
-          this.isLoading = false;
-        });
-      }
-    } finally {
-      this.pendingPaths.delete(dirPath);
-    }
-  }
-
-  async loadRoot(): Promise<void> {
-    runInAction(() => {
-      this.isLoading = true;
-      this.error = undefined;
-    });
-    await this.loadDir('');
+    await this._loadDirInternal(dirPath, force);
+    this._bumpTreeDebounced();
   }
 
   async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {
@@ -169,16 +131,117 @@ export class FilesStore {
     }
 
     for (const dir of dirs) {
-      await this.loadDir(dir);
+      await this._loadDirInternal(dir);
     }
 
-    runInAction(() => {
-      for (const dir of dirs) expandedPaths.add(dir);
-      this.bump();
-    });
+    for (const dir of dirs) expandedPaths.add(dir);
+    this._bumpTree();
   }
 
-  applyWatchEvents(watchEvents: FileWatchEvent[]): void {
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  /** Full recursive load used as the Resource's fetch function. */
+  private async _fetchAll(): Promise<FilesData> {
+    this._nodes.clear();
+    this._childIndex.clear();
+    this._loadedPaths.clear();
+    this._pendingPaths.clear();
+    await this._loadDirInternal('');
+    return { nodes: this._nodes, childIndex: this._childIndex };
+  }
+
+  /** Load a single directory level into the backing Maps. No reactivity bump. */
+  private async _loadDirInternal(dirPath: string, force = false): Promise<void> {
+    if (!force && (this._loadedPaths.has(dirPath) || this._pendingPaths.has(dirPath))) return;
+    this._pendingPaths.add(dirPath);
+
+    try {
+      const result = await rpc.fs.listFiles(this.projectId, this.taskId, dirPath || '.', {
+        recursive: false,
+        includeHidden: true,
+      });
+
+      if (!result.success) return;
+
+      this._applyEntries(dirPath, result.data.entries);
+
+      for (const entry of result.data.entries) {
+        if (entry.type === 'dir' && !isExcluded(entry.path)) {
+          void this._loadDirInternal(entry.path);
+        }
+      }
+    } catch {
+      // Silently ignore errors for individual directories
+    } finally {
+      this._pendingPaths.delete(dirPath);
+    }
+  }
+
+  private _applyEntries(
+    dirPath: string,
+    entries: Array<{ path: string; type: 'file' | 'dir'; mtime?: Date }>
+  ): void {
+    const affectedParents = new Set<string | null>();
+
+    for (const entry of entries) {
+      if (isExcluded(entry.path)) continue;
+      const node = makeNode(entry.path, entry.type === 'dir' ? 'directory' : 'file', entry.mtime);
+
+      this._nodes.set(node.path, node);
+
+      const parent = node.parentPath;
+      const siblings = this._childIndex.get(parent) ?? [];
+      if (!siblings.includes(node.path)) {
+        siblings.push(node.path);
+        this._childIndex.set(parent, siblings);
+      }
+      affectedParents.add(parent);
+    }
+
+    for (const parent of affectedParents) {
+      const children = this._childIndex.get(parent);
+      if (children) {
+        this._childIndex.set(parent, sortedChildPaths(children, this._nodes));
+      }
+    }
+
+    this._loadedPaths.add(dirPath);
+  }
+
+  private _addNode(node: FileNode): void {
+    this._nodes.set(node.path, node);
+    const parent = node.parentPath;
+    const existing = this._childIndex.get(parent) ?? [];
+    if (!existing.includes(node.path)) {
+      this._childIndex.set(parent, sortedChildPaths([...existing, node.path], this._nodes));
+    }
+  }
+
+  private _removeNode(path: string): void {
+    const node = this._nodes.get(path);
+    if (!node) return;
+
+    const siblings = this._childIndex.get(node.parentPath) ?? [];
+    this._childIndex.set(
+      node.parentPath,
+      siblings.filter((p) => p !== path)
+    );
+
+    const toRemove: string[] = [path];
+    while (toRemove.length) {
+      const p = toRemove.pop()!;
+      this._nodes.delete(p);
+      this._loadedPaths.delete(p);
+      const children = this._childIndex.get(p) ?? [];
+      toRemove.push(...children);
+      this._childIndex.delete(p);
+    }
+  }
+
+  /** Mutate the backing maps for watch events. Returns true if anything changed. */
+  private _applyWatchEventsInternal(watchEvents: FileWatchEvent[]): boolean {
     let changed = false;
 
     for (const evt of watchEvents) {
@@ -186,58 +249,47 @@ export class FilesStore {
 
       if (evt.type === 'create') {
         const node = makeNode(evt.path, evt.entryType);
-        const parentLoaded = this.loadedPaths.has(node.parentPath ?? '');
-        if (parentLoaded && !this.nodes.has(evt.path)) {
-          this.addNode(node);
+        const parentLoaded = this._loadedPaths.has(node.parentPath ?? '');
+        if (parentLoaded && !this._nodes.has(evt.path)) {
+          this._addNode(node);
           changed = true;
         }
       } else if (evt.type === 'delete') {
-        if (this.nodes.has(evt.path)) {
-          this.removeNode(evt.path);
+        if (this._nodes.has(evt.path)) {
+          this._removeNode(evt.path);
           changed = true;
         }
       } else if (evt.type === 'modify') {
-        const existing = this.nodes.get(evt.path);
+        const existing = this._nodes.get(evt.path);
         if (existing) {
-          this.nodes.set(evt.path, { ...existing, mtime: new Date() });
+          this._nodes.set(evt.path, { ...existing, mtime: new Date() });
           changed = true;
         }
       } else if (evt.type === 'rename' && evt.oldPath) {
-        if (this.nodes.has(evt.oldPath)) {
-          this.removeNode(evt.oldPath);
+        if (this._nodes.has(evt.oldPath)) {
+          this._removeNode(evt.oldPath);
           changed = true;
         }
         const node = makeNode(evt.path, evt.entryType);
-        const parentLoaded = this.loadedPaths.has(node.parentPath ?? '');
+        const parentLoaded = this._loadedPaths.has(node.parentPath ?? '');
         if (parentLoaded) {
-          this.addNode(node);
+          this._addNode(node);
           changed = true;
         }
       }
     }
 
-    if (changed) {
-      this.bump();
-    }
+    return changed;
   }
 
-  startWatching(): void {
-    rpc.fs.watchSetPaths(this.projectId, this.taskId, [''], 'filetree').catch(() => {});
-
-    this._unsubscribe = events.on(
-      fsWatchEventChannel,
-      (data) => this.applyWatchEvents(data.events),
-      this.taskId
-    );
+  private _bumpTree(): void {
+    this.tree.setValue({ nodes: this._nodes, childIndex: this._childIndex });
   }
 
-  dispose(): void {
-    if (this._bumpTimer) {
-      clearTimeout(this._bumpTimer);
-      this._bumpTimer = null;
-    }
-    this._unsubscribe?.();
-    this._unsubscribe = null;
-    rpc.fs.watchStop(this.projectId, this.taskId, 'filetree').catch(() => {});
+  private _bumpTreeDebounced(): void {
+    if (this._bumpTimer) clearTimeout(this._bumpTimer);
+    this._bumpTimer = setTimeout(() => {
+      this._bumpTree();
+    }, 50);
   }
 }

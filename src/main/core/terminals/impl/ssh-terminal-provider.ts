@@ -89,12 +89,17 @@ export class SshTerminalProvider implements TerminalProvider {
     preserveBufferOnExit = true,
     watchDevServer = false,
   }: LifecycleScriptSpawnRequest): Promise<void> {
-    return this.spawnWithPolicy(terminal, initialSize, { command, args: [] }, {
-      respawnOnExit,
-      preserveBufferOnExit,
-      watchDevServer,
-      trackForRehydrate: false,
-    });
+    return this.spawnWithPolicy(
+      terminal,
+      initialSize,
+      { command, args: [] },
+      {
+        respawnOnExit,
+        preserveBufferOnExit,
+        watchDevServer,
+        trackForRehydrate: false,
+      }
+    );
   }
 
   private async spawnWithPolicy(

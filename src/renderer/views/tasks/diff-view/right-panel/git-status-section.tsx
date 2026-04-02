@@ -13,7 +13,7 @@ import { useGitActions } from '@renderer/views/tasks/use-git-actions';
 
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
-  const branchName = getTaskGitStore(projectId, taskId)?.branchStatus?.branch;
+  const branchName = getTaskGitStore(projectId, taskId)?.branchStatus.data?.branch;
 
   const {
     hasUpstream,

@@ -1,6 +1,10 @@
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
-import { projectSettingsSchema, type ProjectSettings, type ProjectSettingsProvider } from './schema';
+import {
+  projectSettingsSchema,
+  type ProjectSettings,
+  type ProjectSettingsProvider,
+} from './schema';
 
 export async function getEffectiveTaskSettings(args: {
   projectSettings: ProjectSettingsProvider;

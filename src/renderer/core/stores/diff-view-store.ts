@@ -2,6 +2,7 @@ import { action, makeObservable, observable, reaction, runInAction } from 'mobx'
 import type { DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from './changes-view-store';
 import { GitStore } from './git';
+import type { PrStore } from './pr-store';
 import type { Snapshottable } from './snapshottable';
 
 export interface ActiveFile {
@@ -39,15 +40,12 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
   readonly changesView: ChangesViewStore;
 
-  /**
-   * Counts for PR diffs keyed by base ref name, supplied by PrProvider since
-   * PR file lists live in React Query rather than GitStore.
-   */
-  private _prBaseRefFileCounts = observable.map<string, number>();
-
   private _disposeReactions: Array<() => void> = [];
 
-  constructor(private readonly git: GitStore) {
+  constructor(
+    private readonly git: GitStore,
+    private readonly pr: PrStore
+  ) {
     this.changesView = new ChangesViewStore(git);
 
     makeObservable(this, {
@@ -58,7 +56,6 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       setActiveFile: action,
       setDiffStyle: action,
       setViewMode: action,
-      setPrBaseRefFileCount: action,
     });
 
     // Sync activeFile when staged/unstaged lists change (replaces ActiveFileSync component).
@@ -170,14 +167,6 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     this.viewMode = mode;
   }
 
-  /**
-   * Called by PrProvider to keep stacked-limit enforcement accurate for PR
-   * diffs whose file lists live in React Query rather than GitStore.
-   */
-  setPrBaseRefFileCount(baseRefName: string, count: number): void {
-    this._prBaseRefFileCounts.set(baseRefName, count);
-  }
-
   dispose(): void {
     for (const dispose of this._disposeReactions) dispose();
     this._disposeReactions = [];
@@ -193,8 +182,9 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     if (!file) return 0;
     if (file.type === 'staged') return this.git.stagedFileChanges.length;
     if (file.type === 'disk') return this.git.unstagedFileChanges.length;
-    // 'git' type — look up the PR file count by originalRef (base ref).
-    return this._prBaseRefFileCounts.get(file.originalRef) ?? 0;
+    // 'git' type — look up PR files by the base ref from PrStore.
+    const activePr = this.pr.pullRequests.find((p) => p.metadata.baseRefName === file.originalRef);
+    return activePr ? (this.pr.getFiles(activePr).data?.length ?? 0) : 0;
   }
 
   private _applyStackedLimit(): void {

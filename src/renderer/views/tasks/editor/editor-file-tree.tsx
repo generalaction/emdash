@@ -124,9 +124,6 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const files = taskState.files;
   const editorView = taskState.editorView;
 
-  // Establish MobX dependency on structural tree mutations — generation is bumped
-  // whenever nodes/childIndex change (non-observable imperative maps).
-  void files?.generation;
   const visibleRows = files
     ? buildVisibleRows(files.nodes, files.childIndex, editorView.expandedPaths)
     : [];

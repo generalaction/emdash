@@ -1,6 +1,6 @@
 import { projectManager } from '@main/core/projects/project-manager';
-import { getEffectiveTaskSettings } from '@main/core/projects/settings/task-settings';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
+import { getEffectiveTaskSettings } from '@main/core/projects/settings/task-settings';
 
 export async function getTaskSettings(projectId: string, taskId: string): Promise<ProjectSettings> {
   const project = projectManager.getProject(projectId);

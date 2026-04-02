@@ -1,5 +1,5 @@
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
-import type { CheckRunBucket } from '@shared/pull-requests';
+import type { CheckRunBucket, PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/core/ipc';
 import { formatCheckDuration, type CheckRun } from '@renderer/lib/github';
 import { useCheckRuns } from '../../state/use-check-runs';
@@ -79,13 +79,7 @@ export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoadin
   );
 }
 
-export function PrChecksList({
-  nameWithOwner,
-  prNumber,
-}: {
-  nameWithOwner: string;
-  prNumber: number;
-}) {
-  const { checks, isLoading } = useCheckRuns(nameWithOwner, prNumber);
+export function PrChecksList({ pr }: { pr: PullRequest }) {
+  const { checks, isLoading } = useCheckRuns(pr);
   return <ChecksList checks={checks} isLoading={isLoading} />;
 }
