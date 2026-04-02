@@ -359,12 +359,7 @@ export class SshProjectProvider implements ProjectProvider {
     const taskLifecycleService = new TaskLifecycleService({
       projectId: this.project.id,
       taskId: task.taskId,
-      taskPath: task.taskPath,
       terminals: task.terminals,
-      tmux: settings.tmux ?? false,
-      shellSetup: settings.shellSetup,
-      exec: getSshExec(this.proxy),
-      taskEnvVars: task.taskEnvVars,
     });
 
     const scripts = settings.scripts;

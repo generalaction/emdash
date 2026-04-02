@@ -219,12 +219,7 @@ export class LocalProjectProvider implements ProjectProvider {
     const taskLifecycleService = new TaskLifecycleService({
       projectId: this.project.id,
       taskId: task.id,
-      taskPath: workDir,
       terminals: terminalProvider,
-      tmux: tmuxEnabled,
-      shellSetup,
-      exec,
-      taskEnvVars,
     });
 
     const taskEnv: TaskProvider = {
