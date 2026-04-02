@@ -26,6 +26,7 @@ import type {
 } from '../project-provider';
 import { LocalProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
+import { getEffectiveTaskSettings } from '../settings/task-settings';
 import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
@@ -90,7 +91,8 @@ export class LocalProjectProvider implements ProjectProvider {
     conversations: Conversation[],
     terminals: Terminal[]
   ): Promise<Result<TaskProvider, ProvisionTaskError>> {
-    if (this.tasks.has(task.id)) return ok(this.tasks.get(task.id)!);
+    const existing = this.tasks.get(task.id);
+    if (existing) return ok(existing);
     if (this.provisioningTasks.has(task.id)) return this.provisioningTasks.get(task.id)!;
 
     const promise = withTimeout(
@@ -174,7 +176,7 @@ export class LocalProjectProvider implements ProjectProvider {
     const taskFs = new LocalFileSystem(workDir);
     await new HookConfigWriter(taskFs, exec).writeAll();
 
-    const settings = await this.settings.get();
+    const projectSettings = await this.settings.get();
     const defaultBranch = await this.settings.getDefaultBranch();
     const taskEnvVars = getTaskEnvVars({
       taskId: task.id,
@@ -184,11 +186,13 @@ export class LocalProjectProvider implements ProjectProvider {
       defaultBranch,
       portSeed: workDir,
     });
-    const tmuxEnabled = settings.tmux ?? false;
+    const tmuxEnabled = projectSettings.tmux ?? false;
 
-    // Read task-level settings from the worktree path — scripts live in the worktree's
-    // .emdash.json, not the project root (consistent with getTaskSettings RPC behavior).
-    const taskLevelSettings = await new LocalProjectSettingsProvider(workDir).get();
+    const taskLevelSettings = await getEffectiveTaskSettings({
+      projectSettings: this.settings,
+      taskFs,
+    });
+    const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
     const scripts = taskLevelSettings.scripts;
 
     const taskGit = new GitService(workDir, exec, taskFs);
@@ -197,6 +201,7 @@ export class LocalProjectProvider implements ProjectProvider {
       taskPath: workDir,
       taskId: task.id,
       tmux: tmuxEnabled,
+      shellSetup,
       exec,
       taskEnvVars,
     });
@@ -206,6 +211,7 @@ export class LocalProjectProvider implements ProjectProvider {
       taskId: task.id,
       taskPath: workDir,
       tmux: tmuxEnabled,
+      shellSetup,
       exec,
       taskEnvVars,
     });
@@ -213,12 +219,7 @@ export class LocalProjectProvider implements ProjectProvider {
     const taskLifecycleService = new TaskLifecycleService({
       projectId: this.project.id,
       taskId: task.id,
-      taskPath: workDir,
       terminals: terminalProvider,
-      tmux: tmuxEnabled,
-      shellSetup: taskLevelSettings.shellSetup ?? settings.shellSetup,
-      exec,
-      taskEnvVars,
     });
 
     const taskEnv: TaskProvider = {
@@ -236,11 +237,17 @@ export class LocalProjectProvider implements ProjectProvider {
     };
 
     if (scripts?.setup) {
-      void taskLifecycleService.runLifecycleScript({ type: 'setup', script: scripts.setup });
+      void taskLifecycleService.prepareAndRunLifecycleScript({
+        type: 'setup',
+        script: scripts.setup,
+      });
     }
 
     if (scripts?.run) {
-      void taskLifecycleService.runLifecycleScript({ type: 'run', script: scripts.run });
+      void taskLifecycleService.prepareAndRunLifecycleScript({
+        type: 'run',
+        script: scripts.run,
+      });
     }
 
     if (scripts?.teardown) {
@@ -314,13 +321,16 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
-    const taskLevelSettings = await new LocalProjectSettingsProvider(task.taskPath).get();
-    const scripts = taskLevelSettings.scripts;
+    const settings = await getEffectiveTaskSettings({
+      projectSettings: this.settings,
+      taskFs: task.fs,
+    });
+    const scripts = settings.scripts;
 
     if (scripts?.teardown && task.lifecycleService) {
-      await task.lifecycleService.executeLifecycleScript(
+      await task.lifecycleService.runLifecycleScript(
         { type: 'teardown', script: scripts.teardown },
-        { exit: true }
+        { waitForExit: true, exit: true }
       );
     }
 

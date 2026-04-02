@@ -1,148 +1,124 @@
+import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createScriptTerminalId } from '@shared/terminals';
-import { spawnLocalPty } from '../pty/local-pty';
-import type { Pty } from '../pty/pty';
-import { buildTerminalEnv } from '../pty/pty-env';
+import { events } from '@main/lib/events';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
-import { buildTmuxParams } from '../pty/spawn-utils';
-import { killTmuxSession, makeTmuxSessionName } from '../pty/tmux-session-name';
-import { wireTerminalDevServerWatcher } from '../terminals/dev-server-watcher';
-import type { ExecFn } from '../utils/exec';
+import type { TerminalProvider } from '../terminals/terminal-provider';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 
-type ScriptDescriptor = {
+type LifecycleScript = {
   type: 'setup' | 'run' | 'teardown';
   script: string;
 };
 
 export class TaskLifecycleService {
-  private sessions = new Map<string, Pty>();
   private readonly projectId: string;
   private readonly taskId: string;
-  private readonly taskPath: string;
-  private readonly tmux: boolean;
-  private readonly shellSetup?: string;
-  private readonly exec: ExecFn;
-  private readonly taskEnvVars: Record<string, string>;
+  private readonly terminals: TerminalProvider;
 
   constructor({
     projectId,
     taskId,
-    taskPath,
-    tmux = false,
-    shellSetup,
-    exec,
-    taskEnvVars = {},
+    terminals,
   }: {
     projectId: string;
     taskId: string;
-    taskPath: string;
-    tmux?: boolean;
-    shellSetup?: string;
-    exec: ExecFn;
-    taskEnvVars?: Record<string, string>;
+    terminals: TerminalProvider;
   }) {
     this.projectId = projectId;
     this.taskId = taskId;
-    this.taskPath = taskPath;
-    this.tmux = tmux;
-    this.shellSetup = shellSetup;
-    this.exec = exec;
-    this.taskEnvVars = taskEnvVars;
+    this.terminals = terminals;
+  }
+
+  private async resolveIds(script: LifecycleScript): Promise<{
+    terminalId: string;
+    sessionId: string;
+  }> {
+    const terminalId = await createScriptTerminalId({
+      projectId: this.projectId,
+      taskId: this.taskId,
+      type: script.type,
+      script: script.script,
+    });
+    const sessionId = makePtySessionId(this.projectId, this.taskId, terminalId);
+    return { terminalId, sessionId };
   }
 
   async prepareLifecycleScript(
-    script: ScriptDescriptor,
-    options?: { initialSize?: { cols: number; rows: number } }
+    script: LifecycleScript,
+    options: { initialSize?: { cols: number; rows: number } } = {}
   ): Promise<void> {
-    const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS } } = options ?? {};
+    const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS } } = options;
+    const { terminalId } = await this.resolveIds(script);
 
-    const id = await createScriptTerminalId({
-      projectId: this.projectId,
-      taskId: this.taskId,
-      type: script.type,
-      script: script.script,
+    await this.terminals.spawnLifecycleScript({
+      terminal: {
+        id: terminalId,
+        projectId: this.projectId,
+        taskId: this.taskId,
+        name: script.type,
+      },
+      command: '',
+      initialSize,
+      respawnOnExit: false,
+      preserveBufferOnExit: true,
+      watchDevServer: script.type === 'run',
     });
-
-    if (this.sessions.has(id)) return;
-
-    const userShell =
-      process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-
-    const sessionId = makePtySessionId(this.projectId, this.taskId, id);
-    const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
-
-    const idleCmd = `exec ${userShell}`;
-
-    const params = tmuxSessionName
-      ? buildTmuxParams(userShell, tmuxSessionName, idleCmd, this.taskPath)
-      : { command: userShell, args: ['-c', idleCmd], cwd: this.taskPath };
-
-    const pty = spawnLocalPty({
-      id: sessionId,
-      command: params.command,
-      args: params.args,
-      cwd: this.taskPath,
-      env: { ...buildTerminalEnv(), ...this.taskEnvVars },
-      cols: initialSize.cols,
-      rows: initialSize.rows,
-    });
-
-    if (script.type === 'run') {
-      wireTerminalDevServerWatcher({ pty, taskId: this.taskId, terminalId: id, probe: false });
-    }
-
-    ptySessionRegistry.register(sessionId, pty, { preserveBufferOnExit: true });
-    this.sessions.set(id, pty);
-
-    pty.onExit(() => {
-      this.sessions.delete(id);
-      if (tmuxSessionName) {
-        killTmuxSession(this.exec, tmuxSessionName);
-      }
-    });
-  }
-  async executeLifecycleScript(
-    script: ScriptDescriptor,
-    options?: { exit?: boolean }
-  ): Promise<void> {
-    const { exit = false } = options ?? {};
-
-    const id = await createScriptTerminalId({
-      projectId: this.projectId,
-      taskId: this.taskId,
-      type: script.type,
-      script: script.script,
-    });
-
-    if (!this.sessions.has(id)) {
-      await this.prepareLifecycleScript(script);
-    }
-
-    const pty = this.sessions.get(id);
-    if (!pty) return;
-
-    const scriptBody = this.shellSetup ? `${this.shellSetup} && ${script.script}` : script.script;
-    const command = exit ? `${scriptBody}; exit` : scriptBody;
-
-    pty.write(`${command}\n`);
-
-    if (exit) {
-      return new Promise<void>((resolve) => {
-        pty.onExit(() => {
-          resolve();
-        });
-      });
-    }
   }
 
   async runLifecycleScript(
-    script: ScriptDescriptor,
-    options?: { initialSize?: { cols: number; rows: number } }
+    script: LifecycleScript,
+    options: {
+      waitForExit?: boolean;
+      exit?: boolean;
+      initialSize?: { cols: number; rows: number };
+    } = {}
   ): Promise<void> {
-    await this.prepareLifecycleScript(script, options);
-    await this.executeLifecycleScript(script);
+    const {
+      waitForExit = false,
+      exit = false,
+      initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    } = options;
+
+    const { sessionId } = await this.resolveIds(script);
+
+    if (!ptySessionRegistry.get(sessionId)) {
+      await this.prepareLifecycleScript(script, { initialSize });
+    }
+
+    const pty = ptySessionRegistry.get(sessionId);
+    if (!pty) {
+      throw new Error(
+        `Lifecycle script session unavailable for ${script.type} in task ${this.taskId}`
+      );
+    }
+
+    const exitPromise = waitForExit
+      ? new Promise<void>((resolve) => {
+          events.once(ptyExitChannel, () => resolve(), sessionId);
+        })
+      : null;
+
+    const command = exit ? `${script.script}; exit` : script.script;
+    pty.write(`${command}\n`);
+
+    if (exitPromise) {
+      await exitPromise;
+    }
+  }
+
+  async prepareAndRunLifecycleScript(
+    script: LifecycleScript,
+    options: {
+      waitForExit?: boolean;
+      exit?: boolean;
+      initialSize?: { cols: number; rows: number };
+    } = {}
+  ): Promise<void> {
+    const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS }, ...executeOptions } = options;
+    await this.prepareLifecycleScript(script, { initialSize });
+    await this.runLifecycleScript(script, { initialSize, ...executeOptions });
   }
 }

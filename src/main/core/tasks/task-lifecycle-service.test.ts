@@ -1,9 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ptyExitChannel } from '@shared/events/ptyEvents';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { createScriptTerminalId } from '@shared/terminals';
+import { events } from '@main/lib/events';
 import type { Pty, PtyExitInfo } from '../pty/pty';
+import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 import { TaskLifecycleService } from './task-lifecycle-service';
 
-// ── Mock PTY ────────────────────────────────────────────────────────────────
+vi.mock('@shared/terminals', () => ({
+  createScriptTerminalId: vi.fn(
+    async ({ type, script }: { type: string; script: string }) => `script-${type}-${script}`
+  ),
+}));
+
+vi.mock('@main/lib/events', () => ({
+  events: {
+    once: vi.fn(),
+  },
+}));
+
+vi.mock('../pty/pty-session-registry', () => ({
+  ptySessionRegistry: {
+    get: vi.fn(),
+  },
+}));
 
 class MockPty implements Pty {
   written: string[] = [];
@@ -13,202 +34,180 @@ class MockPty implements Pty {
   write(data: string): void {
     this.written.push(data);
   }
+
   resize(): void {}
   kill(): void {}
+
   onData(handler: (data: string) => void): void {
     this.dataHandlers.push(handler);
   }
+
   onExit(handler: (info: PtyExitInfo) => void): void {
     this.exitHandlers.push(handler);
   }
-
-  simulateExit(info: PtyExitInfo = { exitCode: 0 }): void {
-    for (const h of this.exitHandlers) h(info);
-  }
-  simulateData(data: string): void {
-    for (const h of this.dataHandlers) h(data);
-  }
 }
 
-// ── Module mocks ────────────────────────────────────────────────────────────
-
-let lastSpawnedPty: MockPty;
-
-vi.mock('../pty/local-pty', () => ({
-  spawnLocalPty: vi.fn(() => {
-    lastSpawnedPty = new MockPty();
-    return lastSpawnedPty;
-  }),
-}));
-
-vi.mock('../pty/pty-session-registry', () => ({
-  ptySessionRegistry: {
-    register: vi.fn(),
-    unregister: vi.fn(),
-  },
-}));
-
-vi.mock('../pty/pty-env', () => ({
-  buildTerminalEnv: vi.fn(() => ({ TERM: 'xterm-256color' })),
-}));
-
-vi.mock('../terminals/dev-server-watcher', () => ({
-  wireTerminalDevServerWatcher: vi.fn(),
-}));
-
-vi.mock('../pty/tmux-session-name', () => ({
-  makeTmuxSessionName: vi.fn((id: string) => `tmux-${id}`),
-  killTmuxSession: vi.fn(),
-}));
-
-vi.mock('../pty/spawn-utils', () => ({
-  buildTmuxParams: vi.fn((shell: string, sessionName: string, cmd: string, cwd: string) => ({
-    command: shell,
-    args: ['-c', `tmux ${sessionName} ${cmd}`],
-    cwd,
-  })),
-}));
-
-vi.mock('@shared/terminals', () => ({
-  createScriptTerminalId: vi.fn(
-    async ({ type, script }: { type: string; script: string }) => `script-${type}-${script}`
-  ),
-}));
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function makeTerminalProvider(): TerminalProvider {
+function makeTerminalProvider(overrides: Partial<TerminalProvider> = {}): {
+  provider: TerminalProvider;
+  spawnLifecycleScript: ReturnType<typeof vi.fn>;
+} {
+  const baseSpawnLifecycleScript = vi.fn(async () => {});
+  const provider: TerminalProvider = {
+    spawnTerminal: vi.fn(async () => {}),
+    spawnLifecycleScript: baseSpawnLifecycleScript,
+    killTerminal: vi.fn(async () => {}),
+    destroyAll: vi.fn(async () => {}),
+    detachAll: vi.fn(async () => {}),
+    ...overrides,
+  };
   return {
-    spawnTerminal: vi.fn(),
-    destroyAll: vi.fn(),
-    detachAll: vi.fn(),
-  } as unknown as TerminalProvider;
+    provider,
+    spawnLifecycleScript: provider.spawnLifecycleScript as unknown as ReturnType<typeof vi.fn>,
+  };
 }
 
-function makeService(
-  overrides: Partial<ConstructorParameters<typeof TaskLifecycleService>[0]> = {}
-) {
+function makeService(terminals: TerminalProvider): TaskLifecycleService {
   return new TaskLifecycleService({
     projectId: 'proj-1',
     taskId: 'task-1',
-    taskPath: '/workspace',
-    terminals: makeTerminalProvider(),
-    exec: vi.fn(),
-    ...overrides,
+    terminals,
   });
 }
 
-// ── Tests ───────────────────────────────────────────────────────────────────
-
 describe('TaskLifecycleService', () => {
+  let activePty: MockPty | undefined;
+  let exitListener: ((info?: unknown) => void) | undefined;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    activePty = undefined;
+    exitListener = undefined;
+
+    vi.mocked(createScriptTerminalId).mockImplementation(
+      async ({ type, script }: { type: string; script: string }) => `script-${type}-${script}`
+    );
+    vi.mocked(ptySessionRegistry.get).mockImplementation(() => activePty);
+    vi.mocked(events.once).mockImplementation((_, cb) => {
+      exitListener = cb as (info?: unknown) => void;
+      return () => {};
+    });
   });
 
   describe('prepareLifecycleScript', () => {
-    it('spawns an idle PTY with exec $SHELL', async () => {
-      const { spawnLocalPty } = await import('../pty/local-pty');
-      const service = makeService();
+    it('creates a prepared script session for setup', async () => {
+      const { provider, spawnLifecycleScript } = makeTerminalProvider();
+      const service = makeService(provider);
 
       await service.prepareLifecycleScript({ type: 'setup', script: 'npm install' });
 
-      expect(spawnLocalPty).toHaveBeenCalledTimes(1);
-      const opts = vi.mocked(spawnLocalPty).mock.calls[0][0];
-      expect(opts.args).toEqual(expect.arrayContaining(['-c']));
-      const shellCmd = opts.args[opts.args.indexOf('-c') + 1];
-      expect(shellCmd).toMatch(/^exec\s/);
-      expect(shellCmd).not.toContain('npm install');
-    });
-
-    it('registers the PTY in ptySessionRegistry with preserveBufferOnExit', async () => {
-      const { ptySessionRegistry } = await import('../pty/pty-session-registry');
-      const service = makeService();
-
-      await service.prepareLifecycleScript({ type: 'setup', script: 'npm install' });
-
-      expect(ptySessionRegistry.register).toHaveBeenCalledWith(expect.any(String), lastSpawnedPty, {
+      expect(createScriptTerminalId).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        taskId: 'task-1',
+        type: 'setup',
+        script: 'npm install',
+      });
+      expect(spawnLifecycleScript).toHaveBeenCalledWith({
+        terminal: {
+          id: 'script-setup-npm install',
+          projectId: 'proj-1',
+          taskId: 'task-1',
+          name: 'setup',
+        },
+        command: '',
+        initialSize: { cols: 80, rows: 24 },
+        respawnOnExit: false,
         preserveBufferOnExit: true,
+        watchDevServer: false,
       });
     });
 
-    it('is idempotent — second call returns early', async () => {
-      const { spawnLocalPty } = await import('../pty/local-pty');
-      const service = makeService();
+    it('enables dev-server watcher for run scripts', async () => {
+      const { provider, spawnLifecycleScript } = makeTerminalProvider();
+      const service = makeService(provider);
 
-      await service.prepareLifecycleScript({ type: 'setup', script: 'npm install' });
-      await service.prepareLifecycleScript({ type: 'setup', script: 'npm install' });
+      await service.prepareLifecycleScript({ type: 'run', script: 'pnpm dev' });
 
-      expect(spawnLocalPty).toHaveBeenCalledTimes(1);
-    });
-
-    it('wires devServerWatcher for type "run"', async () => {
-      const { wireTerminalDevServerWatcher } = await import('../terminals/dev-server-watcher');
-      const service = makeService();
-
-      await service.prepareLifecycleScript({ type: 'run', script: 'npm start' });
-
-      expect(wireTerminalDevServerWatcher).toHaveBeenCalledWith(
-        expect.objectContaining({ pty: lastSpawnedPty, taskId: 'task-1' })
+      expect(spawnLifecycleScript).toHaveBeenCalledWith(
+        expect.objectContaining({
+          watchDevServer: true,
+        })
       );
-    });
-
-    it('does NOT wire devServerWatcher for type "setup"', async () => {
-      const { wireTerminalDevServerWatcher } = await import('../terminals/dev-server-watcher');
-      const service = makeService();
-
-      await service.prepareLifecycleScript({ type: 'setup', script: 'npm install' });
-
-      expect(wireTerminalDevServerWatcher).not.toHaveBeenCalled();
-    });
-
-    it('passes taskEnvVars to the spawned PTY', async () => {
-      const { spawnLocalPty } = await import('../pty/local-pty');
-      const service = makeService({ taskEnvVars: { PORT: '3000' } });
-
-      await service.prepareLifecycleScript({ type: 'setup', script: 'npm install' });
-
-      const opts = vi.mocked(spawnLocalPty).mock.calls[0][0];
-      expect(opts.env).toMatchObject({ PORT: '3000' });
     });
   });
 
-  describe('executeLifecycleScript', () => {
-    it('sends script command to existing PTY', async () => {
-      const service = makeService();
-      await service.prepareLifecycleScript({ type: 'setup', script: 'npm install' });
-      const pty = lastSpawnedPty;
-      pty.written = [];
+  describe('runLifecycleScript', () => {
+    it('writes to an already prepared PTY session', async () => {
+      const { provider, spawnLifecycleScript } = makeTerminalProvider();
+      const service = makeService(provider);
+      activePty = new MockPty();
 
-      await service.executeLifecycleScript({ type: 'setup', script: 'npm install' });
+      await service.runLifecycleScript({ type: 'setup', script: 'npm install' });
 
-      expect(pty.written).toEqual(['npm install\n']);
+      expect(spawnLifecycleScript).not.toHaveBeenCalled();
+      expect(activePty.written).toEqual(['npm install\n']);
     });
 
-    it('prepends shellSetup when configured', async () => {
-      const service = makeService({ shellSetup: 'source ~/.nvm/nvm.sh' });
-      await service.prepareLifecycleScript({ type: 'setup', script: 'npm install' });
-      const pty = lastSpawnedPty;
-      pty.written = [];
+    it('self-heals by preparing when the session is missing', async () => {
+      const { provider, spawnLifecycleScript } = makeTerminalProvider({
+        spawnLifecycleScript: vi.fn(async () => {
+          activePty = new MockPty();
+        }),
+      });
+      const service = makeService(provider);
 
-      await service.executeLifecycleScript({ type: 'setup', script: 'npm install' });
+      await service.runLifecycleScript({ type: 'setup', script: 'npm install' });
 
-      expect(pty.written[0]).toBe('source ~/.nvm/nvm.sh && npm install\n');
+      expect(spawnLifecycleScript).toHaveBeenCalledTimes(1);
+      expect(activePty?.written).toEqual(['npm install\n']);
     });
 
-    it('with exit: true, appends "; exit" and resolves on PTY exit', async () => {
-      const service = makeService();
-      await service.prepareLifecycleScript({ type: 'teardown', script: 'cleanup.sh' });
-      const pty = lastSpawnedPty;
-      pty.written = [];
+    it('passes through custom initialSize during self-heal prepare', async () => {
+      const { provider, spawnLifecycleScript } = makeTerminalProvider({
+        spawnLifecycleScript: vi.fn(async () => {
+          activePty = new MockPty();
+        }),
+      });
+      const service = makeService(provider);
 
-      const promise = service.executeLifecycleScript(
-        { type: 'teardown', script: 'cleanup.sh' },
-        { exit: true }
+      await service.runLifecycleScript(
+        { type: 'setup', script: 'npm install' },
+        { initialSize: { cols: 120, rows: 40 } }
       );
 
-      await Promise.resolve();
+      expect(spawnLifecycleScript).toHaveBeenCalledWith(
+        expect.objectContaining({
+          initialSize: { cols: 120, rows: 40 },
+        })
+      );
+    });
 
-      expect(pty.written[0]).toBe('cleanup.sh; exit\n');
+    it('appends "; exit" when exit=true', async () => {
+      const { provider } = makeTerminalProvider();
+      const service = makeService(provider);
+      activePty = new MockPty();
+
+      await service.runLifecycleScript({ type: 'teardown', script: 'cleanup.sh' }, { exit: true });
+
+      expect(activePty.written).toEqual(['cleanup.sh; exit\n']);
+    });
+
+    it('waits for pty exit when waitForExit=true', async () => {
+      const { provider } = makeTerminalProvider();
+      const service = makeService(provider);
+      activePty = new MockPty();
+
+      const promise = service.runLifecycleScript(
+        { type: 'teardown', script: 'cleanup.sh' },
+        { waitForExit: true, exit: true }
+      );
+
+      await vi.waitFor(() => {
+        expect(events.once).toHaveBeenCalledWith(
+          ptyExitChannel,
+          expect.any(Function),
+          makePtySessionId('proj-1', 'task-1', 'script-teardown-cleanup.sh')
+        );
+      });
 
       let resolved = false;
       void promise.then(() => {
@@ -217,51 +216,33 @@ describe('TaskLifecycleService', () => {
       await Promise.resolve();
       expect(resolved).toBe(false);
 
-      pty.simulateExit({ exitCode: 0 });
+      exitListener?.({ exitCode: 0 });
       await promise;
     });
 
-    it('falls back to prepareLifecycleScript if no session exists', async () => {
-      const { spawnLocalPty } = await import('../pty/local-pty');
-      const service = makeService();
+    it('throws when no PTY is available after self-heal attempt', async () => {
+      const { provider } = makeTerminalProvider();
+      const service = makeService(provider);
 
-      await service.executeLifecycleScript({ type: 'setup', script: 'npm install' });
-
-      expect(spawnLocalPty).toHaveBeenCalledTimes(1);
-      expect(lastSpawnedPty.written).toContain('npm install\n');
-    });
-
-    it('cleans up session from internal map on exit when exit: true', async () => {
-      const service = makeService();
-      await service.prepareLifecycleScript({ type: 'teardown', script: 'cleanup.sh' });
-      const pty = lastSpawnedPty;
-
-      const promise = service.executeLifecycleScript(
-        { type: 'teardown', script: 'cleanup.sh' },
-        { exit: true }
-      );
-
-      await Promise.resolve();
-
-      pty.simulateExit({ exitCode: 0 });
-      await promise;
-
-      const { spawnLocalPty } = await import('../pty/local-pty');
-      vi.mocked(spawnLocalPty).mockClear();
-      await service.prepareLifecycleScript({ type: 'teardown', script: 'cleanup.sh' });
-      expect(spawnLocalPty).toHaveBeenCalledTimes(1);
+      await expect(
+        service.runLifecycleScript({ type: 'setup', script: 'npm install' })
+      ).rejects.toThrow('Lifecycle script session unavailable');
     });
   });
 
-  describe('runLifecycleScript', () => {
-    it('spawns PTY and executes script in one call', async () => {
-      const { spawnLocalPty } = await import('../pty/local-pty');
-      const service = makeService();
+  describe('prepareAndRunLifecycleScript', () => {
+    it('prepares and runs in one call', async () => {
+      const { provider, spawnLifecycleScript } = makeTerminalProvider({
+        spawnLifecycleScript: vi.fn(async () => {
+          activePty = new MockPty();
+        }),
+      });
+      const service = makeService(provider);
 
-      await service.runLifecycleScript({ type: 'setup', script: 'npm install' });
+      await service.prepareAndRunLifecycleScript({ type: 'run', script: 'pnpm dev' });
 
-      expect(spawnLocalPty).toHaveBeenCalledTimes(1);
-      expect(lastSpawnedPty.written).toContain('npm install\n');
+      expect(spawnLifecycleScript).toHaveBeenCalledTimes(1);
+      expect(activePty?.written).toEqual(['pnpm dev\n']);
     });
   });
 });

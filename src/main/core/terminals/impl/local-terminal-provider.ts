@@ -10,11 +10,20 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
-import { TerminalProvider } from '../terminal-provider';
+import {
+  type LifecycleScriptSpawnRequest,
+  type TerminalProvider,
+} from '../terminal-provider';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const MAX_RESPAWNS = 2;
+
+type SpawnPolicy = {
+  respawnOnExit: boolean;
+  preserveBufferOnExit: boolean;
+  watchDevServer: boolean;
+};
 
 export class LocalTerminalProvider implements TerminalProvider {
   private sessions = new Map<string, Pty>();
@@ -58,7 +67,36 @@ export class LocalTerminalProvider implements TerminalProvider {
     initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     command?: { command: string; args: string[] }
   ): Promise<void> {
+    return this.spawnWithPolicy(terminal, initialSize, command, {
+      respawnOnExit: true,
+      preserveBufferOnExit: false,
+      watchDevServer: true,
+    });
+  }
+
+  async spawnLifecycleScript({
+    terminal,
+    command,
+    initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    respawnOnExit = false,
+    preserveBufferOnExit = true,
+    watchDevServer = false,
+  }: LifecycleScriptSpawnRequest): Promise<void> {
+    return this.spawnWithPolicy(terminal, initialSize, { command, args: [] }, {
+      respawnOnExit,
+      preserveBufferOnExit,
+      watchDevServer,
+    });
+  }
+
+  private async spawnWithPolicy(
+    terminal: Terminal,
+    initialSize: { cols: number; rows: number },
+    command: { command: string; args: string[] } | undefined,
+    policy: SpawnPolicy
+  ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+    if (this.sessions.has(sessionId)) return;
 
     const cfg: GeneralSessionConfig = {
       taskId: this.taskId,
@@ -80,12 +118,16 @@ export class LocalTerminalProvider implements TerminalProvider {
       rows: initialSize.rows,
     });
 
-    wireTerminalDevServerWatcher({ pty, taskId: this.taskId, terminalId: terminal.id });
+    if (policy.watchDevServer) {
+      wireTerminalDevServerWatcher({ pty, taskId: this.taskId, terminalId: terminal.id });
+    }
 
     pty.onExit(() => {
-      ptySessionRegistry.unregister(sessionId);
-      const shouldRespawn = this.sessions.has(sessionId);
+      const shouldRespawn = policy.respawnOnExit && this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
+      if (!policy.preserveBufferOnExit) {
+        ptySessionRegistry.unregister(sessionId);
+      }
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
@@ -100,7 +142,7 @@ export class LocalTerminalProvider implements TerminalProvider {
         }
 
         setTimeout(() => {
-          this.spawnTerminal(terminal).catch((e) => {
+          this.spawnWithPolicy(terminal, initialSize, command, policy).catch((e) => {
             log.error('LocalTerminalProvider: respawn failed', {
               terminalId: terminal.id,
               error: String(e),
@@ -110,7 +152,9 @@ export class LocalTerminalProvider implements TerminalProvider {
       }
     });
 
-    ptySessionRegistry.register(sessionId, pty);
+    ptySessionRegistry.register(sessionId, pty, {
+      preserveBufferOnExit: policy.preserveBufferOnExit,
+    });
     this.sessions.set(sessionId, pty);
   }
 

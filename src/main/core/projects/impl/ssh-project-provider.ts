@@ -6,7 +6,7 @@ import type { SshProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { createScriptTerminalId, Terminal } from '@shared/terminals';
+import { Terminal } from '@shared/terminals';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -28,6 +28,7 @@ import type {
 } from '../project-provider';
 import { SshProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
+import { getEffectiveTaskSettings } from '../settings/task-settings';
 import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
@@ -133,7 +134,6 @@ export class SshProjectProvider implements ProjectProvider {
   ): Promise<Result<TaskProvider, ProvisionTaskError>> {
     const existing = this.tasks.get(task.id);
     if (existing) return ok(existing);
-
     if (this.provisioningTasks.has(task.id)) return this.provisioningTasks.get(task.id)!;
 
     const promise = withTimeout(
@@ -214,7 +214,7 @@ export class SshProjectProvider implements ProjectProvider {
     }
 
     const taskFs = new SshFileSystem(this.proxy, workDir);
-    const settings = await this.settings.get();
+    const projectSettings = await this.settings.get();
     const defaultBranch = await this.settings.getDefaultBranch();
     const taskEnvVars = getTaskEnvVars({
       taskId: task.id,
@@ -224,8 +224,14 @@ export class SshProjectProvider implements ProjectProvider {
       defaultBranch,
       portSeed: workDir,
     });
-    const tmuxEnabled = settings.tmux ?? false;
-    const scripts = settings.scripts;
+    const tmuxEnabled = projectSettings.tmux ?? false;
+
+    const taskLevelSettings = await getEffectiveTaskSettings({
+      projectSettings: this.settings,
+      taskFs,
+    });
+    const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
+    const scripts = taskLevelSettings.scripts;
     const proxy = this.proxy;
 
     const taskGitExec = getGitSshExec(proxy, () => githubAuthService.getToken());
@@ -236,6 +242,7 @@ export class SshProjectProvider implements ProjectProvider {
       taskPath: workDir,
       taskId: task.id,
       tmux: tmuxEnabled,
+      shellSetup,
       exec,
       proxy,
       taskEnvVars,
@@ -246,9 +253,16 @@ export class SshProjectProvider implements ProjectProvider {
       taskId: task.id,
       taskPath: workDir,
       tmux: tmuxEnabled,
+      shellSetup,
       exec,
       proxy,
       taskEnvVars,
+    });
+
+    const taskLifecycleService = new TaskLifecycleService({
+      projectId: this.project.id,
+      taskId: task.id,
+      terminals: terminalProvider,
     });
 
     const taskEnv: TaskProvider = {
@@ -262,20 +276,28 @@ export class SshProjectProvider implements ProjectProvider {
       conversations: conversationProvider,
       terminals: terminalProvider,
       settings: this.settings,
+      lifecycleService: taskLifecycleService,
     };
 
     if (scripts?.setup) {
-      const id = await createScriptTerminalId({
-        projectId: this.project.id,
-        taskId: task.id,
+      void taskLifecycleService.prepareAndRunLifecycleScript({
         type: 'setup',
         script: scripts.setup,
       });
-      terminalProvider.spawnTerminal(
-        { id, projectId: this.project.id, taskId: task.id, name: '' },
-        { cols: 80, rows: 24 },
-        { command: scripts.setup, args: [] }
-      );
+    }
+
+    if (scripts?.run) {
+      void taskLifecycleService.prepareAndRunLifecycleScript({
+        type: 'run',
+        script: scripts.run,
+      });
+    }
+
+    if (scripts?.teardown) {
+      void taskLifecycleService.prepareLifecycleScript({
+        type: 'teardown',
+        script: scripts.teardown,
+      });
     }
 
     Promise.all(
@@ -346,26 +368,21 @@ export class SshProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
-    const settings = await this.settings.get();
-
-    const taskLifecycleService = new TaskLifecycleService({
-      projectId: this.project.id,
-      taskId: task.taskId,
-      taskPath: task.taskPath,
-      terminals: task.terminals,
-      tmux: settings.tmux ?? false,
-      shellSetup: settings.shellSetup,
-      exec: getSshExec(this.proxy),
-      taskEnvVars: task.taskEnvVars,
+    const settings = await getEffectiveTaskSettings({
+      projectSettings: this.settings,
+      taskFs: task.fs,
     });
 
     const scripts = settings.scripts;
 
-    if (scripts?.teardown) {
-      taskLifecycleService.runLifecycleScript({
-        type: 'teardown',
-        script: scripts.teardown,
-      });
+    if (scripts?.teardown && task.lifecycleService) {
+      await task.lifecycleService.runLifecycleScript(
+        {
+          type: 'teardown',
+          script: scripts.teardown,
+        },
+        { waitForExit: true, exit: true }
+      );
     }
 
     await task.conversations.destroyAll();

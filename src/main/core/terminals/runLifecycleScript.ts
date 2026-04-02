@@ -1,5 +1,6 @@
 import { projectManager } from '../projects/project-manager';
-import { LocalProjectSettingsProvider } from '../projects/settings/project-settings';
+import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
+import { TaskLifecycleService } from '../tasks/task-lifecycle-service';
 
 export async function runLifecycleScript({
   projectId,
@@ -13,12 +14,20 @@ export async function runLifecycleScript({
   const project = projectManager.getProject(projectId);
   if (!project) throw new Error('Project not found');
 
-  const task = project.getTask(taskId);
-  if (!task?.lifecycleService) throw new Error('Task not provisioned');
-
-  const taskSettings = await new LocalProjectSettingsProvider(task.taskPath).get();
-  const script = taskSettings?.scripts?.[type];
+  const task = project?.getTask(taskId);
+  if (!task) throw new Error('Task not found');
+  const settings = await getEffectiveTaskSettings({
+    projectSettings: project.settings,
+    taskFs: task.fs,
+  });
+  const script = settings.scripts?.[type];
   if (!script) return;
 
-  await task.lifecycleService.executeLifecycleScript({ type, script });
+  const lifecycle = new TaskLifecycleService({
+    projectId,
+    taskId,
+    terminals: task.terminals,
+  });
+
+  await lifecycle.runLifecycleScript({ type, script });
 }
