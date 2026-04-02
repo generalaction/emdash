@@ -28,6 +28,7 @@ import type {
 } from '../project-provider';
 import { SshProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
+import { getEffectiveTaskSettings } from '../settings/task-settings';
 import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
@@ -133,7 +134,6 @@ export class SshProjectProvider implements ProjectProvider {
   ): Promise<Result<TaskProvider, ProvisionTaskError>> {
     const existing = this.tasks.get(task.id);
     if (existing) return ok(existing);
-
     if (this.provisioningTasks.has(task.id)) return this.provisioningTasks.get(task.id)!;
 
     const promise = withTimeout(
@@ -214,7 +214,7 @@ export class SshProjectProvider implements ProjectProvider {
     }
 
     const taskFs = new SshFileSystem(this.proxy, workDir);
-    const settings = await this.settings.get();
+    const projectSettings = await this.settings.get();
     const defaultBranch = await this.settings.getDefaultBranch();
     const taskEnvVars = getTaskEnvVars({
       taskId: task.id,
@@ -224,8 +224,14 @@ export class SshProjectProvider implements ProjectProvider {
       defaultBranch,
       portSeed: workDir,
     });
-    const tmuxEnabled = settings.tmux ?? false;
-    const scripts = settings.scripts;
+    const tmuxEnabled = projectSettings.tmux ?? false;
+
+    const taskLevelSettings = await getEffectiveTaskSettings({
+      projectSettings: this.settings,
+      taskFs,
+    });
+    const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
+    const scripts = taskLevelSettings.scripts;
     const proxy = this.proxy;
 
     const taskGitExec = getGitSshExec(proxy, () => githubAuthService.getToken());
@@ -236,6 +242,7 @@ export class SshProjectProvider implements ProjectProvider {
       taskPath: workDir,
       taskId: task.id,
       tmux: tmuxEnabled,
+      shellSetup,
       exec,
       proxy,
       taskEnvVars,
@@ -246,6 +253,7 @@ export class SshProjectProvider implements ProjectProvider {
       taskId: task.id,
       taskPath: workDir,
       tmux: tmuxEnabled,
+      shellSetup,
       exec,
       proxy,
       taskEnvVars,
