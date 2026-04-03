@@ -1,14 +1,10 @@
-import { reaction, runInAction } from 'mobx';
+import { reaction } from 'mobx';
 import type { GitChange } from '@shared/git';
 import type { PrCheckRun, PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/core/ipc';
 import type { PrComment } from '@renderer/lib/github/types';
 import type { GitStore } from './git';
 import { Resource } from './resource';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface PrListData {
   prs: PullRequest[];
@@ -19,20 +15,6 @@ export interface PrListData {
 type MergeMode = 'merge' | 'squash' | 'rebase';
 export type MergeResult = { success: true } | { success: false; error: string };
 
-// ---------------------------------------------------------------------------
-// PrStore
-// ---------------------------------------------------------------------------
-
-/**
- * Owns all pull-request related server state for a single task.
- * Replaces the `PrProvider` React context bridge.
- *
- * - `prList` is always active (starts when the task activates).
- * - Per-PR resources (`getFiles`, `getCheckRuns`, `getComments`) are lazy:
- *   they are created on first access and only poll while observed (demandGated).
- * - `commitHistory` provides the task's git log (demand-loaded, used by the
- *   PR commits list to show ahead-of-upstream commits).
- */
 export class PrStore {
   readonly prList: Resource<PrListData>;
   readonly commitHistory: Resource<{ commits: import('@shared/git').Commit[]; aheadCount: number }>;
@@ -62,10 +44,6 @@ export class PrStore {
     this.commitHistory = new Resource(() => this._fetchCommitHistory(), [{ kind: 'demand' }]);
   }
 
-  // ---------------------------------------------------------------------------
-  // Forwarded accessors — drop-in replacements for PrProvider consumers
-  // ---------------------------------------------------------------------------
-
   get pullRequests(): PullRequest[] {
     return this.prList.data?.prs ?? [];
   }
@@ -78,11 +56,6 @@ export class PrStore {
     return this.prList.data?.taskBranch ?? null;
   }
 
-  // ---------------------------------------------------------------------------
-  // Lazy per-PR resource accessors
-  // ---------------------------------------------------------------------------
-
-  /** Files changed between the PR's base ref and HEAD. Demand-gated 60s poll. */
   getFiles(pr: PullRequest): Resource<GitChange[]> {
     const key = pr.metadata.baseRefName;
     if (!this._prFiles.has(key)) {
@@ -102,10 +75,6 @@ export class PrStore {
     return this._prFiles.get(key)!;
   }
 
-  /**
-   * Check runs for a PR. Demand-gated 15s poll (fast enough to catch pending→complete
-   * transitions without a timer for every open task).
-   */
   getCheckRuns(pr: PullRequest): Resource<PrCheckRun[]> {
     const key = `${pr.nameWithOwner}:${pr.metadata.number}`;
     if (!this._prCheckRuns.has(key)) {
@@ -118,7 +87,6 @@ export class PrStore {
     return this._prCheckRuns.get(key)!;
   }
 
-  /** Comments and reviews for a PR. Demand-gated 60s poll. */
   getComments(pr: PullRequest): Resource<PrComment[]> {
     const key = `${pr.nameWithOwner}:${pr.metadata.number}`;
     if (!this._prComments.has(key)) {
@@ -130,10 +98,6 @@ export class PrStore {
     }
     return this._prComments.get(key)!;
   }
-
-  // ---------------------------------------------------------------------------
-  // Actions — colocated with the mutations they trigger
-  // ---------------------------------------------------------------------------
 
   async mergePr(
     id: string,
@@ -168,10 +132,6 @@ export class PrStore {
     }
   }
 
-  /**
-   * Force-refresh the PR list and the check-run state for the given PR id.
-   * Called from the UI's "Refresh" button on a stale PR.
-   */
   refresh(id: string): void {
     this.prList.invalidate();
     const pr = this.pullRequests.find((p) => p.id === id);
@@ -181,11 +141,6 @@ export class PrStore {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Lifecycle
-  // ---------------------------------------------------------------------------
-
-  /** Activate always-on strategies. Call from TaskStore.activate(). */
   start(): void {
     this.prList.start();
   }
@@ -197,10 +152,6 @@ export class PrStore {
     for (const r of this._prCheckRuns.values()) r.dispose();
     for (const r of this._prComments.values()) r.dispose();
   }
-
-  // ---------------------------------------------------------------------------
-  // Private fetch helpers
-  // ---------------------------------------------------------------------------
 
   private async _fetchPrList(): Promise<PrListData> {
     const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, this.taskId);
@@ -236,10 +187,6 @@ export class PrStore {
     return result.data;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Pure helpers
-// ---------------------------------------------------------------------------
 
 function _mergeAndSortComments(
   rawComments: Array<{

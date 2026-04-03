@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ErrorBoundary from './components/error-boundary';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { TooltipProvider } from './components/ui/tooltip';
-import { AppContextProvider } from './core/app/AppContextProvider';
 import { ThemeProvider } from './core/app/ThemeProvider';
 import { DependenciesProvider } from './core/dependencies-provider';
 // Import to ensure singleton initialises and subscribes to agentEventChannel.
@@ -38,23 +37,21 @@ export function App() {
         <DependenciesProvider>
           <ModalProvider>
             <WorkspaceLayoutContextProvider>
-              <AppContextProvider>
-                <TerminalPoolProvider>
-                  <SshConnectionProvider>
-                    <GithubContextProvider>
-                      <IntegrationsProvider>
-                        <WorkspaceViewProvider>
-                          <RightSidebarProvider>
-                            <ThemeProvider>
-                              <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                            </ThemeProvider>
-                          </RightSidebarProvider>
-                        </WorkspaceViewProvider>
-                      </IntegrationsProvider>
-                    </GithubContextProvider>
-                  </SshConnectionProvider>
-                </TerminalPoolProvider>
-              </AppContextProvider>
+              <TerminalPoolProvider>
+                <SshConnectionProvider>
+                  <GithubContextProvider>
+                    <IntegrationsProvider>
+                      <WorkspaceViewProvider>
+                        <RightSidebarProvider>
+                          <ThemeProvider>
+                            <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                          </ThemeProvider>
+                        </RightSidebarProvider>
+                      </WorkspaceViewProvider>
+                    </IntegrationsProvider>
+                  </GithubContextProvider>
+                </SshConnectionProvider>
+              </TerminalPoolProvider>
             </WorkspaceLayoutContextProvider>
           </ModalProvider>
         </DependenciesProvider>

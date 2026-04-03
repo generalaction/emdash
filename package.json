@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.4.24",
+  "version": "1.0.0",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "type": "module",
   "main": "./out/main/index.js",
@@ -178,7 +178,8 @@
         "provider": "github",
         "owner": "generalaction",
         "repo": "emdash",
-        "releaseType": "release"
+        "releaseType": "release",
+        "channel": "v1"
       }
     ],
     "generateUpdatesFilesForAllChannels": true,

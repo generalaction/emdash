@@ -1,36 +1,19 @@
 import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import { observer } from 'mobx-react-lite';
+import React from 'react';
+import { EMDASH_RELEASES_URL } from '@shared/urls';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
-import { EMDASH_RELEASES_URL, useUpdater } from '@renderer/hooks/useUpdater';
+import { appState } from '@renderer/core/stores/app-state';
+import { formatBytes } from '@renderer/lib/formatBytes';
 import { rpc } from '../../core/ipc';
 import { SettingRow } from './SettingRow';
 
-export function UpdateCard(): React.JSX.Element {
-  const updater = useUpdater();
-  const [appVersion, setAppVersion] = useState<string>('');
-  const [isDev, setIsDev] = useState(false);
+const isDev = !window.electronAPI;
 
-  useEffect(() => {
-    rpc.app
-      .getAppVersion()
-      .then(setAppVersion)
-      .catch(() => setAppVersion('Unknown'));
-
-    setIsDev(window.location.hostname === 'localhost' || !window.electronAPI);
-  }, []);
-
-  const handleCheckNow = async () => {
-    await updater.check();
-  };
-
-  const handleDownload = async () => {
-    await updater.download();
-  };
-
-  const handleInstall = () => {
-    updater.install();
-  };
+export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
+  const update = appState.update;
+  const appVersion = appState.appInfo.info.data?.appVersion;
 
   const versionTitle = (
     <div className="flex items-center gap-2">
@@ -43,7 +26,6 @@ export function UpdateCard(): React.JSX.Element {
     </div>
   );
 
-  // In dev, show simple informational message
   if (isDev) {
     return (
       <SettingRow
@@ -66,7 +48,6 @@ export function UpdateCard(): React.JSX.Element {
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={handleCheckNow}
             disabled
             aria-label="Check for updates (disabled in development)"
           >
@@ -84,18 +65,18 @@ export function UpdateCard(): React.JSX.Element {
         description={renderStatusMessage()}
         control={
           <div className="flex items-center gap-2">
-            {updater.state.status !== 'downloaded' && updater.state.status !== 'installing' && (
+            {update.state.status !== 'downloaded' && update.state.status !== 'installing' && (
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                onClick={handleCheckNow}
-                disabled={updater.state.status === 'checking'}
+                onClick={() => update.check()}
+                disabled={update.state.status === 'checking'}
                 aria-label="Check for updates"
               >
                 <RefreshCw
-                  className={`h-3 w-3 ${updater.state.status === 'checking' ? 'animate-spin' : ''}`}
+                  className={`h-3 w-3 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
                 />
               </Button>
             )}
@@ -104,17 +85,17 @@ export function UpdateCard(): React.JSX.Element {
         }
       />
 
-      {updater.state.status === 'downloading' && updater.state.progress && (
+      {update.state.status === 'downloading' && update.state.progress && (
         <div className="space-y-2">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
               className="h-full bg-primary transition-all duration-300 ease-out"
-              style={{ width: `${updater.state.progress.percent || 0}%` }}
+              style={{ width: `${update.state.progress.percent || 0}%` }}
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            {formatBytes(updater.state.progress.transferred || 0)} /{' '}
-            {formatBytes(updater.state.progress.total || 0)}
+            {formatBytes(update.state.progress.transferred || 0)} /{' '}
+            {formatBytes(update.state.progress.total || 0)}
           </p>
         </div>
       )}
@@ -122,7 +103,7 @@ export function UpdateCard(): React.JSX.Element {
   );
 
   function renderStatusMessage() {
-    switch (updater.state.status) {
+    switch (update.state.status) {
       case 'checking':
         return (
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -132,10 +113,10 @@ export function UpdateCard(): React.JSX.Element {
         );
 
       case 'available':
-        if (updater.state.info?.version) {
+        if (update.state.info?.version) {
           return (
             <p className="text-sm text-muted-foreground">
-              Version {updater.state.info.version} is available
+              Version {update.state.info.version} is available
             </p>
           );
         }
@@ -144,7 +125,7 @@ export function UpdateCard(): React.JSX.Element {
       case 'downloading':
         return (
           <p className="text-sm text-muted-foreground">
-            Downloading update{updater.progressLabel ? ` (${updater.progressLabel})` : '...'}
+            Downloading update{update.progressLabel ? ` (${update.progressLabel})` : '...'}
           </p>
         );
 
@@ -194,10 +175,15 @@ export function UpdateCard(): React.JSX.Element {
   }
 
   function renderAction() {
-    switch (updater.state.status) {
+    switch (update.state.status) {
       case 'available':
         return (
-          <Button size="sm" variant="default" onClick={handleDownload} className="h-7 text-xs">
+          <Button
+            size="sm"
+            variant="default"
+            onClick={() => update.download()}
+            className="h-7 text-xs"
+          >
             <Download className="mr-1.5 h-3 w-3" />
             Download
           </Button>
@@ -213,7 +199,12 @@ export function UpdateCard(): React.JSX.Element {
 
       case 'downloaded':
         return (
-          <Button size="sm" variant="default" onClick={handleInstall} className="h-7 text-xs">
+          <Button
+            size="sm"
+            variant="default"
+            onClick={() => update.install()}
+            className="h-7 text-xs"
+          >
             <RefreshCw className="mr-1.5 h-3 w-3" />
             Restart
           </Button>
@@ -231,17 +222,4 @@ export function UpdateCard(): React.JSX.Element {
         return null;
     }
   }
-
-  function formatBytes(bytes: number): string {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
-
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
-  }
-}
+});

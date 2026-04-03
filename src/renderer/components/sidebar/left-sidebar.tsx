@@ -2,10 +2,9 @@ import { FolderPlus, MessageSquareShare, Plug, Puzzle, Settings } from 'lucide-r
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import ReorderList from '@renderer/components/reorder-list';
-import { useAppContext } from '@renderer/core/app/AppContextProvider';
 import { useGithubContext } from '@renderer/core/github-context-provider';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { sidebarStore } from '@renderer/core/stores/app-state';
+import { appState, sidebarStore } from '@renderer/core/stores/app-state';
 import {
   isCurrentView,
   useNavigate,
@@ -29,7 +28,7 @@ import { SidebarSpace } from './sidebar-space';
 export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
-  const { appVersion } = useAppContext();
+  const appVersion = appState.appInfo.info.data?.appVersion;
   const { user: githubUser } = useGithubContext();
 
   const orderedProjects = sidebarStore.orderedProjects;

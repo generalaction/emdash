@@ -25,9 +25,6 @@ declare global {
       eventSend: (channel: string, data: unknown) => void;
       eventOn: (channel: string, cb: (data: unknown) => void) => () => void;
 
-      // Update events — complex multi-channel aggregation, not yet migrated to typed events
-      onUpdateEvent?: (listener: (data: { type: string; payload?: any }) => void) => () => void;
-
       // App actions that use event.sender
       openIn: (args: {
         app: string;

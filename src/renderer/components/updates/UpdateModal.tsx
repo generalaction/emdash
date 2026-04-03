@@ -6,12 +6,15 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import { observer } from 'mobx-react-lite';
+import React, { useEffect } from 'react';
+import { EMDASH_RELEASES_URL } from '@shared/urls';
 import { Button } from '@renderer/components/ui/button';
 import { DialogDescription, DialogHeader, DialogTitle } from '@renderer/components/ui/dialog';
+import { rpc } from '@renderer/core/ipc';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
-import { EMDASH_RELEASES_URL, useUpdater } from '@renderer/hooks/useUpdater';
-import { rpc } from '../../core/ipc';
+import { appState } from '@renderer/core/stores/app-state';
+import { formatBytes } from '@renderer/lib/formatBytes';
 
 interface UpdateModalProps {
   onClose: () => void;
@@ -21,37 +24,19 @@ export function UpdateModalOverlay({ onClose }: BaseModalProps<void>) {
   return <UpdateModal onClose={onClose} />;
 }
 
-function UpdateModal({ onClose }: UpdateModalProps): React.JSX.Element {
-  const updater = useUpdater();
-  const [appVersion, setAppVersion] = useState('');
+const UpdateModal = observer(function UpdateModal({
+  onClose,
+}: UpdateModalProps): React.JSX.Element {
+  const update = appState.update;
+  const appVersion = appState.appInfo.info.data?.appVersion;
 
   useEffect(() => {
-    rpc.app
-      .getAppVersion()
-      .then(setAppVersion)
-      .catch(() => setAppVersion('Unknown'));
-  }, []);
-
-  // Auto-check when modal opens if not already in a progressed state
-  useEffect(() => {
-    const { status } = updater.state;
+    const { status } = update.state;
     if (status === 'idle' || status === 'not-available') {
-      updater.check();
+      update.check();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handleCheck = async () => {
-    await updater.check();
-  };
-
-  const handleDownload = async () => {
-    await updater.download();
-  };
-
-  const handleInstall = () => {
-    updater.install();
-  };
 
   return (
     <>
@@ -70,14 +55,14 @@ function UpdateModal({ onClose }: UpdateModalProps): React.JSX.Element {
       </DialogHeader>
 
       <div className="flex flex-col items-center gap-4 py-4">
-        {updater.state.status === 'checking' && (
+        {update.state.status === 'checking' && (
           <>
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Checking for updates...</p>
           </>
         )}
 
-        {(updater.state.status === 'idle' || updater.state.status === 'not-available') && (
+        {(update.state.status === 'idle' || update.state.status === 'not-available') && (
           <>
             <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-500" />
             <p className="text-sm">Emdash is up to date.</p>
@@ -85,7 +70,7 @@ function UpdateModal({ onClose }: UpdateModalProps): React.JSX.Element {
               <Button variant="outline" size="sm" onClick={onClose}>
                 OK
               </Button>
-              <Button variant="outline" size="sm" onClick={handleCheck}>
+              <Button variant="outline" size="sm" onClick={() => update.check()}>
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 Check Again
               </Button>
@@ -93,45 +78,45 @@ function UpdateModal({ onClose }: UpdateModalProps): React.JSX.Element {
           </>
         )}
 
-        {updater.state.status === 'available' && (
+        {update.state.status === 'available' && (
           <>
             <Download className="h-8 w-8 text-primary" />
             <p className="text-sm text-muted-foreground">
-              {updater.state.info?.version
-                ? `Version ${updater.state.info.version} is available.`
+              {update.state.info?.version
+                ? `Version ${update.state.info.version} is available.`
                 : 'An update is available.'}
             </p>
-            <Button size="sm" onClick={handleDownload}>
+            <Button size="sm" onClick={() => update.download()}>
               <Download className="mr-1.5 h-3.5 w-3.5" />
               Download
             </Button>
           </>
         )}
 
-        {updater.state.status === 'downloading' && (
+        {update.state.status === 'downloading' && (
           <>
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">
-              Downloading update{updater.progressLabel ? ` (${updater.progressLabel})` : '...'}
+              Downloading update{update.progressLabel ? ` (${update.progressLabel})` : '...'}
             </p>
-            {updater.state.progress && (
+            {update.state.progress && (
               <div className="w-full space-y-1">
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full bg-primary transition-all duration-300 ease-out"
-                    style={{ width: `${updater.state.progress.percent || 0}%` }}
+                    style={{ width: `${update.state.progress.percent || 0}%` }}
                   />
                 </div>
                 <p className="text-center text-xs text-muted-foreground">
-                  {formatBytes(updater.state.progress.transferred || 0)} /{' '}
-                  {formatBytes(updater.state.progress.total || 0)}
+                  {formatBytes(update.state.progress.transferred || 0)} /{' '}
+                  {formatBytes(update.state.progress.total || 0)}
                 </p>
               </div>
             )}
           </>
         )}
 
-        {updater.state.status === 'downloaded' && (
+        {update.state.status === 'downloaded' && (
           <>
             <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-500" />
             <p className="text-sm">Update downloaded and ready to install.</p>
@@ -139,7 +124,7 @@ function UpdateModal({ onClose }: UpdateModalProps): React.JSX.Element {
               <Button variant="outline" size="sm" onClick={onClose}>
                 Later
               </Button>
-              <Button size="sm" onClick={handleInstall}>
+              <Button size="sm" onClick={() => update.install()}>
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 Restart Now
               </Button>
@@ -147,7 +132,7 @@ function UpdateModal({ onClose }: UpdateModalProps): React.JSX.Element {
           </>
         )}
 
-        {updater.state.status === 'installing' && (
+        {update.state.status === 'installing' && (
           <>
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-center text-sm text-muted-foreground">
@@ -156,17 +141,17 @@ function UpdateModal({ onClose }: UpdateModalProps): React.JSX.Element {
           </>
         )}
 
-        {updater.state.status === 'error' && (
+        {update.state.status === 'error' && (
           <>
             <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-500" />
             <p className="text-center text-sm text-muted-foreground">
-              {updater.state.message || 'Update check failed'}
+              {update.state.message || 'Update check failed'}
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={onClose}>
                 Close
               </Button>
-              <Button size="sm" variant="outline" onClick={handleCheck}>
+              <Button size="sm" variant="outline" onClick={() => update.check()}>
                 Try Again
               </Button>
             </div>
@@ -175,17 +160,4 @@ function UpdateModal({ onClose }: UpdateModalProps): React.JSX.Element {
       </div>
     </>
   );
-}
-
-function formatBytes(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let size = bytes;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex++;
-  }
-
-  return `${size.toFixed(1)} ${units[unitIndex]}`;
-}
+});

@@ -15,7 +15,7 @@ import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubAuthService } from './core/github/services/github-auth-service';
 import { projectManager } from './core/projects/project-manager';
 import { appSettingsService } from './core/settings/settings-service';
-import { autoUpdateService } from './core/updates/AutoUpdateService';
+import { updateService } from './core/updates/update-service';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import * as telemetry from './lib/telemetry';
@@ -65,7 +65,7 @@ app.on('activate', () => {
 app.whenReady().then(async () => {
   try {
     await initializeDatabase();
-    const BUFFER_STALE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+    const BUFFER_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
     editorBufferService.pruneStale(BUFFER_STALE_MS).catch((e) => {
       log.warn('Failed to prune stale editor buffers:', e);
     });
@@ -109,7 +109,7 @@ app.whenReady().then(async () => {
   createMainWindow();
 
   try {
-    await autoUpdateService.initialize();
+    await updateService.initialize();
   } catch (error) {
     if (app.isPackaged) {
       log.error('Failed to initialize auto-update service:', error);
@@ -123,7 +123,7 @@ app.on('before-quit', () => {
   telemetry.shutdown();
 
   agentHookService.stop();
-  autoUpdateService.shutdown();
+  updateService.shutdown();
   projectManager.shutdown().catch((e) => {
     log.error('Failed to shutdown project manager:', e);
   });

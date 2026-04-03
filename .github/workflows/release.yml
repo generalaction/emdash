@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v1.*'
   workflow_dispatch:
     inputs:
       arch:
@@ -257,11 +257,11 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --draft=false --prerelease=false
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
+            gh release create "$TAG" --title "$TAG" --generate-notes --no-latest || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           # Upload Linux packages and metadata
           FILES=(release/emdash-*.AppImage release/emdash-*.deb release/emdash-*.rpm)
-          if [ -f release/latest-linux.yml ]; then FILES+=(release/latest-linux.yml); fi
+          if [ -f release/v1-linux.yml ]; then FILES+=(release/v1-linux.yml); fi
           gh release upload "$TAG" "${FILES[@]}" --clobber
 
   release-win:
@@ -424,12 +424,12 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --draft=false --prerelease=false
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
+            gh release create "$TAG" --title "$TAG" --generate-notes --no-latest || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           FILES=(release/emdash-*.exe release/emdash-*.msi)
           if ls release/*.blockmap >/dev/null 2>&1; then FILES+=(release/*.blockmap); fi
-          if [ -f release/latest.yml ]; then FILES+=(release/latest.yml); fi
-          if [ -f release/latest-win.yml ]; then FILES+=(release/latest-win.yml); fi
+          if [ -f release/v1.yml ]; then FILES+=(release/v1.yml); fi
+          if [ -f release/v1-win.yml ]; then FILES+=(release/v1-win.yml); fi
           gh release upload "$TAG" "${FILES[@]}" --clobber
 
       - name: Upload Windows artifacts (dry-run)
@@ -441,7 +441,7 @@ jobs:
             release/emdash-*.exe
             release/emdash-*.msi
             release/*.blockmap
-            release/latest*.yml
+            release/v1*.yml
           if-no-files-found: error
 
   release-mac:
@@ -758,12 +758,12 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --draft=false --prerelease=false
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
+            gh release create "$TAG" --title "$TAG" --generate-notes --no-latest || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           # Upload stapled DMGs, ZIPs (for auto-update), and update files
           FILES=(release/emdash-*.dmg release/emdash-*.zip)
           if ls release/*.blockmap >/dev/null 2>&1; then FILES+=(release/*.blockmap); fi
-          if [ -f release/latest-mac.yml ]; then FILES+=(release/latest-mac.yml); fi
+          if [ -f release/v1-mac.yml ]; then FILES+=(release/v1-mac.yml); fi
           gh release upload "$TAG" "${FILES[@]}" --clobber
 
       - name: Inspect built artifacts (dry-run)
@@ -794,5 +794,5 @@ jobs:
           name: SIGNED-STAPLED-DMGS-extras
           path: |
             release/*.blockmap
-            release/latest-mac.yml
+            release/v1-mac.yml
           if-no-files-found: ignore
