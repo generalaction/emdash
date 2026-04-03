@@ -6,6 +6,7 @@ import {
   useAccountSignIn,
   useAccountSignOut,
 } from '../../hooks/useAccount';
+import { Button } from '../ui/button';
 import { ServerUnavailableMessage } from './ServerUnavailableMessage';
 
 export function AccountTab() {
@@ -65,14 +66,15 @@ export function AccountTab() {
             </p>
             {user.email && <p className="text-xs text-muted-foreground">{user.email}</p>}
           </div>
-          <button
+          <Button
             type="button"
+            className="w-fit"
             onClick={handleSignOut}
-            className="flex items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            disabled={signOutMutation.isPending}
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign Out
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -92,15 +94,15 @@ export function AccountTab() {
           {serverAvailable === false ? (
             <ServerUnavailableMessage />
           ) : (
-            <button
+            <Button
               type="button"
+              className="w-fit"
               onClick={handleSignIn}
               disabled={signInMutation.isPending}
-              className="flex w-fit items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               <LogIn className="h-3.5 w-3.5" />
               {signInMutation.isPending ? 'Signing in...' : 'Sign In'}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -120,15 +122,15 @@ export function AccountTab() {
         {serverAvailable === false ? (
           <ServerUnavailableMessage />
         ) : (
-          <button
+          <Button
             type="button"
+            className="w-fit"
             onClick={handleSignIn}
             disabled={signInMutation.isPending}
-            className="flex w-fit items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             <LogIn className="h-3.5 w-3.5" />
             {signInMutation.isPending ? 'Creating account...' : 'Create Account'}
-          </button>
+          </Button>
         )}
       </div>
     </div>

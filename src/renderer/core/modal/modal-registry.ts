@@ -9,7 +9,7 @@ import { UpdateModalOverlay } from '@renderer/components/updates/UpdateModal';
 import { CreateConversationModal } from '@renderer/core/conversations/create-conversation-modal';
 import { NewProjectModal } from '@renderer/core/projects/new-project-modal';
 import { CreateTaskModal } from '@renderer/core/tasks/create-task-modal/create-task-modal';
-import { CreatePrModal } from '@renderer/views/tasks/diff-view/right-panel/pr-section/create-pr-modal';
+import { CreatePrModal } from '@renderer/views/tasks/diff-view/changes-panel/pr-section/create-pr-modal';
 import { ConflictDialog } from '@renderer/views/tasks/editor/conflict-dialog';
 import { RenameTaskModal } from '@renderer/views/tasks/rename-task-modal';
 import { ModalComponent } from './modal-provider';

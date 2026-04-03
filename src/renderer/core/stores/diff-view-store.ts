@@ -1,23 +1,9 @@
 import { action, makeObservable, observable, reaction, runInAction } from 'mobx';
-import type { DiffViewSnapshot } from '@shared/view-state';
+import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from './changes-view-store';
 import { GitStore } from './git';
 import type { PrStore } from './pr-store';
 import type { Snapshottable } from './snapshottable';
-
-export interface ActiveFile {
-  path: string;
-  /**
-   * Which model types to use for the diff:
-   *   'disk'   — right side = disk:// (working tree); left = git at originalRef
-   *   'staged' — right side = git://'staged' (index content); left = git://HEAD
-   *   'git'    — right side = git://HEAD; left = git at originalRef (PR / ref diffs)
-   */
-  type: 'disk' | 'staged' | 'git';
-  /** Git ref for the left (original/before) side. For 'staged', always 'HEAD'. */
-  originalRef: string;
-  scrollBehavior?: 'smooth' | 'auto';
-}
 
 /**
  * Maximum number of files that the stacked diff view can handle.
@@ -46,7 +32,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     private readonly git: GitStore,
     private readonly pr: PrStore
   ) {
-    this.changesView = new ChangesViewStore(git);
+    this.changesView = new ChangesViewStore(git, pr);
 
     makeObservable(this, {
       activeFile: observable,
@@ -139,12 +125,14 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     return {
       diffStyle: this.diffStyle,
       viewMode: this.viewMode,
+      activeFile: this.activeFile ? { ...this.activeFile, scrollBehavior: undefined } : undefined,
     };
   }
 
   restoreSnapshot(snapshot: Partial<DiffViewSnapshot>): void {
     if (snapshot.diffStyle) this.diffStyle = snapshot.diffStyle;
     if (snapshot.viewMode) this.viewMode = snapshot.viewMode;
+    if (snapshot.activeFile) this.activeFile = snapshot.activeFile;
     // Apply limit in case the persisted viewMode is 'stacked' but the file
     // count already exceeds the threshold.
     this._applyStackedLimit();

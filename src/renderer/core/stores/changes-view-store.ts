@@ -1,5 +1,7 @@
 import { computed, makeObservable, observable, reaction, runInAction, when } from 'mobx';
-import type { GitStore } from './git';
+import { GitStore } from './git';
+import { PrStore } from './pr-store';
+import { WorkspaceStore } from './workspace';
 
 export type SelectionState = 'all' | 'none' | 'partial';
 
@@ -16,7 +18,10 @@ export class ChangesViewStore {
 
   private _disposeReactions: Array<() => void> = [];
 
-  constructor(private readonly git: GitStore) {
+  constructor(
+    private readonly git: GitStore,
+    private readonly pr: PrStore
+  ) {
     makeObservable(this, {
       expandedSections: observable,
       unstagedSelectionState: computed,
@@ -48,25 +53,23 @@ export class ChangesViewStore {
     // Set sensible initial expanded state once the first git load completes.
     this._disposeReactions.push(
       when(
-        () => !this.git.isLoading && this.git.fileChanges.length >= 0 && !this.git.error,
+        () => !this.git.isLoading && !this.git.error,
         () => {
           const hasUnstaged = this.git.unstagedFileChanges.length > 0;
           const hasStaged = this.git.stagedFileChanges.length > 0;
+          const hasPullRequests = this.pr.pullRequests.length > 0;
+
           runInAction(() => {
             this.expandedSections = {
-              unstaged: hasUnstaged || !hasStaged,
+              unstaged: hasUnstaged || (!hasStaged && !hasUnstaged && !hasPullRequests),
               staged: hasStaged,
-              pullRequests: !hasStaged,
+              pullRequests: hasPullRequests,
             };
           });
         }
       )
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // Computed selectionState
-  // ---------------------------------------------------------------------------
 
   get unstagedSelectionState(): SelectionState {
     const total = this.git.unstagedFileChanges.length;
@@ -83,10 +86,6 @@ export class ChangesViewStore {
     if (selected === total) return 'all';
     return 'partial';
   }
-
-  // ---------------------------------------------------------------------------
-  // Unstaged selection methods
-  // ---------------------------------------------------------------------------
 
   toggleUnstagedItem(path: string): void {
     if (this.unstagedSelection.has(path)) {
@@ -110,10 +109,6 @@ export class ChangesViewStore {
     this.unstagedSelection.clear();
   }
 
-  // ---------------------------------------------------------------------------
-  // Staged selection methods
-  // ---------------------------------------------------------------------------
-
   toggleStagedItem(path: string): void {
     if (this.stagedSelection.has(path)) {
       this.stagedSelection.delete(path);
@@ -136,10 +131,6 @@ export class ChangesViewStore {
     this.stagedSelection.clear();
   }
 
-  // ---------------------------------------------------------------------------
-  // Panel expansion methods
-  // ---------------------------------------------------------------------------
-
   toggleExpanded(section: keyof ExpandedSections): void {
     runInAction(() => {
       this.expandedSections = {
@@ -155,9 +146,8 @@ export class ChangesViewStore {
     });
   }
 
-  // Called by DiffViewStore when an active file is set so the right section expands.
-  expandForActiveFileType(type: 'disk' | 'staged'): void {
-    const section = type === 'disk' ? 'unstaged' : 'staged';
+  expandForActiveFileType(type: 'disk' | 'staged' | 'git'): void {
+    const section = type === 'disk' ? 'unstaged' : type === 'staged' ? 'staged' : 'pullRequests';
     if (!this.expandedSections[section]) {
       runInAction(() => {
         this.expandedSections = { ...this.expandedSections, [section]: true };

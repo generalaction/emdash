@@ -12,7 +12,15 @@ export type EditorViewSnapshot = {
 export type DiffViewSnapshot = {
   diffStyle: 'unified' | 'split';
   viewMode: 'stacked' | 'file';
+  activeFile?: ActiveFile;
 };
+
+export interface ActiveFile {
+  path: string;
+  type: 'disk' | 'staged' | 'git';
+  originalRef: string;
+  scrollBehavior?: 'smooth' | 'auto';
+}
 
 export type TaskViewSnapshot = {
   view: string | null;

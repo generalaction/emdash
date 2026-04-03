@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import type { GitChange } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
-import { usePrefetchModels } from '@renderer/views/tasks/diff-view/right-panel/use-prefetch-models';
+import { usePrefetchModels } from '@renderer/views/tasks/diff-view/changes-panel/use-prefetch-models';
 import {
   useProvisionedTask,
   useRequireProvisionedTask,
