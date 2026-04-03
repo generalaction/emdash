@@ -1,6 +1,5 @@
 import { request } from 'node:https';
 import { URL } from 'node:url';
-import type { Issue } from '@shared/tasks';
 import { KV } from '@main/db/kv';
 import { capture } from '@main/lib/telemetry';
 
@@ -38,17 +37,6 @@ export interface JiraIssue {
   project: JiraIssueProject | null;
   assignee: JiraIssueAssignee | null;
   updatedAt: string | null;
-}
-
-export function toGeneralIssue(issue: JiraIssue): Issue {
-  return {
-    provider: 'jira',
-    identifier: issue.key,
-    title: issue.summary,
-    url: issue.url,
-    description: issue.description ?? undefined,
-    updatedAt: issue.updatedAt ?? undefined,
-  };
 }
 
 // ── Internal types ───────────────────────────────────────────────────────────

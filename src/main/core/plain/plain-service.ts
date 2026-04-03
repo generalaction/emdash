@@ -6,7 +6,6 @@ import {
   RateLimitError,
 } from '@team-plain/graphql';
 import keytar from 'keytar';
-import type { Issue } from '@shared/tasks';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -37,18 +36,6 @@ interface PlainThreadLike {
   status?: string | null;
   priority?: number | null;
   updatedAt?: { iso8601: string } | null;
-}
-
-export function toGeneralIssue(thread: PlainThreadSummary): Issue {
-  return {
-    provider: 'plain',
-    identifier: thread.ref ?? thread.id,
-    title: thread.title,
-    url: thread.url ?? '',
-    description: thread.description ?? undefined,
-    status: thread.status ?? undefined,
-    updatedAt: thread.updatedAt ?? undefined,
-  };
 }
 
 // ── Service ─────────────────────────────────────────────────────────────────

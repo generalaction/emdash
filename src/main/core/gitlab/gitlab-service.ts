@@ -2,7 +2,6 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { GitbeakerRequestError, Gitlab } from '@gitbeaker/rest';
 import keytar from 'keytar';
-import type { Issue } from '@shared/tasks';
 import { KV } from '@main/db/kv';
 
 const execFileAsync = promisify(execFile);
@@ -34,22 +33,6 @@ export interface GitLabIssueSummary {
   assignee: { name: string; username: string } | null;
   labels: string[];
   updatedAt: string | null;
-}
-
-export function toGeneralIssue(issue: GitLabIssueSummary): Issue {
-  return {
-    provider: 'gitlab',
-    identifier: `#${issue.iid}`,
-    title: issue.title,
-    url: issue.webUrl ?? '',
-    description: issue.description ?? undefined,
-    status: issue.state ?? undefined,
-    assignees: issue.assignee
-      ? [issue.assignee.name || issue.assignee.username].filter(Boolean)
-      : undefined,
-    project: issue.project?.name ?? undefined,
-    updatedAt: issue.updatedAt ?? undefined,
-  };
 }
 
 const gitlabKV = new KV<GitLabKVSchema>('gitlab');
@@ -197,7 +180,7 @@ export class GitlabService {
     }
   }
 
-  private async requireAuth(): Promise<{ instanceUrl: string; token: string; client: Gitlab }> {
+  private async requireAuth(): Promise<{ instanceUrl: string; client: Gitlab }> {
     const connection = await this.readConnection();
     if (!connection) {
       throw new Error(this.NOT_CONFIGURED_ERROR);
@@ -210,7 +193,6 @@ export class GitlabService {
 
     return {
       instanceUrl: connection.instanceUrl,
-      token,
       client: this.getClient(connection.instanceUrl, token),
     };
   }
