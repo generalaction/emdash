@@ -23,7 +23,7 @@ const toIssue = (raw: GitLabIssueSummary): Issue => ({
   description: raw.description ?? undefined,
   status: raw.state ?? undefined,
   assignees: raw.assignee
-    ? [raw.assignee.name ?? raw.assignee.username ?? ''].filter(Boolean)
+    ? [raw.assignee.name || raw.assignee.username].filter(Boolean)
     : undefined,
   project: raw.project?.name ?? undefined,
   updatedAt: raw.updatedAt ?? undefined,

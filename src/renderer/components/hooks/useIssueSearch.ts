@@ -1,14 +1,17 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Issue } from '@shared/tasks';
 import { useGitHubIssues } from '@renderer/core/integrations/use-github-issues';
+import { useGitLabIssues } from '@renderer/core/integrations/use-gitlab-issues';
 import { useJiraIssues } from '@renderer/core/integrations/use-jira-issues';
 import { useLinearIssues } from '@renderer/core/integrations/use-linear-issues';
 import { useIntegrationStatus } from './useIntegrationStatus';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
-export function useIssueSearch(nameWithOwner: string) {
-  const { isLinearConnected, isGithubConnected, isJiraConnected } = useIntegrationStatus();
+export function useIssueSearch(nameWithOwner: string, projectPath = '') {
+  const { isLinearConnected, isGithubConnected, isJiraConnected, isGitlabConnected } =
+    useIntegrationStatus();
+  const canUseGitlab = isGitlabConnected === true && !!projectPath;
   const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
     null
   );
@@ -19,17 +22,27 @@ export function useIssueSearch(nameWithOwner: string) {
     enabled: isGithubConnected && !!nameWithOwner,
   });
   const jiraIssues = useJiraIssues({ enabled: isJiraConnected === true });
+  const gitlabIssues = useGitLabIssues({
+    projectPath,
+    enabled: canUseGitlab,
+  });
 
-  const hasAnyIntegration = !!(isLinearConnected || isGithubConnected || isJiraConnected);
+  const hasAnyIntegration = !!(
+    isLinearConnected ||
+    isGithubConnected ||
+    isJiraConnected ||
+    canUseGitlab
+  );
 
   const issueProvider = useMemo(() => {
     if (!selectedIssueProvider) {
       if (isLinearConnected) return 'linear' as const;
       if (isGithubConnected) return 'github' as const;
       if (isJiraConnected) return 'jira' as const;
+      if (canUseGitlab) return 'gitlab' as const;
     }
     return selectedIssueProvider;
-  }, [isLinearConnected, isGithubConnected, isJiraConnected, selectedIssueProvider]);
+  }, [isLinearConnected, isGithubConnected, isJiraConnected, canUseGitlab, selectedIssueProvider]);
 
   const handleSetSearchTerm = useCallback(
     (term: string) => {
@@ -40,11 +53,13 @@ export function useIssueSearch(nameWithOwner: string) {
           return githubIssues.setSearchTerm(term);
         case 'jira':
           return jiraIssues.setSearchTerm(term);
+        case 'gitlab':
+          return gitlabIssues.setSearchTerm(term);
         default:
           return;
       }
     },
-    [issueProvider, linearIssues, githubIssues, jiraIssues]
+    [issueProvider, linearIssues, githubIssues, jiraIssues, gitlabIssues]
   );
 
   const isProviderDisabled = useCallback(
@@ -53,9 +68,10 @@ export function useIssueSearch(nameWithOwner: string) {
       if (provider === 'linear') return !isLinearConnected;
       if (provider === 'github') return !isGithubConnected;
       if (provider === 'jira') return !isJiraConnected;
+      if (provider === 'gitlab') return !canUseGitlab;
       return false;
     },
-    [hasAnyIntegration, isLinearConnected, isGithubConnected, isJiraConnected]
+    [hasAnyIntegration, isLinearConnected, isGithubConnected, isJiraConnected, canUseGitlab]
   );
 
   const issues = useMemo(() => {
@@ -63,21 +79,33 @@ export function useIssueSearch(nameWithOwner: string) {
     if (issueProvider === 'linear') return linearIssues.issues;
     if (issueProvider === 'github') return githubIssues.issues;
     if (issueProvider === 'jira') return jiraIssues.issues;
+    if (issueProvider === 'gitlab') return gitlabIssues.issues;
     return [];
-  }, [issueProvider, linearIssues.issues, githubIssues.issues, jiraIssues.issues]);
+  }, [
+    issueProvider,
+    linearIssues.issues,
+    githubIssues.issues,
+    jiraIssues.issues,
+    gitlabIssues.issues,
+  ]);
 
   const activeHook =
     issueProvider === 'linear'
       ? linearIssues
       : issueProvider === 'github'
         ? githubIssues
-        : jiraIssues;
+        : issueProvider === 'jira'
+          ? jiraIssues
+          : gitlabIssues;
 
   const isProviderLoading = !!issueProvider && (activeHook.isLoading || activeHook.isSearching);
 
-  const connectedProviderCount = [isLinearConnected, isGithubConnected, isJiraConnected].filter(
-    Boolean
-  ).length;
+  const connectedProviderCount = [
+    isLinearConnected,
+    isGithubConnected,
+    isJiraConnected,
+    canUseGitlab,
+  ].filter(Boolean).length;
 
   return {
     issues,

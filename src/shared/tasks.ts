@@ -3,7 +3,7 @@ import { CreateConversationParams } from '@shared/conversations';
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'archived';
 
 export type Issue = {
-  provider: 'github' | 'linear' | 'jira';
+  provider: 'github' | 'linear' | 'jira' | 'gitlab';
   url: string;
   title: string;
   identifier: string;

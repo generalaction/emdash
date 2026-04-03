@@ -10,6 +10,7 @@ interface FromIssueContentProps {
   state: FromIssueModeState;
   branches: Branch[];
   nameWithOwner?: string;
+  projectPath?: string;
   disabled?: boolean;
 }
 
@@ -17,6 +18,7 @@ export function FromIssueContent({
   state,
   branches,
   nameWithOwner = '',
+  projectPath = '',
   disabled,
 }: FromIssueContentProps) {
   const [isSelecting, setIsSelecting] = useState(!state.linkedIssue);
@@ -33,6 +35,7 @@ export function FromIssueContent({
           value={state.linkedIssue}
           onValueChange={handleValueChange}
           nameWithOwner={nameWithOwner}
+          projectPath={projectPath}
           disabled={disabled}
         />
       ) : (

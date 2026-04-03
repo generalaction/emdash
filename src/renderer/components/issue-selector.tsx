@@ -1,6 +1,7 @@
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { forwardRef, useCallback, useRef, useState } from 'react';
 import githubLogo from '@/assets/images/github.png';
+import gitlabLogo from '@/assets/images/GitLab.svg';
 import jiraLogo from '@/assets/images/jira.png';
 import linearLogo from '@/assets/images/Linear.svg';
 import type { Issue } from '@shared/tasks';
@@ -23,7 +24,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
-export const ISSUE_PROVIDERS = ['linear', 'github', 'jira'] as const;
+export const ISSUE_PROVIDERS = ['linear', 'github', 'jira', 'gitlab'] as const;
 
 function getStatusColorClass(status?: string) {
   if (!status) return '';
@@ -70,8 +71,22 @@ export function ProviderLogo({
   provider: Issue['provider'];
   className?: string;
 }) {
-  const src = provider === 'linear' ? linearLogo : provider === 'github' ? githubLogo : jiraLogo;
-  const alt = provider === 'linear' ? 'Linear' : provider === 'github' ? 'GitHub' : 'Jira';
+  const src =
+    provider === 'linear'
+      ? linearLogo
+      : provider === 'github'
+        ? githubLogo
+        : provider === 'jira'
+          ? jiraLogo
+          : gitlabLogo;
+  const alt =
+    provider === 'linear'
+      ? 'Linear'
+      : provider === 'github'
+        ? 'GitHub'
+        : provider === 'jira'
+          ? 'Jira'
+          : 'GitLab';
   return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
 }
 
@@ -92,9 +107,15 @@ export interface IssueSelectorProps {
   value: Issue | null;
   onValueChange: (issue: Issue | null) => void;
   nameWithOwner: string;
+  projectPath?: string;
 }
 
-export function IssueSelector({ nameWithOwner, value, onValueChange }: IssueSelectorProps) {
+export function IssueSelector({
+  nameWithOwner,
+  projectPath = '',
+  value,
+  onValueChange,
+}: IssueSelectorProps) {
   const {
     issues,
     issueProvider,
@@ -104,7 +125,7 @@ export function IssueSelector({ nameWithOwner, value, onValueChange }: IssueSele
     connectedProviderCount,
     handleSetSearchTerm,
     setSelectedIssueProvider,
-  } = useIssueSearch(nameWithOwner);
+  } = useIssueSearch(nameWithOwner, projectPath);
 
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const providerSelectOpenRef = useRef(false);

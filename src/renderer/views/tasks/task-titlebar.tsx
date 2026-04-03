@@ -267,6 +267,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   taskState.updateLinkedIssue(issue ?? undefined);
                 }}
                 nameWithOwner={''}
+                projectPath={taskState.path}
               />
             </PopoverContent>
           </Popover>
