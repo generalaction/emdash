@@ -1,5 +1,6 @@
 import { Check, Loader2, Plus } from 'lucide-react';
 import React, { useEffect } from 'react';
+import forgejoSvg from '@/assets/images/Forgejo.svg?raw';
 import githubSvg from '@/assets/images/Github.svg?raw';
 import gitlabSvg from '@/assets/images/GitLab.svg?raw';
 import jiraSvg from '@/assets/images/Jira.svg?raw';
@@ -56,6 +57,9 @@ const IntegrationsCard: React.FC = () => {
     isPlainConnected,
     isPlainLoading,
     disconnectPlain,
+    isForgejoConnected,
+    isForgejoLoading,
+    disconnectForgejo,
   } = useIntegrationsContext();
 
   const showIntegrationSetup = useShowModal('integrationSetupModal');
@@ -121,6 +125,16 @@ const IntegrationsCard: React.FC = () => {
       loading: isPlainLoading,
       onConnect: () => showIntegrationSetup({ integration: 'plain' }),
       onDisconnect: disconnectPlain,
+    },
+    {
+      id: 'forgejo',
+      name: 'Forgejo',
+      description: 'Work on Forgejo issues',
+      logoSvg: forgejoSvg,
+      connected: !!isForgejoConnected,
+      loading: isForgejoLoading,
+      onConnect: () => showIntegrationSetup({ integration: 'forgejo' }),
+      onDisconnect: disconnectForgejo,
     },
   ];
 

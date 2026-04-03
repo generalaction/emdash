@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Issue } from '@shared/tasks';
+import { useForgejoIssues } from '@renderer/core/integrations/use-forgejo-issues';
 import { useGitHubIssues } from '@renderer/core/integrations/use-github-issues';
 import { useGitLabIssues } from '@renderer/core/integrations/use-gitlab-issues';
 import { useJiraIssues } from '@renderer/core/integrations/use-jira-issues';
@@ -16,8 +17,10 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     isJiraConnected,
     isGitlabConnected,
     isPlainConnected,
+    isForgejoConnected,
   } = useIntegrationStatus();
   const canUseGitlab = isGitlabConnected === true && !!projectPath;
+  const canUseForgejo = isForgejoConnected === true && !!projectPath;
   const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
     null
   );
@@ -33,13 +36,18 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     enabled: canUseGitlab,
   });
   const plainIssues = usePlainIssues({ enabled: isPlainConnected === true });
+  const forgejoIssues = useForgejoIssues({
+    projectPath,
+    enabled: canUseForgejo,
+  });
 
   const hasAnyIntegration = !!(
     isLinearConnected ||
     isGithubConnected ||
     isJiraConnected ||
     canUseGitlab ||
-    isPlainConnected
+    isPlainConnected ||
+    canUseForgejo
   );
 
   const issueProvider = useMemo(() => {
@@ -49,6 +57,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
       if (isJiraConnected) return 'jira' as const;
       if (canUseGitlab) return 'gitlab' as const;
       if (isPlainConnected) return 'plain' as const;
+      if (canUseForgejo) return 'forgejo' as const;
     }
     return selectedIssueProvider;
   }, [
@@ -57,6 +66,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     isJiraConnected,
     canUseGitlab,
     isPlainConnected,
+    canUseForgejo,
     selectedIssueProvider,
   ]);
 
@@ -73,11 +83,21 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
           return gitlabIssues.setSearchTerm(term);
         case 'plain':
           return plainIssues.setSearchTerm(term);
+        case 'forgejo':
+          return forgejoIssues.setSearchTerm(term);
         default:
           return;
       }
     },
-    [issueProvider, linearIssues, githubIssues, jiraIssues, gitlabIssues, plainIssues]
+    [
+      issueProvider,
+      linearIssues,
+      githubIssues,
+      jiraIssues,
+      gitlabIssues,
+      plainIssues,
+      forgejoIssues,
+    ]
   );
 
   const isProviderDisabled = useCallback(
@@ -88,6 +108,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
       if (provider === 'jira') return !isJiraConnected;
       if (provider === 'gitlab') return !canUseGitlab;
       if (provider === 'plain') return !isPlainConnected;
+      if (provider === 'forgejo') return !canUseForgejo;
       return false;
     },
     [
@@ -97,6 +118,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
       isJiraConnected,
       canUseGitlab,
       isPlainConnected,
+      canUseForgejo,
     ]
   );
 
@@ -107,6 +129,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     if (issueProvider === 'jira') return jiraIssues.issues;
     if (issueProvider === 'gitlab') return gitlabIssues.issues;
     if (issueProvider === 'plain') return plainIssues.issues;
+    if (issueProvider === 'forgejo') return forgejoIssues.issues;
     return [];
   }, [
     issueProvider,
@@ -115,6 +138,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     jiraIssues.issues,
     gitlabIssues.issues,
     plainIssues.issues,
+    forgejoIssues.issues,
   ]);
 
   const activeHook =
@@ -126,7 +150,9 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
           ? jiraIssues
           : issueProvider === 'gitlab'
             ? gitlabIssues
-            : plainIssues;
+            : issueProvider === 'forgejo'
+              ? forgejoIssues
+              : plainIssues;
 
   const isProviderLoading = !!issueProvider && (activeHook.isLoading || activeHook.isSearching);
 
@@ -136,6 +162,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     isJiraConnected,
     canUseGitlab,
     isPlainConnected,
+    canUseForgejo,
   ].filter(Boolean).length;
 
   return {

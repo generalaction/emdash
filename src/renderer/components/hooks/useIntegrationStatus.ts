@@ -26,6 +26,10 @@ interface IntegrationStatus {
   // Plain
   isPlainConnected: boolean | null;
   handlePlainConnect: (apiKey: string) => Promise<void>;
+
+  // Forgejo
+  isForgejoConnected: boolean | null;
+  handleForgejoConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 /**
@@ -41,6 +45,8 @@ export function useIntegrationStatus(): IntegrationStatus {
     connectGitlab,
     isPlainConnected,
     connectPlain,
+    isForgejoConnected,
+    connectForgejo,
   } = useIntegrationsContext();
 
   const {
@@ -61,5 +67,7 @@ export function useIntegrationStatus(): IntegrationStatus {
     handleGitlabConnect: connectGitlab,
     isPlainConnected,
     handlePlainConnect: connectPlain,
+    isForgejoConnected,
+    handleForgejoConnect: connectForgejo,
   };
 }

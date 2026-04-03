@@ -10,13 +10,14 @@ import {
   DialogTitle,
 } from '@renderer/components/ui/dialog';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
+import ForgejoSetupForm from './ForgejoSetupForm';
 import GitLabSetupForm from './GitLabSetupForm';
 import { useIntegrationsContext } from './integrations-provider';
 import JiraSetupForm from './JiraSetupForm';
 import LinearSetupForm from './LinearSetupForm';
 import PlainSetupForm from './PlainSetupForm';
 
-type IntegrationType = 'linear' | 'jira' | 'gitlab' | 'plain';
+type IntegrationType = 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo';
 
 type IntegrationSetupModalArgs = {
   integration: IntegrationType;
@@ -41,6 +42,10 @@ const descriptions: Record<IntegrationType, { title: string; subtitle: string }>
     title: 'Connect Plain',
     subtitle: 'Enter your Plain API key to connect your workspace.',
   },
+  forgejo: {
+    title: 'Connect Forgejo',
+    subtitle: 'Enter your Forgejo instance URL and API token.',
+  },
 };
 
 export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props) {
@@ -49,10 +54,12 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     connectJira,
     connectGitlab,
     connectPlain,
+    connectForgejo,
     isLinearLoading,
     isJiraLoading,
     isGitlabLoading,
     isPlainLoading,
+    isForgejoLoading,
   } = useIntegrationsContext();
 
   // Linear state
@@ -70,19 +77,25 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
   // Plain state
   const [plainKey, setPlainKey] = useState('');
 
+  // Forgejo state
+  const [forgejoInstanceUrl, setForgejoInstanceUrl] = useState('');
+  const [forgejoToken, setForgejoToken] = useState('');
+
   const [error, setError] = useState<string | null>(null);
 
   const isLoading =
     (integration === 'linear' && isLinearLoading) ||
     (integration === 'jira' && isJiraLoading) ||
     (integration === 'gitlab' && isGitlabLoading) ||
-    (integration === 'plain' && isPlainLoading);
+    (integration === 'plain' && isPlainLoading) ||
+    (integration === 'forgejo' && isForgejoLoading);
 
   const canSubmit =
     (integration === 'linear' && !!linearKey.trim()) ||
     (integration === 'jira' && !!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())) ||
     (integration === 'gitlab' && !!(gitlabInstanceUrl.trim() && gitlabToken.trim())) ||
-    (integration === 'plain' && !!plainKey.trim());
+    (integration === 'plain' && !!plainKey.trim()) ||
+    (integration === 'forgejo' && !!(forgejoInstanceUrl.trim() && forgejoToken.trim()));
 
   const handleSubmit = useCallback(async () => {
     setError(null);
@@ -107,6 +120,12 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
         case 'plain':
           await connectPlain(plainKey.trim());
           break;
+        case 'forgejo':
+          await connectForgejo({
+            instanceUrl: forgejoInstanceUrl.trim(),
+            token: forgejoToken.trim(),
+          });
+          break;
       }
       onSuccess();
     } catch (e) {
@@ -121,10 +140,13 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     gitlabInstanceUrl,
     gitlabToken,
     plainKey,
+    forgejoInstanceUrl,
+    forgejoToken,
     connectLinear,
     connectJira,
     connectGitlab,
     connectPlain,
+    connectForgejo,
     onSuccess,
   ]);
 
@@ -166,6 +188,17 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
         )}
         {integration === 'plain' && (
           <PlainSetupForm apiKey={plainKey} onChange={setPlainKey} error={error} />
+        )}
+        {integration === 'forgejo' && (
+          <ForgejoSetupForm
+            instanceUrl={forgejoInstanceUrl}
+            token={forgejoToken}
+            onChange={(u) => {
+              if (typeof u.instanceUrl === 'string') setForgejoInstanceUrl(u.instanceUrl);
+              if (typeof u.token === 'string') setForgejoToken(u.token);
+            }}
+            error={error}
+          />
         )}
       </DialogContentArea>
       <DialogFooter>

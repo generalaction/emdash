@@ -1,5 +1,6 @@
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { forwardRef, useCallback, useRef, useState } from 'react';
+import forgejoLogo from '@/assets/images/Forgejo.svg';
 import githubLogo from '@/assets/images/github.png';
 import gitlabLogo from '@/assets/images/GitLab.svg';
 import jiraLogo from '@/assets/images/jira.png';
@@ -25,7 +26,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
-export const ISSUE_PROVIDERS = ['linear', 'github', 'jira', 'gitlab', 'plain'] as const;
+export const ISSUE_PROVIDERS = ['linear', 'github', 'jira', 'gitlab', 'forgejo', 'plain'] as const;
 
 function getStatusColorClass(status?: string) {
   if (!status) return '';
@@ -81,7 +82,9 @@ export function ProviderLogo({
           ? jiraLogo
           : provider === 'gitlab'
             ? gitlabLogo
-            : plainLogo;
+            : provider === 'forgejo'
+              ? forgejoLogo
+              : plainLogo;
   const alt =
     provider === 'linear'
       ? 'Linear'
@@ -91,7 +94,9 @@ export function ProviderLogo({
           ? 'Jira'
           : provider === 'gitlab'
             ? 'GitLab'
-            : 'Plain';
+            : provider === 'forgejo'
+              ? 'Forgejo'
+              : 'Plain';
   return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
 }
 
