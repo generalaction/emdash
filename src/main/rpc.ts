@@ -7,6 +7,7 @@ import { editorBufferController } from './core/editor/controller';
 import { filesController } from './core/fs/controller';
 import { gitController } from './core/git/controller';
 import { githubController } from './core/github/controller';
+import { gitlabController } from './core/gitlab/controller';
 import { jiraController } from './core/jira/controller';
 import { lineCommentsController } from './core/line-comments';
 import { linearController } from './core/linear/controller';
@@ -34,6 +35,7 @@ export const rpcRouter = createRPCRouter({
   update: updateController,
   pty: ptyController,
   github: githubController,
+  gitlab: gitlabController,
   jira: jiraController,
   linear: linearController,
   lineComments: lineCommentsController,
