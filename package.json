@@ -86,6 +86,7 @@
     "@gitbeaker/rest": "^43.8.0",
     "@isaacs/brace-expansion": "^5.0.1",
     "@linear/sdk": "^77.0.0",
+    "@llamaduck/forgejo-ts": "^14.0.3",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/auth-oauth-device": "^8.0.3",
     "@octokit/rest": "^22.0.1",
