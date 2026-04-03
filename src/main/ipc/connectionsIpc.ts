@@ -27,7 +27,13 @@ function claudeModelSupportsFast(modelId: string): boolean {
   return modelId.toLowerCase().includes('opus');
 }
 
-/** Hardcoded fallback list used when the API is unavailable. */
+/**
+ * Hardcoded fallback list used when the API is unavailable.
+ *
+ * Note: `claude-sonnet-4-6[1m]` is the canonical model ID returned by the
+ * Anthropic API for the 1M-context Sonnet variant. The square brackets are
+ * intentional and are safely handled at the PTY layer via quoteShellArg.
+ */
 const CLAUDE_FALLBACK_MODELS: ClaudeModel[] = [
   { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', supportsFast: true },
   { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', supportsFast: false },
@@ -67,6 +73,7 @@ async function fetchAnthropicModels(): Promise<ClaudeModel[] | null> {
       },
       (res) => {
         if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+          res.resume(); // drain body so the socket can be reused
           resolve(null);
           return;
         }
@@ -196,6 +203,9 @@ export function registerConnectionsIpc() {
     (_event, providerId: string, config: ProviderCustomConfig | undefined) => {
       try {
         updateProviderCustomConfig(providerId, config);
+        // Bust the model cache when the Claude provider config changes so an
+        // updated ANTHROPIC_API_KEY is picked up immediately on the next fetch.
+        if (providerId === 'claude') claudeModelCache = null;
         return { success: true };
       } catch (error) {
         return {
