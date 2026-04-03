@@ -15,10 +15,31 @@ type IntegrationsContextValue = {
   isJiraLoading: boolean;
   connectJira: (credentials: { siteUrl: string; email: string; token: string }) => Promise<void>;
   disconnectJira: () => Promise<void>;
+
+  // GitLab
+  isGitlabConnected: boolean | null;
+  isGitlabLoading: boolean;
+  connectGitlab: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
+  disconnectGitlab: () => Promise<void>;
+
+  // Plain
+  isPlainConnected: boolean | null;
+  isPlainLoading: boolean;
+  connectPlain: (apiKey: string) => Promise<void>;
+  disconnectPlain: () => Promise<void>;
+
+  // Forgejo
+  isForgejoConnected: boolean | null;
+  isForgejoLoading: boolean;
+  connectForgejo: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
+  disconnectForgejo: () => Promise<void>;
 };
 
 const LINEAR_STATUS_KEY = ['linear:status'] as const;
 const JIRA_STATUS_KEY = ['jira:status'] as const;
+const GITLAB_STATUS_KEY = ['gitlab:status'] as const;
+const PLAIN_STATUS_KEY = ['plain:status'] as const;
+const FORGEJO_STATUS_KEY = ['forgejo:status'] as const;
 
 const IntegrationsContext = createContext<IntegrationsContextValue | null>(null);
 
@@ -91,6 +112,108 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     await disconnectJiraMutation.mutateAsync();
   }, [disconnectJiraMutation]);
 
+  // ── GitLab ──────────────────────────────────────────────────────────────────
+
+  const { data: gitlabData, isFetching: gitlabFetching } = useQuery({
+    queryKey: GITLAB_STATUS_KEY,
+    queryFn: () => rpc.gitlab.checkConnection(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const connectGitlabMutation = useMutation({
+    mutationFn: (credentials: { instanceUrl: string; token: string }) =>
+      rpc.gitlab.saveCredentials(credentials),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: GITLAB_STATUS_KEY }),
+  });
+
+  const disconnectGitlabMutation = useMutation({
+    mutationFn: () => rpc.gitlab.clearCredentials(),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: GITLAB_STATUS_KEY }),
+  });
+
+  const connectGitlab = useCallback(
+    async (credentials: { instanceUrl: string; token: string }) => {
+      const result = await connectGitlabMutation.mutateAsync(credentials);
+      if (!result?.success) {
+        throw new Error(result?.error || 'Failed to connect.');
+      }
+    },
+    [connectGitlabMutation]
+  );
+
+  const disconnectGitlab = useCallback(async () => {
+    await disconnectGitlabMutation.mutateAsync();
+  }, [disconnectGitlabMutation]);
+
+  // ── Plain ────────────────────────────────────────────────────────────────────
+
+  const { data: plainData, isFetching: plainFetching } = useQuery({
+    queryKey: PLAIN_STATUS_KEY,
+    queryFn: () => rpc.plain.checkConnection(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const connectPlainMutation = useMutation({
+    mutationFn: (apiKey: string) => rpc.plain.saveToken(apiKey),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: PLAIN_STATUS_KEY }),
+  });
+
+  const disconnectPlainMutation = useMutation({
+    mutationFn: () => rpc.plain.clearToken(),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: PLAIN_STATUS_KEY }),
+  });
+
+  const connectPlain = useCallback(
+    async (apiKey: string) => {
+      if (!apiKey) throw new Error('Invalid API key');
+      const result = await connectPlainMutation.mutateAsync(apiKey);
+      if (!result?.success) {
+        throw new Error(result?.error || 'Could not connect Plain. Try again.');
+      }
+    },
+    [connectPlainMutation]
+  );
+
+  const disconnectPlain = useCallback(async () => {
+    await disconnectPlainMutation.mutateAsync();
+  }, [disconnectPlainMutation]);
+
+  // ── Forgejo ───────────────────────────────────────────────────────────────
+
+  const { data: forgejoData, isFetching: forgejoFetching } = useQuery({
+    queryKey: FORGEJO_STATUS_KEY,
+    queryFn: () => rpc.forgejo.checkConnection(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const connectForgejoMutation = useMutation({
+    mutationFn: (credentials: { instanceUrl: string; token: string }) =>
+      rpc.forgejo.saveCredentials(credentials),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: FORGEJO_STATUS_KEY }),
+  });
+
+  const disconnectForgejoMutation = useMutation({
+    mutationFn: () => rpc.forgejo.clearCredentials(),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: FORGEJO_STATUS_KEY }),
+  });
+
+  const connectForgejo = useCallback(
+    async (credentials: { instanceUrl: string; token: string }) => {
+      const result = await connectForgejoMutation.mutateAsync(credentials);
+      if (!result?.success) {
+        throw new Error(result?.error || 'Failed to connect.');
+      }
+    },
+    [connectForgejoMutation]
+  );
+
+  const disconnectForgejo = useCallback(async () => {
+    await disconnectForgejoMutation.mutateAsync();
+  }, [disconnectForgejoMutation]);
+
   const isLinearConnected = linearData === undefined ? null : !!linearData?.connected;
   const linearWorkspaceName = linearData?.workspaceName ?? null;
   const isLinearLoading =
@@ -99,6 +222,18 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   const isJiraConnected = jiraData === undefined ? null : !!jiraData?.connected;
   const isJiraLoading =
     jiraFetching || connectJiraMutation.isPending || disconnectJiraMutation.isPending;
+
+  const isGitlabConnected = gitlabData === undefined ? null : !!gitlabData?.connected;
+  const isGitlabLoading =
+    gitlabFetching || connectGitlabMutation.isPending || disconnectGitlabMutation.isPending;
+
+  const isPlainConnected = plainData === undefined ? null : !!plainData?.connected;
+  const isPlainLoading =
+    plainFetching || connectPlainMutation.isPending || disconnectPlainMutation.isPending;
+
+  const isForgejoConnected = forgejoData === undefined ? null : !!forgejoData?.connected;
+  const isForgejoLoading =
+    forgejoFetching || connectForgejoMutation.isPending || disconnectForgejoMutation.isPending;
 
   return (
     <IntegrationsContext.Provider
@@ -112,6 +247,18 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
         isJiraLoading,
         connectJira,
         disconnectJira,
+        isGitlabConnected,
+        isGitlabLoading,
+        connectGitlab,
+        disconnectGitlab,
+        isPlainConnected,
+        isPlainLoading,
+        connectPlain,
+        disconnectPlain,
+        isForgejoConnected,
+        isForgejoLoading,
+        connectForgejo,
+        disconnectForgejo,
       }}
     >
       {children}

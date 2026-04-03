@@ -1,23 +1,16 @@
 import { Check, Loader2, Plus } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
+import forgejoSvg from '@/assets/images/Forgejo.svg?raw';
 import githubSvg from '@/assets/images/Github.svg?raw';
+import gitlabSvg from '@/assets/images/GitLab.svg?raw';
 import jiraSvg from '@/assets/images/Jira.svg?raw';
 import linearSvg from '@/assets/images/Linear.svg?raw';
+import plainSvg from '@/assets/images/Plain.svg?raw';
 import { useGithubContext } from '../../core/github-context-provider';
 import { useIntegrationsContext } from '../../core/integrations/integrations-provider';
-import JiraSetupForm from '../../core/integrations/JiraSetupForm';
+import { useShowModal } from '../../core/modal/modal-provider';
 import { useTheme } from '../../hooks/useTheme';
 import { Button } from '../ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogContentArea,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
-import { Input } from '../ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
@@ -54,64 +47,22 @@ const IntegrationsCard: React.FC = () => {
     isLinearConnected,
     isLinearLoading,
     linearWorkspaceName,
-    connectLinear,
     disconnectLinear,
     isJiraConnected,
     isJiraLoading,
-    connectJira,
     disconnectJira,
+    isGitlabConnected,
+    isGitlabLoading,
+    disconnectGitlab,
+    isPlainConnected,
+    isPlainLoading,
+    disconnectPlain,
+    isForgejoConnected,
+    isForgejoLoading,
+    disconnectForgejo,
   } = useIntegrationsContext();
 
-  // Modal state: which integration setup is open
-  const [integrationSetupModal, setIntegrationSetupModal] = useState<null | 'linear' | 'jira'>(
-    null
-  );
-
-  // Linear form state
-  const [linearInput, setLinearInput] = useState('');
-  const [linearError, setLinearError] = useState<string | null>(null);
-
-  // Jira form state
-  const [jiraSite, setJiraSite] = useState('');
-  const [jiraEmail, setJiraEmail] = useState('');
-  const [jiraToken, setJiraToken] = useState('');
-  const [jiraError, setJiraError] = useState<string | null>(null);
-
-  const closeModal = useCallback(() => {
-    setIntegrationSetupModal(null);
-    setLinearInput('');
-    setLinearError(null);
-    setJiraSite('');
-    setJiraEmail('');
-    setJiraToken('');
-    setJiraError(null);
-  }, []);
-
-  const handleLinearConnect = useCallback(async () => {
-    const token = linearInput.trim();
-    if (!token) return;
-    setLinearError(null);
-    try {
-      await connectLinear(token);
-      closeModal();
-    } catch (error) {
-      setLinearError((error as Error).message || 'Could not connect. Try again.');
-    }
-  }, [linearInput, connectLinear, closeModal]);
-
-  const handleJiraSubmit = useCallback(async () => {
-    setJiraError(null);
-    try {
-      await connectJira({
-        siteUrl: jiraSite.trim(),
-        email: jiraEmail.trim(),
-        token: jiraToken.trim(),
-      });
-      closeModal();
-    } catch (error) {
-      setJiraError((error as Error).message || 'Failed to connect.');
-    }
-  }, [jiraSite, jiraEmail, jiraToken, connectJira, closeModal]);
+  const showIntegrationSetup = useShowModal('integrationSetupModal');
 
   const isCliManaged = authenticated && tokenSource === 'cli';
 
@@ -142,7 +93,7 @@ const IntegrationsCard: React.FC = () => {
       logoSvg: linearSvg,
       connected: !!isLinearConnected,
       loading: isLinearLoading,
-      onConnect: () => setIntegrationSetupModal('linear'),
+      onConnect: () => showIntegrationSetup({ integration: 'linear' }),
       onDisconnect: disconnectLinear,
     },
     {
@@ -152,179 +103,111 @@ const IntegrationsCard: React.FC = () => {
       logoSvg: jiraSvg,
       connected: !!isJiraConnected,
       loading: isJiraLoading,
-      onConnect: () => setIntegrationSetupModal('jira'),
+      onConnect: () => showIntegrationSetup({ integration: 'jira' }),
       onDisconnect: disconnectJira,
+    },
+    {
+      id: 'gitlab',
+      name: 'GitLab',
+      description: 'Work on GitLab issues',
+      logoSvg: gitlabSvg,
+      connected: !!isGitlabConnected,
+      loading: isGitlabLoading,
+      onConnect: () => showIntegrationSetup({ integration: 'gitlab' }),
+      onDisconnect: disconnectGitlab,
+    },
+    {
+      id: 'plain',
+      name: 'Plain',
+      description: 'Work on Plain threads',
+      logoSvg: plainSvg,
+      connected: !!isPlainConnected,
+      loading: isPlainLoading,
+      onConnect: () => showIntegrationSetup({ integration: 'plain' }),
+      onDisconnect: disconnectPlain,
+    },
+    {
+      id: 'forgejo',
+      name: 'Forgejo',
+      description: 'Work on Forgejo issues',
+      logoSvg: forgejoSvg,
+      connected: !!isForgejoConnected,
+      loading: isForgejoLoading,
+      onConnect: () => showIntegrationSetup({ integration: 'forgejo' }),
+      onDisconnect: disconnectForgejo,
     },
   ];
 
   return (
-    <>
-      <div
-        className="grid gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
-      >
-        {integrations.map((integration) => (
-          <div key={integration.id} className="flex h-full min-h-0">
-            <div className="flex w-full items-center gap-4 rounded-lg border border-muted bg-muted/20 p-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
-                <SvgLogo raw={integration.logoSvg} />
-              </div>
-              <div className="flex flex-1 flex-col gap-0.5">
-                <h3 className="text-sm font-medium text-foreground">{integration.name}</h3>
-                <p className="text-sm text-muted-foreground">{integration.description}</p>
-              </div>
-              {integration.connected ? (
-                integration.disabledTooltip ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger
-                        className="inline-flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md border border-input bg-background opacity-70"
-                        aria-label={integration.disabledTooltip}
-                      >
-                        <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <p className="text-xs">{integration.disabledTooltip}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={integration.onDisconnect}
-                    aria-label={`Disconnect ${integration.name}`}
-                  >
-                    <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  </Button>
-                )
+    <div
+      className="grid gap-3"
+      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
+    >
+      {integrations.map((integration) => (
+        <div key={integration.id} className="flex h-full min-h-0">
+          <div className="flex w-full items-center gap-4 rounded-lg border border-muted bg-muted/20 p-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+              <SvgLogo raw={integration.logoSvg} />
+            </div>
+            <div className="flex flex-1 flex-col gap-0.5">
+              <h3 className="text-sm font-medium text-foreground">{integration.name}</h3>
+              <p className="text-sm text-muted-foreground">{integration.description}</p>
+            </div>
+            {integration.connected ? (
+              integration.disabledTooltip ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger
+                      className="inline-flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md border border-input bg-background opacity-70"
+                      aria-label={integration.disabledTooltip}
+                    >
+                      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p className="text-xs">{integration.disabledTooltip}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ) : (
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
                   className="h-8 w-8 shrink-0"
-                  onClick={
-                    integration.loading && integration.onCancel
-                      ? integration.onCancel
-                      : integration.onConnect
-                  }
-                  aria-label={
-                    integration.loading
-                      ? `Cancel connecting ${integration.name}`
-                      : `Connect ${integration.name}`
-                  }
+                  onClick={integration.onDisconnect}
+                  aria-label={`Disconnect ${integration.name}`}
                 >
-                  {integration.loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
+                  <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 </Button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Integration setup modal */}
-      <Dialog open={integrationSetupModal !== null} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="max-w-md">
-          {integrationSetupModal === 'linear' && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Connect Linear</DialogTitle>
-                <DialogDescription className="text-xs">
-                  Enter your Linear API key to connect your workspace.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogContentArea>
-                <Input
-                  type="password"
-                  value={linearInput}
-                  onChange={(e) => setLinearInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && linearInput.trim() && !isLinearLoading) {
-                      void handleLinearConnect();
-                    }
-                  }}
-                  placeholder="Enter Linear API key"
-                  className="h-9"
-                  disabled={isLinearLoading}
-                  autoFocus
-                />
-                {linearError && (
-                  <p className="text-xs text-destructive" role="alert">
-                    {linearError}
-                  </p>
+              )
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={
+                  integration.loading && integration.onCancel
+                    ? integration.onCancel
+                    : integration.onConnect
+                }
+                aria-label={
+                  integration.loading
+                    ? `Cancel connecting ${integration.name}`
+                    : `Connect ${integration.name}`
+                }
+              >
+                {integration.loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
                 )}
-              </DialogContentArea>
-              <DialogFooter>
-                <Button type="button" variant="outline" size="sm" onClick={closeModal}>
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => void handleLinearConnect()}
-                  disabled={!linearInput.trim() || isLinearLoading}
-                >
-                  {isLinearLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Connect
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-
-          {integrationSetupModal === 'jira' && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Connect Jira</DialogTitle>
-                <DialogDescription className="text-xs">
-                  Enter your Jira site URL, email, and API token to connect.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogContentArea>
-                <JiraSetupForm
-                  site={jiraSite}
-                  email={jiraEmail}
-                  token={jiraToken}
-                  onChange={(u) => {
-                    if (typeof u.site === 'string') setJiraSite(u.site);
-                    if (typeof u.email === 'string') setJiraEmail(u.email);
-                    if (typeof u.token === 'string') setJiraToken(u.token);
-                  }}
-                  onClose={closeModal}
-                  canSubmit={!!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())}
-                  error={jiraError}
-                  onSubmit={handleJiraSubmit}
-                  hideHeader
-                  hideFooter
-                />
-              </DialogContentArea>
-              <DialogFooter>
-                <Button type="button" variant="outline" size="sm" onClick={closeModal}>
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => void handleJiraSubmit()}
-                  disabled={
-                    !(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim()) || isJiraLoading
-                  }
-                >
-                  {isJiraLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Connect
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 };
 

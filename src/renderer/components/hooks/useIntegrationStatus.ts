@@ -18,14 +18,36 @@ interface IntegrationStatus {
     email: string;
     token: string;
   }) => Promise<void>;
+
+  // GitLab
+  isGitlabConnected: boolean | null;
+  handleGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
+
+  // Plain
+  isPlainConnected: boolean | null;
+  handlePlainConnect: (apiKey: string) => Promise<void>;
+
+  // Forgejo
+  isForgejoConnected: boolean | null;
+  handleForgejoConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
 }
 
 /**
- * Hook to manage integration connection status for Linear, GitHub, and Jira.
+ * Hook to manage integration connection status for Linear, GitHub, Jira, and GitLab.
  */
 export function useIntegrationStatus(): IntegrationStatus {
-  const { isLinearConnected, connectLinear, isJiraConnected, connectJira } =
-    useIntegrationsContext();
+  const {
+    isLinearConnected,
+    connectLinear,
+    isJiraConnected,
+    connectJira,
+    isGitlabConnected,
+    connectGitlab,
+    isPlainConnected,
+    connectPlain,
+    isForgejoConnected,
+    connectForgejo,
+  } = useIntegrationsContext();
 
   const {
     authenticated: isGithubConnected,
@@ -41,5 +63,11 @@ export function useIntegrationStatus(): IntegrationStatus {
     handleGithubConnect,
     isJiraConnected,
     handleJiraConnect: connectJira,
+    isGitlabConnected,
+    handleGitlabConnect: connectGitlab,
+    isPlainConnected,
+    handlePlainConnect: connectPlain,
+    isForgejoConnected,
+    handleForgejoConnect: connectForgejo,
   };
 }

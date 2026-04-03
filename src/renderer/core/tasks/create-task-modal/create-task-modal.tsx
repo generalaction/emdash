@@ -181,7 +181,13 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             <FromBranchContent state={fromBranch} branches={branches} />
           )}
           {selectedStrategy === 'from-issue' && (
-            <FromIssueContent state={fromIssue} branches={branches} disabled={isTransitioning} />
+            <FromIssueContent
+              state={fromIssue}
+              branches={branches}
+              nameWithOwner={nameWithOwner}
+              projectPath={projectData?.path}
+              disabled={isTransitioning}
+            />
           )}
           {selectedStrategy === 'from-pull-request' && (
             <FromPrContent

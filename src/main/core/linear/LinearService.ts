@@ -1,6 +1,5 @@
 import { LinearClient } from '@linear/sdk';
 import keytar from 'keytar';
-import type { Issue } from '@shared/tasks';
 import { capture } from '@main/lib/telemetry';
 
 export interface LinearIssue {
@@ -20,17 +19,6 @@ export interface LinearConnectionStatus {
   connected: boolean;
   workspaceName?: string;
   error?: string;
-}
-
-export function toGeneralIssue(issue: LinearIssue): Issue {
-  return {
-    provider: 'linear',
-    identifier: issue.identifier,
-    title: issue.title,
-    url: issue.url,
-    description: issue.description ?? undefined,
-    updatedAt: issue.updatedAt,
-  };
 }
 
 const ISSUES_QUERY = `
