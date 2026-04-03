@@ -154,6 +154,7 @@ export class GitlabService {
         orderBy: 'updated_at',
         sort: 'desc',
         perPage,
+        maxPages: 1,
       })) as unknown[];
 
       return this.normalizeIssues(issues, projectName);
@@ -187,6 +188,7 @@ export class GitlabService {
         orderBy: 'updated_at',
         sort: 'desc',
         perPage,
+        maxPages: 1,
       })) as unknown[];
 
       return this.normalizeIssues(issues, projectName);
