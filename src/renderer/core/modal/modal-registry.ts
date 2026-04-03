@@ -7,6 +7,7 @@ import { GithubDeviceFlowModalOverlay } from '@renderer/components/github-device
 import { McpModal } from '@renderer/components/mcp/McpModal';
 import { UpdateModalOverlay } from '@renderer/components/updates/UpdateModal';
 import { CreateConversationModal } from '@renderer/core/conversations/create-conversation-modal';
+import { IntegrationSetupModal } from '@renderer/core/integrations/integration-setup-modal';
 import { NewProjectModal } from '@renderer/core/projects/new-project-modal';
 import { CreateTaskModal } from '@renderer/core/tasks/create-task-modal/create-task-modal';
 import { CreatePrModal } from '@renderer/views/tasks/diff-view/right-panel/pr-section/create-pr-modal';
@@ -44,4 +45,5 @@ export const modalRegistry = {
     popupClassName: 'max-h-[70vh] gap-0 sm:max-w-2xl',
   },
   renameTaskModal: { component: RenameTaskModal, popupClassName: 'sm:max-w-xs' },
+  integrationSetupModal: { component: IntegrationSetupModal, popupClassName: 'max-w-md' },
 } satisfies Record<string, ModalRegistryEntry>;
