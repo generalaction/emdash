@@ -22,6 +22,10 @@ interface IntegrationStatus {
   // GitLab
   isGitlabConnected: boolean | null;
   handleGitlabConnect: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
+
+  // Plain
+  isPlainConnected: boolean | null;
+  handlePlainConnect: (apiKey: string) => Promise<void>;
 }
 
 /**
@@ -35,6 +39,8 @@ export function useIntegrationStatus(): IntegrationStatus {
     connectJira,
     isGitlabConnected,
     connectGitlab,
+    isPlainConnected,
+    connectPlain,
   } = useIntegrationsContext();
 
   const {
@@ -53,5 +59,7 @@ export function useIntegrationStatus(): IntegrationStatus {
     handleJiraConnect: connectJira,
     isGitlabConnected,
     handleGitlabConnect: connectGitlab,
+    isPlainConnected,
+    handlePlainConnect: connectPlain,
   };
 }

@@ -4,6 +4,7 @@ import githubLogo from '@/assets/images/github.png';
 import gitlabLogo from '@/assets/images/GitLab.svg';
 import jiraLogo from '@/assets/images/jira.png';
 import linearLogo from '@/assets/images/Linear.svg';
+import plainLogo from '@/assets/images/Plain.svg';
 import type { Issue } from '@shared/tasks';
 import { rpc } from '@renderer/core/ipc';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
@@ -24,7 +25,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
-export const ISSUE_PROVIDERS = ['linear', 'github', 'jira', 'gitlab'] as const;
+export const ISSUE_PROVIDERS = ['linear', 'github', 'jira', 'gitlab', 'plain'] as const;
 
 function getStatusColorClass(status?: string) {
   if (!status) return '';
@@ -78,7 +79,9 @@ export function ProviderLogo({
         ? githubLogo
         : provider === 'jira'
           ? jiraLogo
-          : gitlabLogo;
+          : provider === 'gitlab'
+            ? gitlabLogo
+            : plainLogo;
   const alt =
     provider === 'linear'
       ? 'Linear'
@@ -86,7 +89,9 @@ export function ProviderLogo({
         ? 'GitHub'
         : provider === 'jira'
           ? 'Jira'
-          : 'GitLab';
+          : provider === 'gitlab'
+            ? 'GitLab'
+            : 'Plain';
   return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
 }
 

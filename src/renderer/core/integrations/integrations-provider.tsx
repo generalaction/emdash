@@ -21,11 +21,18 @@ type IntegrationsContextValue = {
   isGitlabLoading: boolean;
   connectGitlab: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
   disconnectGitlab: () => Promise<void>;
+
+  // Plain
+  isPlainConnected: boolean | null;
+  isPlainLoading: boolean;
+  connectPlain: (apiKey: string) => Promise<void>;
+  disconnectPlain: () => Promise<void>;
 };
 
 const LINEAR_STATUS_KEY = ['linear:status'] as const;
 const JIRA_STATUS_KEY = ['jira:status'] as const;
 const GITLAB_STATUS_KEY = ['gitlab:status'] as const;
+const PLAIN_STATUS_KEY = ['plain:status'] as const;
 
 const IntegrationsContext = createContext<IntegrationsContextValue | null>(null);
 
@@ -132,6 +139,40 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     await disconnectGitlabMutation.mutateAsync();
   }, [disconnectGitlabMutation]);
 
+  // ── Plain ────────────────────────────────────────────────────────────────────
+
+  const { data: plainData, isFetching: plainFetching } = useQuery({
+    queryKey: PLAIN_STATUS_KEY,
+    queryFn: () => rpc.plain.checkConnection(),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const connectPlainMutation = useMutation({
+    mutationFn: (apiKey: string) => rpc.plain.saveToken(apiKey),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: PLAIN_STATUS_KEY }),
+  });
+
+  const disconnectPlainMutation = useMutation({
+    mutationFn: () => rpc.plain.clearToken(),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: PLAIN_STATUS_KEY }),
+  });
+
+  const connectPlain = useCallback(
+    async (apiKey: string) => {
+      if (!apiKey) throw new Error('Invalid API key');
+      const result = await connectPlainMutation.mutateAsync(apiKey);
+      if (!result?.success) {
+        throw new Error(result?.error || 'Could not connect Plain. Try again.');
+      }
+    },
+    [connectPlainMutation]
+  );
+
+  const disconnectPlain = useCallback(async () => {
+    await disconnectPlainMutation.mutateAsync();
+  }, [disconnectPlainMutation]);
+
   const isLinearConnected = linearData === undefined ? null : !!linearData?.connected;
   const linearWorkspaceName = linearData?.workspaceName ?? null;
   const isLinearLoading =
@@ -144,6 +185,10 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   const isGitlabConnected = gitlabData === undefined ? null : !!gitlabData?.connected;
   const isGitlabLoading =
     gitlabFetching || connectGitlabMutation.isPending || disconnectGitlabMutation.isPending;
+
+  const isPlainConnected = plainData === undefined ? null : !!plainData?.connected;
+  const isPlainLoading =
+    plainFetching || connectPlainMutation.isPending || disconnectPlainMutation.isPending;
 
   return (
     <IntegrationsContext.Provider
@@ -161,6 +206,10 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
         isGitlabLoading,
         connectGitlab,
         disconnectGitlab,
+        isPlainConnected,
+        isPlainLoading,
+        connectPlain,
+        disconnectPlain,
       }}
     >
       {children}

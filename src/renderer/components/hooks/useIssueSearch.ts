@@ -4,13 +4,19 @@ import { useGitHubIssues } from '@renderer/core/integrations/use-github-issues';
 import { useGitLabIssues } from '@renderer/core/integrations/use-gitlab-issues';
 import { useJiraIssues } from '@renderer/core/integrations/use-jira-issues';
 import { useLinearIssues } from '@renderer/core/integrations/use-linear-issues';
+import { usePlainIssues } from '@renderer/core/integrations/use-plain-issues';
 import { useIntegrationStatus } from './useIntegrationStatus';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
 export function useIssueSearch(nameWithOwner: string, projectPath = '') {
-  const { isLinearConnected, isGithubConnected, isJiraConnected, isGitlabConnected } =
-    useIntegrationStatus();
+  const {
+    isLinearConnected,
+    isGithubConnected,
+    isJiraConnected,
+    isGitlabConnected,
+    isPlainConnected,
+  } = useIntegrationStatus();
   const canUseGitlab = isGitlabConnected === true && !!projectPath;
   const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
     null
@@ -26,12 +32,14 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     projectPath,
     enabled: canUseGitlab,
   });
+  const plainIssues = usePlainIssues({ enabled: isPlainConnected === true });
 
   const hasAnyIntegration = !!(
     isLinearConnected ||
     isGithubConnected ||
     isJiraConnected ||
-    canUseGitlab
+    canUseGitlab ||
+    isPlainConnected
   );
 
   const issueProvider = useMemo(() => {
@@ -40,9 +48,17 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
       if (isGithubConnected) return 'github' as const;
       if (isJiraConnected) return 'jira' as const;
       if (canUseGitlab) return 'gitlab' as const;
+      if (isPlainConnected) return 'plain' as const;
     }
     return selectedIssueProvider;
-  }, [isLinearConnected, isGithubConnected, isJiraConnected, canUseGitlab, selectedIssueProvider]);
+  }, [
+    isLinearConnected,
+    isGithubConnected,
+    isJiraConnected,
+    canUseGitlab,
+    isPlainConnected,
+    selectedIssueProvider,
+  ]);
 
   const handleSetSearchTerm = useCallback(
     (term: string) => {
@@ -55,11 +71,13 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
           return jiraIssues.setSearchTerm(term);
         case 'gitlab':
           return gitlabIssues.setSearchTerm(term);
+        case 'plain':
+          return plainIssues.setSearchTerm(term);
         default:
           return;
       }
     },
-    [issueProvider, linearIssues, githubIssues, jiraIssues, gitlabIssues]
+    [issueProvider, linearIssues, githubIssues, jiraIssues, gitlabIssues, plainIssues]
   );
 
   const isProviderDisabled = useCallback(
@@ -69,9 +87,17 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
       if (provider === 'github') return !isGithubConnected;
       if (provider === 'jira') return !isJiraConnected;
       if (provider === 'gitlab') return !canUseGitlab;
+      if (provider === 'plain') return !isPlainConnected;
       return false;
     },
-    [hasAnyIntegration, isLinearConnected, isGithubConnected, isJiraConnected, canUseGitlab]
+    [
+      hasAnyIntegration,
+      isLinearConnected,
+      isGithubConnected,
+      isJiraConnected,
+      canUseGitlab,
+      isPlainConnected,
+    ]
   );
 
   const issues = useMemo(() => {
@@ -80,6 +106,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     if (issueProvider === 'github') return githubIssues.issues;
     if (issueProvider === 'jira') return jiraIssues.issues;
     if (issueProvider === 'gitlab') return gitlabIssues.issues;
+    if (issueProvider === 'plain') return plainIssues.issues;
     return [];
   }, [
     issueProvider,
@@ -87,6 +114,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     githubIssues.issues,
     jiraIssues.issues,
     gitlabIssues.issues,
+    plainIssues.issues,
   ]);
 
   const activeHook =
@@ -96,7 +124,9 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
         ? githubIssues
         : issueProvider === 'jira'
           ? jiraIssues
-          : gitlabIssues;
+          : issueProvider === 'gitlab'
+            ? gitlabIssues
+            : plainIssues;
 
   const isProviderLoading = !!issueProvider && (activeHook.isLoading || activeHook.isSearching);
 
@@ -105,6 +135,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
     isGithubConnected,
     isJiraConnected,
     canUseGitlab,
+    isPlainConnected,
   ].filter(Boolean).length;
 
   return {

@@ -14,8 +14,9 @@ import GitLabSetupForm from './GitLabSetupForm';
 import { useIntegrationsContext } from './integrations-provider';
 import JiraSetupForm from './JiraSetupForm';
 import LinearSetupForm from './LinearSetupForm';
+import PlainSetupForm from './PlainSetupForm';
 
-type IntegrationType = 'linear' | 'jira' | 'gitlab';
+type IntegrationType = 'linear' | 'jira' | 'gitlab' | 'plain';
 
 type IntegrationSetupModalArgs = {
   integration: IntegrationType;
@@ -36,6 +37,10 @@ const descriptions: Record<IntegrationType, { title: string; subtitle: string }>
     title: 'Connect GitLab',
     subtitle: 'Enter your GitLab instance URL and personal access token.',
   },
+  plain: {
+    title: 'Connect Plain',
+    subtitle: 'Enter your Plain API key to connect your workspace.',
+  },
 };
 
 export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props) {
@@ -43,9 +48,11 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     connectLinear,
     connectJira,
     connectGitlab,
+    connectPlain,
     isLinearLoading,
     isJiraLoading,
     isGitlabLoading,
+    isPlainLoading,
   } = useIntegrationsContext();
 
   // Linear state
@@ -60,17 +67,22 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
   const [gitlabInstanceUrl, setGitlabInstanceUrl] = useState('');
   const [gitlabToken, setGitlabToken] = useState('');
 
+  // Plain state
+  const [plainKey, setPlainKey] = useState('');
+
   const [error, setError] = useState<string | null>(null);
 
   const isLoading =
     (integration === 'linear' && isLinearLoading) ||
     (integration === 'jira' && isJiraLoading) ||
-    (integration === 'gitlab' && isGitlabLoading);
+    (integration === 'gitlab' && isGitlabLoading) ||
+    (integration === 'plain' && isPlainLoading);
 
   const canSubmit =
     (integration === 'linear' && !!linearKey.trim()) ||
     (integration === 'jira' && !!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())) ||
-    (integration === 'gitlab' && !!(gitlabInstanceUrl.trim() && gitlabToken.trim()));
+    (integration === 'gitlab' && !!(gitlabInstanceUrl.trim() && gitlabToken.trim())) ||
+    (integration === 'plain' && !!plainKey.trim());
 
   const handleSubmit = useCallback(async () => {
     setError(null);
@@ -92,6 +104,9 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
             token: gitlabToken.trim(),
           });
           break;
+        case 'plain':
+          await connectPlain(plainKey.trim());
+          break;
       }
       onSuccess();
     } catch (e) {
@@ -105,9 +120,11 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     jiraToken,
     gitlabInstanceUrl,
     gitlabToken,
+    plainKey,
     connectLinear,
     connectJira,
     connectGitlab,
+    connectPlain,
     onSuccess,
   ]);
 
@@ -146,6 +163,9 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
             }}
             error={error}
           />
+        )}
+        {integration === 'plain' && (
+          <PlainSetupForm apiKey={plainKey} onChange={setPlainKey} error={error} />
         )}
       </DialogContentArea>
       <DialogFooter>

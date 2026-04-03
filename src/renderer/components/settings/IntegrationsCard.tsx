@@ -4,6 +4,7 @@ import githubSvg from '@/assets/images/Github.svg?raw';
 import gitlabSvg from '@/assets/images/GitLab.svg?raw';
 import jiraSvg from '@/assets/images/Jira.svg?raw';
 import linearSvg from '@/assets/images/Linear.svg?raw';
+import plainSvg from '@/assets/images/Plain.svg?raw';
 import { useGithubContext } from '../../core/github-context-provider';
 import { useIntegrationsContext } from '../../core/integrations/integrations-provider';
 import { useShowModal } from '../../core/modal/modal-provider';
@@ -52,6 +53,9 @@ const IntegrationsCard: React.FC = () => {
     isGitlabConnected,
     isGitlabLoading,
     disconnectGitlab,
+    isPlainConnected,
+    isPlainLoading,
+    disconnectPlain,
   } = useIntegrationsContext();
 
   const showIntegrationSetup = useShowModal('integrationSetupModal');
@@ -107,6 +111,16 @@ const IntegrationsCard: React.FC = () => {
       loading: isGitlabLoading,
       onConnect: () => showIntegrationSetup({ integration: 'gitlab' }),
       onDisconnect: disconnectGitlab,
+    },
+    {
+      id: 'plain',
+      name: 'Plain',
+      description: 'Work on Plain threads',
+      logoSvg: plainSvg,
+      connected: !!isPlainConnected,
+      loading: isPlainLoading,
+      onConnect: () => showIntegrationSetup({ integration: 'plain' }),
+      onDisconnect: disconnectPlain,
     },
   ];
 
