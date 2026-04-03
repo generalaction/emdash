@@ -114,6 +114,7 @@
     "@tanstack/react-hotkeys": "^0.4.1",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-virtual": "^3.13.23",
+    "@team-plain/graphql": "^1.0.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/react-window": "^1.8.8",
     "@types/ssh2": "^1.15.5",
