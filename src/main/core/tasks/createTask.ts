@@ -24,6 +24,7 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
   const { strategy } = params;
   const suffix = Math.random().toString(36).slice(2, 7);
   const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
+  const taskSettings = await appSettingsService.get('tasks');
   const remote = params.sourceBranch.remote || 'origin';
 
   const project = projectManager.getProject(params.projectId);
@@ -165,7 +166,10 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
     .where(eq(tasks.id, params.id));
 
   if (params.initialConversation) {
-    await createConversation(params.initialConversation);
+    await createConversation({
+      ...params.initialConversation,
+      autoApprove: params.initialConversation.autoApprove ?? taskSettings.autoApproveByDefault,
+    });
   }
 
   return ok({ ...task, lastInteractedAt });
