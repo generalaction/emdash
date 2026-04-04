@@ -8,6 +8,10 @@ import { mapConversationRowToConversation } from './utils';
 
 export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
   const id = params.id ?? randomUUID();
+  const config =
+    params.autoApprove === undefined
+      ? undefined
+      : JSON.stringify({ autoApprove: params.autoApprove });
 
   const [row] = await db
     .insert(conversations)
@@ -17,6 +21,7 @@ export async function createConversation(params: CreateConversationParams): Prom
       taskId: params.taskId,
       title: params.title,
       provider: params.provider,
+      config,
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
