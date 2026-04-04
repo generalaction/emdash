@@ -816,6 +816,10 @@ export class TerminalSessionManager {
     return this.ptyStarted;
   }
 
+  getSnapshotData(): string {
+    return this.serializeAddon.serialize() || '';
+  }
+
   async restart(): Promise<boolean> {
     if (this.disposed || this.ptyStarted) return false;
     if (this.restartPromise) return this.restartPromise;

@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   XCircle,
   GitMerge,
+  Sparkles,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -45,6 +46,7 @@ import {
 import { useTaskScope } from './TaskScopeContext';
 import { fetchPrBaseDiff, parseDiffToFileChanges } from '../lib/parsePrDiff';
 import { formatDiffCount } from '../lib/gitChangePresentation';
+import { useModalContext } from '../contexts/ModalProvider';
 
 type ActiveTab = 'changes' | 'checks';
 type PrMode = 'create' | 'draft' | 'merge';
@@ -256,6 +258,22 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   );
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
+
+  // AI Review modal
+  const { showModal } = useModalContext();
+
+  const handleOpenAIReview = useCallback(() => {
+    if (!resolvedTaskId || !safeTaskPath) return;
+    showModal('aiReviewConfigModal', {
+      taskId: resolvedTaskId,
+      taskPath: safeTaskPath,
+      installedAgents: [],
+      onSuccess: (config) => {
+        // Review configuration selected - the results modal will be shown by the caller
+        console.log('AI Review config:', config);
+      },
+    });
+  }, [resolvedTaskId, safeTaskPath, showModal]);
 
   // Reset action loading states when task changes
   useEffect(() => {
@@ -651,6 +669,16 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 <span className="hidden sm:inline">Changes</span>
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 px-2 text-xs"
+              title="AI Code Review"
+              onClick={handleOpenAIReview}
+            >
+              <Sparkles className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">AI Review</span>
+            </Button>
           </div>
         ) : hasChanges ? (
           <div className="space-y-3">
@@ -703,6 +731,16 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     )}
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 px-2 text-xs"
+                  title="AI Code Review"
+                  onClick={handleOpenAIReview}
+                >
+                  <Sparkles className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">AI Review</span>
+                </Button>
                 <PrActionButton
                   mode={prMode}
                   onModeChange={selectPrMode}

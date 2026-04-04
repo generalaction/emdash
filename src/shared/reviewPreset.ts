@@ -17,6 +17,78 @@ export interface ReviewConversationMetadata {
   initialPromptSent?: boolean | null;
 }
 
+// AI Review types
+export type ReviewDepth = 'quick' | 'focused' | 'comprehensive';
+
+export const REVIEW_DEPTH_AGENTS: Record<ReviewDepth, number> = {
+  quick: 1,
+  focused: 3,
+  comprehensive: 5,
+};
+
+export type ReviewType = 'file-changes';
+
+export interface AIReviewConfig {
+  depth: ReviewDepth;
+  reviewType: ReviewType;
+  providerId: ProviderId;
+}
+
+export interface AIReviewIssue {
+  id: string;
+  severity: 'critical' | 'major' | 'minor' | 'info';
+  category: string;
+  title: string;
+  description: string;
+  codeSnapshot?: string;
+  filePath?: string;
+  lineRange?: { start: number; end: number };
+  fixPrompt?: string;
+}
+
+export interface AIReviewResult {
+  reviewId: string;
+  timestamp: string;
+  depth: ReviewDepth;
+  reviewType: ReviewType;
+  issues: AIReviewIssue[];
+  summary: string;
+  durationMs: number;
+  agentIds: string[]; // Conversation IDs of review agents
+}
+
+// Review prompt templates
+export const REVIEW_PROMPTS = {
+  fileChanges: {
+    quick: `You are a code reviewer. Review the following file changes for:
+- Critical bugs and security issues
+- Obvious correctness problems
+- Major performance concerns
+
+Provide your review in a structured format with specific issues found.`,
+    focused: `You are a thorough code reviewer. Review the following file changes for:
+- Correctness, edge cases, and regressions
+- Security vulnerabilities
+- Performance issues
+- Error handling problems
+- Testing gaps
+- Code maintainability
+
+Provide your review in a structured format with specific issues found.`,
+    comprehensive: `You are an expert code reviewer conducting a comprehensive review. Review the following file changes for:
+- All correctness issues including edge cases
+- Security (OWASP top 10, injection, auth issues)
+- Performance bottlenecks and algorithmic improvements
+- Error handling and fault tolerance
+- Testing coverage and quality
+- Maintainability and readability
+- Best practices adherence
+- Potential bugs and race conditions
+
+Provide your review in a structured format with specific issues found, including severity and category.`,
+  },
+};
+
 export function parseConversationMetadata(
   metadata?: string | null
 ): Record<string, unknown> | null {

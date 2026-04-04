@@ -503,7 +503,7 @@ export function getStoredResumeTarget(
 
 function claudeSessionFileExists(uuid: string, cwd: string): boolean {
   try {
-    const encoded = cwd.replace(/[:\\/]/g, '-');
+    const encoded = cwd.replace(/[^a-zA-Z0-9]/g, '-');
     const sessionFile = path.join(os.homedir(), '.claude', 'projects', encoded, `${uuid}.jsonl`);
     return fs.existsSync(sessionFile);
   } catch {
@@ -627,9 +627,17 @@ export function applySessionIsolation(
     }
   }
 
+  const pushCreateOrResumeArg = (uuid: string) => {
+    if (provider.id === 'claude' && claudeSessionFileExists(uuid, cwd)) {
+      cliArgs.push('--resume', uuid);
+    } else {
+      cliArgs.push(provider.sessionIdFlag!, uuid);
+    }
+    markClaudeSessionCreated(id, uuid, cwd);
+  };
+
   if (isAdditionalChat) {
-    cliArgs.push(provider.sessionIdFlag, sessionUuid);
-    markClaudeSessionCreated(id, sessionUuid, cwd);
+    pushCreateOrResumeArg(sessionUuid);
     return true;
   }
 
@@ -639,11 +647,9 @@ export function applySessionIsolation(
     const otherUuids = getOtherSessionUuids(id, parsed.providerId, cwd);
     const existingSession = discoverExistingClaudeSession(cwd, otherUuids);
     if (existingSession) {
-      cliArgs.push(provider.sessionIdFlag, existingSession);
-      markClaudeSessionCreated(id, existingSession, cwd);
+      pushCreateOrResumeArg(existingSession);
     } else {
-      cliArgs.push(provider.sessionIdFlag, sessionUuid);
-      markClaudeSessionCreated(id, sessionUuid, cwd);
+      pushCreateOrResumeArg(sessionUuid);
     }
     return true;
   }
@@ -651,8 +657,7 @@ export function applySessionIsolation(
   if (!isResume) {
     // First-time creation — proactively assign a session ID so we can
     // reliably resume later if more chats of this provider are added.
-    cliArgs.push(provider.sessionIdFlag, sessionUuid);
-    markClaudeSessionCreated(id, sessionUuid, cwd);
+    pushCreateOrResumeArg(sessionUuid);
     return true;
   }
 
