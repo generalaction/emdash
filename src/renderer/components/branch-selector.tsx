@@ -99,7 +99,11 @@ export function BranchSelector({
         </ToggleGroup>
         <ComboboxInput showTrigger={false} placeholder="Search branches" inputRef={inputRef} />
         <ComboboxList>
-          {(item) => <ComboboxItem value={item}>{item.label}</ComboboxItem>}
+          {(item) => (
+            <ComboboxItem value={item} disabled={item.label.startsWith('_reserve')}>
+              {item.label}
+            </ComboboxItem>
+          )}
         </ComboboxList>
       </ComboboxContent>
     </Combobox>
