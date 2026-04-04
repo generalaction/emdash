@@ -60,6 +60,7 @@ function dependencyStateFromProbeResult(
 
   return {
     id: descriptor.id,
+    category: descriptor.category,
     status,
     version,
     path: resolvedPath,

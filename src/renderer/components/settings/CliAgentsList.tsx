@@ -1,8 +1,10 @@
 import { Settings2, Sparkles } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
 import { AGENT_PROVIDERS } from '@shared/agent-provider-registry';
+import { appState } from '@renderer/core/stores/app-state';
+import { type DependencyState } from '@renderer/core/stores/dependencies-store';
 import { agentMeta } from '@renderer/providers/meta';
-import { useDependencies, type DependencyState } from '../../core/dependencies-provider';
 import { rpc } from '../../core/ipc';
 import { CliAgentStatus } from '../../types/connections';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
@@ -106,9 +108,9 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
   );
 };
 
-export const CliAgentsList: React.FC = () => {
+export const CliAgentsList: React.FC = observer(() => {
   const [customModalAgentId, setCustomModalAgentId] = useState<string | null>(null);
-  const { agentStatuses } = useDependencies();
+  const agentStatuses = appState.dependencies.agentStatuses;
 
   const sortedAgents = useMemo(() => {
     return mapDependencyStatesToCli(agentStatuses).sort((a, b) => {
@@ -131,4 +133,4 @@ export const CliAgentsList: React.FC = () => {
       />
     </div>
   );
-};
+});

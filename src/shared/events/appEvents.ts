@@ -59,6 +59,7 @@ export const shellSessionStartedChannel = defineEvent<{
 
 export type DependencyStatePayload = {
   id: string;
+  category: 'core' | 'agent';
   status: 'available' | 'missing' | 'error';
   version: string | null;
   path: string | null;

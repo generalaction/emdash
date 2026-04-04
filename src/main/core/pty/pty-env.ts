@@ -1,6 +1,4 @@
-import { execSync } from 'node:child_process';
 import os from 'node:os';
-import { join } from 'node:path';
 import { detectSshAuthSock } from '@main/utils/shellEnv';
 
 export const AGENT_ENV_VARS = [
@@ -56,106 +54,6 @@ function getDisplayEnv(): Record<string, string> {
     if (val) env[key] = val;
   }
   return env;
-}
-
-let _localPath: string | undefined;
-let _sshAuthSock: string | null | undefined;
-
-/**
- * Lazily compute and cache an enriched PATH for local PTY sessions.
- *
- * When the app is launched from a GUI (Finder, app launcher, etc.) it inherits
- * a minimal PATH that is missing Homebrew, nvm, npm-global, etc.  This
- * function replicates what the old top-level PATH blocks in main.ts did, but
- * runs exactly once on first use and is cached for all subsequent calls.
- */
-function resolveLocalPath(): string {
-  if (_localPath !== undefined) return _localPath;
-
-  const sep = process.platform === 'win32' ? ';' : ':';
-  const cur = process.env.PATH || process.env.Path || '';
-  const parts = cur.split(sep).filter(Boolean);
-
-  if (process.platform === 'darwin') {
-    for (const p of [
-      '/opt/homebrew/bin',
-      '/usr/local/bin',
-      '/opt/homebrew/sbin',
-      '/usr/local/sbin',
-    ]) {
-      if (!parts.includes(p)) parts.unshift(p);
-    }
-    try {
-      const shell = process.env.SHELL || '/bin/zsh';
-      const raw = execSync(`${shell} -ilc 'echo -n $PATH'`, {
-        encoding: 'utf8',
-        timeout: 3000,
-        env: {
-          ...process.env,
-          DISABLE_AUTO_UPDATE: 'true',
-          ZSH_TMUX_AUTOSTART: 'false',
-          ZSH_TMUX_AUTOSTARTED: 'true',
-        },
-      });
-      if (raw) {
-        const entries = (raw + sep + parts.join(sep)).split(/[:\n]/).filter(Boolean);
-        _localPath = Array.from(new Set(entries.filter((p) => p.startsWith('/')))).join(sep);
-        return _localPath;
-      }
-    } catch {}
-  }
-
-  if (process.platform === 'linux') {
-    const home = os.homedir();
-    for (const p of [
-      join(home, '.nvm/versions/node', process.version, 'bin'),
-      join(home, '.npm-global/bin'),
-      join(home, '.local/bin'),
-      '/usr/local/bin',
-    ]) {
-      if (!parts.includes(p)) parts.unshift(p);
-    }
-    try {
-      const shell = process.env.SHELL || '/bin/bash';
-      const raw = execSync(`${shell} -ilc 'echo -n $PATH'`, {
-        encoding: 'utf8',
-        timeout: 3000,
-        env: {
-          ...process.env,
-          DISABLE_AUTO_UPDATE: 'true',
-          ZSH_TMUX_AUTOSTART: 'false',
-          ZSH_TMUX_AUTOSTARTED: 'true',
-        },
-      });
-      if (raw) {
-        const entries = (raw + sep + parts.join(sep)).split(/[:\n]/).filter(Boolean);
-        _localPath = Array.from(new Set(entries.filter((p) => p.startsWith('/')))).join(sep);
-        return _localPath;
-      }
-    } catch {}
-  }
-
-  if (process.platform === 'win32') {
-    const npmPath = join(process.env.APPDATA || '', 'npm');
-    if (npmPath && !parts.includes(npmPath)) parts.unshift(npmPath);
-  }
-
-  _localPath = parts.join(sep);
-  return _localPath;
-}
-
-/**
- * Lazily detect and cache the SSH_AUTH_SOCK path.
- *
- * GUI-launched apps don't inherit the shell's SSH agent socket.  This
- * function runs the detection once and caches the result so subsequent
- * calls are free.
- */
-function resolveSshAuthSock(): string | undefined {
-  if (_sshAuthSock !== undefined) return _sshAuthSock ?? undefined;
-  const sock = detectSshAuthSock();
-  _sshAuthSock = sock ?? null;
-  return sock;
 }
 
 function getWindowsEssentialEnv(resolvedPath: string): Record<string, string> {
@@ -242,10 +140,11 @@ export function buildTerminalEnv(): Record<string, string> {
   // Ensure SHELL reflects the user's configured shell (may be absent in GUI).
   env.SHELL = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
 
-  // Inject SSH_AUTH_SOCK when the app was launched from a GUI launcher that
-  // didn't inherit it from the user's agent-forwarding shell session.
+  // SSH_AUTH_SOCK is normally set by resolveUserEnv() at startup. The
+  // detectSshAuthSock() fallback covers cases where that failed (timeout,
+  // AppImage, CI) by trying launchctl and common socket locations.
   if (!env.SSH_AUTH_SOCK) {
-    const sshAuthSock = resolveSshAuthSock();
+    const sshAuthSock = detectSshAuthSock();
     if (sshAuthSock) env.SSH_AUTH_SOCK = sshAuthSock;
   }
 
@@ -263,7 +162,9 @@ export function buildTerminalEnv(): Record<string, string> {
 export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, string> {
   const { agentApiVars = true, includeShellVar = false, hook, customVars } = options;
 
-  const resolvedPath = resolveLocalPath();
+  // process.env.PATH is enriched at startup by resolveUserEnv() so it already
+  // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
+  const resolvedPath = process.env.PATH ?? '';
   const env: Record<string, string> = {
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
@@ -277,7 +178,7 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     ...(process.platform === 'win32' ? getWindowsEssentialEnv(resolvedPath) : {}),
   };
 
-  const sshAuthSock = resolveSshAuthSock();
+  const sshAuthSock = process.env.SSH_AUTH_SOCK ?? detectSshAuthSock();
   if (sshAuthSock) env.SSH_AUTH_SOCK = sshAuthSock;
 
   if (includeShellVar) {

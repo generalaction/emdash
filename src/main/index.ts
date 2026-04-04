@@ -20,6 +20,7 @@ import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import * as telemetry from './lib/telemetry';
 import { rpcRouter } from './rpc';
+import { resolveUserEnv } from './utils/userEnv';
 
 dotenv.config({ path: join(__dirname, '..', '..', '.env') });
 
@@ -63,6 +64,11 @@ app.on('activate', () => {
 });
 
 app.whenReady().then(async () => {
+  // Resolve the user's login-shell environment once, before anything else
+  // uses process.env. This ensures all subsystems (prober, PTY, exec) see
+  // the full PATH even when the app was launched from a GUI (Finder, Dock).
+  await resolveUserEnv();
+
   try {
     await initializeDatabase();
     const BUFFER_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days

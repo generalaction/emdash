@@ -234,7 +234,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     docUrl: 'https://block.github.io/goose/docs/quickstart/',
     installCommand:
       'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
-    detectable: false,
+    commands: ['goose'],
+    versionArgs: ['--version'],
     cli: 'goose',
     // run subcommand with -s for interactive mode after initial prompt
     defaultArgs: ['run', '-s'],

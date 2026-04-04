@@ -39,6 +39,7 @@ export interface DependencyDescriptor {
 
 export interface DependencyState {
   id: DependencyId;
+  category: DependencyCategory;
   status: DependencyStatus;
   version: string | null;
   path: string | null;

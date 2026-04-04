@@ -4,13 +4,17 @@ import type { ProbeResult } from './types';
 const WHICH_TIMEOUT_MS = 5_000;
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
 
+// `where` on Windows, `which` on macOS/Linux
+const RESOLVE_CMD = process.platform === 'win32' ? 'where' : 'which';
+
 /**
- * Resolves the absolute path of a command binary using `which`.
+ * Resolves the absolute path of a command binary.
+ * Uses `where` on Windows and `which` on macOS/Linux.
  * Returns `null` if the command is not found or the resolution fails.
  */
 export async function resolveCommandPath(command: string, exec: ExecFn): Promise<string | null> {
   try {
-    const { stdout } = await exec('which', [command], { timeout: WHICH_TIMEOUT_MS });
+    const { stdout } = await exec(RESOLVE_CMD, [command], { timeout: WHICH_TIMEOUT_MS });
     const firstLine = stdout.trim().split('\n')[0]?.trim();
     return firstLine ?? null;
   } catch {

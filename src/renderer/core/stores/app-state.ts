@@ -1,4 +1,5 @@
 import { AppInfoStore } from './app-info-store';
+import { DependenciesStore } from './dependencies-store';
 import { NavigationStore } from './navigation-store';
 import { ProjectManagerStore } from './project-manager';
 import { SidebarStore } from './sidebar-store';
@@ -12,6 +13,7 @@ class AppState {
   readonly sidebar: SidebarStore;
   readonly snapshots: SnapshotRegistry;
   readonly navigation: NavigationStore;
+  readonly dependencies: DependenciesStore;
 
   constructor() {
     this.snapshots = snapshotRegistry;
@@ -20,7 +22,9 @@ class AppState {
     this.projects = new ProjectManagerStore();
     this.sidebar = new SidebarStore(this.projects);
     this.navigation = new NavigationStore();
+    this.dependencies = new DependenciesStore();
     snapshotRegistry.register('navigation', () => this.navigation.snapshot);
+    this.dependencies.start();
   }
 }
 

@@ -3,9 +3,6 @@ import ErrorBoundary from './components/error-boundary';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { TooltipProvider } from './components/ui/tooltip';
 import { ThemeProvider } from './core/app/ThemeProvider';
-import { DependenciesProvider } from './core/dependencies-provider';
-// Import to ensure singleton initialises and subscribes to agentEventChannel.
-import './core/stores/agent-notification-store';
 import { GithubContextProvider } from './core/github-context-provider';
 import { IntegrationsProvider } from './core/integrations/integrations-provider';
 import { ModalProvider } from './core/modal/modal-provider';
@@ -34,27 +31,25 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delay={300}>
-        <DependenciesProvider>
-          <ModalProvider>
-            <WorkspaceLayoutContextProvider>
-              <TerminalPoolProvider>
-                <SshConnectionProvider>
-                  <GithubContextProvider>
-                    <IntegrationsProvider>
-                      <WorkspaceViewProvider>
-                        <RightSidebarProvider>
-                          <ThemeProvider>
-                            <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                          </ThemeProvider>
-                        </RightSidebarProvider>
-                      </WorkspaceViewProvider>
-                    </IntegrationsProvider>
-                  </GithubContextProvider>
-                </SshConnectionProvider>
-              </TerminalPoolProvider>
-            </WorkspaceLayoutContextProvider>
-          </ModalProvider>
-        </DependenciesProvider>
+        <ModalProvider>
+          <WorkspaceLayoutContextProvider>
+            <TerminalPoolProvider>
+              <SshConnectionProvider>
+                <GithubContextProvider>
+                  <IntegrationsProvider>
+                    <WorkspaceViewProvider>
+                      <RightSidebarProvider>
+                        <ThemeProvider>
+                          <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                        </ThemeProvider>
+                      </RightSidebarProvider>
+                    </WorkspaceViewProvider>
+                  </IntegrationsProvider>
+                </GithubContextProvider>
+              </SshConnectionProvider>
+            </TerminalPoolProvider>
+          </WorkspaceLayoutContextProvider>
+        </ModalProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

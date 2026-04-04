@@ -27,4 +27,8 @@ export const dependenciesController = createRPCController({
     const mgr = await getDependencyManager(connectionId);
     return mgr.probeCategory(cat);
   },
+  install: async (id: DependencyId, connectionId?: string) => {
+    const mgr = await getDependencyManager(connectionId);
+    return mgr.install(id);
+  },
 });

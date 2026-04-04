@@ -1,47 +1,12 @@
 /**
- * Utility functions for detecting shell environment variables
- * when the Electron app is launched from the GUI (not from terminal).
+ * Utilities for detecting the SSH agent socket when the app is launched
+ * from a GUI and may not have inherited it from the user's shell session.
  */
 
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-
-/**
- * Gets an environment variable from the user's login shell.
- * This is useful when the app is launched from GUI and doesn't
- * inherit the shell's environment.
- *
- * @param varName - Name of the environment variable to retrieve
- * @returns The value of the environment variable, or undefined if not found
- */
-export function getShellEnvVar(varName: string): string | undefined {
-  try {
-    if (!/^[A-Z0-9_]+$/.test(varName)) {
-      return undefined;
-    }
-    const shell = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-
-    // -i = interactive, -l = login shell (sources .zshrc/.bash_profile)
-    const result = execSync(`${shell} -ilc 'printenv ${varName} || true'`, {
-      encoding: 'utf8',
-      timeout: 5000,
-      env: {
-        ...process.env,
-        // Prevent oh-my-zsh plugins from breaking output
-        DISABLE_AUTO_UPDATE: 'true',
-        ZSH_TMUX_AUTOSTART: 'false',
-        ZSH_TMUX_AUTOSTARTED: 'true',
-      },
-    });
-
-    const value = result.trim();
-    return value || undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 /**
  * Common SSH agent socket locations to check as fallback
@@ -122,24 +87,23 @@ function expandGlob(pattern: string): string[] {
 
 /**
  * Detects the SSH_AUTH_SOCK environment variable.
- * First checks if it's already set, then tries to detect from shell,
- * and finally checks common socket locations.
+ *
+ * In normal operation, resolveUserEnv() (called at startup) will have already
+ * merged SSH_AUTH_SOCK from the login shell into process.env, so the first
+ * check here returns immediately. The remaining steps are fallbacks for
+ * environments where resolveUserEnv() timed out, was skipped (AppImage, CI),
+ * or the user's shell simply doesn't export SSH_AUTH_SOCK (e.g. custom
+ * socket managers like 1Password).
  *
  * @returns The path to the SSH agent socket, or undefined if not found
  */
 export function detectSshAuthSock(): string | undefined {
-  // If already set, use it
+  // Fast path — set by resolveUserEnv() at startup in the common case.
   if (process.env.SSH_AUTH_SOCK) {
     return process.env.SSH_AUTH_SOCK;
   }
 
-  // Try to detect from user's shell
-  const shellValue = getShellEnvVar('SSH_AUTH_SOCK');
-  if (shellValue) {
-    return shellValue;
-  }
-
-  // Method 2: macOS launchd (fast, no shell spawn)
+  // macOS launchd (fast, no shell spawn)
   if (process.platform === 'darwin') {
     try {
       const result = execSync('launchctl getenv SSH_AUTH_SOCK', {
@@ -174,18 +138,4 @@ export function detectSshAuthSock(): string | undefined {
   }
 
   return undefined;
-}
-
-/**
- * Initializes shell environment detection and sets process.env variables.
- * Should be called early in the main process before app is ready.
- */
-export function initializeShellEnvironment(): void {
-  const sshAuthSock = detectSshAuthSock();
-  if (sshAuthSock) {
-    process.env.SSH_AUTH_SOCK = sshAuthSock;
-    console.log('[shellEnv] Detected SSH_AUTH_SOCK:', sshAuthSock);
-  } else {
-    console.log('[shellEnv] SSH_AUTH_SOCK not detected');
-  }
 }
