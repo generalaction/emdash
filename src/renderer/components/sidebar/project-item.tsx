@@ -128,6 +128,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         className={cn('group/row justify-between flex p-1.5')}
         data-active={isProjectActive || undefined}
         isActive={isProjectActive}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => navigate('project', { projectId })}
       >
         <div className="flex items-center gap-1 flex-1 min-w-0">
           {project.state === 'unregistered' ? (
@@ -136,30 +138,35 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             <CollapsibleTrigger
               className="group/trigger"
               render={
-                <SidebarItemMiniButton type="button" className="relative">
+                <SidebarItemMiniButton
+                  type="button"
+                  className="relative"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <FolderClosed className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
                   <ChevronRight className="absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100 group-data-panel-open/trigger:rotate-90" />
                 </SidebarItemMiniButton>
               }
             />
           )}
-          <button
+          <span
             className={cn(
               'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
               projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
                 'text-foreground-tertiary-passive'
             )}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => navigate('project', { projectId })}
           >
             {project.name}
-          </button>
+          </span>
         </div>
         <SidebarItemMiniButton
           type="button"
           className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
           onPointerEnter={() => prefetchRepository()}
-          onClick={() => showCreateTaskModal({ projectId })}
+          onClick={(e) => {
+            e.stopPropagation();
+            showCreateTaskModal({ projectId });
+          }}
           disabled={project.state === 'unregistered'}
         >
           <Plus className="h-4 w-4" />
