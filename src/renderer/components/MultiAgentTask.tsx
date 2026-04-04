@@ -637,7 +637,7 @@ const MultiAgentTask: React.FC<Props> = ({
                   onWheelCapture={handleTerminalViewportWheelForwarding}
                 >
                   <div
-                    className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+                    className={`mx-auto h-full w-full overflow-hidden rounded-md ${
                       v.agent === 'mistral'
                         ? isDark
                           ? 'bg-[#202938]'
