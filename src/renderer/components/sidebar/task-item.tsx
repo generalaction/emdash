@@ -64,20 +64,20 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         <SidebarMenuRow
           className={cn('group/row flex items-center p-1.5 pl-9')}
           isActive={isActive}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            handleProvision();
+            navigate('task', { projectId, taskId });
+          }}
         >
-          <button
+          <span
             className={cn(
               'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
               isBootstrapping && 'text-foreground/40'
             )}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              handleProvision();
-              navigate('task', { projectId, taskId });
-            }}
           >
             {taskName}
-          </button>
+          </span>
           {isBootstrapping ? (
             <SidebarItemMiniButton type="button" disabled aria-label="Loading">
               <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
