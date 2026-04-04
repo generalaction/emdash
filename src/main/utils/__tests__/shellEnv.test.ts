@@ -22,11 +22,7 @@ const mockedReaddirSync = vi.mocked(readdirSync);
 describe('shellEnv', () => {
   const originalEnv = process.env;
   const fallbackUtf8Locale =
-    process.platform === 'darwin'
-      ? 'en_US.UTF-8'
-      : process.platform === 'win32'
-        ? undefined
-        : 'C.UTF-8';
+    process.platform === 'darwin' ? 'en_US' : process.platform === 'win32' ? undefined : 'C.UTF-8';
   const shellLookup = (values: Partial<Record<string, string>>) => (command: string) => {
     // Batched locale call: returns values separated by ---
     if (command.includes('echo "---"')) {
@@ -174,9 +170,12 @@ describe('shellEnv', () => {
       initializeShellEnvironment();
 
       expect(process.env.SSH_AUTH_SOCK).toBe('/detected/socket');
-      expect(process.env.LANG).toBe('C.UTF-8');
-      expect(process.env.LC_CTYPE).toBe('C.UTF-8');
-      expect(process.env.LC_ALL).toBe('C.UTF-8');
+      // On macOS, POSIX encoding suffixes are stripped from locale strings to
+      // prevent ICU crashes during AppKit menu init on macOS 26+.
+      const expectedLocale = process.platform === 'darwin' ? 'C' : 'C.UTF-8';
+      expect(process.env.LANG).toBe(expectedLocale);
+      expect(process.env.LC_CTYPE).toBe(expectedLocale);
+      expect(process.env.LC_ALL).toBe(expectedLocale);
     });
 
     it('should fall back to existing SSH_AUTH_SOCK when launchctl fails', () => {
@@ -206,9 +205,12 @@ describe('shellEnv', () => {
 
       initializeShellEnvironment();
 
-      expect(process.env.LANG).toBe('en_US.UTF-8');
-      expect(process.env.LC_CTYPE).toBe('sr_RS.UTF-8');
-      expect(process.env.LC_ALL).toBe('C.UTF-8');
+      // On macOS, encoding suffixes are stripped to prevent ICU crashes.
+      const strip = (v: string) =>
+        process.platform === 'darwin' ? v.replace(/\.[A-Za-z0-9@_-]+$/, '') : v;
+      expect(process.env.LANG).toBe(strip('en_US.UTF-8'));
+      expect(process.env.LC_CTYPE).toBe(strip('sr_RS.UTF-8'));
+      expect(process.env.LC_ALL).toBe(strip('C.UTF-8'));
     });
 
     it('should replace inherited non-UTF-8 locale values with shell UTF-8 values', () => {
@@ -226,9 +228,11 @@ describe('shellEnv', () => {
 
       initializeShellEnvironment();
 
-      expect(process.env.LANG).toBe('en_US.UTF-8');
-      expect(process.env.LC_CTYPE).toBe('en_US.UTF-8');
-      expect(process.env.LC_ALL).toBe('en_US.UTF-8');
+      // On macOS, encoding suffixes are stripped to prevent ICU crashes.
+      const expected = process.platform === 'darwin' ? 'en_US' : 'en_US.UTF-8';
+      expect(process.env.LANG).toBe(expected);
+      expect(process.env.LC_CTYPE).toBe(expected);
+      expect(process.env.LC_ALL).toBe(expected);
     });
 
     it('should fall back to platform UTF-8 locale when shell exposes no locale values', () => {
@@ -286,7 +290,8 @@ describe('shellEnv', () => {
 
       initializeShellEnvironment();
 
-      expect(process.env.LANG).toBe('en_US.UTF-8');
+      // On macOS, encoding suffixes are stripped to prevent ICU crashes.
+      expect(process.env.LANG).toBe(process.platform === 'darwin' ? 'en_US' : 'en_US.UTF-8');
       expect(process.env.LC_CTYPE).toBeUndefined();
       expect(process.env.LC_ALL).toBeUndefined();
     });
