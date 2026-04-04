@@ -1534,14 +1534,13 @@ export async function startPty(options: {
 
         const shellBase = (defaultShell.split('/').pop() || '').toLowerCase();
 
-        // After the provider exits, exec back into the user's shell (login+interactive)
         const resumeShell =
           shellBase === 'fish'
             ? `'${defaultShell.replace(/'/g, "'\\''")}' -i -l`
             : `'${defaultShell.replace(/'/g, "'\\''")}' -il`;
         const chainCommand = shellSetup
-          ? `${shellSetup} && ${commandString}; exec ${resumeShell}`
-          : `${commandString}; exec ${resumeShell}`;
+          ? `${shellSetup} && ${commandString}; ${resumeShell}`
+          : `${commandString}; ${resumeShell}`;
 
         // Always use the default shell for the -c command to avoid re-detecting provider CLI
         useShell = defaultShell;
@@ -1557,11 +1556,15 @@ export async function startPty(options: {
             baseLower === 'fish'
               ? `'${useShell.replace(/'/g, "'\\''")}' -i -l`
               : `'${useShell.replace(/'/g, "'\\''")}' -il`;
+          // Use foreground shell (no exec) so job control works properly.
+          // With 'exec', the shell chain can deadlock when Ctrl+Z is pressed
+          // because the parent shell stops before reaching exec, leaving no
+          // foreground process to handle fg/bg.
           if (baseLower === 'fish') {
-            args.push('-l', '-i', '-c', `${shellSetup}; exec ${resumeShell}`);
+            args.push('-l', '-i', '-c', `${shellSetup}; ${resumeShell}`);
           } else {
             const cFlag = baseLower === 'sh' ? '-lc' : '-lic';
-            args.push(cFlag, `${shellSetup}; exec ${resumeShell}`);
+            args.push(cFlag, `${shellSetup}; ${resumeShell}`);
           }
         } else {
           if (baseLower === 'fish') {
@@ -1646,6 +1649,14 @@ export async function startPty(options: {
 export function writePty(id: string, data: string): void {
   const rec = ptys.get(id);
   if (!rec) {
+    return;
+  }
+  // Drop SIGTSTP (Ctrl+Z, \x1a) to prevent job control deadlocks.
+  // In emdash's terminal, suspending an agent is meaningless and causes the
+  // shell chain to deadlock. Dropping \x1a at the PTY write level ensures
+  // SIGTSTP is never generated. Ctrl+C (\x03) is NOT dropped so users can
+  // still interrupt agent actions within Claude.
+  if (data === '\x1a') {
     return;
   }
   rec.proc.write(data);
