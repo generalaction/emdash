@@ -11,6 +11,7 @@ import {
 } from '@renderer/components/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { Switch } from '@renderer/components/ui/switch';
+import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
@@ -34,7 +35,12 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const projectData = getProjectStore(projectId)?.data;
   const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
-  const [skipPermissions, setSkipPermissions] = useState<boolean>(false);
+  const { value: taskSettings } = useAppSettingsKey('tasks');
+  const defaultSkipPermissions = taskSettings?.autoApproveByDefault ?? false;
+  const [skipPermissionsOverride, setSkipPermissionsOverride] = useState<boolean | undefined>(
+    undefined
+  );
+  const skipPermissions = skipPermissionsOverride ?? defaultSkipPermissions;
 
   const providerIdConversationsCount = useMemo(() => {
     if (!conversationMgr) return 0;
@@ -78,7 +84,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
           </Field>
           <Field>
             <div className="flex items-center gap-2">
-              <Switch checked={skipPermissions} onCheckedChange={setSkipPermissions} />
+              <Switch checked={skipPermissions} onCheckedChange={setSkipPermissionsOverride} />
               <FieldLabel>Dangerously skip permissions</FieldLabel>
             </div>
           </Field>
