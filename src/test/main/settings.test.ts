@@ -15,6 +15,7 @@ function makeSettings(overrides?: Partial<AppSettings>): AppSettings {
   return {
     repository: {
       branchPrefix: 'emdash',
+      appendHashToBranch: true,
       pushOnCreate: true,
       autoCloseLinkedIssuesOnPrCreate: true,
     },
@@ -42,6 +43,7 @@ describe('normalizeSettings - repository settings', () => {
       makeSettings({
         repository: {
           branchPrefix: 'emdash',
+          appendHashToBranch: true,
           pushOnCreate: true,
           autoCloseLinkedIssuesOnPrCreate: false,
         },
@@ -281,5 +283,64 @@ describe('normalizeSettings – terminal settings', () => {
       })
     );
     expect(result.terminal?.macOptionIsMeta).toBe(true);
+  });
+});
+
+describe('normalizeSettings - branchPrefix', () => {
+  it('preserves a custom prefix', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        repository: {
+          branchPrefix: 'myprefix',
+          appendHashToBranch: true,
+          pushOnCreate: true,
+          autoCloseLinkedIssuesOnPrCreate: true,
+        },
+      })
+    );
+    expect(result.repository.branchPrefix).toBe('myprefix');
+  });
+
+  it('preserves empty string (None mode)', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        repository: {
+          branchPrefix: '',
+          appendHashToBranch: true,
+          pushOnCreate: true,
+          autoCloseLinkedIssuesOnPrCreate: true,
+        },
+      })
+    );
+    expect(result.repository.branchPrefix).toBe('');
+  });
+
+  it('trims and strips trailing slashes from prefix', () => {
+    const result = normalizeSettings(
+      makeSettings({
+        repository: {
+          branchPrefix: '  myprefix// ',
+          appendHashToBranch: true,
+          pushOnCreate: true,
+          autoCloseLinkedIssuesOnPrCreate: true,
+        },
+      })
+    );
+    expect(result.repository.branchPrefix).toBe('myprefix');
+  });
+
+  it('truncates prefix longer than 50 chars', () => {
+    const long = 'a'.repeat(60);
+    const result = normalizeSettings(
+      makeSettings({
+        repository: {
+          branchPrefix: long,
+          appendHashToBranch: true,
+          pushOnCreate: true,
+          autoCloseLinkedIssuesOnPrCreate: true,
+        },
+      })
+    );
+    expect(result.repository.branchPrefix).toBe('a'.repeat(50));
   });
 });

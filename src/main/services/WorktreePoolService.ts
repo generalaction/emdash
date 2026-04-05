@@ -392,12 +392,14 @@ export class WorktreePoolService {
   private async transformReserve(reserve: ReserveWorktree, taskName: string): Promise<ClaimResult> {
     const { getAppSettings } = await import('../settings');
     const settings = getAppSettings();
-    const prefix = settings?.repository?.branchPrefix || 'emdash';
+    const { buildBranchName } = await import('@shared/git/branchPrefix');
+    const prefix = settings?.repository?.branchPrefix ?? 'emdash';
 
     // Generate new names
     const sluggedName = this.slugify(taskName);
     const hash = this.generateShortHash();
-    const newBranch = `${prefix}/${sluggedName}-${hash}`;
+    const branchHash = settings?.repository?.appendHashToBranch === false ? '' : hash;
+    const newBranch = buildBranchName(prefix, sluggedName, branchHash);
     const newPath = path.join(reserve.projectPath, '..', `worktrees/${sluggedName}-${hash}`);
     const newId = this.stableIdFromPath(newPath);
 

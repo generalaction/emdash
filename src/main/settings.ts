@@ -27,7 +27,8 @@ const DEFAULT_PROVIDER_ID: ProviderId = 'claude';
 const IS_MAC = process.platform === 'darwin';
 
 export interface RepositorySettings {
-  branchPrefix: string; // e.g., 'emdash'
+  branchPrefix: string; // e.g., 'emdash'; empty string = "None" mode
+  appendHashToBranch: boolean; // append short hash to branch name for uniqueness
   pushOnCreate: boolean;
   autoCloseLinkedIssuesOnPrCreate: boolean;
 }
@@ -152,6 +153,7 @@ const TASK_SWITCH_DEFAULTS = getPlatformTaskSwitchDefaults();
 const DEFAULT_SETTINGS: AppSettings = {
   repository: {
     branchPrefix: 'emdash',
+    appendHashToBranch: true,
     pushOnCreate: true,
     autoCloseLinkedIssuesOnPrCreate: true,
   },
@@ -371,6 +373,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   const out: AppSettings = {
     repository: {
       branchPrefix: DEFAULT_SETTINGS.repository.branchPrefix,
+      appendHashToBranch: DEFAULT_SETTINGS.repository.appendHashToBranch,
       pushOnCreate: DEFAULT_SETTINGS.repository.pushOnCreate,
       autoCloseLinkedIssuesOnPrCreate: DEFAULT_SETTINGS.repository.autoCloseLinkedIssuesOnPrCreate,
     },
@@ -392,9 +395,10 @@ export function normalizeSettings(input: AppSettings): AppSettings {
 
   // Repository
   const repo = input?.repository ?? DEFAULT_SETTINGS.repository;
-  let prefix = String(repo?.branchPrefix ?? DEFAULT_SETTINGS.repository.branchPrefix);
+  const rawPrefix = repo?.branchPrefix;
+  // null/undefined → default; explicit empty string → "None" mode (keep empty)
+  let prefix = rawPrefix == null ? DEFAULT_SETTINGS.repository.branchPrefix : String(rawPrefix);
   prefix = prefix.trim().replace(/\/+$/, ''); // remove trailing slashes
-  if (!prefix) prefix = DEFAULT_SETTINGS.repository.branchPrefix;
   if (prefix.length > 50) prefix = prefix.slice(0, 50);
   const push = Boolean(repo?.pushOnCreate ?? DEFAULT_SETTINGS.repository.pushOnCreate);
   const autoCloseLinkedIssuesOnPrCreate = Boolean(
@@ -402,7 +406,12 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       DEFAULT_SETTINGS.repository.autoCloseLinkedIssuesOnPrCreate
   );
 
+  const appendHash = Boolean(
+    repo?.appendHashToBranch ?? DEFAULT_SETTINGS.repository.appendHashToBranch
+  );
+
   out.repository.branchPrefix = prefix;
+  out.repository.appendHashToBranch = appendHash;
   out.repository.pushOnCreate = push;
   out.repository.autoCloseLinkedIssuesOnPrCreate = autoCloseLinkedIssuesOnPrCreate;
   // Project prep
