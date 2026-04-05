@@ -7,6 +7,7 @@ import type { NavigationSnapshot } from '@shared/view-state';
 import { rpc } from './core/ipc';
 import { codeEditorPool } from './core/monaco/monaco-code-pool';
 import { diffEditorPool } from './core/monaco/monaco-diff-pool';
+import { initAgentSoundEffects } from './core/stores/agent-sound-effects';
 import { appState } from './core/stores/app-state';
 
 async function bootstrap() {
@@ -16,6 +17,7 @@ async function bootstrap() {
 
   appState.appInfo.load();
   appState.update.start();
+  initAgentSoundEffects();
 
   const [navResult] = await Promise.all([
     rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
