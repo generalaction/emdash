@@ -15,7 +15,7 @@ import type { Agent } from '../types';
 import { agentConfig } from '../lib/agentConfig';
 import type { AIReviewConfig, ReviewDepth, ReviewType, AIReviewResult } from '@shared/reviewPreset';
 import { REVIEW_DEPTH_AGENTS } from '@shared/reviewPreset';
-import { launchReviewAgents, pollReviewMessages, aggregateReviewResults } from '@/lib/aiReview';
+import { launchReviewAgents } from '@/lib/aiReview';
 import { useToast } from '@/hooks/use-toast';
 
 interface AIReviewConfigModalProps {
@@ -80,122 +80,12 @@ export function AIReviewConfigModalOverlay({
       });
 
       // Poll for results in background
-      pollForResults(reviewId, conversationIds, config, 0);
     } catch (err) {
       console.error('Failed to start review:', err);
       setError(err instanceof Error ? err.message : 'Failed to start review');
       setIsStarting(false);
     }
   };
-
-  async function pollForResults(
-    reviewId: string,
-    conversationIds: string[],
-    config: AIReviewConfig,
-    pollCount: number
-  ) {
-    const maxPolls = 120; // 2 minutes with 1s interval
-    const pollInterval = 1000;
-
-    if (pollCount >= maxPolls) {
-      // Timeout - show partial results
-      try {
-        const results = await collectResults(conversationIds, config, reviewId);
-        showResultsModal(results);
-      } catch {
-        // Ignore errors on timeout
-      }
-      return;
-    }
-
-    try {
-      // Check if we have any responses from review agents
-      let hasResponses = false;
-      for (const convId of conversationIds) {
-        const { messages } = await pollReviewMessages(convId);
-        if (messages.some((m) => m.sender === 'agent' && m.content.length > 50)) {
-          hasResponses = true;
-          break;
-        }
-      }
-
-      if (hasResponses) {
-        const results = await collectResults(conversationIds, config, reviewId);
-        showResultsModal(results);
-        return;
-      }
-    } catch {
-      // Continue polling on error
-    }
-
-    // Schedule next poll
-    setTimeout(() => {
-      pollForResults(reviewId, conversationIds, config, pollCount + 1);
-    }, pollInterval);
-  }
-
-  async function collectResults(
-    conversationIds: string[],
-    config: AIReviewConfig,
-    reviewId: string
-  ): Promise<AIReviewResult[]> {
-    const results: AIReviewResult[] = [];
-    const startTime = Date.now();
-
-    for (const convId of conversationIds) {
-      try {
-        const { messages } = await pollReviewMessages(convId);
-        const durationMs = Date.now() - startTime;
-        const issues = messages
-          .filter((m) => m.sender === 'agent')
-          .flatMap((m) => {
-            try {
-              const parsed = JSON.parse(m.content);
-              if (Array.isArray(parsed)) {
-                return parsed;
-              }
-              if (parsed.issues && Array.isArray(parsed.issues)) {
-                return parsed.issues;
-              }
-            } catch {
-              // Not JSON, ignore
-            }
-            return [];
-          });
-
-        if (issues.length > 0 || messages.some((m) => m.sender === 'agent')) {
-          const aggregated = await aggregateReviewResults(
-            [{ conversationId: convId, messages }],
-            config,
-            reviewId,
-            durationMs
-          );
-          results.push(aggregated);
-        }
-      } catch {
-        // Ignore errors for individual conversations
-      }
-    }
-
-    return results;
-  }
-
-  function showResultsModal(results: AIReviewResult[]) {
-    showModal('aiReviewResultsModal', {
-      results,
-      isLoading: false,
-      onRunAnotherReview: () => {
-        showModal('aiReviewConfigModal', {
-          taskId,
-          taskPath,
-          availableAgents,
-          installedAgents,
-          onSuccess: () => {},
-        });
-      },
-      onClose: () => {},
-    });
-  }
 
   const depthLabels: Record<ReviewDepth, { label: string; description: string }> = {
     quick: { label: 'Quick', description: `${REVIEW_DEPTH_AGENTS.quick} agent` },

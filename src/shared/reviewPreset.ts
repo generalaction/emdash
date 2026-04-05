@@ -60,13 +60,13 @@ export interface AIReviewResult {
 // Review prompt templates
 export const REVIEW_PROMPTS = {
   fileChanges: {
-    quick: `You are a code reviewer. Review the following file changes for:
+    quick: `You are a code reviewer. Review the diff between the task's source branch and the current workspace for:
 - Critical bugs and security issues
 - Obvious correctness problems
 - Major performance concerns
 
 Provide your review in a structured format with specific issues found.`,
-    focused: `You are a thorough code reviewer. Review the following file changes for:
+    focused: `You are a thorough code reviewer. Review the diff between the task's source branch and the current workspace for:
 - Correctness, edge cases, and regressions
 - Security vulnerabilities
 - Performance issues
@@ -75,7 +75,7 @@ Provide your review in a structured format with specific issues found.`,
 - Code maintainability
 
 Provide your review in a structured format with specific issues found.`,
-    comprehensive: `You are an expert code reviewer conducting a comprehensive review. Review the following file changes for:
+    comprehensive: `You are an expert code reviewer conducting a comprehensive review. Review diff between the task's source branch and the current workspace for:
 - All correctness issues including edge cases
 - Security (OWASP top 10, injection, auth issues)
 - Performance bottlenecks and algorithmic improvements

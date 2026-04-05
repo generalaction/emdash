@@ -8,7 +8,6 @@ import { GithubDeviceFlowModalOverlay } from '@/components/GithubDeviceFlowModal
 import { McpServerModal } from '@/components/mcp/McpServerModal';
 import { ChangelogModalOverlay } from '@/components/ChangelogModal';
 import { AIReviewConfigModalOverlay } from '@/components/AIReviewConfigModal';
-import { AIReviewResultsModalOverlay } from '@/components/AIReviewResultsModal';
 
 // Define overlays here so we can use them in the showOverlay function
 const modalRegistry = {
@@ -21,7 +20,6 @@ const modalRegistry = {
   githubDeviceFlowModal: GithubDeviceFlowModalOverlay,
   mcpServerModal: McpServerModal,
   aiReviewConfigModal: AIReviewConfigModalOverlay,
-  aiReviewResultsModal: AIReviewResultsModalOverlay,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalComponent<any, any>>;
 
