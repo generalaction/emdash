@@ -392,9 +392,10 @@ export function normalizeSettings(input: AppSettings): AppSettings {
 
   // Repository
   const repo = input?.repository ?? DEFAULT_SETTINGS.repository;
-  let prefix = String(repo?.branchPrefix ?? DEFAULT_SETTINGS.repository.branchPrefix);
+  const rawPrefix = repo?.branchPrefix;
+  // null/undefined → default; explicit empty string → "None" mode (keep empty)
+  let prefix = rawPrefix == null ? DEFAULT_SETTINGS.repository.branchPrefix : String(rawPrefix);
   prefix = prefix.trim().replace(/\/+$/, ''); // remove trailing slashes
-  if (!prefix) prefix = DEFAULT_SETTINGS.repository.branchPrefix;
   if (prefix.length > 50) prefix = prefix.slice(0, 50);
   const push = Boolean(repo?.pushOnCreate ?? DEFAULT_SETTINGS.repository.pushOnCreate);
   const autoCloseLinkedIssuesOnPrCreate = Boolean(
