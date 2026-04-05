@@ -85,9 +85,14 @@ const startPtyMock = vi.fn(async ({ id }: { id: string }) => {
 const startDirectPtyMock = vi.fn(({ id, cwd }: { id: string; cwd: string }) => {
   const proc = createMockProc();
   ptys.set(id, proc);
-  // Mimic ptyManager wiring: direct CLI exit triggers shell respawn callback first.
+  // Mimic ptyManager wiring: direct CLI exit triggers shell respawn callback,
+  // or cleans up the PTY record if no callback is registered.
   proc.onExit(() => {
-    onDirectCliExitCallback?.(id, cwd);
+    if (onDirectCliExitCallback) {
+      onDirectCliExitCallback(id, cwd);
+    } else {
+      removePtyRecordMock(id);
+    }
   });
   return proc;
 });
