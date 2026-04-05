@@ -221,8 +221,8 @@ export function registerAppIpc() {
     try {
       if (!url || typeof url !== 'string') throw new Error('Invalid URL');
 
-      // Security: Validate URL protocol to prevent local file access and dangerous protocols
-      const ALLOWED_PROTOCOLS = ['http:', 'https:'];
+      // Security: Validate URL protocol to prevent dangerous protocols
+      const ALLOWED_PROTOCOLS = ['http:', 'https:', 'file:'];
       let parsedUrl: URL;
 
       try {
