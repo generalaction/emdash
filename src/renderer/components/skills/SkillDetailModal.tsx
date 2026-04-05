@@ -2,7 +2,6 @@ import { Check, FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
-import { useIsMonochrome } from '../../hooks/useIsMonochrome';
 import { Button } from '../ui/button';
 import { ConfirmButton } from '../ui/confirm-button';
 import {
@@ -14,29 +13,7 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { MarkdownRenderer } from '../ui/markdown-renderer';
-
-const ModalSkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
-  const letter = skill.displayName.charAt(0).toUpperCase();
-  const isMonochrome = useIsMonochrome(skill.iconUrl);
-
-  if (skill.iconUrl) {
-    return (
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40">
-        <img
-          src={skill.iconUrl}
-          alt=""
-          className={`h-10 w-10 rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-base font-semibold text-foreground/60 dark:text-white">
-      {letter}
-    </div>
-  );
-};
+import SkillIconRenderer from './SkillIconRenderer';
 
 interface SkillDetailModalProps {
   skill: CatalogSkill | null;
@@ -100,7 +77,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <ModalSkillIcon skill={skill} />
+            <SkillIconRenderer skill={skill} size="md" />
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-base font-sans normal-case tracking-normal text-foreground">
                 {skill.displayName}
@@ -128,7 +105,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
           {skill.defaultPrompt && (
             <div className="space-y-1 rounded-md bg-muted/40 pb-2">
               <p className="text-xs font-medium text-muted-foreground">Example prompt</p>
-              <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+              <pre className="whitespace-pre-wrap wrap-break-word text-xs text-foreground">
                 {skill.defaultPrompt}
               </pre>
             </div>
