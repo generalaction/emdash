@@ -1151,7 +1151,22 @@ export function registerGitIpc() {
           currentBranch = (stdout || '').trim();
         } catch {}
         const createPrOps = await getOperations(taskPath);
-        const defaultBranch = await createPrOps.getDefaultBranch();
+        const platformDefaultBranch = await createPrOps.getDefaultBranch();
+
+        // Prefer project-configured baseRef over platform default
+        let defaultBranch = platformDefaultBranch;
+        if (!base) {
+          try {
+            const projectBaseRef = await databaseService.getBaseRefForTaskPath(taskPath);
+            if (projectBaseRef) {
+              // Strip remote prefix (e.g., "origin/develop" -> "develop")
+              const slashIdx = projectBaseRef.indexOf('/');
+              defaultBranch = slashIdx >= 0 ? projectBaseRef.slice(slashIdx + 1) : projectBaseRef;
+            }
+          } catch {
+            // Non-fatal; fall back to platform default
+          }
+        }
 
         // Guard: ensure there is at least one commit ahead of base
         try {
@@ -1721,7 +1736,19 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const branch = (currentBranchOut || '').trim();
 
         const branchOps = await getOperations(taskPath);
-        const defaultBranch = await branchOps.getDefaultBranch();
+        const platformDefaultBranch = await branchOps.getDefaultBranch();
+
+        // Prefer project-configured baseRef over platform default
+        let defaultBranch = platformDefaultBranch;
+        try {
+          const projectBaseRef = await databaseService.getBaseRefForTaskPath(taskPath);
+          if (projectBaseRef) {
+            const slashIdx = projectBaseRef.indexOf('/');
+            defaultBranch = slashIdx >= 0 ? projectBaseRef.slice(slashIdx + 1) : projectBaseRef;
+          }
+        } catch {
+          // Non-fatal; fall back to platform default
+        }
 
         // Ahead/behind relative to upstream tracking branch
         let ahead = 0;

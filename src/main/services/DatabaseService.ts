@@ -472,6 +472,28 @@ export class DatabaseService {
     return (projectRows[0]?.gitPlatform as GitPlatform) || 'github';
   }
 
+  async getBaseRefForTaskPath(taskPath: string): Promise<string | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+
+    // Try matching as a task path first
+    const taskRows = await db
+      .select({ baseRef: projectsTable.baseRef })
+      .from(tasksTable)
+      .innerJoin(projectsTable, eq(tasksTable.projectId, projectsTable.id))
+      .where(eq(tasksTable.path, taskPath))
+      .limit(1);
+    if (taskRows[0]?.baseRef) return taskRows[0].baseRef;
+
+    // Fall back to matching as a project path
+    const projectRows = await db
+      .select({ baseRef: projectsTable.baseRef })
+      .from(projectsTable)
+      .where(eq(projectsTable.path, taskPath))
+      .limit(1);
+    return projectRows[0]?.baseRef || null;
+  }
+
   async getTaskById(taskId: string): Promise<Task | null> {
     if (this.disabled) return null;
     if (!taskId) return null;
