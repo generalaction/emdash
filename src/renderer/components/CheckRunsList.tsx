@@ -1,7 +1,8 @@
+import type { GitPlatform } from '../../shared/git/platform';
 import { CheckCircle2, XCircle, Loader2, MinusCircle, ExternalLink } from 'lucide-react';
-import githubIcon from '../../assets/images/github.png';
 import type { CheckRunsStatus, CheckRun, CheckRunBucket } from '../lib/checkRunStatus';
 import { formatCheckDuration } from '../lib/checkRunStatus';
+import { getPlatformIcon } from '../lib/gitPlatformLabels';
 import { Badge } from './ui/badge';
 
 function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
@@ -18,15 +19,22 @@ function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   }
 }
 
-function CheckRunItem({ check }: { check: CheckRun }) {
+function CheckRunItem({ check, gitPlatform }: { check: CheckRun; gitPlatform?: GitPlatform }) {
   const duration = formatCheckDuration(check.startedAt, check.completedAt);
+  const icon = getPlatformIcon(gitPlatform);
 
   return (
     <div className="flex items-center gap-2 px-4 py-2.5">
       <span className="shrink-0">
         <BucketIcon bucket={check.bucket} />
       </span>
-      <img src={githubIcon} alt="" className="h-3.5 w-3.5 shrink-0 dark:invert" />
+      <img
+        src={icon.src}
+        alt={icon.alt}
+        className={['h-3.5 w-3.5 shrink-0', icon.needsDarkInvert && 'dark:invert']
+          .filter(Boolean)
+          .join(' ')}
+      />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm text-foreground">{check.name}</div>
         {check.workflow && (
@@ -39,7 +47,7 @@ function CheckRunItem({ check }: { check: CheckRun }) {
           <button
             type="button"
             className="text-muted-foreground transition-colors hover:text-foreground"
-            title="Open in GitHub"
+            title={`Open in ${icon.alt}`}
             onClick={() => check.link && window.electronAPI?.openExternal?.(check.link)}
           >
             <ExternalLink className="h-3.5 w-3.5" />
@@ -55,9 +63,16 @@ interface ChecksPanelProps {
   isLoading: boolean;
   hasPr: boolean;
   hideSummary?: boolean;
+  gitPlatform?: GitPlatform;
 }
 
-export function ChecksPanel({ status, isLoading, hasPr, hideSummary }: ChecksPanelProps) {
+export function ChecksPanel({
+  status,
+  isLoading,
+  hasPr,
+  hideSummary,
+  gitPlatform,
+}: ChecksPanelProps) {
   if (!hasPr) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-center">
@@ -112,7 +127,7 @@ export function ChecksPanel({ status, isLoading, hasPr, hideSummary }: ChecksPan
       )}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {status.checks.map((check, i) => (
-          <CheckRunItem key={`${check.name}-${i}`} check={check} />
+          <CheckRunItem key={`${check.name}-${i}`} check={check} gitPlatform={gitPlatform} />
         ))}
       </div>
     </div>

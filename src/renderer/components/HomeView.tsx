@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { FolderOpen, Github, Plus, Server } from 'lucide-react';
+import { FolderOpen, Plus, Server } from 'lucide-react';
+import { SiGit } from 'react-icons/si';
 import React from 'react';
 import emdashLogo from '../../assets/images/emdash/emdash_logo.svg';
 import emdashLogoWhite from '../../assets/images/emdash/emdash_logo_white.svg';
@@ -94,9 +95,9 @@ const HomeView: React.FC<HomeViewProps> = ({
             onClick={onCloneProjectClick}
             className="group flex flex-col items-start justify-between rounded-lg border border-border bg-muted/20 p-4 text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            <Github className="mb-5 h-5 w-5 text-foreground opacity-70" />
+            <SiGit className="mb-5 h-5 w-5 text-foreground opacity-70" />
             <div className="w-full min-w-0 text-left">
-              <h3 className="truncate text-xs font-semibold">Clone from GitHub</h3>
+              <h3 className="truncate text-xs font-semibold">Clone from Repository</h3>
             </div>
           </motion.button>
 

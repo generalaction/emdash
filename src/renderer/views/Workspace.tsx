@@ -461,6 +461,7 @@ export function Workspace() {
                       projectRemoteConnectionId={derivedRemoteConnectionId}
                       projectRemotePath={derivedRemotePath}
                       projectDefaultBranch={projectMgmt.projectDefaultBranch}
+                      gitPlatform={selectedProject?.gitPlatform}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
                       onOpenChanges={(filePath?: string, taskPath?: string) => {

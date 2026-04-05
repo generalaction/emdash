@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { GitPlatform } from '../../shared/git/platform';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import {
@@ -56,9 +57,11 @@ import { agentAssets } from '../providers/assets';
 import { getProvider } from '@shared/providers/registry';
 import type { ProviderId } from '@shared/providers/registry';
 import type { Project, Task } from '../types/app';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import OpenPrsSection from './OpenPrsSection';
 import { TaskStatusIndicator } from './TaskStatusIndicator';
+import { getPlatformLabels } from '../lib/gitPlatformLabels';
 
 const normalizeBaseRef = (ref?: string | null): string | undefined => {
   if (!ref) return undefined;
@@ -97,6 +100,7 @@ function TaskRow({
   isSelected,
   onToggleSelect,
   enablePrStatus = true,
+  gitPlatform,
 }: {
   ws: Task;
   active: boolean;
@@ -108,6 +112,7 @@ function TaskRow({
   isSelected?: boolean;
   onToggleSelect?: () => void;
   enablePrStatus?: boolean;
+  gitPlatform?: GitPlatform;
 }) {
   const isArchived = Boolean(ws.archivedAt);
   const isBusy = useTaskBusy(ws.id);
@@ -118,6 +123,7 @@ function TaskRow({
   const { pr } = usePrStatus(ws.path, enablePrStatus);
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(ws.path, ws.id);
   const agentInfo = useTaskAgentNames(ws.id, ws.agentId);
+  const labels = getPlatformLabels(gitPlatform);
 
   const handleRowClick = () => {
     if (isSelectMode) {
@@ -217,7 +223,7 @@ function TaskRow({
           ) : null}
 
           {!isLoading && totalAdditions === 0 && totalDeletions === 0 && pr ? (
-            <PrPreviewTooltip pr={pr} side="top">
+            <PrPreviewTooltip pr={pr} side="top" gitPlatform={gitPlatform}>
               <button
                 type="button"
                 onClick={(e) => {
@@ -225,13 +231,13 @@ function TaskRow({
                   if (pr.url) window.electronAPI.openExternal(pr.url);
                 }}
                 className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+                title={`${pr.title || labels.prNounFull} (#${pr.number})`}
               >
                 {pr.isDraft
                   ? 'Draft'
                   : String(pr.state).toUpperCase() === 'OPEN'
-                    ? 'View PR'
-                    : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+                    ? labels.viewAction
+                    : `${labels.prNoun} ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
                 <ArrowUpRight className="size-3" />
               </button>
             </PrPreviewTooltip>
@@ -289,6 +295,7 @@ function TaskRow({
                 taskId={ws.id}
                 taskPath={ws.path}
                 useWorktree={ws.useWorktree}
+                gitPlatform={gitPlatform}
                 onConfirm={async () => {
                   try {
                     setIsDeleting(true);
@@ -346,6 +353,42 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
 }) => {
   const { toast } = useToast();
   const { tasksByProjectId } = useTaskManagementContext();
+  const { patchProject } = useProjectManagementContext();
+
+  const [gitPlatform, setGitPlatform] = useState<GitPlatform>(project.gitPlatform || 'github');
+
+  useEffect(() => {
+    setGitPlatform(project.gitPlatform || 'github');
+  }, [project.gitPlatform]);
+
+  const gitPlatformRef = useRef(gitPlatform);
+  gitPlatformRef.current = gitPlatform;
+
+  const handleGitPlatformChange = useCallback(
+    async (nextPlatform: GitPlatform) => {
+      const previous = gitPlatformRef.current;
+      setGitPlatform(nextPlatform);
+      patchProject(project.id, { gitPlatform: nextPlatform });
+      try {
+        const res = await window.electronAPI.updateProjectSettings({
+          projectId: project.id,
+          gitPlatform: nextPlatform,
+        });
+        if (!res?.success) {
+          throw new Error(res?.error || 'Failed to update git platform');
+        }
+      } catch (error) {
+        setGitPlatform(previous);
+        patchProject(project.id, { gitPlatform: previous });
+        toast({
+          variant: 'destructive',
+          title: 'Failed to update git platform',
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [patchProject, project.id, toast]
+  );
 
   const [baseBranch, setBaseBranch] = useState<string | undefined>(() =>
     normalizeBaseRef(project.gitInfo.baseRef)
@@ -825,6 +868,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                       tasks={activeTasks}
                       onConfirm={() => onDeleteProject?.(project)}
                       aria-label={`Delete project ${project.name}`}
+                      gitPlatform={gitPlatform}
                     />
                   ) : null}
                 </div>
@@ -1039,6 +1083,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                           onArchive={onArchiveTask ? () => handleArchiveTask(ws) : undefined}
                           enablePrStatus={!project.isRemote}
                           onRestore={ws.archivedAt ? () => handleRestoreTask(ws) : undefined}
+                          gitPlatform={gitPlatform}
                         />
                       ))}
                     </div>
@@ -1066,8 +1111,12 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
             </div>
 
             {/* Open PRs Section */}
-            {project.githubInfo?.connected && !project.isRemote && (
-              <OpenPrsSection projectPath={project.path} projectId={project.id} />
+            {(project.githubInfo?.connected || gitPlatform === 'gitlab') && !project.isRemote && (
+              <OpenPrsSection
+                projectPath={project.path}
+                projectId={project.id}
+                gitPlatform={gitPlatform}
+              />
             )}
           </div>
         </div>
@@ -1141,7 +1190,7 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
                     exit={{ opacity: 0, y: 6, scale: 0.99 }}
                     transition={{ duration: 0.2, ease: 'easeOut', delay: 0.02 }}
                   >
-                    <DeletePrNotice tasks={prTasks as any} />
+                    <DeletePrNotice tasks={prTasks as any} gitPlatform={gitPlatform} />
                   </motion.div>
                 ) : null;
               })()}
@@ -1189,6 +1238,8 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
         projectPath={project.path}
         isRemote={project.isRemote}
         sshConnectionId={project.sshConnectionId}
+        gitPlatform={gitPlatform}
+        onGitPlatformChange={handleGitPlatformChange}
       />
     </div>
   );

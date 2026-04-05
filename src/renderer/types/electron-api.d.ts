@@ -3,6 +3,15 @@
 import type { AgentEvent } from '../../shared/agentEvents';
 import type { AutoMergeRequest } from '../lib/prStatus';
 import type { DiffPayload } from '../../shared/diff/types';
+import type {
+  GitPlatform,
+  GitPlatformCreateReviewWorktreeArgs,
+  GitPlatformCreateReviewWorktreeResult,
+  GitPlatformGetPullRequestBaseDiffArgs,
+  GitPlatformGetPullRequestBaseDiffResult,
+  GitPlatformListPullRequestsArgs,
+  GitPlatformListPullRequestsResult,
+} from '../../shared/git/platform';
 import type { GitIndexUpdateArgs } from '../../shared/git/types';
 import type { ResourceMetricsSnapshot } from '../../shared/performanceTypes';
 import type { SentryIssue } from '../../shared/integrations/sentryTypes';
@@ -14,6 +23,7 @@ type ProjectSettingsPayload = {
   gitRemote?: string;
   gitBranch?: string;
   baseRef?: string;
+  gitPlatform?: GitPlatform;
 };
 
 export type ProviderCustomConfig = {
@@ -340,7 +350,11 @@ declare global {
         settings?: ProjectSettingsPayload;
         error?: string;
       }>;
-      updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+      updateProjectSettings: (args: {
+        projectId: string;
+        baseRef?: string;
+        gitPlatform?: string;
+      }) => Promise<{
         success: boolean;
         settings?: ProjectSettingsPayload;
         error?: string;
@@ -918,43 +932,24 @@ declare global {
       }>;
       githubCheckCLIInstalled: () => Promise<boolean>;
       githubInstallCLI: () => Promise<{ success: boolean; error?: string }>;
-      githubListPullRequests: (args: {
-        projectPath: string;
-        limit?: number;
-        searchQuery?: string;
-      }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
-      githubCreatePullRequestWorktree: (args: {
-        projectPath: string;
-        projectId: string;
-        prNumber: number;
-        prTitle?: string;
-        taskName?: string;
-        branchName?: string;
-      }) => Promise<{
-        success: boolean;
-        worktree?: any;
-        branchName?: string;
-        taskName?: string;
-        task?: {
-          id: string;
-          name: string;
-          path: string;
-          branch: string;
-          projectId: string;
-          status: string;
-          agentId: string;
-          metadata?: { prNumber?: number; prTitle?: string | null };
-        };
-        error?: string;
-      }>;
-      githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
-        success: boolean;
-        diff?: string;
-        baseBranch?: string;
-        headBranch?: string;
-        prUrl?: string;
-        error?: string;
-      }>;
+      gitPlatformListPullRequests: (
+        args: GitPlatformListPullRequestsArgs
+      ) => Promise<GitPlatformListPullRequestsResult>;
+      gitPlatformCreateReviewWorktree: (
+        args: GitPlatformCreateReviewWorktreeArgs
+      ) => Promise<GitPlatformCreateReviewWorktreeResult>;
+      gitPlatformGetPullRequestBaseDiff: (
+        args: GitPlatformGetPullRequestBaseDiffArgs
+      ) => Promise<GitPlatformGetPullRequestBaseDiffResult>;
+      githubListPullRequests: (
+        args: GitPlatformListPullRequestsArgs
+      ) => Promise<GitPlatformListPullRequestsResult>;
+      githubCreatePullRequestWorktree: (
+        args: GitPlatformCreateReviewWorktreeArgs
+      ) => Promise<GitPlatformCreateReviewWorktreeResult>;
+      githubGetPullRequestBaseDiff: (
+        args: GitPlatformGetPullRequestBaseDiffArgs
+      ) => Promise<GitPlatformGetPullRequestBaseDiffResult>;
       githubLogout: () => Promise<void>;
       // Linear integration
       linearCheckConnection?: () => Promise<{
@@ -1717,7 +1712,11 @@ export interface ElectronAPI {
     settings?: ProjectSettingsPayload;
     error?: string;
   }>;
-  updateProjectSettings: (args: { projectId: string; baseRef: string }) => Promise<{
+  updateProjectSettings: (args: {
+    projectId: string;
+    baseRef?: string;
+    gitPlatform?: string;
+  }) => Promise<{
     success: boolean;
     settings?: ProjectSettingsPayload;
     error?: string;
@@ -1905,43 +1904,24 @@ export interface ElectronAPI {
   }>;
   githubCheckCLIInstalled?: () => Promise<boolean>;
   githubInstallCLI?: () => Promise<{ success: boolean; error?: string }>;
-  githubListPullRequests: (args: {
-    projectPath: string;
-    limit?: number;
-    searchQuery?: string;
-  }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
-  githubCreatePullRequestWorktree: (args: {
-    projectPath: string;
-    projectId: string;
-    prNumber: number;
-    prTitle?: string;
-    taskName?: string;
-    branchName?: string;
-  }) => Promise<{
-    success: boolean;
-    worktree?: any;
-    branchName?: string;
-    taskName?: string;
-    task?: {
-      id: string;
-      name: string;
-      path: string;
-      branch: string;
-      projectId: string;
-      status: string;
-      agentId: string;
-      metadata?: { prNumber?: number; prTitle?: string | null };
-    };
-    error?: string;
-  }>;
-  githubGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
-    success: boolean;
-    diff?: string;
-    baseBranch?: string;
-    headBranch?: string;
-    prUrl?: string;
-    error?: string;
-  }>;
+  gitPlatformListPullRequests: (
+    args: GitPlatformListPullRequestsArgs
+  ) => Promise<GitPlatformListPullRequestsResult>;
+  gitPlatformCreateReviewWorktree: (
+    args: GitPlatformCreateReviewWorktreeArgs
+  ) => Promise<GitPlatformCreateReviewWorktreeResult>;
+  gitPlatformGetPullRequestBaseDiff: (
+    args: GitPlatformGetPullRequestBaseDiffArgs
+  ) => Promise<GitPlatformGetPullRequestBaseDiffResult>;
+  githubListPullRequests: (
+    args: GitPlatformListPullRequestsArgs
+  ) => Promise<GitPlatformListPullRequestsResult>;
+  githubCreatePullRequestWorktree: (
+    args: GitPlatformCreateReviewWorktreeArgs
+  ) => Promise<GitPlatformCreateReviewWorktreeResult>;
+  githubGetPullRequestBaseDiff: (
+    args: GitPlatformGetPullRequestBaseDiffArgs
+  ) => Promise<GitPlatformGetPullRequestBaseDiffResult>;
   githubLogout: () => Promise<void>;
   // GitHub issues
   githubIssuesList?: (

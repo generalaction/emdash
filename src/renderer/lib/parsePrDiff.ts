@@ -1,15 +1,9 @@
 import type { FileChange } from '../hooks/useFileChanges';
+import type { GitPlatformGetPullRequestBaseDiffResult } from '../../shared/git/platform';
 
 // Dedup cache for PR diff fetches — prevents duplicate IPC calls when multiple
 // components (FileChangesPanel, DiffViewer) request the same diff simultaneously.
-type PrDiffResult = {
-  success: boolean;
-  diff?: string;
-  baseBranch?: string;
-  headBranch?: string;
-  prUrl?: string;
-  error?: string;
-};
+type PrDiffResult = GitPlatformGetPullRequestBaseDiffResult;
 const pendingFetches = new Map<string, Promise<PrDiffResult>>();
 
 export async function fetchPrBaseDiff(
@@ -21,7 +15,7 @@ export async function fetchPrBaseDiff(
   if (existing) return existing;
 
   const promise = window.electronAPI
-    .githubGetPullRequestBaseDiff({ worktreePath, prNumber })
+    .gitPlatformGetPullRequestBaseDiff({ worktreePath, prNumber })
     .finally(() => pendingFetches.delete(key));
   pendingFetches.set(key, promise);
   return promise;

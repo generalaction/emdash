@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { GitPlatform } from '../../shared/git/platform';
 import { motion } from 'framer-motion';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -45,24 +46,35 @@ import {
 import { useTaskScope } from './TaskScopeContext';
 import { fetchPrBaseDiff, parseDiffToFileChanges } from '../lib/parsePrDiff';
 import { formatDiffCount } from '../lib/gitChangePresentation';
+import { getPlatformLabels } from '../lib/gitPlatformLabels';
 
 type ActiveTab = 'changes' | 'checks';
 type PrMode = 'create' | 'draft' | 'merge';
 
-const PR_MODE_LABELS: Record<PrMode, string> = {
-  create: 'Create PR',
-  draft: 'Draft PR',
-  merge: 'Merge into Main',
-};
+function getPrModeLabels(gitPlatform?: GitPlatform): Record<PrMode, string> {
+  const labels = getPlatformLabels(gitPlatform);
+  return {
+    create: labels.createAction,
+    draft: `Draft ${labels.prNoun}`,
+    merge: 'Merge into Main',
+  };
+}
 
 interface PrActionButtonProps {
   mode: PrMode;
   onModeChange: (mode: PrMode) => void;
   onExecute: () => Promise<void>;
   isLoading: boolean;
+  modeLabels: Record<PrMode, string>;
 }
 
-function PrActionButton({ mode, onModeChange, onExecute, isLoading }: PrActionButtonProps) {
+function PrActionButton({
+  mode,
+  onModeChange,
+  onExecute,
+  isLoading,
+  modeLabels,
+}: PrActionButtonProps) {
   return (
     <div className="flex shrink-0">
       <Button
@@ -72,7 +84,7 @@ function PrActionButton({ mode, onModeChange, onExecute, isLoading }: PrActionBu
         disabled={isLoading}
         onClick={onExecute}
       >
-        {isLoading ? <Spinner size="sm" /> : PR_MODE_LABELS[mode]}
+        {isLoading ? <Spinner size="sm" /> : modeLabels[mode]}
       </Button>
       <Popover>
         <PopoverTrigger asChild>
@@ -94,7 +106,7 @@ function PrActionButton({ mode, onModeChange, onExecute, isLoading }: PrActionBu
                   className="w-full whitespace-nowrap rounded px-2 py-1 text-left text-xs hover:bg-accent"
                   onClick={() => onModeChange(m)}
                 >
-                  {PR_MODE_LABELS[m]}
+                  {modeLabels[m]}
                 </button>
               </PopoverClose>
             ))}
@@ -133,6 +145,7 @@ interface FileChangesPanelProps {
   taskPath?: string;
   className?: string;
   onOpenChanges?: (filePath?: string, taskPath?: string) => void;
+  gitPlatform?: GitPlatform;
 }
 
 const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
@@ -140,8 +153,15 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   taskPath,
   className,
   onOpenChanges,
+  gitPlatform,
 }) => {
-  const { taskId: scopedTaskId, taskPath: scopedTaskPath, prNumber } = useTaskScope();
+  const platformLabels = getPlatformLabels(gitPlatform);
+  const prModeLabels = getPrModeLabels(gitPlatform);
+  const {
+    taskId: scopedTaskId,
+    taskPath: scopedTaskPath,
+    prNumber: scopedPrNumber,
+  } = useTaskScope();
   const resolvedTaskId = taskId ?? scopedTaskId;
   const resolvedTaskPath = taskPath ?? scopedTaskPath;
   const safeTaskPath = resolvedTaskPath ?? '';
@@ -149,19 +169,21 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const taskPathRef = useRef(safeTaskPath);
   taskPathRef.current = safeTaskPath;
 
-  // PR review mode state
+  const { pr, isLoading: isPrLoading, refresh: refreshPr } = usePrStatus(safeTaskPath);
+  const effectivePrNumber = scopedPrNumber ?? pr?.number;
+  const isPrReview = Boolean(scopedPrNumber && safeTaskPath);
   const [prDiffChanges, setPrDiffChanges] = useState<FileChange[]>([]);
   const [prDiffLoading, setPrDiffLoading] = useState(false);
   const [prBaseBranch, setPrBaseBranch] = useState<string | null>(null);
   const [prHeadBranch, setPrHeadBranch] = useState<string | null>(null);
   const [prUrl, setPrUrl] = useState<string | null>(null);
-  const isPrReview = Boolean(prNumber && safeTaskPath);
+  const hasFetchedPrDiff = useRef(false);
 
   const fetchPrDiff = useCallback(async () => {
-    if (!prNumber || !safeTaskPath) return;
+    if (!effectivePrNumber || !safeTaskPath) return;
     setPrDiffLoading(true);
     try {
-      const result = await fetchPrBaseDiff(safeTaskPath, prNumber);
+      const result = await fetchPrBaseDiff(safeTaskPath, effectivePrNumber);
       if (result.success) {
         setPrDiffChanges(parseDiffToFileChanges(result.diff ?? ''));
         setPrBaseBranch(result.baseBranch || null);
@@ -185,7 +207,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     } finally {
       setPrDiffLoading(false);
     }
-  }, [prNumber, safeTaskPath]);
+  }, [effectivePrNumber, safeTaskPath]);
+
+  useEffect(() => {
+    hasFetchedPrDiff.current = false;
+  }, [effectivePrNumber, safeTaskPath]);
 
   useEffect(() => {
     if (isPrReview) {
@@ -231,7 +257,6 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const hasChanges = fileChanges.length > 0;
   const stagedCount = fileChanges.filter((change) => change.isStaged).length;
   const hasStagedChanges = stagedCount > 0;
-  const { pr, isLoading: isPrLoading, refresh: refreshPr } = usePrStatus(safeTaskPath);
   const [activeTab, setActiveTab] = useState<ActiveTab>('changes');
   const { status: checkRunsStatus, isLoading: checkRunsLoading } = useCheckRuns(
     pr ? safeTaskPath : undefined
@@ -512,6 +537,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       })();
       await createPR({
         taskPath: safeTaskPath,
+        gitPlatform,
         prOptions: prMode === 'draft' ? { draft: true } : undefined,
         onSuccess: async () => {
           await refreshChanges();
@@ -555,9 +581,24 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const shouldShowDiffPill = (value: number | null | undefined) =>
     typeof value === 'number' && value !== 0;
 
-  // Use PR diff changes when in PR review mode, otherwise use local file changes
-  const displayChanges = isPrReview ? prDiffChanges : fileChanges;
-  const displayLoading = isPrReview ? prDiffLoading : isLoading;
+  const hasLocalChanges = fileChanges.length > 0;
+  useEffect(() => {
+    if (
+      !isPrReview &&
+      !hasLocalChanges &&
+      !isLoading &&
+      effectivePrNumber &&
+      safeTaskPath &&
+      !hasFetchedPrDiff.current
+    ) {
+      hasFetchedPrDiff.current = true;
+      fetchPrDiff();
+    }
+  }, [isPrReview, hasLocalChanges, isLoading, effectivePrNumber, safeTaskPath, fetchPrDiff]);
+
+  const showPrDiff = isPrReview || (!hasLocalChanges && prDiffChanges.length > 0);
+  const displayChanges = showPrDiff ? prDiffChanges : fileChanges;
+  const displayLoading = showPrDiff ? prDiffLoading : isLoading;
 
   const totalChanges = displayChanges.reduce<{
     additions: number | null;
@@ -595,11 +636,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             const url = prUrl || pr?.url;
             if (url) window.electronAPI.openExternal(url);
           }}
-          title="Open PR on GitHub"
+          title={`Open ${platformLabels.prNoun} on ${gitPlatform === 'gitlab' ? 'GitLab' : 'GitHub'}`}
         >
           <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
           <span className="truncate text-xs text-emerald-700 dark:text-emerald-300">
-            Reviewing PR #{prNumber}
+            Reviewing {platformLabels.prNoun} #{scopedPrNumber}
             {prHeadBranch && prBaseBranch && (
               <>
                 {': '}
@@ -708,6 +749,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onModeChange={selectPrMode}
                   onExecute={handlePrAction}
                   isLoading={isActionLoading}
+                  modeLabels={prModeLabels}
                 />
               </div>
             </div>
@@ -771,13 +813,13 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                     if (pr.url) window.electronAPI?.openExternal?.(pr.url);
                   }}
                   className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+                  title={`${pr.title || platformLabels.prNounFull} (#${pr.number})`}
                 >
                   {pr.isDraft
                     ? 'Draft'
                     : String(pr.state).toUpperCase() === 'OPEN'
-                      ? 'View PR'
-                      : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+                      ? platformLabels.viewAction
+                      : `${platformLabels.prNoun} ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
                   <ArrowUpRight className="size-3" />
                 </button>
               ) : branchStatusLoading || (branchAhead !== null && branchAhead > 0) ? (
@@ -786,9 +828,12 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onModeChange={selectPrMode}
                   onExecute={handlePrAction}
                   isLoading={isActionLoading || branchStatusLoading}
+                  modeLabels={prModeLabels}
                 />
               ) : (
-                <span className="text-xs text-muted-foreground">No PR for this task</span>
+                <span className="text-xs text-muted-foreground">
+                  No {platformLabels.prNoun} for this task
+                </span>
               )}
             </div>
           </div>
@@ -873,6 +918,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               isLoading={checkRunsLoading}
               hasPr={!!pr || isPrReview}
               hideSummary={isPrReview ? !hasDisplayChanges : !hasChanges}
+              gitPlatform={gitPlatform}
             />
             {pr && (
               <PrCommentsList
@@ -883,7 +929,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               />
             )}
           </div>
-          {pr && <MergePrSection taskPath={safeTaskPath} pr={pr} refreshPr={refreshPr} />}
+          {pr && (
+            <MergePrSection
+              taskPath={safeTaskPath}
+              pr={pr}
+              refreshPr={refreshPr}
+              gitPlatform={gitPlatform}
+            />
+          )}
         </>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -891,7 +944,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             <div className="flex h-full items-center justify-center">
               <Spinner size="lg" className="text-muted-foreground" />
             </div>
-          ) : isPrReview ? (
+          ) : showPrDiff ? (
             displayChanges.map((change, index) => (
               <div
                 key={index}

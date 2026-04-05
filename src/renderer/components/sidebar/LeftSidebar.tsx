@@ -572,6 +572,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                           onDelete={() => handleDeleteTask(typedProject, typedTask)}
                                           onArchive={() => onArchiveTask?.(typedProject, typedTask)}
                                           primaryAction={taskHoverAction}
+                                          gitPlatform={typedProject.gitPlatform}
                                         />
                                       </motion.div>
                                     );

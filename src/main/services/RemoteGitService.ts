@@ -940,6 +940,15 @@ export class RemoteGitService {
     return this.sshService.executeCommand(connectionId, `gh ${ghArgs}`, cwd);
   }
 
+  async execGlab(
+    connectionId: string,
+    worktreePath: string,
+    glabArgs: string
+  ): Promise<ExecResult> {
+    const cwd = this.normalizeRemotePath(worktreePath);
+    return this.sshService.executeCommand(connectionId, `glab ${glabArgs}`, cwd);
+  }
+
   async execGit(connectionId: string, worktreePath: string, gitArgs: string): Promise<ExecResult> {
     const cwd = this.normalizeRemotePath(worktreePath);
     return this.sshService.executeCommand(connectionId, `git ${gitArgs}`, cwd);

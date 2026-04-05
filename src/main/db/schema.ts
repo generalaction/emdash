@@ -36,6 +36,7 @@ export const projects = sqliteTable(
     baseRef: text('base_ref'),
     githubRepository: text('github_repository'),
     githubConnected: integer('github_connected').notNull().default(0),
+    gitPlatform: text('git_platform').default('github'),
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),

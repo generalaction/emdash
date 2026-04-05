@@ -1,4 +1,4 @@
-import type { Project } from './DatabaseService';
+import type { Project, GitPlatform } from './DatabaseService';
 import { databaseService } from './DatabaseService';
 
 export interface ProjectSettings {
@@ -8,6 +8,7 @@ export interface ProjectSettings {
   gitRemote?: string;
   gitBranch?: string;
   baseRef?: string;
+  gitPlatform: GitPlatform;
 }
 
 class ProjectSettingsService {
@@ -24,17 +25,25 @@ class ProjectSettingsService {
 
   async updateProjectSettings(
     projectId: string,
-    settings: { baseRef?: string }
+    settings: { baseRef?: string; gitPlatform?: GitPlatform }
   ): Promise<ProjectSettings> {
     if (!projectId) {
       throw new Error('projectId is required');
     }
-    const nextBaseRef = settings?.baseRef;
-    if (typeof nextBaseRef !== 'string') {
-      throw new Error('baseRef is required');
+    if (!settings?.baseRef && !settings?.gitPlatform) {
+      throw new Error('At least one of baseRef or gitPlatform is required');
     }
 
-    const project = await databaseService.updateProjectBaseRef(projectId, nextBaseRef);
+    let project: Project | null = null;
+
+    if (settings.baseRef) {
+      project = await databaseService.updateProjectBaseRef(projectId, settings.baseRef);
+    }
+
+    if (settings.gitPlatform) {
+      project = await databaseService.updateProjectGitPlatform(projectId, settings.gitPlatform);
+    }
+
     if (!project) {
       throw new Error('Project not found');
     }
@@ -49,6 +58,7 @@ class ProjectSettingsService {
       gitRemote: project.gitInfo.remote,
       gitBranch: project.gitInfo.branch,
       baseRef: project.gitInfo.baseRef,
+      gitPlatform: project.gitPlatform,
     };
   }
 }

@@ -1,26 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type {
+  GitPlatformListPullRequestsResult,
+  GitPlatformPullRequestReviewer,
+  GitPlatformPullRequestSummary,
+} from '../../shared/git/platform';
 import { normalizePullRequestSearchQuery } from '../lib/pullRequestFilters';
 
-export interface PullRequestReviewer {
-  login: string;
-  state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
-}
+export type PullRequestReviewer = GitPlatformPullRequestReviewer;
 
-export interface PullRequestSummary {
-  number: number;
-  title: string;
-  headRefName: string;
-  baseRefName: string;
-  url: string;
-  isDraft?: boolean;
-  updatedAt?: string | null;
+export type PullRequestSummary = Omit<GitPlatformPullRequestSummary, 'author'> & {
   authorLogin?: string | null;
-  reviewDecision?: string | null;
-  reviewers?: PullRequestReviewer[];
-  additions?: number;
-  deletions?: number;
-  checksStatus?: 'pass' | 'fail' | 'pending' | 'none' | null;
-}
+};
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -58,11 +48,12 @@ export function usePullRequests(
       }
       setError(null);
       try {
-        const response = await window.electronAPI.githubListPullRequests({
-          projectPath,
-          limit,
-          searchQuery: normalizedSearchQuery || undefined,
-        });
+        const response: GitPlatformListPullRequestsResult =
+          await window.electronAPI.gitPlatformListPullRequests({
+            projectPath,
+            limit,
+            searchQuery: normalizedSearchQuery || undefined,
+          });
         if (requestId !== requestIdRef.current) {
           return;
         }

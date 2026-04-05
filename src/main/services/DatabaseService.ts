@@ -18,6 +18,14 @@ import {
   type SshConnectionInsert,
 } from '../db/schema';
 
+import {
+  type GitPlatform as _GitPlatform,
+  detectGitPlatformFromRemote,
+} from '../../shared/git/platform';
+
+export type GitPlatform = _GitPlatform;
+export { detectGitPlatformFromRemote };
+
 export interface Project {
   id: string;
   name: string;
@@ -26,6 +34,7 @@ export interface Project {
   isRemote?: boolean;
   sshConnectionId?: string | null;
   remotePath?: string | null;
+  gitPlatform: GitPlatform;
   gitInfo: {
     isGitRepo: boolean;
     remote?: string;
@@ -231,6 +240,7 @@ export class DatabaseService {
       baseRef: baseRef ?? null,
       githubRepository,
       githubConnected,
+      gitPlatform: project.gitPlatform || detectGitPlatformFromRemote(gitRemote),
       sshConnectionId: project.sshConnectionId ?? null,
       isRemote: project.isRemote ? 1 : 0,
       remotePath: project.remotePath ?? null,
@@ -307,6 +317,23 @@ export class DatabaseService {
       })
       .where(eq(projectsTable.id, projectId));
 
+    return this.getProjectById(projectId);
+  }
+
+  async updateProjectGitPlatform(
+    projectId: string,
+    gitPlatform: GitPlatform
+  ): Promise<Project | null> {
+    if (this.disabled) return null;
+    if (!projectId) throw new Error('projectId is required');
+    if (gitPlatform !== 'github' && gitPlatform !== 'gitlab') {
+      throw new Error('gitPlatform must be "github" or "gitlab"');
+    }
+    const { db } = await getDrizzleClient();
+    await db
+      .update(projectsTable)
+      .set({ gitPlatform, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(projectsTable.id, projectId));
     return this.getProjectById(projectId);
   }
 
@@ -421,6 +448,18 @@ export class DatabaseService {
 
     if (rows.length === 0) return null;
     return this.mapDrizzleTaskRow(rows[0]);
+  }
+
+  async getGitPlatformForTaskPath(taskPath: string): Promise<GitPlatform> {
+    if (this.disabled) return 'github';
+    const { db } = await getDrizzleClient();
+    const rows = await db
+      .select({ gitPlatform: projectsTable.gitPlatform })
+      .from(tasksTable)
+      .innerJoin(projectsTable, eq(tasksTable.projectId, projectsTable.id))
+      .where(eq(tasksTable.path, taskPath))
+      .limit(1);
+    return (rows[0]?.gitPlatform as GitPlatform) || 'github';
   }
 
   async getTaskById(taskId: string): Promise<Task | null> {
@@ -863,6 +902,7 @@ export class DatabaseService {
       isRemote: row.isRemote === 1,
       sshConnectionId: row.sshConnectionId ?? null,
       remotePath: row.remotePath ?? null,
+      gitPlatform: (row.gitPlatform as GitPlatform) || detectGitPlatformFromRemote(row.gitRemote),
       gitInfo: {
         isGitRepo: !!(row.gitRemote || row.gitBranch),
         remote: row.gitRemote ?? undefined,

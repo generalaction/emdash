@@ -1,4 +1,5 @@
-import { FolderOpen, FolderPlus, Github, Plus, Server } from 'lucide-react';
+import { FolderOpen, FolderPlus, Plus, Server } from 'lucide-react';
+import { SiGit } from 'react-icons/si';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { SidebarGroupLabel } from '../ui/sidebar';
@@ -39,7 +40,7 @@ export function ProjectsGroupLabel() {
               onClick={() => onNewProject?.()}
             />
             <MenuItemButton
-              icon={Github}
+              icon={SiGit}
               label="Clone"
               ariaLabel="Clone"
               onClick={() => onCloneProject?.()}

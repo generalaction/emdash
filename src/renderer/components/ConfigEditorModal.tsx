@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { GitPlatform } from '../../shared/git/platform';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
@@ -35,6 +37,8 @@ interface ConfigEditorModalProps {
   projectPath: string;
   isRemote?: boolean;
   sshConnectionId?: string | null;
+  gitPlatform?: GitPlatform;
+  onGitPlatformChange?: (platform: GitPlatform) => void;
 }
 
 const EMPTY_SCRIPTS: LifecycleScripts = {
@@ -145,6 +149,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   projectPath,
   isRemote,
   sshConnectionId,
+  gitPlatform,
+  onGitPlatformChange,
 }) => {
   const workspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const [config, setConfig] = useState<ConfigShape>({});
@@ -160,6 +166,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   const [originalWpProvisionCommand, setOriginalWpProvisionCommand] = useState('');
   const [wpTerminateCommand, setWpTerminateCommand] = useState('');
   const [originalWpTerminateCommand, setOriginalWpTerminateCommand] = useState('');
+  const [localGitPlatform, setLocalGitPlatform] = useState<GitPlatform>(gitPlatform || 'github');
+  const [originalGitPlatform, setOriginalGitPlatform] = useState<GitPlatform>(
+    gitPlatform || 'github'
+  );
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -194,7 +204,8 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       shellSetup !== originalShellSetup ||
       tmux !== originalTmux ||
       wpProvisionCommand !== originalWpProvisionCommand ||
-      wpTerminateCommand !== originalWpTerminateCommand,
+      wpTerminateCommand !== originalWpTerminateCommand ||
+      localGitPlatform !== originalGitPlatform,
     [
       originalShellSetup,
       originalPreservePatternsInput,
@@ -205,6 +216,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       originalTmux,
       originalWpProvisionCommand,
       originalWpTerminateCommand,
+      originalGitPlatform,
       shellSetup,
       preservePatternsInput,
       scripts.run,
@@ -214,6 +226,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       tmux,
       wpProvisionCommand,
       wpTerminateCommand,
+      localGitPlatform,
     ]
   );
 
@@ -293,7 +306,10 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
   useEffect(() => {
     if (!isOpen || !projectPath) return;
     void loadConfig();
-  }, [isOpen, loadConfig, projectPath]);
+    const platform = gitPlatform || 'github';
+    setLocalGitPlatform(platform);
+    setOriginalGitPlatform(platform);
+  }, [isOpen, loadConfig, projectPath, gitPlatform]);
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isSaving) return;
@@ -353,6 +369,12 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
       setOriginalWpProvisionCommand(wpProvisionCommand);
       setOriginalWpTerminateCommand(wpTerminateCommand);
 
+      // Persist git platform change via IPC (separate from .emdash.json config)
+      if (localGitPlatform !== originalGitPlatform && onGitPlatformChange) {
+        onGitPlatformChange(localGitPlatform);
+        setOriginalGitPlatform(localGitPlatform);
+      }
+
       if (
         wpProvisionCommand !== originalWpProvisionCommand ||
         wpTerminateCommand !== originalWpTerminateCommand
@@ -382,6 +404,9 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
     tmux,
     wpProvisionCommand,
     wpTerminateCommand,
+    localGitPlatform,
+    originalGitPlatform,
+    onGitPlatformChange,
   ]);
 
   return (
@@ -406,6 +431,31 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
             ) : null}
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+              {onGitPlatformChange && (
+                <div className="space-y-2">
+                  <Label>Git platform</Label>
+                  <Select
+                    value={localGitPlatform}
+                    onValueChange={(v: string) => {
+                      setLocalGitPlatform(v as GitPlatform);
+                      setError(null);
+                    }}
+                    disabled={isSaving}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="github">GitHub</SelectItem>
+                      <SelectItem value="gitlab">GitLab</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Selects which CLI to use for PR/MR operations (gh or glab).
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="config-preserve-patterns">Preserved patterns</Label>
                 <Textarea

@@ -33,6 +33,19 @@ import {
 } from '../utils/remoteProjectResolver';
 import { RemoteGitService } from '../services/RemoteGitService';
 import { sshService } from '../services/ssh/SshService';
+import {
+  getPlatformConfig,
+  buildCreateCommand,
+  buildMergeCommand,
+  buildAutoMergeCommand,
+  buildDisableAutoMergeCommand,
+  isPrAlreadyExistsError,
+  isCliNotInstalledError,
+  isPrNotFoundError,
+  extractUrlFromOutput,
+} from '../services/GitPlatformService';
+import type { GitPlatform } from '../../shared/git/platform';
+import { getOperations, resolveGitPlatform } from '../services/gitPlatformOperations';
 
 const remoteGitService = new RemoteGitService(sshService);
 
@@ -217,6 +230,28 @@ export function registerGitIpc() {
   }
   const GIT = resolveGitBin();
 
+  // Helper: run the right CLI (gh or glab) over SSH based on platform.
+  // `cliArgs` should NOT include the CLI name — e.g. pass "pr create --title ..." not "gh pr create ...".
+  async function execRemoteCli(
+    connectionId: string,
+    taskPath: string,
+    platform: GitPlatform,
+    cliArgs: string
+  ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    if (platform === 'gitlab') {
+      return remoteGitService.execGlab(connectionId, taskPath, cliArgs);
+    }
+    return remoteGitService.execGh(connectionId, taskPath, cliArgs);
+  }
+
+  // Strip the CLI name prefix (e.g. "gh " or "glab ") from a full command produced by
+  // GitPlatformService builders so it can be passed to execRemoteCli / execGh / execGlab.
+  function stripCliPrefix(fullCmd: string): string {
+    // Commands start with "gh " or "glab " — strip the first space-separated token.
+    const idx = fullCmd.indexOf(' ');
+    return idx >= 0 ? fullCmd.slice(idx + 1) : fullCmd;
+  }
+
   // Helper: commit-and-push for remote SSH projects
   async function commitAndPushRemote(
     connectionId: string,
@@ -309,89 +344,11 @@ export function registerGitIpc() {
     return { success: true, branch: activeBranch, output: (finalStatus.stdout || '').trim() };
   }
 
-  // Helper: get PR status for remote SSH projects
-  async function getPrStatusRemote(
-    connectionId: string,
-    taskPath: string
-  ): Promise<{ success: boolean; pr?: any; error?: string }> {
-    const queryFields = [
-      'number',
-      'url',
-      'state',
-      'isDraft',
-      'mergeStateStatus',
-      'headRefName',
-      'baseRefName',
-      'title',
-      'author',
-      'additions',
-      'deletions',
-      'changedFiles',
-      'autoMergeRequest',
-    ];
-    const fieldsStr = queryFields.join(',');
-
-    const viewResult = await remoteGitService.execGh(
-      connectionId,
-      taskPath,
-      `pr view --json ${fieldsStr} -q .`
-    );
-    let data =
-      viewResult.exitCode === 0 && viewResult.stdout.trim()
-        ? JSON.parse(viewResult.stdout.trim())
-        : null;
-
-    // Fallback: find by branch name
-    if (!data) {
-      const branch = await remoteGitService.getCurrentBranch(connectionId, taskPath);
-      if (branch) {
-        const listResult = await remoteGitService.execGh(
-          connectionId,
-          taskPath,
-          `pr list --head ${quoteGhArg(branch)} --json ${fieldsStr} --limit 1`
-        );
-        if (listResult.exitCode === 0 && listResult.stdout.trim()) {
-          const listData = JSON.parse(listResult.stdout.trim());
-          if (Array.isArray(listData) && listData.length > 0) data = listData[0];
-        }
-      }
-    }
-
-    if (!data) return { success: true, pr: null };
-
-    // Compute diff stats if missing
-    const asNumber = (v: any): number | null =>
-      typeof v === 'number' && Number.isFinite(v) ? v : null;
-    if (
-      asNumber(data.additions) === null ||
-      asNumber(data.deletions) === null ||
-      asNumber(data.changedFiles) === null
-    ) {
-      const baseRef = typeof data.baseRefName === 'string' ? data.baseRefName.trim() : '';
-      const targetRef = baseRef ? `origin/${baseRef}` : '';
-      const cmd = targetRef
-        ? `diff --shortstat ${quoteGhArg(targetRef)}...HEAD`
-        : 'diff --shortstat HEAD~1..HEAD';
-      const diffResult = await remoteGitService.execGit(connectionId, taskPath, cmd);
-      if (diffResult.exitCode === 0) {
-        const m = (diffResult.stdout || '').match(
-          /(\d+)\s+files? changed(?:,\s+(\d+)\s+insertions?\(\+\))?(?:,\s+(\d+)\s+deletions?\(-\))?/
-        );
-        if (m) {
-          if (asNumber(data.changedFiles) === null && m[1]) data.changedFiles = parseInt(m[1], 10);
-          if (asNumber(data.additions) === null && m[2]) data.additions = parseInt(m[2], 10);
-          if (asNumber(data.deletions) === null && m[3]) data.deletions = parseInt(m[3], 10);
-        }
-      }
-    }
-
-    return { success: true, pr: data };
-  }
-
-  // Helper: create PR for remote SSH projects
+  // Helper: create PR/MR for remote SSH projects
   async function createPrRemote(
     connectionId: string,
     taskPath: string,
+    platform: GitPlatform = 'github',
     opts: {
       title?: string;
       body?: string;
@@ -404,6 +361,7 @@ export function registerGitIpc() {
   ): Promise<{ success: boolean; url?: string; output?: string; error?: string; code?: string }> {
     const { title, body, base, head, draft, web, fill } = opts;
     const outputs: string[] = [];
+    const { noun } = getPlatformConfig(platform);
 
     const autoCloseLinkedIssuesOnPrCreate = shouldAutoCloseLinkedIssuesOnPrCreate();
 
@@ -480,47 +438,47 @@ export function registerGitIpc() {
     if (aheadCount <= 0) {
       return {
         success: false,
-        error: `No commits to create a PR. Make a commit on current branch '${currentBranch}' ahead of base '${baseRef}'.`,
+        error: `No commits to create a ${noun}. Make a commit on current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       };
     }
 
-    // Build gh pr create command
-    const flags: string[] = [];
-    if (title) flags.push(`--title ${quoteGhArg(title)}`);
-    // Can't use --body-file on remote, use --body instead
-    if (prBody && !shouldUseFill) flags.push(`--body ${quoteGhArg(prBody)}`);
-    flags.push(`--base ${quoteGhArg(baseRef)}`);
-    if (head) {
-      flags.push(`--head ${quoteGhArg(head)}`);
-    } else if (currentBranch) {
-      flags.push(`--head ${quoteGhArg(currentBranch)}`);
-    }
-    if (draft) flags.push('--draft');
-    if (web) flags.push('--web');
-    if (shouldUseFill) flags.push('--fill');
+    // Build CLI create command via GitPlatformService (no --body-file on remote)
+    const createCmd = buildCreateCommand(platform, {
+      title,
+      body: shouldUseFill ? undefined : prBody,
+      base: baseRef,
+      head: head || currentBranch || undefined,
+      draft,
+      web,
+      fill: shouldUseFill,
+    });
 
-    const createResult = await remoteGitService.execGh(
+    const createResult = await execRemoteCli(
       connectionId,
       taskPath,
-      `pr create ${flags.join(' ')}`
+      platform,
+      stripCliPrefix(createCmd)
     );
 
     const combined = [createResult.stdout, createResult.stderr].filter(Boolean).join('\n').trim();
-    const urlMatch = combined.match(/https?:\/\/\S+/);
-    const url = urlMatch ? urlMatch[0] : null;
+    const url = extractUrlFromOutput(platform, combined);
 
     if (createResult.exitCode !== 0) {
-      const restrictionRe =
-        /Auth App access restrictions|authorized OAuth apps|third-parties is limited/i;
-      const prExistsRe = /already exists|already has.*pull request|pull request for branch/i;
       let code: string | undefined;
-      if (restrictionRe.test(combined)) code = 'ORG_AUTH_APP_RESTRICTED';
-      else if (prExistsRe.test(combined)) code = 'PR_ALREADY_EXISTS';
+      if (
+        /Auth App access restrictions|authorized OAuth apps|third-parties is limited/i.test(
+          combined
+        )
+      ) {
+        code = 'ORG_AUTH_APP_RESTRICTED';
+      } else if (isPrAlreadyExistsError(platform, combined)) {
+        code = 'PR_ALREADY_EXISTS';
+      }
       return { success: false, error: combined, output: combined, code };
     }
 
-    // Patch body if needed
-    if (autoCloseLinkedIssuesOnPrCreate && shouldPatchFilledBody && url) {
+    // Patch body if needed (GitHub only — glab doesn't have `mr edit --body`)
+    if (autoCloseLinkedIssuesOnPrCreate && shouldPatchFilledBody && url && platform === 'github') {
       try {
         const task = await databaseService.getTaskByPath(taskPath);
         if (task?.metadata) {
@@ -545,8 +503,10 @@ export function registerGitIpc() {
   // Helper: merge-to-main for remote SSH projects
   async function mergeToMainRemote(
     connectionId: string,
-    taskPath: string
+    taskPath: string,
+    platform: GitPlatform = 'github'
   ): Promise<{ success: boolean; prUrl?: string; error?: string }> {
+    const { noun } = getPlatformConfig(platform);
     const currentBranch = await remoteGitService.getCurrentBranch(connectionId, taskPath);
     const defaultBranch = await remoteGitService.getDefaultBranchName(connectionId, taskPath);
 
@@ -590,24 +550,29 @@ export function registerGitIpc() {
       }
     }
 
-    // Create PR
+    // Create PR/MR
     let prUrl = '';
-    const createResult = await remoteGitService.execGh(
+    const createCmd = buildCreateCommand(platform, {
+      fill: true,
+      base: defaultBranch,
+    });
+    const createResult = await execRemoteCli(
       connectionId,
       taskPath,
-      `pr create --fill --base ${quoteGhArg(defaultBranch)}`
+      platform,
+      stripCliPrefix(createCmd)
     );
-    const urlMatch = (createResult.stdout || '').match(/https?:\/\/\S+/);
-    prUrl = urlMatch ? urlMatch[0] : '';
+    const combinedCreate = [createResult.stdout, createResult.stderr].filter(Boolean).join('\n');
+    prUrl = extractUrlFromOutput(platform, combinedCreate) || '';
 
     if (createResult.exitCode !== 0) {
-      if (!/already exists|already has.*pull request/i.test(createResult.stderr || '')) {
-        return { success: false, error: `Failed to create PR: ${createResult.stderr}` };
+      if (!isPrAlreadyExistsError(platform, createResult.stderr || '')) {
+        return { success: false, error: `Failed to create ${noun}: ${createResult.stderr}` };
       }
     }
 
-    if (shouldAutoCloseLinkedIssuesOnPrCreate()) {
-      // Patch PR body with issue footer
+    if (shouldAutoCloseLinkedIssuesOnPrCreate() && platform === 'github') {
+      // Patch PR body with issue footer (GitHub only)
       try {
         const task = await databaseService.getTaskByPath(taskPath);
         if (task?.metadata) {
@@ -626,11 +591,17 @@ export function registerGitIpc() {
     }
 
     // Merge
-    const mergeResult = await remoteGitService.execGh(connectionId, taskPath, 'pr merge --merge');
+    const mergeCmd = buildMergeCommand(platform, { strategy: 'merge' });
+    const mergeResult = await execRemoteCli(
+      connectionId,
+      taskPath,
+      platform,
+      stripCliPrefix(mergeCmd)
+    );
     if (mergeResult.exitCode !== 0) {
       return {
         success: false,
-        error: `PR created but merge failed: ${mergeResult.stderr}`,
+        error: `${noun.toUpperCase()} created but merge failed: ${mergeResult.stderr}`,
         prUrl,
       };
     }
@@ -693,25 +664,17 @@ export function registerGitIpc() {
   const getLocalPrForDeleteRisk = async (
     taskPath: string
   ): Promise<{ pr: unknown | null; prKnown: boolean; error?: string }> => {
-    const queryFields = [
-      'number',
-      'url',
-      'state',
-      'isDraft',
-      'title',
-      'headRefName',
-      'baseRefName',
-    ];
-    const cmd = `gh pr view --json ${queryFields.join(',')} -q .`;
+    let platform: GitPlatform = 'github';
     try {
-      const { stdout } = await execAsync(cmd, { cwd: taskPath });
-      const json = (stdout || '').trim();
-      if (!json) return { pr: null, prKnown: true };
-      return { pr: JSON.parse(json), prKnown: true };
+      const ops = await getOperations(taskPath);
+      platform = ops.platform;
+      const data = await ops.getPrStatus();
+      if (!data) return { pr: null, prKnown: true };
+      return { pr: data, prKnown: true };
     } catch (error) {
       const errObj = error as { stderr?: string; message?: string };
       const msg = (errObj?.stderr || errObj?.message || String(error || '')).trim();
-      if (/no pull requests? found|not found|could not resolve to a pull request/i.test(msg)) {
+      if (isCliNotInstalledError(msg) || isPrNotFoundError(platform, msg)) {
         return { pr: null, prKnown: true };
       }
       return { pr: null, prKnown: false, error: msg || 'Failed to query pull request status' };
@@ -846,20 +809,6 @@ export function registerGitIpc() {
                 })(),
                 (async () => {
                   if (!includePr) return { pr: null, prKnown: false as const, error: undefined };
-                  if (remoteProject) {
-                    const result = await getPrStatusRemote(
-                      remoteProject.sshConnectionId,
-                      target.taskPath
-                    );
-                    if (!result.success) {
-                      return {
-                        pr: null,
-                        prKnown: false as const,
-                        error: result.error || 'Failed to query pull request status',
-                      };
-                    }
-                    return { pr: result.pr ?? null, prKnown: true as const, error: undefined };
-                  }
                   return await getLocalPrForDeleteRisk(target.taskPath);
                 })(),
               ]);
@@ -1092,10 +1041,11 @@ export function registerGitIpc() {
           fill?: boolean;
           skipPrePush?: boolean;
         });
+      const platform = await resolveGitPlatform(taskPath);
       try {
         const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
         if (remoteProject) {
-          return await createPrRemote(remoteProject.sshConnectionId, taskPath, {
+          return await createPrRemote(remoteProject.sshConnectionId, taskPath, platform, {
             title,
             body,
             base,
@@ -1194,30 +1144,14 @@ export function registerGitIpc() {
           }
         }
 
-        // Determine current branch and default base branch (fallback to main)
+        // Determine current branch and default base branch
         let currentBranch = '';
         try {
           const { stdout } = await execAsync('git branch --show-current', { cwd: taskPath });
           currentBranch = (stdout || '').trim();
         } catch {}
-        let defaultBranch = 'main';
-        try {
-          const { stdout } = await execAsync(
-            'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
-            { cwd: taskPath }
-          );
-          const db = (stdout || '').trim();
-          if (db) defaultBranch = db;
-        } catch {
-          try {
-            const { stdout } = await execAsync(
-              'git remote show origin | sed -n "/HEAD branch/s/.*: //p"',
-              { cwd: taskPath }
-            );
-            const db2 = (stdout || '').trim();
-            if (db2) defaultBranch = db2;
-          } catch {}
-        }
+        const createPrOps = await getOperations(taskPath);
+        const defaultBranch = await createPrOps.getDefaultBranch();
 
         // Guard: ensure there is at least one commit ahead of base
         try {
@@ -1228,9 +1162,10 @@ export function registerGitIpc() {
           );
           const aheadCount = parseInt((aheadOut || '0').trim(), 10) || 0;
           if (aheadCount <= 0) {
+            const noun = getPlatformConfig(platform).noun.toUpperCase();
             return {
               success: false,
-              error: `No commits to create a PR. Make a commit on 
+              error: `No commits to create a ${noun}. Make a commit on
 current branch '${currentBranch}' ahead of base '${baseRef}'.`,
             };
           }
@@ -1238,41 +1173,27 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           // Non-fatal; continue
         }
 
-        // Build gh pr create command
-        const flags: string[] = [];
-        if (title) flags.push(`--title ${JSON.stringify(title)}`);
-
-        // Use temp file for body to properly handle newlines and multiline content
+        // Build create command (platform-aware: gh pr create / glab mr create)
         let bodyFile: string | null = null;
+        const createOpts: any = { title, draft, web, fill: shouldUseFill };
         if (shouldUseBodyFile && prBody) {
           try {
             bodyFile = path.join(
               os.tmpdir(),
               `gh-pr-body-${Date.now()}-${Math.random().toString(36).substring(7)}.txt`
             );
-            // Write body with actual newlines preserved
             fs.writeFileSync(bodyFile, prBody, 'utf8');
-            flags.push(`--body-file ${JSON.stringify(bodyFile)}`);
+            createOpts.bodyFile = bodyFile;
           } catch (writeError) {
             log.warn('Failed to write body to temp file, falling back to --body flag', {
               writeError,
             });
-            // Fallback to direct --body flag if temp file creation fails
-            flags.push(`--body ${JSON.stringify(prBody)}`);
+            createOpts.body = prBody;
           }
         }
-
-        if (base || defaultBranch) flags.push(`--base ${JSON.stringify(base || defaultBranch)}`);
-        if (head) {
-          flags.push(`--head ${JSON.stringify(head)}`);
-        } else if (currentBranch) {
-          flags.push(`--head ${JSON.stringify(currentBranch)}`);
-        }
-        if (draft) flags.push('--draft');
-        if (web) flags.push('--web');
-        if (shouldUseFill) flags.push('--fill');
-
-        const cmd = `gh pr create ${flags.join(' ')}`.trim();
+        createOpts.base = base || defaultBranch;
+        createOpts.head = head || currentBranch;
+        const cmd = buildCreateCommand(platform, createOpts);
 
         let stdout: string;
         let stderr: string;
@@ -1294,9 +1215,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           .filter(Boolean)
           .join('\n');
 
-        // Try to extract PR URL from output
-        const urlMatch = out.match(/https?:\/\/\S+/);
-        const url = urlMatch ? urlMatch[0] : null;
+        // Try to extract PR/MR URL from output
+        const url = extractUrlFromOutput(platform, out);
 
         if (autoCloseLinkedIssuesOnPrCreate && shouldPatchFilledBody) {
           try {
@@ -1326,24 +1246,24 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const combined = [errMsg, errStdout, errStderr].filter(Boolean).join('\n').trim();
 
         // Check for various error conditions
+        const noun = getPlatformConfig(platform).noun.toUpperCase();
         const restrictionRe =
           /Auth App access restrictions|authorized OAuth apps|third-parties is limited/i;
-        const prExistsRe = /already exists|already has.*pull request|pull request for branch/i;
 
         let code: string | undefined;
         if (restrictionRe.test(combined)) {
           code = 'ORG_AUTH_APP_RESTRICTED';
           log.warn('GitHub org restrictions detected during PR creation');
-        } else if (prExistsRe.test(combined)) {
+        } else if (isPrAlreadyExistsError(platform, combined)) {
           code = 'PR_ALREADY_EXISTS';
-          log.info('PR already exists for branch - push was successful');
+          log.info(`${noun} already exists for branch - push was successful`);
         } else {
-          log.error('Failed to create PR:', combined || error);
+          log.error(`Failed to create ${noun}:`, combined || error);
         }
 
         return {
           success: false,
-          error: combined || errMsg || 'Failed to create PR',
+          error: combined || errMsg || `Failed to create ${noun}`,
           output: combined,
           code,
         } as any;
@@ -1355,146 +1275,49 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   ipcMain.handle('git:get-pr-status', async (_, args: { taskPath: string }) => {
     const { taskPath } = args || ({} as { taskPath: string });
     try {
-      const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
-      if (remoteProject) {
-        return await getPrStatusRemote(remoteProject.sshConnectionId, taskPath);
-      }
+      const ops = await getOperations(taskPath);
+      const data = await ops.getPrStatus();
 
-      // Ensure we're in a git repo
-      await execAsync('git rev-parse --is-inside-work-tree', { cwd: taskPath });
+      if (!data) return { success: true, pr: null };
 
-      const queryFields = [
-        'number',
-        'url',
-        'state',
-        'isDraft',
-        'mergeStateStatus',
-        'headRefName',
-        'baseRefName',
-        'title',
-        'author',
-        'additions',
-        'deletions',
-        'changedFiles',
-        'autoMergeRequest',
-      ];
-      const cmd = `gh pr view --json ${queryFields.join(',')} -q .`;
-      try {
-        // Attempt 1: gh pr view (works when branch tracking points to a PR)
-        let data: any = null;
+      // Fallback: if CLI didn't return diff stats, try to compute locally
+      const asNumber = (v: any): number | null =>
+        typeof v === 'number' && Number.isFinite(v)
+          ? v
+          : typeof v === 'string' && Number.isFinite(Number.parseInt(v, 10))
+            ? Number.parseInt(v, 10)
+            : null;
+
+      const hasAdd = asNumber(data?.additions) !== null;
+      const hasDel = asNumber(data?.deletions) !== null;
+      const hasFiles = asNumber(data?.changedFiles) !== null;
+
+      if (!hasAdd || !hasDel || !hasFiles) {
+        const baseRef = typeof data?.baseRefName === 'string' ? data.baseRefName.trim() : '';
+        const targetRef = baseRef ? `origin/${baseRef}` : '';
+        const shortstatCmd = targetRef
+          ? `git diff --shortstat ${JSON.stringify(targetRef)}...HEAD`
+          : 'git diff --shortstat HEAD~1..HEAD';
         try {
-          const { stdout } = await execAsync(cmd, { cwd: taskPath });
-          const json = (stdout || '').trim();
-          data = json ? JSON.parse(json) : null;
-        } catch (viewErr) {
-          const viewMsg = String(viewErr);
-          // Re-throw unexpected errors; swallow "no PR found" so fallbacks can run
-          if (!/no pull requests? found/i.test(viewMsg) && !/not found/i.test(viewMsg)) {
-            throw viewErr;
+          const { stdout: diffOut } = await execAsync(shortstatCmd, { cwd: taskPath });
+          const statLine = (diffOut || '').trim();
+          const m =
+            statLine &&
+            statLine.match(
+              /(\d+)\s+files? changed(?:,\s+(\d+)\s+insertions?\(\+\))?(?:,\s+(\d+)\s+deletions?\(-\))?/
+            );
+          if (m) {
+            const [, filesStr, addStr, delStr] = m;
+            if (!hasFiles && filesStr) (data as any).changedFiles = Number.parseInt(filesStr, 10);
+            if (!hasAdd && addStr) (data as any).additions = Number.parseInt(addStr, 10);
+            if (!hasDel && delStr) (data as any).deletions = Number.parseInt(delStr, 10);
           }
+        } catch {
+          // best-effort only; ignore failures
         }
-
-        // Fallback: If gh pr view didn't find a PR (e.g. detached head, upstream not set, or fresh branch),
-        // try finding it by branch name via gh pr list.
-        let currentBranch = '';
-        if (!data) {
-          try {
-            const { stdout: branchOut } = await execAsync('git branch --show-current', {
-              cwd: taskPath,
-            });
-            currentBranch = branchOut.trim();
-            if (currentBranch) {
-              const listCmd = `gh pr list --head ${JSON.stringify(currentBranch)} --json ${queryFields.join(',')} --limit 1`;
-              const { stdout: listOut } = await execAsync(listCmd, { cwd: taskPath });
-              const listJson = (listOut || '').trim();
-              const listData = listJson ? JSON.parse(listJson) : [];
-              if (listData.length > 0) {
-                data = listData[0];
-              }
-            }
-          } catch (fallbackErr) {
-            log.warn('Failed to fallback to gh pr list:', fallbackErr);
-            // Ignore fallback errors and return original null/error
-          }
-        }
-
-        // Fork fallback: if still no PR found, check if this repo is a fork and search
-        // the parent/upstream repo for a PR with head "<fork-owner>:<branch>".
-        if (!data && currentBranch) {
-          try {
-            const { stdout: repoOut } = await execAsync('gh repo view --json owner,parent', {
-              cwd: taskPath,
-            });
-            const repoData = repoOut.trim() ? JSON.parse(repoOut.trim()) : null;
-            const parentOwner = repoData?.parent?.owner?.login;
-            const parentName = repoData?.parent?.name;
-            const parentRepo = parentOwner && parentName ? `${parentOwner}/${parentName}` : null;
-            if (parentRepo) {
-              const forkOwnerLogin = repoData?.owner?.login;
-              const forkFields = [...queryFields, 'headRepositoryOwner'];
-              const forkListCmd = `gh pr list --head ${JSON.stringify(currentBranch)} --repo ${JSON.stringify(parentRepo)} --state open --json ${forkFields.join(',')} --limit 10`;
-              const { stdout: forkOut } = await execAsync(forkListCmd, { cwd: taskPath });
-              const forkJson = (forkOut || '').trim();
-              const forkData = forkJson ? JSON.parse(forkJson) : [];
-              const match = forkOwnerLogin
-                ? forkData.find((pr: any) => pr?.headRepositoryOwner?.login === forkOwnerLogin)
-                : forkData[0];
-              if (match) {
-                data = match;
-              }
-            }
-          } catch (forkFallbackErr) {
-            log.warn('Failed to check fork parent for PR:', forkFallbackErr);
-          }
-        }
-
-        if (!data) return { success: true, pr: null };
-
-        // Fallback: if GH CLI didn't return diff stats, try to compute locally
-        const asNumber = (v: any): number | null =>
-          typeof v === 'number' && Number.isFinite(v)
-            ? v
-            : typeof v === 'string' && Number.isFinite(Number.parseInt(v, 10))
-              ? Number.parseInt(v, 10)
-              : null;
-
-        const hasAdd = asNumber(data?.additions) !== null;
-        const hasDel = asNumber(data?.deletions) !== null;
-        const hasFiles = asNumber(data?.changedFiles) !== null;
-
-        if (!hasAdd || !hasDel || !hasFiles) {
-          const baseRef = typeof data?.baseRefName === 'string' ? data.baseRefName.trim() : '';
-          const targetRef = baseRef ? `origin/${baseRef}` : '';
-          const shortstatCmd = targetRef
-            ? `git diff --shortstat ${JSON.stringify(targetRef)}...HEAD`
-            : 'git diff --shortstat HEAD~1..HEAD';
-          try {
-            const { stdout: diffOut } = await execAsync(shortstatCmd, { cwd: taskPath });
-            const statLine = (diffOut || '').trim();
-            const m =
-              statLine &&
-              statLine.match(
-                /(\d+)\s+files? changed(?:,\s+(\d+)\s+insertions?\(\+\))?(?:,\s+(\d+)\s+deletions?\(-\))?/
-              );
-            if (m) {
-              const [, filesStr, addStr, delStr] = m;
-              if (!hasFiles && filesStr) data.changedFiles = Number.parseInt(filesStr, 10);
-              if (!hasAdd && addStr) data.additions = Number.parseInt(addStr, 10);
-              if (!hasDel && delStr) data.deletions = Number.parseInt(delStr, 10);
-            }
-          } catch {
-            // best-effort only; ignore failures
-          }
-        }
-
-        return { success: true, pr: data };
-      } catch (err) {
-        const msg = String(err as string);
-        if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
-          return { success: true, pr: null };
-        }
-        return { success: false, error: msg || 'Failed to query PR status' };
       }
+
+      return { success: true, pr: data };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -1525,24 +1348,21 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       };
 
       try {
+        const platform = await resolveGitPlatform(taskPath);
+
         const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
         if (remoteProject) {
-          const strategyFlag =
-            strategy === 'squash' ? '--squash' : strategy === 'rebase' ? '--rebase' : '--merge';
-          const ghArgs = ['pr', 'merge'];
-          if (typeof prNumber === 'number' && Number.isFinite(prNumber))
-            ghArgs.push(String(prNumber));
-          ghArgs.push(strategyFlag);
-          if (admin) ghArgs.push('--admin');
-          const result = await remoteGitService.execGh(
+          const mergeCmd = buildMergeCommand(platform, { prNumber, strategy, admin });
+          const result = await execRemoteCli(
             remoteProject.sshConnectionId,
             taskPath,
-            ghArgs.join(' ')
+            platform,
+            stripCliPrefix(mergeCmd)
           );
           if (result.exitCode !== 0) {
             const msg = (result.stderr || '') + (result.stdout || '');
-            if (/not installed|command not found/i.test(msg)) {
-              return { success: false, error: msg, code: 'GH_CLI_UNAVAILABLE' };
+            if (isCliNotInstalledError(msg)) {
+              return { success: false, error: msg, code: 'CLI_UNAVAILABLE' };
             }
             return { success: false, error: msg || 'Failed to merge PR' };
           }
@@ -1551,32 +1371,22 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
             output: [result.stdout, result.stderr].filter(Boolean).join('\n').trim(),
           };
         }
-
         await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
 
-        const strategyFlag =
-          strategy === 'squash' ? '--squash' : strategy === 'rebase' ? '--rebase' : '--merge';
-
-        const ghArgs = ['pr', 'merge'];
-        if (typeof prNumber === 'number' && Number.isFinite(prNumber)) {
-          ghArgs.push(String(prNumber));
-        }
-        ghArgs.push(strategyFlag);
-        if (admin) ghArgs.push('--admin');
-
+        const cmd = buildMergeCommand(platform, { prNumber, strategy, admin });
         try {
-          const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+          const { stdout, stderr } = await execAsync(cmd, { cwd: taskPath });
           const output = [stdout, stderr].filter(Boolean).join('\n').trim();
           return { success: true, output };
         } catch (err) {
           const msg = String(err as string);
-          if (/not installed|command not found/i.test(msg)) {
-            return { success: false, error: msg, code: 'GH_CLI_UNAVAILABLE' };
+          if (isCliNotInstalledError(msg)) {
+            return { success: false, error: msg, code: 'CLI_UNAVAILABLE' };
           }
           const stderr = (err as any)?.stderr;
           const stdout = (err as any)?.stdout;
           const combined = [stderr, stdout, msg].filter(Boolean).join('\n').trim();
-          return { success: false, error: combined || 'Failed to merge PR' };
+          return { success: false, error: combined || 'Failed to merge' };
         }
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -1606,20 +1416,16 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       };
 
       try {
-        const strategyFlag =
-          strategy === 'squash' ? '--squash' : strategy === 'rebase' ? '--rebase' : '--merge';
-        const ghArgs = ['pr', 'merge'];
-        if (typeof prNumber === 'number' && Number.isFinite(prNumber)) {
-          ghArgs.push(String(prNumber));
-        }
-        ghArgs.push('--auto', strategyFlag);
+        const platform = await resolveGitPlatform(taskPath);
 
         const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
         if (remoteProject) {
-          const result = await remoteGitService.execGh(
+          const autoMergeCmd = buildAutoMergeCommand(platform, { prNumber, strategy });
+          const result = await execRemoteCli(
             remoteProject.sshConnectionId,
             taskPath,
-            ghArgs.join(' ')
+            platform,
+            stripCliPrefix(autoMergeCmd)
           );
           if (result.exitCode !== 0) {
             return { success: false, error: (result.stderr || result.stdout || '').trim() };
@@ -1628,7 +1434,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
 
         await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
-        const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+        const cmd = buildAutoMergeCommand(platform, { prNumber, strategy });
+        const { stdout, stderr } = await execAsync(cmd, { cwd: taskPath });
         const output = [stdout, stderr].filter(Boolean).join('\n').trim();
         return { success: true, output };
       } catch (error) {
@@ -1655,18 +1462,22 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       };
 
       try {
-        const ghArgs = ['pr', 'merge'];
-        if (typeof prNumber === 'number' && Number.isFinite(prNumber)) {
-          ghArgs.push(String(prNumber));
-        }
-        ghArgs.push('--disable-auto');
+        const platform = await resolveGitPlatform(taskPath);
 
         const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
         if (remoteProject) {
-          const result = await remoteGitService.execGh(
+          const remoteCmd = buildDisableAutoMergeCommand(platform, prNumber);
+          if (!remoteCmd) {
+            return {
+              success: false,
+              error: 'Disabling auto-merge is not supported on GitLab via the CLI.',
+            };
+          }
+          const result = await execRemoteCli(
             remoteProject.sshConnectionId,
             taskPath,
-            ghArgs.join(' ')
+            platform,
+            stripCliPrefix(remoteCmd)
           );
           if (result.exitCode !== 0) {
             return { success: false, error: (result.stderr || result.stdout || '').trim() };
@@ -1674,8 +1485,15 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           return { success: true };
         }
 
+        const cmd = buildDisableAutoMergeCommand(platform, prNumber);
+        if (!cmd) {
+          return {
+            success: false,
+            error: 'Disabling auto-merge is not supported on GitLab via the CLI.',
+          };
+        }
         await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
-        const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+        const { stdout, stderr } = await execAsync(cmd, { cwd: taskPath });
         const output = [stdout, stderr].filter(Boolean).join('\n').trim();
         return { success: true, output };
       } catch (error) {
@@ -1690,228 +1508,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
   ipcMain.handle('git:get-check-runs', async (_, args: { taskPath: string }) => {
     const { taskPath } = args || ({} as { taskPath: string });
     try {
-      const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
-      if (remoteProject) {
-        const connId = remoteProject.sshConnectionId;
-        const fields = 'bucket,completedAt,description,event,link,name,startedAt,state,workflow';
-
-        // Detect fork on remote: find PR in parent repo if applicable
-        let prRef: string | null = null;
-        let remoteParentRepo: string | null = null;
-        let remoteChecksApiRepo = 'repos/{owner}/{repo}';
-        let remoteHeadRefOidCmd = "pr view --json headRefOid --jq '.headRefOid'";
-        try {
-          const repoResult = await remoteGitService.execGh(
-            connId,
-            taskPath,
-            'repo view --json owner,parent'
-          );
-          const repoData = repoResult.stdout.trim() ? JSON.parse(repoResult.stdout.trim()) : null;
-          const parentOwner = repoData?.parent?.owner?.login;
-          const parentName = repoData?.parent?.name;
-          const parentRepo = parentOwner && parentName ? `${parentOwner}/${parentName}` : null;
-          if (parentRepo) {
-            const branchResult = await remoteGitService.execGit(
-              connId,
-              taskPath,
-              'branch --show-current'
-            );
-            const currentBranch = branchResult.stdout.trim();
-            if (currentBranch) {
-              const listResult = await remoteGitService.execGh(
-                connId,
-                taskPath,
-                `pr list --head ${quoteGhArg(currentBranch)} --repo ${quoteGhArg(parentRepo)} --state open --json number,headRefOid,headRepositoryOwner --limit 10`
-              );
-              const forkOwnerLogin = repoData?.owner?.login;
-              const listData = listResult.stdout.trim() ? JSON.parse(listResult.stdout.trim()) : [];
-              const matched = forkOwnerLogin
-                ? listData.find((pr: any) => pr?.headRepositoryOwner?.login === forkOwnerLogin)
-                : listData[0];
-              if (matched) {
-                prRef = String(matched.number);
-                remoteParentRepo = parentRepo;
-                remoteChecksApiRepo = `repos/${parentRepo}`;
-                remoteHeadRefOidCmd = `pr view ${prRef} --repo ${quoteGhArg(parentRepo)} --json headRefOid --jq '.headRefOid'`;
-              }
-            }
-          }
-        } catch {
-          // Not a fork or detection failed — proceed with default behavior
-        }
-
-        const checksCmd =
-          prRef && remoteParentRepo
-            ? `pr checks ${prRef} --repo ${quoteGhArg(remoteParentRepo)} --json ${fields}`
-            : `pr checks --json ${fields}`;
-        const checksResult = await remoteGitService.execGh(connId, taskPath, checksCmd);
-        if (checksResult.exitCode !== 0) {
-          const msg = checksResult.stderr || '';
-          if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
-            return { success: true, checks: null };
-          }
-          if (/not installed|command not found/i.test(msg)) {
-            return { success: false, error: msg, code: 'GH_CLI_UNAVAILABLE' };
-          }
-          return { success: false, error: msg || 'Failed to query check runs' };
-        }
-        const checks = checksResult.stdout.trim() ? JSON.parse(checksResult.stdout.trim()) : [];
-
-        // Fetch html_url from API
-        try {
-          const shaResult = await remoteGitService.execGh(connId, taskPath, remoteHeadRefOidCmd);
-          const sha = shaResult.stdout.trim();
-          if (sha) {
-            const apiResult = await remoteGitService.execGh(
-              connId,
-              taskPath,
-              `api ${remoteChecksApiRepo}/commits/${sha}/check-runs --jq '.check_runs | map({name: .name, html_url: .html_url}) | .[]'`
-            );
-            const urlMap = new Map<string, string>();
-            for (const line of apiResult.stdout.trim().split('\n')) {
-              if (!line) continue;
-              try {
-                const entry = JSON.parse(line);
-                if (entry.name && entry.html_url) urlMap.set(entry.name, entry.html_url);
-              } catch {}
-            }
-            for (const check of checks) {
-              const htmlUrl = urlMap.get(check.name);
-              if (htmlUrl) check.link = htmlUrl;
-            }
-          }
-        } catch {
-          // Fall back to original link values
-        }
-
-        return { success: true, checks };
-      }
-
-      await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
-
-      const fields = 'bucket,completedAt,description,event,link,name,startedAt,state,workflow';
-
-      // Resolve the PR number and repo to use for gh commands.
-      // For forks, the PR lives in the parent repo, so we detect that here once.
-      let prRef: string | null = null; // PR number as string, or null to use implicit (current branch)
-      let repoFlag: string[] = []; // ['--repo', 'owner/repo'] or empty
-      let headRefOidArgs: string[] = ['pr', 'view', '--json', 'headRefOid', '--jq', '.headRefOid'];
-      let checkRunsApiRepo = 'repos/{owner}/{repo}'; // used in gh api call
-
-      try {
-        // Detect fork: if this repo has a parent, find the PR number there
-        const { stdout: repoOut } = await execFileAsync(
-          'gh',
-          ['repo', 'view', '--json', 'owner,parent'],
-          { cwd: taskPath }
-        );
-        const repoData = repoOut.trim() ? JSON.parse(repoOut.trim()) : null;
-        const parentOwner = repoData?.parent?.owner?.login;
-        const parentName = repoData?.parent?.name;
-        const parentRepo = parentOwner && parentName ? `${parentOwner}/${parentName}` : null;
-        if (parentRepo) {
-          const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], {
-            cwd: taskPath,
-          });
-          const currentBranch = branchOut.trim();
-          if (currentBranch) {
-            const { stdout: listOut } = await execFileAsync(
-              'gh',
-              [
-                'pr',
-                'list',
-                '--head',
-                currentBranch,
-                '--repo',
-                parentRepo,
-                '--state',
-                'open',
-                '--json',
-                'number,headRefOid,headRepositoryOwner',
-                '--limit',
-                '10',
-              ],
-              { cwd: taskPath }
-            );
-            const forkOwnerLogin = repoData?.owner?.login;
-            const listData = listOut.trim() ? JSON.parse(listOut.trim()) : [];
-            const matched = forkOwnerLogin
-              ? listData.find((pr: any) => pr?.headRepositoryOwner?.login === forkOwnerLogin)
-              : listData[0];
-            if (matched) {
-              prRef = String(matched.number);
-              repoFlag = ['--repo', parentRepo];
-              headRefOidArgs = [
-                'pr',
-                'view',
-                prRef,
-                '--repo',
-                parentRepo,
-                '--json',
-                'headRefOid',
-                '--jq',
-                '.headRefOid',
-              ];
-              checkRunsApiRepo = `repos/${parentRepo}`;
-            }
-          }
-        }
-      } catch {
-        // Not a fork or detection failed — proceed with default (current-branch) behavior
-      }
-
-      try {
-        const checksArgs = prRef
-          ? ['pr', 'checks', prRef, ...repoFlag, '--json', fields]
-          : ['pr', 'checks', '--json', fields];
-        const { stdout } = await execFileAsync('gh', checksArgs, { cwd: taskPath });
-        const json = (stdout || '').trim();
-        const checks = json ? JSON.parse(json) : [];
-
-        // Fetch html_url from the GitHub API instead, which always points to the
-        // actual check run page on GitHub.
-        try {
-          const { stdout: shaOut } = await execFileAsync('gh', headRefOidArgs, { cwd: taskPath });
-          const sha = shaOut.trim();
-          if (sha) {
-            const { stdout: apiOut } = await execFileAsync(
-              'gh',
-              [
-                'api',
-                `${checkRunsApiRepo}/commits/${sha}/check-runs`,
-                '--jq',
-                '.check_runs | map({name: .name, html_url: .html_url}) | .[]',
-              ],
-              { cwd: taskPath }
-            );
-            const urlMap = new Map<string, string>();
-            for (const line of apiOut.trim().split('\n')) {
-              if (!line) continue;
-              try {
-                const entry = JSON.parse(line);
-                if (entry.name && entry.html_url) urlMap.set(entry.name, entry.html_url);
-              } catch {}
-            }
-            for (const check of checks) {
-              const htmlUrl = urlMap.get(check.name);
-              if (htmlUrl) check.link = htmlUrl;
-            }
-          }
-        } catch {
-          // Fall back to original link values if API call fails
-        }
-
-        return { success: true, checks };
-      } catch (err) {
-        const msg = String(err as string);
-        if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
-          return { success: true, checks: null };
-        }
-        if (/not installed|command not found/i.test(msg)) {
-          return { success: false, error: msg, code: 'GH_CLI_UNAVAILABLE' };
-        }
-        return { success: false, error: msg || 'Failed to query check runs' };
-      }
+      const ops = await getOperations(taskPath);
+      return await ops.getCheckRuns();
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -1923,162 +1521,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     async (_, args: { taskPath: string; prNumber?: number }) => {
       const { taskPath, prNumber } = args || ({} as { taskPath: string; prNumber?: number });
       try {
-        const remoteProject = await resolveRemoteProjectForWorktreePath(taskPath);
-        if (remoteProject) {
-          const connId = remoteProject.sshConnectionId;
-          const ghViewArgs = prNumber
-            ? `pr view ${prNumber} --json comments,reviews,number`
-            : 'pr view --json comments,reviews,number';
-          const viewResult = await remoteGitService.execGh(connId, taskPath, ghViewArgs);
-          if (viewResult.exitCode !== 0) {
-            const msg = viewResult.stderr || '';
-            if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
-              return { success: true, comments: [], reviews: [] };
-            }
-            if (/not installed|command not found/i.test(msg)) {
-              return { success: false, error: msg, code: 'GH_CLI_UNAVAILABLE' };
-            }
-            return { success: false, error: msg || 'Failed to query PR comments' };
-          }
-          const data = viewResult.stdout.trim()
-            ? JSON.parse(viewResult.stdout.trim())
-            : { comments: [], reviews: [], number: 0 };
-          const comments = data.comments || [];
-          const reviews = data.reviews || [];
-
-          // Fetch avatar URLs via REST API
-          if (data.number) {
-            try {
-              const avatarMap = new Map<string, string>();
-              const setAvatar = (login: string, url: string) => {
-                avatarMap.set(login, url);
-                if (login.endsWith('[bot]')) avatarMap.set(login.replace(/\[bot]$/, ''), url);
-              };
-
-              const commentsApi = await remoteGitService.execGh(
-                connId,
-                taskPath,
-                `api repos/{owner}/{repo}/issues/${data.number}/comments --jq '.[] | {login: .user.login, avatar_url: .user.avatar_url}'`
-              );
-              for (const line of commentsApi.stdout.trim().split('\n')) {
-                if (!line) continue;
-                try {
-                  const entry = JSON.parse(line);
-                  if (entry.login && entry.avatar_url) setAvatar(entry.login, entry.avatar_url);
-                } catch {}
-              }
-
-              const reviewsApi = await remoteGitService.execGh(
-                connId,
-                taskPath,
-                `api repos/{owner}/{repo}/pulls/${data.number}/reviews --jq '.[] | {login: .user.login, avatar_url: .user.avatar_url}'`
-              );
-              for (const line of reviewsApi.stdout.trim().split('\n')) {
-                if (!line) continue;
-                try {
-                  const entry = JSON.parse(line);
-                  if (entry.login && entry.avatar_url) setAvatar(entry.login, entry.avatar_url);
-                } catch {}
-              }
-
-              for (const c of [...comments, ...reviews]) {
-                if (c.author?.login) {
-                  const avatarUrl = avatarMap.get(c.author.login);
-                  if (avatarUrl) c.author.avatarUrl = avatarUrl;
-                }
-              }
-            } catch {
-              // Fall back to no avatar URLs
-            }
-          }
-
-          return { success: true, comments, reviews };
-        }
-
-        await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
-
-        try {
-          const ghArgs = ['pr', 'view'];
-          if (prNumber) ghArgs.push(String(prNumber));
-          ghArgs.push('--json', 'comments,reviews,number');
-
-          const { stdout } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
-          const json = (stdout || '').trim();
-          const data = json ? JSON.parse(json) : { comments: [], reviews: [], number: 0 };
-
-          const comments = data.comments || [];
-          const reviews = data.reviews || [];
-
-          // gh pr view doesn't return avatarUrl for authors.
-          // Fetch from the REST API which includes avatar_url (works for GitHub Apps too).
-          if (data.number) {
-            try {
-              const avatarMap = new Map<string, string>();
-
-              const { stdout: commentsApi } = await execFileAsync(
-                'gh',
-                [
-                  'api',
-                  `repos/{owner}/{repo}/issues/${data.number}/comments`,
-                  '--jq',
-                  '.[] | {login: .user.login, avatar_url: .user.avatar_url}',
-                ],
-                { cwd: taskPath }
-              );
-              const setAvatar = (login: string, url: string) => {
-                avatarMap.set(login, url);
-                // REST API returns "app[bot]" while gh CLI returns "app" — store both
-                if (login.endsWith('[bot]')) avatarMap.set(login.replace(/\[bot]$/, ''), url);
-              };
-
-              for (const line of commentsApi.trim().split('\n')) {
-                if (!line) continue;
-                try {
-                  const entry = JSON.parse(line);
-                  if (entry.login && entry.avatar_url) setAvatar(entry.login, entry.avatar_url);
-                } catch {}
-              }
-
-              const { stdout: reviewsApi } = await execFileAsync(
-                'gh',
-                [
-                  'api',
-                  `repos/{owner}/{repo}/pulls/${data.number}/reviews`,
-                  '--jq',
-                  '.[] | {login: .user.login, avatar_url: .user.avatar_url}',
-                ],
-                { cwd: taskPath }
-              );
-              for (const line of reviewsApi.trim().split('\n')) {
-                if (!line) continue;
-                try {
-                  const entry = JSON.parse(line);
-                  if (entry.login && entry.avatar_url) setAvatar(entry.login, entry.avatar_url);
-                } catch {}
-              }
-
-              for (const c of [...comments, ...reviews]) {
-                if (c.author?.login) {
-                  const avatarUrl = avatarMap.get(c.author.login);
-                  if (avatarUrl) c.author.avatarUrl = avatarUrl;
-                }
-              }
-            } catch {
-              // Fall back to no avatar URLs — renderer will use GitHub fallback
-            }
-          }
-
-          return { success: true, comments, reviews };
-        } catch (err) {
-          const msg = String(err as string);
-          if (/no pull requests? found/i.test(msg) || /not found/i.test(msg)) {
-            return { success: true, comments: [], reviews: [] };
-          }
-          if (/not installed|command not found/i.test(msg)) {
-            return { success: false, error: msg, code: 'GH_CLI_UNAVAILABLE' };
-          }
-          return { success: false, error: msg || 'Failed to query PR comments' };
-        }
+        const ops = await getOperations(taskPath);
+        return await ops.getComments(prNumber);
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
@@ -2139,25 +1583,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         });
         const currentBranch = (currentBranchOut || '').trim();
 
-        // Determine default branch via gh, fallback to main/master
-        let defaultBranch = 'main';
-        try {
-          const { stdout } = await execAsync(
-            'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
-            { cwd: taskPath }
-          );
-          const db = (stdout || '').trim();
-          if (db) defaultBranch = db;
-        } catch {
-          try {
-            const { stdout } = await execAsync(
-              'git remote show origin | sed -n "/HEAD branch/s/.*: //p"',
-              { cwd: taskPath }
-            );
-            const db2 = (stdout || '').trim();
-            if (db2) defaultBranch = db2;
-          } catch {}
-        }
+        const commitOps = await getOperations(taskPath);
+        const defaultBranch = await commitOps.getDefaultBranch();
 
         // Optionally create a new branch if on default
         let activeBranch = currentBranch;
@@ -2293,29 +1720,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         );
         const branch = (currentBranchOut || '').trim();
 
-        // Determine default branch
-        let defaultBranch = 'main';
-        try {
-          const { stdout } = await execFileAsync(
-            'gh',
-            ['repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'],
-            { cwd: taskPath }
-          );
-          const db = (stdout || '').trim();
-          if (db) defaultBranch = db;
-        } catch {
-          try {
-            // Use symbolic-ref to resolve origin/HEAD then take the last path part
-            const { stdout } = await execFileAsync(
-              GIT,
-              ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
-              { cwd: taskPath }
-            );
-            const line = (stdout || '').trim();
-            const last = line.split('/').pop();
-            if (last) defaultBranch = last;
-          } catch {}
-        }
+        const branchOps = await getOperations(taskPath);
+        const defaultBranch = await branchOps.getDefaultBranch();
 
         // Ahead/behind relative to upstream tracking branch
         let ahead = 0;
@@ -2519,8 +1925,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     try {
       const remote = await resolveRemoteContext(taskPath, taskId);
       if (remote) {
-        return await mergeToMainRemote(remote.connectionId, remote.remotePath);
+        const platform = await resolveGitPlatform(taskPath);
+        return await mergeToMainRemote(remote.connectionId, remote.remotePath, platform);
       }
+
+      const platform = await resolveGitPlatform(taskPath);
+      const { noun } = getPlatformConfig(platform);
 
       // Get current and default branch names
       const { stdout: currentOut } = await execAsync('git branch --show-current', {
@@ -2530,13 +1940,22 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
       let defaultBranch = 'main';
       try {
-        const { stdout } = await execAsync(
-          'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
-          { cwd: taskPath }
-        );
-        if (stdout?.trim()) defaultBranch = stdout.trim();
+        if (platform === 'github') {
+          const { stdout } = await execAsync(
+            'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
+            { cwd: taskPath }
+          );
+          if (stdout?.trim()) defaultBranch = stdout.trim();
+        } else {
+          // GitLab: fall through to git-based detection
+          const { stdout } = await execAsync(
+            "git remote show origin | sed -n 's/.*HEAD branch: //p'",
+            { cwd: taskPath }
+          );
+          if (stdout?.trim()) defaultBranch = stdout.trim();
+        }
       } catch {
-        // gh not available or not a GitHub repo - fall back to 'main'
+        // CLI not available or not a recognized repo - fall back to 'main'
       }
 
       // Validate: on a valid feature branch
@@ -2575,7 +1994,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         });
       }
 
-      // Create PR (or use existing)
+      // Create PR/MR (or use existing)
       const autoCloseLinkedIssuesOnPrCreate = shouldAutoCloseLinkedIssuesOnPrCreate();
       let prUrl = '';
       let prExists = false;
@@ -2592,21 +2011,23 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
       }
       try {
-        const prCreateArgs = ['pr', 'create', '--fill', '--base', defaultBranch];
-        const { stdout: prOut } = await execFileAsync('gh', prCreateArgs, { cwd: taskPath });
-        const urlMatch = prOut?.match(/https?:\/\/\S+/);
-        prUrl = urlMatch ? urlMatch[0] : '';
+        const createCmd = buildCreateCommand(platform, { fill: true, base: defaultBranch });
+        const { stdout: prOut } = await execAsync(createCmd, { cwd: taskPath });
+        prUrl = extractUrlFromOutput(platform, prOut || '') || '';
         prExists = true;
       } catch (e) {
         const errMsg = (e as { stderr?: string })?.stderr || String(e);
-        if (!/already exists|already has.*pull request/i.test(errMsg)) {
-          return { success: false, error: `Failed to create PR: ${errMsg}` };
+        if (!isPrAlreadyExistsError(platform, errMsg)) {
+          return {
+            success: false,
+            error: `Failed to create ${noun.toUpperCase()}: ${errMsg}`,
+          };
         }
-        // PR already exists - continue to merge
+        // PR/MR already exists - continue to merge
         prExists = true;
       }
 
-      if (autoCloseLinkedIssuesOnPrCreate && prExists) {
+      if (autoCloseLinkedIssuesOnPrCreate && prExists && platform === 'github') {
         try {
           await patchCurrentPrBodyWithIssueFooter({
             taskPath,
@@ -2622,13 +2043,18 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
       }
 
-      // Merge PR (branch cleanup happens when workspace is deleted)
+      // Merge PR/MR (branch cleanup happens when workspace is deleted)
       try {
-        await execAsync('gh pr merge --merge', { cwd: taskPath });
+        const mergeCmd = buildMergeCommand(platform, { strategy: 'merge' });
+        await execAsync(mergeCmd, { cwd: taskPath });
         return { success: true, prUrl };
       } catch (e) {
         const errMsg = (e as { stderr?: string })?.stderr || String(e);
-        return { success: false, error: `PR created but merge failed: ${errMsg}`, prUrl };
+        return {
+          success: false,
+          error: `${noun.toUpperCase()} created but merge failed: ${errMsg}`,
+          prUrl,
+        };
       }
     } catch (e) {
       log.error('Failed to merge to main:', e);

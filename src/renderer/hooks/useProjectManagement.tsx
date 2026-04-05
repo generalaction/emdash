@@ -17,6 +17,7 @@ import { useAppContext } from '../contexts/AppContextProvider';
 import { useGithubContext } from '../contexts/GithubContextProvider';
 import { useToast } from './use-toast';
 import { useFeatureFlag } from './useFeatureFlag';
+import { detectGitPlatformFromRemote } from '../../shared/git/platform';
 
 // ---------------------------------------------------------------------------
 // Shared helper — build a Project object from a local git path.
@@ -48,6 +49,7 @@ async function buildProjectFromGitPath(
     name: projectName,
     path: selectedPath,
     repoKey,
+    gitPlatform: detectGitPlatformFromRemote(remoteUrl),
     gitInfo: {
       isGitRepo: true,
       remote: gitInfo.remote || undefined,
@@ -128,11 +130,24 @@ export const useProjectManagement = () => {
   const projects = rawProjects ?? [];
   const isInitialLoadComplete = rawProjects !== undefined;
 
+  const patchProject = useCallback(
+    (projectId: string, patch: Partial<Project>) => {
+      queryClient.setQueryData<Project[]>(['projects'], (old = []) =>
+        old.map((project) => (project.id === projectId ? { ...project, ...patch } : project))
+      );
+      setSelectedProject((current) =>
+        current?.id === projectId ? ({ ...current, ...patch } as Project) : current
+      );
+    },
+    [queryClient]
+  );
+
   // ---------------------------------------------------------------------------
   // Mutations — all project writes go through here
   // ---------------------------------------------------------------------------
   const addProjectMutation = useMutation({
-    mutationFn: (project: Project) => rpc.db.saveProject(project),
+    mutationFn: (project: Project) =>
+      rpc.db.saveProject({ ...project, gitPlatform: project.gitPlatform ?? 'github' }),
     onMutate: (project) => {
       queryClient.setQueryData<Project[]>(['projects'], (old = []) => [project, ...old]);
     },
@@ -702,5 +717,6 @@ export const useProjectManagement = () => {
     handleRemoteProjectSuccess,
     handleAddRemoteProject,
     isInitialLoadComplete,
+    patchProject,
   };
 };

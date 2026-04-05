@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { GitPlatform } from '../../shared/git/platform';
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, Timer, XCircle } from 'lucide-react';
 import type { PrStatus } from '../lib/prStatus';
 import { useToast } from '../hooks/use-toast';
@@ -9,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Close as PopoverClose } from '@radix-ui/react-popover';
+import { getPlatformLabels } from '../lib/gitPlatformLabels';
 
 type MergeUiStateKind = 'merged' | 'ready' | 'draft' | 'conflicts' | 'blocked' | 'unknown';
 
@@ -158,11 +160,14 @@ export function MergePrSection({
   taskPath,
   pr,
   refreshPr,
+  gitPlatform,
 }: {
   taskPath: string;
   pr: PrStatus | null;
   refreshPr: () => Promise<void>;
+  gitPlatform?: GitPlatform;
 }) {
+  const labels = getPlatformLabels(gitPlatform);
   const { toast } = useToast();
   const [isMerging, setIsMerging] = useState(false);
   const [isTogglingAutoMerge, setIsTogglingAutoMerge] = useState(false);
@@ -207,12 +212,12 @@ export function MergePrSection({
   if (prStateNormalized === 'CLOSED') return null;
 
   const formatMergeError = (error: unknown): string => {
-    if (typeof error !== 'string') return 'Failed to merge PR.';
+    if (typeof error !== 'string') return `Failed to merge ${labels.prNoun}.`;
     const lines = error
       .split('\n')
       .map((l) => l.trim())
       .filter(Boolean);
-    const first = lines[0] || 'Failed to merge PR.';
+    const first = lines[0] || `Failed to merge ${labels.prNoun}.`;
     const cleaned = first.replace(/^error:\\s*/i, '').trim();
     return cleaned.length > 240 ? `${cleaned.slice(0, 237)}...` : cleaned;
   };
@@ -240,7 +245,7 @@ export function MergePrSection({
 
       if (res?.success) {
         toast({
-          title: 'PR merged',
+          title: `${labels.prNoun} merged`,
           description: activePr.title ? activePr.title : `#${activePr.number}`,
         });
         await refreshPr();
@@ -325,7 +330,7 @@ export function MergePrSection({
       <div className="space-y-2">
         <div className="min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-foreground">Merge Pull Request</span>
+            <span className="text-sm font-medium text-foreground">{labels.mergeAction}</span>
             {isAutoMergeEnabled ? (
               <Badge variant="outline">
                 <Timer className="h-3 w-3 text-amber-500" />
@@ -391,7 +396,7 @@ export function MergePrSection({
                           className="h-8 w-full justify-center rounded-r-none px-2 text-xs disabled:opacity-100"
                           disabled
                         >
-                          Merge pull request
+                          {labels.mergeAction}
                         </Button>
                       </span>
                     </TooltipTrigger>
@@ -405,9 +410,13 @@ export function MergePrSection({
                   className="h-8 min-w-0 flex-1 justify-center rounded-r-none px-2 text-xs disabled:opacity-100"
                   disabled={disabled}
                   onClick={doMerge}
-                  title={disabled ? mergeUiState.title : 'Merge via GitHub'}
+                  title={
+                    disabled
+                      ? mergeUiState.title
+                      : `Merge via ${gitPlatform === 'gitlab' ? 'GitLab' : 'GitHub'}`
+                  }
                 >
-                  {isMerging ? <Spinner size="sm" /> : 'Merge pull request'}
+                  {isMerging ? <Spinner size="sm" /> : labels.mergeAction}
                 </Button>
               )}
               <Popover>

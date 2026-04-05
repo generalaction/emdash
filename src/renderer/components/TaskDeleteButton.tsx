@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import type { GitPlatform } from '../../shared/git/platform';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trash, Folder } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
@@ -39,6 +40,7 @@ type Props = {
    * @default true
    */
   useWorktree?: boolean;
+  gitPlatform?: GitPlatform;
   /** Controlled open state — when provided, overrides the internal state. */
   externalOpen?: boolean;
   /** Callback when controlled open state changes. */
@@ -56,6 +58,7 @@ export const TaskDeleteButton: React.FC<Props> = ({
   'aria-label': ariaLabel = 'Delete Task',
   isDeleting = false,
   useWorktree = true,
+  gitPlatform,
   externalOpen,
   onExternalOpenChange,
   hideTrigger = false,
@@ -211,7 +214,10 @@ export const TaskDeleteButton: React.FC<Props> = ({
                   <DeleteRiskFileList files={status.files} limit={6} />
                 </div>
                 {status.pr && isActivePr(status.pr) ? (
-                  <DeletePrNotice tasks={[{ name: taskName, pr: status.pr }]} />
+                  <DeletePrNotice
+                    tasks={[{ name: taskName, pr: status.pr }]}
+                    gitPlatform={gitPlatform}
+                  />
                 ) : null}
               </motion.div>
             ) : null}
