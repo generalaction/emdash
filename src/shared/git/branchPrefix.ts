@@ -30,17 +30,20 @@ export function extractSlugType(slug: string): { type: string | null; rest: stri
 /**
  * Build a branch name from a prefix setting, a slug, and a hash.
  *
- * - Custom prefix set:  `{prefix}/{slug}-{hash}`
- * - No prefix, type detected: `{type}/{rest}-{hash}`
- * - No prefix, no type: `{slug}-{hash}`
+ * - Custom prefix set:  `{prefix}/{slug}-{hash}` or `{prefix}/{slug}`
+ * - No prefix, type detected: `{type}/{rest}-{hash}` or `{type}/{rest}`
+ * - No prefix, no type: `{slug}-{hash}` or `{slug}`
+ *
+ * When `hash` is empty the suffix is omitted.
  */
 export function buildBranchName(branchPrefix: string, slug: string, hash: string): string {
+  const suffix = hash ? `-${hash}` : '';
   if (branchPrefix) {
-    return `${branchPrefix}/${slug}-${hash}`;
+    return `${branchPrefix}/${slug}${suffix}`;
   }
   const { type, rest } = extractSlugType(slug);
   if (type) {
-    return `${type}/${rest}-${hash}`;
+    return `${type}/${rest}${suffix}`;
   }
-  return `${slug}-${hash}`;
+  return `${slug}${suffix}`;
 }

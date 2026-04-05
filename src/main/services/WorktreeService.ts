@@ -193,7 +193,8 @@ export class WorktreeService {
       const settings = getAppSettings();
       const { buildBranchName } = await import('@shared/git/branchPrefix');
       const prefix = settings?.repository?.branchPrefix ?? 'emdash';
-      branchName = this.sanitizeBranchName(buildBranchName(prefix, sluggedName, hash));
+      const branchHash = settings?.repository?.appendHashToBranch === false ? '' : hash;
+      branchName = this.sanitizeBranchName(buildBranchName(prefix, sluggedName, branchHash));
       worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
       const worktreeId = this.stableIdFromPath(worktreePath);
 

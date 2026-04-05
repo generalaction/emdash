@@ -81,4 +81,16 @@ describe('buildBranchName', () => {
       'myprefix/feat-user-auth-b2c'
     );
   });
+
+  it('omits hash suffix when hash is empty with custom prefix', () => {
+    expect(buildBranchName('emdash', 'fix-login-page', '')).toBe('emdash/fix-login-page');
+  });
+
+  it('omits hash suffix when hash is empty with type prefix', () => {
+    expect(buildBranchName('', 'feat-user-auth', '')).toBe('feat/user-auth');
+  });
+
+  it('omits hash suffix when hash is empty with no prefix', () => {
+    expect(buildBranchName('', 'login-page', '')).toBe('login-page');
+  });
 });

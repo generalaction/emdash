@@ -142,8 +142,10 @@ export class RemoteGitService {
     const settings = getAppSettings();
     const { buildBranchName } = await import('@shared/git/branchPrefix');
     const branchPrefix = settings?.repository?.branchPrefix ?? 'emdash';
-    const dirName = `${slug || 'task'}-${Date.now()}`;
-    const worktreeName = buildBranchName(branchPrefix, slug || 'task', String(Date.now()));
+    const timestamp = String(Date.now());
+    const dirName = `${slug || 'task'}-${timestamp}`;
+    const branchHash = settings?.repository?.appendHashToBranch === false ? '' : timestamp;
+    const worktreeName = buildBranchName(branchPrefix, slug || 'task', branchHash);
     const relWorktreePath = `.emdash/worktrees/${dirName}`;
     const worktreePath = `${normalizedProjectPath}/${relWorktreePath}`.replace(/\/+/g, '/');
 

@@ -6,12 +6,14 @@ import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 type RepoSettings = {
   branchPrefix: string;
+  appendHashToBranch: boolean;
   pushOnCreate: boolean;
   autoCloseLinkedIssuesOnPrCreate: boolean;
 };
 
 const DEFAULTS: RepoSettings = {
   branchPrefix: 'emdash',
+  appendHashToBranch: true,
   pushOnCreate: true,
   autoCloseLinkedIssuesOnPrCreate: true,
 };
@@ -29,11 +31,14 @@ const RepositorySettingsCard: React.FC = () => {
   const [customDraft, setCustomDraft] = useState<string | null>(null);
   const displayPrefix = customDraft ?? (mode === 'custom' ? storedPrefix : DEFAULTS.branchPrefix);
 
+  const appendHash = repository?.appendHashToBranch ?? DEFAULTS.appendHashToBranch;
+  const hashSuffix = appendHash ? '-a3f' : '';
+
   const example = useMemo(() => {
-    if (mode === 'none') return 'fix/login-page-a3f';
+    if (mode === 'none') return `fix/login-page${hashSuffix}`;
     const prefix = displayPrefix || DEFAULTS.branchPrefix;
-    return `${prefix}/my-feature-a3f`;
-  }, [mode, displayPrefix]);
+    return `${prefix}/my-feature${hashSuffix}`;
+  }, [mode, displayPrefix, hashSuffix]);
 
   const handleModeChange = (value: string) => {
     if (value === 'none') {
@@ -88,6 +93,23 @@ const RepositorySettingsCard: React.FC = () => {
         <div className="text-[11px] text-muted-foreground">
           Example: <code className="rounded bg-muted/60 px-1">{example}</code>
         </div>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <div className="text-sm font-medium text-foreground">Append hash to branch name</div>
+          <div className="text-sm">
+            Add a short hash suffix for uniqueness (e.g.{' '}
+            <code className="rounded bg-muted/60 px-1">-a3f</code>).
+          </div>
+        </div>
+        <Switch
+          checked={appendHash}
+          onCheckedChange={(checked) =>
+            updateSettings({ repository: { appendHashToBranch: checked } })
+          }
+          disabled={loading || saving}
+          aria-label="Append hash to branch name"
+        />
       </div>
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-1 text-xs text-muted-foreground">

@@ -15,6 +15,7 @@ function makeSettings(overrides?: Partial<AppSettings>): AppSettings {
   return {
     repository: {
       branchPrefix: 'emdash',
+      appendHashToBranch: true,
       pushOnCreate: true,
       autoCloseLinkedIssuesOnPrCreate: true,
     },
@@ -42,6 +43,7 @@ describe('normalizeSettings - repository settings', () => {
       makeSettings({
         repository: {
           branchPrefix: 'emdash',
+          appendHashToBranch: true,
           pushOnCreate: true,
           autoCloseLinkedIssuesOnPrCreate: false,
         },
@@ -290,6 +292,7 @@ describe('normalizeSettings - branchPrefix', () => {
       makeSettings({
         repository: {
           branchPrefix: 'myprefix',
+          appendHashToBranch: true,
           pushOnCreate: true,
           autoCloseLinkedIssuesOnPrCreate: true,
         },
@@ -301,7 +304,12 @@ describe('normalizeSettings - branchPrefix', () => {
   it('preserves empty string (None mode)', () => {
     const result = normalizeSettings(
       makeSettings({
-        repository: { branchPrefix: '', pushOnCreate: true, autoCloseLinkedIssuesOnPrCreate: true },
+        repository: {
+          branchPrefix: '',
+          appendHashToBranch: true,
+          pushOnCreate: true,
+          autoCloseLinkedIssuesOnPrCreate: true,
+        },
       })
     );
     expect(result.repository.branchPrefix).toBe('');
@@ -312,6 +320,7 @@ describe('normalizeSettings - branchPrefix', () => {
       makeSettings({
         repository: {
           branchPrefix: '  myprefix// ',
+          appendHashToBranch: true,
           pushOnCreate: true,
           autoCloseLinkedIssuesOnPrCreate: true,
         },
@@ -326,6 +335,7 @@ describe('normalizeSettings - branchPrefix', () => {
       makeSettings({
         repository: {
           branchPrefix: long,
+          appendHashToBranch: true,
           pushOnCreate: true,
           autoCloseLinkedIssuesOnPrCreate: true,
         },

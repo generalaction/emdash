@@ -398,7 +398,8 @@ export class WorktreePoolService {
     // Generate new names
     const sluggedName = this.slugify(taskName);
     const hash = this.generateShortHash();
-    const newBranch = buildBranchName(prefix, sluggedName, hash);
+    const branchHash = settings?.repository?.appendHashToBranch === false ? '' : hash;
+    const newBranch = buildBranchName(prefix, sluggedName, branchHash);
     const newPath = path.join(reserve.projectPath, '..', `worktrees/${sluggedName}-${hash}`);
     const newId = this.stableIdFromPath(newPath);
 
