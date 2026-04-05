@@ -1,6 +1,8 @@
 import { EventEmitter } from 'node:events';
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
 import net from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { log } from '../lib/logger';
@@ -140,9 +142,7 @@ class HostPreviewService extends EventEmitter {
     // If process exists, verify it's running from the correct directory
     if (existingProc) {
       // Check if process is still running
-      try {
-        // On Unix, signal 0 checks if process exists
-        existingProc.kill(0);
+      if (existingProc.exitCode === null && existingProc.signalCode === null) {
         // Process is still running - check if cwd matches
         if (existingCwd && path.resolve(existingCwd) === cwd) {
           log.info?.('[hostPreview] reusing existing process', {
@@ -163,7 +163,7 @@ class HostPreviewService extends EventEmitter {
           this.procs.delete(taskId);
           this.procCwds.delete(taskId);
         }
-      } catch {
+      } else {
         // Process has exited - clean up
         this.procs.delete(taskId);
         this.procCwds.delete(taskId);
@@ -181,6 +181,7 @@ class HostPreviewService extends EventEmitter {
         const parentExists = fs.existsSync(parentNm);
         if (!wsExists && parentExists) {
           try {
+            // On Windows, 'junction' avoids needing administrator privileges
             const linkType = process.platform === 'win32' ? 'junction' : 'dir';
             fs.symlinkSync(parentNm, wsNm, linkType as any);
             log.info?.('[hostPreview] linked node_modules', {
@@ -253,7 +254,16 @@ class HostPreviewService extends EventEmitter {
         });
         this.emit('event', { type: 'setup', taskId, status: 'done' } as HostPreviewEvent);
       }
-    } catch {}
+    } catch (e) {
+      this.emit('event', {
+        type: 'setup',
+        taskId,
+        status: 'error',
+        error: e instanceof Error ? e.message : String(e),
+      } as HostPreviewEvent);
+      log.error?.('[hostPreview] auto-install failed', e);
+      return { ok: false, error: `Auto-install failed: ${e}` };
+    }
 
     // Choose a free port (avoid 3000)
     const preferred = [5173, 5174, 3001, 3002, 8080, 4200, 5500, 7000];
@@ -338,27 +348,28 @@ class HostPreviewService extends EventEmitter {
             const port = Number(parsed.port || 0);
             if (!port) return;
 
-            // Quick TCP probe to verify server is ready
-            const socket = net.createConnection({ host, port }, () => {
-              try {
-                socket.destroy();
-              } catch {}
-              if (!urlEmitted) {
-                urlEmitted = true;
-                try {
-                  this.emit('event', {
-                    type: 'url',
-                    taskId,
-                    url: urlToProbe,
-                  } as HostPreviewEvent);
-                } catch {}
+            // Quick HTTP probe to verify server is ready
+            const client = parsed.protocol === 'https:' ? https : http;
+            const req = client.request(
+              urlToProbe,
+              { method: 'HEAD', timeout: 500, rejectUnauthorized: false },
+              (res) => {
+                if (!urlEmitted) {
+                  urlEmitted = true;
+                  try {
+                    this.emit('event', {
+                      type: 'url',
+                      taskId,
+                      url: urlToProbe,
+                    } as HostPreviewEvent);
+                  } catch {}
+                }
               }
+            );
+            req.on('error', () => {
+              // Server not ready yet
             });
-            socket.on('error', () => {
-              try {
-                socket.destroy();
-              } catch {}
-            });
+            req.end();
           } catch {}
         };
 
@@ -378,38 +389,37 @@ class HostPreviewService extends EventEmitter {
         child.stderr.on('data', onData);
 
         // Probe periodically; if reachable and not emitted from logs, synthesize URL
-        const host = 'localhost';
         const probeInterval = setInterval(() => {
-          if (urlEmitted) return;
+          if (urlEmitted) {
+            clearInterval(probeInterval);
+            return;
+          }
           // If we have a candidate URL from logs, probe that first
           if (candidateUrl) {
             probeAndEmitUrl(candidateUrl);
             return;
           }
           // Otherwise, probe the expected port
-          const socket = net.createConnection(
-            { host, port: Number(env.PORT) || forcedPort },
-            () => {
-              try {
-                socket.destroy();
-              } catch {}
+          const expectedPort = Number(env.PORT) || forcedPort;
+          const req = http.request(
+            `http://localhost:${expectedPort}`,
+            { method: 'HEAD', timeout: 500 },
+            (res) => {
               if (!urlEmitted) {
                 urlEmitted = true;
+                clearInterval(probeInterval);
                 try {
                   this.emit('event', {
                     type: 'url',
                     taskId,
-                    url: `http://localhost:${Number(env.PORT) || forcedPort}`,
+                    url: `http://localhost:${expectedPort}`,
                   } as HostPreviewEvent);
                 } catch {}
               }
             }
           );
-          socket.on('error', () => {
-            try {
-              socket.destroy();
-            } catch {}
-          });
+          req.on('error', () => {});
+          req.end();
         }, 800);
 
         child.on('exit', async () => {
@@ -431,8 +441,10 @@ class HostPreviewService extends EventEmitter {
             if (idx >= 0 && idx + 1 < args.length) args[idx + 1] = String(forcedPort);
             else if (idxPort >= 0 && idxPort + 1 < args.length)
               args[idxPort + 1] = String(forcedPort);
-            else if (pm === 'npm') args.push('--', '-p', String(forcedPort));
-            else args.push('-p', String(forcedPort));
+            else if (pm === 'npm') {
+              if (!args.includes('--')) args.push('--');
+              args.push('-p', String(forcedPort));
+            } else args.push('-p', String(forcedPort));
             log.info?.('[hostPreview] retry on new port', {
               taskId,
               port: forcedPort,

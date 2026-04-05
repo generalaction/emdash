@@ -26,7 +26,9 @@ export function getReviewSettings(settings?: AppSettings): ReviewSettings {
 
 async function assertProviderInstalled(providerId: string): Promise<void> {
   const result = await window.electronAPI.getProviderStatuses?.();
-  if (!result?.success || !result.statuses) return;
+  if (!result?.success || !result.statuses) {
+    throw new Error('Failed to get provider statuses');
+  }
   if (result.statuses[providerId]?.installed === true) return;
   throw new Error('Configured review agent is not installed');
 }
@@ -61,6 +63,10 @@ export async function createReviewConversation(args: {
     isMain: false,
     metadata: buildReviewConversationMetadata(prompt),
   });
+
+  if (!conversation || !conversation.id) {
+    throw new Error('Failed to create review conversation');
+  }
 
   window.dispatchEvent(
     new CustomEvent(CONVERSATIONS_CHANGED_EVENT, {
