@@ -641,6 +641,7 @@ declare global {
         ahead?: number;
         behind?: number;
         aheadOfDefault?: number;
+        defaultDiffStats?: { additions: number; deletions: number; files: number };
         error?: string;
       }>;
       renameBranch: (args: { repoPath: string; oldBranch: string; newBranch: string }) => Promise<{

@@ -65,6 +65,7 @@ interface PrActionButtonProps {
   onModeChange: (mode: PrMode) => void;
   onExecute: () => Promise<void>;
   isLoading: boolean;
+  isCreating?: boolean;
   modeLabels: Record<PrMode, string>;
 }
 
@@ -73,6 +74,7 @@ function PrActionButton({
   onModeChange,
   onExecute,
   isLoading,
+  isCreating,
   modeLabels,
 }: PrActionButtonProps) {
   return (
@@ -84,7 +86,14 @@ function PrActionButton({
         disabled={isLoading}
         onClick={onExecute}
       >
-        {isLoading ? <Spinner size="sm" /> : modeLabels[mode]}
+        {isCreating ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner size="sm" />
+            <span>Creating…</span>
+          </span>
+        ) : (
+          modeLabels[mode]
+        )}
       </Button>
       <Popover>
         <PopoverTrigger asChild>
@@ -280,6 +289,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     pr?.number
   );
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
+  const [branchDiffStats, setBranchDiffStats] = useState<{
+    additions: number;
+    deletions: number;
+    files: number;
+  } | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
 
   // Reset action loading states when task changes
@@ -290,6 +304,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     setRevertingFiles(new Set());
     setRestoreTarget(null);
     setIsStagingAll(false);
+    setBranchAhead(null);
+    setBranchDiffStats(null);
   }, [resolvedTaskPath]);
 
   // Default to checks when PR exists but no changes; reset when PR disappears
@@ -316,11 +332,15 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           taskId: resolvedTaskId,
         });
         if (!cancelled) {
-          setBranchAhead(res?.success ? (res?.ahead ?? 0) : 0);
+          setBranchAhead(res?.success ? (res?.aheadOfDefault ?? res?.ahead ?? 0) : 0);
+          setBranchDiffStats(res?.defaultDiffStats ?? null);
         }
       } catch {
         // Network or IPC error - default to 0
-        if (!cancelled) setBranchAhead(0);
+        if (!cancelled) {
+          setBranchAhead(0);
+          setBranchDiffStats(null);
+        }
       } finally {
         if (!cancelled) setBranchStatusLoading(false);
       }
@@ -465,9 +485,13 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
             taskId: resolvedTaskId,
           });
           if (taskPathRef.current !== taskPathAtCommit) return;
-          setBranchAhead(bs?.success ? (bs?.ahead ?? 0) : 0);
+          setBranchAhead(bs?.success ? (bs?.aheadOfDefault ?? bs?.ahead ?? 0) : 0);
+          setBranchDiffStats(bs?.defaultDiffStats ?? null);
         } catch {
-          if (taskPathRef.current === taskPathAtCommit) setBranchAhead(0);
+          if (taskPathRef.current === taskPathAtCommit) {
+            setBranchAhead(0);
+            setBranchDiffStats(null);
+          }
         } finally {
           if (taskPathRef.current === taskPathAtCommit) setBranchStatusLoading(false);
         }
@@ -749,6 +773,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onModeChange={selectPrMode}
                   onExecute={handlePrAction}
                   isLoading={isActionLoading}
+                  isCreating={isActionLoading}
                   modeLabels={prModeLabels}
                 />
               </div>
@@ -784,9 +809,36 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         ) : (
           <div className="flex w-full items-center justify-between gap-2">
             <div className="flex shrink-0 items-center gap-1 text-xs">
-              <span className="font-medium text-green-600 dark:text-green-400">&mdash;</span>
-              <span className="text-muted-foreground">&middot;</span>
-              <span className="font-medium text-red-600 dark:text-red-400">&mdash;</span>
+              {branchDiffStats &&
+              (branchDiffStats.additions > 0 || branchDiffStats.deletions > 0) ? (
+                <>
+                  <span className="font-medium text-green-600 dark:text-green-400">
+                    +{formatDiffCount(branchDiffStats.additions)}
+                  </span>
+                  <span className="text-muted-foreground">&middot;</span>
+                  <span className="font-medium text-red-600 dark:text-red-400">
+                    -{formatDiffCount(branchDiffStats.deletions)}
+                  </span>
+                  <span className="text-muted-foreground">&middot;</span>
+                  <span className="text-muted-foreground">
+                    {branchDiffStats.files} {branchDiffStats.files === 1 ? 'file' : 'files'}
+                  </span>
+                  {branchAhead != null && branchAhead > 0 && (
+                    <>
+                      <span className="text-muted-foreground">&middot;</span>
+                      <span className="text-muted-foreground">
+                        {branchAhead} {branchAhead === 1 ? 'commit' : 'commits'}
+                      </span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-green-600 dark:text-green-400">&mdash;</span>
+                  <span className="text-muted-foreground">&middot;</span>
+                  <span className="font-medium text-red-600 dark:text-red-400">&mdash;</span>
+                </>
+              )}
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {onOpenChanges && (
@@ -828,6 +880,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onModeChange={selectPrMode}
                   onExecute={handlePrAction}
                   isLoading={isActionLoading || branchStatusLoading}
+                  isCreating={isActionLoading}
                   modeLabels={prModeLabels}
                 />
               ) : (

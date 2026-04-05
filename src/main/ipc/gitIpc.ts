@@ -1151,7 +1151,22 @@ export function registerGitIpc() {
           currentBranch = (stdout || '').trim();
         } catch {}
         const createPrOps = await getOperations(taskPath);
-        const defaultBranch = await createPrOps.getDefaultBranch();
+        const platformDefaultBranch = await createPrOps.getDefaultBranch();
+
+        // Prefer project-configured baseRef over platform default
+        let defaultBranch = platformDefaultBranch;
+        if (!base) {
+          try {
+            const projectBaseRef = await databaseService.getBaseRefForTaskPath(taskPath);
+            if (projectBaseRef) {
+              // Strip remote prefix (e.g., "origin/develop" -> "develop")
+              const slashIdx = projectBaseRef.indexOf('/');
+              defaultBranch = slashIdx >= 0 ? projectBaseRef.slice(slashIdx + 1) : projectBaseRef;
+            }
+          } catch {
+            // Non-fatal; fall back to platform default
+          }
+        }
 
         // Guard: ensure there is at least one commit ahead of base
         try {
@@ -1721,7 +1736,19 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const branch = (currentBranchOut || '').trim();
 
         const branchOps = await getOperations(taskPath);
-        const defaultBranch = await branchOps.getDefaultBranch();
+        const platformDefaultBranch = await branchOps.getDefaultBranch();
+
+        // Prefer project-configured baseRef over platform default
+        let defaultBranch = platformDefaultBranch;
+        try {
+          const projectBaseRef = await databaseService.getBaseRefForTaskPath(taskPath);
+          if (projectBaseRef) {
+            const slashIdx = projectBaseRef.indexOf('/');
+            defaultBranch = slashIdx >= 0 ? projectBaseRef.slice(slashIdx + 1) : projectBaseRef;
+          }
+        } catch {
+          // Non-fatal; fall back to platform default
+        }
 
         // Ahead/behind relative to upstream tracking branch
         let ahead = 0;
@@ -1766,6 +1793,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         // Count commits ahead of origin/<defaultBranch> (for PR visibility)
         let aheadOfDefault = 0;
+        let defaultDiffStats: { additions: number; deletions: number; files: number } | undefined;
         if (branch !== defaultBranch) {
           try {
             const { stdout: countOut } = await execFileAsync(
@@ -1777,9 +1805,37 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           } catch {
             // origin/<defaultBranch> may not exist
           }
+
+          if (aheadOfDefault > 0) {
+            try {
+              const { stdout: shortstat } = await execFileAsync(
+                GIT,
+                ['diff', '--shortstat', `origin/${defaultBranch}...HEAD`],
+                { cwd: taskPath }
+              );
+              const filesMatch = shortstat.match(/(\d+)\s+files?\s+changed/);
+              const insMatch = shortstat.match(/(\d+)\s+insertions?\(\+\)/);
+              const delMatch = shortstat.match(/(\d+)\s+deletions?\(-\)/);
+              defaultDiffStats = {
+                files: parseInt(filesMatch?.[1] || '0', 10) || 0,
+                additions: parseInt(insMatch?.[1] || '0', 10) || 0,
+                deletions: parseInt(delMatch?.[1] || '0', 10) || 0,
+              };
+            } catch {
+              // Non-fatal
+            }
+          }
         }
 
-        return { success: true, branch, defaultBranch, ahead, behind, aheadOfDefault };
+        return {
+          success: true,
+          branch,
+          defaultBranch,
+          ahead,
+          behind,
+          aheadOfDefault,
+          defaultDiffStats,
+        };
       } catch (error) {
         log.error(`getBranchStatus: unexpected error for ${taskPath}:`, error);
         return { success: false, error: error instanceof Error ? error.message : String(error) };
