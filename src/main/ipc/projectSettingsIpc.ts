@@ -1,10 +1,11 @@
 import { ipcMain } from 'electron';
+import type { GitPlatform } from '../../shared/git/platform';
 import { log } from '../lib/logger';
 import { projectSettingsService } from '../services/ProjectSettingsService';
 import { worktreeService } from '../services/WorktreeService';
 
 type ProjectSettingsArgs = { projectId: string };
-type UpdateProjectSettingsArgs = { projectId: string; baseRef: string };
+type UpdateProjectSettingsArgs = { projectId: string; baseRef?: string; gitPlatform?: string };
 
 const resolveProjectId = (input: ProjectSettingsArgs | string | undefined): string => {
   if (!input) return '';
@@ -35,20 +36,35 @@ export function registerProjectSettingsIpc() {
     async (_event, args: UpdateProjectSettingsArgs | undefined) => {
       try {
         const projectId = args?.projectId;
-        const baseRef = args?.baseRef;
         if (!projectId) {
           throw new Error('projectId is required');
         }
-        if (typeof baseRef !== 'string') {
-          throw new Error('baseRef is required');
+
+        const baseRef = args?.baseRef;
+        const gitPlatform = args?.gitPlatform;
+
+        if (!baseRef && !gitPlatform) {
+          throw new Error('At least one of baseRef or gitPlatform is required');
         }
-        const trimmed = baseRef.trim();
-        if (!trimmed) {
-          throw new Error('baseRef cannot be empty');
+
+        const updates: { baseRef?: string; gitPlatform?: GitPlatform } = {};
+
+        if (baseRef) {
+          const trimmed = baseRef.trim();
+          if (!trimmed) {
+            throw new Error('baseRef cannot be empty');
+          }
+          updates.baseRef = trimmed;
         }
-        const settings = await projectSettingsService.updateProjectSettings(projectId, {
-          baseRef: trimmed,
-        });
+
+        if (gitPlatform) {
+          if (gitPlatform !== 'github' && gitPlatform !== 'gitlab') {
+            throw new Error('gitPlatform must be "github" or "gitlab"');
+          }
+          updates.gitPlatform = gitPlatform;
+        }
+
+        const settings = await projectSettingsService.updateProjectSettings(projectId, updates);
         return { success: true, settings };
       } catch (error) {
         log.error('Failed to update project settings', error);

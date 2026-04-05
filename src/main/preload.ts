@@ -378,7 +378,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('project:openFile', args),
   getProjectSettings: (projectId: string) =>
     ipcRenderer.invoke('projectSettings:get', { projectId }),
-  updateProjectSettings: (args: { projectId: string; baseRef: string }) =>
+  updateProjectSettings: (args: { projectId: string; baseRef?: string; gitPlatform?: string }) =>
     ipcRenderer.invoke('projectSettings:update', args),
   fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
@@ -556,6 +556,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isPrivate: boolean;
     gitignoreTemplate?: string;
   }) => ipcRenderer.invoke('github:createNewProject', params),
+  gitPlatformListPullRequests: (args: {
+    projectPath: string;
+    limit?: number;
+    searchQuery?: string;
+  }) => ipcRenderer.invoke('git-platform:listPullRequests', args),
+  gitPlatformCreateReviewWorktree: (args: {
+    projectPath: string;
+    projectId: string;
+    prNumber: number;
+    prTitle?: string;
+    taskName?: string;
+    branchName?: string;
+  }) => ipcRenderer.invoke('git-platform:createPullRequestWorktree', args),
+  gitPlatformGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) =>
+    ipcRenderer.invoke('git-platform:getPullRequestBaseDiff', args),
   githubListPullRequests: (args: { projectPath: string; limit?: number; searchQuery?: string }) =>
     ipcRenderer.invoke('github:listPullRequests', args),
   githubCreatePullRequestWorktree: (args: {
@@ -1341,9 +1356,47 @@ export interface ElectronAPI {
     repoUrl: string,
     localPath: string
   ) => Promise<{ success: boolean; error?: string }>;
+  gitPlatformListPullRequests: (args: {
+    projectPath: string;
+    limit?: number;
+    searchQuery?: string;
+  }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
+  gitPlatformCreateReviewWorktree: (args: {
+    projectPath: string;
+    projectId: string;
+    prNumber: number;
+    prTitle?: string;
+    taskName?: string;
+    branchName?: string;
+  }) => Promise<{
+    success: boolean;
+    worktree?: any;
+    branchName?: string;
+    taskName?: string;
+    task?: {
+      id: string;
+      name: string;
+      path: string;
+      branch: string;
+      projectId: string;
+      status: string;
+      agentId: string;
+      metadata?: { prNumber?: number; prTitle?: string | null };
+    };
+    error?: string;
+  }>;
+  gitPlatformGetPullRequestBaseDiff: (args: { worktreePath: string; prNumber: number }) => Promise<{
+    success: boolean;
+    diff?: string;
+    baseBranch?: string;
+    headBranch?: string;
+    prUrl?: string;
+    error?: string;
+  }>;
   githubListPullRequests: (args: {
     projectPath: string;
     limit?: number;
+    searchQuery?: string;
   }) => Promise<{ success: boolean; prs?: any[]; totalCount?: number; error?: string }>;
   githubCreatePullRequestWorktree: (args: {
     projectPath: string;
