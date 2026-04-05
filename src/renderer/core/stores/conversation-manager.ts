@@ -27,6 +27,7 @@ import {
   setTabActive,
   setTabActiveIndex,
 } from '@renderer/core/stores/tab-utils';
+import { soundPlayer } from '@renderer/lib/soundPlayer';
 import { PtySession } from './pty-session';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
@@ -71,7 +72,13 @@ export class ConversationManagerStore
       if (this._loaded) return;
       this.load();
     });
-    this.offAgentEvents = events.on(agentEventChannel, ({ event }) => {
+    this.offAgentEvents = this.listenToAgentEvents();
+    this.offSessionExited = this.listenToSessionExited();
+    this.disposeAutoSeen = this.setupAutoSeen();
+  }
+
+  private listenToAgentEvents(): () => void {
+    return events.on(agentEventChannel, ({ event, appFocused }) => {
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
@@ -79,10 +86,12 @@ export class ConversationManagerStore
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
         conversationStore.setStatus('awaiting-input');
+        soundPlayer.play('needs_attention', appFocused);
         return;
       }
       if (event.type === 'stop') {
         conversationStore.setStatus('completed');
+        soundPlayer.play('task_complete', appFocused);
         return;
       }
       if (event.type === 'error') {
@@ -90,13 +99,19 @@ export class ConversationManagerStore
         return;
       }
     });
-    this.offSessionExited = events.on(agentSessionExitedChannel, (event) => {
+  }
+
+  private listenToSessionExited(): () => void {
+    return events.on(agentSessionExitedChannel, (event) => {
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
       conversationStore.clearWorking();
     });
-    this.disposeAutoSeen = autorun(() => {
+  }
+
+  private setupAutoSeen(): IReactionDisposer {
+    return autorun(() => {
       if (!this.isVisible) return;
       const active = this.activeTab;
       if (!active || active.seen) return;
