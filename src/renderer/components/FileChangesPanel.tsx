@@ -304,6 +304,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     setRevertingFiles(new Set());
     setRestoreTarget(null);
     setIsStagingAll(false);
+    setBranchAhead(null);
+    setBranchDiffStats(null);
   }, [resolvedTaskPath]);
 
   // Default to checks when PR exists but no changes; reset when PR disappears
