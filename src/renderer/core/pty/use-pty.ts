@@ -10,6 +10,7 @@ import { panelDragStore } from '../view/panel-drag-store';
 import { usePaneSizingContext } from './pane-sizing-context';
 import { buildTheme, type FrontendPty, type SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
+import { isRealTaskInput } from './pty-input-buffer';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -147,6 +148,9 @@ export function usePty(
   // First-message capture state.
   const firstMessageSentRef = useRef(false);
   const inputBufferRef = useRef('');
+
+  // Keystroke buffer for filtering slash-command enter presses.
+  const keystrokeBufferRef = useRef('');
 
   // Track whether the PTY has started (to filter focus reporting escape sequences).
   const ptyStartedRef = useRef(false);
@@ -446,7 +450,20 @@ export function usePty(
         }
 
         const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
-        if (isEnterPress) onEnterPressRef.current?.();
+        if (isEnterPress) {
+          if (isRealTaskInput(keystrokeBufferRef.current)) {
+            onEnterPressRef.current?.();
+          }
+          keystrokeBufferRef.current = '';
+        } else {
+          for (const ch of filtered) {
+            if (ch === '\x7f' || ch === '\b') {
+              keystrokeBufferRef.current = keystrokeBufferRef.current.slice(0, -1);
+            } else if (ch.charCodeAt(0) >= 32) {
+              keystrokeBufferRef.current += ch;
+            }
+          }
+        }
         const pendingText = pendingInjectionManager.getPending();
         if (pendingText && isEnterPress && !isNewlineInsert) {
           const stripped = filtered.replace(/[\r\n]+$/g, '');
@@ -558,6 +575,7 @@ export function usePty(
       ptyStartedRef.current = false;
       firstMessageSentRef.current = false;
       inputBufferRef.current = '';
+      keystrokeBufferRef.current = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, pty]); // Re-run only when the session changes

@@ -25,7 +25,7 @@ function stripAnsi(s: string): string {
 }
 
 /** Returns true if the message looks like a real task description. */
-function isRealTaskInput(message: string): boolean {
+export function isRealTaskInput(message: string): boolean {
   const trimmed = message.trim();
   if (!trimmed || trimmed.length < MIN_MESSAGE_LENGTH) return false;
   for (const pattern of SKIP_PATTERNS) {
