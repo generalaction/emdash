@@ -1,13 +1,16 @@
 import { useState } from 'react';
+import type { GitPlatform } from '../../shared/git/platform';
 import { useToast } from './use-toast';
 import { ToastAction } from '../components/ui/toast';
 import { ArrowUpRight } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
+import { getPlatformLabels } from '../lib/gitPlatformLabels';
 type CreatePROptions = {
   taskPath: string;
   commitMessage?: string;
   createBranchIfOnDefault?: boolean;
   branchPrefix?: string;
+  gitPlatform?: GitPlatform;
   prOptions?: {
     title?: string;
     body?: string;
@@ -27,6 +30,8 @@ export function useCreatePR() {
   const isCreatingForTaskPath = (path: string) => creatingTaskPath === path;
 
   const createPR = async (opts: CreatePROptions) => {
+    const labels = getPlatformLabels(opts.gitPlatform);
+    const showGithubLogo = opts.gitPlatform !== 'gitlab';
     const {
       taskPath,
       commitMessage: explicitCommitMessage,
@@ -128,11 +133,11 @@ export function useCreatePR() {
         })();
         const prUrl = res?.url;
         toast({
-          title: 'Pull request created successfully!',
-          description: prUrl ? undefined : 'PR created but URL not available.',
+          title: `${labels.prNounFull} created successfully!`,
+          description: prUrl ? undefined : `${labels.prNoun} created but URL not available.`,
           action: prUrl ? (
             <ToastAction
-              altText="View PR"
+              altText={labels.viewAction}
               onClick={() => {
                 void (async () => {
                   const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -144,7 +149,7 @@ export function useCreatePR() {
               }}
             >
               <span className="inline-flex items-center gap-1">
-                View PR
+                {labels.viewAction}
                 <ArrowUpRight className="h-3 w-3" />
               </span>
             </ToastAction>
@@ -181,10 +186,10 @@ export function useCreatePR() {
 
           toast({
             title: 'Changes pushed successfully!',
-            description: 'Your changes have been pushed to the existing pull request.',
+            description: `Your changes have been pushed to the existing ${labels.prNounFull.toLowerCase()}.`,
             action: prUrl ? (
               <ToastAction
-                altText="View PR"
+                altText={labels.viewAction}
                 onClick={() => {
                   void (async () => {
                     const { captureTelemetry } = await import('../lib/telemetryClient');
@@ -196,7 +201,7 @@ export function useCreatePR() {
                 }}
               >
                 <span className="inline-flex items-center gap-1">
-                  View PR
+                  {labels.viewAction}
                   <ArrowUpRight className="h-3 w-3" />
                 </span>
               </ToastAction>
@@ -223,8 +228,14 @@ export function useCreatePR() {
           toast({
             title: (
               <span className="inline-flex items-center gap-2">
-                <img src={githubLogo} alt="GitHub" className="h-5 w-5 rounded-sm object-contain" />
-                Failed to Create PR
+                {showGithubLogo && (
+                  <img
+                    src={githubLogo}
+                    alt="GitHub"
+                    className="h-5 w-5 rounded-sm object-contain"
+                  />
+                )}
+                Failed to {labels.createAction}
               </span>
             ),
             description:
@@ -272,8 +283,10 @@ export function useCreatePR() {
       toast({
         title: (
           <span className="inline-flex items-center gap-2">
-            <img src={githubLogo} alt="GitHub" className="h-5 w-5 rounded-sm object-contain" />
-            Failed to Create PR
+            {showGithubLogo && (
+              <img src={githubLogo} alt="GitHub" className="h-5 w-5 rounded-sm object-contain" />
+            )}
+            Failed to {labels.createAction}
           </span>
         ),
         description: message,

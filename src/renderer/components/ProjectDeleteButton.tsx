@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import type { GitPlatform } from '../../shared/git/platform';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trash, Folder } from 'lucide-react';
 import { Checkbox } from './ui/checkbox';
@@ -30,6 +31,7 @@ type Props = {
   className?: string;
   'aria-label'?: string;
   isDeleting?: boolean;
+  gitPlatform?: GitPlatform;
 };
 
 export const ProjectDeleteButton: React.FC<Props> = ({
@@ -39,6 +41,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
   className,
   'aria-label': ariaLabel = 'Delete project',
   isDeleting = false,
+  gitPlatform,
 }) => {
   const [open, setOpen] = React.useState(false);
   const [acknowledge, setAcknowledge] = React.useState(false);
@@ -211,6 +214,7 @@ export const ProjectDeleteButton: React.FC<Props> = ({
                         (w): w is { name: string; pr: NonNullable<typeof w>['pr'] } => w !== null
                       ) as any
                   }
+                  gitPlatform={gitPlatform}
                 />
               </motion.div>
             ) : null}

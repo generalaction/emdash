@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import type { GitPlatform } from '../../shared/git/platform';
 import {
   usePullRequests,
   type PullRequestSummary,
@@ -6,7 +7,7 @@ import {
 } from '../hooks/usePullRequests';
 import {
   normalizePullRequestSearchQuery,
-  PULL_REQUEST_FILTER_PRESETS,
+  getPullRequestFilterPresets,
   resolvePullRequestFilterId,
 } from '../lib/pullRequestFilters';
 import { cn } from '../lib/utils';
@@ -23,16 +24,19 @@ import {
   ChevronRight,
   Clock,
   Github,
+  Gitlab,
   Loader2,
   MessageSquare,
   Search,
   XCircle,
 } from 'lucide-react';
 import type { Task } from '../types/app';
+import { getPlatformLabels } from '../lib/gitPlatformLabels';
 
 interface OpenPrsSectionProps {
   projectPath: string;
   projectId: string;
+  gitPlatform?: GitPlatform;
 }
 
 const DEFAULT_VISIBLE = 10;
@@ -230,7 +234,9 @@ const ReviewersList: React.FC<{ reviewers: PullRequestReviewer[] }> = ({ reviewe
   );
 };
 
-const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId }) => {
+const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId, gitPlatform }) => {
+  const labels = getPlatformLabels(gitPlatform);
+  const filterPresets = getPullRequestFilterPresets(gitPlatform);
   const { toast } = useToast();
   const { handleOpenExternalTask } = useTaskManagementContext();
   const [collapsed, setCollapsed] = useState(false);
@@ -240,7 +246,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
   const { prs, totalCount, loading, loadingMore, error, hasFetched, loadMore, hasMore } =
     usePullRequests(projectPath, true, DEFAULT_VISIBLE, appliedQuery);
 
-  const activeFilterId = resolvePullRequestFilterId(appliedQuery);
+  const activeFilterId = resolvePullRequestFilterId(appliedQuery, filterPresets);
   const normalizedDraftQuery = normalizePullRequestSearchQuery(draftQuery);
   const isQueryDirty = normalizedDraftQuery !== appliedQuery;
   const isCustomQueryActive = activeFilterId === 'custom' && !!appliedQuery;
@@ -268,7 +274,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
   const handleReviewPr = async (pr: PullRequestSummary) => {
     setCreatingForPr(pr.number);
     try {
-      const result = await window.electronAPI.githubCreatePullRequestWorktree({
+      const result = await window.electronAPI.gitPlatformCreateReviewWorktree({
         projectPath,
         projectId,
         prNumber: pr.number,
@@ -283,7 +289,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
           branch: result.task.branch,
           path: result.task.path,
           status: result.task.status as Task['status'],
-          agentId: result.task.agentId,
+          agentId: result.task.agentId ?? undefined,
           useWorktree: true,
           metadata: result.task.metadata,
         };
@@ -342,7 +348,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
         ) : (
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         )}
-        <h2 className="text-xl font-semibold">Open PRs</h2>
+        <h2 className="text-xl font-semibold">{labels.openSection}</h2>
         <span className={prBadgeClass}>
           {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : totalCount}
         </span>
@@ -352,7 +358,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
         <TooltipProvider delayDuration={100}>
           <div className="mt-4 flex flex-col gap-3">
             <div className="flex flex-wrap gap-2">
-              {PULL_REQUEST_FILTER_PRESETS.map((preset) => {
+              {filterPresets.map((preset) => {
                 const isActive = activeFilterId === preset.id;
                 return (
                   <button
@@ -377,7 +383,11 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="GitHub query, e.g. author:@me review-requested:@me"
+                  placeholder={
+                    gitPlatform === 'gitlab'
+                      ? 'Search merge requests...'
+                      : 'GitHub query, e.g. author:@me review-requested:@me'
+                  }
                   value={draftQuery}
                   onChange={(e) => setDraftQuery(e.target.value)}
                   className="h-9 w-full pl-10"
@@ -407,21 +417,27 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
             </form>
 
             <p className="text-xs text-muted-foreground">
-              Use GitHub PR search syntax like <code>review-requested:@me</code>,{' '}
-              <code>author:@me</code>, <code>draft:true</code>, or free-text terms.
+              {gitPlatform === 'gitlab' ? (
+                'Search by title or free-text terms.'
+              ) : (
+                <>
+                  Use GitHub PR search syntax like <code>review-requested:@me</code>,{' '}
+                  <code>author:@me</code>, <code>draft:true</code>, or free-text terms.
+                </>
+              )}
             </p>
 
             <div className="flex flex-col" style={{ minHeight: `${PR_RESULTS_MIN_HEIGHT_PX}px` }}>
               {loading && prs.length === 0 ? (
                 <div className="flex min-h-full flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-4">
                   <p className="text-center text-sm text-muted-foreground">
-                    Loading pull requests...
+                    Loading {labels.prNounFull.toLowerCase()}s...
                   </p>
                 </div>
               ) : error && prs.length === 0 ? (
                 <div className="flex min-h-full flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-4">
                   <p className="text-center text-sm text-muted-foreground">
-                    Unable to load pull requests for this filter.
+                    Unable to load {labels.prNounFull.toLowerCase()}s for this filter.
                   </p>
                 </div>
               ) : sortedPrs.length > 0 ? (
@@ -518,7 +534,9 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
                               Review
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top">Review PR in Emdash</TooltipContent>
+                          <TooltipContent side="top">
+                            Review {labels.prNoun} in Emdash
+                          </TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -528,12 +546,17 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
                               className="h-7 gap-0.5 px-1.5 text-muted-foreground"
                               onClick={() => window.electronAPI.openExternal(pr.url)}
                             >
-                              <Github className="h-3.5 w-3.5" />
+                              {gitPlatform === 'gitlab' ? (
+                                <Gitlab className="h-3.5 w-3.5" />
+                              ) : (
+                                <Github className="h-3.5 w-3.5" />
+                              )}
                               <ArrowUpRight className="h-3 w-3" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent side="top">
-                            Open this pull request on GitHub
+                            Open this {labels.prNounFull.toLowerCase()} on{' '}
+                            {gitPlatform === 'gitlab' ? 'GitLab' : 'GitHub'}
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -543,7 +566,7 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
               ) : (
                 <div className="flex min-h-full flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-4">
                   <p className="text-center text-sm text-muted-foreground">
-                    No open PRs match this filter.
+                    No open {labels.prNoun}s match this filter.
                   </p>
                 </div>
               )}
@@ -559,7 +582,9 @@ const OpenPrsSection: React.FC<OpenPrsSectionProps> = ({ projectPath, projectId 
                 onClick={() => void loadMore()}
               >
                 {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                {loadingMore ? 'Loading PRs...' : `Load more PRs (${prs.length}/${totalCount})`}
+                {loadingMore
+                  ? `Loading ${labels.prNoun}s...`
+                  : `Load more ${labels.prNoun}s (${prs.length}/${totalCount})`}
               </Button>
             ) : null}
           </div>

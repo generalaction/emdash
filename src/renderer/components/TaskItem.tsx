@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import type { GitPlatform } from '../../shared/git/platform';
 import { ArrowUpRight, AlertCircle, Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
@@ -6,6 +7,7 @@ import { usePrStatus } from '../hooks/usePrStatus';
 import { useTaskBusy } from '../hooks/useTaskBusy';
 import PrPreviewTooltip from './PrPreviewTooltip';
 import { TaskStatusIndicator } from './TaskStatusIndicator';
+import { getPlatformLabels } from '../lib/gitPlatformLabels';
 import TaskDeleteButton from './TaskDeleteButton';
 import { useTaskStatus } from '../hooks/useTaskStatus';
 import { useTaskUnread } from '../hooks/useTaskUnread';
@@ -61,6 +63,7 @@ interface TaskItemProps {
   showDelete?: boolean;
   showDirectBadge?: boolean;
   primaryAction?: 'delete' | 'archive';
+  gitPlatform?: GitPlatform;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -73,7 +76,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   showDelete,
   showDirectBadge = true,
   primaryAction = 'delete',
+  gitPlatform,
 }) => {
+  const labels = getPlatformLabels(gitPlatform);
   const { totalAdditions, totalDeletions, isLoading } = useTaskChanges(task.path, task.id);
   const { pr } = usePrStatus(task.path);
   const isBusy = useTaskBusy(task.id);
@@ -158,7 +163,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   // Right side: PR badge only, OR changes + date, OR just date
   const rightBadge = pr ? (
-    <PrPreviewTooltip pr={pr} side="top">
+    <PrPreviewTooltip pr={pr} side="top" gitPlatform={gitPlatform}>
       <button
         type="button"
         onClick={(e) => {
@@ -166,13 +171,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           if (pr.url) window.electronAPI.openExternal(pr.url);
         }}
         className="inline-flex items-center rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-        title={`${pr.title || 'Pull Request'} (#${pr.number})`}
+        title={`${pr.title || labels.prNounFull} (#${pr.number})`}
       >
         {pr.isDraft
           ? 'Draft'
           : String(pr.state).toUpperCase() === 'OPEN'
-            ? 'View PR'
-            : `PR ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
+            ? labels.viewAction
+            : `${labels.prNoun} ${String(pr.state).charAt(0).toUpperCase() + String(pr.state).slice(1).toLowerCase()}`}
       </button>
     </PrPreviewTooltip>
   ) : (
@@ -200,6 +205,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               taskId={task.id}
               taskPath={task.path}
               useWorktree={task.useWorktree}
+              gitPlatform={gitPlatform}
               onConfirm={async () => {
                 try {
                   setIsDeleting(true);

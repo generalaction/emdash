@@ -1,3 +1,4 @@
+import type { GitPlatform } from '../../shared/git/platform';
 import type { Task as ChatTask } from './chat';
 export type Task = ChatTask & { agentId?: string };
 
@@ -8,6 +9,7 @@ export interface Project {
   isRemote?: boolean;
   sshConnectionId?: string | null;
   remotePath?: string | null;
+  gitPlatform?: GitPlatform;
   repoKey?: string;
   gitInfo: {
     isGitRepo: boolean;
