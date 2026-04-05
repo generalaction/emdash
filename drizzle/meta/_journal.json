@@ -92,6 +92,13 @@
       "when": 1743033600000,
       "tag": "0012_add_automation_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1743638400000,
+      "tag": "0013_add_git_platform_to_projects",
+      "breakpoints": true
     }
   ]
 }
