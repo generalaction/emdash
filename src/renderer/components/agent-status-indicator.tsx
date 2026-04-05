@@ -1,9 +1,11 @@
 import { Loader2 } from 'lucide-react';
-import type { TaskAgentStatus } from '@renderer/core/stores/conversation-manager';
+import type { AgentStatus } from '@renderer/core/stores/conversation-manager';
 import { cn } from '@renderer/lib/utils';
 
+export type AgentIndicatorStatus = AgentStatus | null;
+
 interface AgentStatusIndicatorProps {
-  status: TaskAgentStatus;
+  status: AgentIndicatorStatus;
   className?: string;
   dotClassName?: string;
   spinnerClassName?: string;
@@ -15,7 +17,7 @@ export function AgentStatusIndicator({
   dotClassName = 'size-2',
   spinnerClassName = 'size-3',
 }: AgentStatusIndicatorProps) {
-  if (!status) return null;
+  if (!status || status === 'idle') return null;
 
   if (status === 'working') {
     return (
@@ -26,12 +28,12 @@ export function AgentStatusIndicator({
     );
   }
 
-  if (status === 'notification') {
+  if (status === 'awaiting-input') {
     return (
       <span
         className={cn('rounded-full bg-blue-500', dotClassName, className)}
-        aria-label="Agent needs attention"
-        title="Agent needs attention"
+        aria-label="Agent is awaiting input"
+        title="Agent is awaiting input"
       />
     );
   }

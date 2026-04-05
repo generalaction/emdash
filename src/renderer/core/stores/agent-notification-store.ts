@@ -1,6 +1,7 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import {
   agentEventChannel,
+  isAttentionNotification,
   type AgentEvent,
   type NotificationType,
   type SoundEvent,
@@ -57,7 +58,7 @@ class AgentNotificationStore {
   private _handleEvent(event: AgentEvent): void {
     if (event.type === 'notification') {
       const nt = event.payload.notificationType;
-      if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
+      if (isAttentionNotification(nt)) {
         const ptyId = event.ptyId ?? event.conversationId;
         const existing = this.notificationsByTaskId.get(event.taskId) ?? [];
         // Replace any existing notification from the same PTY to avoid duplicates.
@@ -91,7 +92,7 @@ function _mapToSound(event: AgentEvent): SoundEvent | null {
   if (event.type === 'stop') return 'task_complete';
   if (event.type === 'notification') {
     const nt = event.payload.notificationType;
-    if (nt === 'permission_prompt' || nt === 'idle_prompt' || nt === 'elicitation_dialog') {
+    if (isAttentionNotification(nt)) {
       return 'needs_attention';
     }
   }

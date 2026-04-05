@@ -46,17 +46,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     };
   }, [conversationMgr, isActive]);
 
-  const activeConversation = conversationMgr?.activeTab;
-  const activeStatus = activeConversation?.status;
-  const activeSeen = activeConversation?.seen;
-
-  useEffect(() => {
-    if (!isActive) return;
-    const active = conversationMgr?.activeTab;
-    if (!active || active.seen) return;
-    active.markSeen();
-  }, [isActive, conversationMgr, conversationMgr?.activeTabId, activeStatus, activeSeen]);
-
   return (
     <TabbedPtyPanel
       autoFocus={autoFocus}
@@ -68,7 +57,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
       paneId="conversations"
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}
-      onEnterPress={(s) => conversationMgr?.setConversationWorking(s.data.id)}
+      onEnterPress={(s) => s.setWorking()}
       tabBar={<ConversationsTabs projectId={projectId} taskId={taskId} />}
       emptyState={
         <EmptyState

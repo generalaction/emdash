@@ -1,9 +1,18 @@
-import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import {
+  action,
+  autorun,
+  computed,
+  makeObservable,
+  observable,
+  onBecomeObserved,
+  runInAction,
+  type IReactionDisposer,
+} from 'mobx';
 import { Conversation, CreateConversationParams } from '@shared/conversations';
 import {
   agentEventChannel,
   agentSessionExitedChannel,
-  NotificationType,
+  isAttentionNotification,
 } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { events, rpc } from '@renderer/core/ipc';
@@ -20,30 +29,7 @@ import {
 } from '@renderer/core/stores/tab-utils';
 import { PtySession } from './pty-session';
 
-type AttentionNotificationType = Exclude<NotificationType, 'auth_success'>;
-
-const ATTENTION_NOTIFICATION_TYPES = new Set<NotificationType>([
-  'permission_prompt',
-  'idle_prompt',
-  'elicitation_dialog',
-]);
-
-function isAttentionNotificationType(type: NotificationType): type is AttentionNotificationType {
-  return ATTENTION_NOTIFICATION_TYPES.has(type);
-}
-
-export type ConversationStatus =
-  | { kind: 'idle' }
-  | { kind: 'working' }
-  | { kind: 'notification'; notificationType: AttentionNotificationType }
-  | { kind: 'error' }
-  | { kind: 'stop' };
-
-export type TaskAgentStatus = 'notification' | 'working' | 'error' | 'stop' | null;
-
-function shouldStartUnseen(status: ConversationStatus): boolean {
-  return status.kind === 'notification' || status.kind === 'error' || status.kind === 'stop';
-}
+export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
 
 export class ConversationManagerStore
   implements
@@ -51,12 +37,13 @@ export class ConversationManagerStore
     Snapshottable<TabViewSnapshot>
 {
   private _loaded = false;
-  private isVisible = false;
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
+  private disposeAutoSeen: IReactionDisposer | null = null;
   conversations = observable.map<string, ConversationStore>();
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
+  isVisible = false;
 
   constructor(
     private readonly projectId: string,
@@ -66,13 +53,13 @@ export class ConversationManagerStore
       conversations: observable,
       tabOrder: observable,
       activeTabId: observable,
+      isVisible: observable,
       tabs: computed,
       activeTab: computed,
       snapshot: computed,
       addTab: action,
       removeTab: action,
       reorderTabs: action,
-      setConversationWorking: action,
       setVisible: action,
       setNextTabActive: action,
       setPreviousTabActive: action,
@@ -90,23 +77,17 @@ export class ConversationManagerStore
       if (!conversationStore) return;
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
-        if (!nt || !isAttentionNotificationType(nt)) return;
-        conversationStore.setStatus({ kind: 'notification', notificationType: nt });
-        this.markSeenIfActiveAndVisible(conversationStore.data.id, conversationStore);
+        if (!isAttentionNotification(nt)) return;
+        conversationStore.setStatus('awaiting-input');
         return;
       }
       if (event.type === 'stop') {
-        conversationStore.setStatus({ kind: 'stop' });
-        this.markSeenIfActiveAndVisible(conversationStore.data.id, conversationStore);
+        conversationStore.setStatus('completed');
         return;
       }
       if (event.type === 'error') {
-        conversationStore.setStatus({ kind: 'error' });
-        this.markSeenIfActiveAndVisible(conversationStore.data.id, conversationStore);
+        conversationStore.setStatus('error');
         return;
-      }
-      if (event.type === 'working') {
-        conversationStore.setWorking();
       }
     });
     this.offSessionExited = events.on(agentSessionExitedChannel, (event) => {
@@ -114,6 +95,12 @@ export class ConversationManagerStore
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
       conversationStore.clearWorking();
+    });
+    this.disposeAutoSeen = autorun(() => {
+      if (!this.isVisible) return;
+      const active = this.activeTab;
+      if (!active || active.seen) return;
+      active.markSeen();
     });
   }
 
@@ -138,17 +125,10 @@ export class ConversationManagerStore
 
   setActiveTab(id: string): void {
     setTabActive(this, id);
-    this.activeTab?.markSeen();
   }
 
   setVisible(visible: boolean): void {
     this.isVisible = visible;
-  }
-
-  setConversationWorking(conversationId: string): void {
-    const conversation = this.conversations.get(conversationId);
-    if (!conversation) return;
-    conversation.setWorking();
   }
 
   reorderTabs(fromIndex: number, toIndex: number): void {
@@ -253,23 +233,25 @@ export class ConversationManagerStore
     }
   }
 
-  get taskStatus(): TaskAgentStatus {
+  get taskStatus(): AgentStatus | null {
     let hasWorking = false;
     let hasUnseenError = false;
-    let hasUnseenStop = false;
+    let hasUnseenCompleted = false;
     for (const conversation of this.conversations.values()) {
-      if (!conversation.seen && conversation.status.kind === 'notification') return 'notification';
-      if (conversation.status.kind === 'working') hasWorking = true;
-      if (!conversation.seen && conversation.status.kind === 'error') hasUnseenError = true;
-      if (!conversation.seen && conversation.status.kind === 'stop') hasUnseenStop = true;
+      if (!conversation.seen && conversation.status === 'awaiting-input') return 'awaiting-input';
+      if (conversation.status === 'working') hasWorking = true;
+      if (!conversation.seen && conversation.status === 'error') hasUnseenError = true;
+      if (!conversation.seen && conversation.status === 'completed') hasUnseenCompleted = true;
     }
     if (hasWorking) return 'working';
     if (hasUnseenError) return 'error';
-    if (hasUnseenStop) return 'stop';
+    if (hasUnseenCompleted) return 'completed';
     return null;
   }
 
   dispose(): void {
+    this.disposeAutoSeen?.();
+    this.disposeAutoSeen = null;
     this.offAgentEvents?.();
     this.offAgentEvents = null;
     this.offSessionExited?.();
@@ -278,21 +260,12 @@ export class ConversationManagerStore
       conversation.dispose();
     }
   }
-
-  private markSeenIfActiveAndVisible(
-    conversationId: string,
-    conversationStore: ConversationStore
-  ): void {
-    if (this.isVisible && this.activeTabId === conversationId) {
-      conversationStore.markSeen();
-    }
-  }
 }
 
 export class ConversationStore {
   data: Conversation;
   session: PtySession;
-  status: ConversationStatus = { kind: 'idle' };
+  status: AgentStatus = 'idle';
   seen = true;
 
   constructor(conversation: Conversation) {
@@ -303,27 +276,37 @@ export class ConversationStore {
     makeObservable(this, {
       data: observable,
       session: observable,
-      status: observable.ref,
+      status: observable,
       seen: observable,
       setStatus: action,
       setWorking: action,
       clearWorking: action,
       markSeen: action,
+      indicatorStatus: computed,
     });
   }
 
-  setStatus(status: ConversationStatus) {
+  get indicatorStatus(): AgentStatus | null {
+    if (this.status === 'working') return 'working';
+    if (this.seen) return null;
+    if (this.status === 'awaiting-input') return 'awaiting-input';
+    if (this.status === 'error') return 'error';
+    if (this.status === 'completed') return 'completed';
+    return null;
+  }
+
+  setStatus(status: AgentStatus) {
     this.status = status;
-    this.seen = !shouldStartUnseen(status);
+    this.seen = status === 'idle' || status === 'working';
   }
 
   setWorking() {
-    this.setStatus({ kind: 'working' });
+    this.setStatus('working');
   }
 
   clearWorking() {
-    if (this.status.kind === 'working') {
-      this.setStatus({ kind: 'idle' });
+    if (this.status === 'working') {
+      this.setStatus('idle');
     }
   }
 
