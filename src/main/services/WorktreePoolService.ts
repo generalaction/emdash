@@ -139,12 +139,24 @@ export class WorktreePoolService {
           : baseRef;
 
       // Verify the remote tracking ref exists (it should after fetch --all)
-      await execFileAsync('git', ['rev-parse', '--verify', `refs/remotes/origin/${branchName}`], {
-        cwd: projectPath,
-      });
+      try {
+        await execFileAsync('git', ['rev-parse', '--verify', `refs/remotes/origin/${branchName}`], {
+          cwd: projectPath,
+        });
+      } catch {
+        // Remote ref missing — fetch the specific branch and retry
+        await execFileAsync('git', ['fetch', 'origin', branchName], {
+          cwd: projectPath,
+          timeout: 15000,
+        });
+        await execFileAsync('git', ['rev-parse', '--verify', `refs/remotes/origin/${branchName}`], {
+          cwd: projectPath,
+        });
+      }
       return `origin/${branchName}`;
     } catch {
-      return baseRef; // Fallback to original if resolution fails
+      // Branch doesn't exist on remote — fall back to HEAD which always resolves
+      return 'HEAD';
     }
   }
 
