@@ -222,16 +222,18 @@ export class GitLabOperations implements GitPlatformOperations {
     headers: Record<string, string>;
     body: string;
   } {
-    const separatorIndex = raw.indexOf('\n\n');
-    if (separatorIndex === -1) {
-      return { headers: {}, body: raw };
+    const separatorMatch = raw.match(/\r?\n\r?\n/);
+    if (!separatorMatch || separatorMatch.index == null) {
+      return { headers: {}, body: raw.trim() };
     }
 
+    const separatorIndex = separatorMatch.index;
+    const separatorLength = separatorMatch[0].length;
     const headerSection = raw.slice(0, separatorIndex);
-    const body = raw.slice(separatorIndex + 2);
+    const body = raw.slice(separatorIndex + separatorLength).trim();
 
     const headers: Record<string, string> = {};
-    for (const line of headerSection.split('\n')) {
+    for (const line of headerSection.split(/\r?\n/)) {
       const colonIndex = line.indexOf(':');
       if (colonIndex !== -1) {
         const key = line.slice(0, colonIndex).trim().toLowerCase();

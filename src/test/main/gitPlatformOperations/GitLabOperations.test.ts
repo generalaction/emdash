@@ -495,5 +495,22 @@ describe('GitLabOperations', () => {
       const result = await ops.listPullRequests({});
       expect(result.prs).toHaveLength(1);
     });
+
+    it('parses CRLF-separated headers from glab --include output', async () => {
+      const body = makeListResponse(sampleMrs);
+      const executor = mockExecutor({
+        execPlatformCli: vi.fn().mockResolvedValue({
+          exitCode: 0,
+          stdout:
+            'HTTP/2.0 200 OK\r\nx-total: 10\r\nx-next-page: 2\r\nx-per-page: 30\r\n\r\n' + body,
+          stderr: '',
+        }),
+      });
+      const ops = new GitLabOperations(executor);
+      const result = await ops.listPullRequests({ limit: 30 });
+      expect(result.prs).toHaveLength(1);
+      expect(result.prs[0].number).toBe(1);
+      expect(result.totalCount).toBe(10);
+    });
   });
 });
