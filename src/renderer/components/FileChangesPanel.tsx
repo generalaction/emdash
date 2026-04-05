@@ -65,6 +65,7 @@ interface PrActionButtonProps {
   onModeChange: (mode: PrMode) => void;
   onExecute: () => Promise<void>;
   isLoading: boolean;
+  isCreating?: boolean;
   modeLabels: Record<PrMode, string>;
 }
 
@@ -73,6 +74,7 @@ function PrActionButton({
   onModeChange,
   onExecute,
   isLoading,
+  isCreating,
   modeLabels,
 }: PrActionButtonProps) {
   return (
@@ -84,7 +86,7 @@ function PrActionButton({
         disabled={isLoading}
         onClick={onExecute}
       >
-        {isLoading ? (
+        {isCreating ? (
           <span className="inline-flex items-center gap-1.5">
             <Spinner size="sm" />
             <span>Creating…</span>
@@ -769,6 +771,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onModeChange={selectPrMode}
                   onExecute={handlePrAction}
                   isLoading={isActionLoading}
+                  isCreating={isActionLoading}
                   modeLabels={prModeLabels}
                 />
               </div>
@@ -875,6 +878,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   onModeChange={selectPrMode}
                   onExecute={handlePrAction}
                   isLoading={isActionLoading || branchStatusLoading}
+                  isCreating={isActionLoading}
                   modeLabels={prModeLabels}
                 />
               ) : (
