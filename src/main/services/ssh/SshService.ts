@@ -448,7 +448,10 @@ export class SshService extends EventEmitter {
     }
 
     const target = row.username ? `${row.username}@${row.host}` : row.host;
-    const innerCommand = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
+
+    const safeCwd = cwd ? cwd.replace(/\\/g, '/') : undefined;
+    const innerCommand = safeCwd ? `cd ${quoteShellArg(safeCwd)} && ${command}` : command;
+
     const fullCommand = `bash -l -c ${quoteShellArg(innerCommand)}`;
 
     try {
