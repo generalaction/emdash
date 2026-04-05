@@ -18,6 +18,10 @@ export function getTaskGitStore(projectId: string, taskId: string) {
   return asProvisioned(getTaskStore(projectId, taskId))?.workspace.git;
 }
 
+export function taskAgentStatus(store: TaskStore): 'notification' | null {
+  return asProvisioned(store)?.conversations.taskStatus ?? null;
+}
+
 export type TaskViewKind =
   | 'missing'
   | 'project-mounting' // project is still opening — task data not yet available
