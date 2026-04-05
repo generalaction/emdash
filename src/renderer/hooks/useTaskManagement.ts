@@ -2,11 +2,13 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
 import { makePtyId } from '@shared/ptyId';
+import { buildBranchName } from '@shared/git/branchPrefix';
 import type { ProviderId } from '@shared/providers/registry';
 import { saveActiveIds, getStoredActiveIds } from '../constants/layout';
 import { getAgentForTask } from '../lib/getAgentForTask';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
+import { useAppSettings } from '../contexts/AppSettingsProvider';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { GitHubIssueLink, AgentRun } from '../types/chat';
@@ -201,6 +203,7 @@ export function useTaskManagement() {
 
   const { toast } = useToast();
   const { showModal } = useModalContext();
+  const { settings: appSettings } = useAppSettings();
   const queryClient = useQueryClient();
 
   // ---------------------------------------------------------------------------
@@ -898,18 +901,19 @@ export function useTaskManagement() {
   const handleRenameTask = useCallback(
     async (targetProject: Project, task: Task, newName: string) => {
       const oldBranch = task.branch;
-      let newBranch: string;
-      const branchMatch = oldBranch.match(/^([^/]+)\/(.+)-([a-z0-9]+)$/i);
-      if (branchMatch) {
-        const [, prefix, , hash] = branchMatch;
-        const sluggedName = newName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '');
-        newBranch = `${prefix}/${sluggedName}-${hash}`;
-      } else {
-        newBranch = oldBranch;
-      }
+      const sluggedName = newName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+
+      // Extract the existing hash from the old branch (last segment after final hyphen)
+      const hashMatch = oldBranch.match(/-([a-z0-9]+)$/i);
+      const hash = hashMatch ? hashMatch[1] : '';
+
+      const prefix = appSettings?.repository?.branchPrefix ?? 'emdash';
+      const branchHash = appSettings?.repository?.appendHashToBranch === false ? '' : hash;
+      const newBranch = buildBranchName(prefix, sluggedName, branchHash);
+
       await renameTaskMutation.mutateAsync({
         project: targetProject,
         task,
@@ -917,7 +921,7 @@ export function useTaskManagement() {
         newBranch,
       });
     },
-    [renameTaskMutation]
+    [renameTaskMutation, appSettings]
   );
 
   // ---------------------------------------------------------------------------
