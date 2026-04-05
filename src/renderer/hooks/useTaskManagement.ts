@@ -8,7 +8,6 @@ import { saveActiveIds, getStoredActiveIds } from '../constants/layout';
 import { getAgentForTask } from '../lib/getAgentForTask';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
-import { useAppSettings } from '../contexts/AppSettingsProvider';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { GitHubIssueLink, AgentRun } from '../types/chat';
@@ -203,7 +202,6 @@ export function useTaskManagement() {
 
   const { toast } = useToast();
   const { showModal } = useModalContext();
-  const { settings: appSettings } = useAppSettings();
   const queryClient = useQueryClient();
 
   // ---------------------------------------------------------------------------
@@ -910,8 +908,9 @@ export function useTaskManagement() {
       const hashMatch = oldBranch.match(/-([a-z0-9]+)$/i);
       const hash = hashMatch ? hashMatch[1] : '';
 
-      const prefix = appSettings?.repository?.branchPrefix ?? 'emdash';
-      const branchHash = appSettings?.repository?.appendHashToBranch === false ? '' : hash;
+      const settings = await rpc.appSettings.get();
+      const prefix = settings?.repository?.branchPrefix ?? 'emdash';
+      const branchHash = settings?.repository?.appendHashToBranch === false ? '' : hash;
       const newBranch = buildBranchName(prefix, sluggedName, branchHash);
 
       await renameTaskMutation.mutateAsync({
@@ -921,7 +920,7 @@ export function useTaskManagement() {
         newBranch,
       });
     },
-    [renameTaskMutation, appSettings]
+    [renameTaskMutation]
   );
 
   // ---------------------------------------------------------------------------
