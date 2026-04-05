@@ -191,8 +191,9 @@ export class WorktreeService {
     try {
       const { getAppSettings } = await import('../settings');
       const settings = getAppSettings();
-      const prefix = settings?.repository?.branchPrefix || 'emdash';
-      branchName = this.sanitizeBranchName(`${prefix}/${sluggedName}-${hash}`);
+      const { buildBranchName } = await import('@shared/git/branchPrefix');
+      const prefix = settings?.repository?.branchPrefix ?? 'emdash';
+      branchName = this.sanitizeBranchName(buildBranchName(prefix, sluggedName, hash));
       worktreePath = path.join(projectPath, '..', `worktrees/${sluggedName}-${hash}`);
       const worktreeId = this.stableIdFromPath(worktreePath);
 
@@ -328,13 +329,32 @@ export class WorktreeService {
 
       const worktrees: WorktreeInfo[] = [];
       const lines = stdout.trim().split('\n');
-      // Compute managed prefixes based on configured prefix
+      // Compute managed prefixes based on configured prefix.
+      // When branchPrefix is empty (None mode), branches use conventional
+      // commit types as prefixes — add those to the managed list.
+      const CONVENTIONAL_PREFIXES = [
+        'feat',
+        'fix',
+        'docs',
+        'style',
+        'refactor',
+        'perf',
+        'test',
+        'chore',
+        'ci',
+        'build',
+        'revert',
+      ];
       let managedPrefixes: string[] = ['emdash', 'agent', 'pr', 'orch'];
       try {
         const { getAppSettings } = await import('../settings');
         const settings = getAppSettings();
         const p = settings?.repository?.branchPrefix;
-        if (p) managedPrefixes = Array.from(new Set([p, ...managedPrefixes]));
+        if (p) {
+          managedPrefixes = Array.from(new Set([p, ...managedPrefixes]));
+        } else {
+          managedPrefixes = Array.from(new Set([...managedPrefixes, ...CONVENTIONAL_PREFIXES]));
+        }
       } catch {}
 
       for (const line of lines) {
