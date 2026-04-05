@@ -1,7 +1,8 @@
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { Conversation, CreateConversationParams } from '@shared/conversations';
+import { agentEventChannel, AgentEventType, NotificationType } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { rpc } from '@renderer/core/ipc';
+import { events, rpc } from '@renderer/core/ipc';
 import { TabViewProvider, TabViewSnapshot } from '@renderer/core/stores/generic-tab-view';
 import { Snapshottable } from '@renderer/core/stores/snapshottable';
 import {
@@ -21,6 +22,7 @@ export class ConversationManagerStore
     Snapshottable<TabViewSnapshot>
 {
   private _loaded = false;
+  private offAgentEvents: (() => void) | null = null;
   conversations = observable.map<string, ConversationStore>();
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
@@ -43,10 +45,17 @@ export class ConversationManagerStore
       setPreviousTabActive: action,
       setTabActiveIndex: action,
       setActiveTab: action,
+      taskStatus: computed,
     });
     onBecomeObserved(this, 'tabOrder', () => {
       if (this._loaded) return;
       this.load();
+    });
+    this.offAgentEvents = events.on(agentEventChannel, ({ event }) => {
+      if (event.taskId !== this.taskId) return;
+      const conversationStore = this.conversations.get(event.conversationId);
+      if (!conversationStore) return;
+      conversationStore.setType(event.type, event.payload.notificationType);
     });
   }
 
@@ -174,18 +183,46 @@ export class ConversationManagerStore
       throw err;
     }
   }
+
+  get taskStatus(): 'notification' | null {
+    for (const conversation of this.conversations.values()) {
+      if (conversation.type === 'notification') return 'notification';
+    }
+    return null;
+  }
+
+  dispose(): void {
+    this.offAgentEvents?.();
+    this.offAgentEvents = null;
+    for (const conversation of this.conversations.values()) {
+      conversation.dispose();
+    }
+  }
 }
 
 export class ConversationStore {
   data: Conversation;
   session: PtySession;
+  type: AgentEventType | undefined = undefined;
+  notificationType: NotificationType | undefined = undefined;
 
   constructor(conversation: Conversation) {
     this.data = conversation;
     this.session = new PtySession(
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
     );
-    makeObservable(this, { data: observable, session: observable });
+    makeObservable(this, {
+      data: observable,
+      session: observable,
+      type: observable,
+      notificationType: observable,
+      setType: action,
+    });
+  }
+
+  setType(type: AgentEventType, notificationType: NotificationType | undefined) {
+    this.type = type;
+    this.notificationType = notificationType;
   }
 
   dispose() {
