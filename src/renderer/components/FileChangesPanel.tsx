@@ -818,6 +818,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                   <span className="text-muted-foreground">
                     {branchDiffStats.files} {branchDiffStats.files === 1 ? 'file' : 'files'}
                   </span>
+                  {branchAhead != null && branchAhead > 0 && (
+                    <>
+                      <span className="text-muted-foreground">&middot;</span>
+                      <span className="text-muted-foreground">
+                        {branchAhead} {branchAhead === 1 ? 'commit' : 'commits'}
+                      </span>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
