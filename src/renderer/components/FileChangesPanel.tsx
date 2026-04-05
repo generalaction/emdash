@@ -84,7 +84,14 @@ function PrActionButton({
         disabled={isLoading}
         onClick={onExecute}
       >
-        {isLoading ? <Spinner size="sm" /> : modeLabels[mode]}
+        {isLoading ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner size="sm" />
+            <span>Creating…</span>
+          </span>
+        ) : (
+          modeLabels[mode]
+        )}
       </Button>
       <Popover>
         <PopoverTrigger asChild>
