@@ -59,6 +59,7 @@ describe('DatabaseService.saveProject', () => {
     isRemote: true,
     sshConnectionId: 'ssh-1',
     remotePath: '/srv/project-one',
+    gitPlatform: 'github',
     gitInfo: {
       isGitRepo: true,
       remote: 'origin',
