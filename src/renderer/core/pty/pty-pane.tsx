@@ -21,6 +21,7 @@ type Props = {
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
+  onEnterPress?: () => void;
 };
 
 const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
@@ -36,6 +37,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       onActivity,
       onExit,
       onFirstMessage,
+      onEnterPress,
     },
     ref
   ) => {
@@ -52,6 +54,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         onActivity,
         onExit,
         onFirstMessage,
+        onEnterPress,
       },
       containerRef
     );

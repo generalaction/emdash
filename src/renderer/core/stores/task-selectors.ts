@@ -1,3 +1,4 @@
+import type { TaskAgentStatus } from './conversation-manager';
 import { isUnmountedProject } from './project';
 import { getProjectManagerStore } from './project-selectors';
 import { isUnprovisioned, isUnregistered, ProvisionedTask, TaskStore } from './task';
@@ -18,7 +19,7 @@ export function getTaskGitStore(projectId: string, taskId: string) {
   return asProvisioned(getTaskStore(projectId, taskId))?.workspace.git;
 }
 
-export function taskAgentStatus(store: TaskStore): 'notification' | null {
+export function taskAgentStatus(store: TaskStore): TaskAgentStatus {
   return asProvisioned(store)?.conversations.taskStatus ?? null;
 }
 

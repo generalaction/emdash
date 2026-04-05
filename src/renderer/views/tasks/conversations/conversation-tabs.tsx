@@ -1,11 +1,15 @@
 import { Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import AgentLogo from '@renderer/components/agent-logo';
+import { AgentStatusIndicator } from '@renderer/components/agent-status-indicator';
 import ShortcutHint from '@renderer/components/ui/shortcut-hint';
 import { TabBar } from '@renderer/components/ui/tab-bar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { ConversationStore } from '@renderer/core/stores/conversation-manager';
+import {
+  ConversationStore,
+  type TaskAgentStatus,
+} from '@renderer/core/stores/conversation-manager';
 import { agentConfig } from '@renderer/lib/agentConfig';
 import { useProvisionedTask } from '../task-view-context';
 
@@ -33,15 +37,27 @@ export const ConversationsTabs = observer(function ConversationsTabs({
       }}
       renderTabPrefix={(s) => {
         const config = agentConfig[s.data.providerId];
-        if (!config?.logo) return null;
+        const indicatorStatus: TaskAgentStatus =
+          s.status.kind === 'working'
+            ? 'working'
+            : s.seen
+              ? null
+              : s.status.kind === 'notification' ||
+                  s.status.kind === 'error' ||
+                  s.status.kind === 'stop'
+                ? s.status.kind
+                : null;
         return (
-          <AgentLogo
-            logo={config.logo}
-            alt={config.alt}
-            isSvg={config.isSvg}
-            invertInDark={config.invertInDark}
-            className="size-4"
-          />
+          <span className="flex items-center gap-1">
+            <AgentLogo
+              logo={config.logo}
+              alt={config.alt}
+              isSvg={config.isSvg}
+              invertInDark={config.invertInDark}
+              className="size-4"
+            />
+            <AgentStatusIndicator status={indicatorStatus} />
+          </span>
         );
       }}
       onRename={(id, name) => void conversationMgr.renameConversation(id, name)}

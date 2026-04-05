@@ -1,6 +1,10 @@
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { Conversation, CreateConversationParams } from '@shared/conversations';
-import { agentEventChannel, AgentEventType, NotificationType } from '@shared/events/agentEvents';
+import {
+  agentEventChannel,
+  agentSessionExitedChannel,
+  NotificationType,
+} from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { events, rpc } from '@renderer/core/ipc';
 import { TabViewProvider, TabViewSnapshot } from '@renderer/core/stores/generic-tab-view';
@@ -16,13 +20,40 @@ import {
 } from '@renderer/core/stores/tab-utils';
 import { PtySession } from './pty-session';
 
+type AttentionNotificationType = Exclude<NotificationType, 'auth_success'>;
+
+const ATTENTION_NOTIFICATION_TYPES = new Set<NotificationType>([
+  'permission_prompt',
+  'idle_prompt',
+  'elicitation_dialog',
+]);
+
+function isAttentionNotificationType(type: NotificationType): type is AttentionNotificationType {
+  return ATTENTION_NOTIFICATION_TYPES.has(type);
+}
+
+export type ConversationStatus =
+  | { kind: 'idle' }
+  | { kind: 'working' }
+  | { kind: 'notification'; notificationType: AttentionNotificationType }
+  | { kind: 'error' }
+  | { kind: 'stop' };
+
+export type TaskAgentStatus = 'notification' | 'working' | 'error' | 'stop' | null;
+
+function shouldStartUnseen(status: ConversationStatus): boolean {
+  return status.kind === 'notification' || status.kind === 'error' || status.kind === 'stop';
+}
+
 export class ConversationManagerStore
   implements
     TabViewProvider<ConversationStore, CreateConversationParams>,
     Snapshottable<TabViewSnapshot>
 {
   private _loaded = false;
+  private isVisible = false;
   private offAgentEvents: (() => void) | null = null;
+  private offSessionExited: (() => void) | null = null;
   conversations = observable.map<string, ConversationStore>();
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
@@ -41,6 +72,8 @@ export class ConversationManagerStore
       addTab: action,
       removeTab: action,
       reorderTabs: action,
+      setConversationWorking: action,
+      setVisible: action,
       setNextTabActive: action,
       setPreviousTabActive: action,
       setTabActiveIndex: action,
@@ -55,7 +88,32 @@ export class ConversationManagerStore
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
-      conversationStore.setType(event.type, event.payload.notificationType);
+      if (event.type === 'notification') {
+        const nt = event.payload.notificationType;
+        if (!nt || !isAttentionNotificationType(nt)) return;
+        conversationStore.setStatus({ kind: 'notification', notificationType: nt });
+        this.markSeenIfActiveAndVisible(conversationStore.data.id, conversationStore);
+        return;
+      }
+      if (event.type === 'stop') {
+        conversationStore.setStatus({ kind: 'stop' });
+        this.markSeenIfActiveAndVisible(conversationStore.data.id, conversationStore);
+        return;
+      }
+      if (event.type === 'error') {
+        conversationStore.setStatus({ kind: 'error' });
+        this.markSeenIfActiveAndVisible(conversationStore.data.id, conversationStore);
+        return;
+      }
+      if (event.type === 'working') {
+        conversationStore.setWorking();
+      }
+    });
+    this.offSessionExited = events.on(agentSessionExitedChannel, (event) => {
+      if (event.taskId !== this.taskId) return;
+      const conversationStore = this.conversations.get(event.conversationId);
+      if (!conversationStore) return;
+      conversationStore.clearWorking();
     });
   }
 
@@ -80,6 +138,17 @@ export class ConversationManagerStore
 
   setActiveTab(id: string): void {
     setTabActive(this, id);
+    this.activeTab?.markSeen();
+  }
+
+  setVisible(visible: boolean): void {
+    this.isVisible = visible;
+  }
+
+  setConversationWorking(conversationId: string): void {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) return;
+    conversation.setWorking();
   }
 
   reorderTabs(fromIndex: number, toIndex: number): void {
@@ -133,9 +202,9 @@ export class ConversationManagerStore
     const conversation = await rpc.conversations.createConversation(params);
     runInAction(() => {
       const store = new ConversationStore(conversation);
-      this.conversations.set(params.id, store);
-      addTabId(this, params.id);
-      setTabActive(this, params.id);
+      this.conversations.set(conversation.id, store);
+      addTabId(this, conversation.id);
+      this.setActiveTab(conversation.id);
       void store.session.connect();
     });
     return conversation;
@@ -184,18 +253,38 @@ export class ConversationManagerStore
     }
   }
 
-  get taskStatus(): 'notification' | null {
+  get taskStatus(): TaskAgentStatus {
+    let hasWorking = false;
+    let hasUnseenError = false;
+    let hasUnseenStop = false;
     for (const conversation of this.conversations.values()) {
-      if (conversation.type === 'notification') return 'notification';
+      if (!conversation.seen && conversation.status.kind === 'notification') return 'notification';
+      if (conversation.status.kind === 'working') hasWorking = true;
+      if (!conversation.seen && conversation.status.kind === 'error') hasUnseenError = true;
+      if (!conversation.seen && conversation.status.kind === 'stop') hasUnseenStop = true;
     }
+    if (hasWorking) return 'working';
+    if (hasUnseenError) return 'error';
+    if (hasUnseenStop) return 'stop';
     return null;
   }
 
   dispose(): void {
     this.offAgentEvents?.();
     this.offAgentEvents = null;
+    this.offSessionExited?.();
+    this.offSessionExited = null;
     for (const conversation of this.conversations.values()) {
       conversation.dispose();
+    }
+  }
+
+  private markSeenIfActiveAndVisible(
+    conversationId: string,
+    conversationStore: ConversationStore
+  ): void {
+    if (this.isVisible && this.activeTabId === conversationId) {
+      conversationStore.markSeen();
     }
   }
 }
@@ -203,8 +292,8 @@ export class ConversationManagerStore
 export class ConversationStore {
   data: Conversation;
   session: PtySession;
-  type: AgentEventType | undefined = undefined;
-  notificationType: NotificationType | undefined = undefined;
+  status: ConversationStatus = { kind: 'idle' };
+  seen = true;
 
   constructor(conversation: Conversation) {
     this.data = conversation;
@@ -214,15 +303,32 @@ export class ConversationStore {
     makeObservable(this, {
       data: observable,
       session: observable,
-      type: observable,
-      notificationType: observable,
-      setType: action,
+      status: observable.ref,
+      seen: observable,
+      setStatus: action,
+      setWorking: action,
+      clearWorking: action,
+      markSeen: action,
     });
   }
 
-  setType(type: AgentEventType, notificationType: NotificationType | undefined) {
-    this.type = type;
-    this.notificationType = notificationType;
+  setStatus(status: ConversationStatus) {
+    this.status = status;
+    this.seen = !shouldStartUnseen(status);
+  }
+
+  setWorking() {
+    this.setStatus({ kind: 'working' });
+  }
+
+  clearWorking() {
+    if (this.status.kind === 'working') {
+      this.setStatus({ kind: 'idle' });
+    }
+  }
+
+  markSeen() {
+    this.seen = true;
   }
 
   dispose() {

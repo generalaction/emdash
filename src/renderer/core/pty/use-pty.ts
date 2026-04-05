@@ -65,6 +65,7 @@ export interface UsePtyOptions {
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
+  onEnterPress?: () => void;
 }
 
 export interface UseTerminalReturn {
@@ -94,8 +95,16 @@ export function usePty(
   options: UsePtyOptions,
   containerRef: React.RefObject<HTMLElement | null>
 ): UseTerminalReturn {
-  const { sessionId, pty, theme, mapShiftEnterToCtrlJ, onActivity, onExit, onFirstMessage } =
-    options;
+  const {
+    sessionId,
+    pty,
+    theme,
+    mapShiftEnterToCtrlJ,
+    onActivity,
+    onExit,
+    onFirstMessage,
+    onEnterPress,
+  } = options;
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
   const onActivityRef = useRef(onActivity);
@@ -104,6 +113,8 @@ export function usePty(
   onExitRef.current = onExit;
   const onFirstMessageRef = useRef(onFirstMessage);
   onFirstMessageRef.current = onFirstMessage;
+  const onEnterPressRef = useRef(onEnterPress);
+  onEnterPressRef.current = onEnterPress;
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -435,6 +446,7 @@ export function usePty(
         }
 
         const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
+        if (isEnterPress) onEnterPressRef.current?.();
         const pendingText = pendingInjectionManager.getPending();
         if (pendingText && isEnterPress && !isNewlineInsert) {
           const stripped = filtered.replace(/[\r\n]+$/g, '');

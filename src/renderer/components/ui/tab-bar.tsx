@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { observer } from 'mobx-react-lite';
+import { observer, Observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { ReorderList } from '@renderer/components/reorder-list';
 import { cn } from '@renderer/lib/utils';
@@ -143,7 +143,7 @@ export const TabBar = observer(function TabBar<TEntity>({
           itemClassName="list-none flex h-full"
           getKey={(item) => getId(item)}
         >
-          {renderTab}
+          {(entity) => <Observer>{() => renderTab(entity)}</Observer>}
         </ReorderList>
       ) : (
         <div className="flex overflow-x-auto h-full">{tabs.map((entity) => renderTab(entity))}</div>
