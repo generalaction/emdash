@@ -1793,6 +1793,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
         // Count commits ahead of origin/<defaultBranch> (for PR visibility)
         let aheadOfDefault = 0;
+        let defaultDiffStats: { additions: number; deletions: number; files: number } | undefined;
         if (branch !== defaultBranch) {
           try {
             const { stdout: countOut } = await execFileAsync(
@@ -1804,9 +1805,37 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           } catch {
             // origin/<defaultBranch> may not exist
           }
+
+          if (aheadOfDefault > 0) {
+            try {
+              const { stdout: shortstat } = await execFileAsync(
+                GIT,
+                ['diff', '--shortstat', `origin/${defaultBranch}...HEAD`],
+                { cwd: taskPath }
+              );
+              const filesMatch = shortstat.match(/(\d+)\s+files?\s+changed/);
+              const insMatch = shortstat.match(/(\d+)\s+insertions?\(\+\)/);
+              const delMatch = shortstat.match(/(\d+)\s+deletions?\(-\)/);
+              defaultDiffStats = {
+                files: parseInt(filesMatch?.[1] || '0', 10) || 0,
+                additions: parseInt(insMatch?.[1] || '0', 10) || 0,
+                deletions: parseInt(delMatch?.[1] || '0', 10) || 0,
+              };
+            } catch {
+              // Non-fatal
+            }
+          }
         }
 
-        return { success: true, branch, defaultBranch, ahead, behind, aheadOfDefault };
+        return {
+          success: true,
+          branch,
+          defaultBranch,
+          ahead,
+          behind,
+          aheadOfDefault,
+          defaultDiffStats,
+        };
       } catch (error) {
         log.error(`getBranchStatus: unexpected error for ${taskPath}:`, error);
         return { success: false, error: error instanceof Error ? error.message : String(error) };
