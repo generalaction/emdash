@@ -9,6 +9,8 @@ const execFileAsync = promisify(execFile);
 export interface GeneratedPrContent {
   title: string;
   description: string;
+  commitMessage?: string;
+  branchName?: string;
 }
 
 /**
@@ -24,7 +26,9 @@ export class PrGenerationService {
   async generatePrContent(
     taskPath: string,
     baseBranch: string = 'main',
-    preferredProviderId?: string | null
+    preferredProviderId?: string | null,
+    sessionId?: string | null,
+    branchPrefix?: string
   ): Promise<GeneratedPrContent> {
     try {
       // Get git diff and commit messages
@@ -32,6 +36,17 @@ export class PrGenerationService {
 
       if (!diff && commits.length === 0) {
         return this.generateFallbackContent(changedFiles);
+      }
+
+      // Get current branch name for the prompt
+      let currentBranch = '';
+      try {
+        const { stdout } = await execFileAsync('git', ['branch', '--show-current'], {
+          cwd: taskPath,
+        });
+        currentBranch = (stdout || '').trim();
+      } catch {
+        // Non-fatal
       }
 
       // Build ordered list of providers to try: preferred → claude → remaining
@@ -51,12 +66,22 @@ export class PrGenerationService {
         attempted.add(providerId);
 
         try {
-          const result = await this.generateWithProvider(providerId, taskPath, diff, commits);
+          const result = await this.generateWithProvider(
+            providerId,
+            taskPath,
+            diff,
+            commits,
+            currentBranch,
+            providerId === 'claude' ? sessionId : undefined,
+            branchPrefix
+          );
           if (result) {
             log.info(`Generated PR content with ${providerId}`);
             return {
               title: result.title,
               description: this.normalizeMarkdown(result.description),
+              commitMessage: result.commitMessage,
+              branchName: result.branchName,
             };
           }
         } catch (error) {
@@ -247,7 +272,10 @@ export class PrGenerationService {
     providerId: ProviderId,
     taskPath: string,
     diff: string,
-    commits: string[]
+    commits: string[],
+    currentBranch?: string,
+    sessionId?: string | null,
+    branchPrefix?: string
   ): Promise<GeneratedPrContent | null> {
     if (!this.canUseForPrGeneration(providerId)) {
       return null;
@@ -267,7 +295,7 @@ export class PrGenerationService {
     }
 
     // Build prompt for PR generation
-    const prompt = this.buildPrGenerationPrompt(diff, commits);
+    const prompt = this.buildPrGenerationPrompt(diff, commits, currentBranch, branchPrefix);
 
     // Try up to 2 times: retry once if the process succeeded but JSON parsing failed
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -276,7 +304,8 @@ export class PrGenerationService {
         cliCommand,
         provider,
         taskPath,
-        prompt
+        prompt,
+        sessionId
       );
       if (result) return result;
       if (!shouldRetry) break;
@@ -295,7 +324,8 @@ export class PrGenerationService {
     cliCommand: string,
     provider: ReturnType<typeof getProvider>,
     taskPath: string,
-    prompt: string
+    prompt: string,
+    sessionId?: string | null
   ): Promise<{ result: GeneratedPrContent | null; shouldRetry: boolean }> {
     return new Promise((resolve) => {
       const timeout = 60000;
@@ -314,9 +344,20 @@ export class PrGenerationService {
       const isClaudeProvider = providerId === 'claude';
 
       if (isClaudeProvider) {
-        // Use -p (print/non-interactive) mode with structured JSON output.
-        // This eliminates ANSI escapes, progress indicators, and TUI noise.
-        args.push('-p', prompt, '--output-format', 'json');
+        // When we have a session ID, fork the session so Claude has the full
+        // conversation context. Use Sonnet for speed/cost.
+        if (sessionId) {
+          args.push('--resume', sessionId, '--fork-session');
+        }
+        args.push(
+          '-p',
+          prompt,
+          '--output-format',
+          'json',
+          '--model',
+          'sonnet',
+          '--no-session-persistence'
+        );
         if (provider!.autoApproveFlag) {
           args.push(provider!.autoApproveFlag);
         }
@@ -418,21 +459,33 @@ export class PrGenerationService {
   /**
    * Build prompt for PR generation
    */
-  private buildPrGenerationPrompt(diff: string, commits: string[]): string {
+  private buildPrGenerationPrompt(
+    diff: string,
+    commits: string[],
+    currentBranch?: string,
+    branchPrefix?: string
+  ): string {
     const commitContext =
       commits.length > 0 ? `\n\nCommits:\n${commits.map((c) => `- ${c}`).join('\n')}` : '';
     const diffContext = diff
       ? `\n\nDiff summary:\n${diff.substring(0, 2000)}${diff.length > 2000 ? '...' : ''}`
       : '';
+    const branchContext = currentBranch ? `\n\nCurrent branch: ${currentBranch}` : '';
 
-    return `Generate a concise PR title and description based on these changes:
+    const prefixInstruction = branchPrefix
+      ? `The branch name MUST start with the prefix "${branchPrefix}/". Format: ${branchPrefix}/<slug> (e.g. ${branchPrefix}/add-user-auth).`
+      : 'Use conventional commit type as prefix (e.g. feat/add-user-auth, fix/resolve-login-crash).';
 
-${commitContext}${diffContext}
+    return `Generate PR metadata based on these changes. You have the full session context of the work that was done — use it to understand what was built and why, not just the diff.
+
+${commitContext}${diffContext}${branchContext}
 
 Respond with ONLY valid JSON — no markdown fences, no preamble, no explanation. Your entire response must be exactly one JSON object:
 {
   "title": "A concise PR title (max 72 chars, use conventional commit format if applicable)",
-  "description": "A well-structured markdown description using proper markdown formatting. Use ## for section headers, - or * for lists, \`code\` for inline code, and proper line breaks.\n\nUse actual newlines (\\n in JSON) for line breaks, not literal \\n text. Keep it straightforward and to the point."
+  "description": "A well-structured markdown description using proper markdown formatting. Use ## for section headers, - or * for lists, \`code\` for inline code, and proper line breaks.\n\nUse actual newlines (\\n in JSON) for line breaks, not literal \\n text. Keep it straightforward and to the point.",
+  "commitMessage": "A descriptive commit message for the final commit (can be longer than the title, explains the what and why)",
+  "branchName": "A slug-style branch name. Max 64 chars. ${prefixInstruction} Only lowercase alphanumeric, hyphens, and one forward slash."
 }`;
   }
 
@@ -490,10 +543,24 @@ Respond with ONLY valid JSON — no markdown fences, no preamble, no explanation
 
           description = description.trim();
 
-          return {
+          const result: GeneratedPrContent = {
             title: parsed.title.trim(),
             description,
           };
+          if (parsed.commitMessage && typeof parsed.commitMessage === 'string') {
+            let msg = String(parsed.commitMessage);
+            // Unescape literal \n sequences (same issue as description)
+            if (msg.includes('\\n')) {
+              msg = msg.replace(/\\n/g, '\n');
+            }
+            msg = msg.replace(/\\\\n/g, '\n');
+            // Use only the first line — multi-paragraph bodies don't belong in -m
+            result.commitMessage = msg.split('\n')[0].trim();
+          }
+          if (parsed.branchName && typeof parsed.branchName === 'string') {
+            result.branchName = parsed.branchName.trim().slice(0, 64);
+          }
+          return result;
         }
       }
     } catch (error) {

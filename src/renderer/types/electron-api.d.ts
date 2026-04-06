@@ -533,6 +533,9 @@ declare global {
         success: boolean;
         title?: string;
         description?: string;
+        commitMessage?: string;
+        branchName?: string;
+        currentBranch?: string;
         error?: string;
       }>;
       createPullRequest: (args: {

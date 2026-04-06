@@ -260,6 +260,27 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
   const [isMergingToMain, setIsMergingToMain] = useState(false);
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
+  const [branchRenameSuggestion, setBranchRenameSuggestion] = useState<{
+    from: string;
+    to: string;
+  } | null>(null);
+  const [isGeneratingPrContent, setIsGeneratingPrContent] = useState(false);
+  // Track whether we've already checked for branch rename to avoid double-generation
+  const branchRenameCheckedRef = useRef(false);
+  // Cache the generated PR content from the first call so we don't invoke the provider twice
+  const generatedPrContentRef = useRef<{
+    title?: string;
+    body?: string;
+    commitMessage?: string;
+  } | null>(null);
+
+  // Reset branch rename state when switching tasks to avoid cross-task collisions
+  useEffect(() => {
+    setBranchRenameSuggestion(null);
+    setIsGeneratingPrContent(false);
+    branchRenameCheckedRef.current = false;
+    generatedPrContentRef.current = null;
+  }, [safeTaskPath]);
   const [prMode, setPrMode] = useState<PrMode>(() => {
     try {
       const stored = localStorage.getItem('emdash:prMode');
@@ -649,29 +670,80 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     }
   };
 
-  const handlePrAction = async () => {
+  const handlePrAction = async (overrideBranchRename?: { from: string; to: string } | null) => {
+    // When called from PrActionButton's onClick, the first arg is a React event — ignore it
+    const branchRename =
+      overrideBranchRename && 'from' in overrideBranchRename && 'to' in overrideBranchRename
+        ? overrideBranchRename
+        : null;
+
     if (prMode === 'merge') {
       setShowMergeConfirm(true);
       return;
-    } else {
-      void (async () => {
-        const { captureTelemetry } = await import('../lib/telemetryClient');
-        captureTelemetry('pr_created');
-      })();
-      await createPR({
-        taskPath: safeTaskPath,
-        gitPlatform,
-        prOptions: prMode === 'draft' ? { draft: true } : undefined,
-        onSuccess: async () => {
-          await refreshChanges();
-          try {
-            await refreshPr();
-          } catch {
-            // PR refresh is best-effort
-          }
-        },
-      });
     }
+
+    const api: any = (window as any).electronAPI;
+
+    // First call: generate PR content and check for branch rename suggestion (only once)
+    if (!branchRenameCheckedRef.current && api?.generatePrContent) {
+      branchRenameCheckedRef.current = true;
+      setIsGeneratingPrContent(true);
+      try {
+        const generated = await api.generatePrContent({
+          taskPath: safeTaskPath,
+        });
+        if (generated?.success) {
+          // Cache the generated content so useCreatePR doesn't call again
+          generatedPrContentRef.current = {
+            title: generated.title,
+            body: generated.description,
+            commitMessage: generated.commitMessage,
+          };
+
+          if (
+            generated.branchName &&
+            generated.currentBranch &&
+            generated.branchName !== generated.currentBranch
+          ) {
+            setBranchRenameSuggestion({
+              from: generated.currentBranch,
+              to: generated.branchName,
+            });
+            setIsGeneratingPrContent(false);
+            // Don't proceed yet — show rename UI and let user decide
+            return;
+          }
+        }
+      } catch {
+        // Non-fatal — proceed without rename suggestion
+      } finally {
+        setIsGeneratingPrContent(false);
+      }
+    }
+
+    const cached = generatedPrContentRef.current;
+    await createPR({
+      taskPath: safeTaskPath,
+      gitPlatform,
+      branchRename: branchRename,
+      commitMessage: cached?.commitMessage,
+      prOptions: {
+        ...(prMode === 'draft' ? { draft: true } : undefined),
+        ...(cached?.title ? { title: cached.title } : undefined),
+        ...(cached?.body ? { body: cached.body } : undefined),
+      },
+      onSuccess: async () => {
+        setBranchRenameSuggestion(null);
+        branchRenameCheckedRef.current = false;
+        generatedPrContentRef.current = null;
+        await refreshChanges();
+        try {
+          await refreshPr();
+        } catch {
+          // PR refresh is best-effort
+        }
+      },
+    });
   };
 
   const handleToggleCommitFiles = useCallback(
@@ -772,7 +844,8 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     return null;
   }
 
-  const isActionLoading = isCreatingForTaskPath(safeTaskPath) || isMergingToMain;
+  const isActionLoading =
+    isCreatingForTaskPath(safeTaskPath) || isMergingToMain || isGeneratingPrContent;
   const hasDisplayChanges = displayChanges.length > 0;
 
   return (
@@ -905,6 +978,46 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
                 />
               </div>
             </div>
+
+            {branchRenameSuggestion && (
+              <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-xs">
+                <div className="mb-1.5 text-muted-foreground">Suggested branch rename:</div>
+                <div className="mb-2 flex items-center gap-1.5">
+                  <code className="break-all rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground line-through">
+                    {branchRenameSuggestion.from}
+                  </code>
+                  <span className="shrink-0 text-muted-foreground">&rarr;</span>
+                  <code className="break-all rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">
+                    {branchRenameSuggestion.to}
+                  </code>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-6 px-3 text-xs"
+                    onClick={() => {
+                      const rename = branchRenameSuggestion;
+                      setBranchRenameSuggestion(null);
+                      void handlePrAction(rename);
+                    }}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-3 text-xs"
+                    onClick={() => {
+                      setBranchRenameSuggestion(null);
+                      void handlePrAction(null);
+                    }}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {hasStagedChanges && (
               <div className="flex items-center space-x-2">
