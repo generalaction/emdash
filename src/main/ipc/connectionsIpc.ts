@@ -47,6 +47,7 @@ interface ModelCache {
   expiresAt: number;
 }
 let claudeModelCache: ModelCache | null = null;
+let claudeModelCacheGeneration = 0;
 const MODEL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /** Fetch available models from the Anthropic API. Returns null when unavailable. */
@@ -180,9 +181,13 @@ export function registerConnectionsIpc() {
       return { success: true, models: claudeModelCache.models };
     }
 
+    // Snapshot the generation before the async fetch. If the config is updated
+    // while we're awaiting, the generation will have changed and we discard the
+    // result to avoid repopulating the cache with stale models.
+    const generation = claudeModelCacheGeneration;
     try {
       const fetched = await fetchAnthropicModels();
-      if (fetched) {
+      if (fetched && generation === claudeModelCacheGeneration) {
         claudeModelCache = { models: fetched, expiresAt: Date.now() + MODEL_CACHE_TTL_MS };
         return { success: true, models: fetched };
       }
@@ -205,7 +210,10 @@ export function registerConnectionsIpc() {
         updateProviderCustomConfig(providerId, config);
         // Bust the model cache when the Claude provider config changes so an
         // updated ANTHROPIC_API_KEY is picked up immediately on the next fetch.
-        if (providerId === 'claude') claudeModelCache = null;
+        if (providerId === 'claude') {
+          claudeModelCache = null;
+          claudeModelCacheGeneration += 1;
+        }
         return { success: true };
       } catch (error) {
         return {
