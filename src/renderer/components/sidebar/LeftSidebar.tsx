@@ -316,21 +316,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const changelogCardRef = useRef<HTMLDivElement | null>(null);
   const [changelogCardHeight, setChangelogCardHeight] = useState(0);
 
-  const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
-  const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
-
-  useEffect(() => {
-    const prev = prevTaskCountsRef.current;
-    for (const project of projects) {
-      const taskCount = tasksByProjectId[project.id]?.length ?? 0;
-      const prevCount = prev.get(project.id) ?? 0;
-      if (prevCount === 0 && taskCount > 0) {
-        setForceOpenIds((s) => new Set(s).add(project.id));
-      }
-      prev.set(project.id, taskCount);
-    }
-  }, [projects, tasksByProjectId]);
-
   useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
   }, [open, isMobile, setOpen, onSidebarContextChange]);
@@ -481,21 +466,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       return (
                         <SidebarMenuItem>
                           <Collapsible
-                            open={
-                              forceOpenIds.has(typedProject.id)
-                                ? true
-                                : !collapsedProjects.has(typedProject.id)
-                            }
+                            open={!collapsedProjects.has(typedProject.id)}
                             onOpenChange={(isOpen) => {
-                              // When force-open is active, clear it first
-                              if (forceOpenIds.has(typedProject.id)) {
-                                setForceOpenIds((s) => {
-                                  const n = new Set(s);
-                                  n.delete(typedProject.id);
-                                  return n;
-                                });
-                              }
-                              // Sync with persisted state
                               const shouldBeCollapsed = !isOpen;
                               setCollapsedProjectsArray((prev) => {
                                 const prevSet = new Set(prev);
