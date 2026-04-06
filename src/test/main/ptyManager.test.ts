@@ -608,6 +608,70 @@ describe('ptyManager provider command resolution', () => {
   });
 });
 
+describe('getStoredResumeTarget', () => {
+  const SESSION_MAP_PATH = '/tmp/emdash-test/pty-session-map.json';
+  const PTY_ID = 'claude-main-task-abc';
+  const TEST_CWD = '/tmp/test-project';
+  const SESSION_UUID = 'aaaabbbb-cccc-dddd-eeee-ffffffffffff';
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { _resetSessionMapForTest } = await import('../../main/services/ptyManager');
+    _resetSessionMapForTest(SESSION_MAP_PATH);
+  });
+
+  it('returns session UUID for a known Claude PTY with matching cwd', async () => {
+    fsReadFileSyncMock.mockReturnValue(
+      JSON.stringify({
+        [PTY_ID]: {
+          cwd: TEST_CWD,
+          providerId: 'claude',
+          resumeTarget: SESSION_UUID,
+          strategy: 'claude-session-id',
+        },
+      })
+    );
+
+    const { getStoredResumeTarget, _resetSessionMapForTest } = await import(
+      '../../main/services/ptyManager'
+    );
+    _resetSessionMapForTest(SESSION_MAP_PATH);
+
+    expect(getStoredResumeTarget(PTY_ID, 'claude', TEST_CWD)).toBe(SESSION_UUID);
+  });
+
+  it('returns null when no session exists for PTY', async () => {
+    fsReadFileSyncMock.mockReturnValue(JSON.stringify({}));
+
+    const { getStoredResumeTarget, _resetSessionMapForTest } = await import(
+      '../../main/services/ptyManager'
+    );
+    _resetSessionMapForTest(SESSION_MAP_PATH);
+
+    expect(getStoredResumeTarget(PTY_ID, 'claude', TEST_CWD)).toBeNull();
+  });
+
+  it('returns null when cwd does not match', async () => {
+    fsReadFileSyncMock.mockReturnValue(
+      JSON.stringify({
+        [PTY_ID]: {
+          cwd: '/tmp/different-project',
+          providerId: 'claude',
+          resumeTarget: SESSION_UUID,
+          strategy: 'claude-session-id',
+        },
+      })
+    );
+
+    const { getStoredResumeTarget, _resetSessionMapForTest } = await import(
+      '../../main/services/ptyManager'
+    );
+    _resetSessionMapForTest(SESSION_MAP_PATH);
+
+    expect(getStoredResumeTarget(PTY_ID, 'claude', TEST_CWD)).toBeNull();
+  });
+});
+
 describe('stale Claude session detection', () => {
   const SESSION_MAP_PATH = '/tmp/emdash-test/pty-session-map.json';
   const TEST_CWD = '/tmp/test-worktree';

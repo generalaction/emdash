@@ -11,6 +11,7 @@ type CreatePROptions = {
   createBranchIfOnDefault?: boolean;
   branchPrefix?: string;
   gitPlatform?: GitPlatform;
+  branchRename?: { from: string; to: string } | null;
   prOptions?: {
     title?: string;
     body?: string;
@@ -53,6 +54,7 @@ export function useCreatePR() {
 
       const finalPrOptions = { ...(prOptions || {}) };
       const inferredName = taskPath.split(/[/\\]/).filter(Boolean).pop() || 'Task';
+      let generatedCommitMessage: string | undefined;
 
       // Generate PR content first so the title can be used as the commit message
       if (!finalPrOptions.title || !finalPrOptions.body) {
@@ -77,6 +79,9 @@ export function useCreatePR() {
               if (!finalPrOptions.body && generated.description) {
                 finalPrOptions.body = generated.description;
               }
+              if (generated.commitMessage) {
+                generatedCommitMessage = generated.commitMessage;
+              }
             }
           }
         } catch {
@@ -84,8 +89,31 @@ export function useCreatePR() {
         }
       }
 
-      // Use generated title as commit message, falling back to explicit message or task name
-      const commitMessage = explicitCommitMessage || finalPrOptions.title || inferredName;
+      // Prefer explicit message > generated commitMessage > generated title > inferred name
+      const commitMessage =
+        explicitCommitMessage || generatedCommitMessage || finalPrOptions.title || inferredName;
+
+      // Rename branch if requested (before commit+push so MR targets correct branch)
+      if (opts.branchRename) {
+        try {
+          const renameResult = await api.renameBranch({
+            repoPath: taskPath,
+            oldBranch: opts.branchRename.from,
+            newBranch: opts.branchRename.to,
+          });
+          if (!renameResult?.success) {
+            toast({
+              title: 'Branch Rename Failed',
+              description:
+                renameResult?.error || 'Unable to rename branch. Continuing with original name.',
+              variant: 'destructive',
+            });
+            // Continue with original branch — non-fatal
+          }
+        } catch {
+          // Non-fatal — continue with original branch name
+        }
+      }
 
       const commitRes = await api.gitCommitAndPush({
         taskPath,

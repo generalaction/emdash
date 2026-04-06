@@ -46,6 +46,8 @@ import {
 } from '../services/GitPlatformService';
 import type { GitPlatform } from '../../shared/git/platform';
 import { getOperations, resolveGitPlatform } from '../services/gitPlatformOperations';
+import { makePtyId } from '../../shared/ptyId';
+import { getStoredResumeTarget } from '../services/ptyManager';
 
 const remoteGitService = new RemoteGitService(sshService);
 
@@ -986,21 +988,47 @@ export function registerGitIpc() {
           };
         }
 
-        // Try to get the task to find which provider was used
+        // Try to get the task to find which provider was used and resolve session ID
         let providerId: string | null = null;
+        let sessionId: string | null = null;
         try {
           const task = await databaseService.getTaskByPath(taskPath);
           if (task?.agentId) {
             providerId = task.agentId;
             log.debug('Found task provider for PR generation', { taskPath, providerId });
+
+            // Resolve Claude session ID from the pty session map
+            if (task.agentId === 'claude' && task.id) {
+              const ptyId = makePtyId('claude', 'main', task.id);
+              sessionId = getStoredResumeTarget(ptyId, 'claude', taskPath) ?? null;
+              if (sessionId) {
+                log.debug('Resolved Claude session for PR generation', { ptyId, sessionId });
+              }
+            }
           }
         } catch (error) {
           log.debug('Could not lookup task provider', { error });
-          // Non-fatal - continue without provider
+          // Non-fatal - continue without provider or session
         }
 
-        const result = await prGenerationService.generatePrContent(taskPath, base, providerId);
-        return { success: true, ...result };
+        // Get current branch to include in response
+        let currentBranch = '';
+        try {
+          const { stdout } = await execAsync('git branch --show-current', { cwd: taskPath });
+          currentBranch = (stdout || '').trim();
+        } catch {
+          // Non-fatal
+        }
+
+        const { repository } = getAppSettings();
+        const result = await prGenerationService.generatePrContent(
+          taskPath,
+          base,
+          providerId,
+          sessionId,
+          repository.branchPrefix
+        );
+        return { success: true, ...result, currentBranch };
       } catch (error) {
         log.error('Failed to generate PR content:', error);
         return {
