@@ -49,6 +49,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 const TASK_ORDER_KEY = 'sidebarTaskOrder';
 const TASK_SORT_MODE_KEY = 'sidebarTaskSortMode';
+const COLLAPSED_PROJECTS_KEY = 'sidebarCollapsedProjects';
 
 type TaskSortMode = 'createdAt' | 'lastActive' | 'alpha';
 
@@ -228,6 +229,16 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   } = useProjectManagementContext();
 
   const [projectOrder, setProjectOrder] = useLocalStorage<string[]>(PROJECT_ORDER_KEY, []);
+
+  // --- Collapsed project folders state (persisted as array, used as Set) ---
+  const [collapsedProjectsArray, setCollapsedProjectsArray] = useLocalStorage<string[]>(
+    COLLAPSED_PROJECTS_KEY,
+    []
+  );
+  const collapsedProjects = useMemo(
+    () => new Set(collapsedProjectsArray),
+    [collapsedProjectsArray]
+  );
 
   const sortedProjects = useMemo(() => {
     if (!projectOrder.length) return projects;
@@ -470,9 +481,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       return (
                         <SidebarMenuItem>
                           <Collapsible
-                            defaultOpen
-                            open={forceOpenIds.has(typedProject.id) ? true : undefined}
-                            onOpenChange={() => {
+                            open={
+                              forceOpenIds.has(typedProject.id)
+                                ? true
+                                : !collapsedProjects.has(typedProject.id)
+                            }
+                            onOpenChange={(isOpen) => {
+                              // When force-open is active, clear it first
                               if (forceOpenIds.has(typedProject.id)) {
                                 setForceOpenIds((s) => {
                                   const n = new Set(s);
@@ -480,6 +495,17 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                                   return n;
                                 });
                               }
+                              // Sync with persisted state
+                              const shouldBeCollapsed = !isOpen;
+                              setCollapsedProjectsArray((prev) => {
+                                const prevSet = new Set(prev);
+                                if (shouldBeCollapsed) {
+                                  prevSet.add(typedProject.id);
+                                } else {
+                                  prevSet.delete(typedProject.id);
+                                }
+                                return Array.from(prevSet);
+                              });
                             }}
                             className="group/collapsible"
                           >
