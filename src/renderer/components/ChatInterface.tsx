@@ -1161,7 +1161,7 @@ const ChatInterface: React.FC<Props> = ({
 
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="px-6 pt-4">
-            <div className="mx-auto max-w-4xl space-y-2">
+            <div className="mx-auto max-w-5xl space-y-2">
               <div className="flex items-center gap-2">
                 <div
                   ref={tabsContainerRef}
@@ -1249,7 +1249,7 @@ const ChatInterface: React.FC<Props> = ({
           >
             <div
               ref={terminalPanelRef}
-              className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+              className={`relative mx-auto h-full max-w-5xl overflow-hidden rounded-md ${
                 agent === 'charm'
                   ? effectiveTheme === 'dark-black'
                     ? 'bg-black'
