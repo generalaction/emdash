@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const execSyncMock = vi.fn();
+const shellValue = (value: string) =>
+  `__EMDASH_SHELL_VALUE_START__\n${value}\n__EMDASH_SHELL_VALUE_END__\n`;
 
 vi.mock('child_process', () => ({
   execSync: (...args: any[]) => execSyncMock(...args),
@@ -24,13 +26,13 @@ describe('getShellEnvVar', () => {
   });
 
   it('returns the trimmed value from the shell', async () => {
-    execSyncMock.mockReturnValue('/custom/claude/config\n');
+    execSyncMock.mockReturnValue(shellValue('/custom/claude/config'));
     const { getShellEnvVar } = await import('../../main/utils/shellEnv');
     expect(getShellEnvVar('CLAUDE_CONFIG_DIR')).toBe('/custom/claude/config');
   });
 
   it('returns undefined when the shell outputs nothing', async () => {
-    execSyncMock.mockReturnValue('');
+    execSyncMock.mockReturnValue(shellValue(''));
     const { getShellEnvVar } = await import('../../main/utils/shellEnv');
     expect(getShellEnvVar('CLAUDE_CONFIG_DIR')).toBeUndefined();
   });
@@ -48,6 +50,14 @@ describe('getShellEnvVar', () => {
     const { getShellEnvVar } = await import('../../main/utils/shellEnv');
     expect(getShellEnvVar('CLAUDE_CONFIG_DIR')).toBeUndefined();
   });
+
+  it('ignores shell prompt escape noise around the value', async () => {
+    execSyncMock.mockReturnValue(
+      `\u001b]1337;RemoteHost=hai@MacBookPro\u0007${shellValue('/custom/claude/config')}\u001b]1337;CurrentDir=/tmp\u0007`
+    );
+    const { getShellEnvVar } = await import('../../main/utils/shellEnv');
+    expect(getShellEnvVar('CLAUDE_CONFIG_DIR')).toBe('/custom/claude/config');
+  });
 });
 
 describe('initializeShellEnvironment — CLAUDE_CONFIG_DIR', () => {
@@ -62,6 +72,7 @@ describe('initializeShellEnvironment — CLAUDE_CONFIG_DIR', () => {
     savedLang = process.env.LANG;
 
     delete process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.SSH_AUTH_SOCK;
 
     // Set a UTF-8 locale so initializeLocaleEnvironment() exits early and
     // doesn't issue its own execSync calls, keeping the mock simple.
@@ -89,7 +100,7 @@ describe('initializeShellEnvironment — CLAUDE_CONFIG_DIR', () => {
   it('sets CLAUDE_CONFIG_DIR from the login shell when absent from process.env', async () => {
     execSyncMock.mockImplementation((cmd: string) => {
       if (typeof cmd === 'string' && cmd.includes('CLAUDE_CONFIG_DIR')) {
-        return '/shell/custom/claude\n';
+        return shellValue('/shell/custom/claude');
       }
       return '';
     });
@@ -102,7 +113,7 @@ describe('initializeShellEnvironment — CLAUDE_CONFIG_DIR', () => {
 
   it('does not override CLAUDE_CONFIG_DIR already present in process.env', async () => {
     process.env.CLAUDE_CONFIG_DIR = '/existing/path';
-    execSyncMock.mockReturnValue('/shell/custom/claude\n');
+    execSyncMock.mockReturnValue(shellValue('/shell/custom/claude'));
 
     const { initializeShellEnvironment } = await import('../../main/utils/shellEnv');
     initializeShellEnvironment();
@@ -114,7 +125,7 @@ describe('initializeShellEnvironment — CLAUDE_CONFIG_DIR', () => {
     process.env.CLAUDE_CONFIG_DIR = '   ';
     execSyncMock.mockImplementation((cmd: string) => {
       if (typeof cmd === 'string' && cmd.includes('CLAUDE_CONFIG_DIR')) {
-        return '/shell/custom/claude\n';
+        return shellValue('/shell/custom/claude');
       }
       return '';
     });
@@ -127,7 +138,7 @@ describe('initializeShellEnvironment — CLAUDE_CONFIG_DIR', () => {
 
   it('trims a padded CLAUDE_CONFIG_DIR already present in process.env', async () => {
     process.env.CLAUDE_CONFIG_DIR = '  /existing/path  ';
-    execSyncMock.mockReturnValue('/shell/custom/claude\n');
+    execSyncMock.mockReturnValue(shellValue('/shell/custom/claude'));
 
     const { initializeShellEnvironment } = await import('../../main/utils/shellEnv');
     initializeShellEnvironment();
@@ -136,11 +147,35 @@ describe('initializeShellEnvironment — CLAUDE_CONFIG_DIR', () => {
   });
 
   it('leaves CLAUDE_CONFIG_DIR unset when the shell returns nothing', async () => {
-    execSyncMock.mockReturnValue('');
+    execSyncMock.mockReturnValue(shellValue(''));
 
     const { initializeShellEnvironment } = await import('../../main/utils/shellEnv');
     initializeShellEnvironment();
 
     expect(process.env.CLAUDE_CONFIG_DIR).toBeUndefined();
+  });
+
+  it('drops a relative CLAUDE_CONFIG_DIR instead of forwarding it', async () => {
+    process.env.CLAUDE_CONFIG_DIR = '.claude';
+    execSyncMock.mockReturnValue(shellValue('.claude'));
+
+    const { initializeShellEnvironment } = await import('../../main/utils/shellEnv');
+    initializeShellEnvironment();
+
+    expect(process.env.CLAUDE_CONFIG_DIR).toBeUndefined();
+  });
+
+  it('expands ~/ in CLAUDE_CONFIG_DIR from the shell', async () => {
+    execSyncMock.mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && cmd.includes('CLAUDE_CONFIG_DIR')) {
+        return shellValue('~/.claude-custom');
+      }
+      return '';
+    });
+
+    const { initializeShellEnvironment } = await import('../../main/utils/shellEnv');
+    initializeShellEnvironment();
+
+    expect(process.env.CLAUDE_CONFIG_DIR).toBe(`${process.env.HOME}/.claude-custom`);
   });
 });
