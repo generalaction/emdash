@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as os from 'os';
+import * as path from 'path';
 import { getShellEnvVar, detectSshAuthSock, initializeShellEnvironment } from '../shellEnv';
 
 // Mock child_process
@@ -18,6 +20,8 @@ import { statSync, readdirSync } from 'fs';
 const mockedExecSync = vi.mocked(execSync);
 const mockedStatSync = vi.mocked(statSync);
 const mockedReaddirSync = vi.mocked(readdirSync);
+const shellValue = (value: string) =>
+  `__EMDASH_SHELL_VALUE_START__\n${value}\n__EMDASH_SHELL_VALUE_END__\n`;
 
 describe('shellEnv', () => {
   const originalEnv = process.env;
@@ -36,7 +40,7 @@ describe('shellEnv', () => {
     // Single var call
     const match = command.match(/printenv ([A-Z0-9_]+)/);
     if (!match) throw new Error('Command failed');
-    return values[match[1]!] ?? '';
+    return shellValue(values[match[1]!] ?? '');
   };
 
   beforeEach(() => {
@@ -51,7 +55,7 @@ describe('shellEnv', () => {
 
   describe('getShellEnvVar', () => {
     it('should return environment variable from shell', () => {
-      mockedExecSync.mockReturnValue('/path/to/socket');
+      mockedExecSync.mockReturnValue(shellValue('/path/to/socket'));
 
       const result = getShellEnvVar('SSH_AUTH_SOCK');
 
@@ -63,7 +67,7 @@ describe('shellEnv', () => {
     });
 
     it('should return undefined when variable is empty', () => {
-      mockedExecSync.mockReturnValue('');
+      mockedExecSync.mockReturnValue(shellValue(''));
 
       const result = getShellEnvVar('SSH_AUTH_SOCK');
 
@@ -78,6 +82,16 @@ describe('shellEnv', () => {
       const result = getShellEnvVar('SSH_AUTH_SOCK');
 
       expect(result).toBeUndefined();
+    });
+
+    it('should ignore prompt escape noise around shell output', () => {
+      mockedExecSync.mockReturnValue(
+        `\u001b]1337;RemoteHost=test@MacBookPro\u0007${shellValue('/path/to/socket')}\u001b]1337;CurrentDir=/tmp\u0007`
+      );
+
+      const result = getShellEnvVar('SSH_AUTH_SOCK');
+
+      expect(result).toBe('/path/to/socket');
     });
   });
 
@@ -96,7 +110,12 @@ describe('shellEnv', () => {
 
     it('should detect SSH_AUTH_SOCK when not in process.env', () => {
       delete process.env.SSH_AUTH_SOCK;
-      mockedExecSync.mockReturnValue('/shell/detected/socket');
+      mockedExecSync.mockImplementation((command) => {
+        if (typeof command === 'string' && command.includes('launchctl getenv SSH_AUTH_SOCK')) {
+          throw new Error('launchctl failed');
+        }
+        return shellValue('/shell/detected/socket');
+      });
 
       const result = detectSshAuthSock();
 
@@ -189,6 +208,46 @@ describe('shellEnv', () => {
       initializeShellEnvironment();
 
       expect(process.env.SSH_AUTH_SOCK).toBe('/existing/socket');
+    });
+
+    it('should drop relative CLAUDE_CONFIG_DIR values', () => {
+      process.env.CLAUDE_CONFIG_DIR = '.claude';
+      delete process.env.LANG;
+      delete process.env.LC_CTYPE;
+      delete process.env.LC_ALL;
+      mockedExecSync.mockImplementation(
+        shellLookup({
+          SSH_AUTH_SOCK: '/detected/socket',
+          CLAUDE_CONFIG_DIR: '.claude',
+          LANG: fallbackUtf8Locale,
+          LC_CTYPE: fallbackUtf8Locale,
+          LC_ALL: fallbackUtf8Locale,
+        })
+      );
+
+      initializeShellEnvironment();
+
+      expect(process.env.CLAUDE_CONFIG_DIR).toBeUndefined();
+    });
+
+    it('should expand shell CLAUDE_CONFIG_DIR values that start with ~/', () => {
+      delete process.env.CLAUDE_CONFIG_DIR;
+      delete process.env.LANG;
+      delete process.env.LC_CTYPE;
+      delete process.env.LC_ALL;
+      mockedExecSync.mockImplementation(
+        shellLookup({
+          SSH_AUTH_SOCK: '/detected/socket',
+          CLAUDE_CONFIG_DIR: '~/.claude-custom',
+          LANG: fallbackUtf8Locale,
+          LC_CTYPE: fallbackUtf8Locale,
+          LC_ALL: fallbackUtf8Locale,
+        })
+      );
+
+      initializeShellEnvironment();
+
+      expect(process.env.CLAUDE_CONFIG_DIR).toBe(path.join(os.homedir(), '.claude-custom'));
     });
 
     it('should not overwrite explicit locale env values', () => {

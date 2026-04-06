@@ -109,15 +109,19 @@ const ExpandedTerminalModal: React.FC<Props> = ({ terminalId, title, onClose, va
           </Button>
         </div>
 
-        {/* Terminal container — click to focus */}
+        {/* Match the embedded terminal inset so expanded mode does not render flush to the modal edge. */}
         <div
-          ref={containerRef}
-          className="flex-1 overflow-hidden"
+          className={cn(
+            'flex-1 overflow-hidden p-2 pt-1',
+            isDark ? 'bg-zinc-900' : 'bg-background'
+          )}
           onClick={() => {
             const session = terminalSessionRegistry.getSession(terminalId);
             session?.focus();
           }}
-        />
+        >
+          <div ref={containerRef} className="h-full w-full overflow-hidden" />
+        </div>
       </div>
     </div>,
     document.body

@@ -250,17 +250,13 @@ const TreeNode: React.FC<{
         <ContextMenuItem onSelect={() => onContextMenuCopyRelPath?.(node)}>
           Copy Relative Path
         </ContextMenuItem>
-        {node.type === 'file' && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => onContextMenuOpenTerminal?.(node)}>
-              Open in Terminal
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => onContextMenuReveal?.(node)}>
-              Reveal in Finder
-            </ContextMenuItem>
-          </>
-        )}
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => onContextMenuOpenTerminal?.(node)}>
+          Open in Terminal
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onContextMenuReveal?.(node)}>
+          Reveal in Finder
+        </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );

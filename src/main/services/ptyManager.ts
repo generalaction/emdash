@@ -10,6 +10,7 @@ import { parsePtyId } from '@shared/ptyId';
 import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
 import { LOCALE_ENV_VARS, DEFAULT_UTF8_LOCALE, isUtf8Locale } from '../utils/locale';
+import { normalizeClaudeConfigDir } from '../utils/shellEnv';
 
 /**
  * Suppress EPIPE/EIO errors on a PTY's underlying socket.
@@ -52,6 +53,7 @@ const AGENT_ENV_VARS = [
   'AZURE_OPENAI_API_ENDPOINT',
   'AZURE_OPENAI_API_KEY',
   'AZURE_OPENAI_KEY',
+  'CLAUDE_CONFIG_DIR',
   'CODEBUFF_API_KEY',
   'COPILOT_CLI_TOKEN',
   'CURSOR_API_KEY',
@@ -1106,9 +1108,16 @@ export function startSshPty(options: {
 
   // Pass through agent authentication env vars (same allowlist as direct spawn)
   for (const key of AGENT_ENV_VARS) {
-    if (process.env[key]) {
-      useEnv[key] = process.env[key] as string;
+    const rawValue = process.env[key];
+    if (!rawValue) continue;
+    if (key === 'CLAUDE_CONFIG_DIR') {
+      const normalized = normalizeClaudeConfigDir(rawValue);
+      if (normalized) {
+        useEnv[key] = normalized;
+      }
+      continue;
     }
+    useEnv[key] = rawValue as string;
   }
 
   if (env) {
@@ -1286,9 +1295,16 @@ export function startDirectPty(options: {
 
   // Pass through agent authentication env vars
   for (const key of AGENT_ENV_VARS) {
-    if (process.env[key]) {
-      useEnv[key] = process.env[key];
+    const rawValue = process.env[key];
+    if (!rawValue) continue;
+    if (key === 'CLAUDE_CONFIG_DIR') {
+      const normalized = normalizeClaudeConfigDir(rawValue);
+      if (normalized) {
+        useEnv[key] = normalized;
+      }
+      continue;
     }
+    useEnv[key] = rawValue;
   }
 
   if (resolvedConfig?.env) {

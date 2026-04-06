@@ -487,6 +487,29 @@ export class TerminalSessionManager {
         element.style.height = '100%';
       }
 
+      // Fit the terminal immediately after opening so that connectPty() (which
+      // runs asynchronously, waiting on fetchSnapshot IPC) receives the actual
+      // terminal dimensions rather than the fallback initial size.  Without this,
+      // the PTY is spawned at the wrong size and Claude Code's React Ink TUI
+      // receives a SIGWINCH right after startup, which desynchronises its
+      // statusLine line-count counter and breaks statusLine rendering.
+      try {
+        const width = this.container.clientWidth;
+        const height = this.container.clientHeight;
+        if (
+          width >= MIN_RENDERABLE_TERMINAL_WIDTH_PX &&
+          height >= MIN_RENDERABLE_TERMINAL_HEIGHT_PX
+        ) {
+          this.fitAddon.fit();
+          this.options.initialSize = {
+            cols: Math.max(MIN_TERMINAL_COLS, this.terminal.cols),
+            rows: Math.max(MIN_TERMINAL_ROWS, this.terminal.rows),
+          };
+        }
+      } catch {
+        // If fit fails (e.g. zero-size container), leave initialSize unchanged.
+      }
+
       const selectionDisposable = this.terminal.onSelectionChange(() => {
         if (!this.autoCopyOnSelection || this.disposed) return;
         if (!this.terminal.hasSelection()) return;

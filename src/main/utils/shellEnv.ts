@@ -7,7 +7,11 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { stripAnsi } from '@shared/text/stripAnsi';
 import { LOCALE_ENV_VARS, DEFAULT_UTF8_LOCALE, isUtf8Locale } from './locale';
+
+const SHELL_VALUE_START = '__EMDASH_SHELL_VALUE_START__';
+const SHELL_VALUE_END = '__EMDASH_SHELL_VALUE_END__';
 
 function getFallbackUtf8Locale(): string | undefined {
   if (process.platform === 'win32') return undefined;
@@ -36,23 +40,56 @@ export function getShellEnvVar(varName: string): string | undefined {
     const shell = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
 
     // -i = interactive, -l = login shell (sources .zshrc/.bash_profile)
-    const result = execSync(`${shell} -ilc 'printenv ${varName}; exit 0'`, {
-      encoding: 'utf8',
-      timeout: 5000,
-      env: {
-        ...process.env,
-        // Prevent oh-my-zsh plugins from breaking output
-        DISABLE_AUTO_UPDATE: 'true',
-        ZSH_TMUX_AUTOSTART: 'false',
-        ZSH_TMUX_AUTOSTARTED: 'true',
-      },
-    });
+    const result = execSync(
+      `${shell} -ilc 'printf "${SHELL_VALUE_START}\\n"; printenv ${varName}; printf "${SHELL_VALUE_END}\\n"; exit 0'`,
+      {
+        encoding: 'utf8',
+        timeout: 5000,
+        env: {
+          ...process.env,
+          // Prevent oh-my-zsh plugins from breaking output
+          DISABLE_AUTO_UPDATE: 'true',
+          ZSH_TMUX_AUTOSTART: 'false',
+          ZSH_TMUX_AUTOSTARTED: 'true',
+        },
+      }
+    );
 
-    const value = result.trim();
+    const cleaned = stripAnsi(result, {
+      stripOscBell: true,
+      stripOscSt: true,
+      stripOtherEscapes: true,
+      stripCarriageReturn: true,
+    });
+    const start = cleaned.indexOf(SHELL_VALUE_START);
+    const end = cleaned.indexOf(SHELL_VALUE_END, start + SHELL_VALUE_START.length);
+    if (start === -1 || end === -1) {
+      return undefined;
+    }
+
+    const value = cleaned.slice(start + SHELL_VALUE_START.length, end).trim();
     return value || undefined;
   } catch {
     return undefined;
   }
+}
+
+export function normalizeClaudeConfigDir(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+
+  const expanded =
+    trimmed === '~'
+      ? os.homedir()
+      : trimmed.startsWith('~/')
+        ? path.join(os.homedir(), trimmed.slice(2))
+        : trimmed;
+
+  if (!path.isAbsolute(expanded)) {
+    return undefined;
+  }
+
+  return path.normalize(expanded);
 }
 
 /**
@@ -285,6 +322,21 @@ export function initializeShellEnvironment(): void {
     console.log('[shellEnv] Detected SSH_AUTH_SOCK:', sshAuthSock);
   } else {
     console.log('[shellEnv] SSH_AUTH_SOCK not detected');
+  }
+
+  // Detect CLAUDE_CONFIG_DIR from login shell when not already in process.env.
+  // Electron GUI apps on macOS don't inherit the user's shell profile, so the
+  // var may be missing even if the user has it in ~/.zshrc / ~/.bash_profile.
+  const existingClaudeConfigDir = normalizeClaudeConfigDir(process.env.CLAUDE_CONFIG_DIR);
+  if (!existingClaudeConfigDir) {
+    delete process.env.CLAUDE_CONFIG_DIR;
+    const claudeConfigDir = normalizeClaudeConfigDir(getShellEnvVar('CLAUDE_CONFIG_DIR'));
+    if (claudeConfigDir) {
+      process.env.CLAUDE_CONFIG_DIR = claudeConfigDir;
+      console.log('[shellEnv] Detected CLAUDE_CONFIG_DIR');
+    }
+  } else {
+    process.env.CLAUDE_CONFIG_DIR = existingClaudeConfigDir;
   }
 
   initializeLocaleEnvironment();
