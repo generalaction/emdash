@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { stripAnsi } from '@shared/text/stripAnsi';
+import { buildExternalToolEnv } from './childProcessEnv';
 import { LOCALE_ENV_VARS, DEFAULT_UTF8_LOCALE, isUtf8Locale } from './locale';
 
 const SHELL_VALUE_START = '__EMDASH_SHELL_VALUE_START__';
@@ -40,13 +41,28 @@ export function getShellEnvVar(varName: string): string | undefined {
     const shell = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
 
     // -i = interactive, -l = login shell (sources .zshrc/.bash_profile)
+    //
+    // Env: route through buildExternalToolEnv() to strip AppImage-only keys
+    // (APPIMAGE, APPDIR, ARGV0, ...) and AppImage mount entries from PATH /
+    // LD_LIBRARY_PATH / XDG_DATA_DIRS before handing them to the child shell.
+    //
+    // WHY: Without this, a Linux AppImage install leaks APPIMAGE and the
+    // `/tmp/.mount_*` PATH entries into the probed login shell. If the user's
+    // .zshrc / .bash_profile exec's any binary by name through PATH (starship
+    // version modules, mise activation hooks, oh-my-zsh completion plugins all
+    // do some flavor of this), the exec can resolve back into the AppImage
+    // mount, which re-enters Emdash's main process, which runs this probe
+    // again, which spawns another shell — a fork bomb that OOMs the machine.
+    // See the matching rationale and helper at
+    // src/main/utils/childProcessEnv.ts and the ptyManager.ts:1404 comment
+    // introduced by issue #485 / PR #872.
     const result = execSync(
       `${shell} -ilc 'printf "${SHELL_VALUE_START}\\n"; printenv ${varName}; printf "${SHELL_VALUE_END}\\n"; exit 0'`,
       {
         encoding: 'utf8',
         timeout: 5000,
         env: {
-          ...process.env,
+          ...buildExternalToolEnv(process.env),
           // Prevent oh-my-zsh plugins from breaking output
           DISABLE_AUTO_UPDATE: 'true',
           ZSH_TMUX_AUTOSTART: 'false',
@@ -234,11 +250,12 @@ function getShellLocaleVars(): Partial<Record<string, string>> {
     const printCommands = LOCALE_ENV_VARS.map((v) => `printenv ${v} || echo`).join(
       '; echo "---"; '
     );
+    // See getShellEnvVar for the rationale behind buildExternalToolEnv.
     const result = execSync(`${shell} -ilc '${printCommands}; exit 0'`, {
       encoding: 'utf8',
       timeout: 5000,
       env: {
-        ...process.env,
+        ...buildExternalToolEnv(process.env),
         DISABLE_AUTO_UPDATE: 'true',
         ZSH_TMUX_AUTOSTART: 'false',
         ZSH_TMUX_AUTOSTARTED: 'true',
