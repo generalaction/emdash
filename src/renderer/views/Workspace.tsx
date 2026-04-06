@@ -116,10 +116,12 @@ export function Workspace() {
   const [showDiffViewer, setShowDiffViewer] = useState(false);
   const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
   const [diffViewerTaskPath, setDiffViewerTaskPath] = useState<string | null>(null);
+  const [diffViewerInitialCommit, setDiffViewerInitialCommit] = useState<string | null>(null);
   const handleCloseDiffViewer = useCallback(() => {
     setShowDiffViewer(false);
     setDiffViewerInitialFile(null);
     setDiffViewerTaskPath(null);
+    setDiffViewerInitialCommit(null);
   }, []);
   const panelHandleDraggingRef = useRef<Record<ResizeHandleId, boolean>>({
     left: false,
@@ -429,6 +431,7 @@ export function Workspace() {
                             taskId={activeTask?.id}
                             taskPath={diffViewerTaskPath || activeTask?.path}
                             initialFile={diffViewerInitialFile}
+                            initialCommit={diffViewerInitialCommit}
                           />
                         </TaskScopeProvider>
                       ) : (
@@ -464,10 +467,15 @@ export function Workspace() {
                       gitPlatform={selectedProject?.gitPlatform}
                       className="lg:border-l-0"
                       forceBorder={showEditorMode}
-                      onOpenChanges={(filePath?: string, taskPath?: string) => {
+                      onOpenChanges={(
+                        filePath?: string,
+                        taskPath?: string,
+                        commitHash?: string
+                      ) => {
                         setShowEditorMode(false);
                         setDiffViewerInitialFile(filePath ?? null);
                         setDiffViewerTaskPath(taskPath ?? null);
+                        setDiffViewerInitialCommit(commitHash ?? null);
                         setShowDiffViewer(true);
                       }}
                     />

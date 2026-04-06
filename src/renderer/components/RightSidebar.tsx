@@ -32,7 +32,7 @@ interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   projectDefaultBranch?: string | null;
   gitPlatform?: GitPlatform;
   forceBorder?: boolean;
-  onOpenChanges?: (filePath?: string, taskPath?: string) => void;
+  onOpenChanges?: (filePath?: string, taskPath?: string, commitHash?: string) => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -370,7 +370,7 @@ const SingleTaskSidebar: React.FC<{
   awaitingRemote?: boolean;
   projectDefaultBranch?: string | null;
   gitPlatform?: GitPlatform;
-  onOpenChanges?: (filePath?: string, taskPath?: string) => void;
+  onOpenChanges?: (filePath?: string, taskPath?: string, commitHash?: string) => void;
 }> = ({
   task,
   projectPath,
@@ -418,7 +418,7 @@ const VariantChangesIfAny: React.FC<{
   taskId: string;
   className?: string;
   gitPlatform?: GitPlatform;
-  onOpenChanges?: (filePath?: string, taskPath?: string) => void;
+  onOpenChanges?: (filePath?: string, taskPath?: string, commitHash?: string) => void;
 }> = ({ path, taskId, className, gitPlatform, onOpenChanges }) => {
   const { projectPath } = useTaskScope();
   return (

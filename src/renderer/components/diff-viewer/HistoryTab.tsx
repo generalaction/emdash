@@ -13,6 +13,8 @@ interface HistoryTabProps {
   closeButton?: React.ReactNode;
   leftPanelSize?: number;
   onLeftPanelResize?: (size: number) => void;
+  initialCommitHash?: string;
+  initialFile?: string;
 }
 
 export const HistoryTab: React.FC<HistoryTabProps> = ({
@@ -21,9 +23,11 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
   closeButton,
   leftPanelSize = 20,
   onLeftPanelResize,
+  initialCommitHash,
+  initialFile,
 }) => {
   const [selectedCommit, setSelectedCommit] = useState<CommitInfo | null>(null);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<string | null>(initialFile || null);
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>(
     () => (localStorage.getItem('diffViewer:diffStyle') as 'unified' | 'split') || 'unified'
   );
@@ -84,6 +88,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
               taskPath={taskPath}
               selectedCommit={selectedCommit?.hash ?? null}
               onSelectCommit={handleSelectCommit}
+              initialCommitHash={initialCommitHash}
             />
           </div>
         </div>

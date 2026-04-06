@@ -472,7 +472,8 @@ export async function getLog(
   taskPath: string,
   maxCount: number = 50,
   skip: number = 0,
-  knownAheadCount?: number
+  knownAheadCount?: number,
+  baseRef?: string
 ): Promise<{
   commits: Array<{
     hash: string;
@@ -543,11 +544,13 @@ export async function getLog(
   const FIELD_SEP = '---FIELD_SEP---';
   const RECORD_SEP = '---RECORD_SEP---';
   const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%ae${FIELD_SEP}%b`;
-  const { stdout } = await execFileAsync(
-    'git',
-    ['log', `--max-count=${maxCount}`, `--skip=${skip}`, `--pretty=format:${format}`, '--'],
-    { cwd: taskPath }
-  );
+  const logArgs = ['log', `--max-count=${maxCount}`, `--skip=${skip}`, `--pretty=format:${format}`];
+  if (baseRef) {
+    const ref = baseRef.includes('/') ? baseRef : `origin/${baseRef}`;
+    logArgs.push(`${ref}..HEAD`);
+  }
+  logArgs.push('--');
+  const { stdout } = await execFileAsync('git', logArgs, { cwd: taskPath });
 
   if (!stdout.trim()) return { commits: [], aheadCount };
 

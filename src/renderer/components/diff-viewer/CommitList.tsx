@@ -23,6 +23,7 @@ interface CommitListProps {
   taskPath?: string;
   selectedCommit: string | null;
   onSelectCommit: (commit: CommitInfo) => void;
+  initialCommitHash?: string;
 }
 
 const PAGE_SIZE = 50;
@@ -90,6 +91,7 @@ export const CommitList: React.FC<CommitListProps> = ({
   taskPath,
   selectedCommit,
   onSelectCommit,
+  initialCommitHash,
 }) => {
   const [commits, setCommits] = useState<Commit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -118,14 +120,16 @@ export const CommitList: React.FC<CommitListProps> = ({
           setCommits(res.commits);
           setAheadCount(res.aheadCount);
           setHasMore(res.commits.length >= PAGE_SIZE);
-          // Auto-select the latest commit if none is selected
+          // Auto-select initial commit or latest if none is selected
           if (res.commits.length > 0 && !selectedCommit) {
-            const c = res.commits[0];
+            const target = initialCommitHash
+              ? res.commits.find((c) => c.hash === initialCommitHash) || res.commits[0]
+              : res.commits[0];
             onSelectCommitRef.current({
-              hash: c.hash,
-              subject: c.subject,
-              body: c.body,
-              author: c.author,
+              hash: target.hash,
+              subject: target.subject,
+              body: target.body,
+              author: target.author,
             });
           }
         }

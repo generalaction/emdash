@@ -2244,12 +2244,24 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     'git:get-log',
     async (
       _,
-      args: { taskPath: string; maxCount?: number; skip?: number; aheadCount?: number }
+      args: {
+        taskPath: string;
+        maxCount?: number;
+        skip?: number;
+        aheadCount?: number;
+        baseRef?: string;
+      }
     ) => {
       try {
         const pathErr = validateTaskPath(args.taskPath);
         if (pathErr) return { success: false, error: pathErr };
-        const result = await gitGetLog(args.taskPath, args.maxCount, args.skip, args.aheadCount);
+        const result = await gitGetLog(
+          args.taskPath,
+          args.maxCount,
+          args.skip,
+          args.aheadCount,
+          args.baseRef
+        );
         return { success: true, commits: result.commits, aheadCount: result.aheadCount };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };

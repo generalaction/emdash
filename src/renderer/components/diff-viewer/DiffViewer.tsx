@@ -11,6 +11,7 @@ interface DiffViewerProps {
   taskId?: string;
   taskPath?: string;
   initialFile?: string | null;
+  initialCommit?: string | null;
 }
 
 type Tab = 'changes' | 'history';
@@ -20,11 +21,12 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
   taskId,
   taskPath,
   initialFile,
+  initialCommit,
 }) => {
   const { prNumber, taskPath: scopedTaskPath } = useTaskScope();
   const isPrReview = Boolean(prNumber && (taskPath || scopedTaskPath));
 
-  const [activeTab, setActiveTab] = useState<Tab>('changes');
+  const [activeTab, setActiveTab] = useState<Tab>(initialCommit ? 'history' : 'changes');
   const { fileChanges: localFileChanges, refreshChanges } = useFileChanges(taskPath);
 
   // PR review mode: fetch PR diff changes and base branch
@@ -116,6 +118,8 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
             closeButton={closeButton}
             leftPanelSize={leftPanelSize}
             onLeftPanelResize={setLeftPanelSize}
+            initialCommitHash={initialCommit || undefined}
+            initialFile={activeTab === 'history' ? initialFile || undefined : undefined}
           />
         )}
       </div>

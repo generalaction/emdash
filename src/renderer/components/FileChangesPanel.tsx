@@ -28,10 +28,12 @@ import {
   FileDiff,
   GitPullRequest,
   ChevronDown,
+  ChevronRight,
   Loader2,
   CheckCircle2,
   XCircle,
   GitMerge,
+  GitCommitHorizontal,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -43,6 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { useTaskScope } from './TaskScopeContext';
 import { fetchPrBaseDiff, parseDiffToFileChanges } from '../lib/parsePrDiff';
 import { formatDiffCount } from '../lib/gitChangePresentation';
@@ -149,11 +152,31 @@ function TabButton({
   );
 }
 
+function formatRelativeDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr || '';
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHr / 24);
+
+  if (diffSec < 60) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDays < 30) return `${diffDays}d ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths}mo ago`;
+  const diffYears = Math.floor(diffDays / 365);
+  return `${diffYears}y ago`;
+}
+
 interface FileChangesPanelProps {
   taskId?: string;
   taskPath?: string;
   className?: string;
-  onOpenChanges?: (filePath?: string, taskPath?: string) => void;
+  onOpenChanges?: (filePath?: string, taskPath?: string, commitHash?: string) => void;
   gitPlatform?: GitPlatform;
 }
 
@@ -295,6 +318,18 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     files: number;
   } | null>(null);
   const [branchStatusLoading, setBranchStatusLoading] = useState<boolean>(false);
+  const [changesOpen, setChangesOpen] = useState(true);
+  const [commitsOpen, setCommitsOpen] = useState(false);
+  const [branchCommits, setBranchCommits] = useState<
+    Array<{ hash: string; subject: string; date: string }>
+  >([]);
+  const [commitsLoading, setCommitsLoading] = useState(false);
+  const [commitsFetched, setCommitsFetched] = useState(false);
+  const [expandedCommit, setExpandedCommit] = useState<string | null>(null);
+  const [commitFiles, setCommitFiles] = useState<
+    Record<string, Array<{ path: string; status: string; additions: number; deletions: number }>>
+  >({});
+  const [commitFilesLoading, setCommitFilesLoading] = useState<string | null>(null);
 
   // Reset action loading states when task changes
   useEffect(() => {
@@ -306,6 +341,12 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     setIsStagingAll(false);
     setBranchAhead(null);
     setBranchDiffStats(null);
+    // Reset commits section
+    setBranchCommits([]);
+    setCommitsFetched(false);
+    setExpandedCommit(null);
+    setCommitFiles({});
+    setCommitsOpen(false);
   }, [resolvedTaskPath]);
 
   // Default to checks when PR exists but no changes; reset when PR disappears
@@ -351,6 +392,55 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [safeTaskPath, hasChanges]);
+
+  // Fetch branch commits lazily when the commits section is first opened
+  useEffect(() => {
+    if (
+      !commitsOpen ||
+      commitsFetched ||
+      !safeTaskPath ||
+      branchAhead === null ||
+      branchAhead === 0
+    )
+      return;
+
+    let cancelled = false;
+    setCommitsLoading(true);
+
+    const load = async () => {
+      try {
+        const branchStatus = await window.electronAPI.getBranchStatus({
+          taskPath: safeTaskPath,
+          taskId: resolvedTaskId,
+        });
+        const defaultBranch = branchStatus?.defaultBranch;
+        if (cancelled) return;
+
+        const res = await window.electronAPI.gitGetLog({
+          taskPath: safeTaskPath,
+          maxCount: branchAhead,
+          baseRef: defaultBranch || undefined,
+        });
+        if (!cancelled && res?.success && res.commits) {
+          setBranchCommits(
+            res.commits.map((c) => ({ hash: c.hash, subject: c.subject, date: c.date }))
+          );
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) {
+          setCommitsLoading(false);
+          setCommitsFetched(true);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [commitsOpen, commitsFetched, safeTaskPath, branchAhead, resolvedTaskId]);
 
   const handleFileStage = async (filePath: string, stage: boolean, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -487,6 +577,11 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           if (taskPathRef.current !== taskPathAtCommit) return;
           setBranchAhead(bs?.success ? (bs?.aheadOfDefault ?? bs?.ahead ?? 0) : 0);
           setBranchDiffStats(bs?.defaultDiffStats ?? null);
+          // Force commits section to re-fetch on next open
+          setCommitsFetched(false);
+          setBranchCommits([]);
+          setCommitFiles({});
+          setExpandedCommit(null);
         } catch {
           if (taskPathRef.current === taskPathAtCommit) {
             setBranchAhead(0);
@@ -574,6 +669,34 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
       });
     }
   };
+
+  const handleToggleCommitFiles = useCallback(
+    async (commitHash: string) => {
+      if (expandedCommit === commitHash) {
+        setExpandedCommit(null);
+        return;
+      }
+      setExpandedCommit(commitHash);
+      if (commitFiles[commitHash]) return;
+
+      setCommitFilesLoading(commitHash);
+      try {
+        const res = await window.electronAPI.gitGetCommitFiles({
+          taskPath: safeTaskPath,
+          commitHash,
+        });
+        const files = res?.files;
+        if (res?.success && files) {
+          setCommitFiles((prev) => ({ ...prev, [commitHash]: files }));
+        }
+      } catch {
+        // ignore
+      } finally {
+        setCommitFilesLoading(null);
+      }
+    },
+    [expandedCommit, commitFiles, safeTaskPath]
+  );
 
   const renderPath = (p: string, status?: FileChange['status']) => {
     const last = p.lastIndexOf('/');
@@ -993,135 +1116,290 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
         </>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {displayLoading && displayChanges.length === 0 ? (
-            <div className="flex h-full items-center justify-center">
-              <Spinner size="lg" className="text-muted-foreground" />
-            </div>
-          ) : showPrDiff ? (
-            displayChanges.map((change, index) => (
-              <div
-                key={index}
-                className="flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50"
-                onClick={() => onOpenChanges?.(change.path, safeTaskPath)}
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
-                  <span className="inline-flex shrink-0 items-center justify-center text-muted-foreground">
-                    <FileIcon filename={change.path} isDirectory={false} size={16} />
-                  </span>
-                  <div className="min-w-0 flex-1 overflow-hidden">
-                    <div className="min-w-0 truncate text-sm">
-                      {renderPath(change.path, change.status)}
-                    </div>
-                  </div>
+          {/* Changes section */}
+          <Collapsible open={changesOpen} onOpenChange={setChangesOpen}>
+            <CollapsibleTrigger className="flex w-full items-center gap-1.5 border-b border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50">
+              {changesOpen ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              Changes
+              {displayChanges.length > 0 && (
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                  {displayChanges.length}
+                </span>
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              {displayLoading && displayChanges.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner size="lg" className="text-muted-foreground" />
                 </div>
-                <div className="ml-3 flex shrink-0 items-center gap-2">
-                  {change.status !== 'deleted' && shouldShowDiffPill(change.additions) && (
-                    <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
-                      +{formatDiffCount(change.additions)}
-                    </span>
-                  )}
-                  {change.status !== 'deleted' && shouldShowDiffPill(change.deletions) && (
-                    <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                      -{formatDiffCount(change.deletions)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))
-          ) : (
-            <TooltipProvider delayDuration={100}>
-              {fileChanges.map((change) => (
-                <div
-                  key={change.path}
-                  className={`flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50 ${
-                    change.isStaged ? 'bg-muted/50' : ''
-                  }`}
-                  onClick={() => onOpenChanges?.(change.path, safeTaskPath)}
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
-                    <span className="inline-flex shrink-0 items-center justify-center text-muted-foreground">
-                      <FileIcon filename={change.path} isDirectory={false} size={16} />
-                    </span>
-                    <div className="min-w-0 flex-1 overflow-hidden">
-                      <div className="min-w-0 truncate text-sm">
-                        {renderPath(change.path, change.status)}
+              ) : showPrDiff ? (
+                displayChanges.map((change, index) => (
+                  <div
+                    key={index}
+                    className="flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0 hover:bg-muted/50"
+                    onClick={() => onOpenChanges?.(change.path, safeTaskPath)}
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
+                      <span className="inline-flex shrink-0 items-center justify-center text-muted-foreground">
+                        <FileIcon filename={change.path} isDirectory={false} size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <div className="min-w-0 truncate text-sm">
+                          {renderPath(change.path, change.status)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="ml-3 flex shrink-0 items-center gap-2">
-                    {change.status !== 'deleted' && shouldShowDiffPill(change.additions) && (
-                      <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
-                        +{formatDiffCount(change.additions)}
-                      </span>
-                    )}
-                    {change.status !== 'deleted' && shouldShowDiffPill(change.deletions) && (
-                      <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                        -{formatDiffCount(change.deletions)}
-                      </span>
-                    )}
-                    <div className="flex items-center gap-1">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
-                            onClick={(e) => handleFileStage(change.path, !change.isStaged, e)}
-                            disabled={
-                              stagingFiles.has(change.path) || revertingFiles.has(change.path)
-                            }
-                          >
-                            {stagingFiles.has(change.path) ? (
-                              <Spinner size="sm" />
-                            ) : change.isStaged ? (
-                              <Minus className="h-4 w-4" />
-                            ) : (
-                              <Plus className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="left"
-                          className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
-                        >
-                          <p className="font-medium">
-                            {change.isStaged ? 'Unstage file' : 'Stage file for commit'}
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-foreground"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRestoreTarget(change.path);
-                            }}
-                            disabled={
-                              stagingFiles.has(change.path) || revertingFiles.has(change.path)
-                            }
-                          >
-                            {revertingFiles.has(change.path) ? (
-                              <Spinner size="sm" />
-                            ) : (
-                              <Undo2 className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="left"
-                          className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
-                        >
-                          <p className="font-medium">Revert file changes</p>
-                        </TooltipContent>
-                      </Tooltip>
+                    <div className="ml-3 flex shrink-0 items-center gap-2">
+                      {change.status !== 'deleted' && shouldShowDiffPill(change.additions) && (
+                        <span className="rounded bg-green-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-green-900/30 dark:text-emerald-300">
+                          +{formatDiffCount(change.additions)}
+                        </span>
+                      )}
+                      {change.status !== 'deleted' && shouldShowDiffPill(change.deletions) && (
+                        <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                          -{formatDiffCount(change.deletions)}
+                        </span>
+                      )}
                     </div>
                   </div>
+                ))
+              ) : (
+                <TooltipProvider delayDuration={100}>
+                  {(() => {
+                    const staged = fileChanges.filter((f) => f.isStaged);
+                    const unstaged = fileChanges.filter((f) => !f.isStaged);
+                    const renderFileRow = (change: FileChange) => (
+                      <div
+                        key={change.path}
+                        className="flex cursor-pointer items-center justify-between border-b border-border/50 px-4 py-1.5 last:border-b-0 hover:bg-muted/50"
+                        onClick={() => onOpenChanges?.(change.path, safeTaskPath)}
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                          <span className="inline-flex shrink-0 items-center justify-center text-muted-foreground">
+                            <FileIcon filename={change.path} isDirectory={false} size={14} />
+                          </span>
+                          <div className="min-w-0 flex-1 overflow-hidden">
+                            <div className="min-w-0 truncate text-xs">
+                              {renderPath(change.path, change.status)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-2 flex shrink-0 items-center gap-1.5">
+                          {change.status !== 'deleted' && shouldShowDiffPill(change.additions) && (
+                            <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                              +{formatDiffCount(change.additions)}
+                            </span>
+                          )}
+                          {change.status !== 'deleted' && shouldShowDiffPill(change.deletions) && (
+                            <span className="text-[10px] font-medium text-rose-700 dark:text-rose-300">
+                              -{formatDiffCount(change.deletions)}
+                            </span>
+                          )}
+                          <div className="flex items-center gap-0.5">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                  onClick={(e) => handleFileStage(change.path, !change.isStaged, e)}
+                                  disabled={
+                                    stagingFiles.has(change.path) || revertingFiles.has(change.path)
+                                  }
+                                >
+                                  {stagingFiles.has(change.path) ? (
+                                    <Spinner size="sm" />
+                                  ) : change.isStaged ? (
+                                    <Minus className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <Plus className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="left"
+                                className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+                              >
+                                <p className="font-medium">
+                                  {change.isStaged ? 'Unstage file' : 'Stage file for commit'}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRestoreTarget(change.path);
+                                  }}
+                                  disabled={
+                                    stagingFiles.has(change.path) || revertingFiles.has(change.path)
+                                  }
+                                >
+                                  {revertingFiles.has(change.path) ? (
+                                    <Spinner size="sm" />
+                                  ) : (
+                                    <Undo2 className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="left"
+                                className="max-w-xs border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+                              >
+                                <p className="font-medium">Revert file changes</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                    return (
+                      <>
+                        {staged.length > 0 && (
+                          <>
+                            <div className="flex items-center justify-between px-4 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              Staged ({staged.length})
+                            </div>
+                            {staged.map(renderFileRow)}
+                          </>
+                        )}
+                        {unstaged.length > 0 && (
+                          <>
+                            <div className="flex items-center justify-between px-4 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              Unstaged ({unstaged.length})
+                            </div>
+                            {unstaged.map(renderFileRow)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+                </TooltipProvider>
+              )}
+              {!displayLoading && displayChanges.length === 0 && (
+                <div className="px-4 py-3 text-xs text-muted-foreground">
+                  No uncommitted changes
                 </div>
-              ))}
-            </TooltipProvider>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Commits section - only show when there are commits ahead */}
+          {branchAhead != null && branchAhead > 0 && (
+            <Collapsible open={commitsOpen} onOpenChange={setCommitsOpen}>
+              <CollapsibleTrigger className="flex w-full items-center gap-1.5 border-b border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50">
+                {commitsOpen ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+                <GitCommitHorizontal className="h-3 w-3" />
+                Commits
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                  {branchAhead}
+                </span>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                {commitsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Spinner size="sm" className="text-muted-foreground" />
+                  </div>
+                ) : branchCommits.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-muted-foreground">No commits</div>
+                ) : (
+                  branchCommits.map((commit) => (
+                    <div key={commit.hash}>
+                      <button
+                        type="button"
+                        className={`w-full border-b border-border/50 px-4 py-1.5 text-left hover:bg-muted/50 ${
+                          expandedCommit === commit.hash ? 'bg-muted/30' : ''
+                        }`}
+                        onClick={() => void handleToggleCommitFiles(commit.hash)}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {expandedCommit === commit.hash ? (
+                            <ChevronDown className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+                          )}
+                          <span className="min-w-0 flex-1 truncate text-xs">{commit.subject}</span>
+                          <span className="shrink-0 text-[10px] text-muted-foreground">
+                            {formatRelativeDate(commit.date)}
+                          </span>
+                        </div>
+                      </button>
+                      {expandedCommit === commit.hash && (
+                        <div className="border-b border-border/50 bg-muted/20">
+                          {commitFilesLoading === commit.hash ? (
+                            <div className="flex items-center justify-center py-3">
+                              <Spinner size="sm" className="text-muted-foreground" />
+                            </div>
+                          ) : commitFiles[commit.hash]?.length ? (
+                            (() => {
+                              const files = commitFiles[commit.hash];
+                              const grouped: Record<string, typeof files> = {};
+                              for (const file of files) {
+                                const lastSlash = file.path.lastIndexOf('/');
+                                const dir = lastSlash >= 0 ? file.path.slice(0, lastSlash) : '.';
+                                (grouped[dir] ??= []).push(file);
+                              }
+                              return Object.entries(grouped).map(([dir, dirFiles]) => (
+                                <div key={dir}>
+                                  <div className="px-4 py-1 pl-9 text-[10px] font-medium text-muted-foreground">
+                                    {dir}
+                                  </div>
+                                  {dirFiles.map((file) => (
+                                    <button
+                                      key={file.path}
+                                      type="button"
+                                      className="flex w-full items-center gap-2 px-4 py-1 pl-12 text-left hover:bg-muted/50"
+                                      onClick={() =>
+                                        onOpenChanges?.(file.path, safeTaskPath, commit.hash)
+                                      }
+                                    >
+                                      <FileIcon
+                                        filename={file.path}
+                                        isDirectory={false}
+                                        size={14}
+                                      />
+                                      <span className="min-w-0 flex-1 truncate text-xs">
+                                        {file.path.split('/').pop()}
+                                      </span>
+                                      {file.additions > 0 && (
+                                        <span className="text-[10px] text-green-600 dark:text-green-400">
+                                          +{file.additions}
+                                        </span>
+                                      )}
+                                      {file.deletions > 0 && (
+                                        <span className="text-[10px] text-red-600 dark:text-red-400">
+                                          -{file.deletions}
+                                        </span>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              ));
+                            })()
+                          ) : (
+                            <div className="px-4 py-2 pl-9 text-xs text-muted-foreground">
+                              No files
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           )}
         </div>
       )}

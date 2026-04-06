@@ -465,6 +465,7 @@ declare global {
         maxCount?: number;
         skip?: number;
         aheadCount?: number;
+        baseRef?: string;
       }) => Promise<{
         success: boolean;
         commits?: Array<{
