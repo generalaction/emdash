@@ -158,34 +158,39 @@ const TreeNode: React.FC<{
         <div>
           <div
             className={cn(
-              'flex h-6 cursor-pointer select-none items-center px-1 hover:bg-accent/50',
+              'flex h-7 cursor-pointer select-none items-center gap-1.5 px-2 hover:bg-accent/50',
               isSelected && 'bg-accent',
               node.isHidden && 'opacity-60'
             )}
-            style={{ paddingLeft: `${level * 12 + 4}px` }}
+            style={{ paddingLeft: `${level * 16 + 8}px` }}
             onClick={handleClick}
             onDoubleClick={handleDoubleClick}
             role="treeitem"
             aria-selected={isSelected}
             aria-expanded={node.type === 'directory' ? isExpanded : undefined}
           >
-            {node.type === 'directory' && (
-              <span className="mr-1 text-muted-foreground">
+            {node.type === 'directory' ? (
+              <span className="flex shrink-0 items-center text-muted-foreground">
                 {isExpanded ? (
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className="h-3.5 w-3.5" />
                 ) : (
-                  <ChevronRight className="h-3 w-3" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 )}
               </span>
+            ) : (
+              <span className="inline-block h-3.5 w-3.5 shrink-0" />
             )}
-            {node.type === 'file' && (
-              <span className="mr-1.5">
-                <FileIcon filename={node.name} isDirectory={false} isExpanded={false} />
-              </span>
-            )}
+            <span className="flex shrink-0 items-center">
+              <FileIcon
+                filename={node.name}
+                isDirectory={node.type === 'directory'}
+                isExpanded={isExpanded}
+                size={15}
+              />
+            </span>
             <span
               className={cn(
-                'flex-1 truncate text-sm',
+                'flex-1 truncate text-xs',
                 fileStatus === 'added' && 'text-green-500',
                 fileStatus === 'modified' && 'text-amber-500',
                 fileStatus === 'deleted' && 'text-red-500 line-through',
