@@ -363,10 +363,18 @@ describe('shellEnv', () => {
 
       initializeShellEnvironment();
 
-      // Every execSync invocation in this module should have been handed a
-      // scrubbed env — no AppImage keys, no mount paths in PATH-like vars.
-      expect(mockedExecSync).toHaveBeenCalled();
-      for (const call of mockedExecSync.mock.calls) {
+      // Every probe invocation should have been handed a scrubbed env — no
+      // AppImage keys, no mount paths in PATH-like vars. Filter to the shell
+      // probe calls specifically: on macOS, detectSshAuthSock() also calls
+      // `launchctl getenv SSH_AUTH_SOCK` with no `env` option, and we don't
+      // want that call to trip the `env` assertion below. The probe call
+      // sites in getShellEnvVar / getShellLocaleVars both use `-ilc`, which
+      // is a clean discriminator.
+      const probeCalls = mockedExecSync.mock.calls.filter(
+        (call) => typeof call[0] === 'string' && call[0].includes('-ilc')
+      );
+      expect(probeCalls.length).toBeGreaterThan(0);
+      for (const call of probeCalls) {
         const options = call[1] as { env?: NodeJS.ProcessEnv } | undefined;
         const env = options?.env;
         expect(env).toBeDefined();
