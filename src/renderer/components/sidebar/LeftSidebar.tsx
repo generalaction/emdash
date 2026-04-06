@@ -49,6 +49,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 const TASK_ORDER_KEY = 'sidebarTaskOrder';
 const TASK_SORT_MODE_KEY = 'sidebarTaskSortMode';
+const COLLAPSED_PROJECTS_KEY = 'sidebarCollapsedProjects';
 
 type TaskSortMode = 'createdAt' | 'lastActive' | 'alpha';
 
@@ -229,6 +230,16 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   const [projectOrder, setProjectOrder] = useLocalStorage<string[]>(PROJECT_ORDER_KEY, []);
 
+  // --- Collapsed project folders state (persisted as array, used as Set) ---
+  const [collapsedProjectsArray, setCollapsedProjectsArray] = useLocalStorage<string[]>(
+    COLLAPSED_PROJECTS_KEY,
+    []
+  );
+  const collapsedProjects = useMemo(
+    () => new Set(collapsedProjectsArray),
+    [collapsedProjectsArray]
+  );
+
   const sortedProjects = useMemo(() => {
     if (!projectOrder.length) return projects;
     return [...projects].sort((a, b) => {
@@ -304,21 +315,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const changelogEntry = changelogNotification.entry;
   const changelogCardRef = useRef<HTMLDivElement | null>(null);
   const [changelogCardHeight, setChangelogCardHeight] = useState(0);
-
-  const [forceOpenIds, setForceOpenIds] = useState<Set<string>>(new Set());
-  const prevTaskCountsRef = useRef<Map<string, number>>(new Map());
-
-  useEffect(() => {
-    const prev = prevTaskCountsRef.current;
-    for (const project of projects) {
-      const taskCount = tasksByProjectId[project.id]?.length ?? 0;
-      const prevCount = prev.get(project.id) ?? 0;
-      if (prevCount === 0 && taskCount > 0) {
-        setForceOpenIds((s) => new Set(s).add(project.id));
-      }
-      prev.set(project.id, taskCount);
-    }
-  }, [projects, tasksByProjectId]);
 
   useEffect(() => {
     onSidebarContextChange?.({ open, isMobile, setOpen });
@@ -470,16 +466,18 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       return (
                         <SidebarMenuItem>
                           <Collapsible
-                            defaultOpen
-                            open={forceOpenIds.has(typedProject.id) ? true : undefined}
-                            onOpenChange={() => {
-                              if (forceOpenIds.has(typedProject.id)) {
-                                setForceOpenIds((s) => {
-                                  const n = new Set(s);
-                                  n.delete(typedProject.id);
-                                  return n;
-                                });
-                              }
+                            open={!collapsedProjects.has(typedProject.id)}
+                            onOpenChange={(isOpen) => {
+                              const shouldBeCollapsed = !isOpen;
+                              setCollapsedProjectsArray((prev) => {
+                                const prevSet = new Set(prev);
+                                if (shouldBeCollapsed) {
+                                  prevSet.add(typedProject.id);
+                                } else {
+                                  prevSet.delete(typedProject.id);
+                                }
+                                return Array.from(prevSet);
+                              });
                             }}
                             className="group/collapsible"
                           >
