@@ -26,7 +26,16 @@ export const REVIEW_DEPTH_AGENTS: Record<ReviewDepth, number> = {
   comprehensive: 5,
 };
 
-export type ReviewType = 'file-changes';
+export type ReviewType = 'file-changes' | 'agent-output';
+
+// Message type for review conversations (shared between renderer and main)
+export interface ReviewMessage {
+  id: string;
+  conversationId: string;
+  sender: 'user' | 'agent' | 'system';
+  content: string;
+  timestamp: string;
+}
 
 export interface AIReviewConfig {
   depth: ReviewDepth;
@@ -58,6 +67,9 @@ export interface AIReviewResult {
 }
 
 // Review prompt templates
+// Output format: JSON array of issues with schema:
+// [{ "severity": "critical|major|minor|info", "category": "string", "title": "string", "description": "string", "filePath": "string?", "lineRange": {"start": number, "end": number}?, "codeSnapshot": "string?", "fixPrompt": "string?" }]
+// Return only valid JSON.
 export const REVIEW_PROMPTS = {
   fileChanges: {
     quick: `You are a code reviewer. Review the diff between the task's source branch and the current workspace for:
@@ -65,7 +77,9 @@ export const REVIEW_PROMPTS = {
 - Obvious correctness problems
 - Major performance concerns
 
-Provide your review in a structured format with specific issues found.`,
+Provide your review as a JSON array of issues with this schema:
+[{ "severity": "critical|major|minor|info", "category": "string", "title": "string", "description": "string", "filePath": "string?", "lineRange": {"start": number, "end": number}?, "codeSnapshot": "string?", "fixPrompt": "string?" }]
+Return only valid JSON.`,
     focused: `You are a thorough code reviewer. Review the diff between the task's source branch and the current workspace for:
 - Correctness, edge cases, and regressions
 - Security vulnerabilities
@@ -74,7 +88,9 @@ Provide your review in a structured format with specific issues found.`,
 - Testing gaps
 - Code maintainability
 
-Provide your review in a structured format with specific issues found.`,
+Provide your review as a JSON array of issues with this schema:
+[{ "severity": "critical|major|minor|info", "category": "string", "title": "string", "description": "string", "filePath": "string?", "lineRange": {"start": number, "end": number}?, "codeSnapshot": "string?", "fixPrompt": "string?" }]
+Return only valid JSON.`,
     comprehensive: `You are an expert code reviewer conducting a comprehensive review. Review diff between the task's source branch and the current workspace for:
 - All correctness issues including edge cases
 - Security (OWASP top 10, injection, auth issues)
@@ -85,7 +101,9 @@ Provide your review in a structured format with specific issues found.`,
 - Best practices adherence
 - Potential bugs and race conditions
 
-Provide your review in a structured format with specific issues found, including severity and category.`,
+Provide your review as a JSON array of issues with this schema:
+[{ "severity": "critical|major|minor|info", "category": "string", "title": "string", "description": "string", "filePath": "string?", "lineRange": {"start": number, "end": number}?, "codeSnapshot": "string?", "fixPrompt": "string?" }]
+Return only valid JSON.`,
   },
 };
 

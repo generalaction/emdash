@@ -4,13 +4,14 @@ import type {
   AIReviewIssue,
   AIReviewResult,
   ReviewDepth,
+  ReviewType,
+  ReviewMessage,
 } from '@shared/reviewPreset';
 import { REVIEW_DEPTH_AGENTS, REVIEW_PROMPTS } from '@shared/reviewPreset';
 import { rpc } from './rpc';
 import { makePtyId } from '@shared/ptyId';
 import type { ProviderId } from '@shared/providers/registry';
 import { buildReviewConversationMetadata } from '@shared/reviewPreset';
-import type { Message } from '../../main/services/DatabaseService';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 
 const CONVERSATIONS_CHANGED_EVENT = 'emdash:conversations-changed';
@@ -38,9 +39,13 @@ export async function captureTerminalSnapshot(ptyId: string): Promise<string> {
   return response.snapshot.data;
 }
 
-function buildReviewPrompt(depth: ReviewDepth, content?: string): string {
-  const key = 'fileChanges';
-  const template = REVIEW_PROMPTS[key][depth];
+function buildReviewPrompt(reviewType: ReviewType, depth: ReviewDepth, content?: string): string {
+  // Map review type to prompt key (file-changes -> fileChanges)
+  const key = reviewType === 'file-changes' ? 'fileChanges' : 'fileChanges';
+  const template = REVIEW_PROMPTS[key]?.[depth];
+  if (!template) {
+    throw new Error(`No review prompt found for ${reviewType}/${depth}`);
+  }
   if (content) {
     return `${template}\n\n--- Content to review ---\n${content}`;
   }
@@ -115,21 +120,22 @@ export async function launchReviewAgents(
 ): Promise<{ reviewId: string; conversationIds: string[]; ptyIds: string[] }> {
   const reviewId = generateId();
   const agentCount = REVIEW_DEPTH_AGENTS[config.depth];
-  const conversationIds: string[] = [];
-  const ptyIds: string[] = [];
 
-  for (let i = 0; i < agentCount; i++) {
-    const prompt = buildReviewPrompt(config.depth, content);
-    const { conversationId, ptyId } = await launchReviewAgent({
+  // Launch all agents in parallel
+  const prompt = buildReviewPrompt(config.reviewType, config.depth, content);
+  const launches = Array.from({ length: agentCount }, () =>
+    launchReviewAgent({
       taskId,
       taskPath,
       reviewId,
       agent: config.providerId,
       prompt,
-    });
-    conversationIds.push(conversationId);
-    ptyIds.push(ptyId);
-  }
+    })
+  );
+
+  const results = await Promise.all(launches);
+  const conversationIds = results.map((r) => r.conversationId);
+  const ptyIds = results.map((r) => r.ptyId);
 
   return { reviewId, conversationIds, ptyIds };
 }
@@ -137,7 +143,7 @@ export async function launchReviewAgents(
 export async function pollReviewMessages(
   conversationId: string,
   sinceTimestamp?: string
-): Promise<{ messages: Message[]; hasNewMessages: boolean }> {
+): Promise<{ messages: ReviewMessage[]; hasNewMessages: boolean }> {
   const messages = await rpc.db.getMessages(conversationId);
   const since = sinceTimestamp ? new Date(sinceTimestamp) : new Date(0);
   const newMessages = messages.filter((m) => new Date(m.timestamp) > since);
@@ -147,7 +153,7 @@ export async function pollReviewMessages(
   };
 }
 
-export function parseReviewMessages(messages: Message[]): AIReviewIssue[] {
+export function parseReviewMessages(messages: ReviewMessage[]): AIReviewIssue[] {
   // Find the most recent agent message that contains review results
   const agentMessages = messages.filter((m) => m.sender === 'agent').reverse();
 
@@ -198,7 +204,8 @@ function normalizeSeverity(severity: unknown): 'critical' | 'major' | 'minor' | 
   const s = String(severity || '').toLowerCase();
   if (s === 'critical' || s === 'error' || s === 'blocker') return 'critical';
   if (s === 'major' || s === 'warning') return 'major';
-  if (s === 'minor' || s === 'info') return 'minor';
+  if (s === 'minor') return 'minor';
+  if (s === 'info') return 'info';
   return 'info';
 }
 
@@ -207,8 +214,25 @@ function parseMarkdownIssues(content: string): AIReviewIssue[] {
   const lines = content.split('\n');
   let currentIssue: Partial<AIReviewIssue> | null = null;
   let currentCodeBlock: string[] = [];
+  let inCodeBlock = false;
 
   for (const line of lines) {
+    // Handle code fences
+    if (line.startsWith('```')) {
+      if (inCodeBlock) {
+        // End of code block
+        if (currentIssue) {
+          currentIssue.codeSnapshot = currentCodeBlock.join('\n');
+        }
+        currentCodeBlock = [];
+        inCodeBlock = false;
+      } else {
+        // Start of code block
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
     // Look for issue headers like "## Issue:" or "### [CRITICAL]" or "- **Title**:"
     const headerMatch = line.match(/^#{1,3}\s*\[?(\w+)\]?\s*[:\-]?\s*(.*)/i);
     if (headerMatch) {
@@ -246,25 +270,12 @@ function parseMarkdownIssues(content: string): AIReviewIssue[] {
       continue;
     }
 
-    // Accumulate code blocks
-    if (line.startsWith('```')) {
-      if (currentCodeBlock.length > 0) {
-        // End of code block
-        if (currentIssue) {
-          currentIssue.codeSnapshot = currentCodeBlock.join('\n');
-        }
-        currentCodeBlock = [];
-      }
-      // Start of code block - skip the fence
-      continue;
-    }
-
     if (currentIssue) {
       if (line.match(/^File:|Path:|Location:/i)) {
         currentIssue.filePath = line.replace(/^File:|Path:|Location:\s*/i, '').trim();
       } else if (line.match(/^Category:|Type:/i)) {
         currentIssue.category = line.replace(/^Category:|Type:\s*/i, '').trim();
-      } else if (currentCodeBlock.length > 0 || line.match(/^\s{2,}/)) {
+      } else if (inCodeBlock || line.match(/^\s{2,}/)) {
         currentCodeBlock.push(line);
       } else if (line.trim()) {
         currentIssue.description = (currentIssue.description || '') + line + '\n';
@@ -281,7 +292,7 @@ function parseMarkdownIssues(content: string): AIReviewIssue[] {
 }
 
 export async function aggregateReviewResults(
-  results: Array<{ conversationId: string; messages: Message[] }>,
+  results: Array<{ conversationId: string; messages: ReviewMessage[] }>,
   config: AIReviewConfig,
   reviewId: string,
   durationMs: number
