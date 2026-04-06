@@ -39,6 +39,8 @@ interface CodeEditorProps {
   showSettingsPage?: boolean;
   settingsPageInitialTab?: SettingsPageTab;
   onCloseSettingsPage?: () => void;
+  initialFilePath?: string | null;
+  onInitialFileConsumed?: () => void;
 }
 
 export default function CodeEditor({
@@ -52,6 +54,8 @@ export default function CodeEditor({
   showSettingsPage,
   settingsPageInitialTab,
   onCloseSettingsPage,
+  initialFilePath,
+  onInitialFileConsumed,
 }: CodeEditorProps) {
   const { effectiveTheme } = useTheme();
   const {
@@ -95,6 +99,15 @@ export default function CodeEditor({
     updateFileContent,
     setActiveFile,
   } = useFileManager({ taskId, taskPath, connectionId, remotePath });
+
+  // Open initial file when requested from sidebar
+  useEffect(() => {
+    if (initialFilePath) {
+      void loadFile(initialFilePath).then(() => {
+        onInitialFileConsumed?.();
+      });
+    }
+  }, [initialFilePath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Get file changes status from git
   const { fileChanges } = useFileChanges(taskPath);

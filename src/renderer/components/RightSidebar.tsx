@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { GitPlatform } from '../../shared/git/platform';
 import { cn } from '@/lib/utils';
-import FileChangesPanel from './FileChangesPanel';
+import SidebarTopPanel from './SidebarTopPanel';
 import TaskTerminalPanel from './TaskTerminalPanel';
 import { useRightSidebar } from './ui/right-sidebar';
 import { agentAssets } from '@/providers/assets';
@@ -33,6 +33,7 @@ interface RightSidebarProps extends React.HTMLAttributes<HTMLElement> {
   gitPlatform?: GitPlatform;
   forceBorder?: boolean;
   onOpenChanges?: (filePath?: string, taskPath?: string, commitHash?: string) => void;
+  onOpenFile?: (filePath: string) => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -45,6 +46,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   className,
   forceBorder = false,
   onOpenChanges,
+  onOpenFile,
   ...rest
 }) => {
   const { collapsed } = useRightSidebar();
@@ -229,6 +231,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                               taskId={task.id}
                               gitPlatform={gitPlatform}
                               onOpenChanges={onOpenChanges}
+                              onOpenFile={onOpenFile}
+                              connectionId={effectiveConnectionId}
+                              remotePath={effectiveRemotePath}
                             />
                             <TaskTerminalPanel
                               task={{
@@ -277,6 +282,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                           className="h-full min-h-0"
                           gitPlatform={gitPlatform}
                           onOpenChanges={onOpenChanges}
+                          onOpenFile={onOpenFile}
+                          connectionId={effectiveConnectionId}
+                          remotePath={effectiveRemotePath}
                         />
                       </ResizablePanel>
                       <ResizableHandle />
@@ -312,6 +320,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   projectDefaultBranch={projectDefaultBranch}
                   gitPlatform={gitPlatform}
                   onOpenChanges={onOpenChanges}
+                  onOpenFile={onOpenFile}
                 />
               ) : (
                 <ResizablePanelGroup
@@ -319,16 +328,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                   autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}
                 >
                   <ResizablePanel defaultSize={50} minSize={20}>
-                    <div className="flex h-full flex-col bg-background">
-                      <div className="border-b border-border bg-muted px-3 py-2 text-sm font-medium text-foreground dark:bg-background">
-                        <span className="whitespace-nowrap">Changes</span>
-                      </div>
-                      <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                        <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                          Select a task to review file changes.
-                        </span>
-                      </div>
-                    </div>
+                    <SidebarTopPanel className="h-full min-h-0" gitPlatform={gitPlatform} />
                   </ResizablePanel>
                   <ResizableHandle />
                   <ResizablePanel defaultSize={50} minSize={20}>
@@ -371,6 +371,7 @@ const SingleTaskSidebar: React.FC<{
   projectDefaultBranch?: string | null;
   gitPlatform?: GitPlatform;
   onOpenChanges?: (filePath?: string, taskPath?: string, commitHash?: string) => void;
+  onOpenFile?: (filePath: string) => void;
 }> = ({
   task,
   projectPath,
@@ -380,14 +381,18 @@ const SingleTaskSidebar: React.FC<{
   projectDefaultBranch,
   gitPlatform,
   onOpenChanges,
+  onOpenFile,
 }) => {
   return (
     <ResizablePanelGroup direction="vertical" autoSaveId={RIGHT_SIDEBAR_VERTICAL_STORAGE_KEY}>
       <ResizablePanel defaultSize={50} minSize={20}>
-        <FileChangesPanel
+        <SidebarTopPanel
           className="h-full min-h-0"
           onOpenChanges={onOpenChanges}
+          onOpenFile={onOpenFile}
           gitPlatform={gitPlatform}
+          connectionId={effectiveConnectionId}
+          remotePath={effectiveRemotePath}
         />
       </ResizablePanel>
       <ResizableHandle />
@@ -419,14 +424,29 @@ const VariantChangesIfAny: React.FC<{
   className?: string;
   gitPlatform?: GitPlatform;
   onOpenChanges?: (filePath?: string, taskPath?: string, commitHash?: string) => void;
-}> = ({ path, taskId, className, gitPlatform, onOpenChanges }) => {
+  onOpenFile?: (filePath: string) => void;
+  connectionId?: string | null;
+  remotePath?: string | null;
+}> = ({
+  path,
+  taskId,
+  className,
+  gitPlatform,
+  onOpenChanges,
+  onOpenFile,
+  connectionId,
+  remotePath,
+}) => {
   const { projectPath } = useTaskScope();
   return (
     <TaskScopeProvider value={{ taskId, taskPath: path, projectPath }}>
-      <FileChangesPanel
+      <SidebarTopPanel
         className={className || 'min-h-0'}
         onOpenChanges={onOpenChanges}
+        onOpenFile={onOpenFile}
         gitPlatform={gitPlatform}
+        connectionId={connectionId}
+        remotePath={remotePath}
       />
     </TaskScopeProvider>
   );

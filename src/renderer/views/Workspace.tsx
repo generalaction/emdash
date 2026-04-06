@@ -117,6 +117,7 @@ export function Workspace() {
   const [diffViewerInitialFile, setDiffViewerInitialFile] = useState<string | null>(null);
   const [diffViewerTaskPath, setDiffViewerTaskPath] = useState<string | null>(null);
   const [diffViewerInitialCommit, setDiffViewerInitialCommit] = useState<string | null>(null);
+  const [editorInitialFile, setEditorInitialFile] = useState<string | null>(null);
   const handleCloseDiffViewer = useCallback(() => {
     setShowDiffViewer(false);
     setDiffViewerInitialFile(null);
@@ -478,6 +479,11 @@ export function Workspace() {
                         setDiffViewerInitialCommit(commitHash ?? null);
                         setShowDiffViewer(true);
                       }}
+                      onOpenFile={(filePath: string) => {
+                        setEditorInitialFile(filePath);
+                        setShowKanban(false);
+                        setShowEditorMode(true);
+                      }}
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>
@@ -504,6 +510,8 @@ export function Workspace() {
                   showSettingsPage={showSettingsPage}
                   settingsPageInitialTab={settingsPageInitialTab}
                   onCloseSettingsPage={handleCloseSettingsPage}
+                  initialFilePath={editorInitialFile}
+                  onInitialFileConsumed={() => setEditorInitialFile(null)}
                 />
               )}
 
