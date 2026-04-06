@@ -424,6 +424,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   >
                     <Timer className="h-5 w-5 text-muted-foreground sm:h-4 sm:w-4" />
                     <span className="text-sm font-medium">Automations</span>
+                    <span className="rounded bg-zinc-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase leading-none tracking-wide text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400">
+                      Beta
+                    </span>
                   </Button>
                 </SidebarMenuButton>
               </SidebarMenuItem>

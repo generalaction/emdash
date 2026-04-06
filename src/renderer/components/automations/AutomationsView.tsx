@@ -108,7 +108,12 @@ const AutomationsView: React.FC = () => {
           {/* Header */}
           <div className="mb-6 flex items-start justify-between">
             <div>
-              <h1 className="text-lg font-semibold">Automations</h1>
+              <h1 className="flex items-center gap-2 text-lg font-semibold">
+                Automations
+                <span className="rounded bg-zinc-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase leading-none tracking-wide text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400">
+                  Beta
+                </span>
+              </h1>
               <p className="mt-1 text-xs text-muted-foreground">
                 Trigger automations from GitHub events, Linear tickets, or run them on a schedule
               </p>
