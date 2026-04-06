@@ -287,5 +287,19 @@ export function initializeShellEnvironment(): void {
     console.log('[shellEnv] SSH_AUTH_SOCK not detected');
   }
 
+  // Detect CLAUDE_CONFIG_DIR from login shell when not already in process.env.
+  // Electron GUI apps on macOS don't inherit the user's shell profile, so the
+  // var may be missing even if the user has it in ~/.zshrc / ~/.bash_profile.
+  const existingClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR?.trim();
+  if (!existingClaudeConfigDir) {
+    const claudeConfigDir = getShellEnvVar('CLAUDE_CONFIG_DIR');
+    if (claudeConfigDir) {
+      process.env.CLAUDE_CONFIG_DIR = claudeConfigDir;
+      console.log('[shellEnv] Detected CLAUDE_CONFIG_DIR');
+    }
+  } else {
+    process.env.CLAUDE_CONFIG_DIR = existingClaudeConfigDir;
+  }
+
   initializeLocaleEnvironment();
 }
