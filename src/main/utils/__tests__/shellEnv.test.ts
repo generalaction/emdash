@@ -110,7 +110,12 @@ describe('shellEnv', () => {
 
     it('should detect SSH_AUTH_SOCK when not in process.env', () => {
       delete process.env.SSH_AUTH_SOCK;
-      mockedExecSync.mockReturnValue('/shell/detected/socket');
+      mockedExecSync.mockImplementation((command) => {
+        if (typeof command === 'string' && command.includes('launchctl getenv SSH_AUTH_SOCK')) {
+          throw new Error('launchctl failed');
+        }
+        return shellValue('/shell/detected/socket');
+      });
 
       const result = detectSshAuthSock();
 
