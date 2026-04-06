@@ -34,6 +34,7 @@ import {
   XCircle,
   GitMerge,
   GitCommitHorizontal,
+  GitBranch,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -311,6 +312,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     pr ? safeTaskPath : undefined,
     pr?.number
   );
+  const [currentBranch, setCurrentBranch] = useState<string | null>(null);
   const [branchAhead, setBranchAhead] = useState<number | null>(null);
   const [branchDiffStats, setBranchDiffStats] = useState<{
     additions: number;
@@ -339,6 +341,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     setRevertingFiles(new Set());
     setRestoreTarget(null);
     setIsStagingAll(false);
+    setCurrentBranch(null);
     setBranchAhead(null);
     setBranchDiffStats(null);
     // Reset commits section
@@ -373,6 +376,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           taskId: resolvedTaskId,
         });
         if (!cancelled) {
+          setCurrentBranch(res?.branch ?? null);
           setBranchAhead(res?.success ? (res?.aheadOfDefault ?? res?.ahead ?? 0) : 0);
           setBranchDiffStats(res?.defaultDiffStats ?? null);
         }
@@ -1128,6 +1132,14 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
               {displayChanges.length > 0 && (
                 <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
                   {displayChanges.length}
+                </span>
+              )}
+              {currentBranch && (
+                <span className="ml-auto flex items-center gap-1 font-normal text-muted-foreground/70">
+                  <GitBranch className="h-2.5 w-2.5" />
+                  <span className="max-w-[200px] truncate font-mono text-[10px]">
+                    {currentBranch}
+                  </span>
                 </span>
               )}
             </CollapsibleTrigger>
