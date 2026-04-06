@@ -26,7 +26,7 @@ export const REVIEW_DEPTH_AGENTS: Record<ReviewDepth, number> = {
   comprehensive: 5,
 };
 
-export type ReviewType = 'file-changes' | 'agent-output';
+export type ReviewType = 'file-changes';
 
 // Message type for review conversations (shared between renderer and main)
 export interface ReviewMessage {

@@ -4,7 +4,6 @@ import type {
   AIReviewIssue,
   AIReviewResult,
   ReviewDepth,
-  ReviewType,
   ReviewMessage,
 } from '@shared/reviewPreset';
 import { REVIEW_DEPTH_AGENTS, REVIEW_PROMPTS } from '@shared/reviewPreset';
@@ -39,12 +38,10 @@ export async function captureTerminalSnapshot(ptyId: string): Promise<string> {
   return response.snapshot.data;
 }
 
-function buildReviewPrompt(reviewType: ReviewType, depth: ReviewDepth, content?: string): string {
-  // Map review type to prompt key (file-changes -> fileChanges)
-  const key = reviewType === 'file-changes' ? 'fileChanges' : 'fileChanges';
-  const template = REVIEW_PROMPTS[key]?.[depth];
+function buildReviewPrompt(depth: ReviewDepth, content?: string): string {
+  const template = REVIEW_PROMPTS.fileChanges[depth];
   if (!template) {
-    throw new Error(`No review prompt found for ${reviewType}/${depth}`);
+    throw new Error(`No review prompt found for file-changes/${depth}`);
   }
   if (content) {
     return `${template}\n\n--- Content to review ---\n${content}`;
@@ -121,8 +118,8 @@ export async function launchReviewAgents(
   const reviewId = generateId();
   const agentCount = REVIEW_DEPTH_AGENTS[config.depth];
 
-  // Launch all agents in parallel
-  const prompt = buildReviewPrompt(config.reviewType, config.depth, content);
+  // Launch all agents in parallel using Promise.allSettled to handle partial failures
+  const prompt = buildReviewPrompt(config.depth, content);
   const launches = Array.from({ length: agentCount }, () =>
     launchReviewAgent({
       taskId,
@@ -133,9 +130,32 @@ export async function launchReviewAgents(
     })
   );
 
-  const results = await Promise.all(launches);
-  const conversationIds = results.map((r) => r.conversationId);
-  const ptyIds = results.map((r) => r.ptyId);
+  const results = await Promise.allSettled(launches);
+
+  const conversationIds: string[] = [];
+  const ptyIds: string[] = [];
+  const failures: string[] = [];
+
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') {
+      conversationIds.push(result.value.conversationId);
+      ptyIds.push(result.value.ptyId);
+    } else {
+      failures.push(`Agent ${i + 1}: ${result.reason?.message || String(result.reason)}`);
+    }
+  });
+
+  // If all agents failed, throw an error
+  if (conversationIds.length === 0) {
+    throw new Error(`All ${agentCount} agent launches failed: ${failures.join('; ')}`);
+  }
+
+  // If some agents failed, log a warning (successful agents will still be used)
+  if (failures.length > 0) {
+    console.warn(
+      `Some agent launches failed: ${failures.join('; ')}. Proceeding with ${conversationIds.length} successful agents.`
+    );
+  }
 
   return { reviewId, conversationIds, ptyIds };
 }
