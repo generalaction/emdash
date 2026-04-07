@@ -25,7 +25,11 @@ import { useCommentInjection } from '@/hooks/useCommentInjection';
 import { isSlashCommandInput } from '@/lib/slashCommand';
 import { buildCommentScopeKey, draftCommentsStore } from '@/lib/DraftCommentsStore';
 import { formatCommentsForAgent } from '@/lib/formatCommentsForAgent';
-import { buildPromptInjectionPayload } from '@/lib/terminalInjection';
+import {
+  buildPromptInjectionPayload,
+  getPromptSubmitKey,
+  hasDelayedSubmitStartup,
+} from '@/lib/terminalInjection';
 import { TaskScopeProvider } from './TaskScopeContext';
 import TaskContextBadges from './TaskContextBadges';
 
@@ -223,11 +227,13 @@ const MultiAgentTask: React.FC<Props> = ({
     return await new Promise<boolean>((resolve) => {
       let sent = false;
       let finished = false;
+      let ptyReady = false;
       let silenceTimer: ReturnType<typeof setTimeout> | null = null;
       let eagerTimer: ReturnType<typeof setTimeout> | null = null;
       let hardTimer: ReturnType<typeof setTimeout> | null = null;
       let offData: (() => void) | undefined;
       let offStarted: (() => void) | undefined;
+      const hasSlowStartup = hasDelayedSubmitStartup(agent);
 
       const cleanup = () => {
         if (silenceTimer) {
@@ -255,6 +261,7 @@ const MultiAgentTask: React.FC<Props> = ({
 
       const send = () => {
         if (sent) return;
+        if (!ptyReady) return;
         sent = true;
         try {
           const pty = (window as any).electronAPI?.ptyInput;
@@ -263,12 +270,22 @@ const MultiAgentTask: React.FC<Props> = ({
             return;
           }
           const { payload, submitDelayMs } = buildPromptInjectionPayload({ agent, text: trimmed });
+          const submitKey = getPromptSubmitKey(agent);
           pty({ id: ptyId, data: payload });
           setTimeout(() => {
             try {
-              pty({ id: ptyId, data: '\r' });
+              pty({ id: ptyId, data: submitKey });
             } catch {}
           }, submitDelayMs);
+          if (hasSlowStartup) {
+            // Some providers may still be in startup/MCP init when first Enter arrives.
+            // Retry once so the injected prompt is actually submitted.
+            setTimeout(() => {
+              try {
+                pty({ id: ptyId, data: submitKey });
+              } catch {}
+            }, submitDelayMs + 900);
+          }
           finish(true);
         } catch {
           finish(false);
@@ -276,6 +293,7 @@ const MultiAgentTask: React.FC<Props> = ({
       };
 
       offData = (window as any).electronAPI?.onPtyData?.(ptyId, (chunk: string) => {
+        ptyReady = true;
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
           if (!sent) send();
@@ -290,19 +308,30 @@ const MultiAgentTask: React.FC<Props> = ({
 
       offStarted = (window as any).electronAPI?.onPtyStarted?.((info: { id: string }) => {
         if (info?.id === ptyId) {
+          ptyReady = true;
           if (silenceTimer) clearTimeout(silenceTimer);
-          silenceTimer = setTimeout(() => {
-            if (!sent) send();
-          }, 1500);
+          silenceTimer = setTimeout(
+            () => {
+              if (!sent) send();
+            },
+            hasSlowStartup ? 1200 : 1500
+          );
         }
       });
 
-      eagerTimer = setTimeout(() => {
-        if (!sent) send();
-      }, 300);
+      if (!hasSlowStartup) {
+        eagerTimer = setTimeout(() => {
+          if (!sent) send();
+        }, 300);
+      }
 
       hardTimer = setTimeout(() => {
-        if (!sent) send();
+        if (sent) return;
+        if (ptyReady) {
+          send();
+          return;
+        }
+        finish(false);
       }, 5000);
     });
   };

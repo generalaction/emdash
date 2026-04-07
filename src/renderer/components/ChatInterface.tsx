@@ -1050,6 +1050,31 @@ const ChatInterface: React.FC<Props> = ({
   const reviewPromptSent =
     !activeConversation?.isMain && activeReviewMetadata?.initialPromptSent === true;
 
+  const markActiveReviewPromptSent = useCallback(() => {
+    if (!activeConversation || activeConversation.isMain || !activeReviewMetadata) return;
+    if (activeReviewMetadata.initialPromptSent) return;
+
+    const nextMetadata = JSON.stringify({
+      ...(parseConversationMetadata(activeConversation.metadata) ?? {}),
+      mode: 'review',
+      initialPrompt: activeReviewMetadata.initialPrompt,
+      initialPromptSent: true,
+    });
+
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === activeConversation.id
+          ? { ...conversation, metadata: nextMetadata }
+          : conversation
+      )
+    );
+
+    void rpc.db.saveConversation({
+      ...activeConversation,
+      metadata: nextMetadata,
+    });
+  }, [activeConversation, activeReviewMetadata]);
+
   // Only use keystroke injection for agents WITHOUT CLI flag support,
   // or agents that explicitly opt into it (useKeystrokeInjection: true).
   // Agents with initialPromptFlag use CLI arg injection via TerminalPane instead.
@@ -1075,6 +1100,7 @@ const ChatInterface: React.FC<Props> = ({
       !reviewPromptSent &&
       (agentMeta[agent]?.initialPromptFlag === undefined ||
         agentMeta[agent]?.useKeystrokeInjection === true),
+    onSent: markActiveReviewPromptSent,
   });
 
   // Ensure an agent is stored for this task so fallbacks can subscribe immediately
@@ -1117,31 +1143,6 @@ const ChatInterface: React.FC<Props> = ({
     project &&
     onRenameTask
   );
-
-  const markActiveReviewPromptSent = useCallback(() => {
-    if (!activeConversation || activeConversation.isMain || !activeReviewMetadata) return;
-    if (activeReviewMetadata.initialPromptSent) return;
-
-    const nextMetadata = JSON.stringify({
-      ...(parseConversationMetadata(activeConversation.metadata) ?? {}),
-      mode: 'review',
-      initialPrompt: activeReviewMetadata.initialPrompt,
-      initialPromptSent: true,
-    });
-
-    setConversations((prev) =>
-      prev.map((conversation) =>
-        conversation.id === activeConversation.id
-          ? { ...conversation, metadata: nextMetadata }
-          : conversation
-      )
-    );
-
-    void rpc.db.saveConversation({
-      ...activeConversation,
-      metadata: nextMetadata,
-    });
-  }, [activeConversation, activeReviewMetadata]);
 
   if (!isTerminal) {
     return null;
@@ -1310,7 +1311,13 @@ const ChatInterface: React.FC<Props> = ({
                       });
                     }
                     if (!isMainConversation && reviewPrompt && !reviewPromptSent) {
-                      markActiveReviewPromptSent();
+                      // Only mark sent here for agents that pass the prompt via CLI flag.
+                      // Keystroke-injection agents mark it themselves via localStorage,
+                      // and marking it here too early would disable the injection hook.
+                      const meta = agentMeta[agent];
+                      if (meta?.initialPromptFlag !== undefined && !meta?.useKeystrokeInjection) {
+                        markActiveReviewPromptSent();
+                      }
                     }
                   }}
                   variant={

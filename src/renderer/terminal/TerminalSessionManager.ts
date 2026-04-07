@@ -14,7 +14,11 @@ import { pendingInjectionManager } from '../lib/PendingInjectionManager';
 import { getProvider, type ProviderId } from '@shared/providers/registry';
 import { consumeSubmittedInputChunk } from './submitCapture';
 import { isSlashCommandInput } from '../lib/slashCommand';
-import { buildCommentInjectionPayload } from '../lib/terminalInjection';
+import {
+  buildCommentInjectionPayload,
+  getPromptSubmitKey,
+  hasDelayedSubmitStartup,
+} from '../lib/terminalInjection';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -46,6 +50,7 @@ const PANEL_RESIZE_DRAGGING_EVENT = 'emdash:panel-resize-dragging';
 const MAX_TERMINAL_WRITE_CHARS_PER_SLICE = 16_384;
 const SLOW_INPUT_HANDLER_MS = 16;
 const SLOW_INPUT_LOG_THROTTLE_MS = 2_000;
+const COMMENT_INJECTION_RETRY_STARTUP_WINDOW_MS = 15_000;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
@@ -150,6 +155,7 @@ export class TerminalSessionManager {
   private writeInFlight = false;
   private shouldScrollToBottomAfterWrites = false;
   private lastSlowInputLogAt = 0;
+  private ptyStartedAt = 0;
   private terminalConfigFontSize: number | null = null;
   private lastTheme: SessionTheme;
   private wheelLineRemainder = 0;
@@ -895,11 +901,17 @@ export class TerminalSessionManager {
           inputData: filtered,
           pendingText,
         });
+        const submitKey = getPromptSubmitKey(this.options.providerId);
         agentStatusStore.markUserInputSubmitted({ ptyId: this.id });
         window.electronAPI.ptyInput({ id: this.id, data: injectedData });
         setTimeout(() => {
-          window.electronAPI.ptyInput({ id: this.id, data: '\r' });
+          window.electronAPI.ptyInput({ id: this.id, data: submitKey });
         }, submitDelayMs);
+        if (this.shouldRetryCommentInjectionSubmit(this.options.providerId)) {
+          setTimeout(() => {
+            window.electronAPI.ptyInput({ id: this.id, data: submitKey });
+          }, submitDelayMs + 900);
+        }
         pendingInjectionManager.markUsed();
         this.logSlowInputHandler(startedAt);
         return;
@@ -925,6 +937,12 @@ export class TerminalSessionManager {
       id: this.id,
       elapsedMs: Math.round(elapsedMs),
     });
+  }
+
+  private shouldRetryCommentInjectionSubmit(providerId?: string): boolean {
+    if (!providerId || !hasDelayedSubmitStartup(providerId)) return false;
+    if (!this.ptyStarted || this.ptyStartedAt <= 0) return true;
+    return performance.now() - this.ptyStartedAt <= COMMENT_INJECTION_RETRY_STARTUP_WINDOW_MS;
   }
 
   private consumeSubmittedInput(data: string, isNewlineInsert: boolean): string | null {
@@ -1461,6 +1479,7 @@ export class TerminalSessionManager {
 
       if (result?.ok) {
         this.ptyStarted = true;
+        this.ptyStartedAt = performance.now();
         this.lastSentResize = null;
         this.sendSizeIfStarted();
         this.emitReady();
@@ -1474,6 +1493,7 @@ export class TerminalSessionManager {
           offStarted = window.electronAPI.onPtyStarted?.((payload: { id: string }) => {
             if (payload?.id === id) {
               this.ptyStarted = true;
+              this.ptyStartedAt = performance.now();
               this.lastSentResize = null;
               this.sendSizeIfStarted();
               try {
@@ -1531,6 +1551,7 @@ export class TerminalSessionManager {
     const offExit = window.electronAPI.onPtyExit(id, (info) => {
       this.metrics.recordExit(info);
       this.ptyStarted = false;
+      this.ptyStartedAt = 0;
       this.clearQueuedResize();
       this.emitExit(info);
     });
