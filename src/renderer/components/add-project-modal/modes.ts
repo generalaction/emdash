@@ -38,6 +38,7 @@ export type CloneModeState = ReturnType<typeof useCloneMode>;
 
 export function useNewMode(defaultPath: string) {
   const [name, setName] = useState('');
+  const [nameIsTouched, setNameIsTouched] = useState<boolean>(false);
   const [repositoryName, setRepositoryName] = useState('');
   const [repositoryNameIsTouched, setRepositoryNameIsTouched] = useState<boolean>(false);
   const [repositoryOwnerOverride, setRepositoryOwnerOverride] = useState<
@@ -51,12 +52,15 @@ export function useNewMode(defaultPath: string) {
 
   const handleNameChange = (newName: string) => {
     setName(newName);
+    setNameIsTouched(true);
     if (!repositoryNameIsTouched) setRepositoryName(newName);
   };
 
   const handleRepositoryNameChange = (newRepositoryName: string) => {
     setRepositoryName(newRepositoryName);
     setRepositoryNameIsTouched(true);
+    setName(newRepositoryName);
+    setNameIsTouched(false);
   };
 
   const { data } = useQuery({
