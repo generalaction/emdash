@@ -1,11 +1,26 @@
 import { useCallback, useState } from 'react';
-import { generateFriendlyTaskName, liveTransformTaskName } from '@renderer/lib/taskNames';
+import { liveTransformTaskName } from '@renderer/lib/taskNames';
 
-export type TaskNameState = ReturnType<typeof useTaskName>;
+export type TaskNameState = {
+  taskName: string;
+  handleTaskNameChange: (value: string) => void;
+  showSlugHint: boolean;
+  isPending: boolean;
+};
 
-export function useTaskName(initialName?: string) {
-  const [taskName, setTaskName] = useState(initialName ?? generateFriendlyTaskName());
+export function useTaskName(opts?: { generatedName?: string; isPending?: boolean }): TaskNameState {
+  const { generatedName, isPending = false } = opts ?? {};
+  const [taskName, setTaskName] = useState(generatedName ?? '');
   const [showSlugHint, setShowSlugHint] = useState(false);
+  const [prevGeneratedName, setPrevGeneratedName] = useState(generatedName);
+
+  if (generatedName !== prevGeneratedName) {
+    setPrevGeneratedName(generatedName);
+    if (generatedName !== undefined) {
+      setTaskName(generatedName);
+      setShowSlugHint(false);
+    }
+  }
 
   const handleTaskNameChange = useCallback((value: string) => {
     const transformed = liveTransformTaskName(value);
@@ -14,5 +29,5 @@ export function useTaskName(initialName?: string) {
     setShowSlugHint(hasDroppedChars);
   }, []);
 
-  return { taskName, handleTaskNameChange, showSlugHint };
+  return { taskName, handleTaskNameChange, showSlugHint, isPending };
 }
