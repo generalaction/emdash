@@ -6,7 +6,6 @@ import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
 import { GitService } from '@main/core/git/impl/git-service';
 import { githubAuthService } from '@main/core/github/services/github-auth-service';
-import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { prService } from '@main/core/pull-requests/pr-service';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
@@ -15,11 +14,10 @@ import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 
-function triggerPrSync(projectId: string, gitRemote?: string): void {
-  if (!gitRemote) return;
-  const nameWithOwner = parseNameWithOwner(gitRemote);
-  if (!nameWithOwner) return;
-  prService.syncPullRequests(projectId, nameWithOwner).catch((e) => {
+function triggerPrSync(projectId: string): void {
+  const provider = projectManager.getProject(projectId);
+  if (!provider?.nameWithOwner) return;
+  prService.syncPullRequests(projectId, provider.nameWithOwner).catch((e) => {
     log.warn('Background PR sync failed on project creation:', e);
   });
 }
@@ -52,7 +50,6 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
       path: gitInfo.rootPath,
       workspaceProvider: 'local',
       baseRef: gitInfo.baseRef,
-      gitRemote: gitInfo.remote ?? null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
@@ -63,13 +60,12 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     name: row.name,
     path: row.path,
     baseRef: row.baseRef ?? gitInfo.baseRef,
-    gitRemote: row.gitRemote ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 
   await projectManager.openProject(project);
-  triggerPrSync(project.id, project.gitRemote);
+  triggerPrSync(project.id);
 
   return project;
 }
@@ -102,7 +98,6 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
       workspaceProvider: 'ssh',
       sshConnectionId: params.connectionId,
       baseRef: gitInfo.baseRef,
-      gitRemote: gitInfo.remote ?? null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
@@ -114,13 +109,12 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
     path: row.path,
     connectionId: params.connectionId,
     baseRef: row.baseRef ?? gitInfo.baseRef,
-    gitRemote: row.gitRemote ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 
   await projectManager.openProject(project);
-  triggerPrSync(project.id, project.gitRemote);
+  triggerPrSync(project.id);
 
   return project;
 }
