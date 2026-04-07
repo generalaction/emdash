@@ -109,7 +109,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     elementId: 'notification-settings-card',
   },
 
-  // Agents Tab
+  // Agents (clis-models) Tab
   {
     id: 'default-agent',
     label: 'Default agent',
