@@ -10,7 +10,7 @@ const RightSidebarSettingsCard: React.FC = () => {
   const autoRightSidebarBehavior = interfaceSettings?.autoRightSidebarBehavior ?? false;
 
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div id="right-sidebar-settings-card" className="flex items-center justify-between gap-4">
       <div className="flex flex-1 flex-col gap-0.5">
         <span className="text-sm font-medium text-foreground">
           Auto-collapse right sidebar on home pages

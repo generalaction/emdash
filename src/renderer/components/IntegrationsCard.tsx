@@ -566,6 +566,7 @@ const IntegrationsCard: React.FC = () => {
   return (
     <>
       <div
+        id="integrations-card"
         className="grid gap-3"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
       >

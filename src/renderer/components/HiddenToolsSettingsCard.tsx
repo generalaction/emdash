@@ -64,7 +64,10 @@ export default function HiddenToolsSettingsCard() {
   }, [availability, labels]);
 
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
+    <div
+      id="hidden-tools-settings-card"
+      className="rounded-xl border border-border/60 bg-muted/10 p-2"
+    >
       <div className="space-y-2">
         {sortedApps.map((app) => {
           const isDetected = availability[app.id] ?? app.alwaysAvailable ?? false;

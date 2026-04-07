@@ -177,7 +177,7 @@ const TerminalSettingsCard: React.FC = () => {
   const hasAnyResults = filteredPopularOptions.length > 0 || filteredInstalledOptions.length > 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div id="terminal-settings-card" className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <p className="text-sm font-medium text-foreground">Terminal font</p>

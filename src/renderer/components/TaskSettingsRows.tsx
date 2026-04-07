@@ -21,7 +21,7 @@ export const AutoGenerateTaskNamesRow: React.FC<RowProps> = ({ taskSettings }) =
     (taskSettings.errorScope === 'autoGenerateName' || taskSettings.errorScope === 'load');
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div id="auto-generate-task-names-row" className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <p className="text-sm font-medium text-foreground">Auto-generate task names</p>
@@ -47,7 +47,7 @@ export const AutoInferTaskNamesRow: React.FC<RowProps> = ({ taskSettings }) => {
   const isDisabled = taskSettings.loading || taskSettings.saving || !taskSettings.autoGenerateName;
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div id="auto-infer-task-names-row" className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <p className="text-sm font-medium text-foreground">
@@ -78,7 +78,7 @@ export const AutoApproveByDefaultRow: React.FC<RowProps> = ({ taskSettings }) =>
     Boolean(taskSettings.error) && taskSettings.errorScope === 'autoApproveByDefault';
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div id="auto-approve-by-default-row" className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-1.5">
@@ -120,7 +120,7 @@ export const CreateWorktreeByDefaultRow: React.FC<RowProps> = ({ taskSettings })
     Boolean(taskSettings.error) && taskSettings.errorScope === 'createWorktreeByDefault';
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div id="create-worktree-by-default-row" className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <p className="text-sm font-medium text-foreground">Create worktree by default</p>
@@ -143,7 +143,7 @@ export const AutoTrustWorktreesRow: React.FC<RowProps> = ({ taskSettings }) => {
   const showError = Boolean(taskSettings.error) && taskSettings.errorScope === 'autoTrustWorktrees';
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div id="auto-trust-worktrees-row" className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-1.5">

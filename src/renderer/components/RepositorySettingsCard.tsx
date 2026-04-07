@@ -26,7 +26,7 @@ const RepositorySettingsCard: React.FC = () => {
   }, [repository?.branchPrefix]);
 
   return (
-    <div className="grid gap-8">
+    <div id="repository-settings-card" className="grid gap-8">
       <div className="grid gap-2">
         <Input
           defaultValue={repository?.branchPrefix ?? DEFAULTS.branchPrefix}

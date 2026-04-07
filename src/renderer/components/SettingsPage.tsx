@@ -1,9 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import { Separator } from './ui/separator';
 import type { CliAgentStatus } from '../types/connections';
 import { BASE_CLI_AGENTS, CliAgentsList } from './CliAgentsList';
 import { Button } from './ui/button';
+import SettingsSearchInput from './SettingsSearchInput';
+import SettingsSearchResults from './SettingsSearchResults';
+import { searchSettings, type SearchResult } from '@/hooks/useSettingsSearch';
+import { groupResultsByTab } from '@/hooks/useSettingsSearch';
 
 // Import existing settings cards
 import TelemetryCard from './TelemetryCard';
@@ -95,6 +99,46 @@ interface SettingsPageProps {
   onClose: () => void;
 }
 
+// Map setting IDs to their DOM element IDs for scrolling
+export const SETTING_ELEMENT_IDS: Record<string, string> = {
+  // General
+  telemetry: 'telemetry-card',
+  'auto-generate-task-names': 'auto-generate-task-names-row',
+  'auto-infer-task-names': 'auto-infer-task-names-row',
+  'auto-approve-by-default': 'auto-approve-by-default-row',
+  'create-worktree-by-default': 'create-worktree-by-default-row',
+  'auto-trust-worktrees': 'auto-trust-worktrees-row',
+  'notifications-enabled': 'notification-settings-card',
+  'notification-sound': 'notification-settings-card',
+  'os-notifications': 'notification-settings-card',
+  'sound-focus-mode': 'notification-settings-card',
+  'sound-profile': 'notification-settings-card',
+  // Agents
+  'default-agent': 'default-agent-settings-card',
+  'review-agent': 'review-agent-settings-card',
+  'review-prompt': 'review-agent-settings-card',
+  'cli-agents': 'cli-agents-section',
+  // Integrations
+  integrations: 'integrations-card',
+  'workspace-provider': 'workspace-provider-card',
+  // Repository
+  'branch-prefix': 'repository-settings-card',
+  'push-on-create': 'repository-settings-card',
+  'auto-close-issues': 'repository-settings-card',
+  // Interface
+  theme: 'theme-card',
+  'terminal-font-family': 'terminal-settings-card',
+  'terminal-font-size': 'terminal-settings-card',
+  'auto-copy-selection': 'terminal-settings-card',
+  'mac-option-is-meta': 'terminal-settings-card',
+  'keyboard-shortcuts': 'keyboard-settings-card',
+  'auto-right-sidebar': 'right-sidebar-settings-card',
+  'resource-monitor': 'resource-monitor-settings-card',
+  'browser-preview': 'browser-preview-settings-card',
+  'task-hover-action': 'task-hover-action-card',
+  'hidden-tools': 'hidden-tools-settings-card',
+};
+
 interface SectionConfig {
   title?: string;
   action?: React.ReactNode;
@@ -104,7 +148,32 @@ interface SectionConfig {
 export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab || 'general');
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const taskSettings = useTaskSettings();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSearchQueryChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    setSearchResults(query.trim() ? searchSettings(query) : []);
+  }, []);
+
+  const handleSearchResultClick = useCallback((tabId: SettingsPageTab, settingId: string) => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setActiveTab(tabId);
+
+    // Use requestAnimationFrame to scroll after React has re-rendered
+    requestAnimationFrame(() => {
+      const elementId = SETTING_ELEMENT_IDS[settingId];
+      if (elementId) {
+        const element = document.getElementById(elementId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    });
+  }, []);
 
   useEffect(() => {
     setActiveTab(initialTab || 'general');
@@ -152,11 +221,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     };
   }, []);
 
-  // Handle Escape key to close (skip when a nested modal already handled the event)
+  // Handle keyboard shortcuts (Escape to close, Cmd/Ctrl+F to focus search)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !e.defaultPrevented) {
         onClose();
+        return;
+      }
+
+      const isCmdF = (e.metaKey || e.ctrlKey) && e.key === 'f';
+      if (isCmdF) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -233,7 +310,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
         {
           title: 'CLI agents',
           component: (
-            <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
+            <div
+              id="cli-agents-section"
+              className="rounded-xl border border-border/60 bg-muted/10 p-2"
+            >
               <CliAgentsList agents={sortedAgents} isLoading={false} />
             </div>
           ),
@@ -298,16 +378,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
                 Manage your account settings and set preferences.
               </p>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8"
-              aria-label="Close settings"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <SettingsSearchInput
+                ref={searchInputRef}
+                query={searchQuery}
+                onQueryChange={handleSearchQueryChange}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="h-9 w-9 shrink-0"
+                aria-label="Close settings"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <Separator />
         </div>
@@ -346,33 +433,45 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           </nav>
 
           {/* Content container */}
-          {currentContent && (
-            <div className="flex min-h-0 min-w-0 flex-1 justify-center overflow-y-auto pr-2">
-              <div className="mx-auto w-full max-w-4xl space-y-8 pb-10">
-                {/* Page title */}
-                <div className="flex flex-col gap-6">
-                  <div className="flex flex-col gap-1">
-                    <h2 className="text-base font-medium">{currentContent.title}</h2>
-                    <p className="text-sm text-muted-foreground">{currentContent.description}</p>
-                  </div>
-                  <Separator />
-                </div>
-
-                {/* Sections */}
-                {currentContent.sections.map((section, index) => (
-                  <div key={index} className="flex flex-col gap-3">
-                    {section.title && (
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium text-foreground">{section.title}</h3>
-                        {section.action && <div>{section.action}</div>}
+          <div className="flex min-h-0 min-w-0 flex-1 justify-center overflow-y-auto pr-2">
+            <div className="mx-auto w-full max-w-4xl space-y-8 pb-10">
+              {searchQuery.trim() ? (
+                <SettingsSearchResults
+                  results={searchResults}
+                  query={searchQuery}
+                  onResultClick={handleSearchResultClick}
+                />
+              ) : (
+                currentContent && (
+                  <>
+                    {/* Page title */}
+                    <div className="flex flex-col gap-6">
+                      <div className="flex flex-col gap-1">
+                        <h2 className="text-base font-medium">{currentContent.title}</h2>
+                        <p className="text-sm text-muted-foreground">
+                          {currentContent.description}
+                        </p>
                       </div>
-                    )}
-                    {section.component}
-                  </div>
-                ))}
-              </div>
+                      <Separator />
+                    </div>
+
+                    {/* Sections */}
+                    {currentContent.sections.map((section, index) => (
+                      <div key={index} className="flex flex-col gap-3">
+                        {section.title && (
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-medium text-foreground">{section.title}</h3>
+                            {section.action && <div>{section.action}</div>}
+                          </div>
+                        )}
+                        {section.component}
+                      </div>
+                    ))}
+                  </>
+                )
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
