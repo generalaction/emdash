@@ -1,40 +1,14 @@
 import { motion } from 'framer-motion';
 import { Pencil, Plus } from 'lucide-react';
-import React, { useState } from 'react';
+import React from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
-import { useIsMonochrome } from '../../hooks/useIsMonochrome';
+import SkillIconRenderer from './SkillIconRenderer';
 
 interface SkillCardProps {
   skill: CatalogSkill;
   onSelect: (skill: CatalogSkill) => void;
   onInstall: (skillId: string) => void;
 }
-
-const SkillIcon: React.FC<{ skill: CatalogSkill }> = ({ skill }) => {
-  const [imgError, setImgError] = useState(false);
-  const letter = skill.displayName.charAt(0).toUpperCase();
-  const isMonochrome = useIsMonochrome(skill.iconUrl);
-
-  if (skill.iconUrl && !imgError) {
-    return (
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40">
-        <img
-          src={skill.iconUrl}
-          alt=""
-          className={`h-10 w-10 rounded-lg object-contain ${isMonochrome !== false ? 'dark:invert' : ''}`.trim()}
-          onError={() => setImgError(true)}
-          loading="lazy"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-muted/40 text-base font-semibold text-foreground/60 dark:text-white">
-      {letter}
-    </div>
-  );
-};
 
 const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => {
   return (
@@ -52,7 +26,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => 
       }}
       className="group flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 text-left text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md"
     >
-      <SkillIcon skill={skill} />
+      <SkillIconRenderer skill={skill} />
 
       {/* Content */}
       <div className="min-w-0 flex-1">
@@ -61,7 +35,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => 
       </div>
 
       {/* Action */}
-      <div className="flex-shrink-0 self-center">
+      <div className="shrink-0 self-center">
         {skill.installed ? (
           <Pencil className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
         ) : (
