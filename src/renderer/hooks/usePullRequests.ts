@@ -45,15 +45,22 @@ export function usePullRequests(
         throw new Error(response?.error || 'Failed to load pull requests');
       }
       const prs = (response.prs ?? []) as PullRequest[];
-      return { prs, nextOffset: prs.length === PAGE_SIZE ? pageParam + PAGE_SIZE : undefined };
+      const syncing = !!(response as { syncing?: boolean }).syncing;
+      return {
+        prs,
+        syncing,
+        nextOffset: prs.length === PAGE_SIZE ? pageParam + PAGE_SIZE : undefined,
+      };
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage.nextOffset,
     enabled: !!projectId && !!nameWithOwner && enabled,
-    staleTime: 30_000,
+    staleTime: 10 * 60_000,
+    refetchInterval: (query) => (query.state.data?.pages[0]?.syncing ? 2_000 : false),
   });
 
   const prs = query.data?.pages.flatMap((p) => p.prs) ?? [];
+  const syncing = query.data?.pages[0]?.syncing ?? false;
 
   const refresh = useCallback(async () => {
     if (!projectId || !nameWithOwner) return;
@@ -65,6 +72,7 @@ export function usePullRequests(
   return {
     prs,
     loading: query.isLoading,
+    syncing,
     dataUpdatedAt: query.dataUpdatedAt,
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage,

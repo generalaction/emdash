@@ -170,7 +170,7 @@ export class PrService {
     nameWithOwner: string,
     options: ListPrOptions = {},
     invalidate = false
-  ): Promise<PullRequest[]> {
+  ): Promise<{ prs: PullRequest[]; syncing: boolean }> {
     if (invalidate) {
       const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
       const searchQuery = options.searchQuery?.trim();
@@ -195,21 +195,22 @@ export class PrService {
         );
       }
 
-      return this.upsertMany(projectId, fresh);
+      return { prs: await this.upsertMany(projectId, fresh), syncing: false };
     }
 
-    const lastFetchedAt = await this.kv.get(`${projectId}:${nameWithOwner}:lastFetchedAt`);
-    if (!lastFetchedAt) {
-      await this.deduplicatedSync(projectId, nameWithOwner);
-    }
+    this.deduplicatedSync(projectId, nameWithOwner).catch((e) =>
+      log.error('Background PR sync failed:', e)
+    );
 
-    return this.fromDb(
+    const prs = await this.fromDb(
       nameWithOwner,
       options.filters,
       { limit: options.limit ?? 50, offset: options.offset ?? 0 },
       options.sort,
       options.searchQuery
     );
+    const syncing = this.syncInFlight.has(`${projectId}:${nameWithOwner}`);
+    return { prs, syncing };
   }
 
   async getPullRequest(
@@ -532,7 +533,6 @@ export class PrService {
     cutoff.setMonth(cutoff.getMonth() - PR_SYNC_MAX_AGE_MONTHS);
     const cutoffISO = cutoff.toISOString();
 
-    const toUpsert: PullRequest[] = [];
     let cursor: string | undefined;
 
     for (;;) {
@@ -546,6 +546,7 @@ export class PrService {
       }>(SYNC_PRS_QUERY, { owner, repo, cursor });
 
       const { nodes, pageInfo } = response.repository.pullRequests;
+      const pageBatch: PullRequest[] = [];
       let reachedCursor = false;
       for (const node of nodes) {
         if (node.updatedAt < cutoffISO) {
@@ -556,15 +557,15 @@ export class PrService {
           reachedCursor = true;
           break;
         }
-        toUpsert.push(this.gqlToUnified(node, nameWithOwner));
+        pageBatch.push(this.gqlToUnified(node, nameWithOwner));
+      }
+
+      if (pageBatch.length > 0) {
+        await this.upsertMany(projectId, pageBatch);
       }
 
       if (reachedCursor || !pageInfo.hasNextPage) break;
       cursor = pageInfo.endCursor ?? undefined;
-    }
-
-    if (toUpsert.length > 0) {
-      await this.upsertMany(projectId, toUpsert);
     }
 
     await this.kv.set(`${projectId}:${nameWithOwner}:lastFetchedAt`, new Date().toISOString());

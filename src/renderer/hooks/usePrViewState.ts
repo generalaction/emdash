@@ -35,12 +35,20 @@ export function usePrViewState(projectId: string, nameWithOwner: string | null) 
     ...(selectedAssigneeLogin ? { assigneeLogins: [selectedAssigneeLogin] } : {}),
   };
 
-  const { prs, refresh, loading, dataUpdatedAt, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    usePullRequests(projectId, nameWithOwner ?? undefined, {
-      filters,
-      sort: sortFilter,
-      searchQuery: debouncedQuery || undefined,
-    });
+  const {
+    prs,
+    refresh,
+    loading,
+    syncing: backgroundSyncing,
+    dataUpdatedAt,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = usePullRequests(projectId, nameWithOwner ?? undefined, {
+    filters,
+    sort: sortFilter,
+    searchQuery: debouncedQuery || undefined,
+  });
 
   useEffect(() => {
     if (dataUpdatedAt > 0 && nameWithOwner) {
@@ -106,6 +114,8 @@ export function usePrViewState(projectId: string, nameWithOwner: string | null) 
     }
   };
 
+  const isSyncing = syncing || backgroundSyncing;
+
   const removeLabel = (name: string) =>
     setSelectedLabelNames((prev) => prev.filter((n) => n !== name));
 
@@ -115,7 +125,7 @@ export function usePrViewState(projectId: string, nameWithOwner: string | null) 
     sortFilter,
     query,
     setQuery,
-    syncing,
+    syncing: isSyncing,
     selectedAuthorLogin,
     setSelectedAuthorLogin,
     selectedLabelNames,
