@@ -12,8 +12,13 @@ export const pullRequestController = createRPCController({
     invalidate = false
   ) => {
     try {
-      const prs = await prService.listPullRequests(projectId, nameWithOwner, options, invalidate);
-      return { success: true, prs, totalCount: prs.length };
+      const { prs, syncing } = await prService.listPullRequests(
+        projectId,
+        nameWithOwner,
+        options,
+        invalidate
+      );
+      return { success: true, prs, totalCount: prs.length, syncing };
     } catch (error) {
       log.error('Failed to list pull requests:', error);
       return {
