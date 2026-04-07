@@ -160,6 +160,7 @@ function mapStatusContextBucket(state: string): CheckRunBucket {
 export class PrService {
   private readonly kv = new KV<PrKvSchema>('pr');
   private readonly syncInFlight = new Map<string, Promise<void>>();
+  private readonly syncDone = new Set<string>();
 
   constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
@@ -198,9 +199,12 @@ export class PrService {
       return { prs: await this.upsertMany(projectId, fresh), syncing: false };
     }
 
-    this.deduplicatedSync(projectId, nameWithOwner).catch((e) =>
-      log.error('Background PR sync failed:', e)
-    );
+    const key = `${projectId}:${nameWithOwner}`;
+    if (!this.syncDone.has(key)) {
+      this.deduplicatedSync(projectId, nameWithOwner).catch((e) =>
+        log.error('Background PR sync failed:', e)
+      );
+    }
 
     const prs = await this.fromDb(
       nameWithOwner,
@@ -579,6 +583,7 @@ export class PrService {
     if (existing) return existing;
     const promise = this.syncPullRequests(projectId, nameWithOwner).finally(() => {
       this.syncInFlight.delete(key);
+      this.syncDone.add(key);
     });
     this.syncInFlight.set(key, promise);
     return promise;
