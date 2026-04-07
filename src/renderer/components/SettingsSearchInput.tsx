@@ -1,5 +1,7 @@
-import React, { useEffect, forwardRef } from 'react';
-import { Search, X, Command } from 'lucide-react';
+import React, { forwardRef } from 'react';
+import { Search, X } from 'lucide-react';
+
+const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.platform);
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -29,9 +31,7 @@ export const SettingsSearchInput = forwardRef<HTMLInputElement, SettingsSearchIn
               className="h-6 w-6 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
               onClick={() => {
                 onQueryChange('');
-                if (typeof ref === 'function') {
-                  // ref callback - can't easily call focus
-                } else if (ref) {
+                if (ref && typeof ref === 'object') {
                   ref.current?.focus();
                 }
               }}
@@ -39,8 +39,8 @@ export const SettingsSearchInput = forwardRef<HTMLInputElement, SettingsSearchIn
               <X className="h-3.5 w-3.5" />
             </Button>
           ) : (
-            <kbd className="hidden h-6 items-center gap-0.5 rounded-md border border-border/70 bg-muted/60 px-1.5 text-[11px] font-medium text-muted-foreground sm:flex">
-              <Command className="h-3 w-3" />
+            <kbd className="flex h-6 items-center gap-0.5 rounded-md border border-border/70 bg-muted/60 px-1.5 text-[11px] font-medium text-muted-foreground">
+              <span>{isMac ? '⌘' : 'Ctrl'}</span>
               <span>F</span>
             </kbd>
           )}

@@ -1,5 +1,3 @@
-import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-
 export interface SearchableSetting {
   id: string;
   label: string;
@@ -162,6 +160,69 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     tabId: 'integrations',
   },
   {
+    id: 'github',
+    label: 'GitHub',
+    description: 'Connect your GitHub repositories',
+    category: 'Integrations',
+    keywords: ['github', 'git', 'repository', 'pull request', 'pr', 'issues'],
+    synonyms: ['gh', 'octocat', 'source control'],
+    tabId: 'integrations',
+  },
+  {
+    id: 'gitlab',
+    label: 'GitLab',
+    description: 'Work on GitLab issues',
+    category: 'Integrations',
+    keywords: ['gitlab', 'git', 'repository', 'merge request', 'mr', 'issues'],
+    synonyms: ['gl', 'source control'],
+    tabId: 'integrations',
+  },
+  {
+    id: 'forgejo',
+    label: 'Forgejo',
+    description: 'Work on Forgejo issues',
+    category: 'Integrations',
+    keywords: ['forgejo', 'gitea', 'git', 'self-hosted', 'repository', 'issues'],
+    synonyms: ['codeberg', 'self hosted git'],
+    tabId: 'integrations',
+  },
+  {
+    id: 'linear',
+    label: 'Linear',
+    description: 'Work on Linear tickets',
+    category: 'Integrations',
+    keywords: ['linear', 'tickets', 'issues', 'project management', 'tracker'],
+    synonyms: ['linear app', 'issue tracker'],
+    tabId: 'integrations',
+  },
+  {
+    id: 'jira',
+    label: 'Jira',
+    description: 'Work on Jira tickets',
+    category: 'Integrations',
+    keywords: ['jira', 'atlassian', 'tickets', 'issues', 'project management'],
+    synonyms: ['issue tracker', 'atlassian jira'],
+    tabId: 'integrations',
+  },
+  {
+    id: 'plain',
+    label: 'Plain',
+    description: 'Work on support threads',
+    category: 'Integrations',
+    keywords: ['plain', 'support', 'customer support', 'tickets', 'threads'],
+    synonyms: ['helpdesk', 'support inbox'],
+    tabId: 'integrations',
+  },
+  {
+    id: 'sentry',
+    label: 'Sentry',
+    description: 'Fix errors from Sentry',
+    category: 'Integrations',
+    keywords: ['sentry', 'errors', 'exceptions', 'monitoring', 'crash reporting'],
+    synonyms: ['error tracking', 'observability', 'bug tracker'],
+    tabId: 'integrations',
+  },
+  {
     id: 'workspace-provider',
     label: 'Workspace provider',
     description: 'Configure workspace provisioning settings',
@@ -313,20 +374,17 @@ export interface SearchResult {
   };
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function calculateSimilarity(query: string, text: string): number {
   const queryLower = query.toLowerCase();
   const textLower = text.toLowerCase();
 
-  // Exact match
   if (textLower === queryLower) return 1;
-
-  // Starts with query
   if (textLower.startsWith(queryLower)) return 0.9;
-
-  // Contains query as whole word
-  if (new RegExp(`\\b${queryLower}\\b`).test(textLower)) return 0.8;
-
-  // Contains query
+  if (new RegExp(`\\b${escapeRegExp(queryLower)}\\b`).test(textLower)) return 0.8;
   if (textLower.includes(queryLower)) return 0.6;
 
   // Check for word-by-word partial matches
@@ -337,7 +395,7 @@ function calculateSimilarity(query: string, text: string): number {
   for (const queryWord of queryWords) {
     if (queryWord.length < 2) continue;
     for (const textWord of textWords) {
-      if (textWord.includes(queryWord) || queryWord.includes(textWord)) {
+      if (textWord.length >= 2 && textWord.includes(queryWord)) {
         matchCount++;
         break;
       }
@@ -402,28 +460,10 @@ export function searchSettings(query: string): SearchResult[] {
     }
   }
 
-  // Sort by score descending
   return results.sort((a, b) => b.score - a.score);
 }
 
-export function useSettingsSearch() {
-  const [query, setQuery] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const focusSearch = useCallback(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, []);
-
-  return {
-    query,
-    setQuery,
-    inputRef,
-    focusSearch,
-  };
-}
-
-export function groupResultsByTab(results: SearchResult[]) {
+export function groupResultsByTab(results: SearchResult[]): Map<string, SearchResult[]> {
   const grouped = new Map<string, SearchResult[]>();
 
   for (const result of results) {

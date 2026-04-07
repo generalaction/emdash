@@ -7,7 +7,6 @@ import { Button } from './ui/button';
 import SettingsSearchInput from './SettingsSearchInput';
 import SettingsSearchResults from './SettingsSearchResults';
 import { searchSettings, type SearchResult } from '@/hooks/useSettingsSearch';
-import { groupResultsByTab } from '@/hooks/useSettingsSearch';
 
 // Import existing settings cards
 import TelemetryCard from './TelemetryCard';
@@ -138,6 +137,14 @@ export const SETTING_ELEMENT_IDS: Record<string, string> = {
   'task-hover-action': 'task-hover-action-card',
   'hidden-tools': 'hidden-tools-settings-card',
 };
+
+function getTabButtonClasses(isActive: boolean, isExternal: boolean): string {
+  const base =
+    'flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors';
+  if (isActive) return `${base} bg-muted text-foreground`;
+  if (isExternal) return `${base} text-muted-foreground hover:bg-muted/60`;
+  return `${base} text-foreground hover:bg-muted/60`;
+}
 
 interface SectionConfig {
   title?: string;
@@ -417,13 +424,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
                       setActiveTab(tab.id as SettingsPageTab);
                     }
                   }}
-                  className={`flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-muted text-foreground'
-                      : tab.isExternal
-                        ? 'text-muted-foreground hover:bg-muted/60'
-                        : 'text-foreground hover:bg-muted/60'
-                  }`}
+                  className={getTabButtonClasses(isActive, !!tab.isExternal)}
                 >
                   <span className="text-left">{tab.label}</span>
                   {tab.isExternal && <ExternalLink className="h-4 w-4" />}
@@ -431,8 +432,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
               );
             })}
           </nav>
-
-          {/* Content container */}
           <div className="flex min-h-0 min-w-0 flex-1 justify-center overflow-y-auto pr-2">
             <div className="mx-auto w-full max-w-4xl space-y-8 pb-10">
               {searchQuery.trim() ? (

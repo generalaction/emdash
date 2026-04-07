@@ -35,7 +35,7 @@ function highlightMatches(text: string, query: string) {
       parts.push(text.slice(lastIndex, index));
     }
     parts.push(
-      <mark key={index} className="rounded bg-primary/30 px-0.5 font-medium text-inherit">
+      <mark key={index} className="rounded bg-primary/15 px-0.5 font-medium text-inherit">
         {text.slice(index, index + query.length)}
       </mark>
     );
@@ -67,11 +67,9 @@ export const SettingsSearchResults: React.FC<SettingsSearchResultsProps> = ({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-2">
-        <p className="text-sm text-muted-foreground">
-          {results.length} {results.length === 1 ? 'result' : 'results'}
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        {results.length} {results.length === 1 ? 'result' : 'results'}
+      </p>
 
       {Array.from(grouped.entries()).map(([tabId, tabResults]) => (
         <motion.div
@@ -90,7 +88,7 @@ export const SettingsSearchResults: React.FC<SettingsSearchResultsProps> = ({
                 key={result.setting.id}
                 type="button"
                 onClick={() => onResultClick(tabId as SettingsPageTab, result.setting.id)}
-                className="group flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-left transition-colors hover:border-border hover:bg-muted/50"
+                className="group flex items-start justify-between gap-4 rounded-md px-4 py-3 text-left transition-colors hover:bg-muted/60"
               >
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">
