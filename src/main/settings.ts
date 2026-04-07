@@ -62,6 +62,7 @@ export interface KeyboardSettings {
   newTask?: KeyboardShortcutBinding;
   nextAgent?: KeyboardShortcutBinding;
   prevAgent?: KeyboardShortcutBinding;
+  newAgent?: KeyboardShortcutBinding;
   openInEditor?: KeyboardShortcutBinding;
 }
 
@@ -198,6 +199,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     newTask: { key: 'n', modifier: 'cmd' },
     nextAgent: { key: ']', modifier: 'cmd+shift' },
     prevAgent: { key: '[', modifier: 'cmd+shift' },
+    newAgent: { key: 'n', modifier: 'cmd+shift' },
     openInEditor: { key: 'o', modifier: 'cmd' },
   },
   interface: {
@@ -522,6 +524,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     newTask: normalizeBinding(keyboard.newTask, DEFAULT_SETTINGS.keyboard!.newTask!),
     nextAgent: normalizeBinding(keyboard.nextAgent, DEFAULT_SETTINGS.keyboard!.nextAgent!),
     prevAgent: normalizeBinding(keyboard.prevAgent, DEFAULT_SETTINGS.keyboard!.prevAgent!),
+    newAgent: normalizeBinding(keyboard.newAgent, DEFAULT_SETTINGS.keyboard!.newAgent!),
     openInEditor: normalizeBinding(keyboard.openInEditor, DEFAULT_SETTINGS.keyboard!.openInEditor!),
   };
   const platformTaskDefaults = getPlatformTaskSwitchDefaults();

@@ -919,6 +919,15 @@ const ChatInterface: React.FC<Props> = ({
     };
   }, [sortedConversations, handleSwitchChat]);
 
+  // Open new agent chat via global shortcut (Cmd+Shift+N)
+  useEffect(() => {
+    const handleNewAgentChat = () => {
+      handleCreateNewChat();
+    };
+    window.addEventListener('emdash:new-agent-chat', handleNewAgentChat);
+    return () => window.removeEventListener('emdash:new-agent-chat', handleNewAgentChat);
+  }, [handleCreateNewChat]);
+
   // Close active chat tab on Cmd+W
   useEffect(() => {
     const handleCloseActiveChat = () => {

@@ -70,6 +70,7 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
       window.dispatchEvent(
         new CustomEvent('emdash:switch-agent', { detail: { direction: 'prev' } })
       ),
+    onNewAgent: () => window.dispatchEvent(new CustomEvent('emdash:new-agent-chat')),
     onSelectAgentTab: (tabIndex) =>
       window.dispatchEvent(new CustomEvent('emdash:select-agent-tab', { detail: { tabIndex } })),
     onOpenInEditor: handleOpenInEditor,

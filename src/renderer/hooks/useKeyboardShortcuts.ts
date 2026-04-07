@@ -22,6 +22,7 @@ export type ShortcutSettingsKey =
   | 'newTask'
   | 'nextAgent'
   | 'prevAgent'
+  | 'newAgent'
   | 'openInEditor';
 
 export interface AppShortcut {
@@ -200,6 +201,15 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     description: 'Cycle through agents on a task',
     category: 'Navigation',
     settingsKey: 'prevAgent',
+  },
+
+  NEW_AGENT: {
+    key: 'n',
+    modifier: 'cmd+shift',
+    label: 'New Agent',
+    description: 'Add a new agent chat to the current task',
+    category: 'Navigation',
+    settingsKey: 'newAgent',
   },
 
   OPEN_IN_EDITOR: {
@@ -389,6 +399,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       newTask: getEffectiveConfig(APP_SHORTCUTS.NEW_TASK, custom),
       nextAgent: getEffectiveConfig(APP_SHORTCUTS.NEXT_AGENT, custom),
       prevAgent: getEffectiveConfig(APP_SHORTCUTS.PREV_AGENT, custom),
+      newAgent: getEffectiveConfig(APP_SHORTCUTS.NEW_AGENT, custom),
       openInEditor: getEffectiveConfig(APP_SHORTCUTS.OPEN_IN_EDITOR, custom),
     };
   }, [handlers.customKeyboardSettings]);
@@ -476,6 +487,12 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         priority: 'global',
         requiresClosed: true,
         allowInInput: true,
+      },
+      effectiveShortcuts.newAgent && {
+        config: effectiveShortcuts.newAgent,
+        handler: () => handlers.onNewAgent?.(),
+        priority: 'global',
+        requiresClosed: true,
       },
       effectiveShortcuts.openInEditor && {
         config: effectiveShortcuts.openInEditor,
