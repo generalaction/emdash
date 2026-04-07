@@ -132,13 +132,18 @@ function PullRequestsSection({
         }
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {pullRequests.length === 0 && (
+        {!nameWithOwner ? (
+          <EmptyState
+            label="Pull requests unavailable"
+            description="Pull requests are currently available only for configured GitHub remotes."
+          />
+        ) : pullRequests.length === 0 ? (
           <EmptyState
             label="No pull requests"
             description="Push your branch and create a PR to start a review."
           />
-        )}
-        {activePr && <PullRequestEntry key={activePr.id} pr={activePr} />}
+        ) : null}
+        {nameWithOwner && activePr && <PullRequestEntry key={activePr.id} pr={activePr} />}
       </div>
     </>
   );
