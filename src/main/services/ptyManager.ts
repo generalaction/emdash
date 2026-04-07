@@ -19,16 +19,24 @@ import { LOCALE_ENV_VARS, DEFAULT_UTF8_LOCALE, isUtf8Locale } from '../utils/loc
  * so EPIPE becomes an uncaught exception. Registering an additional error
  * listener bumps the listener count to >= 2, which causes node-pty to
  * swallow the error instead of throwing.
+ *
+ * The same pattern helps on Unix when the PTY is torn down during session close.
  */
 function suppressPtyPipeErrors(proc: IPty): void {
-  if (process.platform !== 'win32') return;
-
   // IPty doesn't expose .on() in its type, but the underlying Terminal
   // class extends EventEmitter and proxies to the socket.
   (proc as any).on?.('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EPIPE' || err.code === 'EIO') return;
     log.warn('ptyManager: unexpected PTY error', { code: err.code, message: err.message });
   });
+}
+
+function isBenignStreamShutdownError(err: unknown): boolean {
+  const code =
+    err && typeof err === 'object' && 'code' in err
+      ? (err as NodeJS.ErrnoException).code
+      : undefined;
+  return code === 'EPIPE' || code === 'EIO' || code === 'ECONNRESET';
 }
 import { getProviderCustomConfig } from '../settings';
 import { agentEventService } from './AgentEventService';
@@ -1757,8 +1765,14 @@ export function createUtf8StreamForwarder(emitData: (data: string) => void): {
 }
 
 type LifecycleSpawnFallbackChild = {
-  stdout?: { on: (event: 'data', listener: (buf: Buffer) => void) => void } | null;
-  stderr?: { on: (event: 'data', listener: (buf: Buffer) => void) => void } | null;
+  stdout?: {
+    on(event: 'data', listener: (buf: Buffer) => void): void;
+    on(event: 'error', listener: (err: unknown) => void): void;
+  } | null;
+  stderr?: {
+    on(event: 'data', listener: (buf: Buffer) => void): void;
+    on(event: 'error', listener: (err: unknown) => void): void;
+  } | null;
   on: (event: 'error' | 'exit' | 'close', listener: (...args: any[]) => void) => void;
 };
 
@@ -1782,6 +1796,16 @@ export function attachLifecycleSpawnFallbackHandlers(
   child.stderr?.on('data', (buf: Buffer) => {
     forwarder.pushStderr(buf);
   });
+
+  // Without these, closing the child can emit EPIPE on stdio streams (Node reads
+  // from a broken pipe) and surface as an uncaught exception in the main process.
+  const onStdioError = (err: unknown) => {
+    if (isBenignStreamShutdownError(err)) return;
+    forwarder.flush();
+    onError(err instanceof Error ? err : new Error(String(err)));
+  };
+  child.stdout?.on('error', onStdioError);
+  child.stderr?.on('error', onStdioError);
 
   child.on('error', (error: Error) => {
     forwarder.flush();
