@@ -18,7 +18,7 @@ const TAB_LABELS: Record<SettingsPageTab, string> = {
 interface SettingsSearchResultsProps {
   results: SearchResult[];
   query: string;
-  onResultClick: (tabId: SettingsPageTab, settingId: string) => void;
+  onResultClick: (tabId: SettingsPageTab, elementId: string) => void;
 }
 
 function highlightMatches(text: string, query: string) {
@@ -87,7 +87,7 @@ export const SettingsSearchResults: React.FC<SettingsSearchResultsProps> = ({
               <button
                 key={result.setting.id}
                 type="button"
-                onClick={() => onResultClick(tabId as SettingsPageTab, result.setting.id)}
+                onClick={() => onResultClick(tabId as SettingsPageTab, result.setting.elementId)}
                 className="group flex items-start justify-between gap-4 rounded-md px-4 py-3 text-left transition-colors hover:bg-muted/60"
               >
                 <div className="flex flex-col gap-1">

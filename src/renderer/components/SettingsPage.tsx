@@ -98,46 +98,6 @@ interface SettingsPageProps {
   onClose: () => void;
 }
 
-// Map setting IDs to their DOM element IDs for scrolling
-export const SETTING_ELEMENT_IDS: Record<string, string> = {
-  // General
-  telemetry: 'telemetry-card',
-  'auto-generate-task-names': 'auto-generate-task-names-row',
-  'auto-infer-task-names': 'auto-infer-task-names-row',
-  'auto-approve-by-default': 'auto-approve-by-default-row',
-  'create-worktree-by-default': 'create-worktree-by-default-row',
-  'auto-trust-worktrees': 'auto-trust-worktrees-row',
-  'notifications-enabled': 'notification-settings-card',
-  'notification-sound': 'notification-settings-card',
-  'os-notifications': 'notification-settings-card',
-  'sound-focus-mode': 'notification-settings-card',
-  'sound-profile': 'notification-settings-card',
-  // Agents
-  'default-agent': 'default-agent-settings-card',
-  'review-agent': 'review-agent-settings-card',
-  'review-prompt': 'review-agent-settings-card',
-  'cli-agents': 'cli-agents-section',
-  // Integrations
-  integrations: 'integrations-card',
-  'workspace-provider': 'workspace-provider-card',
-  // Repository
-  'branch-prefix': 'repository-settings-card',
-  'push-on-create': 'repository-settings-card',
-  'auto-close-issues': 'repository-settings-card',
-  // Interface
-  theme: 'theme-card',
-  'terminal-font-family': 'terminal-settings-card',
-  'terminal-font-size': 'terminal-settings-card',
-  'auto-copy-selection': 'terminal-settings-card',
-  'mac-option-is-meta': 'terminal-settings-card',
-  'keyboard-shortcuts': 'keyboard-settings-card',
-  'auto-right-sidebar': 'right-sidebar-settings-card',
-  'resource-monitor': 'resource-monitor-settings-card',
-  'browser-preview': 'browser-preview-settings-card',
-  'task-hover-action': 'task-hover-action-card',
-  'hidden-tools': 'hidden-tools-settings-card',
-};
-
 function getTabButtonClasses(isActive: boolean, isExternal: boolean): string {
   const base =
     'flex w-full items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors';
@@ -165,20 +125,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
     setSearchResults(query.trim() ? searchSettings(query) : []);
   }, []);
 
-  const handleSearchResultClick = useCallback((tabId: SettingsPageTab, settingId: string) => {
+  const handleSearchResultClick = useCallback((tabId: SettingsPageTab, elementId: string) => {
     setSearchQuery('');
     setSearchResults([]);
     setActiveTab(tabId);
 
-    // Use requestAnimationFrame to scroll after React has re-rendered
+    // Scroll after React has re-rendered the newly active tab.
     requestAnimationFrame(() => {
-      const elementId = SETTING_ELEMENT_IDS[settingId];
-      if (elementId) {
-        const element = document.getElementById(elementId);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
+      document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }, []);
 

@@ -4,6 +4,8 @@ export interface SearchableSetting {
   description: string;
   aliases: string[];
   tabId: string;
+  /** DOM element id to scroll to when this result is selected. */
+  elementId: string;
 }
 
 export interface SearchResult {
@@ -22,6 +24,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Help improve Emdash by sending anonymous usage data',
     aliases: ['analytics', 'tracking', 'data collection', 'usage', 'metrics', 'monitoring'],
     tabId: 'general',
+    elementId: 'telemetry-card',
   },
   {
     id: 'auto-generate-task-names',
@@ -29,6 +32,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Automatically generate task names from context',
     aliases: ['naming', 'titles', 'automatic names', 'task titles'],
     tabId: 'general',
+    elementId: 'auto-generate-task-names-row',
   },
   {
     id: 'auto-infer-task-names',
@@ -36,6 +40,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Infer task names from the first message',
     aliases: ['detect names', 'smart naming', 'guess names'],
     tabId: 'general',
+    elementId: 'auto-infer-task-names-row',
   },
   {
     id: 'auto-approve-by-default',
@@ -43,6 +48,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Automatically approve tool operations without asking',
     aliases: ['permissions', 'tool approval', 'skip prompts', 'approve automatically'],
     tabId: 'general',
+    elementId: 'auto-approve-by-default-row',
   },
   {
     id: 'create-worktree-by-default',
@@ -50,6 +56,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Create a git worktree for each new task',
     aliases: ['worktree', 'git worktree', 'branch isolation', 'isolated workspace'],
     tabId: 'general',
+    elementId: 'create-worktree-by-default-row',
   },
   {
     id: 'auto-trust-worktrees',
@@ -57,6 +64,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Automatically trust repositories in new worktrees',
     aliases: ['trust', 'repository trust', 'trusted repos'],
     tabId: 'general',
+    elementId: 'auto-trust-worktrees-row',
   },
   {
     id: 'notifications-enabled',
@@ -64,6 +72,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Show notification messages',
     aliases: ['alerts', 'banner', 'popups', 'notify'],
     tabId: 'general',
+    elementId: 'notification-settings-card',
   },
   {
     id: 'notification-sound',
@@ -71,6 +80,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Play a sound when notifications appear',
     aliases: ['audio', 'beep', 'chime', 'ding', 'alert sound'],
     tabId: 'general',
+    elementId: 'notification-settings-card',
   },
   {
     id: 'os-notifications',
@@ -78,6 +88,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Show native operating system notifications',
     aliases: ['native notifications', 'system notifications', 'desktop alerts'],
     tabId: 'general',
+    elementId: 'notification-settings-card',
   },
   {
     id: 'sound-focus-mode',
@@ -85,6 +96,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'When to play notification sounds',
     aliases: ['focus mode', 'quiet mode', 'do not disturb'],
     tabId: 'general',
+    elementId: 'notification-settings-card',
   },
   {
     id: 'sound-profile',
@@ -92,6 +104,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Choose the notification sound style',
     aliases: ['audio theme', 'sound theme', 'notification tone'],
     tabId: 'general',
+    elementId: 'notification-settings-card',
   },
 
   // Agents Tab
@@ -101,6 +114,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Choose the default AI agent for new tasks',
     aliases: ['default model', 'preferred agent', 'ai provider', 'default llm'],
     tabId: 'clis-models',
+    elementId: 'default-agent-settings-card',
   },
   {
     id: 'review-agent',
@@ -108,6 +122,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Enable code review with an AI agent',
     aliases: ['code review', 'pr review', 'review bot', 'code analysis'],
     tabId: 'clis-models',
+    elementId: 'review-agent-settings-card',
   },
   {
     id: 'review-prompt',
@@ -115,6 +130,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Custom instructions for the review agent',
     aliases: ['custom instructions', 'review instructions', 'review guidelines'],
     tabId: 'clis-models',
+    elementId: 'review-agent-settings-card',
   },
   {
     id: 'cli-agents',
@@ -122,6 +138,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Manage installed CLI agents and their status',
     aliases: ['command line', 'installed agents', 'terminal agents', 'cli tools'],
     tabId: 'clis-models',
+    elementId: 'cli-agents-section',
   },
 
   // Integrations Tab
@@ -131,6 +148,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Connect external services like GitHub, Linear, Jira',
     aliases: ['connections', 'external services', 'third party', 'apps'],
     tabId: 'integrations',
+    elementId: 'integrations-card',
   },
   {
     id: 'github',
@@ -138,6 +156,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Connect your GitHub repositories',
     aliases: ['gh', 'git', 'repository', 'pull request', 'pr', 'octocat', 'source control'],
     tabId: 'integrations',
+    elementId: 'integrations-card',
   },
   {
     id: 'gitlab',
@@ -145,6 +164,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Work on GitLab issues',
     aliases: ['gl', 'git', 'repository', 'merge request', 'mr', 'source control'],
     tabId: 'integrations',
+    elementId: 'integrations-card',
   },
   {
     id: 'forgejo',
@@ -152,6 +172,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Work on Forgejo issues',
     aliases: ['gitea', 'self-hosted', 'self hosted git', 'codeberg', 'repository'],
     tabId: 'integrations',
+    elementId: 'integrations-card',
   },
   {
     id: 'linear',
@@ -159,6 +180,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Work on Linear tickets',
     aliases: ['tickets', 'issues', 'project management', 'issue tracker'],
     tabId: 'integrations',
+    elementId: 'integrations-card',
   },
   {
     id: 'jira',
@@ -166,6 +188,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Work on Jira tickets',
     aliases: ['atlassian', 'tickets', 'issues', 'project management'],
     tabId: 'integrations',
+    elementId: 'integrations-card',
   },
   {
     id: 'plain',
@@ -173,6 +196,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Work on support threads',
     aliases: ['support', 'customer support', 'helpdesk', 'support inbox'],
     tabId: 'integrations',
+    elementId: 'integrations-card',
   },
   {
     id: 'sentry',
@@ -180,6 +204,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Fix errors from Sentry',
     aliases: ['errors', 'exceptions', 'monitoring', 'error tracking', 'observability'],
     tabId: 'integrations',
+    elementId: 'integrations-card',
   },
   {
     id: 'workspace-provider',
@@ -187,6 +212,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Configure workspace provisioning settings',
     aliases: ['provisioning', 'cloud workspace', 'remote workspace'],
     tabId: 'integrations',
+    elementId: 'workspace-provider-card',
   },
 
   // Repository Tab
@@ -196,6 +222,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Prefix for automatically generated branch names',
     aliases: ['branch naming', 'git branches', 'naming convention'],
     tabId: 'repository',
+    elementId: 'repository-settings-card',
   },
   {
     id: 'push-on-create',
@@ -203,6 +230,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Automatically push branches when creating a PR',
     aliases: ['auto push', 'git push', 'auto publish'],
     tabId: 'repository',
+    elementId: 'repository-settings-card',
   },
   {
     id: 'auto-close-issues',
@@ -210,6 +238,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Close linked issues when PR is created',
     aliases: ['close tickets', 'issue automation', 'auto resolve'],
     tabId: 'repository',
+    elementId: 'repository-settings-card',
   },
 
   // Interface Tab
@@ -219,6 +248,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Choose your preferred color theme',
     aliases: ['color scheme', 'dark mode', 'light mode', 'appearance', 'colors', 'ui theme'],
     tabId: 'interface',
+    elementId: 'theme-card',
   },
   {
     id: 'terminal-font-family',
@@ -226,6 +256,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Custom font for the integrated terminal',
     aliases: ['terminal font', 'monospace', 'console font', 'typeface'],
     tabId: 'interface',
+    elementId: 'terminal-settings-card',
   },
   {
     id: 'terminal-font-size',
@@ -233,6 +264,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Font size for the integrated terminal',
     aliases: ['text size', 'terminal zoom', 'font scaling'],
     tabId: 'interface',
+    elementId: 'terminal-settings-card',
   },
   {
     id: 'auto-copy-selection',
@@ -240,6 +272,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Automatically copy text when selected in terminal',
     aliases: ['clipboard', 'select to copy', 'terminal copy'],
     tabId: 'interface',
+    elementId: 'terminal-settings-card',
   },
   {
     id: 'mac-option-is-meta',
@@ -247,6 +280,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Use Option key as Meta key in terminal',
     aliases: ['option key', 'meta key', 'alt key', 'modifier keys'],
     tabId: 'interface',
+    elementId: 'terminal-settings-card',
   },
   {
     id: 'keyboard-shortcuts',
@@ -254,6 +288,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Customize keyboard shortcuts for common actions',
     aliases: ['keybindings', 'hotkeys', 'shortcut keys', 'accelerators'],
     tabId: 'interface',
+    elementId: 'keyboard-settings-card',
   },
   {
     id: 'auto-right-sidebar',
@@ -261,6 +296,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Automatically show/hide right sidebar based on context',
     aliases: ['side panel', 'right panel', 'panel behavior'],
     tabId: 'interface',
+    elementId: 'right-sidebar-settings-card',
   },
   {
     id: 'resource-monitor',
@@ -268,6 +304,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Show system resource usage in the sidebar',
     aliases: ['cpu', 'memory', 'system stats', 'performance', 'usage stats'],
     tabId: 'interface',
+    elementId: 'resource-monitor-settings-card',
   },
   {
     id: 'browser-preview',
@@ -275,6 +312,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Enable built-in browser preview for web projects',
     aliases: ['web preview', 'live preview', 'web view', 'live reload'],
     tabId: 'interface',
+    elementId: 'browser-preview-settings-card',
   },
   {
     id: 'task-hover-action',
@@ -282,6 +320,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Action to show when hovering over tasks',
     aliases: ['hover behavior', 'task actions', 'mouse hover'],
     tabId: 'interface',
+    elementId: 'task-hover-action-card',
   },
   {
     id: 'hidden-tools',
@@ -289,6 +328,7 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     description: 'Manage which tools are hidden from the interface',
     aliases: ['tool visibility', 'show tools', 'hide tools', 'tool preferences'],
     tabId: 'interface',
+    elementId: 'hidden-tools-settings-card',
   },
 ];
 
