@@ -1,9 +1,11 @@
+import type { SettingsPageTab } from '@/components/SettingsPage';
+
 export interface SearchableSetting {
   id: string;
   label: string;
   description: string;
   aliases: string[];
-  tabId: string;
+  tabId: SettingsPageTab;
   /** DOM element id to scroll to when this result is selected. */
   elementId: string;
 }
@@ -364,8 +366,10 @@ export function searchSettings(query: string): SearchResult[] {
   return results.sort((a, b) => b.score - a.score);
 }
 
-export function groupResultsByTab(results: SearchResult[]): Map<string, SearchResult[]> {
-  const grouped = new Map<string, SearchResult[]>();
+export function groupResultsByTab(
+  results: SearchResult[]
+): Map<SettingsPageTab, SearchResult[]> {
+  const grouped = new Map<SettingsPageTab, SearchResult[]>();
 
   for (const result of results) {
     const { tabId } = result.setting;

@@ -84,14 +84,14 @@ export function SettingsSearchResults({
           className="space-y-3"
         >
           <h3 className="text-sm font-medium text-muted-foreground">
-            {TAB_LABELS[tabId as SettingsPageTab] || tabId}
+            {TAB_LABELS[tabId] || tabId}
           </h3>
           <div className="flex flex-col gap-2">
             {tabResults.map((result) => (
               <button
                 key={result.setting.id}
                 type="button"
-                onClick={() => onResultClick(tabId as SettingsPageTab, result.setting.elementId)}
+                onClick={() => onResultClick(tabId, result.setting.elementId)}
                 className="group flex items-start justify-between gap-4 rounded-md px-4 py-3 text-left transition-colors hover:bg-muted/60"
               >
                 <div className="flex flex-col gap-1">

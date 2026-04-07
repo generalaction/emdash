@@ -12,7 +12,7 @@ export interface IntegrationRegistryEntry {
   description: string;
 }
 
-export const INTEGRATION_REGISTRY: readonly IntegrationRegistryEntry[] = [
+export const INTEGRATION_REGISTRY = [
   { id: 'github', name: 'GitHub', description: 'Connect your repositories' },
   { id: 'linear', name: 'Linear', description: 'Work on Linear tickets' },
   { id: 'jira', name: 'Jira', description: 'Work on Jira tickets' },
@@ -20,6 +20,6 @@ export const INTEGRATION_REGISTRY: readonly IntegrationRegistryEntry[] = [
   { id: 'plain', name: 'Plain', description: 'Work on support threads' },
   { id: 'forgejo', name: 'Forgejo', description: 'Work on Forgejo issues' },
   { id: 'sentry', name: 'Sentry', description: 'Fix errors from Sentry' },
-] as const;
+] as const satisfies readonly IntegrationRegistryEntry[];
 
 export type IntegrationId = (typeof INTEGRATION_REGISTRY)[number]['id'];

@@ -59,6 +59,13 @@ export class TerminalInputBuffer {
       return;
     }
 
+    if (ch === '\x15') {
+      // Ctrl+U — line kill: discard current input and any pending message
+      this.buffer = '';
+      this.pendingMessage = null;
+      return;
+    }
+
     if (ch.charCodeAt(0) >= 32) {
       // Printable character
       this.buffer += ch;

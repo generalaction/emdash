@@ -16,6 +16,7 @@ export const SettingsSearchInput = forwardRef<HTMLInputElement, SettingsSearchIn
       onQueryChange('');
       if (ref && typeof ref === 'object') {
         ref.current?.focus();
+        ref.current?.select();
       }
     };
 

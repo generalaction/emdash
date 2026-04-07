@@ -9,10 +9,18 @@ export function scheduleTerminalWriteDrain(run: () => void): () => void {
   let frameId: number | null = null;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   let isCancelled = false;
+  let hasRun = false;
+
+  const canUseAnimationFrame =
+    getVisibilityState() === 'visible' &&
+    typeof requestAnimationFrame === 'function' &&
+    typeof cancelAnimationFrame === 'function';
 
   const cleanup = () => {
     if (frameId !== null) {
-      cancelAnimationFrame(frameId);
+      if (canUseAnimationFrame) {
+        cancelAnimationFrame(frameId);
+      }
       frameId = null;
     }
     if (timeoutId !== null) {
@@ -22,13 +30,11 @@ export function scheduleTerminalWriteDrain(run: () => void): () => void {
   };
 
   const execute = () => {
-    if (isCancelled) return;
+    if (isCancelled || hasRun) return;
+    hasRun = true;
     cleanup();
     run();
   };
-
-  const canUseAnimationFrame =
-    getVisibilityState() === 'visible' && typeof requestAnimationFrame === 'function';
 
   if (canUseAnimationFrame) {
     frameId = requestAnimationFrame(execute);
