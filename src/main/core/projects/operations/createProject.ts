@@ -6,6 +6,7 @@ import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
 import { GitService } from '@main/core/git/impl/git-service';
 import { githubAuthService } from '@main/core/github/services/github-auth-service';
+import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { prService } from '@main/core/pull-requests/pr-service';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
@@ -16,10 +17,18 @@ import { log } from '@main/lib/logger';
 
 function triggerPrSync(projectId: string): void {
   const provider = projectManager.getProject(projectId);
-  if (!provider?.nameWithOwner) return;
-  prService.syncPullRequests(projectId, provider.nameWithOwner).catch((e) => {
-    log.warn('Background PR sync failed on project creation:', e);
-  });
+  if (!provider) return;
+  provider
+    .getRemoteState()
+    .then((remoteState) => {
+      if (!remoteState.hasRemote || !remoteState.selectedRemoteUrl) return;
+      const nameWithOwner = parseNameWithOwner(remoteState.selectedRemoteUrl);
+      if (!nameWithOwner) return;
+      return prService.syncPullRequests(projectId, nameWithOwner);
+    })
+    .catch((e) => {
+      log.warn('Background PR sync failed on project creation:', e);
+    });
 }
 
 export type CreateLocalProjectParams = {
