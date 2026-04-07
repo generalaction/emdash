@@ -22,6 +22,7 @@ import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import type {
   ProjectProvider,
+  ProjectRemoteState,
   ProvisionTaskError,
   TaskProvider,
   TeardownTaskError,
@@ -452,5 +453,16 @@ export class SshProjectProvider implements ProjectProvider {
         return remotePath;
       })
     );
+  }
+
+  async getRemoteState(): Promise<ProjectRemoteState> {
+    try {
+      const remoteName = await this.settings.getRemote();
+      const remotes = await this.git.getRemotes();
+      const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
+      return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
+    } catch {
+      return { hasRemote: false, selectedRemoteUrl: null };
+    }
   }
 }
