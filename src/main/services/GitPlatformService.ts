@@ -189,9 +189,9 @@ export function buildStatusListFallbackCommand(platform: GitPlatform, branchName
   const { cli, noun } = getPlatformConfig(platform);
 
   if (platform === 'github') {
-    return `${cli} ${noun} list --head ${quoteArg(branchName)} --json ${GH_STATUS_FIELDS.join(',')} --limit 1`;
+    return `${cli} ${noun} list --head ${quoteArg(branchName)} --state all --json ${GH_STATUS_FIELDS.join(',')} --limit 1`;
   }
-  return `${cli} api "projects/:id/merge_requests?scope=all&state=opened&source_branch=${encodeURIComponent(branchName)}&order_by=updated_at&sort=desc&per_page=1"`;
+  return `${cli} api "projects/:id/merge_requests?scope=all&state=all&source_branch=${encodeURIComponent(branchName)}&order_by=updated_at&sort=desc&per_page=1"`;
 }
 
 export function buildMergeCommand(platform: GitPlatform, opts: MergeOpts): string {

@@ -218,21 +218,22 @@ describe('buildStatusCommand', () => {
 // buildStatusListFallbackCommand
 // ---------------------------------------------------------------------------
 describe('buildStatusListFallbackCommand', () => {
-  it('github: builds gh pr list --head with JSON fields', () => {
+  it('github: builds gh pr list --head with JSON fields and all states', () => {
     const cmd = buildStatusListFallbackCommand('github', 'my-branch');
     expect(cmd).toContain('gh pr list');
     expect(cmd).toContain('--head');
     expect(cmd).toContain('my-branch');
+    expect(cmd).toContain('--state all');
     expect(cmd).toContain('--json');
     expect(cmd).toContain('--limit 1');
   });
 
-  it('gitlab: builds glab api with source_branch param', () => {
+  it('gitlab: builds glab api with source_branch param and all states', () => {
     const cmd = buildStatusListFallbackCommand('gitlab', 'my-branch');
     expect(cmd).toContain('glab api');
     expect(cmd).toContain('projects/:id/merge_requests');
     expect(cmd).toContain('scope=all');
-    expect(cmd).toContain('state=opened');
+    expect(cmd).toContain('state=all');
     expect(cmd).toContain('source_branch=my-branch');
     expect(cmd).toContain('order_by=updated_at');
     expect(cmd).toContain('sort=desc');
