@@ -209,6 +209,17 @@ export const gitController = createRPCController({
     return ok({ output: result.data.output });
   },
 
+  addRemote: async (projectId: string, taskId: string, name: string, url: string) => {
+    const env = resolveTask(projectId, taskId);
+    if (!env) return err({ type: 'not_found' as const });
+    try {
+      await env.git.addRemote(name, url);
+      return ok();
+    } catch (e) {
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
   publishBranch: async (projectId: string, taskId: string, branchName: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });

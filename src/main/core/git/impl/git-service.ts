@@ -1065,6 +1065,10 @@ export class GitService implements GitProvider {
     }
   }
 
+  async addRemote(name: string, url: string): Promise<void> {
+    await this.exec('git', ['remote', 'add', name, url], { cwd: this.path });
+  }
+
   async createBranch(
     name: string,
     from: string,

@@ -64,6 +64,7 @@ export interface GitProvider {
   getBranches(): Promise<Branch[]>;
   getDefaultBranch(remote?: string): Promise<DefaultBranch>;
   getRemotes(): Promise<{ name: string; url: string }[]>;
+  addRemote(name: string, url: string): Promise<void>;
   createBranch(
     name: string,
     from: string,
