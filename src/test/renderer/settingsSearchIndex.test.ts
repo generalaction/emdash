@@ -18,7 +18,7 @@ describe('settings search index', () => {
   });
 
   it('routes every integration entry to the integrations tab', () => {
-    const integrationIds = new Set(INTEGRATION_REGISTRY.map((entry) => entry.id));
+    const integrationIds = new Set<string>(INTEGRATION_REGISTRY.map((entry) => entry.id));
     const misrouted = SETTINGS_INDEX.filter(
       (entry) => integrationIds.has(entry.id) && entry.tabId !== 'integrations'
     );
