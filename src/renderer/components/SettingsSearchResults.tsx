@@ -21,40 +21,44 @@ interface SettingsSearchResultsProps {
   onResultClick: (tabId: SettingsPageTab, elementId: string) => void;
 }
 
-function highlightMatches(text: string, query: string) {
-  if (!query.trim()) return text;
+function highlightMatches(text: string, query: string): React.ReactNode {
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) return text;
 
-  const queryLower = query.toLowerCase();
+  const queryLower = trimmedQuery.toLowerCase();
+  const queryLength = trimmedQuery.length;
   const textLower = text.toLowerCase();
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
 
-  let index = textLower.indexOf(queryLower);
-  while (index !== -1) {
+  for (
+    let index = textLower.indexOf(queryLower);
+    index !== -1;
+    index = textLower.indexOf(queryLower, lastIndex)
+  ) {
     if (index > lastIndex) {
       parts.push(text.slice(lastIndex, index));
     }
     parts.push(
       <mark key={index} className="rounded bg-primary/15 px-0.5 font-medium text-inherit">
-        {text.slice(index, index + query.length)}
+        {text.slice(index, index + queryLength)}
       </mark>
     );
-    lastIndex = index + query.length;
-    index = textLower.indexOf(queryLower, lastIndex);
+    lastIndex = index + queryLength;
   }
 
+  if (parts.length === 0) return text;
   if (lastIndex < text.length) {
     parts.push(text.slice(lastIndex));
   }
-
-  return parts.length > 0 ? parts : text;
+  return parts;
 }
 
-export const SettingsSearchResults: React.FC<SettingsSearchResultsProps> = ({
+export function SettingsSearchResults({
   results,
   query,
   onResultClick,
-}) => {
+}: SettingsSearchResultsProps) {
   const grouped = React.useMemo(() => groupResultsByTab(results), [results]);
 
   if (results.length === 0) {
@@ -71,7 +75,7 @@ export const SettingsSearchResults: React.FC<SettingsSearchResultsProps> = ({
         {results.length} {results.length === 1 ? 'result' : 'results'}
       </p>
 
-      {Array.from(grouped.entries()).map(([tabId, tabResults]) => (
+      {[...grouped].map(([tabId, tabResults]) => (
         <motion.div
           key={tabId}
           initial={{ opacity: 0, y: 8 }}
@@ -106,6 +110,6 @@ export const SettingsSearchResults: React.FC<SettingsSearchResultsProps> = ({
       ))}
     </div>
   );
-};
+}
 
 export default SettingsSearchResults;

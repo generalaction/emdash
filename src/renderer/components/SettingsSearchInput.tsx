@@ -1,9 +1,9 @@
 import React, { forwardRef } from 'react';
 import { Search, X } from 'lucide-react';
-
-const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.platform);
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+
+const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.platform);
 
 interface SettingsSearchInputProps {
   query: string;
@@ -11,7 +11,14 @@ interface SettingsSearchInputProps {
 }
 
 export const SettingsSearchInput = forwardRef<HTMLInputElement, SettingsSearchInputProps>(
-  ({ query, onQueryChange }, ref) => {
+  function SettingsSearchInput({ query, onQueryChange }, ref) {
+    const handleClear = () => {
+      onQueryChange('');
+      if (ref && typeof ref === 'object') {
+        ref.current?.focus();
+      }
+    };
+
     return (
       <div className="relative flex items-center">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -29,12 +36,7 @@ export const SettingsSearchInput = forwardRef<HTMLInputElement, SettingsSearchIn
               variant="ghost"
               size="icon"
               className="h-6 w-6 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={() => {
-                onQueryChange('');
-                if (ref && typeof ref === 'object') {
-                  ref.current?.focus();
-                }
-              }}
+              onClick={handleClear}
             >
               <X className="h-3.5 w-3.5" />
             </Button>
@@ -49,7 +51,5 @@ export const SettingsSearchInput = forwardRef<HTMLInputElement, SettingsSearchIn
     );
   }
 );
-
-SettingsSearchInput.displayName = 'SettingsSearchInput';
 
 export default SettingsSearchInput;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import { Separator } from './ui/separator';
 import type { CliAgentStatus } from '../types/connections';
@@ -6,7 +6,7 @@ import { BASE_CLI_AGENTS, CliAgentsList } from './CliAgentsList';
 import { Button } from './ui/button';
 import SettingsSearchInput from './SettingsSearchInput';
 import SettingsSearchResults from './SettingsSearchResults';
-import { searchSettings, type SearchResult } from '@/hooks/useSettingsSearch';
+import { searchSettings } from '@/hooks/useSettingsSearch';
 
 // Import existing settings cards
 import TelemetryCard from './TelemetryCard';
@@ -116,18 +116,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
   const [activeTab, setActiveTab] = useState<SettingsPageTab>(initialTab || 'general');
   const [cliAgents, setCliAgents] = useState<CliAgentStatus[]>(() => createDefaultCliAgents());
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const taskSettings = useTaskSettings();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSearchQueryChange = useCallback((query: string) => {
-    setSearchQuery(query);
-    setSearchResults(query.trim() ? searchSettings(query) : []);
-  }, []);
+  const trimmedSearchQuery = searchQuery.trim();
+  const searchResults = useMemo(
+    () => (trimmedSearchQuery ? searchSettings(trimmedSearchQuery) : []),
+    [trimmedSearchQuery]
+  );
 
   const handleSearchResultClick = useCallback((tabId: SettingsPageTab, elementId: string) => {
     setSearchQuery('');
-    setSearchResults([]);
     setActiveTab(tabId);
 
     // Scroll after React has re-rendered the newly active tab.
@@ -343,7 +342,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
               <SettingsSearchInput
                 ref={searchInputRef}
                 query={searchQuery}
-                onQueryChange={handleSearchQueryChange}
+                onQueryChange={setSearchQuery}
               />
               <Button
                 type="button"
@@ -389,7 +388,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
 
           <div className="flex min-h-0 min-w-0 flex-1 justify-center overflow-y-auto pr-2">
             <div className="mx-auto w-full max-w-4xl space-y-8 pb-10">
-              {searchQuery.trim() ? (
+              {trimmedSearchQuery ? (
                 <SettingsSearchResults
                   results={searchResults}
                   query={searchQuery}

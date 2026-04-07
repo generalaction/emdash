@@ -368,11 +368,13 @@ export function groupResultsByTab(results: SearchResult[]): Map<string, SearchRe
   const grouped = new Map<string, SearchResult[]>();
 
   for (const result of results) {
-    const tabId = result.setting.tabId;
-    if (!grouped.has(tabId)) {
-      grouped.set(tabId, []);
+    const { tabId } = result.setting;
+    const bucket = grouped.get(tabId);
+    if (bucket) {
+      bucket.push(result);
+    } else {
+      grouped.set(tabId, [result]);
     }
-    grouped.get(tabId)!.push(result);
   }
 
   return grouped;
