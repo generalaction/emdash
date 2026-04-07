@@ -366,9 +366,7 @@ export function searchSettings(query: string): SearchResult[] {
   return results.sort((a, b) => b.score - a.score);
 }
 
-export function groupResultsByTab(
-  results: SearchResult[]
-): Map<SettingsPageTab, SearchResult[]> {
+export function groupResultsByTab(results: SearchResult[]): Map<SettingsPageTab, SearchResult[]> {
   const grouped = new Map<SettingsPageTab, SearchResult[]>();
 
   for (const result of results) {
