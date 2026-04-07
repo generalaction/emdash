@@ -13,7 +13,7 @@ const TaskHoverActionCard: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div id="task-hover-action-card" className="flex items-center justify-between gap-4">
       <div className="flex flex-1 flex-col gap-0.5">
         <p className="text-sm font-medium text-foreground">Task hover action</p>
         <p className="text-sm text-muted-foreground">
