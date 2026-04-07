@@ -937,9 +937,15 @@ const ChatInterface: React.FC<Props> = ({
   // 2. The global "auto-approve by default" setting is on
   // In both cases the provider must actually support an auto-approve flag.
   const { settings: autoApproveSettings } = useAppSettings();
+  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
+  useEffect(() => {
+    setAutoApproveOverride(null);
+  }, [task.id]);
   const autoApproveEnabled =
-    (Boolean(task.metadata?.autoApprove) ||
-      Boolean(autoApproveSettings?.tasks?.autoApproveByDefault)) &&
+    (autoApproveOverride !== null
+      ? autoApproveOverride
+      : Boolean(task.metadata?.autoApprove) ||
+        Boolean(autoApproveSettings?.tasks?.autoApproveByDefault)) &&
     Boolean(agentMeta[agent]?.autoApproveFlag);
 
   const isMainConversation = activeConversationId === mainConversationId;
@@ -1206,20 +1212,33 @@ const ChatInterface: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const next = !autoApproveEnabled;
-                        void rpc.db.saveTask({
-                          ...task,
-                          metadata: {
-                            ...task.metadata,
-                            autoApprove: next,
-                          },
-                        });
-                        if (next) {
-                          // Kill the running PTY so the session manager restarts it
-                          // with autoApprove: true on next spawn.
-                          window.electronAPI.ptyKill(terminalId);
-                        }
-                      }}
+                  void (async () => {
+                    const next = !autoApproveEnabled;
+                    setAutoApproveOverride(next);
+                    try {
+                      await rpc.db.saveTask({
+                        ...task,
+                        metadata: {
+                          ...task.metadata,
+                          autoApprove: next,
+                        },
+                      });
+                      if (next) {
+                        // Kill the running PTY so the session manager restarts it
+                        // with autoApprove: true on next spawn.
+                        window.electronAPI.ptyKill(terminalId);
+                      }
+                      } catch (error) {
+                      console.error('Failed to update auto-approve setting:', error);
+                      setAutoApproveOverride(null);
+                      toast({
+                        title: 'Error',
+                        description: 'Failed to update auto-approve setting.',
+                        variant: 'destructive',
+                      });
+                    }
+                  })();
+                }}
                       className={`inline-flex h-7 select-none items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors ${
                         autoApproveEnabled
                           ? 'border-orange-500/40 bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 dark:text-orange-400'
