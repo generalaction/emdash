@@ -69,9 +69,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     ? (parseGithubNameWithOwner(projectData.gitRemote) ?? undefined)
     : undefined;
 
-  const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch);
-  const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch);
-  const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, initialPR);
+  const fromBranch = useFromBranchMode(selectedProjectId, branches, defaultBranch);
+  const fromIssue = useFromIssueMode(selectedProjectId, branches, defaultBranch);
+  const fromPR = useFromPullRequestMode(selectedProjectId, branches, defaultBranch, initialPR);
 
   const activeMode = {
     'from-branch': fromBranch,
@@ -88,11 +88,15 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
     switch (selectedStrategy) {
       case 'from-branch':
+        if (!fromBranch.selectedBranch) return;
         void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromBranch.taskName,
-          sourceBranch: { branch: fromBranch.selectedBranch?.branch ?? '', remote: 'origin' },
+          sourceBranch: {
+            branch: fromBranch.selectedBranch.branch,
+            remote: fromBranch.selectedBranch.remote ?? 'origin',
+          },
           strategy: fromBranch.createBranchAndWorktree
             ? {
                 kind: 'new-branch',
@@ -103,11 +107,15 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         });
         break;
       case 'from-issue':
+        if (!fromIssue.selectedBranch) return;
         void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromIssue.taskName,
-          sourceBranch: { branch: fromIssue.selectedBranch?.branch ?? '', remote: 'origin' },
+          sourceBranch: {
+            branch: fromIssue.selectedBranch.branch,
+            remote: fromIssue.selectedBranch.remote ?? 'origin',
+          },
           strategy: { kind: 'no-worktree' },
           linkedIssue: fromIssue.linkedIssue ?? undefined,
         });
