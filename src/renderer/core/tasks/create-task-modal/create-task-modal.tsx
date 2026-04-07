@@ -95,7 +95,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           name: fromBranch.taskName,
           sourceBranch: {
             branch: fromBranch.selectedBranch.branch,
-            remote: fromBranch.selectedBranch.remote ?? 'origin',
+            remote: fromBranch.selectedBranch.remote,
           },
           strategy: fromBranch.createBranchAndWorktree
             ? {
@@ -114,7 +114,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           name: fromIssue.taskName,
           sourceBranch: {
             branch: fromIssue.selectedBranch.branch,
-            remote: fromIssue.selectedBranch.remote ?? 'origin',
+            remote: fromIssue.selectedBranch.remote,
           },
           strategy: { kind: 'no-worktree' },
           linkedIssue: fromIssue.linkedIssue ?? undefined,
@@ -126,7 +126,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromPR.taskName,
-          sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName, remote: 'origin' },
+          sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName },
           strategy:
             fromPR.checkoutMode === 'checkout'
               ? {

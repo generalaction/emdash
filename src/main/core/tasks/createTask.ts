@@ -25,12 +25,15 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
   const suffix = Math.random().toString(36).slice(2, 7);
   const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
   const taskSettings = await appSettingsService.get('tasks');
-  const remote = params.sourceBranch.remote || 'origin';
 
   const project = projectManager.getProject(params.projectId);
   if (!project) {
     return err({ type: 'project-not-found' });
   }
+  const projectSettings = await project.settings.get();
+  const remote = projectSettings.remote?.trim() || params.sourceBranch.remote?.trim() || 'origin';
+  const remotes = await project.git.getRemotes();
+  const canUseRemote = remotes.some((candidate) => candidate.name === remote);
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;
@@ -46,7 +49,7 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       const createResult = await project.git.createBranch(
         taskBranch,
         params.sourceBranch.branch,
-        true,
+        canUseRemote,
         remote
       );
       if (!createResult.success) {
