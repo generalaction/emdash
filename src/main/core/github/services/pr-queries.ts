@@ -124,7 +124,7 @@ export const GET_PR_CHECK_RUNS_QUERY = `
 export const SYNC_PRS_QUERY = `
   query syncPullRequests($owner: String!, $repo: String!, $cursor: String) {
     repository(owner: $owner, name: $repo) {
-      pullRequests(first: 100, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+      pullRequests(first: 25, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
         totalCount
         pageInfo { hasNextPage endCursor }
         nodes { ...PrSummaryFields }
