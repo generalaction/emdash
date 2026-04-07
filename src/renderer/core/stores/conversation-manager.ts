@@ -1,7 +1,21 @@
-import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import {
+  action,
+  autorun,
+  computed,
+  makeObservable,
+  observable,
+  onBecomeObserved,
+  runInAction,
+  type IReactionDisposer,
+} from 'mobx';
 import { Conversation, CreateConversationParams } from '@shared/conversations';
+import {
+  agentEventChannel,
+  agentSessionExitedChannel,
+  isAttentionNotification,
+} from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { rpc } from '@renderer/core/ipc';
+import { events, rpc } from '@renderer/core/ipc';
 import { TabViewProvider, TabViewSnapshot } from '@renderer/core/stores/generic-tab-view';
 import { Snapshottable } from '@renderer/core/stores/snapshottable';
 import {
@@ -13,7 +27,10 @@ import {
   setTabActive,
   setTabActiveIndex,
 } from '@renderer/core/stores/tab-utils';
+import { soundPlayer } from '@renderer/lib/soundPlayer';
 import { PtySession } from './pty-session';
+
+export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
 
 export class ConversationManagerStore
   implements
@@ -21,9 +38,13 @@ export class ConversationManagerStore
     Snapshottable<TabViewSnapshot>
 {
   private _loaded = false;
+  private offAgentEvents: (() => void) | null = null;
+  private offSessionExited: (() => void) | null = null;
+  private disposeAutoSeen: IReactionDisposer | null = null;
   conversations = observable.map<string, ConversationStore>();
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
+  isVisible = false;
 
   constructor(
     private readonly projectId: string,
@@ -33,20 +54,68 @@ export class ConversationManagerStore
       conversations: observable,
       tabOrder: observable,
       activeTabId: observable,
+      isVisible: observable,
       tabs: computed,
       activeTab: computed,
       snapshot: computed,
       addTab: action,
       removeTab: action,
       reorderTabs: action,
+      setVisible: action,
       setNextTabActive: action,
       setPreviousTabActive: action,
       setTabActiveIndex: action,
       setActiveTab: action,
+      taskStatus: computed,
     });
     onBecomeObserved(this, 'tabOrder', () => {
       if (this._loaded) return;
       this.load();
+    });
+    this.offAgentEvents = this.listenToAgentEvents();
+    this.offSessionExited = this.listenToSessionExited();
+    this.disposeAutoSeen = this.setupAutoSeen();
+  }
+
+  private listenToAgentEvents(): () => void {
+    return events.on(agentEventChannel, ({ event, appFocused }) => {
+      if (event.taskId !== this.taskId) return;
+      const conversationStore = this.conversations.get(event.conversationId);
+      if (!conversationStore) return;
+      if (event.type === 'notification') {
+        const nt = event.payload.notificationType;
+        if (!isAttentionNotification(nt)) return;
+        conversationStore.setStatus('awaiting-input');
+        soundPlayer.play('needs_attention', appFocused);
+        return;
+      }
+      if (event.type === 'stop') {
+        conversationStore.setStatus('completed');
+        soundPlayer.play('task_complete', appFocused);
+        return;
+      }
+      if (event.type === 'error') {
+        conversationStore.setStatus('error');
+        return;
+      }
+    });
+  }
+
+  private listenToSessionExited(): () => void {
+    return events.on(agentSessionExitedChannel, (event) => {
+      if (event.taskId !== this.taskId) return;
+      const conversationStore = this.conversations.get(event.conversationId);
+      if (!conversationStore) return;
+      conversationStore.clearWorking();
+    });
+  }
+
+  private setupAutoSeen(): IReactionDisposer {
+    return autorun(() => {
+      if (!this.isVisible) return;
+      const active = this.activeTab;
+      if (!active || active.seen) return;
+      active.markSeen();
     });
   }
 
@@ -71,6 +140,10 @@ export class ConversationManagerStore
 
   setActiveTab(id: string): void {
     setTabActive(this, id);
+  }
+
+  setVisible(visible: boolean): void {
+    this.isVisible = visible;
   }
 
   reorderTabs(fromIndex: number, toIndex: number): void {
@@ -124,9 +197,9 @@ export class ConversationManagerStore
     const conversation = await rpc.conversations.createConversation(params);
     runInAction(() => {
       const store = new ConversationStore(conversation);
-      this.conversations.set(params.id, store);
-      addTabId(this, params.id);
-      setTabActive(this, params.id);
+      this.conversations.set(conversation.id, store);
+      addTabId(this, conversation.id);
+      this.setActiveTab(conversation.id);
       void store.session.connect();
     });
     return conversation;
@@ -174,18 +247,86 @@ export class ConversationManagerStore
       throw err;
     }
   }
+
+  get taskStatus(): AgentStatus | null {
+    let hasWorking = false;
+    let hasUnseenError = false;
+    let hasUnseenCompleted = false;
+    for (const conversation of this.conversations.values()) {
+      if (!conversation.seen && conversation.status === 'awaiting-input') return 'awaiting-input';
+      if (conversation.status === 'working') hasWorking = true;
+      if (!conversation.seen && conversation.status === 'error') hasUnseenError = true;
+      if (!conversation.seen && conversation.status === 'completed') hasUnseenCompleted = true;
+    }
+    if (hasWorking) return 'working';
+    if (hasUnseenError) return 'error';
+    if (hasUnseenCompleted) return 'completed';
+    return null;
+  }
+
+  dispose(): void {
+    this.disposeAutoSeen?.();
+    this.disposeAutoSeen = null;
+    this.offAgentEvents?.();
+    this.offAgentEvents = null;
+    this.offSessionExited?.();
+    this.offSessionExited = null;
+    for (const conversation of this.conversations.values()) {
+      conversation.dispose();
+    }
+  }
 }
 
 export class ConversationStore {
   data: Conversation;
   session: PtySession;
+  status: AgentStatus = 'idle';
+  seen = true;
 
   constructor(conversation: Conversation) {
     this.data = conversation;
     this.session = new PtySession(
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
     );
-    makeObservable(this, { data: observable, session: observable });
+    makeObservable(this, {
+      data: observable,
+      session: observable,
+      status: observable,
+      seen: observable,
+      setStatus: action,
+      setWorking: action,
+      clearWorking: action,
+      markSeen: action,
+      indicatorStatus: computed,
+    });
+  }
+
+  get indicatorStatus(): AgentStatus | null {
+    if (this.status === 'working') return 'working';
+    if (this.seen) return null;
+    if (this.status === 'awaiting-input') return 'awaiting-input';
+    if (this.status === 'error') return 'error';
+    if (this.status === 'completed') return 'completed';
+    return null;
+  }
+
+  setStatus(status: AgentStatus) {
+    this.status = status;
+    this.seen = status === 'idle' || status === 'working';
+  }
+
+  setWorking() {
+    this.setStatus('working');
+  }
+
+  clearWorking() {
+    if (this.status === 'working') {
+      this.setStatus('idle');
+    }
+  }
+
+  markSeen() {
+    this.seen = true;
   }
 
   dispose() {

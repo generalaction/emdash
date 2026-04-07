@@ -1,5 +1,6 @@
 import { Archive, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { AgentStatusIndicator } from '@renderer/components/agent-status-indicator';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -9,7 +10,7 @@ import {
 } from '@renderer/components/ui/context-menu';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { TaskStore } from '@renderer/core/stores/task';
-import { getTaskManagerStore } from '@renderer/core/stores/task-selectors';
+import { getTaskManagerStore, taskAgentStatus } from '@renderer/core/stores/task-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
 import { SidebarItemMiniButton, SidebarMenuRow } from './sidebar-primitives';
@@ -37,6 +38,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const taskId = task.data.id;
   const taskName = task.data.name;
   const taskManager = getTaskManagerStore(projectId);
+  const status = taskAgentStatus(task);
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
@@ -78,6 +80,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           >
             {taskName}
           </span>
+          {!isBootstrapping && (
+            <AgentStatusIndicator status={status} className="mr-1" spinnerClassName="h-3.5 w-3.5" />
+          )}
           {isBootstrapping ? (
             <SidebarItemMiniButton type="button" disabled aria-label="Loading">
               <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />

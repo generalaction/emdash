@@ -7,6 +7,7 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { createClassifier } from './classifiers';
 import { stripAnsi, type ClassificationResult } from './classifiers/base';
+import { maybeShowNotification } from './notification';
 
 const IDLE_THRESHOLD_MS = 2500;
 const COOLDOWN_MS = 10_000;
@@ -99,24 +100,24 @@ export function wireAgentClassifier({
         const result = classifier.classify('');
         if (!guard.shouldEmit(result)) return;
 
-        events.emit(agentEventChannel, {
-          event: {
-            type: result!.type,
-            source: 'classifier',
-            ptyId,
-            providerId,
-            conversationId,
-            taskId,
-            projectId,
-            timestamp: Date.now(),
-            payload: {
-              message: result!.message,
-              notificationType:
-                result!.type === 'notification' ? result!.notificationType : undefined,
-            },
-          } satisfies AgentEvent,
-          appFocused: isAppFocused(),
-        });
+        const event: AgentEvent = {
+          type: result!.type,
+          source: 'classifier',
+          ptyId,
+          providerId,
+          conversationId,
+          taskId,
+          projectId,
+          timestamp: Date.now(),
+          payload: {
+            message: result!.message,
+            notificationType:
+              result!.type === 'notification' ? result!.notificationType : undefined,
+          },
+        };
+        const appFocused = isAppFocused();
+        void maybeShowNotification(event, appFocused);
+        events.emit(agentEventChannel, { event, appFocused });
       } catch (err) {
         log.warn('wireAgentClassifier: idle check failed', { error: String(err) });
       }

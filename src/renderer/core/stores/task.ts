@@ -113,9 +113,7 @@ export class ProvisionedTask {
     this.diffView.dispose();
     this.devServers.dispose();
     this.workspace.pr.dispose();
-    for (const conv of this.conversations.conversations.values()) {
-      conv.dispose();
-    }
+    this.conversations.dispose();
     for (const term of this.terminals.terminals.values()) {
       term.dispose();
     }

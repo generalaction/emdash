@@ -1,7 +1,7 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
@@ -39,6 +39,13 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   useTabShortcuts(conversationMgr, { focused: isPanelFocused });
   useHotkey(getEffectiveHotkey('newConversation', keyboard), handleCreate);
 
+  useEffect(() => {
+    conversationMgr?.setVisible(isActive);
+    return () => {
+      conversationMgr?.setVisible(false);
+    };
+  }, [conversationMgr, isActive]);
+
   return (
     <TabbedPtyPanel
       autoFocus={autoFocus}
@@ -50,6 +57,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
       paneId="conversations"
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}
+      onEnterPress={(s) => s.setWorking()}
       tabBar={<ConversationsTabs projectId={projectId} taskId={taskId} />}
       emptyState={
         <EmptyState

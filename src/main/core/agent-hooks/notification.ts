@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { BrowserWindow, Notification } from 'electron';
 import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
-import type { AgentEvent } from '@shared/events/agentEvents';
+import { isAttentionNotification, type AgentEvent } from '@shared/events/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { getMainWindow } from '@main/app/window';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -15,7 +15,7 @@ function getNotificationBody(event: AgentEvent): string | null {
   if (event.type === 'notification') {
     const { notificationType } = event.payload;
     if (!notificationType) return null;
-    if (['permission_prompt', 'idle_prompt', 'elicitation_dialog'].includes(notificationType)) {
+    if (isAttentionNotification(notificationType)) {
       return 'Your agent is waiting for input';
     }
   }

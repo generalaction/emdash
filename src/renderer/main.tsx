@@ -8,6 +8,7 @@ import { rpc } from './core/ipc';
 import { codeEditorPool } from './core/monaco/monaco-code-pool';
 import { diffEditorPool } from './core/monaco/monaco-diff-pool';
 import { appState } from './core/stores/app-state';
+import { initSoundPlayer } from './lib/soundPlayer';
 
 async function bootstrap() {
   // Pre-warm Monaco immediately — runs in parallel with data loading.
@@ -16,7 +17,7 @@ async function bootstrap() {
 
   appState.appInfo.load();
   appState.update.start();
-
+  initSoundPlayer();
   const [navResult] = await Promise.all([
     rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
     appState.projects.load(),

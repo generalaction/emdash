@@ -8,6 +8,16 @@ export type NotificationType =
   | 'auth_success'
   | 'elicitation_dialog';
 
+export const ATTENTION_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
+  'permission_prompt',
+  'idle_prompt',
+  'elicitation_dialog',
+]);
+
+export function isAttentionNotification(nt: NotificationType | undefined): nt is NotificationType {
+  return nt != null && ATTENTION_NOTIFICATION_TYPES.has(nt);
+}
+
 export interface AgentEvent {
   type: AgentEventType;
   source?: 'hook' | 'classifier';

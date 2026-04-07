@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import AgentLogo from '@renderer/components/agent-logo';
+import { AgentStatusIndicator } from '@renderer/components/agent-status-indicator';
 import ShortcutHint from '@renderer/components/ui/shortcut-hint';
 import { TabBar } from '@renderer/components/ui/tab-bar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
@@ -33,15 +34,17 @@ export const ConversationsTabs = observer(function ConversationsTabs({
       }}
       renderTabPrefix={(s) => {
         const config = agentConfig[s.data.providerId];
-        if (!config?.logo) return null;
         return (
-          <AgentLogo
-            logo={config.logo}
-            alt={config.alt}
-            isSvg={config.isSvg}
-            invertInDark={config.invertInDark}
-            className="size-4"
-          />
+          <span className="flex items-center gap-1">
+            <AgentLogo
+              logo={config.logo}
+              alt={config.alt}
+              isSvg={config.isSvg}
+              invertInDark={config.invertInDark}
+              className="size-4"
+            />
+            <AgentStatusIndicator status={s.indicatorStatus} />
+          </span>
         );
       }}
       onRename={(id, name) => void conversationMgr.renameConversation(id, name)}

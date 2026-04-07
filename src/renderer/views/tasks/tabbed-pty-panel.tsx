@@ -15,6 +15,7 @@ export interface TabbedPtyPanelProps<TEntity> {
   emptyState: React.ReactNode;
   autoFocus?: boolean;
   onFocusChange?: (focused: boolean) => void;
+  onEnterPress?: (entity: TEntity) => void;
 }
 
 export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
@@ -26,6 +27,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   emptyState,
   autoFocus,
   onFocusChange,
+  onEnterPress,
 }: TabbedPtyPanelProps<TEntity>) {
   const tabs = useMemo(() => store?.tabs ?? [], [store?.tabs]);
   const activeTab = store?.activeTab;
@@ -38,6 +40,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
 
   const activeSessionId = activeTab ? getSessionId(activeTab) : null;
   const activeSession = activeTab ? getSession(activeTab) : null;
+  const activeOnEnterPress = activeTab && onEnterPress ? () => onEnterPress(activeTab) : undefined;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<{ focus: () => void }>(null);
@@ -98,6 +101,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
                 sessionId={activeSessionId}
                 pty={activeSession.pty}
                 className="h-full w-full"
+                onEnterPress={activeOnEnterPress}
               />
             )}
           </div>

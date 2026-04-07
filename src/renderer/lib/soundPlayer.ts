@@ -1,8 +1,21 @@
+import type { NotificationSettings } from '@shared/app-settings';
 import type { SoundEvent } from '@shared/events/agentEvents';
+import { rpc } from '../core/ipc';
 
 let audioCtx: AudioContext | null = null;
 let enabled = true;
 let focusMode: 'always' | 'unfocused' = 'always';
+
+export function initSoundPlayer(): void {
+  rpc.appSettings
+    .getWithMeta('notifications')
+    .then((meta) => {
+      const value = (meta as { value: NotificationSettings }).value;
+      enabled = value.sound ?? true;
+      focusMode = value.soundFocusMode ?? 'always';
+    })
+    .catch(() => {});
+}
 
 function getContext(): AudioContext {
   if (!audioCtx) {
@@ -64,13 +77,5 @@ export const soundPlayer = {
     } catch {
       // Audio may fail if user hasn't interacted with page yet
     }
-  },
-
-  setEnabled(value: boolean): void {
-    enabled = value;
-  },
-
-  setFocusMode(mode: 'always' | 'unfocused'): void {
-    focusMode = mode;
   },
 };
