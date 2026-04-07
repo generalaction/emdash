@@ -8,7 +8,7 @@ const TelemetryCard: React.FC = () => {
     useTelemetryConsent();
 
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div id="telemetry-card" className="flex items-center justify-between gap-4">
       <div className="flex flex-1 flex-col gap-0.5">
         <p className="text-sm font-medium text-foreground">Privacy & Telemetry</p>
         <div className="text-sm text-muted-foreground">

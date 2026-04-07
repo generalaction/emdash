@@ -6,12 +6,12 @@ function getVisibilityState(): DocumentVisibilityState {
 }
 
 export function scheduleTerminalWriteDrain(run: () => void): () => void {
-  let finished = false;
   let frameId: number | null = null;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let isCancelled = false;
 
-  const cancelPending = () => {
-    if (frameId !== null && typeof cancelAnimationFrame === 'function') {
+  const cleanup = () => {
+    if (frameId !== null) {
       cancelAnimationFrame(frameId);
       frameId = null;
     }
@@ -21,34 +21,24 @@ export function scheduleTerminalWriteDrain(run: () => void): () => void {
     }
   };
 
-  const finish = () => {
-    if (finished) return;
-    finished = true;
-    cancelPending();
+  const execute = () => {
+    if (isCancelled) return;
+    cleanup();
     run();
   };
 
   const canUseAnimationFrame =
-    getVisibilityState() === 'visible' &&
-    typeof requestAnimationFrame === 'function' &&
-    typeof cancelAnimationFrame === 'function';
+    getVisibilityState() === 'visible' && typeof requestAnimationFrame === 'function';
 
   if (canUseAnimationFrame) {
-    frameId = requestAnimationFrame(() => {
-      finish();
-    });
-    timeoutId = setTimeout(() => {
-      finish();
-    }, VISIBLE_DRAIN_FALLBACK_MS);
+    frameId = requestAnimationFrame(execute);
+    timeoutId = setTimeout(execute, VISIBLE_DRAIN_FALLBACK_MS);
   } else {
-    timeoutId = setTimeout(() => {
-      finish();
-    }, 0);
+    timeoutId = setTimeout(execute, 0);
   }
 
   return () => {
-    if (finished) return;
-    finished = true;
-    cancelPending();
+    isCancelled = true;
+    cleanup();
   };
 }

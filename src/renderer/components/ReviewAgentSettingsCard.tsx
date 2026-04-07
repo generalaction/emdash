@@ -54,7 +54,10 @@ const ReviewAgentSettingsCard: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-muted p-4">
+    <div
+      id="review-agent-settings-card"
+      className="flex flex-col gap-4 rounded-xl border border-muted p-4"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-1 flex-col gap-0.5">
           <p className="text-sm font-medium text-foreground">Review preset</p>

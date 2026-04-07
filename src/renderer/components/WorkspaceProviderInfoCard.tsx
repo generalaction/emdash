@@ -261,7 +261,10 @@ export const WorkspaceProviderInfoCard: React.FC = () => {
 
   return (
     <>
-      <div className="flex flex-col gap-3 rounded-lg border border-muted bg-muted/20 p-4">
+      <div
+        id="workspace-provider-card"
+        className="flex flex-col gap-3 rounded-lg border border-muted bg-muted/20 p-4"
+      >
         <h3 className="text-sm font-medium text-foreground">Workspace Provider</h3>
         <p className="text-sm text-muted-foreground">
           Run tasks on your own infrastructure. Configure provision and teardown scripts per-project

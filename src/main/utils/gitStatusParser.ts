@@ -17,6 +17,11 @@ function normalizeStatusCode(statusCode: string): string {
   return statusCode.padEnd(2, '.').slice(0, 2);
 }
 
+function isStagedFromStatusCode(statusCode: string): boolean {
+  const indexStatus = normalizeStatusCode(statusCode)[0];
+  return indexStatus !== '.' && indexStatus !== ' ' && indexStatus !== '?';
+}
+
 function mapStatusCodeToStatus(
   statusCode: string,
   rawEntryType?: '1' | '2' | 'u' | '?'
@@ -25,6 +30,7 @@ function mapStatusCodeToStatus(
 
   const [indexStatus, worktreeStatus] = normalizeStatusCode(statusCode);
 
+  // Renamed or copied
   if (
     rawEntryType === '2' ||
     indexStatus === 'R' ||
@@ -39,12 +45,6 @@ function mapStatusCodeToStatus(
   if (indexStatus === 'A' || worktreeStatus === 'A') return 'added';
 
   return 'modified';
-}
-
-function isStagedFromStatusCode(statusCode: string): boolean {
-  const normalized = normalizeStatusCode(statusCode);
-  const indexStatus = normalized[0];
-  return indexStatus !== '.' && indexStatus !== ' ' && indexStatus !== '?';
 }
 
 function parsePorcelainV1Line(line: string): ParsedGitStatusEntry | null {
@@ -75,6 +75,75 @@ function parsePorcelainV1Line(line: string): ParsedGitStatusEntry | null {
   };
 }
 
+function parseV1Entries(output: string): ParsedGitStatusEntry[] {
+  return output
+    .split('\n')
+    .map((line) => line.replace(/\r$/, ''))
+    .filter((line) => line.length > 0)
+    .map(parsePorcelainV1Line)
+    .filter((entry): entry is ParsedGitStatusEntry => entry !== null);
+}
+
+function createStatusEntry(
+  path: string,
+  statusCode: string,
+  entryType: '1' | '2' | 'u' | '?',
+  oldPath?: string
+): ParsedGitStatusEntry {
+  return {
+    path,
+    statusCode,
+    status: mapStatusCodeToStatus(statusCode, entryType),
+    isStaged: isStagedFromStatusCode(statusCode),
+    ...(oldPath ? { oldPath } : {}),
+  };
+}
+
+function parseV2Entries(tokens: string[]): ParsedGitStatusEntry[] {
+  const entries: ParsedGitStatusEntry[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const entryType = token[0];
+
+    // Skip headers and ignored entries
+    if (entryType === '#' || entryType === '!') continue;
+
+    // Untracked file
+    if (entryType === '?') {
+      entries.push(createStatusEntry(token.slice(2), '??', '?'));
+      continue;
+    }
+
+    // Regular entry: 1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
+    if (entryType === '1') {
+      const fields = token.split(' ');
+      if (fields.length < 9) continue;
+      entries.push(createStatusEntry(fields.slice(8).join(' '), fields[1], '1'));
+      continue;
+    }
+
+    // Renamed/copied entry: 2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path>\0<origPath>
+    if (entryType === '2') {
+      const fields = token.split(' ');
+      if (fields.length < 10) continue;
+      const oldPath = tokens[i + 1];
+      if (oldPath !== undefined) i += 1;
+      entries.push(createStatusEntry(fields.slice(9).join(' '), fields[1], '2', oldPath));
+      continue;
+    }
+
+    // Unmerged entry: u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>
+    if (entryType === 'u') {
+      const fields = token.split(' ');
+      if (fields.length < 11) continue;
+      entries.push(createStatusEntry(fields.slice(10).join(' '), fields[1], 'u'));
+    }
+  }
+
+  return entries;
+}
+
 /**
  * Parse `git status --porcelain=v2 -z` output.
  *
@@ -83,87 +152,14 @@ function parsePorcelainV1Line(line: string): ParsedGitStatusEntry | null {
  */
 export function parseGitStatusOutput(output: string): ParsedGitStatusEntry[] {
   const tokens = output.split('\0').filter((token) => token.length > 0);
-  const entries: ParsedGitStatusEntry[] = [];
 
   const looksLikePorcelainV2 = tokens.some((token) => /^(?:1|2|u|\?|!|#)\s/.test(token));
 
   if (!looksLikePorcelainV2) {
-    return output
-      .split('\n')
-      .map((line) => line.replace(/\r$/, ''))
-      .filter((line) => line.length > 0)
-      .map(parsePorcelainV1Line)
-      .filter((entry): entry is ParsedGitStatusEntry => entry !== null);
+    return parseV1Entries(output);
   }
 
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    const entryType = token[0];
-
-    if (entryType === '#' || entryType === '!') {
-      continue;
-    }
-
-    if (entryType === '?') {
-      const path = token.slice(2);
-      entries.push({
-        path,
-        statusCode: '??',
-        status: 'added',
-        isStaged: false,
-      });
-      continue;
-    }
-
-    if (entryType === '1') {
-      // 1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
-      const fields = token.split(' ');
-      if (fields.length < 9) continue;
-      const statusCode = fields[1];
-      const path = fields.slice(8).join(' ');
-      entries.push({
-        path,
-        statusCode,
-        status: mapStatusCodeToStatus(statusCode, '1'),
-        isStaged: isStagedFromStatusCode(statusCode),
-      });
-      continue;
-    }
-
-    if (entryType === '2') {
-      // 2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path>\0<origPath>
-      const fields = token.split(' ');
-      if (fields.length < 10) continue;
-      const statusCode = fields[1];
-      const path = fields.slice(9).join(' ');
-      const oldPath = tokens[i + 1];
-      if (oldPath !== undefined) i += 1;
-      entries.push({
-        path,
-        oldPath,
-        statusCode,
-        status: mapStatusCodeToStatus(statusCode, '2'),
-        isStaged: isStagedFromStatusCode(statusCode),
-      });
-      continue;
-    }
-
-    if (entryType === 'u') {
-      // u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>
-      const fields = token.split(' ');
-      if (fields.length < 11) continue;
-      const statusCode = fields[1];
-      const path = fields.slice(10).join(' ');
-      entries.push({
-        path,
-        statusCode,
-        status: mapStatusCodeToStatus(statusCode, 'u'),
-        isStaged: isStagedFromStatusCode(statusCode),
-      });
-    }
-  }
-
-  return entries;
+  return parseV2Entries(tokens);
 }
 
 function resolveRenamedNumstatPath(filePath: string): string {
@@ -184,9 +180,9 @@ function parseNumstatValue(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function mergeNumstatValues(left: number | null | undefined, right: number | null): number | null {
+function mergeNumstatValues(left: number | null, right: number | null): number | null {
   if (left === null || right === null) return null;
-  return (left ?? 0) + right;
+  return left + right;
 }
 
 /**
@@ -208,19 +204,15 @@ export function parseNumstatOutput(stdout: string): Map<string, ParsedNumstat> {
     const parts = line.split('\t');
     if (parts.length < 3) continue;
 
-    const additions = parseNumstatValue(parts[0]);
-    const deletions = parseNumstatValue(parts[1]);
     const filePath = resolveRenamedNumstatPath(parts.slice(2).join('\t'));
     const current = map.get(filePath);
 
-    if (!current) {
-      map.set(filePath, { additions, deletions });
-      continue;
-    }
+    const additions = parseNumstatValue(parts[0]);
+    const deletions = parseNumstatValue(parts[1]);
 
     map.set(filePath, {
-      additions: mergeNumstatValues(current.additions, additions),
-      deletions: mergeNumstatValues(current.deletions, deletions),
+      additions: current ? mergeNumstatValues(current.additions, additions) : additions,
+      deletions: current ? mergeNumstatValues(current.deletions, deletions) : deletions,
     });
   }
 
