@@ -13,10 +13,11 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
+import { githubAuthService } from '@main/core/github/services/github-auth-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { TaskLifecycleService } from '@main/core/tasks/task-lifecycle-service';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
-import { getLocalExec } from '@main/core/utils/exec';
+import { getGitLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import type {
   ProjectProvider,
@@ -77,12 +78,13 @@ export class LocalProjectProvider implements ProjectProvider {
   ) {
     this.settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
     this.fs = new LocalFileSystem(project.path);
-    this.git = new GitService(project.path, getLocalExec(), this.fs);
+    const gitExec = getGitLocalExec(() => githubAuthService.getToken());
+    this.git = new GitService(project.path, gitExec, this.fs);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
       repoPath: project.path,
       projectSettings: this.settings,
-      exec: getLocalExec(),
+      exec: gitExec,
       rootFs: rootFs,
     });
   }
@@ -173,7 +175,7 @@ export class LocalProjectProvider implements ProjectProvider {
       workDir = this.project.path;
     }
 
-    const exec = getLocalExec();
+    const exec = getGitLocalExec(() => githubAuthService.getToken());
     const taskFs = new LocalFileSystem(workDir);
     await new HookConfigWriter(taskFs, exec).writeAll();
 
