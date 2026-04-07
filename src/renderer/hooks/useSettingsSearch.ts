@@ -2,112 +2,95 @@ export interface SearchableSetting {
   id: string;
   label: string;
   description: string;
-  category: string;
-  keywords: string[];
-  synonyms: string[];
+  aliases: string[];
   tabId: string;
 }
 
-// Comprehensive settings index with semantic keywords and synonyms
+export interface SearchResult {
+  setting: SearchableSetting;
+  score: number;
+}
+
+// Hand-curated index of searchable settings. Order does not matter; results
+// are ranked by score. When adding a new setting, prefer adding a few
+// natural-language aliases over adding more weight tiers.
 export const SETTINGS_INDEX: SearchableSetting[] = [
   // General Tab
   {
     id: 'telemetry',
     label: 'Telemetry',
     description: 'Help improve Emdash by sending anonymous usage data',
-    category: 'Privacy',
-    keywords: ['telemetry', 'analytics', 'tracking', 'data collection', 'usage'],
-    synonyms: ['statistics', 'metrics', 'monitoring', 'reporting', 'analytics'],
+    aliases: ['analytics', 'tracking', 'data collection', 'usage', 'metrics', 'monitoring'],
     tabId: 'general',
   },
   {
     id: 'auto-generate-task-names',
     label: 'Auto-generate task names',
     description: 'Automatically generate task names from context',
-    category: 'Tasks',
-    keywords: ['task names', 'auto generate', 'automatic naming', 'task titles'],
-    synonyms: ['naming', 'titles', 'automatic names', 'generate names'],
+    aliases: ['naming', 'titles', 'automatic names', 'task titles'],
     tabId: 'general',
   },
   {
     id: 'auto-infer-task-names',
     label: 'Auto-infer task names',
     description: 'Infer task names from the first message',
-    category: 'Tasks',
-    keywords: ['infer names', 'detect names', 'smart naming'],
-    synonyms: ['guess names', 'auto detect', 'smart titles'],
+    aliases: ['detect names', 'smart naming', 'guess names'],
     tabId: 'general',
   },
   {
     id: 'auto-approve-by-default',
     label: 'Auto-approve by default',
     description: 'Automatically approve tool operations without asking',
-    category: 'Tasks',
-    keywords: ['auto approve', 'permissions', 'tool approval', 'automatic approval'],
-    synonyms: ['skip prompts', 'less strict', 'automatic permissions', 'approve automatically'],
+    aliases: ['permissions', 'tool approval', 'skip prompts', 'approve automatically'],
     tabId: 'general',
   },
   {
     id: 'create-worktree-by-default',
     label: 'Create worktree by default',
     description: 'Create a git worktree for each new task',
-    category: 'Tasks',
-    keywords: ['worktree', 'git worktree', 'branch isolation', 'task isolation'],
-    synonyms: ['git branches', 'isolated workspace', 'separate branch'],
+    aliases: ['worktree', 'git worktree', 'branch isolation', 'isolated workspace'],
     tabId: 'general',
   },
   {
     id: 'auto-trust-worktrees',
     label: 'Auto-trust worktrees',
     description: 'Automatically trust repositories in new worktrees',
-    category: 'Tasks',
-    keywords: ['trust', 'worktree trust', 'repository trust', 'git trust'],
-    synonyms: ['trusted repos', 'auto trust', 'repository verification'],
+    aliases: ['trust', 'repository trust', 'trusted repos'],
     tabId: 'general',
   },
   {
     id: 'notifications-enabled',
     label: 'Enable notifications',
     description: 'Show notification messages',
-    category: 'Notifications',
-    keywords: ['notifications', 'alerts', 'messages', 'banner'],
-    synonyms: ['popups', 'alerts', 'notify', 'warnings'],
+    aliases: ['alerts', 'banner', 'popups', 'notify'],
     tabId: 'general',
   },
   {
     id: 'notification-sound',
     label: 'Notification sound',
     description: 'Play a sound when notifications appear',
-    category: 'Notifications',
-    keywords: ['sound', 'audio', 'notification sound', 'beep'],
-    synonyms: ['chime', 'alert sound', 'ding', 'notification audio'],
+    aliases: ['audio', 'beep', 'chime', 'ding', 'alert sound'],
     tabId: 'general',
   },
   {
     id: 'os-notifications',
     label: 'OS notifications',
     description: 'Show native operating system notifications',
-    category: 'Notifications',
-    keywords: ['os notifications', 'native notifications', 'system notifications'],
-    synonyms: ['desktop alerts', 'native alerts', 'system alerts'],
+    aliases: ['native notifications', 'system notifications', 'desktop alerts'],
     tabId: 'general',
   },
   {
     id: 'sound-focus-mode',
     label: 'Sound focus mode',
     description: 'When to play notification sounds',
-    category: 'Notifications',
-    keywords: ['focus mode', 'sound mode', 'notification timing'],
-    synonyms: ['quiet mode', 'do not disturb', 'sound settings'],
+    aliases: ['focus mode', 'quiet mode', 'do not disturb'],
     tabId: 'general',
   },
   {
     id: 'sound-profile',
     label: 'Sound profile',
     description: 'Choose the notification sound style',
-    category: 'Notifications',
-    keywords: ['sound profile', 'audio theme', 'notification style'],
-    synonyms: ['sound theme', 'audio profile', 'notification tone'],
+    aliases: ['audio theme', 'sound theme', 'notification tone'],
     tabId: 'general',
   },
 
@@ -116,36 +99,28 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     id: 'default-agent',
     label: 'Default agent',
     description: 'Choose the default AI agent for new tasks',
-    category: 'Agents',
-    keywords: ['default agent', 'default model', 'preferred agent', 'ai provider'],
-    synonyms: ['default ai', 'main agent', 'preferred model', 'default llm'],
+    aliases: ['default model', 'preferred agent', 'ai provider', 'default llm'],
     tabId: 'clis-models',
   },
   {
     id: 'review-agent',
     label: 'Review agent',
     description: 'Enable code review with an AI agent',
-    category: 'Agents',
-    keywords: ['review', 'code review', 'review agent', 'pr review'],
-    synonyms: ['code check', 'review bot', 'pr reviewer', 'code analysis'],
+    aliases: ['code review', 'pr review', 'review bot', 'code analysis'],
     tabId: 'clis-models',
   },
   {
     id: 'review-prompt',
     label: 'Review prompt',
     description: 'Custom instructions for the review agent',
-    category: 'Agents',
-    keywords: ['review prompt', 'custom instructions', 'review settings'],
-    synonyms: ['review instructions', 'custom prompt', 'review guidelines'],
+    aliases: ['custom instructions', 'review instructions', 'review guidelines'],
     tabId: 'clis-models',
   },
   {
     id: 'cli-agents',
     label: 'CLI agents',
     description: 'Manage installed CLI agents and their status',
-    category: 'Agents',
-    keywords: ['cli agents', 'command line', 'installed agents', 'agent status'],
-    synonyms: ['terminal agents', 'cli tools', 'command agents'],
+    aliases: ['command line', 'installed agents', 'terminal agents', 'cli tools'],
     tabId: 'clis-models',
   },
 
@@ -154,81 +129,63 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     id: 'integrations',
     label: 'Integrations',
     description: 'Connect external services like GitHub, Linear, Jira',
-    category: 'Integrations',
-    keywords: ['integrations', 'github', 'linear', 'jira', 'gitlab', 'services'],
-    synonyms: ['connections', 'external services', 'third party', 'apps'],
+    aliases: ['connections', 'external services', 'third party', 'apps'],
     tabId: 'integrations',
   },
   {
     id: 'github',
     label: 'GitHub',
     description: 'Connect your GitHub repositories',
-    category: 'Integrations',
-    keywords: ['github', 'git', 'repository', 'pull request', 'pr', 'issues'],
-    synonyms: ['gh', 'octocat', 'source control'],
+    aliases: ['gh', 'git', 'repository', 'pull request', 'pr', 'octocat', 'source control'],
     tabId: 'integrations',
   },
   {
     id: 'gitlab',
     label: 'GitLab',
     description: 'Work on GitLab issues',
-    category: 'Integrations',
-    keywords: ['gitlab', 'git', 'repository', 'merge request', 'mr', 'issues'],
-    synonyms: ['gl', 'source control'],
+    aliases: ['gl', 'git', 'repository', 'merge request', 'mr', 'source control'],
     tabId: 'integrations',
   },
   {
     id: 'forgejo',
     label: 'Forgejo',
     description: 'Work on Forgejo issues',
-    category: 'Integrations',
-    keywords: ['forgejo', 'gitea', 'git', 'self-hosted', 'repository', 'issues'],
-    synonyms: ['codeberg', 'self hosted git'],
+    aliases: ['gitea', 'self-hosted', 'self hosted git', 'codeberg', 'repository'],
     tabId: 'integrations',
   },
   {
     id: 'linear',
     label: 'Linear',
     description: 'Work on Linear tickets',
-    category: 'Integrations',
-    keywords: ['linear', 'tickets', 'issues', 'project management', 'tracker'],
-    synonyms: ['linear app', 'issue tracker'],
+    aliases: ['tickets', 'issues', 'project management', 'issue tracker'],
     tabId: 'integrations',
   },
   {
     id: 'jira',
     label: 'Jira',
     description: 'Work on Jira tickets',
-    category: 'Integrations',
-    keywords: ['jira', 'atlassian', 'tickets', 'issues', 'project management'],
-    synonyms: ['issue tracker', 'atlassian jira'],
+    aliases: ['atlassian', 'tickets', 'issues', 'project management'],
     tabId: 'integrations',
   },
   {
     id: 'plain',
     label: 'Plain',
     description: 'Work on support threads',
-    category: 'Integrations',
-    keywords: ['plain', 'support', 'customer support', 'tickets', 'threads'],
-    synonyms: ['helpdesk', 'support inbox'],
+    aliases: ['support', 'customer support', 'helpdesk', 'support inbox'],
     tabId: 'integrations',
   },
   {
     id: 'sentry',
     label: 'Sentry',
     description: 'Fix errors from Sentry',
-    category: 'Integrations',
-    keywords: ['sentry', 'errors', 'exceptions', 'monitoring', 'crash reporting'],
-    synonyms: ['error tracking', 'observability', 'bug tracker'],
+    aliases: ['errors', 'exceptions', 'monitoring', 'error tracking', 'observability'],
     tabId: 'integrations',
   },
   {
     id: 'workspace-provider',
     label: 'Workspace provider',
     description: 'Configure workspace provisioning settings',
-    category: 'Integrations',
-    keywords: ['workspace', 'provisioning', 'cloud workspace', 'remote'],
-    synonyms: ['cloud dev', 'remote workspace', 'workspace setup'],
+    aliases: ['provisioning', 'cloud workspace', 'remote workspace'],
     tabId: 'integrations',
   },
 
@@ -237,27 +194,21 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     id: 'branch-prefix',
     label: 'Branch prefix',
     description: 'Prefix for automatically generated branch names',
-    category: 'Repository',
-    keywords: ['branch prefix', 'branch naming', 'git branches', 'prefix'],
-    synonyms: ['branch name', 'naming convention', 'git prefix'],
+    aliases: ['branch naming', 'git branches', 'naming convention'],
     tabId: 'repository',
   },
   {
     id: 'push-on-create',
     label: 'Push on create',
     description: 'Automatically push branches when creating a PR',
-    category: 'Repository',
-    keywords: ['push', 'auto push', 'git push', 'branch push'],
-    synonyms: ['auto publish', 'automatic push', 'push branches'],
+    aliases: ['auto push', 'git push', 'auto publish'],
     tabId: 'repository',
   },
   {
     id: 'auto-close-issues',
     label: 'Auto-close linked issues',
     description: 'Close linked issues when PR is created',
-    category: 'Repository',
-    keywords: ['close issues', 'linked issues', 'auto close', 'issue tracking'],
-    synonyms: ['close tickets', 'auto resolve', 'issue automation'],
+    aliases: ['close tickets', 'issue automation', 'auto resolve'],
     tabId: 'repository',
   },
 
@@ -266,197 +217,107 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     id: 'theme',
     label: 'Theme',
     description: 'Choose your preferred color theme',
-    category: 'Appearance',
-    keywords: ['theme', 'color scheme', 'dark mode', 'light mode', 'appearance'],
-    synonyms: ['colors', 'visual style', 'ui theme', 'dark theme', 'light theme'],
+    aliases: ['color scheme', 'dark mode', 'light mode', 'appearance', 'colors', 'ui theme'],
     tabId: 'interface',
   },
   {
     id: 'terminal-font-family',
     label: 'Terminal font family',
     description: 'Custom font for the integrated terminal',
-    category: 'Terminal',
-    keywords: ['terminal font', 'font family', 'monospace', 'terminal style'],
-    synonyms: ['console font', 'terminal typeface', 'font settings'],
+    aliases: ['terminal font', 'monospace', 'console font', 'typeface'],
     tabId: 'interface',
   },
   {
     id: 'terminal-font-size',
     label: 'Terminal font size',
     description: 'Font size for the integrated terminal',
-    category: 'Terminal',
-    keywords: ['font size', 'terminal size', 'text size', 'zoom'],
-    synonyms: ['terminal zoom', 'text zoom', 'font scaling'],
+    aliases: ['text size', 'terminal zoom', 'font scaling'],
     tabId: 'interface',
   },
   {
     id: 'auto-copy-selection',
     label: 'Auto-copy on selection',
     description: 'Automatically copy text when selected in terminal',
-    category: 'Terminal',
-    keywords: ['auto copy', 'copy selection', 'clipboard', 'terminal copy'],
-    synonyms: ['automatic copy', 'select to copy', 'clipboard sync'],
+    aliases: ['clipboard', 'select to copy', 'terminal copy'],
     tabId: 'interface',
   },
   {
     id: 'mac-option-is-meta',
     label: 'Mac Option is Meta',
     description: 'Use Option key as Meta key in terminal',
-    category: 'Terminal',
-    keywords: ['option key', 'meta key', 'mac terminal', 'keyboard'],
-    synonyms: ['alt key', 'terminal keys', 'modifier keys'],
+    aliases: ['option key', 'meta key', 'alt key', 'modifier keys'],
     tabId: 'interface',
   },
   {
     id: 'keyboard-shortcuts',
     label: 'Keyboard shortcuts',
     description: 'Customize keyboard shortcuts for common actions',
-    category: 'Keyboard',
-    keywords: ['keyboard', 'shortcuts', 'keybindings', 'hotkeys', 'custom keys'],
-    synonyms: ['key combos', 'shortcut keys', 'keyboard commands', 'accelerators'],
+    aliases: ['keybindings', 'hotkeys', 'shortcut keys', 'accelerators'],
     tabId: 'interface',
   },
   {
     id: 'auto-right-sidebar',
     label: 'Auto right sidebar',
     description: 'Automatically show/hide right sidebar based on context',
-    category: 'Workspace',
-    keywords: ['sidebar', 'right panel', 'auto hide', 'auto show'],
-    synonyms: ['side panel', 'right sidebar', 'panel behavior'],
+    aliases: ['side panel', 'right panel', 'panel behavior'],
     tabId: 'interface',
   },
   {
     id: 'resource-monitor',
     label: 'Resource monitor',
     description: 'Show system resource usage in the sidebar',
-    category: 'Workspace',
-    keywords: ['resource monitor', 'cpu', 'memory', 'system stats'],
-    synonyms: ['performance', 'system monitor', 'usage stats', 'resources'],
+    aliases: ['cpu', 'memory', 'system stats', 'performance', 'usage stats'],
     tabId: 'interface',
   },
   {
     id: 'browser-preview',
     label: 'Browser preview',
     description: 'Enable built-in browser preview for web projects',
-    category: 'Workspace',
-    keywords: ['browser', 'preview', 'web preview', 'live preview'],
-    synonyms: ['web view', 'browser view', 'site preview', 'live reload'],
+    aliases: ['web preview', 'live preview', 'web view', 'live reload'],
     tabId: 'interface',
   },
   {
     id: 'task-hover-action',
     label: 'Task hover action',
     description: 'Action to show when hovering over tasks',
-    category: 'Workspace',
-    keywords: ['task hover', 'hover action', 'delete', 'archive'],
-    synonyms: ['hover behavior', 'task actions', 'mouse hover'],
+    aliases: ['hover behavior', 'task actions', 'mouse hover'],
     tabId: 'interface',
   },
   {
     id: 'hidden-tools',
     label: 'Hidden tools',
     description: 'Manage which tools are hidden from the interface',
-    category: 'Tools',
-    keywords: ['hidden tools', 'tool visibility', 'show tools', 'hide tools'],
-    synonyms: ['tool settings', 'visible tools', 'tool preferences'],
+    aliases: ['tool visibility', 'show tools', 'hide tools', 'tool preferences'],
     tabId: 'interface',
   },
 ];
 
-export interface SearchResult {
-  setting: SearchableSetting;
-  score: number;
-  matches: {
-    label: boolean;
-    description: boolean;
-    keywords: boolean;
-    synonyms: boolean;
-  };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function calculateSimilarity(query: string, text: string): number {
-  const queryLower = query.toLowerCase();
-  const textLower = text.toLowerCase();
-
-  if (textLower === queryLower) return 1;
-  if (textLower.startsWith(queryLower)) return 0.9;
-  if (new RegExp(`\\b${escapeRegExp(queryLower)}\\b`).test(textLower)) return 0.8;
-  if (textLower.includes(queryLower)) return 0.6;
-
-  // Check for word-by-word partial matches
-  const queryWords = queryLower.split(/\s+/);
-  const textWords = textLower.split(/\s+/);
-
-  let matchCount = 0;
-  for (const queryWord of queryWords) {
-    if (queryWord.length < 2) continue;
-    for (const textWord of textWords) {
-      if (textWord.length >= 2 && textWord.includes(queryWord)) {
-        matchCount++;
-        break;
-      }
-    }
-  }
-
-  if (matchCount > 0) {
-    return 0.4 * (matchCount / queryWords.length);
-  }
-
+// Score a single field. Higher is better; 0 means no match.
+function scoreField(query: string, text: string): number {
+  const q = query.toLowerCase();
+  const t = text.toLowerCase();
+  if (t === q) return 1;
+  if (t.startsWith(q)) return 0.8;
+  if (t.includes(q)) return 0.5;
   return 0;
 }
 
 export function searchSettings(query: string): SearchResult[] {
-  if (!query.trim()) return [];
+  const trimmed = query.trim();
+  if (!trimmed) return [];
 
   const results: SearchResult[] = [];
 
   for (const setting of SETTINGS_INDEX) {
     let score = 0;
-    const matches = {
-      label: false,
-      description: false,
-      keywords: false,
-      synonyms: false,
-    };
-
-    // Check label (highest weight)
-    const labelScore = calculateSimilarity(query, setting.label);
-    if (labelScore > 0) {
-      score += labelScore * 4;
-      matches.label = true;
+    score += scoreField(trimmed, setting.label) * 4;
+    score += scoreField(trimmed, setting.description) * 2;
+    for (const alias of setting.aliases) {
+      score += scoreField(trimmed, alias) * 1.5;
     }
 
-    // Check description
-    const descScore = calculateSimilarity(query, setting.description);
-    if (descScore > 0) {
-      score += descScore * 2;
-      matches.description = true;
-    }
-
-    // Check keywords
-    for (const keyword of setting.keywords) {
-      const keywordScore = calculateSimilarity(query, keyword);
-      if (keywordScore > 0) {
-        score += keywordScore * 1.5;
-        matches.keywords = true;
-      }
-    }
-
-    // Check synonyms (semantic matching)
-    for (const synonym of setting.synonyms) {
-      const synonymScore = calculateSimilarity(query, synonym);
-      if (synonymScore > 0) {
-        score += synonymScore * 1.2;
-        matches.synonyms = true;
-      }
-    }
-
-    if (score > 0.3) {
-      results.push({ setting, score, matches });
+    if (score > 0) {
+      results.push({ setting, score });
     }
   }
 
@@ -475,40 +336,4 @@ export function groupResultsByTab(results: SearchResult[]): Map<string, SearchRe
   }
 
   return grouped;
-}
-
-// Highlight matches - returns array of strings and indices for highlighting
-export function getHighlightSegments(
-  text: string,
-  query: string
-): Array<{ text: string; match: boolean }> {
-  if (!query.trim()) return [{ text, match: false }];
-
-  const queryLower = query.toLowerCase();
-  const textLower = text.toLowerCase();
-
-  const segments: Array<{ text: string; match: boolean }> = [];
-  let lastIndex = 0;
-
-  // Find all occurrences
-  let index = textLower.indexOf(queryLower);
-  while (index !== -1) {
-    // Add text before match
-    if (index > lastIndex) {
-      segments.push({ text: text.slice(lastIndex, index), match: false });
-    }
-
-    // Add highlighted match
-    segments.push({ text: text.slice(index, index + query.length), match: true });
-
-    lastIndex = index + query.length;
-    index = textLower.indexOf(queryLower, lastIndex);
-  }
-
-  // Add remaining text
-  if (lastIndex < text.length) {
-    segments.push({ text: text.slice(lastIndex), match: false });
-  }
-
-  return segments.length > 0 ? segments : [{ text, match: false }];
 }
