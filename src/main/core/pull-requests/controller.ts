@@ -1,9 +1,24 @@
 import { createRPCController } from '@shared/ipc/rpc';
 import type { ListPrOptions } from '@shared/pull-requests';
+import { parseNameWithOwner } from '@main/core/github/services/utils';
+import { projectManager } from '@main/core/projects/project-manager';
 import { log } from '@main/lib/logger';
 import { prService } from './pr-service';
 
 export const pullRequestController = createRPCController({
+  getNameWithOwner: async (projectId: string) => {
+    const project = projectManager.getProject(projectId);
+    if (!project) return { status: 'no_remote' as const };
+    const remoteState = await project.getRemoteState();
+    if (!remoteState.hasRemote) return { status: 'no_remote' as const };
+    if (!remoteState.selectedRemoteUrl) return { status: 'unsupported_remote' as const };
+
+    const nameWithOwner = parseNameWithOwner(remoteState.selectedRemoteUrl);
+    if (!nameWithOwner) return { status: 'unsupported_remote' as const };
+
+    return { status: 'ready' as const, nameWithOwner };
+  },
+
   // ── DB-cached reads ────────────────────────────────────────────────────
   listPullRequests: async (
     projectId: string,

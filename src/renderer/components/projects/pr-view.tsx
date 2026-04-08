@@ -13,9 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/components/ui/select';
-import { parseGithubNameWithOwner } from '@renderer/core/git/utils';
-import { getProjectStore, mountedProjectData } from '@renderer/core/stores/project-selectors';
 import { useParams } from '@renderer/core/view/navigation-provider';
+import { useNameWithOwner } from '@renderer/hooks/useNameWithOwner';
 import {
   usePrViewState,
   type LabelItem,
@@ -203,8 +202,8 @@ export const PullRequestView = observer(function PullRequestView() {
   const {
     params: { projectId },
   } = useParams('project');
-  const project = mountedProjectData(getProjectStore(projectId));
-  const nameWithOwner = project?.gitRemote ? parseGithubNameWithOwner(project.gitRemote) : null;
+  const { data: remoteState } = useNameWithOwner(projectId);
+  const nameWithOwner = remoteState?.status === 'ready' ? remoteState.nameWithOwner : null;
 
   const {
     statusFilter,
@@ -235,6 +234,19 @@ export const PullRequestView = observer(function PullRequestView() {
     selectedLabelItems,
     hasPills,
   } = usePrViewState(projectId, nameWithOwner);
+
+  if (!nameWithOwner) {
+    const message =
+      remoteState?.status === 'no_remote'
+        ? 'No remote is configured for this project.'
+        : 'Pull requests are currently available only for GitHub remotes.';
+
+    return (
+      <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
+        <p className="text-sm text-muted-foreground text-center py-4">{message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">

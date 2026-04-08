@@ -23,6 +23,11 @@ export type ListPrOptions = {
   sort?: PrSortField;
 };
 
+export type PullRequestRemoteCapability =
+  | { status: 'ready'; nameWithOwner: string }
+  | { status: 'no_remote' }
+  | { status: 'unsupported_remote' };
+
 export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
 
 export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;

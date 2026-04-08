@@ -10,7 +10,6 @@ export type LocalProject = {
   name: string;
   path: string;
   baseRef: string;
-  gitRemote?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -21,7 +20,6 @@ export type SshProject = {
   name: string;
   path: string;
   baseRef: string;
-  gitRemote?: string;
   connectionId: string;
   createdAt: string;
   updatedAt: string;

@@ -23,6 +23,11 @@ export type TeardownTaskError =
   | { type: 'timeout'; message: string; timeout: number }
   | { type: 'error'; message: string };
 
+export type ProjectRemoteState = {
+  hasRemote: boolean;
+  selectedRemoteUrl: string | null;
+};
+
 export interface TaskProvider {
   readonly taskId: string;
   readonly taskPath: string;
@@ -42,6 +47,7 @@ export interface ProjectProvider {
   readonly settings: ProjectSettingsProvider;
   readonly git: GitProvider;
   readonly fs: FileSystemProvider;
+  getRemoteState(): Promise<ProjectRemoteState>;
   provisionTask(
     args: Task,
     conversations: Conversation[],
