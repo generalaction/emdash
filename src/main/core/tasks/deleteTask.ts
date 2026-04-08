@@ -15,11 +15,16 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
   void viewStateService.del(`task:${taskId}`);
 
   if (project) {
-    const teardownResult = await project.teardownTask(taskId);
-    if (!teardownResult.success) {
-      log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
-      return;
-    }
+    void project
+      .teardownTask(taskId)
+      .then((teardownResult) => {
+        if (!teardownResult.success) {
+          log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
+        }
+      })
+      .catch((e) => {
+        log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
+      });
 
     if (task.taskBranch) {
       const siblings = await db

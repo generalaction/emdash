@@ -21,11 +21,16 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
 
   if (!project) return;
 
-  const teardownResult = await project.teardownTask(taskId);
-  if (!teardownResult.success) {
-    log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
-    return;
-  }
+  void project
+    .teardownTask(taskId)
+    .then((teardownResult) => {
+      if (!teardownResult.success) {
+        log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
+      }
+    })
+    .catch((e) => {
+      log.warn('archiveTask: teardown failed', { taskId, error: String(e) });
+    });
 
   if (task.taskBranch) {
     const siblings = await db
