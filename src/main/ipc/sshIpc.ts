@@ -469,9 +469,13 @@ export function registerSshIpc() {
               host: sshConfigHost.hostname ?? alias,
               port: sshConfigHost.port ?? 22,
               username: sshConfigHost.user ?? userInfo().username,
-              authType: sshConfigHost.identityFile ? 'key' : 'agent',
+              authType: sshConfigHost.identityAgent
+                ? 'agent'
+                : sshConfigHost.identityFile
+                  ? 'key'
+                  : 'agent',
               privateKeyPath: sshConfigHost.identityFile,
-              useAgent: !sshConfigHost.identityFile,
+              useAgent: Boolean(sshConfigHost.identityAgent),
             };
 
             const connectionId = await sshService.connect(config);
