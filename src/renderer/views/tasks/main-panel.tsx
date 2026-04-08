@@ -89,11 +89,9 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
 });
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
-  const provisioned = useProvisionedTask();
-  if (!provisioned) return null;
-  const { view } = provisioned;
+  const { taskView } = useProvisionedTask();
 
-  switch (view) {
+  switch (taskView.view) {
     case 'agents':
       return <ConversationsPanel />;
     case 'editor':

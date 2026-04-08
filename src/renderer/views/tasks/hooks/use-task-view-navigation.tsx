@@ -1,34 +1,37 @@
 import { useCallback, useTransition } from 'react';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
-import { useRequireProvisionedTask } from '../task-view-context';
+import { useProvisionedTask } from '../task-view-context';
 
 export function useTaskViewNavigation() {
+  const provisionedTask = useProvisionedTask();
   const { setCollapsed } = useWorkspaceLayoutContext();
-  const taskState = useRequireProvisionedTask();
   const [isPending, startTransition] = useTransition();
 
   const openAgentsView = useCallback(() => {
     startTransition(() => {
-      taskState.setView('agents');
-      if (taskState.rightPanelView === 'files') taskState.setRightPanelView('changes');
+      const { taskView } = provisionedTask;
+      taskView.setView('agents');
+      if (taskView.rightPanelView === 'files') taskView.setRightPanelView('changes');
     });
-  }, [taskState]);
+  }, [provisionedTask]);
 
   const openEditorView = useCallback(() => {
     startTransition(() => {
-      taskState.setView('editor');
-      taskState.setRightPanelView('files');
+      const { taskView } = provisionedTask;
+      taskView.setView('editor');
+      taskView.setRightPanelView('files');
     });
     setCollapsed('right', false);
-  }, [taskState, setCollapsed]);
+  }, [provisionedTask, setCollapsed]);
 
   const openDiffView = useCallback(() => {
     startTransition(() => {
-      taskState.setView('diff');
-      taskState.setRightPanelView('changes');
+      const { taskView } = provisionedTask;
+      taskView.setView('diff');
+      taskView.setRightPanelView('changes');
     });
     setCollapsed('right', false);
-  }, [taskState, setCollapsed]);
+  }, [provisionedTask, setCollapsed]);
 
   return {
     isPending,

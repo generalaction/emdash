@@ -36,6 +36,27 @@
       "when": 1775579310225,
       "tag": "0004_nappy_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1775658011558,
+      "tag": "0005_demonic_skin",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1775659616221,
+      "tag": "0006_redundant_vulture",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1775660444488,
+      "tag": "0007_serious_ben_grimm",
+      "breakpoints": true
     }
   ]
 }

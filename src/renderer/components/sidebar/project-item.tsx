@@ -1,23 +1,15 @@
 import { ChevronRight, FolderClosed, Loader2, Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect } from 'react';
-import ReorderList from '@renderer/components/reorder-list';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { usePrefetchRepository } from '@renderer/core/projects/use-repository';
 import { sidebarStore } from '@renderer/core/stores/app-state';
-import {
-  isUnregisteredProject,
-  MountedProject,
-  ProjectStore,
-  UnregisteredProject,
-} from '@renderer/core/stores/project';
+import { isUnregisteredProject, UnregisteredProject } from '@renderer/core/stores/project';
 import { getProjectStore, projectViewKind } from '@renderer/core/stores/project-selectors';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { SidebarItemMiniButton, SidebarMenuButton, SidebarMenuRow } from './sidebar-primitives';
-import { SidebarTaskItem } from './task-item';
 
 const UNREGISTERED_PHASE_LABEL: Record<UnregisteredProject['phase'], string> = {
   'creating-repo': 'Creating repository…',
@@ -26,53 +18,10 @@ const UNREGISTERED_PHASE_LABEL: Record<UnregisteredProject['phase'], string> = {
   error: 'Failed',
 };
 
-const TaskList = observer(function TaskList({
-  taskManager,
+export const SidebarProjectItem = observer(function SidebarProjectItem({
   projectId,
 }: {
-  taskManager: MountedProject['taskManager'];
   projectId: string;
-}) {
-  const { currentView } = useWorkspaceSlots();
-  const { params: taskParams } = useParams('task');
-  const currentTaskId = currentView === 'task' ? taskParams.taskId : null;
-
-  const tasks = Array.from(taskManager.tasks.values()).filter(
-    (t) => t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt)
-  );
-
-  const orderedTasks = sidebarStore.mergeTaskOrder(projectId, tasks);
-
-  return (
-    <ReorderList
-      as="div"
-      axis="y"
-      items={orderedTasks}
-      onReorder={(newOrder) =>
-        sidebarStore.setTaskOrder(
-          projectId,
-          newOrder.map((t) => t.data.id)
-        )
-      }
-      className="m-0 flex min-w-0 list-none flex-col gap-0.5 p-0"
-      itemClassName="relative list-none min-w-0 cursor-pointer"
-      getKey={(task) => task.data.id}
-    >
-      {(task) => (
-        <SidebarTaskItem
-          task={task}
-          projectId={projectId}
-          isActive={currentTaskId === task.data.id}
-        />
-      )}
-    </ReorderList>
-  );
-});
-
-export const SidebarProjectItem = observer(function SidebarProjectItem({
-  project,
-}: {
-  project: ProjectStore;
 }) {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
@@ -80,7 +29,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const { params: taskParams } = useParams('task');
   const showCreateTaskModal = useShowModal('taskModal');
 
-  const projectId = project.state === 'unregistered' ? project.id : project.data!.id;
+  const project = getProjectStore(projectId);
 
   const { prefetch: prefetchRepository } = usePrefetchRepository(projectId);
 
@@ -98,7 +47,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     if (isProjectActive) prefetchRepository();
   }, [isProjectActive, prefetchRepository]);
 
-  const forceOpen = sidebarStore.forceOpenIds.has(projectId);
+  const isExpanded = sidebarStore.expandedProjectIds.has(projectId);
+
+  if (!project) return null;
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
@@ -116,68 +67,57 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   };
 
   return (
-    <Collapsible
-      defaultOpen
-      open={forceOpen ? true : undefined}
-      onOpenChange={() => {
-        if (forceOpen) sidebarStore.clearForceOpen(projectId);
-      }}
-      className="group/collapsible w-full"
+    <SidebarMenuRow
+      className={cn('group/row h-8 justify-between flex px-1')}
+      data-active={isProjectActive || undefined}
+      isActive={isProjectActive}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => navigate('project', { projectId })}
     >
-      <SidebarMenuRow
-        className={cn('group/row justify-between flex p-1.5')}
-        data-active={isProjectActive || undefined}
-        isActive={isProjectActive}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => navigate('project', { projectId })}
-      >
-        <div className="flex items-center gap-1 flex-1 min-w-0">
-          {project.state === 'unregistered' ? (
-            renderSpinnerWithTooltip()
-          ) : (
-            <CollapsibleTrigger
-              className="group/trigger"
-              render={
-                <SidebarItemMiniButton
-                  type="button"
-                  className="relative"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <FolderClosed className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
-                  <ChevronRight className="absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100 group-data-panel-open/trigger:rotate-90" />
-                </SidebarItemMiniButton>
-              }
-            />
-          )}
-          <span
-            className={cn(
-              'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
-              projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
-                'text-foreground-tertiary-passive'
-            )}
+      <div className="flex items-center gap-1 flex-1 min-w-0">
+        {project.state === 'unregistered' ? (
+          renderSpinnerWithTooltip()
+        ) : (
+          <SidebarItemMiniButton
+            type="button"
+            className="relative"
+            onClick={(e) => {
+              e.stopPropagation();
+              sidebarStore.toggleProjectExpanded(projectId);
+            }}
           >
-            {project.name}
-          </span>
-        </div>
-        <SidebarItemMiniButton
-          type="button"
-          className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
-          onPointerEnter={() => prefetchRepository()}
-          onClick={(e) => {
-            e.stopPropagation();
-            showCreateTaskModal({ projectId });
-          }}
-          disabled={project.state === 'unregistered'}
-        >
-          <Plus className="h-4 w-4" />
-        </SidebarItemMiniButton>
-      </SidebarMenuRow>
-      <CollapsibleContent className=" min-w-0 data-open:mt-0.5 data-closed:mt-0 data-closed:hidden">
-        {project.mountedProject && (
-          <TaskList taskManager={project.mountedProject.taskManager} projectId={projectId} />
+            <FolderClosed className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
+            <ChevronRight
+              className={cn(
+                'absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100',
+                isExpanded && 'rotate-90'
+              )}
+            />
+          </SidebarItemMiniButton>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+        <span
+          className={cn(
+            'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors select-none',
+            projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
+              'text-foreground-tertiary-passive'
+          )}
+        >
+          {project.name}
+        </span>
+      </div>
+      <SidebarItemMiniButton
+        type="button"
+        className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
+        onPointerEnter={() => prefetchRepository()}
+        onClick={(e) => {
+          e.stopPropagation();
+          showCreateTaskModal({ projectId });
+        }}
+        disabled={project.state === 'unregistered'}
+      >
+        <Plus className="h-4 w-4" />
+      </SidebarItemMiniButton>
+    </SidebarMenuRow>
   );
 });
 

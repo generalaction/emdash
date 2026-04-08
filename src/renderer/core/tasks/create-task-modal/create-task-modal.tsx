@@ -127,6 +127,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           name: fromPR.taskName,
           sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName },
+          initialStatus:
+            fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
           strategy:
             fromPR.checkoutMode === 'checkout'
               ? {

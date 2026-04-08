@@ -1,7 +1,13 @@
 import { eq, sql } from 'drizzle-orm';
 import { err, ok, Result } from '@shared/result';
-import type { CreateTaskError, CreateTaskParams, Task, TaskLifecycleStatus } from '@shared/tasks';
+import type { CreateTaskError, CreateTaskParams, Task } from '@shared/tasks';
+import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
+import {
+  findPrForBranch,
+  linkTaskToPr,
+  resolveInitialStatus,
+} from '@main/core/task-status/pr-task-bridge';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { createConversation } from '../conversations/createConversation';
@@ -131,6 +137,22 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
     }
   }
 
+  // If no explicit initialStatus was passed, check whether a PR already exists for
+  // this branch in the DB cache and compute the right starting status from it.
+  const remoteUrl = remotes.find((r) => r.name === remote)?.url;
+  const nameWithOwner = remoteUrl ? parseNameWithOwner(remoteUrl) : null;
+
+  let existingPrUrl: string | null = null;
+  let initialStatus = params.initialStatus ?? 'in_progress';
+
+  if (!params.initialStatus && taskBranch && nameWithOwner) {
+    const existingPr = await findPrForBranch(taskBranch, nameWithOwner);
+    if (existingPr) {
+      existingPrUrl = existingPr.url;
+      initialStatus = resolveInitialStatus(existingPr);
+    }
+  }
+
   const [taskRow] = await db
     .insert(tasks)
     .values({
@@ -138,23 +160,31 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       projectId: params.projectId,
       name: params.name,
       taskBranch,
-      status: 'todo' as TaskLifecycleStatus,
+      status: initialStatus,
       sourceBranch: dbSourceBranch,
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
+      statusChangedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
+
+  // Write the tasks_pull_requests link now that the task row exists.
+  if (existingPrUrl) {
+    await linkTaskToPr(params.id, existingPrUrl);
+  }
 
   const task: Task = {
     id: params.id,
     projectId: params.projectId,
     name: params.name,
-    status: 'todo' as TaskLifecycleStatus,
+    status: initialStatus,
     sourceBranch: dbSourceBranch,
     taskBranch,
     linkedIssue: params.linkedIssue ?? undefined,
     createdAt: taskRow.createdAt,
     updatedAt: taskRow.updatedAt,
+    statusChangedAt: taskRow.statusChangedAt,
+    isPinned: taskRow.isPinned === 1,
   };
 
   const provisionResult = await project.provisionTask(task, [], []);

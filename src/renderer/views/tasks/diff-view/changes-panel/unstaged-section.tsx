@@ -3,10 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import {
-  useRequireProvisionedTask,
-  useTaskViewContext,
-} from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { ActionCard } from './action-card';
 import { SectionHeader } from './section-header';
 import { usePrefetchModels } from './use-prefetch-models';
@@ -14,10 +11,10 @@ import { VirtualizedChangesList } from './virtualized-changes-list';
 
 export const UnstagedSection = observer(function UnstagedSection() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = useRequireProvisionedTask();
+  const provisioned = useProvisionedTask();
   const git = provisioned.workspace.git;
-  const changesView = provisioned.diffView.changesView;
-  const diffView = provisioned.diffView;
+  const changesView = provisioned.taskView.diffView.changesView;
+  const diffView = provisioned.taskView.diffView;
 
   const changes = git.unstagedFileChanges;
   const hasChanges = changes.length > 0;
@@ -25,7 +22,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const selectionState = changesView.unstagedSelectionState;
 
   const activePath =
-    provisioned.view === 'diff' && diffView.activeFile?.type === 'disk'
+    provisioned.taskView.view === 'diff' && diffView.activeFile?.type === 'disk'
       ? diffView.activeFile.path
       : undefined;
 
@@ -35,7 +32,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
 
   const handleSelectChange = (path: string) => {
     diffView.setActiveFile({ path, type: 'disk', originalRef: 'HEAD' });
-    provisioned.setView('diff');
+    provisioned.taskView.setView('diff');
   };
 
   const handleDiscardSelection = () => {

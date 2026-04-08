@@ -16,7 +16,7 @@ import { useMonacoLease } from '@renderer/core/monaco/use-monaco-lease';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
-import { useRequireProvisionedTask } from '../task-view-context';
+import { useProvisionedTask } from '../task-view-context';
 
 interface EditorContextValue {
   /**
@@ -43,8 +43,8 @@ export const EditorProvider = observer(function EditorProvider({
   taskId: string;
   projectId: string;
 }) {
-  const taskStore = useRequireProvisionedTask();
-  const editorView = taskStore.editorView;
+  const provisionedTask = useProvisionedTask();
+  const editorView = provisionedTask.taskView.editorView;
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
 
@@ -110,7 +110,7 @@ export const EditorProvider = observer(function EditorProvider({
 
           lease.disposables.push(
             lease.editor.onDidFocusEditorWidget(() => {
-              taskStore.setFocusedRegion('main');
+              provisionedTask.taskView.setFocusedRegion('main');
             })
           );
 
@@ -211,7 +211,7 @@ export const EditorProvider = observer(function EditorProvider({
   // focus Monaco if an editable model is loaded; otherwise queue the intent so
   // it is satisfied once the lease arrives (handled in the lease reaction above).
   // ---------------------------------------------------------------------------
-  const focusedRegion = taskStore.focusedRegion;
+  const focusedRegion = provisionedTask.taskView.focusedRegion;
   useEffect(() => {
     if (!isActive || focusedRegion !== 'main') return;
     const editor = editorRef.current;

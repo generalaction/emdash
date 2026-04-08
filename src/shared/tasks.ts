@@ -1,6 +1,6 @@
 import { CreateConversationParams } from '@shared/conversations';
 
-export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'archived';
+export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
 
 export type Issue = {
   provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo';
@@ -24,9 +24,12 @@ export type Task = {
   taskBranch?: string;
   createdAt: string;
   updatedAt: string;
+  /** ISO timestamp: when lifecycle status last changed (current status entered). */
+  statusChangedAt: string;
   archivedAt?: string;
   lastInteractedAt?: string;
   linkedIssue?: Issue;
+  isPinned: boolean;
 };
 
 export type TaskBootstrapStatus =
@@ -35,15 +38,6 @@ export type TaskBootstrapStatus =
   | { status: 'error'; message: string }
   | { status: 'not-started' };
 
-/**
- * Discriminated union describing how a task's branch and worktree should be set up.
- *
- * - `new-branch`: Create a fresh git branch from `sourceBranch`, serve an isolated worktree.
- * - `checkout-existing`: Check out `sourceBranch` directly in a worktree (branch must exist on remote).
- * - `from-pull-request`: Fetch via `refs/pull/<prNumber>/head` — works for fork PRs. Optionally
- *   create a new task branch on top of the fetched head.
- * - `no-worktree`: No branch creation, no worktree — task runs in the project root directory.
- */
 export type CreateTaskStrategy =
   | { kind: 'new-branch'; taskBranch: string; pushBranch?: boolean }
   | { kind: 'checkout-existing' }
@@ -68,6 +62,7 @@ export type CreateTaskParams = {
   linkedIssue?: Issue;
   /**  */
   initialConversation?: CreateConversationParams;
+  initialStatus?: TaskLifecycleStatus;
 };
 
 export type CreateTaskError =

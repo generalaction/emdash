@@ -7,21 +7,18 @@ import { useProvisionedTask } from './task-view-context';
 import { TerminalsPanel } from './terminals/terminal-panel';
 
 export const TaskRightSidebar = observer(function TaskRightSidebar() {
-  const provisioned = useProvisionedTask();
+  const { taskView } = useProvisionedTask();
   const { isRightOpen } = useWorkspaceLayoutContext();
 
   const prevIsRightOpenRef = useRef(isRightOpen);
   useEffect(() => {
     if (prevIsRightOpenRef.current && !isRightOpen) {
-      provisioned?.setFocusedRegion('main');
+      taskView.setFocusedRegion('main');
     }
     prevIsRightOpenRef.current = isRightOpen;
-  }, [isRightOpen, provisioned]);
+  }, [isRightOpen, taskView]);
 
-  if (!provisioned) return null;
-  const { rightPanelView } = provisioned;
-
-  switch (rightPanelView) {
+  switch (taskView.rightPanelView) {
     case 'changes':
       return <ChangesPanel />;
     case 'files':

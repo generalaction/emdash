@@ -60,6 +60,12 @@
 
   --color-primary: var(--primary);
 
+  --color-status-in-progress: var(--status-in-progress);
+  --color-status-in-review: var(--status-in-review);
+  --color-status-done: var(--status-done);
+  --color-status-todo: var(--status-todo);
+  --color-status-cancelled: var(--status-cancelled);
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -144,6 +150,11 @@
     --selection: color(display-p3 0.709 0.843 0.976);
     --selection-foreground: color(display-p3 0.102 0.193 0.379);
 
+    --status-in-progress: color(display-p3 0.64 0.4 0);
+    --status-in-review: color(display-p3 0.344 0.598 0.342);
+    --status-done: color(display-p3 0.553 0.553 0.553);
+    --status-todo: color(display-p3 0.553 0.553 0.553);
+    --status-cancelled: color(display-p3 0.553 0.553 0.553);
     /* Monaco editor */
     --monaco-bg: #f8fafc;
     --monaco-fg: #1e293b;

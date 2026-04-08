@@ -6,7 +6,7 @@ import type { FileNode } from '@shared/fs';
 import { FileIcon } from '@renderer/core/editor/file-icon';
 import { buildVisibleRows } from '@renderer/core/stores/files-store-utils';
 import { cn } from '@renderer/lib/utils';
-import { useRequireProvisionedTask } from '../task-view-context';
+import { useProvisionedTask } from '../task-view-context';
 
 const FileTreeRow = observer(function FileTreeRow({
   node,
@@ -15,18 +15,19 @@ const FileTreeRow = observer(function FileTreeRow({
   node: FileNode;
   style: React.CSSProperties;
 }) {
-  const taskState = useRequireProvisionedTask();
-  const editorView = taskState.editorView;
+  const taskState = useProvisionedTask();
+  const { taskView } = taskState;
+  const editorView = taskView.editorView;
 
   const isExpanded = editorView.expandedPaths.has(node.path);
-  const isSelected = taskState.view === 'editor' && editorView.activeFilePath === node.path;
+  const isSelected = taskView.view === 'editor' && editorView.activeFilePath === node.path;
   const fileStatus = taskState.workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = node.depth * 12 + 4;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (taskState.view !== 'editor') {
-      taskState.setView('editor');
+    if (taskView.view !== 'editor') {
+      taskView.setView('editor');
     }
     if (node.type === 'directory') {
       toggleExpand();
@@ -120,9 +121,9 @@ const FileTreeRow = observer(function FileTreeRow({
 });
 
 export const EditorFileTree = observer(function EditorFileTree() {
-  const taskState = useRequireProvisionedTask();
+  const taskState = useProvisionedTask();
   const files = taskState.workspace.files;
-  const editorView = taskState.editorView;
+  const editorView = taskState.taskView.editorView;
 
   const visibleRows = files
     ? buildVisibleRows(files.nodes, files.childIndex, editorView.expandedPaths)

@@ -1,47 +1,64 @@
+import { ListFilter } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import React from 'react';
+import { sidebarStore } from '@renderer/core/stores/app-state';
+import { Button } from '../ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { MicroLabel } from '../ui/label';
 
-export function ProjectsGroupLabel() {
+export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
   return (
-    <div className="flex items-center justify-between pl-3 pr-1">
+    <div className="flex items-center justify-between pl-5 pr-2.5 h-[40px]">
       <MicroLabel className="text-foreground-tertiary-passive">Projects</MicroLabel>
+      <DropdownMenu>
+        <DropdownMenuTrigger>
+          <Button size="icon-xs" variant="ghost">
+            <ListFilter />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="min-w-48">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={sidebarStore.taskSortBy}
+              onValueChange={(value) => {
+                if (value === 'created-at' || value === 'updated-at') {
+                  sidebarStore.setTaskSortBy(value);
+                }
+              }}
+            >
+              <DropdownMenuRadioItem value="created-at">Created at</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="updated-at">Updated at</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Display</DropdownMenuLabel>
+            <DropdownMenuCheckboxItem
+              checked={sidebarStore.showSidebarTaskStatus}
+              onCheckedChange={(checked) => sidebarStore.setShowSidebarTaskStatus(checked === true)}
+            >
+              Show task status
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={sidebarStore.taskGroupBy === 'task-status'}
+              onCheckedChange={(checked) =>
+                sidebarStore.setTaskGroupBy(checked === true ? 'task-status' : 'none')
+              }
+            >
+              Group by task status
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
-}
-
-interface MenuItemButtonProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  ariaLabel: string;
-  onClick: () => void;
-}
-
-const MenuItemButton = React.memo<MenuItemButtonProps>(
-  ({ icon: Icon, label, ariaLabel, onClick }) => {
-    const handleKeyDown = React.useCallback(
-      (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      },
-      [onClick]
-    );
-
-    return (
-      <button
-        type="button"
-        role="menuitem"
-        tabIndex={0}
-        aria-label={ariaLabel}
-        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
-        onClick={onClick}
-        onKeyDown={handleKeyDown}
-      >
-        <Icon className="h-4 w-4" />
-        {label}
-      </button>
-    );
-  }
-);
-MenuItemButton.displayName = 'MenuItemButton';
+});

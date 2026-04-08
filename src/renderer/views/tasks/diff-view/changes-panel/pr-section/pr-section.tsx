@@ -9,7 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-gro
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { cn } from '@renderer/lib/utils';
-import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 import { PrChecksList } from './pr-checks-list';
 import { PrCommitsList } from './pr-commits-list';
 import { PrFilesList } from './pr-files-list';
@@ -173,7 +173,7 @@ function MergeFooter({
 
 export function PullRequestEntry({ pr }: { pr: PullRequest }) {
   const prStatus = pr.status;
-  const prStore = useRequireProvisionedTask().workspace.pr;
+  const prStore = useProvisionedTask().workspace.pr;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
   const [tab, setTab] = useState<'files' | 'commits' | 'checks'>('files');

@@ -1,4 +1,4 @@
-import { Archive, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Archive, Pencil, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { AgentStatusIndicator } from '@renderer/components/agent-status-indicator';
 import {
@@ -9,36 +9,59 @@ import {
   ContextMenuTrigger,
 } from '@renderer/components/ui/context-menu';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { TaskStore } from '@renderer/core/stores/task';
-import { getTaskManagerStore, taskAgentStatus } from '@renderer/core/stores/task-selectors';
-import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { sidebarStore } from '@renderer/core/stores/app-state';
+import {
+  getTaskGitStore,
+  getTaskManagerStore,
+  getTaskStore,
+  taskAgentStatus,
+} from '@renderer/core/stores/task-selectors';
+import { CLISpinner } from '@renderer/core/tasks/components/cliSpinner';
+import { LifecycleStatusIndicator } from '@renderer/core/tasks/components/lifecycleStatusIndicator';
+import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
+import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { cn } from '@renderer/lib/utils';
-import { SidebarItemMiniButton, SidebarMenuRow } from './sidebar-primitives';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
-  task: TaskStore;
+  taskId: string;
   projectId: string;
-  isActive: boolean;
 }
 
 export const SidebarTaskItem = observer(function SidebarTaskItem({
-  task,
+  taskId,
   projectId,
-  isActive,
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
   const showConfirm = useShowModal('confirmActionModal');
+
+  const { currentView } = useWorkspaceSlots();
+  const { params } = useParams('task');
+  const isActive =
+    currentView === 'task' && params.taskId === taskId && params.projectId === projectId;
+
+  const task = getTaskStore(projectId, taskId)!;
+  const taskManager = getTaskManagerStore(projectId);
+  const git = getTaskGitStore(projectId, taskId);
 
   const isBootstrapping =
     task.state === 'unregistered' ||
     (task.state === 'unprovisioned' &&
       (task.phase === 'provision' || task.phase === 'provision-error'));
 
-  const taskId = task.data.id;
+  const delayedIsBootstrapping = useDelayedBoolean(isBootstrapping, 500);
+
   const taskName = task.data.name;
-  const taskManager = getTaskManagerStore(projectId);
+  const lifecycleStatus = task.data.status;
   const status = taskAgentStatus(task);
+  const showStatus = sidebarStore.showSidebarTaskStatus;
+
+  const linesAdded = git?.totalLinesAdded ?? 0;
+  const linesDeleted = git?.totalLinesDeleted ?? 0;
+  const showLineDiffStats =
+    git !== undefined && !git.isLoading && !git.error && (linesAdded > 0 || linesDeleted > 0);
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
@@ -64,7 +87,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     <ContextMenu>
       <ContextMenuTrigger>
         <SidebarMenuRow
-          className={cn('group/row flex items-center p-1.5 pl-9')}
+          className={cn('group/row flex items-center px-1 h-8 gap-1 pl-6', !showStatus && 'pl-8')}
           isActive={isActive}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
@@ -72,33 +95,50 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
             navigate('task', { projectId, taskId });
           }}
         >
-          <span
-            className={cn(
-              'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
-              isBootstrapping && 'text-foreground/40'
-            )}
-          >
-            {taskName}
-          </span>
-          {!isBootstrapping && (
-            <AgentStatusIndicator status={status} className="mr-1" spinnerClassName="h-3.5 w-3.5" />
-          )}
-          {isBootstrapping ? (
-            <SidebarItemMiniButton type="button" disabled aria-label="Loading">
-              <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
-            </SidebarItemMiniButton>
-          ) : (
-            <SidebarItemMiniButton
-              type="button"
-              className="opacity-0 group-hover/row:opacity-100 transition-opacity duration-150"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleArchive();
-              }}
-              aria-label="Archive task"
+          {showStatus && (
+            <div
+              className="h-6 w-6 flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
             >
-              <Archive className="h-4 w-4" />
-            </SidebarItemMiniButton>
+              <LifecycleStatusIndicator
+                lifecycleStatus={lifecycleStatus}
+                onLifecycleStatusChange={(next) => {
+                  task.updateStatus(next);
+                }}
+              />
+            </div>
+          )}
+          <div className="flex items-center gap-1 min-w-0">
+            <span
+              className={cn(
+                'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
+                isBootstrapping && 'text-foreground/40'
+              )}
+            >
+              {taskName}
+            </span>
+            {showLineDiffStats ? (
+              <span
+                className="shrink-0 tabular-nums text-[10px] h-full flex items-center leading-none text-muted-foreground pr-1 font-mono"
+                aria-label={`${linesAdded} lines added, ${linesDeleted} lines removed`}
+              >
+                {linesAdded > 0 ? <span className="text-green-600">+{linesAdded}</span> : null}
+                {linesAdded > 0 && linesDeleted > 0 ? ' ' : null}
+                {linesDeleted > 0 ? <span className="text-red-600">-{linesDeleted}</span> : null}
+              </span>
+            ) : null}
+          </div>
+          {delayedIsBootstrapping ? (
+            <Tooltip>
+              <TooltipTrigger>
+                <span className="size-6 flex justify-center items-center">
+                  <CLISpinner variant="2" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Creating task workspace...</TooltipContent>
+            </Tooltip>
+          ) : (
+            <AgentStatusIndicator status={status} />
           )}
         </SidebarMenuRow>
       </ContextMenuTrigger>

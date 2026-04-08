@@ -1,58 +1,71 @@
-import { Loader2 } from 'lucide-react';
+import { useEffect } from 'react';
 import type { AgentStatus } from '@renderer/core/stores/conversation-manager';
+import { CLISpinner } from '@renderer/core/tasks/components/cliSpinner';
 import { cn } from '@renderer/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 export type AgentIndicatorStatus = AgentStatus | null;
 
 interface AgentStatusIndicatorProps {
   status: AgentIndicatorStatus;
   className?: string;
-  dotClassName?: string;
-  spinnerClassName?: string;
 }
 
-export function AgentStatusIndicator({
-  status,
-  className,
-  dotClassName = 'size-2',
-  spinnerClassName = 'size-3',
-}: AgentStatusIndicatorProps) {
+const STATUS_LABELS = {
+  working: 'Agent is working',
+  'awaiting-input': 'Agent is awaiting input',
+  error: 'Agent error',
+  completed: 'Agent completed',
+};
+
+export function AgentStatusIndicator({ status, className }: AgentStatusIndicatorProps) {
+  useEffect(() => {
+    console.log('status', status);
+  }, [status]);
+
   if (!status || status === 'idle') return null;
 
-  if (status === 'working') {
-    return (
-      <Loader2
-        className={cn('animate-spin text-foreground/60', spinnerClassName, className)}
-        aria-label="Agent is working"
-      />
-    );
-  }
-
-  if (status === 'awaiting-input') {
-    return (
-      <span
-        className={cn('rounded-full bg-blue-500', dotClassName, className)}
-        aria-label="Agent is awaiting input"
-        title="Agent is awaiting input"
-      />
-    );
-  }
-
-  if (status === 'error') {
-    return (
-      <span
-        className={cn('rounded-full bg-red-500', dotClassName, className)}
-        aria-label="Agent error"
-        title="Agent error"
-      />
-    );
-  }
+  const renderIndicator = () => {
+    switch (status) {
+      case 'working':
+        return <CLISpinner />;
+      case 'awaiting-input':
+        return (
+          <span
+            className={cn('rounded-full bg-blue-200 border size-2 border-blue-600', className)}
+            aria-label="Agent is awaiting input"
+            title="Agent is awaiting input"
+          />
+        );
+      case 'error':
+        return (
+          <span
+            className={cn('rounded-full bg-red-200 border size-2 border-red-600', className)}
+            aria-label="Agent error"
+            title="Agent error"
+          />
+        );
+      case 'completed':
+        return (
+          <span
+            className={cn('rounded-full bg-green-200 border size-2 border-green-600', className)}
+            aria-label="Agent completed"
+            title="Agent completed"
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
-    <span
-      className={cn('rounded-full bg-green-500', dotClassName, className)}
-      aria-label="Agent completed"
-      title="Agent completed"
-    />
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className="size-6 flex items-center justify-center">{renderIndicator()}</span>
+        }
+      />
+      <TooltipContent>{STATUS_LABELS[status]}</TooltipContent>
+    </Tooltip>
   );
 }

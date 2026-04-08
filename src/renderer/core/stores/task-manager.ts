@@ -1,7 +1,8 @@
 import { makeObservable, observable, runInAction } from 'mobx';
-import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
+import { taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import type { CreateTaskError, CreateTaskParams, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { rpc } from '@renderer/core/ipc';
+import { events, rpc } from '@renderer/core/ipc';
 import { getProjectManagerStore } from './project-selectors';
 import {
   createUnprovisionedTask,
@@ -43,6 +44,16 @@ export class TaskManagerStore {
   constructor(projectId: string) {
     this.projectId = projectId;
     makeObservable(this, { tasks: observable });
+
+    events.on(taskStatusUpdatedChannel, ({ taskId, projectId: evtProjectId, status }) => {
+      if (evtProjectId !== this.projectId) return;
+      const store = this.tasks.get(taskId);
+      if (store && isProvisioned(store)) {
+        runInAction(() => {
+          store.data.status = status as TaskLifecycleStatus;
+        });
+      }
+    });
   }
 
   loadTasks(): Promise<void> {
@@ -60,7 +71,18 @@ export class TaskManagerStore {
 
   async createTask(params: CreateTaskParams) {
     runInAction(() => {
-      this.tasks.set(params.id, createUnregisteredTask({ id: params.id, name: params.name }));
+      this.tasks.set(
+        params.id,
+        createUnregisteredTask({
+          id: params.id,
+          lastInteractedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          name: params.name,
+          status: params.initialStatus ?? 'in_progress',
+          statusChangedAt: new Date().toISOString(),
+          isPinned: false,
+        })
+      );
     });
 
     const result = await rpc.tasks.createTask(params).catch((e: unknown) => {
@@ -190,6 +212,12 @@ export class TaskManagerStore {
 
     this._teardownPromises.set(taskId, promise);
     return promise;
+  }
+
+  async setTaskPinned(taskId: string, isPinned: boolean): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+    await task.setPinned(isPinned);
   }
 
   async archiveTask(taskId: string): Promise<void> {

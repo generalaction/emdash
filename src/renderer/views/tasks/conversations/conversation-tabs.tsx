@@ -17,20 +17,20 @@ export const ConversationsTabs = observer(function ConversationsTabs({
   projectId: string;
   taskId: string;
 }) {
-  const conversationMgr = useProvisionedTask()?.conversations;
+  const provisioned = useProvisionedTask();
+  const conversationMgr = provisioned.conversations;
+  const conversationTabs = provisioned.taskView.conversationTabs;
   const showCreateConversationModal = useShowModal('createConversationModal');
-
-  if (!conversationMgr) return null;
 
   return (
     <TabBar<ConversationStore>
-      tabs={conversationMgr.tabs}
-      activeTabId={conversationMgr.activeTabId}
+      tabs={conversationTabs.tabs}
+      activeTabId={conversationTabs.activeTabId}
       getId={(s) => s.data.id}
       getLabel={(s) => s.data.title}
-      onSelect={(id) => conversationMgr.setActiveTab(id)}
+      onSelect={(id) => conversationTabs.setActiveTab(id)}
       onRemove={(id) => {
-        conversationMgr.removeTab(id);
+        conversationTabs.removeTab(id);
       }}
       renderTabPrefix={(s) => {
         const config = agentConfig[s.data.providerId];
@@ -48,7 +48,7 @@ export const ConversationsTabs = observer(function ConversationsTabs({
         );
       }}
       onRename={(id, name) => void conversationMgr.renameConversation(id, name)}
-      onReorder={(from, to) => conversationMgr.reorderTabs(from, to)}
+      onReorder={(from, to) => conversationTabs.reorderTabs(from, to)}
       actions={
         <Tooltip>
           <TooltipTrigger>
@@ -58,7 +58,7 @@ export const ConversationsTabs = observer(function ConversationsTabs({
                 showCreateConversationModal({
                   projectId,
                   taskId,
-                  onSuccess: ({ conversationId }) => conversationMgr.setActiveTab(conversationId),
+                  onSuccess: ({ conversationId }) => conversationTabs.setActiveTab(conversationId),
                 })
               }
             >
