@@ -299,4 +299,9 @@ describe('normalizeSettings – expandCommitDetail', () => {
     const result = normalizeSettings(makeSettings({ interface: { expandCommitDetail: false } }));
     expect(result.interface?.expandCommitDetail).toBe(false);
   });
+
+  it('coerces missing value inside interface to false', () => {
+    const result = normalizeSettings(makeSettings({ interface: {} }));
+    expect(result.interface?.expandCommitDetail).toBe(false);
+  });
 });

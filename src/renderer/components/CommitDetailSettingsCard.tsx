@@ -20,7 +20,6 @@ const CommitDetailSettingsCard: React.FC = () => {
       </div>
       <Switch
         checked={expandCommitDetail}
-        defaultChecked={expandCommitDetail}
         disabled={loading}
         onCheckedChange={(checked) =>
           updateSettings({ interface: { expandCommitDetail: checked } })
