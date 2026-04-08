@@ -33,7 +33,7 @@ export class GitStore {
 
   constructor(
     private readonly projectId: string,
-    private readonly taskId: string,
+    private readonly getTaskId: () => string,
     private readonly workspaceId: string
   ) {
     this.status = new Resource<GitStatusData>(
@@ -42,6 +42,7 @@ export class GitStore {
         {
           kind: 'event',
           subscribe: (handler) => {
+            const taskId = this.getTaskId();
             rpc.fs.watchSetPaths(projectId, taskId, ['.git'], 'git-store').catch(() => {});
             const unsub = events.on(fsWatchEventChannel, () => handler(), workspaceId);
             return () => {
@@ -124,7 +125,7 @@ export class GitStore {
 
   /**
    * Start watching — triggers initial load and activates the FS-event strategy.
-   * Called from TaskStore.activate().
+   * Called from WorkspaceStore.activate().
    */
   startWatching(): void {
     this.status.start();
@@ -140,37 +141,37 @@ export class GitStore {
   // ---------------------------------------------------------------------------
 
   async stageFiles(paths: string[]): Promise<void> {
-    await rpc.git.stageFiles(this.projectId, this.taskId, paths);
+    await rpc.git.stageFiles(this.projectId, this.getTaskId(), paths);
     this.status.invalidate();
   }
 
   async stageAllFiles(): Promise<void> {
-    await rpc.git.stageAllFiles(this.projectId, this.taskId);
+    await rpc.git.stageAllFiles(this.projectId, this.getTaskId());
     this.status.invalidate();
   }
 
   async unstageFiles(paths: string[]): Promise<void> {
-    await rpc.git.unstageFiles(this.projectId, this.taskId, paths);
+    await rpc.git.unstageFiles(this.projectId, this.getTaskId(), paths);
     this.status.invalidate();
   }
 
   async unstageAllFiles(): Promise<void> {
-    await rpc.git.unstageAllFiles(this.projectId, this.taskId);
+    await rpc.git.unstageAllFiles(this.projectId, this.getTaskId());
     this.status.invalidate();
   }
 
   async discardFiles(paths: string[]): Promise<void> {
-    await rpc.git.revertFiles(this.projectId, this.taskId, paths);
+    await rpc.git.revertFiles(this.projectId, this.getTaskId(), paths);
     this.status.invalidate();
   }
 
   async discardAllFiles(): Promise<void> {
-    await rpc.git.revertAllFiles(this.projectId, this.taskId);
+    await rpc.git.revertAllFiles(this.projectId, this.getTaskId());
     this.status.invalidate();
   }
 
   async commit(message: string) {
-    const result = await rpc.git.commit(this.projectId, this.taskId, message);
+    const result = await rpc.git.commit(this.projectId, this.getTaskId(), message);
     if (result.success) {
       this.status.invalidate();
       this.branchStatus.invalidate();
@@ -182,7 +183,7 @@ export class GitStore {
   }
 
   async fetchRemote() {
-    const result = await rpc.git.fetch(this.projectId, this.taskId);
+    const result = await rpc.git.fetch(this.projectId, this.getTaskId());
     if (result.success) {
       this.branchStatus.invalidate();
       return ok();
@@ -193,7 +194,7 @@ export class GitStore {
   }
 
   async push() {
-    const result = await rpc.git.push(this.projectId, this.taskId);
+    const result = await rpc.git.push(this.projectId, this.getTaskId());
     if (result.success) {
       this.branchStatus.invalidate();
       return ok();
@@ -208,7 +209,7 @@ export class GitStore {
   async publishBranch() {
     const branchName = this.branchStatus.data?.branch;
     if (!branchName) return err({ type: 'git_error' as const, message: 'No branch checked out' });
-    const result = await rpc.git.publishBranch(this.projectId, this.taskId, branchName);
+    const result = await rpc.git.publishBranch(this.projectId, this.getTaskId(), branchName);
     if (result.success) {
       this.branchStatus.invalidate();
       return ok();
@@ -221,7 +222,7 @@ export class GitStore {
   }
 
   async pull() {
-    const result = await rpc.git.pull(this.projectId, this.taskId);
+    const result = await rpc.git.pull(this.projectId, this.getTaskId());
     if (result.success) {
       this.status.invalidate();
       this.branchStatus.invalidate();
@@ -237,7 +238,7 @@ export class GitStore {
   // ---------------------------------------------------------------------------
 
   private async _fetchStatus(): Promise<GitStatusData> {
-    const result = await rpc.git.getStatus(this.projectId, this.taskId);
+    const result = await rpc.git.getStatus(this.projectId, this.getTaskId());
     if (!result.success) throw new Error(result.error.type);
     const changes = result.data.changes;
     return {
@@ -248,7 +249,7 @@ export class GitStore {
   }
 
   private async _fetchBranchStatus(): Promise<BranchStatus> {
-    const result = await rpc.git.getBranchStatus(this.projectId, this.taskId);
+    const result = await rpc.git.getBranchStatus(this.projectId, this.getTaskId());
     if (!result.success) throw new Error(result.error.type);
     return result.data;
   }

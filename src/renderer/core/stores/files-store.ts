@@ -35,7 +35,7 @@ export class FilesStore {
 
   constructor(
     private readonly projectId: string,
-    private readonly taskId: string,
+    private readonly getTaskId: () => string,
     private readonly workspaceId: string
   ) {
     this.tree = new Resource<FilesData, FileWatchEvent[]>(
@@ -44,6 +44,7 @@ export class FilesStore {
         {
           kind: 'event',
           subscribe: (handler) => {
+            const taskId = this.getTaskId();
             rpc.fs.watchSetPaths(projectId, taskId, [''], 'filetree').catch(() => {});
             const unsub = events.on(
               fsWatchEventChannel,
@@ -163,7 +164,7 @@ export class FilesStore {
     this._pendingPaths.add(dirPath);
 
     try {
-      const result = await rpc.fs.listFiles(this.projectId, this.taskId, dirPath || '.', {
+      const result = await rpc.fs.listFiles(this.projectId, this.getTaskId(), dirPath || '.', {
         recursive: false,
         includeHidden: true,
       });

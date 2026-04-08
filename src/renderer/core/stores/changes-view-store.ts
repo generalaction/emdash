@@ -1,7 +1,6 @@
 import { computed, makeObservable, observable, reaction, runInAction, when } from 'mobx';
 import { GitStore } from './git';
 import { PrStore } from './pr-store';
-import { WorkspaceStore } from './workspace';
 
 export type SelectionState = 'all' | 'none' | 'partial';
 

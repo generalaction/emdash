@@ -55,7 +55,7 @@ const DevServerPills = observer(function DevServerPills({
   projectId: string;
   taskId: string;
 }) {
-  const urls = useProvisionedTask().workspace.devServers.urls;
+  const urls = useProvisionedTask().devServers.urls;
 
   if (urls.length === 0) return null;
 

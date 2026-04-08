@@ -3,10 +3,12 @@ import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '../ipc';
 import { ConversationManagerStore } from './conversation-manager';
+import { DevServerStore } from './dev-server-store';
 import { snapshotRegistry } from './snapshot-registry';
 import { TaskViewStore } from './task-view';
 import { TerminalManagerStore } from './terminal-manager';
-import { WorkspaceStore } from './workspace';
+import type { WorkspaceStore } from './workspace';
+import { workspaceRegistry } from './workspace-registry';
 
 export type UnregisteredTaskPhase = 'creating' | 'create-error';
 
@@ -29,6 +31,7 @@ export type UnregisteredTaskData = {
 
 export class ProvisionedTask {
   readonly workspace: WorkspaceStore;
+  readonly devServers: DevServerStore;
   readonly conversations: ConversationManagerStore;
   readonly terminals: TerminalManagerStore;
   readonly taskView: TaskViewStore;
@@ -49,7 +52,8 @@ export class ProvisionedTask {
     this.path = path;
     this.workspaceId = workspaceId;
 
-    this.workspace = new WorkspaceStore(taskData.projectId, taskData.id, workspaceId);
+    this.workspace = workspaceRegistry.acquire(taskData.projectId, workspaceId, taskData.id);
+    this.devServers = new DevServerStore(taskData.id, workspaceId);
     this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
     this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
     this.taskView = new TaskViewStore(
@@ -67,6 +71,7 @@ export class ProvisionedTask {
 
     makeAutoObservable(this, {
       workspace: false,
+      devServers: false,
       conversations: false,
       terminals: false,
       taskView: false,
@@ -78,16 +83,15 @@ export class ProvisionedTask {
   }
 
   activate(): void {
-    this.workspace.git.startWatching();
-    this.workspace.files.startWatching();
-    this.workspace.pr.start();
+    workspaceRegistry.activate(this._taskData.projectId, this.workspaceId);
     this.taskView.editorView.initialize();
   }
 
   dispose(): void {
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
-    this.workspace.dispose();
+    workspaceRegistry.release(this._taskData.projectId, this.workspaceId, this._taskData.id);
+    this.devServers.dispose();
     this.taskView.dispose();
     this.conversations.dispose();
     for (const term of this.terminals.terminals.values()) {
