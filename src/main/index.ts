@@ -64,9 +64,6 @@ app.on('activate', () => {
 });
 
 app.whenReady().then(async () => {
-  // Resolve the user's login-shell environment once, before anything else
-  // uses process.env. This ensures all subsystems (prober, PTY, exec) see
-  // the full PATH even when the app was launched from a GUI (Finder, Dock).
   await resolveUserEnv();
 
   try {

@@ -160,7 +160,11 @@ export class PrStore {
   }
 
   private async _fetchPrFiles(baseRefName: string): Promise<GitChange[]> {
-    const result = await rpc.git.getChangedFiles(this.projectId, this.taskId, baseRefName);
+    const result = await rpc.git.getChangedFiles(
+      this.projectId,
+      this.taskId,
+      `${baseRefName}...HEAD`
+    );
     return result.success ? result.data.changes : [];
   }
 
