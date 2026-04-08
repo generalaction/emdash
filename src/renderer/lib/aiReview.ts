@@ -38,10 +38,19 @@ export async function captureTerminalSnapshot(ptyId: string): Promise<string> {
   return response.snapshot.data;
 }
 
-function buildReviewPrompt(depth: ReviewDepth, content?: string): string {
-  const template = REVIEW_PROMPTS.fileChanges[depth];
+function buildReviewPrompt(reviewType: string, depth: ReviewDepth, content?: string): string {
+  const templates = REVIEW_PROMPTS[reviewType as keyof typeof REVIEW_PROMPTS];
+  const template = templates?.[depth];
   if (!template) {
-    throw new Error(`No review prompt found for file-changes/${depth}`);
+    // Fallback to fileChanges if reviewType not found, or throw
+    const fallback = REVIEW_PROMPTS.fileChanges[depth];
+    if (!fallback) {
+      throw new Error(`No review prompt found for ${reviewType}/${depth}`);
+    }
+    if (content) {
+      return `${fallback}\n\n--- Content to review ---\n${content}`;
+    }
+    return fallback;
   }
   if (content) {
     return `${template}\n\n--- Content to review ---\n${content}`;
@@ -119,7 +128,7 @@ export async function launchReviewAgents(
   const agentCount = REVIEW_DEPTH_AGENTS[config.depth];
 
   // Launch all agents in parallel using Promise.allSettled to handle partial failures
-  const prompt = buildReviewPrompt(config.depth, content);
+  const prompt = buildReviewPrompt(config.reviewType, config.depth, content);
   const launches = Array.from({ length: agentCount }, () =>
     launchReviewAgent({
       taskId,
