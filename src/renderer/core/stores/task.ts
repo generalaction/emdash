@@ -21,6 +21,10 @@ export type UnregisteredTaskData = {
   id: string;
   name: string;
   status: TaskLifecycleStatus;
+  lastInteractedAt: string;
+  createdAt: string;
+  statusChangedAt: string;
+  isPinned: boolean;
 };
 
 export class ProvisionedTask {
@@ -85,22 +89,6 @@ export class ProvisionedTask {
     this.conversations.dispose();
     for (const term of this.terminals.terminals.values()) {
       term.dispose();
-    }
-  }
-
-  async updateStatus(status: TaskLifecycleStatus): Promise<void> {
-    const previousStatus = this._taskData.status;
-    runInAction(() => {
-      this._taskData.status = status;
-    });
-    try {
-      await rpc.tasks.updateTaskStatus(this._taskData.id, status);
-    } catch (e) {
-      runInAction(() => {
-        this._taskData.status = previousStatus;
-      });
-      console.error(e);
-      throw e;
     }
   }
 
@@ -206,6 +194,52 @@ export class TaskStore {
       console.error(e);
       throw e;
     }
+  }
+
+  async updateStatus(status: TaskLifecycleStatus): Promise<void> {
+    const previousStatus = this.data.status;
+    const previousStatusChangedAt = this.data.statusChangedAt;
+    const nextChangedAt = new Date().toISOString();
+    runInAction(() => {
+      this.data.status = status;
+      this.data.statusChangedAt = nextChangedAt;
+    });
+    try {
+      await rpc.tasks.updateTaskStatus(this.data.id, status);
+    } catch (e) {
+      runInAction(() => {
+        this.data.status = previousStatus;
+        this.data.statusChangedAt = previousStatusChangedAt;
+      });
+      console.error(e);
+      throw e;
+    }
+  }
+
+  async setPinned(isPinned: boolean): Promise<void> {
+    if (this.state === 'unregistered') return;
+    const task = registeredTaskData(this);
+    if (!task) return;
+    const previous = task.isPinned;
+    runInAction(() => {
+      task.isPinned = isPinned;
+    });
+    try {
+      await rpc.tasks.setTaskPinned(task.id, isPinned);
+    } catch (e) {
+      runInAction(() => {
+        task.isPinned = previous;
+      });
+      console.error(e);
+      throw e;
+    }
+  }
+
+  async togglePinned(): Promise<void> {
+    if (this.state === 'unregistered') return;
+    const task = registeredTaskData(this);
+    if (!task) return;
+    await this.setPinned(!task.isPinned);
   }
 }
 

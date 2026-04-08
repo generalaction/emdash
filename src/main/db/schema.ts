@@ -91,6 +91,10 @@ export const tasks = sqliteTable(
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     lastInteractedAt: text('last_interacted_at'),
+    statusChangedAt: text('status_changed_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    isPinned: integer('is_pinned').notNull().default(0), // boolean, 0=false, 1=true
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),

@@ -85,7 +85,7 @@ const SidebarVirtualList = observer(function SidebarVirtualList() {
   ]);
 
   return (
-    <div ref={scrollRef} className="overflow-y-auto min-h-0 flex-1 px-1 py-0.5">
+    <div ref={scrollRef} className="overflow-y-auto min-h-0 flex-1 px-3 pt-1 pb-3">
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((vItem) => {
           const row = rows[vItem.index];

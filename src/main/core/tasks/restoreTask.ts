@@ -9,6 +9,7 @@ export async function restoreTask(id: string): Promise<void> {
       archivedAt: null,
       status: 'in_progress',
       updatedAt: sql`CURRENT_TIMESTAMP`,
+      statusChangedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(tasks.id, id));
 }

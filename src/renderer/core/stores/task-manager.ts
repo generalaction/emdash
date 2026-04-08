@@ -1,5 +1,5 @@
 import { makeObservable, observable, runInAction } from 'mobx';
-import type { CreateTaskError, CreateTaskParams, TaskLifecycleStatus } from '@shared/tasks';
+import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/core/ipc';
 import { getProjectManagerStore } from './project-selectors';
@@ -64,8 +64,12 @@ export class TaskManagerStore {
         params.id,
         createUnregisteredTask({
           id: params.id,
+          lastInteractedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
           name: params.name,
           status: params.initialStatus ?? 'in_progress',
+          statusChangedAt: new Date().toISOString(),
+          isPinned: false,
         })
       );
     });
@@ -196,6 +200,12 @@ export class TaskManagerStore {
 
     this._teardownPromises.set(taskId, promise);
     return promise;
+  }
+
+  async setTaskPinned(taskId: string, isPinned: boolean): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+    await task.setPinned(isPinned);
   }
 
   async archiveTask(taskId: string): Promise<void> {

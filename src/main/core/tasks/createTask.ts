@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { err, ok, Result } from '@shared/result';
-import type { CreateTaskError, CreateTaskParams, Task, TaskLifecycleStatus } from '@shared/tasks';
+import type { CreateTaskError, CreateTaskParams, Task } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
@@ -131,6 +131,8 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
     }
   }
 
+  const initialStatus = params.initialStatus ?? 'in_progress';
+
   const [taskRow] = await db
     .insert(tasks)
     .values({
@@ -138,10 +140,11 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       projectId: params.projectId,
       name: params.name,
       taskBranch,
-      status: 'in_progress' as TaskLifecycleStatus,
+      status: initialStatus,
       sourceBranch: dbSourceBranch,
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
+      statusChangedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
 
@@ -149,12 +152,14 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
     id: params.id,
     projectId: params.projectId,
     name: params.name,
-    status: 'in_progress' as TaskLifecycleStatus,
+    status: initialStatus,
     sourceBranch: dbSourceBranch,
     taskBranch,
     linkedIssue: params.linkedIssue ?? undefined,
     createdAt: taskRow.createdAt,
     updatedAt: taskRow.updatedAt,
+    statusChangedAt: taskRow.statusChangedAt,
+    isPinned: taskRow.isPinned === 1,
   };
 
   const provisionResult = await project.provisionTask(task, [], []);

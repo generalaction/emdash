@@ -14,6 +14,7 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
       status: 'archived',
       archivedAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,
+      statusChangedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(tasks.id, taskId));
 

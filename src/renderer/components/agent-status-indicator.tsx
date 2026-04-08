@@ -1,5 +1,6 @@
-import { Loader2 } from 'lucide-react';
+import { useEffect } from 'react';
 import type { AgentStatus } from '@renderer/core/stores/conversation-manager';
+import { CLISpinner } from '@renderer/core/tasks/components/cliSpinner';
 import { cn } from '@renderer/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
@@ -8,8 +9,6 @@ export type AgentIndicatorStatus = AgentStatus | null;
 interface AgentStatusIndicatorProps {
   status: AgentIndicatorStatus;
   className?: string;
-  dotClassName?: string;
-  spinnerClassName?: string;
 }
 
 const STATUS_LABELS = {
@@ -19,27 +18,21 @@ const STATUS_LABELS = {
   completed: 'Agent completed',
 };
 
-export function AgentStatusIndicator({
-  status,
-  className,
-  dotClassName = 'size-2',
-  spinnerClassName = 'size-3',
-}: AgentStatusIndicatorProps) {
+export function AgentStatusIndicator({ status, className }: AgentStatusIndicatorProps) {
+  useEffect(() => {
+    console.log('status', status);
+  }, [status]);
+
   if (!status || status === 'idle') return null;
 
   const renderIndicator = () => {
     switch (status) {
       case 'working':
-        return (
-          <Loader2
-            className={cn('animate-spin text-foreground/60', spinnerClassName, className)}
-            aria-label="Agent is working"
-          />
-        );
+        return <CLISpinner />;
       case 'awaiting-input':
         return (
           <span
-            className={cn('rounded-full bg-blue-500', dotClassName, className)}
+            className={cn('rounded-full bg-blue-200 border size-2 border-blue-600', className)}
             aria-label="Agent is awaiting input"
             title="Agent is awaiting input"
           />
@@ -47,7 +40,7 @@ export function AgentStatusIndicator({
       case 'error':
         return (
           <span
-            className={cn('rounded-full bg-red-500', dotClassName, className)}
+            className={cn('rounded-full bg-red-200 border size-2 border-red-600', className)}
             aria-label="Agent error"
             title="Agent error"
           />
@@ -55,7 +48,7 @@ export function AgentStatusIndicator({
       case 'completed':
         return (
           <span
-            className={cn('rounded-full bg-green-500', dotClassName, className)}
+            className={cn('rounded-full bg-green-200 border size-2 border-green-600', className)}
             aria-label="Agent completed"
             title="Agent completed"
           />

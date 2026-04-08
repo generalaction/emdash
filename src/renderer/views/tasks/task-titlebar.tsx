@@ -150,7 +150,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 <LifecycleStatusIndicator
                   lifecycleStatus={taskPayload.status}
                   onLifecycleStatusChange={(status) => {
-                    provisionedTask.updateStatus(status);
+                    taskStore.updateStatus(status);
                   }}
                 />
               </div>

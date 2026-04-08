@@ -15,11 +15,7 @@ SidebarContainer.displayName = 'SidebarContainer';
 
 export const SidebarHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn('flex flex-col gap-1 border-b-0 px-3 py-3', className)}
-      {...props}
-    />
+    <div ref={ref} className={cn('flex flex-col gap-1 border-b-0', className)} {...props} />
   )
 );
 SidebarHeader.displayName = 'SidebarHeader';
@@ -30,10 +26,7 @@ export const SidebarContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn(
-      'flex flex-1 flex-col overflow-hidden px-3 py-4 text-sm text-muted-foreground',
-      className
-    )}
+    className={cn('flex flex-1 flex-col overflow-hidden text-sm text-muted-foreground', className)}
     {...props}
   />
 ));
@@ -41,7 +34,7 @@ SidebarContent.displayName = 'SidebarContent';
 
 export const SidebarGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('mb-6 grid gap-3', className)} {...props} />
+    <div ref={ref} className={cn('mb-6 grid', className)} {...props} />
   )
 );
 SidebarGroup.displayName = 'SidebarGroup';
@@ -66,9 +59,7 @@ export const SidebarFooter = React.forwardRef<HTMLDivElement, React.HTMLAttribut
 SidebarFooter.displayName = 'SidebarFooter';
 
 export const SidebarMenu = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('grid gap-0.5', className)} {...props} />
-  )
+  ({ className, ...props }, ref) => <div ref={ref} className={cn('', className)} {...props} />
 );
 SidebarMenu.displayName = 'SidebarMenu';
 

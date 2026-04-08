@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `status_changed_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL;

@@ -1,15 +1,41 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { LocalProject, SshProject } from '@shared/projects';
-import type { SidebarSnapshot } from '@shared/view-state';
+import type { TaskLifecycleStatus } from '@shared/tasks';
+import type { SidebarSnapshot, SidebarTaskGroupBy, SidebarTaskSortBy } from '@shared/view-state';
 import { ProjectStore, UnregisteredProject } from './project';
 import type { ProjectManagerStore } from './project-manager';
 import type { Snapshottable } from './snapshottable';
-import type { TaskStore } from './task';
+import { registeredTaskData, unregisteredTaskData, type TaskStore } from './task';
 
-const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
-const TASK_ORDER_BY_PROJECT_KEY = 'sidebarTaskOrderByProject';
-const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
-const SHOW_SIDEBAR_TASK_STATUS_KEY = 'emdash-sidebar-show-task-status';
+const STATUS_RANK: Record<TaskLifecycleStatus, number> = {
+  todo: 0,
+  in_progress: 1,
+  review: 2,
+  done: 3,
+  cancelled: 4,
+};
+
+function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
+  return value === 'created-at' || value === 'updated-at' ? value : undefined;
+}
+
+function parseSidebarTaskGroupBy(value: unknown): SidebarTaskGroupBy | undefined {
+  return value === 'none' || value === 'task-status' ? value : undefined;
+}
+
+function getSortInstant(task: TaskStore, kind: 'created' | 'updated'): string {
+  const reg = registeredTaskData(task);
+  if (reg) {
+    if (kind === 'created') return reg.createdAt;
+    return reg.lastInteractedAt ?? reg.updatedAt;
+  }
+  const u = unregisteredTaskData(task);
+  if (u) {
+    if (kind === 'created') return u.createdAt;
+    return u.lastInteractedAt;
+  }
+  return '';
+}
 
 export type SidebarRow =
   | { kind: 'project'; projectId: string }
@@ -21,32 +47,14 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   expandedProjectIds = observable.set<string>();
   pinnedTaskIds: string[] = [];
   showSidebarTaskStatus = false;
+  taskSortBy: SidebarTaskSortBy = 'created-at';
+  taskGroupBy: SidebarTaskGroupBy = 'none';
 
   constructor(private readonly projectManager: ProjectManagerStore) {
     makeAutoObservable(this, {
       expandedProjectIds: false,
       sidebarRows: computed,
     });
-
-    try {
-      const stored = localStorage.getItem(PROJECT_ORDER_KEY);
-      if (stored) this.projectOrder = JSON.parse(stored) as string[];
-    } catch {}
-
-    try {
-      const stored = localStorage.getItem(PINNED_TASKS_KEY);
-      if (stored) this.pinnedTaskIds = JSON.parse(stored) as string[];
-    } catch {}
-
-    try {
-      const stored = localStorage.getItem(TASK_ORDER_BY_PROJECT_KEY);
-      if (stored) this.taskOrderByProject = JSON.parse(stored) as Record<string, string[]>;
-    } catch {}
-
-    try {
-      const stored = localStorage.getItem(SHOW_SIDEBAR_TASK_STATUS_KEY);
-      if (stored !== null) this.showSidebarTaskStatus = JSON.parse(stored) as boolean;
-    } catch {}
 
     // Auto-expand a project when its task count goes from 0 to >0.
     const prevTaskCounts = new Map<string, number>();
@@ -103,7 +111,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
         const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
           (t) => t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt)
         );
-        const ordered = this.mergeTaskOrder(projectId, tasks);
+        const ordered = this.sortTasksForSidebar(tasks);
         for (const task of ordered) {
           rows.push({ kind: 'task', projectId, taskId: task.data.id });
         }
@@ -119,12 +127,38 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   get snapshot(): SidebarSnapshot {
     return {
       expandedProjectIds: [...this.expandedProjectIds],
+      projectOrder: [...this.projectOrder],
+      taskOrderByProject: { ...this.taskOrderByProject },
+      pinnedTaskIds: [...this.pinnedTaskIds],
+      showSidebarTaskStatus: this.showSidebarTaskStatus,
+      taskSortBy: this.taskSortBy,
+      taskGroupBy: this.taskGroupBy,
     };
   }
 
   restoreSnapshot(snapshot: Partial<SidebarSnapshot>): void {
-    if (snapshot.expandedProjectIds) {
+    if (snapshot.expandedProjectIds !== undefined) {
       this.expandedProjectIds.replace(snapshot.expandedProjectIds);
+    }
+    if (snapshot.projectOrder !== undefined) {
+      this.projectOrder = [...snapshot.projectOrder];
+    }
+    if (snapshot.taskOrderByProject !== undefined) {
+      this.taskOrderByProject = { ...snapshot.taskOrderByProject };
+    }
+    if (snapshot.pinnedTaskIds !== undefined) {
+      this.pinnedTaskIds = [...snapshot.pinnedTaskIds];
+    }
+    if (snapshot.showSidebarTaskStatus !== undefined) {
+      this.showSidebarTaskStatus = snapshot.showSidebarTaskStatus;
+    }
+    if (snapshot.taskSortBy !== undefined) {
+      const v = parseSidebarTaskSortBy(snapshot.taskSortBy);
+      if (v !== undefined) this.taskSortBy = v;
+    }
+    if (snapshot.taskGroupBy !== undefined) {
+      const v = parseSidebarTaskGroupBy(snapshot.taskGroupBy);
+      if (v !== undefined) this.taskGroupBy = v;
     }
   }
 
@@ -150,16 +184,18 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
 
   setShowSidebarTaskStatus(show: boolean): void {
     this.showSidebarTaskStatus = show;
-    try {
-      localStorage.setItem(SHOW_SIDEBAR_TASK_STATUS_KEY, JSON.stringify(show));
-    } catch {}
+  }
+
+  setTaskSortBy(sortBy: SidebarTaskSortBy): void {
+    this.taskSortBy = sortBy;
+  }
+
+  setTaskGroupBy(groupBy: SidebarTaskGroupBy): void {
+    this.taskGroupBy = groupBy;
   }
 
   setProjectOrder(ids: string[]): void {
     this.projectOrder = ids;
-    try {
-      localStorage.setItem(PROJECT_ORDER_KEY, JSON.stringify(ids));
-    } catch {}
   }
 
   mergeTaskOrder(projectId: string, tasks: TaskStore[]): TaskStore[] {
@@ -182,21 +218,16 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
 
   setTaskOrder(projectId: string, orderedIds: string[]): void {
     this.taskOrderByProject = { ...this.taskOrderByProject, [projectId]: orderedIds };
-    try {
-      localStorage.setItem(TASK_ORDER_BY_PROJECT_KEY, JSON.stringify(this.taskOrderByProject));
-    } catch {}
   }
 
   pinTask(taskId: string): void {
     if (!this.pinnedTaskIds.includes(taskId)) {
       this.pinnedTaskIds.push(taskId);
-      this._persistPinnedTasks();
     }
   }
 
   unpinTask(taskId: string): void {
     this.pinnedTaskIds = this.pinnedTaskIds.filter((id) => id !== taskId);
-    this._persistPinnedTasks();
   }
 
   togglePinTask(taskId: string): void {
@@ -207,9 +238,27 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     }
   }
 
-  private _persistPinnedTasks(): void {
-    try {
-      localStorage.setItem(PINNED_TASKS_KEY, JSON.stringify(this.pinnedTaskIds));
-    } catch {}
+  private sortTasksForSidebar(tasks: TaskStore[]): TaskStore[] {
+    const groupBy = this.taskGroupBy;
+    const sortBy = this.taskSortBy;
+    const kind: 'created' | 'updated' = sortBy === 'created-at' ? 'created' : 'updated';
+
+    return [...tasks].sort((a, b) => {
+      if (groupBy === 'task-status') {
+        const sa = STATUS_RANK[a.data.status];
+        const sb = STATUS_RANK[b.data.status];
+        if (sa !== sb) return sa - sb;
+        const ia = a.data.statusChangedAt;
+        const ib = b.data.statusChangedAt;
+        const c = ib.localeCompare(ia);
+        if (c !== 0) return c;
+        return a.data.id.localeCompare(b.data.id);
+      }
+      const ia = getSortInstant(a, kind);
+      const ib = getSortInstant(b, kind);
+      const c = ib.localeCompare(ia);
+      if (c !== 0) return c;
+      return a.data.id.localeCompare(b.data.id);
+    });
   }
 }
