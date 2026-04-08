@@ -13,13 +13,15 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
+import { githubAuthService } from '@main/core/github/services/github-auth-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { TaskLifecycleService } from '@main/core/tasks/task-lifecycle-service';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
-import { getLocalExec } from '@main/core/utils/exec';
+import { getGitLocalExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import type {
   ProjectProvider,
+  ProjectRemoteState,
   ProvisionTaskError,
   TaskProvider,
   TeardownTaskError,
@@ -76,12 +78,13 @@ export class LocalProjectProvider implements ProjectProvider {
   ) {
     this.settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
     this.fs = new LocalFileSystem(project.path);
-    this.git = new GitService(project.path, getLocalExec(), this.fs);
+    const gitExec = getGitLocalExec(() => githubAuthService.getToken());
+    this.git = new GitService(project.path, gitExec, this.fs);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
       repoPath: project.path,
       projectSettings: this.settings,
-      exec: getLocalExec(),
+      exec: gitExec,
       rootFs: rootFs,
     });
   }
@@ -172,7 +175,7 @@ export class LocalProjectProvider implements ProjectProvider {
       workDir = this.project.path;
     }
 
-    const exec = getLocalExec();
+    const exec = getGitLocalExec(() => githubAuthService.getToken());
     const taskFs = new LocalFileSystem(workDir);
     await new HookConfigWriter(taskFs, exec).writeAll();
 
@@ -357,6 +360,17 @@ export class LocalProjectProvider implements ProjectProvider {
       this.tasks.clear();
     } else {
       await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
+    }
+  }
+
+  async getRemoteState(): Promise<ProjectRemoteState> {
+    try {
+      const remoteName = await this.settings.getRemote();
+      const remotes = await this.git.getRemotes();
+      const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
+      return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
+    } catch {
+      return { hasRemote: false, selectedRemoteUrl: null };
     }
   }
 }

@@ -1,4 +1,5 @@
 import { AddProjectModal } from '@renderer/components/add-project-modal/add-project-modal';
+import { AddRemoteModal } from '@renderer/components/add-remote-modal/add-remote-modal';
 import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh-conn-modal';
 import { CommandPaletteModal } from '@renderer/components/cmdk/CommandPaletteModal';
 import { ConfirmActionDialog } from '@renderer/components/confirm-action-dialog';
@@ -46,4 +47,5 @@ export const modalRegistry = {
   },
   renameTaskModal: { component: RenameTaskModal, popupClassName: 'sm:max-w-xs' },
   integrationSetupModal: { component: IntegrationSetupModal, popupClassName: 'max-w-md' },
+  addRemoteModal: { component: AddRemoteModal },
 } satisfies Record<string, ModalRegistryEntry>;

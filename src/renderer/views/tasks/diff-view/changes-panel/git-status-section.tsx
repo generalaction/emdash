@@ -7,13 +7,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@renderer/components/ui/tooltip';
+import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { getProjectStore, projectDisplayName } from '@renderer/core/stores/project-selectors';
 import { getTaskGitStore } from '@renderer/core/stores/task-selectors';
+import { useNameWithOwner } from '@renderer/hooks/useNameWithOwner';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { useGitActions } from '@renderer/views/tasks/use-git-actions';
 
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
   const branchName = getTaskGitStore(projectId, taskId)?.branchStatus.data?.branch;
+  const projectName = projectDisplayName(getProjectStore(projectId)) ?? 'repository';
+  const { data: remoteState } = useNameWithOwner(projectId);
+  const showAddRemoteModal = useShowModal('addRemoteModal');
 
   const {
     hasUpstream,
@@ -28,6 +34,21 @@ export const GitStatusSection = observer(function GitStatusSection() {
     isPulling,
     isPushing,
   } = useGitActions(projectId, taskId);
+  const shouldOfferAddRemote = remoteState?.status === 'no_remote';
+
+  const handlePublishClick = () => {
+    if (!branchName) return;
+    if (shouldOfferAddRemote) {
+      showAddRemoteModal({
+        projectId,
+        projectName,
+        branchName,
+        taskId,
+      });
+      return;
+    }
+    publish();
+  };
 
   return (
     <TooltipProvider>
@@ -101,14 +122,26 @@ export const GitStatusSection = observer(function GitStatusSection() {
                   <Button
                     variant="outline"
                     size="xs"
-                    disabled={isPublishing}
-                    onClick={() => publish()}
+                    disabled={isPublishing || !branchName}
+                    onClick={handlePublishClick}
                   >
                     <ArrowUp className="size-3" />
-                    {isPublishing ? 'Publishing...' : 'Publish'}
+                    {isPublishing
+                      ? 'Publishing...'
+                      : shouldOfferAddRemote
+                        ? 'Add Remote'
+                        : 'Publish'}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{isPublishing ? 'Publishing...' : 'Publish branch'}</TooltipContent>
+                <TooltipContent>
+                  {isPublishing
+                    ? 'Publishing...'
+                    : !branchName
+                      ? 'No branch checked out'
+                      : shouldOfferAddRemote
+                        ? 'Create or link a remote, then publish this branch'
+                        : 'Publish branch'}
+                </TooltipContent>
               </Tooltip>
             )}
           </div>

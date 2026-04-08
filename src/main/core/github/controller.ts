@@ -15,7 +15,7 @@ import { githubAuthService } from '@main/core/github/services/github-auth-servic
 import { issueService } from '@main/core/github/services/issue-service';
 import { repoService } from '@main/core/github/services/repo-service';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { getGitSshExec, getLocalExec, type ExecFn } from '@main/core/utils/exec';
+import { getGitLocalExec, getGitSshExec, type ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 
 export const githubController = createRPCController({
@@ -262,7 +262,7 @@ export const githubController = createRPCController({
         exec = getGitSshExec(proxy, () => githubAuthService.getToken());
         parentFs = new SshFileSystem(proxy, path.posix.dirname(targetPath));
       } else {
-        exec = getLocalExec();
+        exec = getGitLocalExec(() => githubAuthService.getToken());
         parentFs = new LocalFileSystem(path.dirname(targetPath));
       }
 
@@ -292,7 +292,7 @@ export const githubController = createRPCController({
         exec = getGitSshExec(proxy, () => githubAuthService.getToken());
         projectFs = new SshFileSystem(proxy, params.targetPath);
       } else {
-        exec = getLocalExec();
+        exec = getGitLocalExec(() => githubAuthService.getToken());
         projectFs = new LocalFileSystem(params.targetPath);
       }
 
@@ -343,7 +343,7 @@ export const githubController = createRPCController({
         (settings as { projects?: { defaultDirectory?: string } }).projects?.defaultDirectory ??
         path.join(homedir(), 'emdash-projects');
       const localPath = path.join(projectDir, name);
-      const exec = getLocalExec();
+      const exec = getGitLocalExec(() => githubAuthService.getToken());
       const parentFs = new LocalFileSystem(path.dirname(localPath));
       await parentFs.mkdir('.', { recursive: true });
       const cloneResult = await cloneRepository(cloneUrl, localPath, exec);

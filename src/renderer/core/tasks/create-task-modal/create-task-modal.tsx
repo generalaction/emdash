@@ -13,7 +13,6 @@ import {
   DialogTitle,
 } from '@renderer/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
-import { parseGithubNameWithOwner } from '@renderer/core/git/utils';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useRepository } from '@renderer/core/projects/use-repository';
 import { appState } from '@renderer/core/stores/app-state';
@@ -22,6 +21,7 @@ import {
   mountedProjectData,
 } from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { useNameWithOwner } from '@renderer/hooks/useNameWithOwner';
 import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
@@ -65,20 +65,20 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
     : null;
-  const nameWithOwner = projectData?.gitRemote
-    ? (parseGithubNameWithOwner(projectData.gitRemote) ?? undefined)
-    : undefined;
+  const { data: remoteState } = useNameWithOwner(selectedProjectId);
+  const nameWithOwner = remoteState?.status === 'ready' ? remoteState.nameWithOwner : undefined;
 
   const fromBranch = useFromBranchMode(selectedProjectId, branches, defaultBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, branches, defaultBranch);
   const fromPR = useFromPullRequestMode(selectedProjectId, branches, defaultBranch, initialPR);
+  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !nameWithOwner;
 
   const activeMode = {
     'from-branch': fromBranch,
     'from-issue': fromIssue,
     'from-pull-request': fromPR,
   }[selectedStrategy];
-  const canCreate = !!selectedProjectId && activeMode.isValid;
+  const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable;
 
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
@@ -198,12 +198,21 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             />
           )}
           {selectedStrategy === 'from-pull-request' && (
-            <FromPrContent
-              state={fromPR}
-              projectId={selectedProjectId}
-              nameWithOwner={nameWithOwner}
-              disabled={isTransitioning}
-            />
+            <div className="flex flex-col gap-3">
+              {!nameWithOwner && (
+                <p className="text-sm text-muted-foreground">
+                  {remoteState?.status === 'no_remote'
+                    ? 'No remote is configured for this project.'
+                    : 'Pull requests are currently available only for GitHub remotes.'}
+                </p>
+              )}
+              <FromPrContent
+                state={fromPR}
+                projectId={selectedProjectId}
+                nameWithOwner={nameWithOwner}
+                disabled={isTransitioning || fromPrUnavailable}
+              />
+            </div>
           )}
         </AnimatedHeight>
       </DialogContentArea>
