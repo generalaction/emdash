@@ -1,21 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { Branch, DefaultBranch } from '@shared/git';
 import { rpc } from '@renderer/core/ipc';
 import { useTaskSettings } from '@renderer/hooks/useTaskSettings';
 import { useBranchSelection } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 
-interface DefaultBranch {
-  name: string;
-}
-
 export type FromBranchModeState = ReturnType<typeof useFromBranchMode>;
 
 export function useFromBranchMode(
   selectedProjectId: string | undefined,
+  branches: Branch[],
   defaultBranch: DefaultBranch | undefined
 ) {
-  const branchSelection = useBranchSelection(selectedProjectId, defaultBranch);
+  const branchSelection = useBranchSelection(selectedProjectId, branches, defaultBranch);
   const { autoGenerateName } = useTaskSettings();
 
   const stableKey = useMemo(() => crypto.randomUUID(), []);
@@ -32,7 +30,10 @@ export function useFromBranchMode(
     isPending: autoGenerateName && isGenerating,
   });
 
-  const isValid = taskName.taskName.trim().length > 0;
+  const isValid =
+    taskName.taskName.trim().length > 0 &&
+    branchSelection.selectedBranch !== undefined &&
+    !taskName.isPending;
 
   return {
     ...branchSelection,

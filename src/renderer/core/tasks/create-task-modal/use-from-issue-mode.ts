@@ -1,22 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Branch, DefaultBranch } from '@shared/git';
 import { Issue } from '@shared/tasks';
 import { rpc } from '@renderer/core/ipc';
 import { useTaskSettings } from '@renderer/hooks/useTaskSettings';
 import { useBranchSelection } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 
-interface DefaultBranch {
-  name: string;
-}
-
 export type FromIssueModeState = ReturnType<typeof useFromIssueMode>;
 
 export function useFromIssueMode(
   selectedProjectId: string | undefined,
+  branches: Branch[],
   defaultBranch: DefaultBranch | undefined
 ) {
-  const branchSelection = useBranchSelection(selectedProjectId, defaultBranch);
+  const branchSelection = useBranchSelection(selectedProjectId, branches, defaultBranch);
   const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
   const { autoGenerateName } = useTaskSettings();
 
@@ -39,7 +37,10 @@ export function useFromIssueMode(
   });
 
   const isValid =
-    taskName.taskName.trim().length > 0 && linkedIssue !== null && !taskName.isPending;
+    taskName.taskName.trim().length > 0 &&
+    linkedIssue !== null &&
+    branchSelection.selectedBranch !== undefined &&
+    !taskName.isPending;
 
   return {
     ...branchSelection,

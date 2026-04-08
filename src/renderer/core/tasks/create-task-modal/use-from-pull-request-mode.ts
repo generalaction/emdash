@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { DefaultBranch } from '@shared/git';
+import { Branch, DefaultBranch } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/core/ipc';
 import { useTaskSettings } from '@renderer/hooks/useTaskSettings';
@@ -13,12 +13,13 @@ export type FromPullRequestModeState = ReturnType<typeof useFromPullRequestMode>
 
 export function useFromPullRequestMode(
   selectedProjectId: string | undefined,
+  branches: Branch[],
   defaultBranch: DefaultBranch | undefined,
   initialPR?: PullRequest
 ) {
   const [linkedPR, setLinkedPR] = useState<PullRequest | null>(initialPR ?? null);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
-  const branchSelection = useBranchSelection(selectedProjectId, defaultBranch);
+  const branchSelection = useBranchSelection(selectedProjectId, branches, defaultBranch);
   const { autoGenerateName } = useTaskSettings();
 
   const shouldGenerate = autoGenerateName && linkedPR !== null;

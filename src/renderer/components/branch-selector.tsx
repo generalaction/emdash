@@ -5,6 +5,7 @@ import { Badge } from '@renderer/components/ui/badge';
 import {
   Combobox,
   ComboboxContent,
+  ComboboxEmpty,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
@@ -105,6 +106,7 @@ export function BranchSelector({
             </ComboboxItem>
           )}
         </ComboboxList>
+        <ComboboxEmpty>{branches.length === 0 ? 'no branches exist' : 'no results'}</ComboboxEmpty>
       </ComboboxContent>
     </Combobox>
   );

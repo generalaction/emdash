@@ -68,9 +68,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const { data: remoteState } = useNameWithOwner(selectedProjectId);
   const nameWithOwner = remoteState?.status === 'ready' ? remoteState.nameWithOwner : undefined;
 
-  const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch);
-  const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch);
-  const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, initialPR);
+  const fromBranch = useFromBranchMode(selectedProjectId, branches, defaultBranch);
+  const fromIssue = useFromIssueMode(selectedProjectId, branches, defaultBranch);
+  const fromPR = useFromPullRequestMode(selectedProjectId, branches, defaultBranch, initialPR);
   const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !nameWithOwner;
 
   const activeMode = {
@@ -88,11 +88,15 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
     switch (selectedStrategy) {
       case 'from-branch':
+        if (!fromBranch.selectedBranch) return;
         void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromBranch.taskName,
-          sourceBranch: { branch: fromBranch.selectedBranch?.branch ?? '', remote: 'origin' },
+          sourceBranch: {
+            branch: fromBranch.selectedBranch.branch,
+            remote: fromBranch.selectedBranch.remote,
+          },
           strategy: fromBranch.createBranchAndWorktree
             ? {
                 kind: 'new-branch',
@@ -103,11 +107,15 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         });
         break;
       case 'from-issue':
+        if (!fromIssue.selectedBranch) return;
         void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromIssue.taskName,
-          sourceBranch: { branch: fromIssue.selectedBranch?.branch ?? '', remote: 'origin' },
+          sourceBranch: {
+            branch: fromIssue.selectedBranch.branch,
+            remote: fromIssue.selectedBranch.remote,
+          },
           strategy: { kind: 'no-worktree' },
           linkedIssue: fromIssue.linkedIssue ?? undefined,
         });
@@ -118,7 +126,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromPR.taskName,
-          sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName, remote: 'origin' },
+          sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName },
           strategy:
             fromPR.checkoutMode === 'checkout'
               ? {

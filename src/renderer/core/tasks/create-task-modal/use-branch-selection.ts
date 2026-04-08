@@ -1,14 +1,38 @@
 import { useCallback, useState } from 'react';
-import { Branch } from '@shared/git';
-
-interface DefaultBranch {
-  name: string;
-}
+import { Branch, DefaultBranch } from '@shared/git';
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 
+export function resolveDefaultSelectedBranch(
+  branches: Branch[],
+  defaultBranch: DefaultBranch | undefined
+): Branch | undefined {
+  if (!defaultBranch) return undefined;
+
+  const local = branches.find(
+    (branch) => branch.type === 'local' && branch.branch === defaultBranch.name
+  );
+  if (local) return local;
+
+  const remoteExact = branches.find(
+    (branch) =>
+      branch.type === 'remote' &&
+      branch.branch === defaultBranch.name &&
+      branch.remote === defaultBranch.remote
+  );
+  if (remoteExact) return remoteExact;
+
+  const remoteAny = branches.find(
+    (branch) => branch.type === 'remote' && branch.branch === defaultBranch.name
+  );
+  if (remoteAny) return remoteAny;
+
+  return undefined;
+}
+
 export function useBranchSelection(
   selectedProjectId: string | undefined,
+  branches: Branch[],
   defaultBranch: DefaultBranch | undefined
 ) {
   // Store the user's branch override alongside the project it belongs to.
@@ -21,9 +45,7 @@ export function useBranchSelection(
   const selectedBranch: Branch | undefined =
     branchOverride !== undefined && branchOverride.projectId === selectedProjectId
       ? branchOverride.branch
-      : defaultBranch
-        ? { type: 'local', branch: defaultBranch.name }
-        : undefined;
+      : resolveDefaultSelectedBranch(branches, defaultBranch);
 
   const setSelectedBranch = useCallback(
     (branch: Branch | undefined) => {

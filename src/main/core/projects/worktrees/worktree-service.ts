@@ -225,6 +225,7 @@ export class WorktreeService {
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
     const targetPath = path.join(this.worktreePoolPath, branchName);
+    const remoteName = (await this.projectSettings.getRemote()).trim() || 'origin';
 
     if (await this.rootFs.exists(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
@@ -234,7 +235,7 @@ export class WorktreeService {
 
     try {
       await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
-      await this.exec('git', ['fetch', 'origin'], { cwd: this.repoPath }).catch(() => {});
+      await this.exec('git', ['fetch', remoteName], { cwd: this.repoPath }).catch(() => {});
 
       // Check if a local branch ref exists; if not, try to create one from the remote.
       let localExists = false;
@@ -248,13 +249,17 @@ export class WorktreeService {
       if (!localExists) {
         // Verify the remote-tracking ref exists before attempting to create a local branch.
         try {
-          await this.exec('git', ['rev-parse', '--verify', `refs/remotes/origin/${branchName}`], {
-            cwd: this.repoPath,
-          });
+          await this.exec(
+            'git',
+            ['rev-parse', '--verify', `refs/remotes/${remoteName}/${branchName}`],
+            {
+              cwd: this.repoPath,
+            }
+          );
         } catch {
           return err({ type: 'branch-not-found', branch: branchName });
         }
-        await this.exec('git', ['branch', '--track', branchName, `origin/${branchName}`], {
+        await this.exec('git', ['branch', '--track', branchName, `${remoteName}/${branchName}`], {
           cwd: this.repoPath,
         });
       }
