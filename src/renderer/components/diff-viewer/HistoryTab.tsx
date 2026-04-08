@@ -7,6 +7,7 @@ import { CommitFileDiffView } from './CommitFileDiffView';
 import { DiffToolbar } from './DiffToolbar';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../ui/resizable';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { cn } from '@/lib/utils';
 
 interface HistoryTabProps {
   taskPath?: string;
@@ -102,7 +103,12 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
               {/* Commit message detail */}
               <div className="border-b border-border px-3 py-2">
                 <div className="flex items-center gap-1">
-                  <div className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
+                  <div
+                    className={cn(
+                      'min-w-0 flex-1 text-sm font-medium leading-snug',
+                      !detailExpanded && 'truncate'
+                    )}
+                  >
                     {selectedCommit.subject}
                   </div>
                   {hasExpandableContent && (
