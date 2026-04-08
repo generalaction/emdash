@@ -18,16 +18,22 @@ export type CreateTerminalParams = {
 
 export async function createScriptTerminalId({
   projectId,
+  scopeId,
   taskId,
   type,
   script,
 }: {
   projectId: string;
-  taskId: string;
+  scopeId?: string;
+  taskId?: string;
   type: 'setup' | 'run' | 'teardown';
   script: string;
 }) {
-  const key = `${projectId}::${taskId}::${type}::${script}`;
+  const resolvedScopeId = scopeId ?? taskId;
+  if (!resolvedScopeId) {
+    throw new Error('createScriptTerminalId requires scopeId');
+  }
+  const key = `${projectId}::${resolvedScopeId}::${type}::${script}`;
   const hash = await createHash(key);
   return hash.slice(0, 32);
 }

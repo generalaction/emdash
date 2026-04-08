@@ -5,8 +5,8 @@ import { Terminal } from '@shared/terminals';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { ConversationProvider } from '../conversations/types';
 import type { GitProvider } from '../git/types';
-import type { TaskLifecycleService } from '../tasks/task-lifecycle-service';
 import { TerminalProvider } from '../terminals/terminal-provider';
+import type { Workspace } from '../workspaces/workspace';
 import { ProjectSettingsProvider } from './settings/schema';
 
 export type BaseTaskProvisionArgs = {
@@ -30,16 +30,12 @@ export type ProjectRemoteState = {
 
 export interface TaskProvider {
   readonly taskId: string;
-  readonly taskPath: string;
   readonly taskBranch: string | undefined;
   readonly sourceBranch: string;
+  readonly workspace: Workspace;
   readonly taskEnvVars: Record<string, string>;
-  readonly fs: FileSystemProvider;
-  readonly git: GitProvider;
   readonly conversations: ConversationProvider;
   readonly terminals: TerminalProvider;
-  readonly settings: ProjectSettingsProvider;
-  readonly lifecycleService?: TaskLifecycleService;
 }
 
 export interface ProjectProvider {

@@ -77,12 +77,12 @@ function startProbe(url: string, onClosed: () => void): () => void {
 
 export function wireTerminalDevServerWatcher({
   pty,
-  taskId,
+  scopeId,
   terminalId,
   probe = true,
 }: {
   pty: Pty;
-  taskId: string;
+  scopeId: string;
   terminalId: string;
   /** Set to false for SSH sessions where remote ports are not locally reachable */
   probe?: boolean;
@@ -97,7 +97,7 @@ export function wireTerminalDevServerWatcher({
     stopProbe = null;
     if (found) {
       found = false;
-      events.emit(hostPreviewEventChannel, { type: 'exit', taskId, terminalId });
+      events.emit(hostPreviewEventChannel, { type: 'exit', taskId: scopeId, terminalId });
     }
   };
 
@@ -117,7 +117,7 @@ export function wireTerminalDevServerWatcher({
 
     found = true;
     const url = normalizeUrl(match[0]);
-    events.emit(hostPreviewEventChannel, { type: 'url', taskId, terminalId, url });
+    events.emit(hostPreviewEventChannel, { type: 'url', taskId: scopeId, terminalId, url });
 
     if (probe) {
       stopProbe = startProbe(url, cleanup);
