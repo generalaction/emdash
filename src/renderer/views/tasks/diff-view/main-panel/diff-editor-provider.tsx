@@ -32,7 +32,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
   children: ReactNode;
 }) {
   const { projectId, taskId } = useTaskViewContext();
-  const diffView = useProvisionedTask()?.diffView;
+  const diffView = useProvisionedTask()?.taskView.diffView;
   const { effectiveTheme } = useTheme();
 
   // Lease is exposed as a MobX observable box — all three async signals

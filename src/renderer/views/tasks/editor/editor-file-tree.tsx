@@ -19,7 +19,7 @@ const FileTreeRow = observer(function FileTreeRow({
   const { projectId, taskId } = useTaskViewContext();
   const taskState = useRequireProvisionedTask();
   const taskView = getTaskView(projectId, taskId);
-  const editorView = taskState.editorView;
+  const editorView = taskState.taskView.editorView;
 
   const isExpanded = editorView.expandedPaths.has(node.path);
   const isSelected = taskView?.view === 'editor' && editorView.activeFilePath === node.path;
@@ -125,7 +125,7 @@ const FileTreeRow = observer(function FileTreeRow({
 export const EditorFileTree = observer(function EditorFileTree() {
   const taskState = useRequireProvisionedTask();
   const files = taskState.workspace.files;
-  const editorView = taskState.editorView;
+  const editorView = taskState.taskView.editorView;
 
   const visibleRows = files
     ? buildVisibleRows(files.nodes, files.childIndex, editorView.expandedPaths)

@@ -14,7 +14,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const { projectId, taskId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const prStore = useRequireProvisionedTask().workspace.pr;
-  const diffView = provisioned?.diffView;
+  const diffView = provisioned?.taskView.diffView;
 
   const baseRef = pr.metadata.baseRefName;
   const prFiles = prStore.getFiles(pr).data ?? [];

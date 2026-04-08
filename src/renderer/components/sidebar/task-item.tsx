@@ -9,6 +9,7 @@ import {
   ContextMenuTrigger,
 } from '@renderer/components/ui/context-menu';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { sidebarStore } from '@renderer/core/stores/app-state';
 import {
   getTaskManagerStore,
   getTaskStore,
@@ -48,7 +49,10 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       (task.phase === 'provision' || task.phase === 'provision-error'));
 
   const taskName = task.data.name;
+  /** Prefer provisioned task data so MobX tracks the same tree as `updateStatus` / titlebar. */
+  const lifecycleStatus = task.provisionedTask?.data.status ?? task.data.status;
   const status = taskAgentStatus(task);
+  const showStatus = sidebarStore.showSidebarTaskStatus;
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
@@ -74,7 +78,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     <ContextMenu>
       <ContextMenuTrigger>
         <SidebarMenuRow
-          className={cn('group/row flex items-center px-1 h-8 gap-1 pl-6')}
+          className={cn('group/row flex items-center px-1 h-8 gap-1 pl-6', !showStatus && 'pl-7')}
           isActive={isActive}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
@@ -82,17 +86,19 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
             navigate('task', { projectId, taskId });
           }}
         >
-          <div
-            className="h-6 w-6 flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <LifecycleStatusIndicator
-              lifecycleStatus={task.data.status}
-              onLifecycleStatusChange={(status) => {
-                task.provisionedTask?.updateStatus(status);
-              }}
-            />
-          </div>
+          {showStatus && (
+            <div
+              className="h-6 w-6 flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <LifecycleStatusIndicator
+                lifecycleStatus={lifecycleStatus}
+                onLifecycleStatusChange={(next) => {
+                  task.provisionedTask?.updateStatus(next);
+                }}
+              />
+            </div>
+          )}
           <span
             className={cn(
               'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
@@ -105,9 +111,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
             <SidebarItemMiniButton type="button" disabled aria-label="Loading">
               <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
             </SidebarItemMiniButton>
-          ) : (
+          ) : showStatus ? (
             <AgentStatusIndicator status={status} />
-          )}
+          ) : null}
         </SidebarMenuRow>
       </ContextMenuTrigger>
       <ContextMenuContent>

@@ -45,7 +45,7 @@ export const EditorProvider = observer(function EditorProvider({
   projectId: string;
 }) {
   const taskStore = useRequireProvisionedTask();
-  const editorView = taskStore.editorView;
+  const editorView = taskStore.taskView.editorView;
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
 

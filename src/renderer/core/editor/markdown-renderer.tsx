@@ -16,7 +16,7 @@ interface MarkdownEditorRendererProps {
 export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   filePath,
 }: MarkdownEditorRendererProps) {
-  const editorView = useRequireProvisionedTask().editorView;
+  const editorView = useRequireProvisionedTask().taskView.editorView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
   // Reading bufferVersions creates a MobX tracking dependency so this observer()
   // component re-renders whenever the buffer content changes or is first populated.

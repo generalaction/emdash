@@ -17,8 +17,8 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const { projectId, taskId } = useTaskViewContext();
   const provisioned = useRequireProvisionedTask();
   const git = provisioned.workspace.git;
-  const changesView = provisioned.diffView.changesView;
-  const diffView = provisioned.diffView;
+  const changesView = provisioned.taskView.diffView.changesView;
+  const diffView = provisioned.taskView.diffView;
 
   const changes = git.unstagedFileChanges;
   const hasChanges = changes.length > 0;

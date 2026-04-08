@@ -33,7 +33,8 @@ type AnyPtyEntity = { data: { id: string }; session: PtySession };
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = useProvisionedTask();
-  const terminalMgr = taskStore?.terminals;
+  const terminalMgr = taskStore?.terminals ?? null;
+  const terminalTabView = getTaskView(projectId, taskId)?.terminalTabs ?? null;
   const lifecycleScriptsMgr = taskStore?.workspace.lifecycleScripts ?? null;
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const { isRightOpen } = useWorkspaceLayoutContext();
@@ -45,10 +46,10 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     isActive && isRightOpen && getTaskView(projectId, taskId)?.focusedRegion === 'right';
 
   const handleCreate = async () => {
-    if (!terminalMgr) return;
+    if (!terminalMgr || !terminalTabView) return;
     getTaskView(projectId, taskId)?.setFocusedRegion('right');
     const id = crypto.randomUUID();
-    const name = nextTerminalName(terminalMgr.tabs.map((s) => s.data.name));
+    const name = nextTerminalName((terminalTabView.tabs ?? []).map((s) => s.data.name));
     try {
       await terminalMgr.createTerminal({
         id,
@@ -57,6 +58,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         name,
         initialSize: getTerminalsPaneSize(),
       });
+      terminalTabView.setActiveTab(id);
     } catch (error) {
       console.error('Failed to create terminal:', error);
     }
@@ -72,7 +74,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     });
   };
 
-  const activeStore = mode === 'terminals' ? terminalMgr : lifecycleScriptsMgr;
+  const activeStore = mode === 'terminals' ? terminalTabView : lifecycleScriptsMgr;
   useTabShortcuts(activeStore ?? undefined, { focused: isPanelFocused });
   useHotkey(getEffectiveHotkey('newTerminal', keyboard), () => void handleCreate(), {
     enabled: mode === 'terminals',
@@ -129,7 +131,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     </div>
   ) : null;
 
-  const store = (mode === 'terminals' ? terminalMgr : lifecycleScriptsMgr) as
+  const store = (mode === 'terminals' ? terminalTabView : lifecycleScriptsMgr) as
     | TabViewProvider<AnyPtyEntity, never>
     | undefined;
 
@@ -138,7 +140,8 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       <TerminalsTabs
         projectId={projectId}
         taskId={taskId}
-        terminalMgr={terminalMgr ?? null}
+        terminalTabView={terminalTabView}
+        terminalMgr={terminalMgr}
         actions={toggleButton}
       />
     ) : (

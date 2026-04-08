@@ -8,7 +8,7 @@ import { splitPath } from '@renderer/core/git/utils';
 import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 
 export const DiffToolbar = observer(function DiffToolbar() {
-  const diffView = useProvisionedTask()?.diffView;
+  const diffView = useProvisionedTask()?.taskView.diffView;
   const viewMode = diffView?.viewMode ?? 'stacked';
   const diffStyle = diffView?.diffStyle ?? 'unified';
   const activeFile = diffView?.activeFile ?? null;

@@ -13,7 +13,7 @@ interface SvgRendererProps {
  * A floating "Edit source" button in the top-right corner toggles to Monaco source view.
  */
 export function SvgRenderer({ filePath }: SvgRendererProps) {
-  const editorView = useRequireProvisionedTask().editorView;
+  const editorView = useRequireProvisionedTask().taskView.editorView;
 
   const content =
     modelRegistry.getValue(buildMonacoModelPath(editorView.modelRootPath, filePath)) ?? '';

@@ -9,7 +9,7 @@ import { StackedDiffView } from './stacked-diff-view';
 
 export const DiffView = observer(function DiffView() {
   const { taskId } = useTaskViewContext();
-  const diffView = useProvisionedTask()?.diffView;
+  const diffView = useProvisionedTask()?.taskView.diffView;
   const viewMode = diffView?.viewMode ?? 'stacked';
 
   useEffect(() => {

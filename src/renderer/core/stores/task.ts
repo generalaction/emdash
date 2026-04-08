@@ -3,9 +3,6 @@ import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '../ipc';
 import { ConversationManagerStore } from './conversation-manager';
-import { DevServerStore } from './dev-server-store';
-import { DiffViewStore } from './diff-view-store';
-import { EditorViewStore } from './editor-view-store';
 import { snapshotRegistry } from './snapshot-registry';
 import { TaskViewStore } from './task-view';
 import { TerminalManagerStore } from './terminal-manager';
@@ -28,11 +25,8 @@ export type UnregisteredTaskData = {
 
 export class ProvisionedTask {
   readonly workspace: WorkspaceStore;
-  readonly diffView: DiffViewStore;
-  readonly devServers: DevServerStore;
   readonly conversations: ConversationManagerStore;
   readonly terminals: TerminalManagerStore;
-  readonly editorView: EditorViewStore;
   readonly taskView: TaskViewStore;
 
   data: Task;
@@ -41,13 +35,7 @@ export class ProvisionedTask {
   private _snapshotDisposer: (() => void) | null = null;
 
   get snapshot(): TaskViewSnapshot {
-    return {
-      ...this.taskView.snapshot,
-      conversations: this.conversations.snapshot,
-      terminals: this.terminals.snapshot,
-      editor: this.editorView.snapshot,
-      diffView: this.diffView.snapshot,
-    };
+    return this.taskView.snapshot;
   }
 
   constructor(data: Task, path: string, savedSnapshot?: TaskViewSnapshot) {
@@ -55,28 +43,27 @@ export class ProvisionedTask {
     this.path = path;
 
     this.workspace = new WorkspaceStore(data.projectId, data.id);
-    this.diffView = new DiffViewStore(this.workspace.git, this.workspace.pr);
-    this.devServers = new DevServerStore(data.id);
     this.conversations = new ConversationManagerStore(data.projectId, data.id);
     this.terminals = new TerminalManagerStore(data.projectId, data.id);
-    this.editorView = new EditorViewStore(data.projectId, data.id);
-    this.taskView = new TaskViewStore(savedSnapshot);
-
-    if (savedSnapshot) {
-      this.conversations.restoreSnapshot(savedSnapshot.conversations ?? {});
-      this.terminals.restoreSnapshot(savedSnapshot.terminals ?? {});
-      this.editorView.restoreSnapshot(savedSnapshot.editor ?? {});
-      this.diffView.restoreSnapshot(savedSnapshot.diffView ?? {});
-    }
+    this.taskView = new TaskViewStore(
+      {
+        conversations: this.conversations,
+        terminals: this.terminals,
+        git: this.workspace.git,
+        pr: this.workspace.pr,
+        projectId: data.projectId,
+        taskId: data.id,
+      },
+      savedSnapshot
+    );
 
     makeAutoObservable(this, {
       workspace: false,
-      diffView: false,
-      devServers: false,
       conversations: false,
       terminals: false,
-      editorView: false,
       taskView: false,
+      /** Deep observable so nested fields (e.g. `status`) notify all readers of `task.data`. */
+      data: observable,
     });
 
     this._snapshotDisposer = snapshotRegistry.register(`task:${data.id}`, () => this.snapshot);
@@ -86,18 +73,14 @@ export class ProvisionedTask {
     this.workspace.git.startWatching();
     this.workspace.files.startWatching();
     this.workspace.pr.start();
-    this.editorView.initialize();
+    this.taskView.editorView.initialize();
   }
 
   dispose(): void {
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
-    this.editorView.dispose();
-    this.workspace.git.dispose();
-    this.workspace.files.dispose();
-    this.diffView.dispose();
-    this.devServers.dispose();
-    this.workspace.pr.dispose();
+    this.workspace.dispose();
+    this.taskView.dispose();
     this.conversations.dispose();
     for (const term of this.terminals.terminals.values()) {
       term.dispose();
@@ -164,7 +147,11 @@ export class TaskStore {
     this.state = state;
     this.data = data;
     this.phase = phase;
-    makeAutoObservable(this, { provisionedTask: observable.ref });
+    makeAutoObservable(this, {
+      provisionedTask: observable.ref,
+      /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
+      data: observable,
+    });
   }
 
   transitionToProvisioned(data: Task, path: string, savedSnapshot?: TaskViewSnapshot): void {

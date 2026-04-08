@@ -16,7 +16,7 @@ import { UnstagedSection } from './unstaged-section';
 import { SECTION_HEADER_HEIGHT, usePanelLayout } from './use-panel-layout';
 
 export const ChangesPanel = observer(function ChangesPanel() {
-  const changesView = useRequireProvisionedTask().diffView.changesView;
+  const changesView = useRequireProvisionedTask().taskView.diffView.changesView;
 
   const {
     expanded,

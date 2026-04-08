@@ -21,7 +21,7 @@ export const StackedDiffView = observer(function StackedDiffView() {
   const provisioned = useProvisionedTask();
   const git = provisioned?.workspace.git;
   const pr = provisioned?.workspace.pr;
-  const activeFile = provisioned?.diffView.activeFile ?? null;
+  const activeFile = provisioned?.taskView.diffView.activeFile ?? null;
   const stagedFileChanges = git?.stagedFileChanges ?? [];
   const unstagedFileChanges = git?.unstagedFileChanges ?? [];
 
@@ -52,7 +52,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
   originalRef,
 }: StackedDiffPanelProps) {
   const { projectId, taskId } = useTaskViewContext();
-  const diffView = useProvisionedTask()?.diffView;
+  const diffView = useProvisionedTask()?.taskView.diffView;
   const activeFile = diffView?.activeFile ?? null;
   const viewMode = diffView?.viewMode ?? 'stacked';
   const diffStyle = diffView?.diffStyle ?? 'unified';

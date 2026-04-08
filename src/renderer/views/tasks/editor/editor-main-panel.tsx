@@ -15,7 +15,7 @@ import { useEditorContext } from './editor-provider';
 export const EditorMainPanel = observer(function EditorMainPanel() {
   const { setEditorHost } = useEditorContext();
 
-  const editorView = useRequireProvisionedTask().editorView;
+  const editorView = useRequireProvisionedTask().taskView.editorView;
   useTabShortcuts(editorView);
   const tabs = editorView.tabs;
   const activeTab = editorView.activeTab;

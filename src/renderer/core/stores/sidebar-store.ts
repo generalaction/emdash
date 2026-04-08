@@ -9,6 +9,7 @@ import type { TaskStore } from './task';
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 const TASK_ORDER_BY_PROJECT_KEY = 'sidebarTaskOrderByProject';
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
+const SHOW_SIDEBAR_TASK_STATUS_KEY = 'emdash-sidebar-show-task-status';
 
 export type SidebarRow =
   | { kind: 'project'; projectId: string }
@@ -19,6 +20,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   taskOrderByProject: Record<string, string[]> = {};
   expandedProjectIds = observable.set<string>();
   pinnedTaskIds: string[] = [];
+  showSidebarTaskStatus = false;
 
   constructor(private readonly projectManager: ProjectManagerStore) {
     makeAutoObservable(this, {
@@ -39,6 +41,11 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     try {
       const stored = localStorage.getItem(TASK_ORDER_BY_PROJECT_KEY);
       if (stored) this.taskOrderByProject = JSON.parse(stored) as Record<string, string[]>;
+    } catch {}
+
+    try {
+      const stored = localStorage.getItem(SHOW_SIDEBAR_TASK_STATUS_KEY);
+      if (stored !== null) this.showSidebarTaskStatus = JSON.parse(stored) as boolean;
     } catch {}
 
     // Auto-expand a project when its task count goes from 0 to >0.
@@ -139,6 +146,13 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
 
   ensureProjectExpanded(projectId: string): void {
     this.expandedProjectIds.add(projectId);
+  }
+
+  setShowSidebarTaskStatus(show: boolean): void {
+    this.showSidebarTaskStatus = show;
+    try {
+      localStorage.setItem(SHOW_SIDEBAR_TASK_STATUS_KEY, JSON.stringify(show));
+    } catch {}
   }
 
   setProjectOrder(ids: string[]): void {
