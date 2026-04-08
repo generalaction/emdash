@@ -6,6 +6,7 @@ import { CommitFileList } from './CommitFileList';
 import { CommitFileDiffView } from './CommitFileDiffView';
 import { DiffToolbar } from './DiffToolbar';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../ui/resizable';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
 interface HistoryTabProps {
   taskPath?: string;
@@ -27,6 +28,8 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>(
     () => (localStorage.getItem('diffViewer:diffStyle') as 'unified' | 'split') || 'unified'
   );
+  const { settings } = useAppSettings();
+  const expandByDefault = settings?.interface?.expandCommitDetail ?? false;
   const [detailExpanded, setDetailExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -39,7 +42,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
     if (commit.hash === selectedCommit?.hash) return;
     setSelectedCommit(commit);
     setSelectedFile(null);
-    setDetailExpanded(false);
+    setDetailExpanded(expandByDefault);
     setCopied(false);
   };
 

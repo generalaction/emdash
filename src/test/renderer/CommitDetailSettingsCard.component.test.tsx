@@ -2,7 +2,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import CommitDetailSettingsCard from '../../renderer/components/CommitDetailSettingsCard';
-import type { AppSettings } from '../../main/settings';
 
 vi.mock('@/contexts/AppSettingsProvider', () => ({
   useAppSettings: vi.fn(),
