@@ -92,6 +92,13 @@
       "when": 1743033600000,
       "tag": "0012_add_automation_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1775625447056,
+      "tag": "0013_remove_projects_path_unique",
+      "breakpoints": true
     }
   ]
 }

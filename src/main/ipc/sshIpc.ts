@@ -14,6 +14,7 @@ import {
   parseSshConfigFile,
   resolveIdentityAgent,
   resolveProxyCommand,
+  resolveSshConfigHost,
 } from '../utils/sshConfigParser';
 import type {
   SshConfig,
@@ -450,6 +451,37 @@ export function registerSshIpc() {
         // Accept either a saved connection id (string) or a config object.
         if (typeof arg === 'string') {
           const id = arg;
+
+          // Handle SSH config aliases (e.g. "ssh-config:tower02") that were never saved to DB
+          if (id.startsWith('ssh-config:')) {
+            const raw = id.slice('ssh-config:'.length);
+            const alias = /%[0-9A-Fa-f]{2}/.test(raw) ? decodeURIComponent(raw) : raw;
+
+            const sshConfigHost = await resolveSshConfigHost(alias);
+            if (!sshConfigHost) {
+              return { success: false, error: `SSH config host not found: ${alias}` };
+            }
+
+            const config: SshConfig = {
+              id,
+              name: alias,
+              host: sshConfigHost.hostname ?? alias,
+              port: sshConfigHost.port ?? 22,
+              username: sshConfigHost.user ?? '',
+              authType: sshConfigHost.identityFile ? 'key' : 'agent',
+              privateKeyPath: sshConfigHost.identityFile,
+              useAgent: !sshConfigHost.identityFile,
+            };
+
+            const connectionId = await sshService.connect(config);
+            monitor.startMonitoring(connectionId, config);
+            monitor.updateState(connectionId, 'connected');
+            void import('../telemetry').then(({ capture }) => {
+              void capture('ssh_connect_success', { type: config.authType });
+            });
+            return { success: true, connectionId };
+          }
+
           const { db } = await getDrizzleClient();
           const rows = await db
             .select({

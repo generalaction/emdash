@@ -168,4 +168,66 @@ describe('DatabaseService.saveProject', () => {
       })
     );
   });
+
+  it('throws ProjectConflictError when both remote projects share the same sshConnectionId and path', async () => {
+    // Both projects are remote with the same sshConnectionId — conflict
+    selectResults.push([]);
+    selectResults.push([
+      {
+        id: 'project-existing',
+        name: 'Existing Remote',
+        path: '/srv/project-one',
+        isRemote: 1,
+        sshConnectionId: 'ssh-1',
+      },
+    ]);
+
+    await expect(service.saveProject(baseProject)).rejects.toEqual(
+      expect.objectContaining({
+        name: 'ProjectConflictError',
+        code: 'PROJECT_CONFLICT',
+        existingProjectId: 'project-existing',
+        existingProjectName: 'Existing Remote',
+        projectPath: '/srv/project-one',
+      })
+    );
+
+    expect(insertValuesMock).not.toHaveBeenCalled();
+    expect(updateValuesMock).not.toHaveBeenCalled();
+  });
+
+  it('allows two remote projects with the same path but different sshConnectionId', async () => {
+    // Both projects are remote with the same path but DIFFERENT sshConnectionId — allowed
+    selectResults.push([]);
+    selectResults.push([
+      {
+        id: 'project-existing',
+        name: 'Existing Remote on Host B',
+        path: '/srv/project-one',
+        isRemote: 1,
+        sshConnectionId: 'ssh-host-b',
+      },
+    ]);
+
+    // New project on a different host (ssh-host-a) — same path, different connection
+    const remoteProjectOnDifferentHost: Omit<Project, 'createdAt' | 'updatedAt'> = {
+      ...baseProject,
+      id: 'project-2',
+      name: 'Remote Project on Host A',
+      path: '/srv/project-one', // same path as existingByPath
+      sshConnectionId: 'ssh-host-a',
+    };
+
+    await expect(service.saveProject(remoteProjectOnDifferentHost)).resolves.toBeUndefined();
+
+    // Should have inserted a new row, not updated or thrown
+    expect(insertValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'project-2',
+        path: '/srv/project-one',
+        sshConnectionId: 'ssh-host-a',
+      })
+    );
+    expect(updateValuesMock).not.toHaveBeenCalled();
+  });
 });
