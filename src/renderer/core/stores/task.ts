@@ -33,7 +33,6 @@ export class ProvisionedTask {
   readonly terminals: TerminalManagerStore;
   readonly taskView: TaskViewStore;
 
-  /** Same object as `TaskStore.data` when provisioned; not separately observable (see makeAutoObservable). */
   readonly _taskData: Task;
   readonly path: string;
 
@@ -233,13 +232,6 @@ export class TaskStore {
       console.error(e);
       throw e;
     }
-  }
-
-  async togglePinned(): Promise<void> {
-    if (this.state === 'unregistered') return;
-    const task = registeredTaskData(this);
-    if (!task) return;
-    await this.setPinned(!task.isPinned);
   }
 }
 

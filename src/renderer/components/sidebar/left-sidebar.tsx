@@ -5,6 +5,7 @@ import React, { useEffect, useRef } from 'react';
 import { useGithubContext } from '@renderer/core/github-context-provider';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/core/stores/app-state';
+import { getTaskStore } from '@renderer/core/stores/task-selectors';
 import {
   isCurrentView,
   useNavigate,
@@ -59,7 +60,10 @@ const SidebarVirtualList = observer(function SidebarVirtualList() {
     if (!targetProjectId) return;
 
     if (targetTaskId) {
-      // Ensure the parent project is expanded so the task row exists in the list.
+      const activeTask = getTaskStore(targetProjectId, targetTaskId);
+      if (activeTask?.data.isPinned) {
+        return;
+      }
       sidebarStore.ensureProjectExpanded(targetProjectId);
     }
 
@@ -115,6 +119,29 @@ const SidebarVirtualList = observer(function SidebarVirtualList() {
   );
 });
 
+const SidebarPinnedTaskList = observer(function SidebarPinnedTaskList() {
+  const entries = sidebarStore.pinnedSidebarEntries;
+  if (entries.length === 0) return null;
+
+  return (
+    <SidebarGroup className="shrink-0">
+      <div className="flex items-center justify-between pl-5 pr-2.5 h-[40px]">
+        <MicroLabel className="text-foreground-tertiary-passive">Pinned</MicroLabel>
+      </div>
+      <SidebarMenu className="px-3 pb-2">
+        {entries.map(({ projectId, taskId }) => (
+          <SidebarTaskItem
+            key={`${projectId}:${taskId}`}
+            projectId={projectId}
+            taskId={taskId}
+            rowVariant="pinned"
+          />
+        ))}
+      </SidebarMenu>
+    </SidebarGroup>
+  );
+});
+
 export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
@@ -129,6 +156,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
       <SidebarSpace />
       <SidebarContainer className="w-full border-r-0 flex-1 min-h-0">
         <SidebarContent className="flex flex-col">
+          <SidebarPinnedTaskList />
           <SidebarGroup className="mb-0 min-h-0 flex-1 flex flex-col">
             <ProjectsGroupLabel />
             <SidebarGroupContent className="min-h-0 flex-1 flex flex-col">

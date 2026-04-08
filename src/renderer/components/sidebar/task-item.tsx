@@ -1,4 +1,4 @@
-import { Archive, Pencil, Trash2 } from 'lucide-react';
+import { Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { AgentStatusIndicator } from '@renderer/components/agent-status-indicator';
 import {
@@ -27,11 +27,14 @@ import { SidebarMenuRow } from './sidebar-primitives';
 interface SidebarTaskItemProps {
   taskId: string;
   projectId: string;
+  /** Pinned strip uses tighter padding than tasks nested under a project. */
+  rowVariant?: 'underProject' | 'pinned';
 }
 
 export const SidebarTaskItem = observer(function SidebarTaskItem({
   taskId,
   projectId,
+  rowVariant = 'underProject',
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
@@ -83,11 +86,18 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       },
     });
 
+  const canPin = task.state !== 'unregistered';
+
   return (
     <ContextMenu>
       <ContextMenuTrigger>
         <SidebarMenuRow
-          className={cn('group/row flex items-center px-1 h-8 gap-1 pl-6', !showStatus && 'pl-8')}
+          className={cn(
+            'group/row flex items-center justify-between px-1 h-8 gap-1',
+            rowVariant === 'pinned'
+              ? cn('pl-1', !showStatus && 'pl-2')
+              : cn('pl-6', !showStatus && 'pl-8')
+          )}
           isActive={isActive}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
@@ -95,20 +105,20 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
             navigate('task', { projectId, taskId });
           }}
         >
-          {showStatus && (
-            <div
-              className="h-6 w-6 flex items-center justify-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <LifecycleStatusIndicator
-                lifecycleStatus={lifecycleStatus}
-                onLifecycleStatusChange={(next) => {
-                  task.updateStatus(next);
-                }}
-              />
-            </div>
-          )}
           <div className="flex items-center gap-1 min-w-0">
+            {showStatus && (
+              <div
+                className="h-6 w-6 flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <LifecycleStatusIndicator
+                  lifecycleStatus={lifecycleStatus}
+                  onLifecycleStatusChange={(next) => {
+                    task.updateStatus(next);
+                  }}
+                />
+              </div>
+            )}
             <span
               className={cn(
                 'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
@@ -143,6 +153,19 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         </SidebarMenuRow>
       </ContextMenuTrigger>
       <ContextMenuContent>
+        {canPin ? (
+          task.data.isPinned ? (
+            <ContextMenuItem onClick={() => void task.setPinned(false)}>
+              <PinOff className="size-4" />
+              Unpin task
+            </ContextMenuItem>
+          ) : (
+            <ContextMenuItem onClick={() => void task.setPinned(true)}>
+              <Pin className="size-4" />
+              Pin task
+            </ContextMenuItem>
+          )
+        ) : null}
         <ContextMenuItem onClick={handleRename}>
           <Pencil className="size-4" />
           Rename

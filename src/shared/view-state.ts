@@ -51,7 +51,6 @@ export type SidebarSnapshot = {
   expandedProjectIds?: string[];
   projectOrder?: string[];
   taskOrderByProject?: Record<string, string[]>;
-  pinnedTaskIds?: string[];
   showSidebarTaskStatus?: boolean;
   taskSortBy?: SidebarTaskSortBy;
   taskGroupBy?: SidebarTaskGroupBy;

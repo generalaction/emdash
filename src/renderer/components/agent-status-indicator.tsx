@@ -32,7 +32,7 @@ export function AgentStatusIndicator({ status, className }: AgentStatusIndicator
       case 'awaiting-input':
         return (
           <span
-            className={cn('rounded-full bg-blue-200 border size-2 border-blue-600', className)}
+            className={cn('rounded-full bg-blue-200 border size-2 border-blue-500', className)}
             aria-label="Agent is awaiting input"
             title="Agent is awaiting input"
           />
@@ -40,7 +40,7 @@ export function AgentStatusIndicator({ status, className }: AgentStatusIndicator
       case 'error':
         return (
           <span
-            className={cn('rounded-full bg-red-200 border size-2 border-red-600', className)}
+            className={cn('rounded-full bg-red-200 border size-2 border-red-500', className)}
             aria-label="Agent error"
             title="Agent error"
           />
@@ -48,7 +48,7 @@ export function AgentStatusIndicator({ status, className }: AgentStatusIndicator
       case 'completed':
         return (
           <span
-            className={cn('rounded-full bg-green-200 border size-2 border-green-600', className)}
+            className={cn('rounded-full bg-green-200 border size-2 border-green-500', className)}
             aria-label="Agent completed"
             title="Agent completed"
           />

@@ -1,6 +1,5 @@
 import { ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React from 'react';
 import { sidebarStore } from '@renderer/core/stores/app-state';
 import { Button } from '../ui/button';
 import {
