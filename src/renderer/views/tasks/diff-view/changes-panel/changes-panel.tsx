@@ -95,7 +95,7 @@ export const ChangesPanel = observer(function ChangesPanel() {
   );
 });
 
-function PullRequestsSection({
+const PullRequestsSection = observer(function PullRequestsSection({
   collapsed,
   onToggleCollapsed,
 }: {
@@ -142,4 +142,4 @@ function PullRequestsSection({
       </div>
     </>
   );
-}
+});
