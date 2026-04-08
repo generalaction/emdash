@@ -9,13 +9,13 @@ import type { ManagedFile } from '@renderer/core/editor/types';
 import { EditorViewStore } from '@renderer/core/stores/editor-view-store';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
 import { FileTabs } from '@renderer/views/tasks/editor/file-tabs';
-import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 import { useEditorContext } from './editor-provider';
 
 export const EditorMainPanel = observer(function EditorMainPanel() {
   const { setEditorHost } = useEditorContext();
 
-  const editorView = useRequireProvisionedTask().taskView.editorView;
+  const editorView = useProvisionedTask().taskView.editorView;
   useTabShortcuts(editorView);
   const tabs = editorView.tabs;
   const activeTab = editorView.activeTab;

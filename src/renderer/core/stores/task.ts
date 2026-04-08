@@ -29,7 +29,8 @@ export class ProvisionedTask {
   readonly terminals: TerminalManagerStore;
   readonly taskView: TaskViewStore;
 
-  data: Task;
+  /** Same object as `TaskStore.data` when provisioned; not separately observable (see makeAutoObservable). */
+  readonly _taskData: Task;
   readonly path: string;
 
   private _snapshotDisposer: (() => void) | null = null;
@@ -38,21 +39,21 @@ export class ProvisionedTask {
     return this.taskView.snapshot;
   }
 
-  constructor(data: Task, path: string, savedSnapshot?: TaskViewSnapshot) {
-    this.data = data;
+  constructor(taskData: Task, path: string, savedSnapshot?: TaskViewSnapshot) {
+    this._taskData = taskData;
     this.path = path;
 
-    this.workspace = new WorkspaceStore(data.projectId, data.id);
-    this.conversations = new ConversationManagerStore(data.projectId, data.id);
-    this.terminals = new TerminalManagerStore(data.projectId, data.id);
+    this.workspace = new WorkspaceStore(taskData.projectId, taskData.id);
+    this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
+    this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
     this.taskView = new TaskViewStore(
       {
         conversations: this.conversations,
         terminals: this.terminals,
         git: this.workspace.git,
         pr: this.workspace.pr,
-        projectId: data.projectId,
-        taskId: data.id,
+        projectId: taskData.projectId,
+        taskId: taskData.id,
       },
       savedSnapshot
     );
@@ -62,11 +63,11 @@ export class ProvisionedTask {
       conversations: false,
       terminals: false,
       taskView: false,
-      /** Deep observable so nested fields (e.g. `status`) notify all readers of `task.data`. */
-      data: observable,
+      /** Owned by TaskStore.data — do not attach a second observable tree here */
+      _taskData: false,
     });
 
-    this._snapshotDisposer = snapshotRegistry.register(`task:${data.id}`, () => this.snapshot);
+    this._snapshotDisposer = snapshotRegistry.register(`task:${taskData.id}`, () => this.snapshot);
   }
 
   activate(): void {
@@ -88,15 +89,15 @@ export class ProvisionedTask {
   }
 
   async updateStatus(status: TaskLifecycleStatus): Promise<void> {
-    const previousStatus = this.data.status;
+    const previousStatus = this._taskData.status;
     runInAction(() => {
-      this.data.status = status;
+      this._taskData.status = status;
     });
     try {
-      await rpc.tasks.updateTaskStatus(this.data.id, status);
+      await rpc.tasks.updateTaskStatus(this._taskData.id, status);
     } catch (e) {
       runInAction(() => {
-        this.data.status = previousStatus;
+        this._taskData.status = previousStatus;
       });
       console.error(e);
       throw e;
@@ -104,15 +105,15 @@ export class ProvisionedTask {
   }
 
   async updateLinkedIssue(issue?: Issue): Promise<void> {
-    const previousIssue = this.data.linkedIssue;
+    const previousIssue = this._taskData.linkedIssue;
     try {
-      await rpc.tasks.updateLinkedIssue(this.data.id, issue);
+      await rpc.tasks.updateLinkedIssue(this._taskData.id, issue);
       runInAction(() => {
-        this.data.linkedIssue = issue;
+        this._taskData.linkedIssue = issue;
       });
     } catch (e) {
       runInAction(() => {
-        this.data.linkedIssue = previousIssue;
+        this._taskData.linkedIssue = previousIssue;
       });
       console.error(e);
       throw e;
@@ -155,8 +156,8 @@ export class TaskStore {
   }
 
   transitionToProvisioned(data: Task, path: string, savedSnapshot?: TaskViewSnapshot): void {
-    this.provisionedTask = new ProvisionedTask(data, path, savedSnapshot);
     this.data = data;
+    this.provisionedTask = new ProvisionedTask(data, path, savedSnapshot);
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
@@ -191,7 +192,8 @@ export class TaskStore {
 
   async rename(name: string): Promise<void> {
     if (this.state !== 'provisioned') return;
-    const task = this.data as Task;
+    const task = registeredTaskData(this);
+    if (!task) return;
     try {
       await rpc.tasks.renameTask(task.projectId, task.id, name);
       runInAction(() => {
@@ -239,6 +241,15 @@ export function isProvisioned(
   t: TaskStore
 ): t is TaskStore & { state: 'provisioned'; data: Task; provisionedTask: ProvisionedTask } {
   return t.state === 'provisioned';
+}
+
+/** Full `Task` payload when registered (unprovisioned or provisioned); `undefined` when unregistered. */
+export function registeredTaskData(store: TaskStore): Task | undefined {
+  return isRegistered(store) ? store.data : undefined;
+}
+
+export function unregisteredTaskData(store: TaskStore): UnregisteredTaskData | undefined {
+  return isUnregistered(store) ? store.data : undefined;
 }
 
 export function createUnregisteredTask(data: UnregisteredTaskData): TaskStore {

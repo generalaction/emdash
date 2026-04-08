@@ -1,9 +1,16 @@
+import type { Task } from '@shared/tasks';
 import type { AgentStatus } from '@renderer/core/stores/conversation-manager';
 import type { DiffViewStore } from './diff-view-store';
 import type { EditorViewStore } from './editor-view-store';
 import { isUnmountedProject } from './project';
 import { getProjectManagerStore } from './project-selectors';
-import { isUnprovisioned, isUnregistered, ProvisionedTask, TaskStore } from './task';
+import {
+  isUnprovisioned,
+  isUnregistered,
+  ProvisionedTask,
+  registeredTaskData,
+  TaskStore,
+} from './task';
 import type { TaskManagerStore } from './task-manager';
 import type { TaskViewStore } from './task-view';
 
@@ -16,6 +23,13 @@ export function getTaskManagerStore(projectId: string): TaskManagerStore | undef
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskStore(projectId: string, taskId: string): TaskStore | undefined {
   return getTaskManagerStore(projectId)?.tasks.get(taskId);
+}
+
+/** Registered task payload (`Task`) when the row exists and is not unregistered; otherwise undefined. */
+export function getRegisteredTaskData(projectId: string, taskId: string): Task | undefined {
+  const store = getTaskStore(projectId, taskId);
+  if (!store) return undefined;
+  return registeredTaskData(store);
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */

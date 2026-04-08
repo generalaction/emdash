@@ -7,7 +7,6 @@ import { TabBar } from '@renderer/components/ui/tab-bar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { ConversationStore } from '@renderer/core/stores/conversation-manager';
-import { getTaskView } from '@renderer/core/stores/task-selectors';
 import { agentConfig } from '@renderer/lib/agentConfig';
 import { useProvisionedTask } from '../task-view-context';
 
@@ -18,11 +17,10 @@ export const ConversationsTabs = observer(function ConversationsTabs({
   projectId: string;
   taskId: string;
 }) {
-  const conversationMgr = useProvisionedTask()?.conversations;
-  const conversationTabs = getTaskView(projectId, taskId)?.conversationTabs;
+  const provisioned = useProvisionedTask();
+  const conversationMgr = provisioned.conversations;
+  const conversationTabs = provisioned.taskView.conversationTabs;
   const showCreateConversationModal = useShowModal('createConversationModal');
-
-  if (!conversationTabs) return null;
 
   return (
     <TabBar<ConversationStore>
@@ -49,7 +47,7 @@ export const ConversationsTabs = observer(function ConversationsTabs({
           </span>
         );
       }}
-      onRename={(id, name) => void conversationMgr?.renameConversation(id, name)}
+      onRename={(id, name) => void conversationMgr.renameConversation(id, name)}
       onReorder={(from, to) => conversationTabs.reorderTabs(from, to)}
       actions={
         <Tooltip>

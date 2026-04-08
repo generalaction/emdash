@@ -2,7 +2,7 @@ import { Pencil } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
-import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 
 interface SvgRendererProps {
   filePath: string;
@@ -13,7 +13,7 @@ interface SvgRendererProps {
  * A floating "Edit source" button in the top-right corner toggles to Monaco source view.
  */
 export function SvgRenderer({ filePath }: SvgRendererProps) {
-  const editorView = useRequireProvisionedTask().taskView.editorView;
+  const editorView = useProvisionedTask().taskView.editorView;
 
   const content =
     modelRegistry.getValue(buildMonacoModelPath(editorView.modelRootPath, filePath)) ?? '';

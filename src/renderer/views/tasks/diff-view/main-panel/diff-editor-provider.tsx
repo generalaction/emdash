@@ -32,7 +32,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
   children: ReactNode;
 }) {
   const { projectId, taskId } = useTaskViewContext();
-  const diffView = useProvisionedTask()?.taskView.diffView;
+  const diffView = useProvisionedTask().taskView.diffView;
   const { effectiveTheme } = useTheme();
 
   // Lease is exposed as a MobX observable box — all three async signals
@@ -74,7 +74,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
   useEffect(
     () =>
       reaction(
-        () => ({ lease: leaseBox.get(), style: diffView?.diffStyle ?? 'unified' }),
+        () => ({ lease: leaseBox.get(), style: diffView.diffStyle }),
         ({ lease, style }) => {
           if (!lease) return;
           lease.editor.updateOptions({ renderSideBySide: style === 'split' });
@@ -92,7 +92,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
   useEffect(
     () =>
       reaction(
-        () => diffView?.activeFile ?? null,
+        () => diffView.activeFile ?? null,
         (activeFile) => {
           if (!activeFile || isBinaryForDiff(activeFile.path)) return;
           const root = `task:${taskId}`;
@@ -170,7 +170,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
     () =>
       autorun(() => {
         const lease = leaseBox.get(); // reactive
-        const activeFile = diffView?.activeFile ?? null; // reactive
+        const activeFile = diffView.activeFile; // reactive
 
         if (!lease) return;
 

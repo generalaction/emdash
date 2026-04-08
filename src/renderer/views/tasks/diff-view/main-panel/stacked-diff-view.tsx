@@ -19,16 +19,16 @@ const LARGE_DIFF_LINE_THRESHOLD = 2500;
 
 export const StackedDiffView = observer(function StackedDiffView() {
   const provisioned = useProvisionedTask();
-  const git = provisioned?.workspace.git;
-  const pr = provisioned?.workspace.pr;
-  const activeFile = provisioned?.taskView.diffView.activeFile ?? null;
-  const stagedFileChanges = git?.stagedFileChanges ?? [];
-  const unstagedFileChanges = git?.unstagedFileChanges ?? [];
+  const git = provisioned.workspace.git;
+  const pr = provisioned.workspace.pr;
+  const activeFile = provisioned.taskView.diffView.activeFile;
+  const stagedFileChanges = git.stagedFileChanges;
+  const unstagedFileChanges = git.unstagedFileChanges;
 
   if (activeFile?.type === 'git') {
     const originalRef = activeFile.originalRef;
-    const activePr = pr?.pullRequests.find((p) => p.metadata.baseRefName === originalRef);
-    const files = activePr ? (pr?.getFiles(activePr).data ?? []) : [];
+    const activePr = pr.pullRequests.find((p) => p.metadata.baseRefName === originalRef);
+    const files = activePr ? (pr.getFiles(activePr).data ?? []) : [];
     return <StackedDiffPanel files={files} diffType="git" originalRef={originalRef} />;
   }
 
@@ -52,10 +52,10 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
   originalRef,
 }: StackedDiffPanelProps) {
   const { projectId, taskId } = useTaskViewContext();
-  const diffView = useProvisionedTask()?.taskView.diffView;
-  const activeFile = diffView?.activeFile ?? null;
-  const viewMode = diffView?.viewMode ?? 'stacked';
-  const diffStyle = diffView?.diffStyle ?? 'unified';
+  const diffView = useProvisionedTask().taskView.diffView;
+  const activeFile = diffView.activeFile;
+  const viewMode = diffView.viewMode;
+  const diffStyle = diffView.diffStyle;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const suppressObserver = useRef(false);
@@ -101,7 +101,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
         const startIndex = instance.range?.startIndex;
         if (startIndex != null) {
           const file = f[startIndex];
-          if (file) dv?.setActiveFile({ path: file.path, type: dt, originalRef: ref });
+          if (file) dv.setActiveFile({ path: file.path, type: dt, originalRef: ref });
         }
       }
     },

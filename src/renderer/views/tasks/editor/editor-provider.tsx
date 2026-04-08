@@ -13,11 +13,10 @@ import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { defineMonacoThemes, getMonacoTheme } from '@renderer/core/monaco/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { useMonacoLease } from '@renderer/core/monaco/use-monaco-lease';
-import { getTaskView } from '@renderer/core/stores/task-selectors';
 import { useTheme } from '@renderer/hooks/useTheme';
 import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
-import { useRequireProvisionedTask } from '../task-view-context';
+import { useProvisionedTask } from '../task-view-context';
 
 interface EditorContextValue {
   /**
@@ -38,14 +37,14 @@ export function useEditorContext(): EditorContextValue {
 export const EditorProvider = observer(function EditorProvider({
   children,
   taskId,
-  projectId,
+  projectId: _projectId,
 }: {
   children: ReactNode;
   taskId: string;
   projectId: string;
 }) {
-  const taskStore = useRequireProvisionedTask();
-  const editorView = taskStore.taskView.editorView;
+  const provisionedTask = useProvisionedTask();
+  const editorView = provisionedTask.taskView.editorView;
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
 
@@ -111,7 +110,7 @@ export const EditorProvider = observer(function EditorProvider({
 
           lease.disposables.push(
             lease.editor.onDidFocusEditorWidget(() => {
-              getTaskView(projectId, taskId)?.setFocusedRegion('main');
+              provisionedTask.taskView.setFocusedRegion('main');
             })
           );
 
@@ -212,7 +211,7 @@ export const EditorProvider = observer(function EditorProvider({
   // focus Monaco if an editable model is loaded; otherwise queue the intent so
   // it is satisfied once the lease arrives (handled in the lease reaction above).
   // ---------------------------------------------------------------------------
-  const focusedRegion = getTaskView(projectId, taskId)?.focusedRegion;
+  const focusedRegion = provisionedTask.taskView.focusedRegion;
   useEffect(() => {
     if (!isActive || focusedRegion !== 'main') return;
     const editor = editorRef.current;

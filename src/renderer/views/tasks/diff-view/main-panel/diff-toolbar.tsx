@@ -8,11 +8,11 @@ import { splitPath } from '@renderer/core/git/utils';
 import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 
 export const DiffToolbar = observer(function DiffToolbar() {
-  const diffView = useProvisionedTask()?.taskView.diffView;
-  const viewMode = diffView?.viewMode ?? 'stacked';
-  const diffStyle = diffView?.diffStyle ?? 'unified';
-  const activeFile = diffView?.activeFile ?? null;
-  const stackedDiffDisabled = diffView?.stackedDiffDisabled ?? false;
+  const diffView = useProvisionedTask().taskView.diffView;
+  const viewMode = diffView.viewMode;
+  const diffStyle = diffView.diffStyle;
+  const activeFile = diffView.activeFile;
+  const stackedDiffDisabled = diffView.stackedDiffDisabled;
 
   const filePath = viewMode === 'file' ? (activeFile?.path ?? undefined) : undefined;
   const { filename, directory } = filePath ? splitPath(filePath) : { filename: '', directory: '' };
@@ -45,7 +45,7 @@ export const DiffToolbar = observer(function DiffToolbar() {
           value={[viewMode]}
           onValueChange={([value]) => {
             if (value) {
-              diffView?.setViewMode(value as 'stacked' | 'file');
+              diffView.setViewMode(value as 'stacked' | 'file');
             }
           }}
         >
@@ -62,7 +62,7 @@ export const DiffToolbar = observer(function DiffToolbar() {
           value={[diffStyle]}
           onValueChange={([value]) => {
             if (value) {
-              diffView?.setDiffStyle(value as 'unified' | 'split');
+              diffView.setDiffStyle(value as 'unified' | 'split');
             }
           }}
         >

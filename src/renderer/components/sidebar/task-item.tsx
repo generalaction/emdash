@@ -49,8 +49,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       (task.phase === 'provision' || task.phase === 'provision-error'));
 
   const taskName = task.data.name;
-  /** Prefer provisioned task data so MobX tracks the same tree as `updateStatus` / titlebar. */
-  const lifecycleStatus = task.provisionedTask?.data.status ?? task.data.status;
+  const lifecycleStatus = task.data.status;
   const status = taskAgentStatus(task);
   const showStatus = sidebarStore.showSidebarTaskStatus;
 
@@ -78,7 +77,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     <ContextMenu>
       <ContextMenuTrigger>
         <SidebarMenuRow
-          className={cn('group/row flex items-center px-1 h-8 gap-1 pl-6', !showStatus && 'pl-7')}
+          className={cn('group/row flex items-center px-1 h-8 gap-1 pl-6', !showStatus && 'pl-8')}
           isActive={isActive}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {

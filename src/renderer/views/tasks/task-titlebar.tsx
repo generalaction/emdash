@@ -26,8 +26,8 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-gro
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { rpc } from '@renderer/core/ipc';
 import {
+  getRegisteredTaskData,
   getTaskStore,
-  getTaskView,
   taskDisplayName,
   taskViewKind,
 } from '@renderer/core/stores/task-selectors';
@@ -36,11 +36,7 @@ import { RightPanelView } from '@renderer/core/tasks/types';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
-import {
-  useProvisionedTask,
-  useRequireProvisionedTask,
-  useTaskViewContext,
-} from './task-view-context';
+import { useProvisionedTask, useTaskViewContext } from './task-view-context';
 import { useGitActions } from './use-git-actions';
 
 function formatUrl(url: string): string {
@@ -59,7 +55,7 @@ const DevServerPills = observer(function DevServerPills({
   projectId: string;
   taskId: string;
 }) {
-  const urls = useProvisionedTask()?.workspace.devServers.urls ?? [];
+  const urls = useProvisionedTask().workspace.devServers.urls;
 
   if (urls.length === 0) return null;
 
@@ -119,8 +115,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   taskId: string;
 }) {
   const taskStore = getTaskStore(projectId, taskId)!;
-  const taskState = useRequireProvisionedTask();
-  const taskView = getTaskView(projectId, taskId)!;
+  const taskPayload = getRegisteredTaskData(projectId, taskId)!;
+  const provisionedTask = useProvisionedTask();
+  const { taskView } = provisionedTask;
   const { view, rightPanelView } = taskView;
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
   const delayedIsPending = useDelayedBoolean(isPending, 200);
@@ -151,9 +148,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 onClick={(e) => e.stopPropagation()}
               >
                 <LifecycleStatusIndicator
-                  lifecycleStatus={taskState.data.status}
+                  lifecycleStatus={taskPayload.status}
                   onLifecycleStatusChange={(status) => {
-                    taskState.updateStatus(status);
+                    provisionedTask.updateStatus(status);
                   }}
                 />
               </div>
@@ -165,16 +162,16 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 <MicroLabel className="text-foreground-passive items-center flex">Task</MicroLabel>
                 <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
               </div>
-              <OpenInMenu path={taskState.path} />
+              <OpenInMenu path={provisionedTask.path} />
               <div className="flex flex-col gap-1 border border-border rounded-md p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
-                  <span>{taskState.workspace.git.branchStatus.data?.branch}</span>
+                  <span>{provisionedTask.workspace.git.branchStatus.data?.branch}</span>
                 </span>
                 <span className="flex items-center gap-2 text-foreground-passive">
                   Created from
                   <span className="flex items-center gap-1 text-foreground-muted">
-                    <GitBranch className="size-3.5" /> {taskState.data.sourceBranch}
+                    <GitBranch className="size-3.5" /> {taskPayload.sourceBranch}
                   </span>
                 </span>
                 <div className="flex items-center gap-1 w-full">
@@ -280,12 +277,12 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 </div>
               </div>
               <IssueSelector
-                value={taskState.data.linkedIssue ?? null}
+                value={taskPayload.linkedIssue ?? null}
                 onValueChange={(issue) => {
-                  taskState.updateLinkedIssue(issue ?? undefined);
+                  provisionedTask.updateLinkedIssue(issue ?? undefined);
                 }}
                 nameWithOwner={''}
-                projectPath={taskState.path}
+                projectPath={provisionedTask.path}
               />
             </PopoverContent>
           </Popover>
@@ -294,7 +291,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       rightSlot={
         <div className="flex items-center gap-2 mr-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
-          <OpenInMenu path={taskState.path} className="h-7  bg-background" />
+          <OpenInMenu path={provisionedTask.path} className="h-7  bg-background" />
           <ToggleGroup
             disabled={delayedIsPending}
             variant="outline"

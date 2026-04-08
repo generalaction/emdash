@@ -6,8 +6,8 @@ import { useDiffEditorContext } from './diff-editor-provider';
 
 export const FileDiffView = observer(function FileDiffView() {
   const { setDiffEditorHost } = useDiffEditorContext();
-  const diffView = useProvisionedTask()?.taskView.diffView;
-  const activeFile = diffView?.activeFile ?? null;
+  const diffView = useProvisionedTask().taskView.diffView;
+  const activeFile = diffView.activeFile;
 
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;
   const showEditor = activeFile !== null && !isBinary;

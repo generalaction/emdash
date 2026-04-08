@@ -7,7 +7,7 @@ import {
 } from '@renderer/components/ui/resizable';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { cn } from '@renderer/lib/utils';
-import { useRequireProvisionedTask } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 import { GitStatusSection } from './git-status-section';
 import { PullRequestEntry } from './pr-section/pr-section';
 import { PullRequestSectionHeader } from './section-header';
@@ -16,7 +16,7 @@ import { UnstagedSection } from './unstaged-section';
 import { SECTION_HEADER_HEIGHT, usePanelLayout } from './use-panel-layout';
 
 export const ChangesPanel = observer(function ChangesPanel() {
-  const changesView = useRequireProvisionedTask().taskView.diffView.changesView;
+  const changesView = useProvisionedTask().taskView.diffView.changesView;
 
   const {
     expanded,
@@ -102,7 +102,7 @@ const PullRequestsSection = observer(function PullRequestsSection({
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }) {
-  const provisioned = useRequireProvisionedTask();
+  const provisioned = useProvisionedTask();
   const { pullRequests, nameWithOwner, taskBranch } = provisioned.workspace.pr;
   const showCreatePrModal = useShowModal('createPrModal');
 

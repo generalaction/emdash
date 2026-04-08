@@ -9,8 +9,8 @@ import { StackedDiffView } from './stacked-diff-view';
 
 export const DiffView = observer(function DiffView() {
   const { taskId } = useTaskViewContext();
-  const diffView = useProvisionedTask()?.taskView.diffView;
-  const viewMode = diffView?.viewMode ?? 'stacked';
+  const diffView = useProvisionedTask().taskView.diffView;
+  const viewMode = diffView.viewMode;
 
   useEffect(() => {
     diffEditorPool.init().catch((err: unknown) => console.warn('[monaco-pool] init failed:', err));
