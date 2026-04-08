@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import type { ProviderId } from '@shared/providers/registry';
 import { isValidProviderId } from '@shared/providers/registry';
-import { isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
+import { isValidOpenInAppId, type CustomOpenInApp } from '@shared/openInApps';
 import {
   isNotificationSoundProfile,
   type NotificationSoundProfile,
@@ -126,8 +126,9 @@ export interface AppSettings {
     autoCopyOnSelection: boolean;
     macOptionIsMeta: boolean;
   };
-  defaultOpenInApp?: OpenInAppId;
-  hiddenOpenInApps?: OpenInAppId[];
+  defaultOpenInApp?: string;
+  hiddenOpenInApps?: string[];
+  customOpenInApps?: CustomOpenInApp[];
   changelog?: {
     dismissedVersions: string[];
   };
@@ -215,6 +216,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
+  customOpenInApps: [],
   changelog: {
     dismissedVersions: [],
   },
@@ -600,16 +602,68 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   }
   out.terminal = { fontFamily, fontSize, autoCopyOnSelection, macOptionIsMeta };
 
-  // Default Open In App
-  const defaultOpenInApp = (input as any)?.defaultOpenInApp;
-  out.defaultOpenInApp = isValidOpenInAppId(defaultOpenInApp)
-    ? defaultOpenInApp
-    : DEFAULT_SETTINGS.defaultOpenInApp!;
+  // Custom Open In Apps (deduplicate by id, first occurrence wins)
+  const rawCustom = (input as any)?.customOpenInApps;
+  if (Array.isArray(rawCustom)) {
+    const seenIds = new Set<string>();
+    out.customOpenInApps = rawCustom
+      .filter(
+        (c: unknown): c is CustomOpenInApp =>
+          c !== null &&
+          typeof c === 'object' &&
+          typeof (c as any).id === 'string' &&
+          (c as any).id.trim() !== '' &&
+          typeof (c as any).label === 'string' &&
+          (c as any).label.trim() !== '' &&
+          typeof (c as any).openCommand === 'string' &&
+          (c as any).openCommand.trim() !== ''
+      )
+      .map((c) => {
+        const entry: CustomOpenInApp = {
+          id: c.id.trim(),
+          label: c.label.trim(),
+          openCommand: c.openCommand.trim(),
+        };
+        // checkCommand is interpolated into `command -v ${cmd}`, so restrict to safe basenames
+        if (typeof c.checkCommand === 'string') {
+          const cmd = c.checkCommand.trim();
+          if (cmd && /^[a-zA-Z0-9_\-]+$/.test(cmd)) {
+            entry.checkCommand = cmd;
+          }
+        }
+        if (typeof c.iconPath === 'string' && c.iconPath.trim()) {
+          entry.iconPath = c.iconPath.trim();
+        }
+        return entry;
+      })
+      .filter((c) => {
+        if (seenIds.has(c.id)) return false;
+        seenIds.add(c.id);
+        return true;
+      });
+  } else {
+    out.customOpenInApps = [];
+  }
+  const customIds = new Set((out.customOpenInApps ?? []).map((c) => c.id));
 
-  // Hidden Open In Apps
+  // Default Open In App (accept both built-in and custom IDs)
+  const rawDefaultOpenInApp =
+    typeof (input as any)?.defaultOpenInApp === 'string'
+      ? ((input as any).defaultOpenInApp as string).trim()
+      : '';
+  out.defaultOpenInApp =
+    rawDefaultOpenInApp &&
+    (isValidOpenInAppId(rawDefaultOpenInApp) || customIds.has(rawDefaultOpenInApp))
+      ? rawDefaultOpenInApp
+      : DEFAULT_SETTINGS.defaultOpenInApp!;
+
+  // Hidden Open In Apps (accept both built-in and custom IDs)
   const rawHidden = (input as any)?.hiddenOpenInApps;
   if (Array.isArray(rawHidden)) {
-    const validated = rawHidden.filter(isValidOpenInAppId);
+    const validated = rawHidden
+      .filter((v: unknown): v is string => typeof v === 'string')
+      .map((v) => v.trim())
+      .filter((v) => v !== '' && (isValidOpenInAppId(v) || customIds.has(v)));
     out.hiddenOpenInApps = [...new Set(validated)];
   } else {
     out.hiddenOpenInApps = [];

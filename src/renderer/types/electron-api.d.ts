@@ -643,12 +643,14 @@ declare global {
       clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
       paste: () => Promise<{ success: boolean; error?: string }>;
       openIn: (args: {
-        app: OpenInAppId;
+        app: string;
         path: string;
         isRemote?: boolean;
         sshConnectionId?: string | null;
       }) => Promise<{ success: boolean; error?: string }>;
-      checkInstalledApps: () => Promise<Record<OpenInAppId, boolean>>;
+      checkInstalledApps: () => Promise<Record<string, boolean>>;
+      getResolvedOpenInApps: () => Promise<ResolvedOpenInApp[]>;
+      getCustomToolIcon: (iconPath: string) => Promise<string>;
       connectToGitHub: (projectPath: string) => Promise<{
         success: boolean;
         repository?: string;
@@ -1457,8 +1459,12 @@ declare global {
   }
 }
 
-// Explicit type export for better TypeScript recognition
-export interface ElectronAPI {
+// Re-export the Window.electronAPI shape so consumers can import the type directly.
+// Previously a hand-maintained duplicate that drifted out of sync.
+export type ElectronAPI = Window['electronAPI'];
+
+/* eslint-disable @typescript-eslint/no-unused-vars -- kept for reference, replaced by the alias above */
+interface _DeprecatedElectronAPI {
   // Menu events (main → renderer)
   onMenuOpenSettings: (listener: () => void) => () => void;
   onMenuCheckForUpdates: (listener: () => void) => () => void;
@@ -2253,4 +2259,4 @@ export interface ElectronAPI {
   onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => () => void;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
-import type { OpenInAppId } from '#shared/openInApps';
+import type { OpenInAppId, ResolvedOpenInApp } from '#shared/openInApps';

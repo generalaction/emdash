@@ -1,17 +1,11 @@
 import { app, BrowserWindow, clipboard, ipcMain, shell } from 'electron';
 import { exec, execFile } from 'child_process';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { readFile, stat } from 'fs/promises';
+import { extname, isAbsolute, join, normalize } from 'path';
 import { ensureProjectPrepared } from '../services/ProjectPrep';
 import { getAppSettings } from '../settings';
-import {
-  getAppById,
-  getResolvedLabel,
-  isOpenInAppSupportedForWorkspace,
-  OPEN_IN_APPS,
-  type OpenInAppId,
-  type PlatformKey,
-} from '@shared/openInApps';
+import { type PlatformKey } from '@shared/openInApps';
+import { getMergedApps, getResolvedAppById } from '../services/openInRegistry';
 import { databaseService } from '../services/DatabaseService';
 import { buildExternalToolEnv } from '../utils/childProcessEnv';
 import {
@@ -272,7 +266,7 @@ export function registerAppIpc() {
     async (
       _event,
       args: {
-        app: OpenInAppId;
+        app: string;
         path: string;
         isRemote?: boolean;
         sshConnectionId?: string | null;
@@ -288,18 +282,21 @@ export function registerAppIpc() {
       }
       try {
         const platform = process.platform as PlatformKey;
-        const appConfig = getAppById(appId);
-        if (!appConfig) {
+        const resolvedApp = getResolvedAppById(appId, platform);
+        if (!resolvedApp) {
           return { success: false, error: 'Invalid app ID' };
         }
 
-        const platformConfig = appConfig.platforms?.[platform];
-        const label = getResolvedLabel(appConfig, platform);
-        if (!platformConfig && !appConfig.alwaysAvailable) {
+        const label = resolvedApp.label;
+        if (
+          resolvedApp.openCommands.length === 0 &&
+          resolvedApp.openUrls.length === 0 &&
+          !resolvedApp.alwaysAvailable
+        ) {
           return { success: false, error: `${label} is not available on this platform.` };
         }
 
-        if (!isOpenInAppSupportedForWorkspace(appConfig, isRemote)) {
+        if (isRemote && !resolvedApp.supportsRemote) {
           return {
             success: false,
             error: `${label} is not available for remote SSH workspaces.`,
@@ -438,7 +435,7 @@ export function registerAppIpc() {
 
               if (lastError instanceof Error) throw lastError;
               throw new Error('Unable to launch Ghostty');
-            } else if (appConfig.supportsRemote) {
+            } else if (resolvedApp.supportsRemote) {
               // App claims to support remote but we don't have a handler
               return {
                 success: false,
@@ -456,8 +453,8 @@ export function registerAppIpc() {
         const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
 
         // Handle URL-based apps (like Warp)
-        if (platformConfig?.openUrls) {
-          for (const urlTemplate of platformConfig.openUrls) {
+        if (resolvedApp.openUrls.length > 0) {
+          for (const urlTemplate of resolvedApp.openUrls) {
             const url = urlTemplate
               .replace('{{path_url}}', encodeURIComponent(target))
               .replace('{{path}}', target);
@@ -475,7 +472,7 @@ export function registerAppIpc() {
         }
 
         // Handle command-based apps
-        const commands = platformConfig?.openCommands || [];
+        const commands = resolvedApp.openCommands;
         let command = '';
 
         if (commands.length > 0) {
@@ -491,7 +488,7 @@ export function registerAppIpc() {
           return { success: false, error: 'Unsupported platform or app' };
         }
 
-        if (appConfig.autoInstall) {
+        if (resolvedApp.autoInstall) {
           try {
             const settings = getAppSettings();
             if (settings?.projectPrep?.autoInstallOnOpenInEditor) {
@@ -508,11 +505,7 @@ export function registerAppIpc() {
         });
         return { success: true };
       } catch (error) {
-        const appConfig = getAppById(appId);
-        const catchLabel = appConfig
-          ? getResolvedLabel(appConfig, process.platform as PlatformKey)
-          : appId;
-        return { success: false, error: `Unable to open in ${catchLabel}` };
+        return { success: false, error: `Unable to open in ${appId}` };
       }
     }
   );
@@ -556,17 +549,22 @@ export function registerAppIpc() {
       });
     };
 
-    for (const app of OPEN_IN_APPS) {
-      // Skip apps that don't have platform-specific config
-      const platformConfig = app.platforms[platform];
-      if (!platformConfig && !app.alwaysAvailable) {
-        availability[app.id] = false;
+    const allApps = getMergedApps(platform);
+
+    for (const resolvedApp of allApps) {
+      // Always available apps are set to true by default
+      if (resolvedApp.alwaysAvailable) {
+        availability[resolvedApp.id] = true;
         continue;
       }
 
-      // Always available apps are set to true by default
-      if (app.alwaysAvailable) {
-        availability[app.id] = true;
+      // Apps with no detection methods and not always available
+      if (
+        resolvedApp.checkCommands.length === 0 &&
+        resolvedApp.bundleIds.length === 0 &&
+        resolvedApp.appNames.length === 0
+      ) {
+        availability[resolvedApp.id] = false;
         continue;
       }
 
@@ -574,18 +572,16 @@ export function registerAppIpc() {
         let isAvailable = false;
 
         // Check via bundle IDs (macOS)
-        if (platformConfig?.bundleIds) {
-          for (const bundleId of platformConfig.bundleIds) {
-            if (await checkMacApp(bundleId)) {
-              isAvailable = true;
-              break;
-            }
+        for (const bundleId of resolvedApp.bundleIds) {
+          if (await checkMacApp(bundleId)) {
+            isAvailable = true;
+            break;
           }
         }
 
         // Check via app names (macOS)
-        if (!isAvailable && platformConfig?.appNames) {
-          for (const appName of platformConfig.appNames) {
+        if (!isAvailable) {
+          for (const appName of resolvedApp.appNames) {
             if (await checkMacAppByName(appName)) {
               isAvailable = true;
               break;
@@ -594,8 +590,8 @@ export function registerAppIpc() {
         }
 
         // Check via CLI commands (all platforms)
-        if (!isAvailable && platformConfig?.checkCommands) {
-          for (const cmd of platformConfig.checkCommands) {
+        if (!isAvailable) {
+          for (const cmd of resolvedApp.checkCommands) {
             if (await checkCommand(cmd)) {
               isAvailable = true;
               break;
@@ -603,14 +599,64 @@ export function registerAppIpc() {
           }
         }
 
-        availability[app.id] = isAvailable;
+        availability[resolvedApp.id] = isAvailable;
       } catch (error) {
-        console.error(`Error checking installed app ${app.id}:`, error);
-        availability[app.id] = false;
+        console.error(`Error checking installed app ${resolvedApp.id}:`, error);
+        availability[resolvedApp.id] = false;
       }
     }
 
     return availability;
+  });
+
+  ipcMain.handle('app:getResolvedOpenInApps', async () => {
+    const platform = process.platform as PlatformKey;
+    return getMergedApps(platform);
+  });
+
+  const ALLOWED_ICON_EXTENSIONS = new Set([
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.svg',
+    '.webp',
+    '.gif',
+    '.ico',
+  ]);
+  const MAX_ICON_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
+
+  ipcMain.handle('app:getCustomToolIcon', async (_event, iconPath: string) => {
+    try {
+      if (typeof iconPath !== 'string' || !isAbsolute(iconPath)) return '';
+      const normalizedInput = normalize(iconPath);
+      // Only allow paths that are actually configured in customOpenInApps
+      const settings = getAppSettings();
+      const allowedPaths = new Set(
+        (settings.customOpenInApps ?? [])
+          .map((c) => c.iconPath)
+          .filter(Boolean)
+          .map((p) => normalize(p!))
+      );
+      if (!allowedPaths.has(normalizedInput)) return '';
+      const ext = extname(normalizedInput).toLowerCase();
+      if (!ALLOWED_ICON_EXTENSIONS.has(ext)) return '';
+      const info = await stat(normalizedInput);
+      if (!info.isFile() || info.size > MAX_ICON_SIZE_BYTES) return '';
+      const data = await readFile(normalizedInput);
+      const mimeMap: Record<string, string> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.svg': 'image/svg+xml',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif',
+        '.ico': 'image/x-icon',
+      };
+      const mime = mimeMap[ext] || 'application/octet-stream';
+      return `data:${mime};base64,${data.toString('base64')}`;
+    } catch {
+      return '';
+    }
   });
 
   ipcMain.handle('app:listInstalledFonts', async (_event, args?: { refresh?: boolean }) => {

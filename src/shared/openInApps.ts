@@ -10,7 +10,7 @@ export type PlatformConfig = {
   iconPath?: string;
 };
 
-type OpenInAppConfigShape = {
+export type OpenInAppConfigShape = {
   id: string;
   label: string;
   iconPath: (typeof ICON_PATHS)[keyof typeof ICON_PATHS];
@@ -488,4 +488,57 @@ export function getResolvedLabel(app: OpenInAppConfigShape, platform: PlatformKe
 
 export function getResolvedIconPath(app: OpenInAppConfigShape, platform: PlatformKey): string {
   return app.platforms[platform]?.iconPath || app.iconPath;
+}
+
+/** Shape of a user-defined tool entry in settings.json. */
+export interface CustomOpenInApp {
+  id: string;
+  label: string;
+  openCommand: string;
+  checkCommand?: string;
+  iconPath?: string;
+}
+
+/** Flattened, single-platform representation used as wire format between main and renderer. */
+export type ResolvedOpenInApp = {
+  id: string;
+  label: string;
+  iconPath: string;
+  iconIsCustomPath: boolean;
+  openCommands: string[];
+  openUrls: string[];
+  checkCommands: string[];
+  bundleIds: string[];
+  appNames: string[];
+  alwaysAvailable: boolean;
+  hideIfUnavailable: boolean;
+  autoInstall: boolean;
+  supportsRemote: boolean;
+  invertInDark: boolean;
+  isCustom: boolean;
+};
+
+/** Resolve a built-in app config to the flattened single-platform shape. */
+export function resolveAppForPlatform(
+  app: OpenInAppConfigShape,
+  platform: PlatformKey
+): ResolvedOpenInApp {
+  const pc = app.platforms[platform];
+  return {
+    id: app.id,
+    label: pc?.label || app.label,
+    iconPath: pc?.iconPath || app.iconPath,
+    iconIsCustomPath: false,
+    openCommands: pc?.openCommands ?? [],
+    openUrls: pc?.openUrls ?? [],
+    checkCommands: pc?.checkCommands ?? [],
+    bundleIds: pc?.bundleIds ?? [],
+    appNames: pc?.appNames ?? [],
+    alwaysAvailable: app.alwaysAvailable ?? false,
+    hideIfUnavailable: app.hideIfUnavailable ?? false,
+    autoInstall: app.autoInstall ?? false,
+    supportsRemote: app.supportsRemote ?? false,
+    invertInDark: app.invertInDark ?? false,
+    isCustom: false,
+  };
 }

@@ -4,7 +4,6 @@ import { ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
-import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useOpenInApps } from '../../hooks/useOpenInApps';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 
@@ -33,8 +32,8 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   const { icons, labels, installedApps, availability, loading } = useOpenInApps({ isRemote });
   const { settings, updateSettings } = useAppSettings();
 
-  const defaultApp: OpenInAppId | null =
-    settings?.defaultOpenInApp && isValidOpenInAppId(settings.defaultOpenInApp)
+  const defaultApp: string | null =
+    settings?.defaultOpenInApp && typeof settings.defaultOpenInApp === 'string'
       ? settings.defaultOpenInApp
       : null;
 
@@ -48,7 +47,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   }, [open]);
 
   const persistPreferredApp = React.useCallback(
-    (appId: OpenInAppId) => {
+    (appId: string) => {
       updateSettings({ defaultOpenInApp: appId });
       window.dispatchEvent(new CustomEvent('defaultOpenInAppChanged', { detail: appId }));
     },
@@ -56,7 +55,7 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
   );
 
   const callOpen = React.useCallback(
-    async (appId: OpenInAppId) => {
+    async (appId: string) => {
       const label = labels[appId] || appId;
 
       void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -147,7 +146,9 @@ const OpenInMenu: React.FC<OpenInMenuProps> = ({
                     src={icons[buttonAppId]}
                     alt={labels[buttonAppId] || buttonAppId}
                     className={`h-4 w-4 rounded ${
-                      getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
+                      installedApps.find((a) => a.id === buttonAppId)?.invertInDark
+                        ? 'dark:invert'
+                        : ''
                     }`}
                   />
                 )}

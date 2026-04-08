@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
-import type { OpenInAppId } from '../shared/openInApps';
 import type { AgentEvent } from '../shared/agentEvents';
 import type { McpServer } from '../shared/mcp/types';
 import type { DiffPayload } from '../shared/diff/types';
@@ -94,7 +93,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Open a path in a specific app
   openIn: (args: {
-    app: OpenInAppId;
+    app: string;
     path: string;
     isRemote?: boolean;
     sshConnectionId?: string | null;
@@ -102,7 +101,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Check which apps are installed
   checkInstalledApps: () =>
-    ipcRenderer.invoke('app:checkInstalledApps') as Promise<Record<OpenInAppId, boolean>>,
+    ipcRenderer.invoke('app:checkInstalledApps') as Promise<Record<string, boolean>>,
+
+  // Get the merged list of built-in + custom open-in apps (resolved for current platform)
+  getResolvedOpenInApps: () => ipcRenderer.invoke('app:getResolvedOpenInApps'),
+
+  // Read a custom tool icon from disk and return a data: URI (or '' on failure)
+  getCustomToolIcon: (iconPath: string) => ipcRenderer.invoke('app:getCustomToolIcon', iconPath),
 
   // PTY management
   ptyStart: (opts: {
