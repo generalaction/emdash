@@ -1,14 +1,14 @@
 import { source } from '@/lib/source';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
 import type { ReactNode } from 'react';
-import type { PageTree } from 'fumadocs-core/server';
+import type { Node } from 'fumadocs-core/page-tree';
 import { baseOptions } from '@/lib/layout.shared';
 
-const betaPages = new Set(['automations']);
+const betaPages = new Set(['/automations']);
 
-function addBetaBadges(nodes: PageTree.Node[]): PageTree.Node[] {
+function addBetaBadges(nodes: Node[]): Node[] {
   return nodes.map((node) => {
-    if (node.type === 'page' && betaPages.has(node.slug)) {
+    if (node.type === 'page' && betaPages.has(node.url)) {
       return {
         ...node,
         name: (
