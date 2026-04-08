@@ -283,3 +283,20 @@ describe('normalizeSettings – terminal settings', () => {
     expect(result.terminal?.macOptionIsMeta).toBe(true);
   });
 });
+
+describe('normalizeSettings – expandCommitDetail', () => {
+  it('defaults expandCommitDetail to false when not set', () => {
+    const result = normalizeSettings(makeSettings());
+    expect(result.interface?.expandCommitDetail).toBe(false);
+  });
+
+  it('preserves expandCommitDetail: true', () => {
+    const result = normalizeSettings(makeSettings({ interface: { expandCommitDetail: true } }));
+    expect(result.interface?.expandCommitDetail).toBe(true);
+  });
+
+  it('preserves expandCommitDetail: false', () => {
+    const result = normalizeSettings(makeSettings({ interface: { expandCommitDetail: false } }));
+    expect(result.interface?.expandCommitDetail).toBe(false);
+  });
+});

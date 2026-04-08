@@ -70,6 +70,7 @@ export interface InterfaceSettings {
   showResourceMonitor?: boolean;
   theme?: 'light' | 'dark' | 'dark-black' | 'system';
   taskHoverAction?: 'delete' | 'archive';
+  expandCommitDetail?: boolean;
 }
 
 /**
@@ -205,6 +206,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     showResourceMonitor: false,
     theme: 'system',
     taskHoverAction: 'delete',
+    expandCommitDetail: false,
   },
   providerConfigs: {},
   terminal: {
@@ -549,6 +551,9 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       ? iface.theme
       : DEFAULT_SETTINGS.interface!.theme,
     taskHoverAction: iface?.taskHoverAction === 'archive' ? 'archive' : 'delete',
+    expandCommitDetail: Boolean(
+      iface?.expandCommitDetail ?? DEFAULT_SETTINGS.interface!.expandCommitDetail
+    ),
   };
 
   // Provider custom configs
