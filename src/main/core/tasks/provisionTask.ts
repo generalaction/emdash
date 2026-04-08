@@ -18,7 +18,8 @@ export async function provisionTask(taskId: string) {
 
   if (existingTask)
     return {
-      path: existingTask.taskPath,
+      path: existingTask.workspace.path,
+      workspaceId: existingTask.workspace.id,
     };
 
   const [existingTerminals, existingConversations] = await Promise.all([
@@ -43,6 +44,7 @@ export async function provisionTask(taskId: string) {
     .where(eq(tasks.id, taskId));
 
   return {
-    path: result.data.taskPath,
+    path: result.data.workspace.path,
+    workspaceId: result.data.workspace.id,
   };
 }

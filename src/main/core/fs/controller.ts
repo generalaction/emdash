@@ -11,13 +11,15 @@ import {
   type SearchOptions,
 } from './types';
 
-// One watcher per (projectId, taskId) pair, shared across all consumers via labels.
+// One watcher per (projectId, workspaceId) pair, shared across all consumers via labels.
 // Local: single recursive @parcel/watcher subscription — update() is a no-op.
 // SSH:   poll-based — update() receives the union of all labels' paths to poll.
 const watcherRegistry = new Map<string, FileWatcher>();
-// Per-label path groups, keyed by `${projectId}::${taskId}` → label → paths.
+// Per-label path groups, keyed by `${projectId}::${workspaceId}` → namespaced label → paths.
 // Paths are forwarded to update() for SSH compatibility; local ignores them.
 const watcherLabeledPaths = new Map<string, Map<string, string[]>>();
+// Task-to-workspace watcher lookup so watchStop can resolve the active watcher key.
+const taskWatcherKeys = new Map<string, string>();
 
 export const filesController = createRPCController({
   listFiles: async (projectId: string, taskId: string, dirPath: string, options?: ListOptions) => {
@@ -26,7 +28,7 @@ export const filesController = createRPCController({
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
     try {
-      const result = await env.fs.list(dirPath, options);
+      const result = await env.workspace.fs.list(dirPath, options);
       return ok(result);
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
@@ -39,7 +41,7 @@ export const filesController = createRPCController({
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
     try {
-      const result = await env.fs.read(filePath, maxBytes);
+      const result = await env.workspace.fs.read(filePath, maxBytes);
       return ok(result);
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
@@ -52,7 +54,7 @@ export const filesController = createRPCController({
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
     try {
-      const result = await env.fs.write(filePath, content);
+      const result = await env.workspace.fs.write(filePath, content);
       return ok(result);
     } catch (e) {
       if (
@@ -75,7 +77,7 @@ export const filesController = createRPCController({
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
-    if (!env.fs.remove) {
+    if (!env.workspace.fs.remove) {
       return err({
         type: 'fs_error' as const,
         message: 'remove not supported by this filesystem',
@@ -83,7 +85,7 @@ export const filesController = createRPCController({
     }
 
     try {
-      const result = await env.fs.remove(filePath);
+      const result = await env.workspace.fs.remove(filePath);
       return ok(result);
     } catch (e) {
       if (
@@ -106,7 +108,7 @@ export const filesController = createRPCController({
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
-    if (!env.fs.readImage) {
+    if (!env.workspace.fs.readImage) {
       return err({
         type: 'fs_error' as const,
         message: 'readImage not supported by this filesystem',
@@ -114,7 +116,7 @@ export const filesController = createRPCController({
     }
 
     try {
-      const result = await env.fs.readImage(filePath);
+      const result = await env.workspace.fs.readImage(filePath);
       return ok(result);
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
@@ -132,7 +134,7 @@ export const filesController = createRPCController({
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
     try {
-      const result = await env.fs.search(query, options);
+      const result = await env.workspace.fs.search(query, options);
       return ok(result);
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
@@ -145,7 +147,7 @@ export const filesController = createRPCController({
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
     try {
-      const entry = await env.fs.stat(filePath);
+      const entry = await env.workspace.fs.stat(filePath);
       return ok({ entry });
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
@@ -158,7 +160,7 @@ export const filesController = createRPCController({
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
     try {
-      const exists = await env.fs.exists(filePath);
+      const exists = await env.workspace.fs.exists(filePath);
       return ok({ exists });
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
@@ -170,7 +172,7 @@ export const filesController = createRPCController({
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
-    if (!env.fs.getProjectConfig) {
+    if (!env.workspace.fs.getProjectConfig) {
       return err({
         type: 'fs_error' as const,
         message: 'getProjectConfig not supported by this filesystem',
@@ -178,7 +180,7 @@ export const filesController = createRPCController({
     }
 
     try {
-      const result = await env.fs.getProjectConfig();
+      const result = await env.workspace.fs.getProjectConfig();
       return ok(result);
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
@@ -190,7 +192,7 @@ export const filesController = createRPCController({
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
-    if (!env.fs.saveProjectConfig) {
+    if (!env.workspace.fs.saveProjectConfig) {
       return err({
         type: 'fs_error' as const,
         message: 'saveProjectConfig not supported by this filesystem',
@@ -198,7 +200,7 @@ export const filesController = createRPCController({
     }
 
     try {
-      const result = await env.fs.saveProjectConfig(content);
+      const result = await env.workspace.fs.saveProjectConfig(content);
       return ok(result);
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
@@ -210,7 +212,7 @@ export const filesController = createRPCController({
     if (!env)
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
 
-    if (!env.fs.saveAttachment) {
+    if (!env.workspace.fs.saveAttachment) {
       return err({
         type: 'fs_error' as const,
         message: 'saveAttachment not supported by this filesystem',
@@ -218,7 +220,7 @@ export const filesController = createRPCController({
     }
 
     try {
-      const result = await env.fs.saveAttachment(srcPath, subdir);
+      const result = await env.workspace.fs.saveAttachment(srcPath, subdir);
       return ok(result);
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
@@ -231,13 +233,17 @@ export const filesController = createRPCController({
       return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
     }
 
-    if (!env.fs.watch) {
+    if (!env.workspace.fs.watch) {
       return ok({ supported: false as const });
     }
 
-    const key = `${projectId}::${taskId}`;
+    const workspaceId = env.workspace.id;
+    const key = `${projectId}::${workspaceId}`;
+    const namespacedLabel = `${taskId}::${label}`;
+    taskWatcherKeys.set(`${projectId}::${taskId}`, key);
+
     const groups = watcherLabeledPaths.get(key) ?? new Map<string, string[]>();
-    groups.set(label, paths);
+    groups.set(namespacedLabel, paths);
     watcherLabeledPaths.set(key, groups);
     const union = [...new Set([...groups.values()].flat())];
 
@@ -247,8 +253,8 @@ export const filesController = createRPCController({
       // For local: update() is a no-op since the recursive watcher covers everything.
       existing.update(union);
     } else {
-      const watcher = env.fs.watch((evts) => {
-        events.emit(fsWatchEventChannel, { projectId, taskId, events: evts }, taskId);
+      const watcher = env.workspace.fs.watch((evts) => {
+        events.emit(fsWatchEventChannel, { projectId, workspaceId, events: evts }, workspaceId);
       });
       watcher.update(union);
       watcherRegistry.set(key, watcher);
@@ -257,13 +263,30 @@ export const filesController = createRPCController({
   },
 
   watchStop: async (projectId: string, taskId: string, label = 'default') => {
-    const key = `${projectId}::${taskId}`;
+    const taskKey = `${projectId}::${taskId}`;
+    const key = taskWatcherKeys.get(taskKey);
+    if (!key) return ok({});
+
+    const namespacedLabel = `${taskId}::${label}`;
     const groups = watcherLabeledPaths.get(key);
-    groups?.delete(label);
+    groups?.delete(namespacedLabel);
+
+    const stillHasTaskLabels =
+      groups &&
+      Array.from(groups.keys()).some((currentLabel) => currentLabel.startsWith(`${taskId}::`));
+    if (!stillHasTaskLabels) {
+      taskWatcherKeys.delete(taskKey);
+    }
+
     if (!groups?.size) {
       watcherLabeledPaths.delete(key);
       watcherRegistry.get(key)?.close();
       watcherRegistry.delete(key);
+      for (const [taskMapKey, watcherKey] of taskWatcherKeys) {
+        if (watcherKey === key) {
+          taskWatcherKeys.delete(taskMapKey);
+        }
+      }
     } else {
       const union = [...new Set([...groups.values()].flat())];
       watcherRegistry.get(key)?.update(union);

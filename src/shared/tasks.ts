@@ -79,6 +79,11 @@ export type CreateTaskError =
   | { type: 'pr-fetch-failed'; message: string }
   | { type: 'provision-failed'; message: string };
 
+export type ProvisionTaskResult = {
+  path: string;
+  workspaceId: string;
+};
+
 export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {
   const parts = [`[${issue.identifier}] ${issue.title}`, issue.url, issue.description].filter(
     Boolean

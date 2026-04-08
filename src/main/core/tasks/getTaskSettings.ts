@@ -14,6 +14,6 @@ export async function getTaskSettings(projectId: string, taskId: string): Promis
 
   return getEffectiveTaskSettings({
     projectSettings: project.settings,
-    taskFs: task.fs,
+    taskFs: task.workspace.fs,
   });
 }

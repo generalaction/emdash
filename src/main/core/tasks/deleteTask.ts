@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
@@ -15,25 +15,32 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
   void viewStateService.del(`task:${taskId}`);
 
   if (project) {
-    project.teardownTask(taskId).catch((e) => {
-      log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
-    });
+    const teardownResult = await project.teardownTask(taskId);
+    if (!teardownResult.success) {
+      log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
+      return;
+    }
 
     if (task.taskBranch) {
-      await project.removeTaskWorktree(task.taskBranch).catch((e) => {
-        log.warn('deleteTask: worktree removal failed', { taskId, error: String(e) });
-      });
-      if (task.taskBranch !== task.sourceBranch) {
-        project.git
-          .deleteBranch(task.taskBranch)
-          .then((result) => {
-            if (!result.success) {
-              log.warn('deleteTask: branch deletion failed', { taskId, error: result.error });
-            }
-          })
-          .catch((e) => {
+      const siblings = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.projectId, task.projectId), eq(tasks.taskBranch, task.taskBranch)))
+        .limit(1);
+
+      if (siblings.length === 0) {
+        await project.removeTaskWorktree(task.taskBranch).catch((e) => {
+          log.warn('deleteTask: worktree removal failed', { taskId, error: String(e) });
+        });
+        if (task.taskBranch !== task.sourceBranch) {
+          const branchDelete = await project.git.deleteBranch(task.taskBranch).catch((e) => {
             log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
+            return null;
           });
+          if (branchDelete && !branchDelete.success) {
+            log.warn('deleteTask: branch deletion failed', { taskId, error: branchDelete.error });
+          }
+        }
       }
     }
   }
