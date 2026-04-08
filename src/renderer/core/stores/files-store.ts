@@ -35,7 +35,8 @@ export class FilesStore {
 
   constructor(
     private readonly projectId: string,
-    private readonly taskId: string
+    private readonly taskId: string,
+    private readonly workspaceId: string
   ) {
     this.tree = new Resource<FilesData, FileWatchEvent[]>(
       () => this._fetchAll(),
@@ -44,7 +45,11 @@ export class FilesStore {
           kind: 'event',
           subscribe: (handler) => {
             rpc.fs.watchSetPaths(projectId, taskId, [''], 'filetree').catch(() => {});
-            const unsub = events.on(fsWatchEventChannel, (data) => handler(data.events), taskId);
+            const unsub = events.on(
+              fsWatchEventChannel,
+              (data) => handler(data.events),
+              workspaceId
+            );
             return () => {
               unsub();
               rpc.fs.watchStop(projectId, taskId, 'filetree').catch(() => {});

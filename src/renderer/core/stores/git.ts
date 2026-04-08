@@ -33,7 +33,8 @@ export class GitStore {
 
   constructor(
     private readonly projectId: string,
-    private readonly taskId: string
+    private readonly taskId: string,
+    private readonly workspaceId: string
   ) {
     this.status = new Resource<GitStatusData>(
       () => this._fetchStatus(),
@@ -42,7 +43,7 @@ export class GitStore {
           kind: 'event',
           subscribe: (handler) => {
             rpc.fs.watchSetPaths(projectId, taskId, ['.git'], 'git-store').catch(() => {});
-            const unsub = events.on(fsWatchEventChannel, () => handler(), taskId);
+            const unsub = events.on(fsWatchEventChannel, () => handler(), workspaceId);
             return () => {
               unsub();
               rpc.fs.watchStop(projectId, taskId, 'git-store').catch(() => {});

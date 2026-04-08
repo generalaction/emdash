@@ -40,6 +40,7 @@ export class ProvisionedTask {
 
   data: Task;
   readonly path: string;
+  readonly workspaceId: string;
   view: MainPanelView;
   rightPanelView: RightPanelView;
   focusedRegion: 'main' | 'right';
@@ -58,16 +59,17 @@ export class ProvisionedTask {
     };
   }
 
-  constructor(data: Task, path: string, savedSnapshot?: TaskViewSnapshot) {
+  constructor(data: Task, path: string, workspaceId: string, savedSnapshot?: TaskViewSnapshot) {
     this.data = data;
     this.path = path;
+    this.workspaceId = workspaceId;
 
-    this.workspace = new WorkspaceStore(data.projectId, data.id);
+    this.workspace = new WorkspaceStore(data.projectId, data.id, workspaceId);
     this.diffView = new DiffViewStore(this.workspace.git, this.workspace.pr);
-    this.devServers = new DevServerStore(data.id);
+    this.devServers = new DevServerStore(data.id, workspaceId);
     this.conversations = new ConversationManagerStore(data.projectId, data.id);
     this.terminals = new TerminalManagerStore(data.projectId, data.id);
-    this.editorView = new EditorViewStore(data.projectId, data.id);
+    this.editorView = new EditorViewStore(data.projectId, data.id, workspaceId);
 
     // Apply saved snapshot before registering the reaction so the initial
     // state doesn't trigger a spurious write.
@@ -183,8 +185,13 @@ export class TaskStore {
     makeAutoObservable(this, { provisionedTask: observable.ref });
   }
 
-  transitionToProvisioned(data: Task, path: string, savedSnapshot?: TaskViewSnapshot): void {
-    this.provisionedTask = new ProvisionedTask(data, path, savedSnapshot);
+  transitionToProvisioned(
+    data: Task,
+    path: string,
+    workspaceId: string,
+    savedSnapshot?: TaskViewSnapshot
+  ): void {
+    this.provisionedTask = new ProvisionedTask(data, path, workspaceId, savedSnapshot);
     this.data = data;
     this.state = 'provisioned';
     this.phase = null;

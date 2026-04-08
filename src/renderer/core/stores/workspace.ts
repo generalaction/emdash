@@ -9,10 +9,10 @@ export class WorkspaceStore {
   lifecycleScripts: LifecycleScriptsStore;
   pr: PrStore;
 
-  constructor(projectId: string, taskId: string) {
-    this.git = new GitStore(projectId, taskId);
-    this.files = new FilesStore(projectId, taskId);
-    this.lifecycleScripts = new LifecycleScriptsStore(projectId, taskId);
+  constructor(projectId: string, taskId: string, workspaceId: string) {
+    this.git = new GitStore(projectId, taskId, workspaceId);
+    this.files = new FilesStore(projectId, taskId, workspaceId);
+    this.lifecycleScripts = new LifecycleScriptsStore(projectId, taskId, workspaceId);
     this.pr = new PrStore(projectId, taskId, this.git);
   }
 }

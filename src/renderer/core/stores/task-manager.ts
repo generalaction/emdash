@@ -123,6 +123,7 @@ export class TaskManagerStore {
             current.transitionToProvisioned(
               { ...current.data },
               result.path,
+              result.workspaceId,
               savedSnapshot as TaskViewSnapshot | undefined
             );
             current.activate();

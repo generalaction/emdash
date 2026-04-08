@@ -25,9 +25,9 @@ export class LifecycleScriptStore {
   data: LifecycleScriptData;
   session: PtySession;
 
-  constructor(data: LifecycleScriptData, projectId: string, taskId: string) {
+  constructor(data: LifecycleScriptData, projectId: string, workspaceId: string) {
     this.data = data;
-    this.session = new PtySession(makePtySessionId(projectId, taskId, data.id));
+    this.session = new PtySession(makePtySessionId(projectId, workspaceId, data.id));
     makeObservable(this, { data: observable, session: observable });
   }
 
@@ -39,14 +39,16 @@ export class LifecycleScriptStore {
 export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptStore, never> {
   private readonly projectId: string;
   private readonly taskId: string;
+  private readonly workspaceId: string;
   private _loaded = false;
   scripts = observable.map<string, LifecycleScriptStore>();
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
 
-  constructor(projectId: string, taskId: string) {
+  constructor(projectId: string, taskId: string, workspaceId: string) {
     this.projectId = projectId;
     this.taskId = taskId;
+    this.workspaceId = workspaceId;
     makeObservable(this, {
       scripts: observable,
       tabOrder: observable,
@@ -125,7 +127,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
       entries.map(async (entry) => {
         const id = await createScriptTerminalId({
           projectId: this.projectId,
-          taskId: this.taskId,
+          scopeId: this.workspaceId,
           type: entry.type,
           script: entry.command,
         });
@@ -138,7 +140,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
         const store = new LifecycleScriptStore(
           { id: entry.id, type: entry.type, label: entry.label, command: entry.command },
           this.projectId,
-          this.taskId
+          this.workspaceId
         );
         this.scripts.set(entry.id, store);
         addTabId(this, entry.id);

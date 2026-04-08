@@ -10,7 +10,7 @@ export class DevServerStore {
    */
   readonly servers: Resource<Map<string, string>, HostPreviewEvent>;
 
-  constructor(taskId: string) {
+  constructor(taskId: string, workspaceId: string) {
     this.servers = new Resource<Map<string, string>, HostPreviewEvent>(
       null,
       [
@@ -18,7 +18,9 @@ export class DevServerStore {
           kind: 'event',
           subscribe: (handler) =>
             events.on(hostPreviewEventChannel, (event) => {
-              if (event.taskId === taskId) handler(event);
+              if (event.taskId === taskId || event.taskId === workspaceId) {
+                handler(event);
+              }
             }),
           onEvent: (event, ctx) => {
             const next = new Map(ctx.data ?? []);

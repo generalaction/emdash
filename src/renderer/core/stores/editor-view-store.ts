@@ -31,7 +31,8 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
 
   constructor(
     private readonly projectId: string,
-    private readonly taskId: string
+    private readonly taskId: string,
+    private readonly workspaceId: string
   ) {
     this.modelRootPath = `task:${taskId}`;
     makeAutoObservable(this, { modelRootPath: false });
@@ -294,8 +295,8 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     rpc.fs.watchSetPaths(this.projectId, this.taskId, [''], 'editor').catch(() => {});
     this._unsubscribeFsWatch = events.on(
       fsWatchEventChannel,
-      (data) => void modelRegistry.handleFsEvents(data.taskId, data.events),
-      this.taskId
+      (data) => void modelRegistry.handleFsEvents(this.taskId, data.events),
+      this.workspaceId
     );
   }
 
