@@ -24,6 +24,7 @@ class AppState {
     this.navigation = new NavigationStore();
     this.dependencies = new DependenciesStore();
     snapshotRegistry.register('navigation', () => this.navigation.snapshot);
+    snapshotRegistry.register('sidebar', () => this.sidebar.snapshot);
     this.dependencies.start();
   }
 }

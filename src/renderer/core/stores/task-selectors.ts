@@ -3,6 +3,7 @@ import { isUnmountedProject } from './project';
 import { getProjectManagerStore } from './project-selectors';
 import { isUnprovisioned, isUnregistered, ProvisionedTask, TaskStore } from './task';
 import type { TaskManagerStore } from './task-manager';
+import type { TaskViewStore } from './task-view';
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskManagerStore(projectId: string): TaskManagerStore | undefined {
@@ -13,6 +14,11 @@ export function getTaskManagerStore(projectId: string): TaskManagerStore | undef
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskStore(projectId: string, taskId: string): TaskStore | undefined {
   return getTaskManagerStore(projectId)?.tasks.get(taskId);
+}
+
+/** Call only inside `observer` components (or other MobX reactions). */
+export function getTaskView(projectId: string, taskId: string): TaskViewStore | undefined {
+  return asProvisioned(getTaskStore(projectId, taskId))?.taskView;
 }
 
 export function getTaskGitStore(projectId: string, taskId: string) {

@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { selectAheadCount } from '@renderer/core/stores/diff-selectors';
+import { getTaskView } from '@renderer/core/stores/task-selectors';
 import {
   useRequireProvisionedTask,
   useTaskViewContext,
@@ -28,7 +29,7 @@ export const StagedSection = observer(function StagedSection() {
   const hasPRs = changesView.expandedSections.pullRequests;
 
   const activePath =
-    provisioned.view === 'diff' && diffView.activeFile?.type === 'staged'
+    getTaskView(projectId, taskId)?.view === 'diff' && diffView.activeFile?.type === 'staged'
       ? diffView.activeFile.path
       : undefined;
 
@@ -36,7 +37,7 @@ export const StagedSection = observer(function StagedSection() {
 
   const handleSelectChange = (path: string) => {
     diffView.setActiveFile({ path, type: 'staged', originalRef: 'HEAD' });
-    provisioned.setView('diff');
+    getTaskView(projectId, taskId)?.setView('diff');
   };
 
   const handleUnstageSelection = () => {

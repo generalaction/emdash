@@ -9,35 +9,45 @@ import {
   ContextMenuTrigger,
 } from '@renderer/components/ui/context-menu';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { TaskStore } from '@renderer/core/stores/task';
-import { getTaskManagerStore, taskAgentStatus } from '@renderer/core/stores/task-selectors';
-import { useNavigate } from '@renderer/core/view/navigation-provider';
+import {
+  getTaskManagerStore,
+  getTaskStore,
+  taskAgentStatus,
+} from '@renderer/core/stores/task-selectors';
+import { LifecycleStatusIndicator } from '@renderer/core/tasks/components/lifecycleStatusIndicator';
+import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
 import { SidebarItemMiniButton, SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
-  task: TaskStore;
+  taskId: string;
   projectId: string;
-  isActive: boolean;
 }
 
 export const SidebarTaskItem = observer(function SidebarTaskItem({
-  task,
+  taskId,
   projectId,
-  isActive,
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
   const showConfirm = useShowModal('confirmActionModal');
+
+  const { currentView } = useWorkspaceSlots();
+  const { params } = useParams('task');
+  const isActive =
+    currentView === 'task' && params.taskId === taskId && params.projectId === projectId;
+
+  const task = getTaskStore(projectId, taskId);
+  const taskManager = getTaskManagerStore(projectId);
+
+  if (!task) return null;
 
   const isBootstrapping =
     task.state === 'unregistered' ||
     (task.state === 'unprovisioned' &&
       (task.phase === 'provision' || task.phase === 'provision-error'));
 
-  const taskId = task.data.id;
   const taskName = task.data.name;
-  const taskManager = getTaskManagerStore(projectId);
   const status = taskAgentStatus(task);
 
   const handleProvision = () => {
@@ -64,7 +74,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     <ContextMenu>
       <ContextMenuTrigger>
         <SidebarMenuRow
-          className={cn('group/row flex items-center p-1.5 pl-9')}
+          className={cn('group/row flex items-center px-1 h-8 gap-1 pl-6')}
           isActive={isActive}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
@@ -72,6 +82,17 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
             navigate('task', { projectId, taskId });
           }}
         >
+          <div
+            className="h-6 w-6 flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <LifecycleStatusIndicator
+              lifecycleStatus={task.data.status}
+              onLifecycleStatusChange={(status) => {
+                task.provisionedTask?.updateStatus(status);
+              }}
+            />
+          </div>
           <span
             className={cn(
               'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
@@ -80,25 +101,12 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           >
             {taskName}
           </span>
-          {!isBootstrapping && (
-            <AgentStatusIndicator status={status} className="mr-1" spinnerClassName="h-3.5 w-3.5" />
-          )}
           {isBootstrapping ? (
             <SidebarItemMiniButton type="button" disabled aria-label="Loading">
               <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
             </SidebarItemMiniButton>
           ) : (
-            <SidebarItemMiniButton
-              type="button"
-              className="opacity-0 group-hover/row:opacity-100 transition-opacity duration-150"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleArchive();
-              }}
-              aria-label="Archive task"
-            >
-              <Archive className="h-4 w-4" />
-            </SidebarItemMiniButton>
+            <AgentStatusIndicator status={status} />
           )}
         </SidebarMenuRow>
       </ContextMenuTrigger>

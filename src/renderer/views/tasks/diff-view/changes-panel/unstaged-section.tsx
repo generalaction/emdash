@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { getTaskView } from '@renderer/core/stores/task-selectors';
 import {
   useRequireProvisionedTask,
   useTaskViewContext,
@@ -25,7 +26,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const selectionState = changesView.unstagedSelectionState;
 
   const activePath =
-    provisioned.view === 'diff' && diffView.activeFile?.type === 'disk'
+    getTaskView(projectId, taskId)?.view === 'diff' && diffView.activeFile?.type === 'disk'
       ? diffView.activeFile.path
       : undefined;
 
@@ -35,7 +36,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
 
   const handleSelectChange = (path: string) => {
     diffView.setActiveFile({ path, type: 'disk', originalRef: 'HEAD' });
-    provisioned.setView('diff');
+    getTaskView(projectId, taskId)?.setView('diff');
   };
 
   const handleDiscardSelection = () => {

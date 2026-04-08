@@ -41,3 +41,7 @@ export type NavigationSnapshot = {
   currentViewId: string;
   viewParams: Record<string, unknown>;
 };
+
+export type SidebarSnapshot = {
+  expandedProjectIds: string[];
+};

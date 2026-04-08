@@ -1,13 +1,14 @@
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { FolderPlus, MessageSquareShare, Plug, Puzzle, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React from 'react';
-import ReorderList from '@renderer/components/reorder-list';
+import React, { useEffect, useRef } from 'react';
 import { useGithubContext } from '@renderer/core/github-context-provider';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/core/stores/app-state';
 import {
   isCurrentView,
   useNavigate,
+  useParams,
   useWorkspaceSlots,
 } from '@renderer/core/view/navigation-provider';
 import { MicroLabel } from '../ui/label';
@@ -24,14 +25,101 @@ import {
   SidebarMenuButton,
 } from './sidebar-primitives';
 import { SidebarSpace } from './sidebar-space';
+import { SidebarTaskItem } from './task-item';
+
+const ROW_HEIGHT = 32;
+
+const SidebarVirtualList = observer(function SidebarVirtualList() {
+  const rows = sidebarStore.sidebarRows;
+  const { currentView } = useWorkspaceSlots();
+  const { params: taskParams } = useParams('task');
+  const { params: projectParams } = useParams('project');
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 8,
+  });
+
+  // Scroll to the active item whenever navigation changes.
+  useEffect(() => {
+    let targetProjectId: string | null = null;
+    let targetTaskId: string | null = null;
+
+    if (currentView === 'task') {
+      targetProjectId = taskParams.projectId;
+      targetTaskId = taskParams.taskId;
+    } else if (currentView === 'project') {
+      targetProjectId = projectParams.projectId;
+    }
+
+    if (!targetProjectId) return;
+
+    if (targetTaskId) {
+      // Ensure the parent project is expanded so the task row exists in the list.
+      sidebarStore.ensureProjectExpanded(targetProjectId);
+    }
+
+    const activeIndex = rows.findIndex((row) => {
+      if (targetTaskId) {
+        return (
+          row.kind === 'task' && row.taskId === targetTaskId && row.projectId === targetProjectId
+        );
+      }
+      return row.kind === 'project' && row.projectId === targetProjectId;
+    });
+
+    if (activeIndex >= 0) {
+      virtualizer.scrollToIndex(activeIndex, { align: 'auto' });
+    }
+  }, [
+    currentView,
+    taskParams.projectId,
+    taskParams.taskId,
+    projectParams.projectId,
+    rows,
+    virtualizer,
+  ]);
+
+  return (
+    <div ref={scrollRef} className="overflow-y-auto min-h-0 flex-1 px-1 py-0.5">
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        {virtualizer.getVirtualItems().map((vItem) => {
+          const row = rows[vItem.index];
+          if (!row) return null;
+          const style: React.CSSProperties = {
+            position: 'absolute',
+            top: vItem.start,
+            left: 0,
+            width: '100%',
+            height: `${vItem.size}px`,
+          };
+          if (row.kind === 'project') {
+            return (
+              <div key={row.projectId} style={style}>
+                <SidebarProjectItem projectId={row.projectId} />
+              </div>
+            );
+          }
+          return (
+            <div key={`${row.projectId}:${row.taskId}`} style={style}>
+              <SidebarTaskItem projectId={row.projectId} taskId={row.taskId} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 
 export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
   const appVersion = appState.appInfo.info.data?.appVersion;
   const { user: githubUser } = useGithubContext();
-
-  const orderedProjects = sidebarStore.orderedProjects;
 
   const showAddProjectModal = useShowModal('addProjectModal');
   const showFeedbackModal = useShowModal('feedbackModal');
@@ -43,31 +131,9 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
         <SidebarContent className="flex flex-col">
           <SidebarGroup className="mb-0 min-h-0 flex-1 flex flex-col">
             <ProjectsGroupLabel />
-            <SidebarGroupContent className="overflow-y-auto min-h-0 flex-1">
-              <SidebarMenu>
-                <ReorderList
-                  as="div"
-                  axis="y"
-                  items={orderedProjects}
-                  onReorder={(newOrder) => {
-                    const ids = newOrder
-                      .filter((p) => (p as (typeof orderedProjects)[0]).state !== 'unregistered')
-                      .map((p) => {
-                        const store = p as (typeof orderedProjects)[0];
-                        return store.state !== 'unregistered' ? store.data!.id : '';
-                      })
-                      .filter(Boolean);
-                    sidebarStore.setProjectOrder(ids);
-                  }}
-                  className="m-0 flex min-w-0 list-none flex-col gap-1 p-0"
-                  itemClassName="relative group cursor-pointer rounded-md list-none min-w-0"
-                  getKey={(item) => {
-                    const store = item as (typeof orderedProjects)[0];
-                    return store.state === 'unregistered' ? store.id : store.data!.id;
-                  }}
-                >
-                  {(item) => <SidebarProjectItem project={item as (typeof orderedProjects)[0]} />}
-                </ReorderList>
+            <SidebarGroupContent className="min-h-0 flex-1 flex flex-col">
+              <SidebarMenu className="flex-1 min-h-0 flex flex-col">
+                <SidebarVirtualList />
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

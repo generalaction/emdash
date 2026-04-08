@@ -25,7 +25,13 @@ import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { rpc } from '@renderer/core/ipc';
-import { getTaskStore, taskDisplayName, taskViewKind } from '@renderer/core/stores/task-selectors';
+import {
+  getTaskStore,
+  getTaskView,
+  taskDisplayName,
+  taskViewKind,
+} from '@renderer/core/stores/task-selectors';
+import { LifecycleStatusIndicator } from '@renderer/core/tasks/components/lifecycleStatusIndicator';
 import { RightPanelView } from '@renderer/core/tasks/types';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
@@ -112,9 +118,10 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   projectId: string;
   taskId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId);
+  const taskStore = getTaskStore(projectId, taskId)!;
   const taskState = useRequireProvisionedTask();
-  const { view, rightPanelView } = taskState;
+  const taskView = getTaskView(projectId, taskId)!;
+  const { view, rightPanelView } = taskView;
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
   const delayedIsPending = useDelayedBoolean(isPending, 200);
   useTaskViewShortcuts();
@@ -139,6 +146,17 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         <div className="flex items-center gap-1 px-2">
           <Popover>
             <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
+              <div
+                className="h-6 w-6 flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <LifecycleStatusIndicator
+                  lifecycleStatus={taskState.data.status}
+                  onLifecycleStatusChange={(status) => {
+                    taskState.updateStatus(status);
+                  }}
+                />
+              </div>
               {taskDisplayName(taskStore)}
               <ChevronDown className="size-3.5 shrink-0" />
             </PopoverTrigger>
@@ -335,7 +353,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             size="sm"
             onValueChange={([value]) => {
               if (!value) return;
-              taskState.setRightPanelView(value as RightPanelView);
+              taskView.setRightPanelView(value as RightPanelView);
             }}
           >
             <Tooltip>

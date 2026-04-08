@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import './index.css';
 import 'devicon/devicon.min.css';
-import type { NavigationSnapshot } from '@shared/view-state';
+import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { rpc } from './core/ipc';
 import { codeEditorPool } from './core/monaco/monaco-code-pool';
 import { diffEditorPool } from './core/monaco/monaco-diff-pool';
@@ -18,12 +18,18 @@ async function bootstrap() {
   appState.appInfo.load();
   appState.update.start();
   initSoundPlayer();
-  const [navResult] = await Promise.all([
+  const [navResult, sidebarResult] = await Promise.all([
     rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
+    rpc.viewState.get('sidebar') as Promise<SidebarSnapshot> | null,
     appState.projects.load(),
   ]);
 
   if (navResult) appState.navigation.restoreSnapshot(navResult);
+  if (sidebarResult) {
+    appState.sidebar.restoreSnapshot(sidebarResult);
+  } else {
+    appState.sidebar.expandAllProjects();
+  }
 
   // Avoid double-mount in dev which can duplicate PTY sessions
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(<App />);

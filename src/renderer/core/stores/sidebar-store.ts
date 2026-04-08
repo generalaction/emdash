@@ -1,21 +1,30 @@
-import { makeAutoObservable, observable, reaction, runInAction } from 'mobx';
+import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { LocalProject, SshProject } from '@shared/projects';
+import type { SidebarSnapshot } from '@shared/view-state';
 import { ProjectStore, UnregisteredProject } from './project';
 import type { ProjectManagerStore } from './project-manager';
+import type { Snapshottable } from './snapshottable';
 import type { TaskStore } from './task';
 
 const PROJECT_ORDER_KEY = 'sidebarProjectOrder';
 const TASK_ORDER_BY_PROJECT_KEY = 'sidebarTaskOrderByProject';
 const PINNED_TASKS_KEY = 'emdash-pinned-tasks';
 
-export class SidebarStore {
+export type SidebarRow =
+  | { kind: 'project'; projectId: string }
+  | { kind: 'task'; projectId: string; taskId: string };
+
+export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   projectOrder: string[] = [];
   taskOrderByProject: Record<string, string[]> = {};
-  forceOpenIds = observable.set<string>();
+  expandedProjectIds = observable.set<string>();
   pinnedTaskIds: string[] = [];
 
   constructor(private readonly projectManager: ProjectManagerStore) {
-    makeAutoObservable(this, { forceOpenIds: false });
+    makeAutoObservable(this, {
+      expandedProjectIds: false,
+      sidebarRows: computed,
+    });
 
     try {
       const stored = localStorage.getItem(PROJECT_ORDER_KEY);
@@ -49,7 +58,7 @@ export class SidebarStore {
           for (const [id, count] of counts) {
             const prev = prevTaskCounts.get(id) ?? 0;
             if (prev === 0 && count > 0) {
-              this.forceOpenIds.add(id);
+              this.ensureProjectExpanded(id);
             }
             prevTaskCounts.set(id, count);
           }
@@ -78,8 +87,58 @@ export class SidebarStore {
     return [...unregistered, ...sorted];
   }
 
+  get sidebarRows(): SidebarRow[] {
+    const rows: SidebarRow[] = [];
+    for (const project of this.orderedProjects) {
+      const projectId = project.state === 'unregistered' ? project.id : project.data!.id;
+      rows.push({ kind: 'project', projectId });
+      if (this.expandedProjectIds.has(projectId) && project.mountedProject) {
+        const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
+          (t) => t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt)
+        );
+        const ordered = this.mergeTaskOrder(projectId, tasks);
+        for (const task of ordered) {
+          rows.push({ kind: 'task', projectId, taskId: task.data.id });
+        }
+      }
+    }
+    return rows;
+  }
+
   get isEmpty(): boolean {
     return this.projectManager.projects.size === 0;
+  }
+
+  get snapshot(): SidebarSnapshot {
+    return {
+      expandedProjectIds: [...this.expandedProjectIds],
+    };
+  }
+
+  restoreSnapshot(snapshot: Partial<SidebarSnapshot>): void {
+    if (snapshot.expandedProjectIds) {
+      this.expandedProjectIds.replace(snapshot.expandedProjectIds);
+    }
+  }
+
+  /** Called on first load when no snapshot exists — expand all known projects. */
+  expandAllProjects(): void {
+    for (const project of this.orderedProjects) {
+      const projectId = project.state === 'unregistered' ? project.id : project.data!.id;
+      this.expandedProjectIds.add(projectId);
+    }
+  }
+
+  toggleProjectExpanded(projectId: string): void {
+    if (this.expandedProjectIds.has(projectId)) {
+      this.expandedProjectIds.delete(projectId);
+    } else {
+      this.expandedProjectIds.add(projectId);
+    }
+  }
+
+  ensureProjectExpanded(projectId: string): void {
+    this.expandedProjectIds.add(projectId);
   }
 
   setProjectOrder(ids: string[]): void {
@@ -132,10 +191,6 @@ export class SidebarStore {
     } else {
       this.pinTask(taskId);
     }
-  }
-
-  clearForceOpen(projectId: string): void {
-    this.forceOpenIds.delete(projectId);
   }
 
   private _persistPinnedTasks(): void {

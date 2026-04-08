@@ -26,8 +26,8 @@ export interface UseTabShortcutsOptions {
  * Registers keyboard shortcuts for tab navigation within any TabNavigationProvider.
  *
  * Shortcuts:
- *   tabNext   (default Mod+Alt+])  — next tab
- *   tabPrev   (default Mod+Alt+[)  — previous tab
+ *   tabNext   (default Mod+Alt+ArrowRight)  — next tab
+ *   tabPrev   (default Mod+Alt+ArrowLeft)  — previous tab
  *   tabClose  (default Mod+W)      — close active tab
  *   Mod+1–9                        — jump to tab by index (not configurable)
  *

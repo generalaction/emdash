@@ -1,13 +1,13 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
-import { Issue, Task } from '@shared/tasks';
+import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '../ipc';
-import { MainPanelView, RightPanelView } from '../tasks/types';
 import { ConversationManagerStore } from './conversation-manager';
 import { DevServerStore } from './dev-server-store';
 import { DiffViewStore } from './diff-view-store';
 import { EditorViewStore } from './editor-view-store';
 import { snapshotRegistry } from './snapshot-registry';
+import { TaskViewStore } from './task-view';
 import { TerminalManagerStore } from './terminal-manager';
 import { WorkspaceStore } from './workspace';
 
@@ -23,13 +23,9 @@ export type UnprovisionedTaskPhase =
 export type UnregisteredTaskData = {
   id: string;
   name: string;
+  status: TaskLifecycleStatus;
 };
 
-/**
- * Holds all provisioned-only state for a task. Created atomically by
- * TaskStore.transitionToProvisioned and disposed on teardown or deletion.
- * All sub-stores are readonly — constructed once and never re-assigned.
- */
 export class ProvisionedTask {
   readonly workspace: WorkspaceStore;
   readonly diffView: DiffViewStore;
@@ -37,20 +33,16 @@ export class ProvisionedTask {
   readonly conversations: ConversationManagerStore;
   readonly terminals: TerminalManagerStore;
   readonly editorView: EditorViewStore;
+  readonly taskView: TaskViewStore;
 
   data: Task;
   readonly path: string;
-  view: MainPanelView;
-  rightPanelView: RightPanelView;
-  focusedRegion: 'main' | 'right';
 
   private _snapshotDisposer: (() => void) | null = null;
 
   get snapshot(): TaskViewSnapshot {
     return {
-      view: this.view,
-      rightPanelView: this.rightPanelView,
-      focusedRegion: this.focusedRegion,
+      ...this.taskView.snapshot,
       conversations: this.conversations.snapshot,
       terminals: this.terminals.snapshot,
       editor: this.editorView.snapshot,
@@ -68,21 +60,13 @@ export class ProvisionedTask {
     this.conversations = new ConversationManagerStore(data.projectId, data.id);
     this.terminals = new TerminalManagerStore(data.projectId, data.id);
     this.editorView = new EditorViewStore(data.projectId, data.id);
+    this.taskView = new TaskViewStore(savedSnapshot);
 
-    // Apply saved snapshot before registering the reaction so the initial
-    // state doesn't trigger a spurious write.
     if (savedSnapshot) {
-      this.view = (savedSnapshot.view as MainPanelView) ?? 'agents';
-      this.rightPanelView = (savedSnapshot.rightPanelView as RightPanelView) ?? 'changes';
-      this.focusedRegion = savedSnapshot.focusedRegion ?? 'main';
       this.conversations.restoreSnapshot(savedSnapshot.conversations ?? {});
       this.terminals.restoreSnapshot(savedSnapshot.terminals ?? {});
       this.editorView.restoreSnapshot(savedSnapshot.editor ?? {});
       this.diffView.restoreSnapshot(savedSnapshot.diffView ?? {});
-    } else {
-      this.view = 'agents';
-      this.rightPanelView = 'changes';
-      this.focusedRegion = 'main';
     }
 
     makeAutoObservable(this, {
@@ -92,6 +76,7 @@ export class ProvisionedTask {
       conversations: false,
       terminals: false,
       editorView: false,
+      taskView: false,
     });
 
     this._snapshotDisposer = snapshotRegistry.register(`task:${data.id}`, () => this.snapshot);
@@ -119,16 +104,20 @@ export class ProvisionedTask {
     }
   }
 
-  setView(v: MainPanelView): void {
-    this.view = v;
-  }
-
-  setRightPanelView(v: RightPanelView): void {
-    this.rightPanelView = v;
-  }
-
-  setFocusedRegion(region: 'main' | 'right'): void {
-    this.focusedRegion = region;
+  async updateStatus(status: TaskLifecycleStatus): Promise<void> {
+    const previousStatus = this.data.status;
+    runInAction(() => {
+      this.data.status = status;
+    });
+    try {
+      await rpc.tasks.updateTaskStatus(this.data.id, status);
+    } catch (e) {
+      runInAction(() => {
+        this.data.status = previousStatus;
+      });
+      console.error(e);
+      throw e;
+    }
   }
 
   async updateLinkedIssue(issue?: Issue): Promise<void> {
@@ -148,11 +137,6 @@ export class ProvisionedTask {
   }
 }
 
-/**
- * Container class — holds a stable reference in the ObservableMap across all
- * lifecycle transitions. Transitioning replaces `provisionedTask` atomically
- * rather than nulling out 12 individual fields.
- */
 export class TaskStore {
   state: 'unregistered' | 'unprovisioned' | 'provisioned';
   data: UnregisteredTaskData | Task;

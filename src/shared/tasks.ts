@@ -1,6 +1,6 @@
 import { CreateConversationParams } from '@shared/conversations';
 
-export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'archived';
+export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
 
 export type Issue = {
   provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo';
@@ -68,6 +68,7 @@ export type CreateTaskParams = {
   linkedIssue?: Issue;
   /**  */
   initialConversation?: CreateConversationParams;
+  initialStatus?: TaskLifecycleStatus;
 };
 
 export type CreateTaskError =

@@ -1,10 +1,15 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { getTaskStore, taskErrorMessage, taskViewKind } from '@renderer/core/stores/task-selectors';
+import {
+  getTaskStore,
+  getTaskView,
+  taskErrorMessage,
+  taskViewKind,
+} from '@renderer/core/stores/task-selectors';
 import { ConversationsPanel } from './conversations/conversations-panel';
 import { DiffView } from './diff-view/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
-import { useProvisionedTask, useTaskViewContext } from './task-view-context';
+import { useTaskViewContext } from './task-view-context';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -89,11 +94,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
 });
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
-  const provisioned = useProvisionedTask();
-  if (!provisioned) return null;
-  const { view } = provisioned;
+  const { projectId, taskId } = useTaskViewContext();
+  const taskView = getTaskView(projectId, taskId);
+  if (!taskView) return null;
 
-  switch (view) {
+  switch (taskView.view) {
     case 'agents':
       return <ConversationsPanel />;
     case 'editor':

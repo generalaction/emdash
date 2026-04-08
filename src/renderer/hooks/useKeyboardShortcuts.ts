@@ -115,13 +115,13 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Task View',
   },
   tabNext: {
-    defaultHotkey: 'Mod+Alt+]',
+    defaultHotkey: 'Mod+Alt+ArrowRight',
     label: 'Next Tab',
     description: 'Switch to the next tab',
     category: 'Tab Navigation',
   },
   tabPrev: {
-    defaultHotkey: 'Mod+Alt+[',
+    defaultHotkey: 'Mod+Alt+ArrowLeft',
     label: 'Previous Tab',
     description: 'Switch to the previous tab',
     category: 'Tab Navigation',

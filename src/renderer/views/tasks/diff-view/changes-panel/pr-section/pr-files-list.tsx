@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import type { GitChange } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
+import { getTaskView } from '@renderer/core/stores/task-selectors';
 import { usePrefetchModels } from '@renderer/views/tasks/diff-view/changes-panel/use-prefetch-models';
 import {
   useProvisionedTask,
@@ -14,7 +15,6 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const provisioned = useProvisionedTask();
   const prStore = useRequireProvisionedTask().workspace.pr;
   const diffView = provisioned?.diffView;
-  const setView = (v: string) => provisioned?.setView(v as 'agents' | 'editor' | 'diff');
 
   const baseRef = pr.metadata.baseRefName;
   const prFiles = prStore.getFiles(pr).data ?? [];
@@ -26,7 +26,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
 
   const handleSelectChange = (change: GitChange) => {
     diffView?.setActiveFile({ path: change.path, type: 'git', originalRef: baseRef });
-    setView('diff');
+    getTaskView(projectId, taskId)?.setView('diff');
   };
 
   return (

@@ -1,5 +1,5 @@
 import { makeObservable, observable, runInAction } from 'mobx';
-import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
+import type { CreateTaskError, CreateTaskParams, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/core/ipc';
 import { getProjectManagerStore } from './project-selectors';
@@ -60,7 +60,14 @@ export class TaskManagerStore {
 
   async createTask(params: CreateTaskParams) {
     runInAction(() => {
-      this.tasks.set(params.id, createUnregisteredTask({ id: params.id, name: params.name }));
+      this.tasks.set(
+        params.id,
+        createUnregisteredTask({
+          id: params.id,
+          name: params.name,
+          status: params.initialStatus ?? 'in_progress',
+        })
+      );
     });
 
     const result = await rpc.tasks.createTask(params).catch((e: unknown) => {

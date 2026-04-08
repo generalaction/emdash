@@ -11,6 +11,7 @@ import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { rpc } from '@renderer/core/ipc';
 import { TabViewProvider } from '@renderer/core/stores/generic-tab-view';
 import { PtySession } from '@renderer/core/stores/pty-session';
+import { getTaskView } from '@renderer/core/stores/task-selectors';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
@@ -40,11 +41,12 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const [isPanelFocused, setIsPanelFocused] = useState(false);
   const [mode, setMode] = useState<PanelMode>('terminals');
 
-  const autoFocus = isActive && isRightOpen && taskStore?.focusedRegion === 'right';
+  const autoFocus =
+    isActive && isRightOpen && getTaskView(projectId, taskId)?.focusedRegion === 'right';
 
   const handleCreate = async () => {
     if (!terminalMgr) return;
-    taskStore?.setFocusedRegion('right');
+    getTaskView(projectId, taskId)?.setFocusedRegion('right');
     const id = crypto.randomUUID();
     const name = nextTerminalName(terminalMgr.tabs.map((s) => s.data.name));
     try {
@@ -187,7 +189,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       autoFocus={autoFocus}
       onFocusChange={(focused) => {
         setIsPanelFocused(focused);
-        if (focused) taskStore?.setFocusedRegion('right');
+        if (focused) getTaskView(projectId, taskId)?.setFocusedRegion('right');
       }}
       store={store}
       paneId={mode === 'terminals' ? 'terminals' : 'lifecycle-scripts'}
