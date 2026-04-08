@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import { userInfo } from 'os';
 import { SSH_IPC_CHANNELS } from '../../shared/ssh/types';
 import { sshService } from '../services/ssh/SshService';
 import { SshCredentialService } from '../services/ssh/SshCredentialService';
@@ -467,7 +468,7 @@ export function registerSshIpc() {
               name: alias,
               host: sshConfigHost.hostname ?? alias,
               port: sshConfigHost.port ?? 22,
-              username: sshConfigHost.user ?? '',
+              username: sshConfigHost.user ?? userInfo().username,
               authType: sshConfigHost.identityFile ? 'key' : 'agent',
               privateKeyPath: sshConfigHost.identityFile,
               useAgent: !sshConfigHost.identityFile,
