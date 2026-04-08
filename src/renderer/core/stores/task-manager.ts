@@ -1,7 +1,8 @@
 import { makeObservable, observable, runInAction } from 'mobx';
-import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
+import { taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import type { CreateTaskError, CreateTaskParams, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { rpc } from '@renderer/core/ipc';
+import { events, rpc } from '@renderer/core/ipc';
 import { getProjectManagerStore } from './project-selectors';
 import {
   createUnprovisionedTask,
@@ -43,6 +44,16 @@ export class TaskManagerStore {
   constructor(projectId: string) {
     this.projectId = projectId;
     makeObservable(this, { tasks: observable });
+
+    events.on(taskStatusUpdatedChannel, ({ taskId, projectId: evtProjectId, status }) => {
+      if (evtProjectId !== this.projectId) return;
+      const store = this.tasks.get(taskId);
+      if (store && isProvisioned(store)) {
+        runInAction(() => {
+          store.data.status = status as TaskLifecycleStatus;
+        });
+      }
+    });
   }
 
   loadTasks(): Promise<void> {

@@ -116,6 +116,7 @@ export const pullRequests = sqliteTable(
     authorDisplayName: text('author_display_name'),
     authorAvatarUrl: text('author_avatar_url'),
     isDraft: integer('is_draft'),
+    headRefName: text('head_ref_name'),
     metadata: text('metadata'),
     createdAt: text('created_at')
       .notNull()
@@ -131,6 +132,7 @@ export const pullRequests = sqliteTable(
     urlIdx: uniqueIndex('idx_pull_requests_url').on(table.url),
     nameWithOwnerIdx: index('idx_pull_requests_name_with_owner').on(table.nameWithOwner),
     authorLoginIdx: index('idx_pull_requests_author_login').on(table.authorLogin),
+    headRefNameIdx: index('idx_pull_requests_head_ref_name').on(table.headRefName),
   })
 );
 
