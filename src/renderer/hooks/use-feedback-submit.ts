@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { log } from '@renderer/lib/logger';
 import { useToast } from './use-toast';
 
 const DISCORD_WEBHOOK_URL =
@@ -91,7 +92,7 @@ export function useFeedbackSubmit({ githubUser, onSuccess }: FeedbackSubmitOptio
         onSuccess();
         toast({ title: 'Feedback sent', description: 'Thanks for your feedback!' });
       } catch (error) {
-        console.error('Failed to submit feedback:', error);
+        log.error('Failed to submit feedback:', error);
         setErrorMessage('Unable to send feedback. Please try again.');
         toast({
           title: 'Failed to send feedback',

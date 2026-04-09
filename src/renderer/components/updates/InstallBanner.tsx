@@ -4,6 +4,7 @@ import {
   getDocUrlForProvider,
   getInstallCommandForProvider,
 } from '@shared/agent-provider-registry';
+import { log } from '@renderer/lib/logger';
 import { agentMeta, type UiAgent } from '../../providers/meta';
 import { Button } from '../ui/button';
 
@@ -46,7 +47,7 @@ export const InstallBanner: React.FC<Props> = ({
     try {
       window.electronAPI?.ptyInput?.({ id: terminalId, data: `${command}\n` });
     } catch (error) {
-      console.error('Failed to run install command', error);
+      log.error('Failed to run install command', error);
     }
   };
 
@@ -64,7 +65,7 @@ export const InstallBanner: React.FC<Props> = ({
         copyResetRef.current = null;
       }, 1800);
     } catch (error) {
-      console.error('Failed to copy install command', error);
+      log.error('Failed to copy install command', error);
       setCopied(false);
     }
   };

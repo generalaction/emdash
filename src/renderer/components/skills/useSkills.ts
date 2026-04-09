@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import type { CatalogIndex, CatalogSkill } from '@shared/skills/types';
 import { useToast } from '@renderer/hooks/use-toast';
+import { log } from '@renderer/lib/logger';
 import { rpc } from '../../core/ipc';
 import { captureTelemetry } from '../../lib/telemetryClient';
 
@@ -38,7 +39,7 @@ export function useSkills() {
       queryClient.setQueryData(CATALOG_QUERY_KEY, data);
     },
     onError: (error) => {
-      console.error('Failed to refresh catalog:', error);
+      log.error('Failed to refresh catalog:', error);
     },
   });
 

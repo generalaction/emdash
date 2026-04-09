@@ -1,5 +1,6 @@
 import { loader } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
+import { log } from '@renderer/lib/logger';
 
 export type PoolEntry<TEditor> = {
   editor: TEditor;
@@ -106,13 +107,13 @@ export class MonacoPool<TEditor> {
     try {
       this.options.cleanupOnRelease(entry.editor);
     } catch (err) {
-      console.warn(`[${this.options.poolId}] cleanupOnRelease error (suppressed):`, err);
+      log.debug(`[${this.options.poolId}] cleanupOnRelease error (suppressed):`, err);
     }
 
     try {
       this.getPoolRoot().appendChild(entry.container);
     } catch (err) {
-      console.warn(`[${this.options.poolId}] container reparent error (suppressed):`, err);
+      log.debug(`[${this.options.poolId}] container reparent error (suppressed):`, err);
     }
 
     entry.status = 'idle';

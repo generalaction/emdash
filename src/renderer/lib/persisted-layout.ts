@@ -1,3 +1,5 @@
+import { log } from '@renderer/lib/logger';
+
 const isNumberArray = (value: unknown): value is number[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'number' && Number.isFinite(item));
 
@@ -15,7 +17,7 @@ export const loadPanelSizes = (storageKey: string, fallbackSizes: number[]): num
     const parsed = JSON.parse(storedValue);
     return isNumberArray(parsed) ? parsed : fallbackSizes;
   } catch (error) {
-    console.warn('Failed to load panel sizes from localStorage', error);
+    log.warn('Failed to load panel sizes from localStorage', error);
     return fallbackSizes;
   }
 };
@@ -28,6 +30,6 @@ export const savePanelSizes = (storageKey: string, sizes: number[]): void => {
   try {
     window.localStorage.setItem(storageKey, JSON.stringify(sizes));
   } catch (error) {
-    console.warn('Failed to save panel sizes to localStorage', error);
+    log.warn('Failed to save panel sizes to localStorage', error);
   }
 };

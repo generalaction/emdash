@@ -3,6 +3,7 @@
  * Configures language services to match project's tsconfig.json
  */
 import type * as monaco from 'monaco-editor';
+import { log } from '@renderer/lib/logger';
 
 // Diagnostic codes to ignore for cleaner editor experience
 const DIAGNOSTIC_CODES_TO_IGNORE = [
@@ -27,7 +28,7 @@ export function configureMonacoTypeScript(monacoInstance: typeof monaco): void {
     configureTypeScriptDefaults(monacoInstance);
     configureJavaScriptDefaults(monacoInstance);
   } catch (error) {
-    console.warn('Failed to configure Monaco TypeScript settings:', error);
+    log.warn('Failed to configure Monaco TypeScript settings:', error);
   }
 }
 

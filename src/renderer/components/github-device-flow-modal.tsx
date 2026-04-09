@@ -11,6 +11,7 @@ import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
 import { useGithubContext } from '../core/github-context-provider';
 import { events, rpc } from '../core/ipc';
 import { useToast } from '../hooks/use-toast';
+import { log } from '../lib/logger';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 
@@ -127,7 +128,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
         setTimeout(() => setCopied(false), 2000);
       } catch (err) {
-        console.error('Failed to copy:', err);
+        log.error('Failed to copy:', err);
         if (!isAutomatic) {
           toast({
             title: 'Copy failed',

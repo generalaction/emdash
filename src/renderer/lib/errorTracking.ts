@@ -1,4 +1,5 @@
 import type { TelemetryEventProperties } from '@shared/telemetry';
+import { log } from '@renderer/lib/logger';
 import { captureTelemetry } from './telemetryClient';
 
 interface ErrorContext {
@@ -97,14 +98,14 @@ class RendererErrorTracking {
       this.sendToMainProcess('$exception', cleanProperties);
 
       // Also log to console for debugging
-      console.error('[ErrorTracking]', errorMessage, {
+      log.error('[ErrorTracking]', errorMessage, {
         severity,
         component: context?.component,
         action: context?.action,
       });
     } catch (trackingError) {
       // Never let error tracking crash the renderer
-      console.warn('Failed to capture exception:', trackingError);
+      log.warn('Failed to capture exception:', trackingError);
     }
   }
 

@@ -1,6 +1,7 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import type { EditorViewSnapshot } from '@shared/view-state';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
+import { log } from '@renderer/lib/logger';
 import { getFileKind } from '../editor/fileKind';
 import { getDefaultRenderer } from '../editor/renderer-utils';
 import { EditorTab } from '../editor/types';
@@ -228,10 +229,10 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     try {
       const result = await modelRegistry.saveFileToDisk(uri);
       if (result === null) {
-        console.error('[EditorViewStore] Failed to save file:', targetPath);
+        log.error('[EditorViewStore] Failed to save file:', targetPath);
       }
     } catch (error) {
-      console.error('[EditorViewStore] Error saving file:', error);
+      log.error('[EditorViewStore] Error saving file:', error);
     } finally {
       runInAction(() => {
         this.isSaving = false;
@@ -300,7 +301,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
         if (model) model.setValue(content);
       }
     } catch (e) {
-      console.warn('[EditorViewStore] Failed to restore buffers:', e);
+      log.warn('[EditorViewStore] Failed to restore buffers:', e);
     }
   }
 

@@ -1,5 +1,6 @@
 import type * as monaco from 'monaco-editor';
 import { DIFF_EDITOR_BASE_OPTIONS } from '@renderer/core/monaco/editorConfig';
+import { log } from '@renderer/lib/logger';
 import { defineMonacoDiffThemes, getDiffThemeName, registerDiffThemes } from './monaco-diff-themes';
 import { modelRegistry } from './monaco-model-registry';
 import { MonacoPool, type PoolEntry as GenericPoolEntry } from './monaco-pool';
@@ -23,7 +24,7 @@ const diffPool = new MonacoPool<monaco.editor.IStandaloneDiffEditor>({
       if (model?.original.uri.scheme === 'inmemory') model.original.dispose();
       if (model?.modified.uri.scheme === 'inmemory') model.modified.dispose();
     } catch (err) {
-      console.warn('[monaco-diff-pool] model disposal error (suppressed):', err);
+      log.debug('[monaco-diff-pool] model disposal error (suppressed):', err);
     }
   },
   onInit: async (m) => {

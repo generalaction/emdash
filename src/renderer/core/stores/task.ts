@@ -2,6 +2,7 @@ import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { workspaceKey } from '@shared/workspace-key';
+import { log } from '@renderer/lib/logger';
 import { rpc } from '../ipc';
 import { ConversationManagerStore } from './conversation-manager';
 import { DevServerStore } from './dev-server-store';
@@ -116,7 +117,7 @@ export class ProvisionedTask {
       runInAction(() => {
         this._taskData.linkedIssue = previousIssue;
       });
-      console.error(e);
+      log.error(e);
       throw e;
     }
   }
@@ -219,7 +220,7 @@ export class TaskStore {
       runInAction(() => {
         this.data.name = task.name;
       });
-      console.error(e);
+      log.error(e);
       throw e;
     }
   }
@@ -239,7 +240,7 @@ export class TaskStore {
         this.data.status = previousStatus;
         this.data.statusChangedAt = previousStatusChangedAt;
       });
-      console.error(e);
+      log.error(e);
       throw e;
     }
   }
@@ -258,7 +259,7 @@ export class TaskStore {
       runInAction(() => {
         task.isPinned = previous;
       });
-      console.error(e);
+      log.error(e);
       throw e;
     }
   }

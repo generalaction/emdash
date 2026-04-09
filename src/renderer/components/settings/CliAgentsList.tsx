@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { appState } from '@renderer/core/stores/app-state';
 import { type DependencyState } from '@renderer/core/stores/dependencies-store';
+import { log } from '@renderer/lib/logger';
 import { agentMeta } from '@renderer/providers/meta';
 import { rpc } from '../../core/ipc';
 import { CliAgentStatus } from '../../types/connections';
@@ -53,7 +54,7 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
         try {
           await rpc.app.openExternal(agent.docUrl!);
         } catch (openError) {
-          console.error(`Failed to open ${agent.name} docs:`, openError);
+          log.error(`Failed to open ${agent.name} docs:`, openError);
         }
       }
     : undefined;

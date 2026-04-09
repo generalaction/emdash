@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { log } from '@renderer/lib/logger';
 
 /**
  * Hook to auto-scroll terminal containers to bottom when task switches
@@ -48,8 +49,8 @@ export function useAutoScrollOnTaskSwitch(isActive: boolean, taskId: string | nu
       scrolledAny = true;
     });
 
-    if (process.env.NODE_ENV === 'development' && !scrolledAny) {
-      console.debug('[useAutoScrollOnTaskSwitch] No scrollable terminal containers found');
+    if (!scrolledAny) {
+      log.debug('[useAutoScrollOnTaskSwitch] No scrollable terminal containers found');
     }
   }, []);
 

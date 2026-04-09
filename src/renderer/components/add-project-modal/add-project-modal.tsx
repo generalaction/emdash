@@ -5,6 +5,7 @@ import { rpc } from '@renderer/core/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { getProjectManagerStore } from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { log } from '@renderer/lib/logger';
 import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
 import { ConfirmButton } from '../ui/confirm-button';
 import { DialogContentArea, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -103,7 +104,7 @@ export function AddProjectModal({
         }
       }
     } catch (e) {
-      console.error(e);
+      log.error(e);
     }
 
     const id = crypto.randomUUID();

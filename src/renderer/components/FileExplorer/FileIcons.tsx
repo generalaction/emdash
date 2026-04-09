@@ -60,6 +60,7 @@ import {
   VscTable,
   VscTerminal,
 } from 'react-icons/vsc';
+import { log } from '@renderer/lib/logger';
 
 // Icon mapping configuration
 const SPECIAL_FILES: Record<string, { icon: React.ElementType; color: string; label: string }> = {
@@ -334,7 +335,7 @@ class IconErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('Icon loading error:', error, errorInfo);
+    log.debug('Icon loading error (suppressed by error boundary):', error, errorInfo);
   }
 
   render(): ReactNode {

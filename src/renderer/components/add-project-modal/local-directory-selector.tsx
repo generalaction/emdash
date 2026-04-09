@@ -22,7 +22,6 @@ export function LocalDirectorySelector({
   const [path, setPath] = useState<string>(initialPath || '');
 
   const handleOpenFileDialog = async () => {
-    console.log('Opening file dialog');
     const result = await rpc.app.openSelectDirectoryDialog({
       title,
       message,

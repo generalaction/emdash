@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import type { AgentStatus } from '@renderer/core/stores/conversation-manager';
 import { CLISpinner } from '@renderer/core/tasks/components/cliSpinner';
 import { cn } from '@renderer/lib/utils';
@@ -24,10 +23,6 @@ export function AgentStatusIndicator({
   className,
   disableTooltip,
 }: AgentStatusIndicatorProps) {
-  useEffect(() => {
-    console.log('status', status);
-  }, [status]);
-
   if (!status || status === 'idle') return null;
 
   const renderIndicator = () => {

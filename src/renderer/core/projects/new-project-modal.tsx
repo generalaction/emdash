@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
 import { Separator } from '../../components/ui/separator';
 import { SlugInput } from '../../components/ui/slug-input';
 import { Spinner } from '../../components/ui/spinner';
+import { log } from '../../lib/logger';
 import { rpc } from '../ipc';
 import { useCloseGuard } from '../modal/use-close-guard';
 
@@ -52,7 +53,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
           }
         }
       } catch (error) {
-        console.error('Failed to load owners:', error);
+        log.error('Failed to load owners:', error);
       }
     })();
 

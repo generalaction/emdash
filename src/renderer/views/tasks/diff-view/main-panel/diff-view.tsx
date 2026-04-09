@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { diffEditorPool } from '@renderer/core/monaco/monaco-diff-pool';
+import { log } from '@renderer/lib/logger';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { DiffEditorProvider } from './diff-editor-provider';
 import { DiffToolbar } from './diff-toolbar';
@@ -13,7 +14,7 @@ export const DiffView = observer(function DiffView() {
   const viewMode = diffView.viewMode;
 
   useEffect(() => {
-    diffEditorPool.init().catch((err: unknown) => console.warn('[monaco-pool] init failed:', err));
+    diffEditorPool.init().catch((err: unknown) => log.warn('[monaco-pool] init failed:', err));
   }, []);
 
   return (

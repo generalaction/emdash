@@ -8,6 +8,7 @@ import { Input } from '@renderer/components/ui/input';
 import { Textarea } from '@renderer/components/ui/textarea';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { log } from '@renderer/lib/logger';
 import { useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
 export type CreatePrModalArgs = {
@@ -33,7 +34,7 @@ export function CreatePrModal({ nameWithOwner, branchName, draft, onSuccess, onC
     try {
       const pushResult = await rpc.git.push(projectId, taskId);
       if (!pushResult.success) {
-        console.error('Failed to push branch:', pushResult.error);
+        log.error('Failed to push branch:', pushResult.error);
         return;
       }
 
