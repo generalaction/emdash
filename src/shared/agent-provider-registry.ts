@@ -28,6 +28,8 @@ export type AgentProviderId = (typeof AGENT_PROVIDER_IDS)[number];
 export type AgentProviderDefinition = {
   id: AgentProviderId;
   name: string;
+  /** Short one-liner shown in the agent info card. */
+  description?: string;
   docUrl?: string;
   installCommand?: string;
   commands?: string[];
@@ -67,6 +69,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'codex',
     name: 'Codex',
+    description:
+      'CLI that connects to OpenAI models for project-aware code assistance and terminal workflows.',
     docUrl: 'https://github.com/openai/codex',
     installCommand: 'npm install -g @openai/codex',
     commands: ['codex'],
@@ -83,6 +87,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'claude',
     name: 'Claude Code',
+    description:
+      'CLI that uses Anthropic Claude for code edits, explanations, and structured refactors in the terminal.',
     docUrl: 'https://docs.anthropic.com/claude/docs/claude-code',
     installCommand: 'curl -fsSL https://claude.ai/install.sh | bash',
     commands: ['claude'],
@@ -101,6 +107,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'cursor',
     name: 'Cursor',
+    description:
+      "Cursor's agent CLI; provides editor-style, project-aware assistance from the shell.",
     docUrl: 'https://cursor.sh',
     installCommand: 'curl https://cursor.com/install -fsS | bash',
     commands: ['cursor-agent'],
@@ -115,6 +123,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'gemini',
     name: 'Gemini',
+    description:
+      'CLI that uses Google Gemini models to assist with coding, reasoning, and command-line tasks.',
     docUrl: 'https://github.com/google-gemini/gemini-cli',
     installCommand: 'npm install -g @google/gemini-cli',
     commands: ['gemini'],
@@ -130,6 +140,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'qwen',
     name: 'Qwen Code',
+    description:
+      "Command-line interface to Alibaba's Qwen Code models for coding assistance and code completion.",
     docUrl: 'https://github.com/QwenLM/qwen-code',
     installCommand: 'npm install -g @qwen-code/qwen-code',
     commands: ['qwen'],
@@ -145,6 +157,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'droid',
     name: 'Droid',
+    description: "Factory AI's agent CLI for running multi-step coding tasks from the terminal.",
     docUrl: 'https://docs.factory.ai/cli/getting-started/quickstart',
     installCommand: 'curl -fsSL https://app.factory.ai/cli | sh',
     commands: ['droid'],
@@ -159,6 +172,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'amp',
     name: 'Amp',
+    description:
+      'Amp Code CLI for agentic coding sessions against your repository from the terminal.',
     docUrl: 'https://ampcode.com/manual#install',
     installCommand: 'npm install -g @sourcegraph/amp@latest',
     commands: ['amp'],
@@ -174,6 +189,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'opencode',
     name: 'OpenCode',
+    description:
+      'OpenCode CLI that interfaces with models for code generation and edits from the shell.',
     docUrl: 'https://opencode.ai/docs/cli/',
     installCommand: 'npm install -g opencode-ai',
     commands: ['opencode'],
@@ -189,6 +206,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'copilot',
     name: 'GitHub Copilot',
+    description:
+      'GitHub Copilot CLI brings Copilot prompts to the terminal for code, shell, and search help.',
     docUrl: 'https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli',
     installCommand: 'npm install -g @github/copilot',
     commands: ['copilot'],
@@ -202,6 +221,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'charm',
     name: 'Charm',
+    description: 'Charm Crush agent CLI providing terminal-first AI assistance for coding tasks.',
     docUrl: 'https://github.com/charmbracelet/crush',
     installCommand: 'npm install -g @charmland/crush',
     commands: ['crush'],
@@ -216,6 +236,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'auggie',
     name: 'Auggie',
+    description:
+      'Augment Code CLI to run an agent against your repository for code changes and reviews.',
     docUrl: 'https://docs.augmentcode.com/cli/overview',
     installCommand: 'npm install -g @augmentcode/auggie',
     commands: ['auggie'],
@@ -231,6 +253,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'goose',
     name: 'Goose',
+    description: 'Goose CLI that routes tasks to tools and models for coding workflows.',
     docUrl: 'https://block.github.io/goose/docs/quickstart/',
     installCommand:
       'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
@@ -247,6 +270,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'kimi',
     name: 'Kimi',
+    description:
+      'Kimi CLI by Moonshot AI, with shell execution, Zsh integration, ACP, and MCP support.',
     docUrl: 'https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html',
     installCommand: 'uv tool install kimi-cli',
     commands: ['kimi'],
@@ -261,6 +286,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'kilocode',
     name: 'Kilocode',
+    description:
+      'Kilo AI coding assistant with multiple modes, broad model support, and checkpoint-based workflows.',
     docUrl: 'https://kilo.ai/docs/cli',
     installCommand: 'npm install -g @kilocode/cli',
     commands: ['kilocode'],
@@ -276,6 +303,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'kiro',
     name: 'Kiro (AWS)',
+    description:
+      'Kiro CLI by AWS, focused on interactive terminal-first development assistance and workflow automation.',
     docUrl: 'https://kiro.dev/docs/cli/',
     installCommand: 'curl -fsSL https://cli.kiro.dev/install | bash',
     commands: ['kiro-cli'],
@@ -290,6 +319,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'rovo',
     name: 'Rovo Dev',
+    description:
+      'Atlassian Rovo Dev CLI integrates terminal assistance with Jira, Confluence, and Bitbucket workflows.',
     docUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
     installCommand: 'acli rovodev auth login',
     commands: ['rovodev', 'acli'],
@@ -303,6 +334,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'cline',
     name: 'Cline',
+    description:
+      'Cline CLI runs coding agents directly in your terminal with multi-provider model support.',
     docUrl: 'https://docs.cline.bot/cline-cli/overview',
     installCommand: 'npm install -g cline',
     commands: ['cline'],
@@ -317,6 +350,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'continue',
     name: 'Continue',
+    description:
+      'Continue CLI is a modular coding agent with configurable models, rules, and MCP tool support.',
     docUrl: 'https://docs.continue.dev/guides/cli',
     installCommand: 'npm i -g @continuedev/cli',
     commands: ['cn'],
@@ -331,6 +366,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'codebuff',
     name: 'Codebuff',
+    description:
+      'Codebuff is an AI coding agent for project-directory assistance and day-to-day development tasks.',
     docUrl: 'https://www.codebuff.com/docs/help/quick-start',
     installCommand: 'npm install -g codebuff',
     commands: ['codebuff'],
@@ -344,6 +381,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'mistral',
     name: 'Mistral Vibe',
+    description:
+      'Mistral AI terminal coding assistant with conversational codebase help, execution tools, and file operations.',
     docUrl: 'https://github.com/mistralai/mistral-vibe',
     installCommand: 'curl -LsSf https://mistral.ai/vibe/install.sh | bash',
     commands: ['vibe'],
@@ -358,6 +397,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'pi',
     name: 'Pi',
+    description:
+      'Minimal terminal coding agent with multi-provider model support and extensible custom tools.',
     docUrl: 'https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent',
     installCommand: 'npm install -g @mariozechner/pi-coding-agent',
     commands: ['pi'],
@@ -372,6 +413,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
   {
     id: 'autohand',
     name: 'Autohand Code',
+    description:
+      'Terminal coding agent with auto-commit, dry-run previews, community skills, and headless automation modes.',
     docUrl: 'https://autohand.ai/code/',
     installCommand: 'npm install -g autohand-cli',
     commands: ['autohand'],
@@ -404,6 +447,10 @@ export function getInstallCommandForProvider(id: AgentProviderId): string | null
  */
 export function isValidProviderId(value: unknown): value is AgentProviderId {
   return typeof value === 'string' && AGENT_PROVIDER_IDS.includes(value as AgentProviderId);
+}
+
+export function getDescriptionForProvider(id: AgentProviderId): string | null {
+  return PROVIDER_MAP.get(id)?.description ?? null;
 }
 
 export function getDocUrlForProvider(id: AgentProviderId): string | null {
