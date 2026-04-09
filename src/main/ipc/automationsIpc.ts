@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, powerMonitor } from 'electron';
 import { automationsService } from '../services/AutomationsService';
 import { databaseService } from '../services/DatabaseService';
 import { log } from '../lib/logger';
@@ -150,6 +150,16 @@ export function registerAutomationsIpc(): void {
     .finally(() => {
       automationsService.start();
     });
+
+  // When the system resumes from sleep, reconcile any tasks that were missed
+  // while the machine was suspended. The normal setInterval-based tick may
+  // fire late or not at all after a long sleep, so we explicitly catch up.
+  powerMonitor.on('resume', () => {
+    log.info('[Automations] System resumed from sleep — reconciling missed runs');
+    void automationsService.reconcileMissedRunsAfterResume().catch((error) => {
+      log.error('Failed to reconcile missed automation runs after sleep:', error);
+    });
+  });
 
   // Stop scheduler on app quit
   app.on('before-quit', () => {

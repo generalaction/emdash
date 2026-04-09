@@ -726,6 +726,11 @@ describe('AutomationsService', () => {
       const logs = await automationsService.getRunLogs(automation.id);
       expect(logs).toHaveLength(1);
       expect(logs[0].status).toBe('running');
+      expect(
+        (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns.has(
+          automation.id
+        )
+      ).toBe(true);
 
       // runCount should be incremented
       expect(fetched!.runCount).toBe(1);
@@ -810,6 +815,28 @@ describe('AutomationsService', () => {
       expect(fetched!.lastRunError).toBe('Interrupted (app was closed or crashed)');
     });
 
+    it('should clear in-flight state when startup reconciliation fails an orphaned run', async () => {
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'In Flight Cleanup',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 14, minute: 0 },
+      });
+
+      await automationsService.createManualRunLog(automation.id);
+
+      const inFlightRuns = (automationsService as unknown as { inFlightRuns: Set<string> })
+        .inFlightRuns;
+      inFlightRuns.add(automation.id);
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
+      await automationsService.reconcileMissedRuns();
+
+      expect(inFlightRuns.has(automation.id)).toBe(false);
+    });
+
     it('should mark runs exceeding max duration as timed out', async () => {
       vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
       const automation = await automationsService.create({
@@ -855,6 +882,45 @@ describe('AutomationsService', () => {
       const logs = await automationsService.getRunLogs(automation.id);
       const successLog = logs.find((l) => l.id === runLogId);
       expect(successLog!.status).toBe('success'); // Untouched
+    });
+
+    it('should preserve live in-flight runs when catching up after resume', async () => {
+      const triggerCb = vi.fn();
+      automationsService.onTrigger(triggerCb);
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'Resume Cleanup Guard',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 10, minute: 15 },
+      });
+
+      const originalNextRunAt = automation.nextRunAt;
+      const runLogId = await automationsService.createManualRunLog(automation.id);
+
+      const inFlightRuns = (automationsService as unknown as { inFlightRuns: Set<string> })
+        .inFlightRuns;
+      inFlightRuns.add(automation.id);
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
+      await automationsService.reconcileMissedRunsAfterResume();
+
+      const logs = await automationsService.getRunLogs(automation.id);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatchObject({
+        id: runLogId,
+        status: 'running',
+        finishedAt: null,
+        error: null,
+      });
+
+      const fetched = await automationsService.get(automation.id);
+      expect(fetched!.lastRunResult).toBeNull();
+      expect(fetched!.lastRunError).toBeNull();
+      expect(fetched!.nextRunAt).toBe(originalNextRunAt);
+      expect(triggerCb).not.toHaveBeenCalled();
     });
 
     it('should catch-up AND clean up orphaned runs for the same automation', async () => {
