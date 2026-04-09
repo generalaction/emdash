@@ -18,11 +18,14 @@ import { PrMergeLine } from './pr-merge-line';
 export function StatusIcon({
   status,
   className,
+  disableTooltip = false,
 }: {
+  disableTooltip?: boolean;
   status: PullRequest['status'];
   className?: string;
 }) {
   const renderTooltip = (children: ReactNode, text: string) => {
+    if (disableTooltip) return children;
     return (
       <Tooltip>
         <TooltipTrigger>{children}</TooltipTrigger>
