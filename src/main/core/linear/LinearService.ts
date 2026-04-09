@@ -89,7 +89,7 @@ export class LinearService {
       const viewer = await client.viewer;
       const org = await viewer.organization;
       await this.storeToken(token);
-      capture('linear_connected');
+      capture('integration_connected', { provider: 'linear' });
       return {
         success: true,
         workspaceName: org?.name ?? viewer.displayName ?? undefined,
@@ -109,7 +109,7 @@ export class LinearService {
       this._cachedToken = null;
       this._client = null;
       this._clientToken = null;
-      capture('linear_disconnected');
+      capture('integration_disconnected', { provider: 'linear' });
       return { success: true };
     } catch (error) {
       console.error('Failed to clear Linear token:', error);

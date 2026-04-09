@@ -3,6 +3,7 @@ import type { ListPrOptions } from '@shared/pull-requests';
 import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { log } from '@main/lib/logger';
+import { capture } from '@main/lib/telemetry';
 import { prService } from './pr-service';
 
 export const pullRequestController = createRPCController({
@@ -85,9 +86,13 @@ export const pullRequestController = createRPCController({
   }) => {
     try {
       const result = await prService.createPullRequest(params);
+      capture('pr_created', { is_draft: params.draft });
       return { success: true, url: result.url, number: result.number };
     } catch (error) {
       log.error('Failed to create pull request:', error);
+      capture('pr_creation_failed', {
+        error_type: error instanceof Error ? error.name || 'error' : 'unknown_error',
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unable to create pull request',

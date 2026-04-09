@@ -135,7 +135,7 @@ export default class JiraService {
       const keytar = await import('keytar');
       await keytar.setPassword(this.SERVICE, this.ACCOUNT, token);
       await this.writeCreds({ siteUrl, email });
-      capture('jira_connected');
+      capture('integration_connected', { provider: 'jira' });
       return { success: true, displayName: me?.displayName };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : String(e) };
@@ -152,7 +152,7 @@ export default class JiraService {
       try {
         await jiraKV.del('creds');
       } catch {}
-      capture('jira_disconnected');
+      capture('integration_disconnected', { provider: 'jira' });
       return { success: true };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : String(e) };

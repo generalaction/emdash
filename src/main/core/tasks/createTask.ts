@@ -6,6 +6,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { findPrForBranch, resolveInitialStatus } from '@main/core/task-status/pr-task-bridge';
 import { db } from '@main/db/client';
 import { pullRequests, tasks, tasksPullRequests } from '@main/db/schema';
+import { capture } from '@main/lib/telemetry';
 import { createConversation } from '../conversations/createConversation';
 import type { ProvisionTaskError } from '../projects/project-provider';
 import { prRowToPullRequest } from '../pull-requests/pr-utils';
@@ -194,6 +195,15 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       ...params.initialConversation,
       autoApprove: params.initialConversation.autoApprove ?? taskSettings.autoApproveByDefault,
     });
+  }
+
+  capture('task_created', {
+    has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
+    has_issue: params.linkedIssue?.provider ?? 'none',
+    provider: params.initialConversation?.provider ?? null,
+  });
+  if (params.linkedIssue) {
+    capture('issue_linked_to_task', { provider: params.linkedIssue.provider });
   }
 
   return ok(task);
