@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, powerMonitor } from 'electron';
 import { automationsService } from '../services/AutomationsService';
 import { databaseService } from '../services/DatabaseService';
 import { log } from '../lib/logger';
@@ -118,11 +118,15 @@ function sendTriggerToRenderer(automation: Automation, runLogId: string): void {
     );
     // Mark the dropped run log as failed so it doesn't stay orphaned
     void automationsService
-      .updateRunLog(dropped.runLogId, {
-        status: 'failure',
-        finishedAt: new Date().toISOString(),
-        error: 'Dropped due to trigger queue overflow',
-      })
+      .updateRunLog(
+        dropped.runLogId,
+        {
+          status: 'failure',
+          finishedAt: new Date().toISOString(),
+          error: 'Dropped due to trigger queue overflow',
+        },
+        dropped.automation.id
+      )
       .catch((err) => log.error('[Automations] Failed to mark dropped run log as failed:', err));
   }
   triggerQueue.push({ automation, runLogId });
@@ -150,6 +154,16 @@ export function registerAutomationsIpc(): void {
     .finally(() => {
       automationsService.start();
     });
+
+  // When the system resumes from sleep, reconcile any tasks that were missed
+  // while the machine was suspended. The normal setInterval-based tick may
+  // fire late or not at all after a long sleep, so we explicitly catch up.
+  powerMonitor.on('resume', () => {
+    log.info('[Automations] System resumed from sleep — reconciling missed runs');
+    void automationsService.reconcileMissedRunsAfterResume().catch((error) => {
+      log.error('Failed to reconcile missed automation runs after sleep:', error);
+    });
+  });
 
   // Stop scheduler on app quit
   app.on('before-quit', () => {
@@ -319,12 +333,16 @@ export function registerAutomationsIpc(): void {
     try {
       validateCompleteRunArg(args);
 
-      await automationsService.updateRunLog(args.runLogId, {
-        status: args.status,
-        finishedAt: new Date().toISOString(),
-        taskId: args.taskId ?? null,
-        error: args.error ?? null,
-      });
+      await automationsService.updateRunLog(
+        args.runLogId,
+        {
+          status: args.status,
+          finishedAt: new Date().toISOString(),
+          taskId: args.taskId ?? null,
+          error: args.error ?? null,
+        },
+        args.automationId
+      );
 
       await automationsService.setLastRunResult(args.automationId, args.status, args.error);
 

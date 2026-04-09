@@ -260,6 +260,7 @@ function mapRunRow(row: AutomationRunLogRow): AutomationRunLog {
 // ---------------------------------------------------------------------------
 
 type AutomationTriggerCallback = (automation: Automation, runLogId: string) => void;
+type ReconcileMode = 'startup' | 'resume';
 
 class AutomationsService {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -267,6 +268,7 @@ class AutomationsService {
   private triggerCallbacks: AutomationTriggerCallback[] = [];
   private ticking = false;
   private triggerTicking = false;
+  private reconciling = false;
   private initialized = false;
 
   /** Tracks the last-known event IDs per automation to detect new ones */
@@ -293,6 +295,8 @@ class AutomationsService {
     this.initialized = false;
     this.ticking = false;
     this.triggerTicking = false;
+    this.reconciling = false;
+    this.triggerCallbacks = [];
     this.knownEventIds.clear();
     this.inFlightRuns.clear();
     this.stop();
@@ -408,20 +412,7 @@ class AutomationsService {
       }
     });
 
-    for (const { automation, runLogId } of triggers) {
-      for (const cb of this.triggerCallbacks) {
-        try {
-          cb(automation, runLogId);
-        } catch (err) {
-          log.error(`[Automations] Trigger callback failed for ${automation.id}:`, err);
-          await this.setLastRunResult(
-            automation.id,
-            'failure',
-            err instanceof Error ? err.message : String(err)
-          );
-        }
-      }
-    }
+    await this.dispatchTriggers(triggers, 'Trigger callback failed');
   }
 
   // -------------------------------------------------------------------
@@ -514,20 +505,7 @@ class AutomationsService {
       }
     }
 
-    for (const { automation, runLogId } of triggers) {
-      for (const cb of this.triggerCallbacks) {
-        try {
-          cb(automation, runLogId);
-        } catch (err) {
-          log.error(`[Automations] Trigger callback failed for ${automation.id}:`, err);
-          await this.setLastRunResult(
-            automation.id,
-            'failure',
-            err instanceof Error ? err.message : String(err)
-          );
-        }
-      }
-    }
+    await this.dispatchTriggers(triggers, 'Trigger callback failed');
   }
 
   private enrichPromptWithEvent(
@@ -1224,6 +1202,8 @@ class AutomationsService {
         taskId: null,
       });
 
+      this.inFlightRuns.add(automationId);
+
       const rows = await db
         .select({ runCount: automationsTable.runCount })
         .from(automationsTable)
@@ -1256,129 +1236,179 @@ class AutomationsService {
    * callbacks never run while the lock is held.
    */
   async reconcileMissedRuns(): Promise<void> {
-    const triggers: Array<{ automation: Automation; runLogId: string }> = [];
+    await this.reconcileMissedRunsWithMode('startup');
+  }
 
-    await dataMutex.run(async () => {
-      await this.ensureInitialized();
-      const { db } = await getDrizzleClient();
-      const now = new Date();
-      const nowIso = now.toISOString();
+  /**
+   * Catch up missed schedules after the machine resumes from sleep.
+   *
+   * Unlike startup reconciliation, this keeps live in-flight runs intact.
+   */
+  async reconcileMissedRunsAfterResume(): Promise<void> {
+    await this.reconcileMissedRunsWithMode('resume');
+  }
 
-      // Phase 1: Mark orphaned "running" run logs as interrupted/timed-out
-      const runningRows = await db
-        .select()
-        .from(automationRunLogsTable)
-        .where(eq(automationRunLogsTable.status, 'running'));
+  private async reconcileMissedRunsWithMode(mode: ReconcileMode): Promise<void> {
+    if (this.reconciling) return;
+    this.reconciling = true;
 
-      const affectedAutomationErrors = new Map<string, string>();
+    try {
+      const triggers: Array<{ automation: Automation; runLogId: string }> = [];
 
-      for (const row of runningRows) {
-        const startedAt = new Date(row.startedAt);
-        const elapsed = now.getTime() - startedAt.getTime();
+      await dataMutex.run(async () => {
+        await this.ensureInitialized();
+        const { db } = await getDrizzleClient();
+        const now = new Date();
+        const nowIso = now.toISOString();
 
-        const nextError =
-          elapsed > DEFAULT_MAX_RUN_DURATION_MS
-            ? `Run timed out after ${Math.round(elapsed / 60_000)} minutes`
-            : 'Interrupted (app was closed or crashed)';
+        if (mode === 'startup') {
+          // Only cleanup orphaned runs on cold start. On resume, a "running" row
+          // can still correspond to a live task that was merely suspended.
+          const runningRows = await db
+            .select()
+            .from(automationRunLogsTable)
+            .where(eq(automationRunLogsTable.status, 'running'));
 
-        await db
-          .update(automationRunLogsTable)
-          .set({
-            status: 'failure',
-            error: nextError,
-            finishedAt: nowIso,
-          })
-          .where(eq(automationRunLogsTable.id, row.id));
+          const affectedAutomationErrors = new Map<string, string>();
 
-        const existingError = affectedAutomationErrors.get(row.automationId);
-        if (!existingError || nextError.startsWith('Run timed out after')) {
-          affectedAutomationErrors.set(row.automationId, nextError);
+          for (const row of runningRows) {
+            const startedAt = new Date(row.startedAt);
+            const elapsed = now.getTime() - startedAt.getTime();
+
+            const nextError =
+              elapsed > DEFAULT_MAX_RUN_DURATION_MS
+                ? `Run timed out after ${Math.round(elapsed / 60_000)} minutes`
+                : 'Interrupted (app was closed or crashed)';
+
+            await db
+              .update(automationRunLogsTable)
+              .set({
+                status: 'failure',
+                error: nextError,
+                finishedAt: nowIso,
+              })
+              .where(eq(automationRunLogsTable.id, row.id));
+
+            this.inFlightRuns.delete(row.automationId);
+
+            const existingError = affectedAutomationErrors.get(row.automationId);
+            if (!existingError || nextError.startsWith('Run timed out after')) {
+              affectedAutomationErrors.set(row.automationId, nextError);
+            }
+          }
+
+          if (affectedAutomationErrors.size > 0) {
+            for (const [automationId, lastRunError] of affectedAutomationErrors) {
+              await db
+                .update(automationsTable)
+                .set({
+                  lastRunResult: 'failure',
+                  lastRunError,
+                  updatedAt: nowIso,
+                })
+                .where(eq(automationsTable.id, automationId));
+            }
+          }
         }
-      }
 
-      // Phase 2: Update parent automations for interrupted runs
-      if (affectedAutomationErrors.size > 0) {
-        for (const [automationId, lastRunError] of affectedAutomationErrors) {
+        // Catch up missed schedules. Live in-flight runs still block overlap,
+        // matching the normal scheduler behavior after resume.
+        const dueRows = await db
+          .select()
+          .from(automationsTable)
+          .where(
+            and(eq(automationsTable.status, 'active'), lte(automationsTable.nextRunAt, nowIso))
+          );
+
+        for (const row of dueRows) {
+          const automation = mapAutomationRow(row);
+          if (!automation.nextRunAt) continue;
+          if (this.inFlightRuns.has(automation.id)) continue;
+
+          const nextRun = new Date(automation.nextRunAt);
+          if (nextRun >= now) continue;
+
+          const runLogId = generateId();
+          const recalculatedNextRun = computeNextRun(automation.schedule, now);
+          const nextRunCount = automation.runCount + 1;
+
           await db
             .update(automationsTable)
             .set({
-              lastRunResult: 'failure',
-              lastRunError,
+              lastRunAt: nowIso,
+              runCount: nextRunCount,
+              nextRunAt: recalculatedNextRun,
               updatedAt: nowIso,
             })
-            .where(eq(automationsTable.id, automationId));
+            .where(eq(automationsTable.id, automation.id));
+
+          await this.insertRunLog({
+            id: runLogId,
+            automationId: automation.id,
+            startedAt: nowIso,
+            finishedAt: null,
+            status: 'running',
+            error: null,
+            taskId: null,
+          });
+
+          this.inFlightRuns.add(automation.id);
+
+          triggers.push({
+            automation: {
+              ...automation,
+              lastRunAt: nowIso,
+              runCount: nextRunCount,
+              nextRunAt: recalculatedNextRun,
+              updatedAt: nowIso,
+            },
+            runLogId,
+          });
+
+          log.info(
+            `[Automations] Catch-up trigger for "${automation.name}" after ${mode} reconciliation — next run: ${recalculatedNextRun}`
+          );
         }
-      }
+      });
 
-      // Phase 3: Catch-up missed schedules — trigger each once, then advance nextRunAt
-      const dueRows = await db
-        .select()
-        .from(automationsTable)
-        .where(and(eq(automationsTable.status, 'active'), lte(automationsTable.nextRunAt, nowIso)));
+      await this.dispatchTriggers(triggers, 'Catch-up trigger callback failed');
+    } finally {
+      this.reconciling = false;
+    }
+  }
 
-      for (const row of dueRows) {
-        const automation = mapAutomationRow(row);
-        if (!automation.nextRunAt) continue;
-
-        const nextRun = new Date(automation.nextRunAt);
-        if (nextRun >= now) continue;
-
-        const runLogId = generateId();
-        const recalculatedNextRun = computeNextRun(automation.schedule, now);
-        const nextRunCount = automation.runCount + 1;
-
-        await db
-          .update(automationsTable)
-          .set({
-            lastRunAt: nowIso,
-            runCount: nextRunCount,
-            nextRunAt: recalculatedNextRun,
-            updatedAt: nowIso,
-          })
-          .where(eq(automationsTable.id, automation.id));
-
-        await this.insertRunLog({
-          id: runLogId,
-          automationId: automation.id,
-          startedAt: nowIso,
-          finishedAt: null,
-          status: 'running',
-          error: null,
-          taskId: null,
-        });
-
-        triggers.push({
-          automation: {
-            ...automation,
-            lastRunAt: nowIso,
-            runCount: nextRunCount,
-            nextRunAt: recalculatedNextRun,
-            updatedAt: nowIso,
-          },
-          runLogId,
-        });
-
-        log.info(
-          `[Automations] Catch-up trigger for "${automation.name}" (missed while app was closed) — next run: ${recalculatedNextRun}`
-        );
-      }
-    });
-
-    // Fire trigger callbacks outside the mutex
+  private async dispatchTriggers(
+    triggers: Array<{ automation: Automation; runLogId: string }>,
+    errorContext: string
+  ): Promise<void> {
     for (const { automation, runLogId } of triggers) {
       for (const cb of this.triggerCallbacks) {
         try {
           cb(automation, runLogId);
         } catch (err) {
-          log.error(`[Automations] Catch-up trigger callback failed for ${automation.id}:`, err);
-          await this.setLastRunResult(
-            automation.id,
-            'failure',
-            err instanceof Error ? err.message : String(err)
-          );
+          const message = err instanceof Error ? err.message : String(err);
+          log.error(`[Automations] ${errorContext} for ${automation.id}:`, err);
+          await this.failRunDispatch(runLogId, automation.id, message);
         }
       }
     }
+  }
+
+  private async failRunDispatch(
+    runLogId: string,
+    automationId: string,
+    errorMessage: string
+  ): Promise<void> {
+    await this.updateRunLog(
+      runLogId,
+      {
+        status: 'failure',
+        error: errorMessage,
+        finishedAt: new Date().toISOString(),
+      },
+      automationId
+    );
+    await this.setLastRunResult(automationId, 'failure', errorMessage);
   }
 }
 

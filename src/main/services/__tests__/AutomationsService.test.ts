@@ -72,6 +72,11 @@ beforeAll(async () => {
   automationsService = mod.automationsService;
 });
 
+/** Helper to access the private inFlightRuns set without repeating the cast. */
+function getInFlightRuns(): Set<string> {
+  return (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns;
+}
+
 // ---------------------------------------------------------------------------
 // computeNextRun — tested indirectly via create + schedule
 // We can also test it by creating automations and checking nextRunAt
@@ -588,6 +593,7 @@ describe('AutomationsService', () => {
       expect(logs).toHaveLength(1);
       expect(logs[0].status).toBe('running');
       expect(logs[0].automationId).toBe(automation.id);
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
     });
 
     it('should update run log status', async () => {
@@ -610,6 +616,31 @@ describe('AutomationsService', () => {
       expect(logs[0].status).toBe('success');
       expect(logs[0].taskId).toBe('task-123');
       expect(logs[0].finishedAt).toBeTruthy();
+    });
+
+    it('should clear in-flight state when a run log finishes', async () => {
+      const automation = await automationsService.create({
+        name: 'Clear In Flight',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 9, minute: 0 },
+      });
+
+      const runLogId = await automationsService.createManualRunLog(automation.id);
+
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
+
+      await automationsService.updateRunLog(
+        runLogId,
+        {
+          status: 'success',
+          finishedAt: new Date().toISOString(),
+        },
+        automation.id
+      );
+
+      expect(getInFlightRuns().has(automation.id)).toBe(false);
     });
 
     it('should increment runCount on manual trigger', async () => {
@@ -726,6 +757,7 @@ describe('AutomationsService', () => {
       const logs = await automationsService.getRunLogs(automation.id);
       expect(logs).toHaveLength(1);
       expect(logs[0].status).toBe('running');
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
 
       // runCount should be incremented
       expect(fetched!.runCount).toBe(1);
@@ -810,6 +842,27 @@ describe('AutomationsService', () => {
       expect(fetched!.lastRunError).toBe('Interrupted (app was closed or crashed)');
     });
 
+    it('should clear in-flight state when startup reconciliation fails an orphaned run', async () => {
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'In Flight Cleanup',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 14, minute: 0 },
+      });
+
+      await automationsService.createManualRunLog(automation.id);
+
+      // createManualRunLog populates inFlightRuns via the public API
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
+      await automationsService.reconcileMissedRuns();
+
+      expect(getInFlightRuns().has(automation.id)).toBe(false);
+    });
+
     it('should mark runs exceeding max duration as timed out', async () => {
       vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
       const automation = await automationsService.create({
@@ -855,6 +908,71 @@ describe('AutomationsService', () => {
       const logs = await automationsService.getRunLogs(automation.id);
       const successLog = logs.find((l) => l.id === runLogId);
       expect(successLog!.status).toBe('success'); // Untouched
+    });
+
+    it('should preserve live in-flight runs when catching up after resume', async () => {
+      const triggerCb = vi.fn();
+      automationsService.onTrigger(triggerCb);
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'Resume Cleanup Guard',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 10, minute: 15 },
+      });
+
+      const originalNextRunAt = automation.nextRunAt;
+      const runLogId = await automationsService.createManualRunLog(automation.id);
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
+      await automationsService.reconcileMissedRunsAfterResume();
+
+      const logs = await automationsService.getRunLogs(automation.id);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatchObject({
+        id: runLogId,
+        status: 'running',
+        finishedAt: null,
+        error: null,
+      });
+
+      const fetched = await automationsService.get(automation.id);
+      expect(fetched!.lastRunResult).toBeNull();
+      expect(fetched!.lastRunError).toBeNull();
+      expect(fetched!.nextRunAt).toBe(originalNextRunAt);
+      expect(triggerCb).not.toHaveBeenCalled();
+    });
+
+    it('should fail the catch-up run and clear in-flight state when trigger delivery throws', async () => {
+      automationsService.onTrigger(() => {
+        throw new Error('Renderer unavailable');
+      });
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'Delivery Failure',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 10, minute: 15 },
+      });
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
+      await automationsService.reconcileMissedRunsAfterResume();
+
+      const logs = await automationsService.getRunLogs(automation.id);
+      expect(logs).toHaveLength(1);
+      expect(logs[0].status).toBe('failure');
+      expect(logs[0].error).toBe('Renderer unavailable');
+      expect(logs[0].finishedAt).toBeTruthy();
+      expect(getInFlightRuns().has(automation.id)).toBe(false);
+
+      const fetched = await automationsService.get(automation.id);
+      expect(fetched!.lastRunResult).toBe('failure');
+      expect(fetched!.lastRunError).toBe('Renderer unavailable');
     });
 
     it('should catch-up AND clean up orphaned runs for the same automation', async () => {
