@@ -39,11 +39,11 @@ function wrapArgs<TId extends ModalId>(args: UserArgs<TId>): Record<string, any>
     ...args,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onSuccess: (result: any) => {
-      modalStore.closeModal();
+      modalStore.closeModal('completed');
       args.onSuccess?.(result);
     },
     onClose: () => {
-      modalStore.closeModal();
+      modalStore.closeModal('dismissed');
       args.onClose?.();
     },
   };
@@ -65,7 +65,7 @@ export const ModalProvider = observer(function ModalProvider({
   }, []);
 
   const closeModal = useCallback(() => {
-    modalStore.closeModal();
+    modalStore.closeModal('dismissed');
   }, []);
 
   const setCloseGuard = useCallback((active: boolean) => {

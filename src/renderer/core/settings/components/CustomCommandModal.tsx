@@ -2,6 +2,7 @@ import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
+import { log } from '@renderer/lib/logger';
 import { Button } from '../../../components/ui/button';
 import { ConfirmButton } from '../../../components/ui/confirm-button';
 import {
@@ -152,7 +153,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
       }
       onClose();
     } catch (error) {
-      console.error('Failed to save provider custom config:', error);
+      log.error('Failed to save provider custom config:', error);
     } finally {
       setSaving(false);
     }

@@ -1,4 +1,6 @@
-import { rpc } from '../core/ipc';
+import type { TelemetryEventProperties } from '@shared/telemetry';
+import { log } from '@renderer/lib/logger';
+import { captureTelemetry } from './telemetryClient';
 
 interface ErrorContext {
   // Component/UI context
@@ -90,20 +92,20 @@ class RendererErrorTracking {
       // Filter out undefined/null values
       const cleanProperties = Object.fromEntries(
         Object.entries(properties).filter(([_, v]) => v !== undefined && v !== null)
-      );
+      ) as TelemetryEventProperties['$exception'];
 
       // Send to main process as $exception event (required for PostHog error tracking)
       this.sendToMainProcess('$exception', cleanProperties);
 
       // Also log to console for debugging
-      console.error('[ErrorTracking]', errorMessage, {
+      log.error('[ErrorTracking]', errorMessage, {
         severity,
         component: context?.component,
         action: context?.action,
       });
     } catch (trackingError) {
       // Never let error tracking crash the renderer
-      console.warn('Failed to capture exception:', trackingError);
+      log.warn('Failed to capture exception:', trackingError);
     }
   }
 
@@ -169,8 +171,11 @@ class RendererErrorTracking {
 
   // Private helper methods
 
-  private sendToMainProcess(event: string, properties: Record<string, any>): void {
-    void rpc.telemetry.capture({ event, properties });
+  private sendToMainProcess(
+    event: '$exception',
+    properties: TelemetryEventProperties['$exception']
+  ): void {
+    captureTelemetry(event, properties);
   }
 
   private determineSeverity(

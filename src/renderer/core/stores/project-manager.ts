@@ -3,6 +3,7 @@ import { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/core/ipc';
 import { queryClient } from '@renderer/core/query-client';
+import { captureTelemetry } from '@renderer/lib/telemetryClient';
 import { appState } from './app-state';
 import {
   createUnmountedProject,
@@ -82,6 +83,13 @@ export class ProjectManagerStore {
 
     const projectId = id ?? crypto.randomUUID();
     const isSsh = projectType.type === 'ssh';
+    const source: 'open' | 'create' | 'clone' | 'ssh' = isSsh
+      ? 'ssh'
+      : data.mode === 'pick'
+        ? 'open'
+        : data.mode === 'clone'
+          ? 'clone'
+          : 'create';
 
     switch (data.mode) {
       case 'pick': {
@@ -105,8 +113,10 @@ export class ProjectManagerStore {
                 name: data.name,
               });
           this._setAndOpenProject(projectId, project);
+          captureTelemetry('project_added', { source, success: true });
         } catch (err) {
           this._markError(projectId, err);
+          captureTelemetry('project_added', { source, success: false });
           throw err;
         }
         break;
@@ -142,8 +152,10 @@ export class ProjectManagerStore {
                 name: data.name,
               });
           this._setAndOpenProject(projectId, project);
+          captureTelemetry('project_added', { source, success: true });
         } catch (err) {
           this._markError(projectId, err);
+          captureTelemetry('project_added', { source, success: false });
           throw err;
         }
         break;
@@ -192,8 +204,10 @@ export class ProjectManagerStore {
                 name: data.name,
               });
           this._setAndOpenProject(projectId, project);
+          captureTelemetry('project_added', { source, success: true });
         } catch (err) {
           this._markError(projectId, err);
+          captureTelemetry('project_added', { source, success: false });
           throw err;
         }
         break;

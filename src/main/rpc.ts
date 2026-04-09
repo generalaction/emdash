@@ -23,6 +23,7 @@ import { providerSettingsController } from './core/settings/provider-settings-co
 import { skillsController } from './core/skills/controller';
 import { sshController } from './core/ssh/controller';
 import { taskController } from './core/tasks/controller';
+import { telemetryController } from './core/telemetry/controller';
 import { terminalsController } from './core/terminals/controller';
 import { updateController } from './core/updates/controller';
 import { viewStateController } from './core/view-state/controller';
@@ -53,6 +54,7 @@ export const rpcRouter = createRPCRouter({
   dependencies: dependenciesController,
   mcp: mcpController,
   editorBuffer: editorBufferController,
+  telemetry: telemetryController,
   pullRequests: pullRequestController,
   viewState: viewStateController,
 });

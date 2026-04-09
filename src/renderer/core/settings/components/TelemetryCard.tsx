@@ -41,7 +41,7 @@ const TelemetryCard: React.FC = () => {
             checked={prefEnabled}
             onCheckedChange={async (checked) => {
               void import('../../../lib/telemetryClient').then(({ captureTelemetry }) => {
-                captureTelemetry('telemetry_toggled', { enabled: checked });
+                captureTelemetry('setting_changed', { setting: 'telemetry' });
               });
               void setTelemetryEnabled(checked);
             }}

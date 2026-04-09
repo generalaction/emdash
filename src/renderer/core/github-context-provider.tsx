@@ -11,6 +11,7 @@ import type {
   GitHubTokenSource,
   GitHubUser,
 } from '@shared/github';
+import { log } from '@renderer/lib/logger';
 import { useToast } from '../hooks/use-toast';
 import { useAccountSession, useFetchAccountHealth } from '../hooks/useAccount';
 import { events, rpc } from './ipc';
@@ -170,7 +171,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
       });
       void login();
     } catch (error) {
-      console.error('GitHub connection error:', error);
+      log.error('GitHub connection error:', error);
       setGithubLoading(false);
       setGithubStatusMessage(undefined);
       toast({

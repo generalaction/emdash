@@ -34,10 +34,12 @@ export const McpView: React.FC = () => {
   };
 
   const openModal = (mode: McpModalMode) => {
+    const source =
+      mode.type === 'add-catalog' ? 'catalog' : mode.type === 'add-custom' ? 'custom' : null;
     showModal('mcpServerModal', {
       mode,
       providers,
-      onSave: saveServer,
+      onSave: (server) => saveServer(server, source),
       onRemove: handleRemoveRequest,
     });
   };

@@ -1,3 +1,5 @@
+import { log } from '@renderer/lib/logger';
+
 /**
  * PendingInjectionManager - Singleton for managing text to be prepended to the next terminal input
  *
@@ -55,7 +57,7 @@ class PendingInjectionManagerSingleton {
       try {
         callback();
       } catch (e) {
-        console.error('PendingInjectionManager: callback error', e);
+        log.error('PendingInjectionManager: callback error', e);
       }
     }
   }
@@ -86,7 +88,7 @@ class PendingInjectionManagerSingleton {
       try {
         listener();
       } catch (e) {
-        console.error('PendingInjectionManager: listener error', e);
+        log.error('PendingInjectionManager: listener error', e);
       }
     }
   }

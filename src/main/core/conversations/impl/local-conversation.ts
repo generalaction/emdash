@@ -18,6 +18,7 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import type { ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { capture } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
 
 const DEFAULT_COLS = 80;
@@ -137,10 +138,16 @@ export class LocalConversationProvider implements ConversationProvider {
       });
     }
 
+    const startedAt = Date.now();
     pty.onExit(({ exitCode }) => {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
+      capture('agent_run_finished', {
+        provider: conversation.providerId,
+        duration_ms: Math.max(0, Date.now() - startedAt),
+        exit_code: typeof exitCode === 'number' ? exitCode : -1,
+      });
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,
@@ -176,6 +183,7 @@ export class LocalConversationProvider implements ConversationProvider {
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
+    capture('agent_run_started', { provider: conversation.providerId });
   }
 
   async stopSession(conversationId: string): Promise<void> {

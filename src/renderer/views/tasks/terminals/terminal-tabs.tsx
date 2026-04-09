@@ -13,6 +13,7 @@ import {
 } from '@renderer/core/stores/lifecycle-scripts';
 import { TerminalManagerStore, TerminalStore } from '@renderer/core/stores/terminal-manager';
 import { TerminalTabViewStore } from '@renderer/core/stores/terminal-tab-view-store';
+import { log } from '@renderer/lib/logger';
 
 export function getTerminalsPaneSize() {
   const container = getPaneContainer('terminals');
@@ -68,7 +69,7 @@ export const TerminalsTabs = observer(function TerminalsTabs({
       });
       terminalTabView.setActiveTab(id);
     } catch (error) {
-      console.error('Failed to create terminal:', error);
+      log.error('Failed to create terminal:', error);
     }
   };
 

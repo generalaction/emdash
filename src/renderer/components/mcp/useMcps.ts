@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/mcp/types';
 import { useToast } from '@renderer/hooks/use-toast';
+import { captureTelemetry } from '@renderer/lib/telemetryClient';
 import { rpc } from '../../core/ipc';
 
 const MCP_QUERY_KEY = ['mcp', 'all'] as const;
@@ -41,11 +42,14 @@ export function useMcps() {
   // ── Mutations ────────────────────────────────────────────────────────
 
   const saveMutation = useMutation({
-    mutationFn: async (server: McpServer) => {
-      const result = await rpc.mcp.saveServer(server);
+    mutationFn: async (payload: { server: McpServer; source: 'catalog' | 'custom' | null }) => {
+      const result = await rpc.mcp.saveServer(payload.server);
       if (!result.success) throw new Error(result.error ?? 'Failed to save server');
     },
-    onSuccess: () => {
+    onSuccess: (_, payload) => {
+      if (payload.source) {
+        captureTelemetry('mcp_server_added', { source: payload.source });
+      }
       queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
     },
     onError: (error) => {
@@ -58,8 +62,8 @@ export function useMcps() {
   });
 
   const saveServer = useCallback(
-    async (server: McpServer) => {
-      await saveMutation.mutateAsync(server);
+    async (server: McpServer, source: 'catalog' | 'custom' | null = null) => {
+      await saveMutation.mutateAsync({ server, source });
     },
     [saveMutation]
   );
@@ -70,6 +74,7 @@ export function useMcps() {
       if (!result.success) throw new Error(result.error ?? 'Failed to remove server');
     },
     onSuccess: () => {
+      captureTelemetry('mcp_server_removed');
       queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
     },
     onError: (error) => {

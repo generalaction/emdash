@@ -4,6 +4,7 @@ import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { capture } from '@main/lib/telemetry';
 
 export async function deleteTask(projectId: string, taskId: string): Promise<void> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
@@ -13,6 +14,7 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
 
   await db.delete(tasks).where(eq(tasks.id, taskId));
   void viewStateService.del(`task:${taskId}`);
+  capture('task_deleted');
 
   if (project) {
     void project

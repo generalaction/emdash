@@ -79,10 +79,6 @@ export function useGitHubIssues({
       if (!result?.success) {
         throw new Error(result?.error ?? 'Failed to load GitHub issues.');
       }
-      void (async () => {
-        const { captureTelemetry } = await import('../../lib/telemetryClient');
-        captureTelemetry('github_issues_searched');
-      })();
       return (result.issues ?? []).map(toIssue);
     },
     staleTime: 60_000,
@@ -100,10 +96,6 @@ export function useGitHubIssues({
         SEARCH_LIMIT
       );
       if (result?.success) {
-        void (async () => {
-          const { captureTelemetry } = await import('../../lib/telemetryClient');
-          captureTelemetry('github_issue_selected');
-        })();
         return (result.issues ?? []).map(toIssue);
       }
       return [] as Issue[];

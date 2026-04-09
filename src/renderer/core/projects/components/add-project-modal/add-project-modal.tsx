@@ -23,6 +23,7 @@ import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-pr
 import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import { getProjectManagerStore } from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
+import { log } from '@renderer/lib/logger';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { useCloneMode, useNewMode, usePickMode } from './modes';
 
@@ -114,7 +115,7 @@ export function AddProjectModal({
         }
       }
     } catch (e) {
-      console.error(e);
+      log.error(e);
     }
 
     const id = crypto.randomUUID();

@@ -9,6 +9,8 @@ import {
   useTransition,
   type ReactNode,
 } from 'react';
+import { focusTracker } from '@renderer/lib/focus-tracker';
+import { captureTelemetry } from '@renderer/lib/telemetryClient';
 import { useModalContext } from '../modal/modal-provider';
 import { appState } from '../stores/app-state';
 import {
@@ -25,6 +27,23 @@ import {
 import { views, type ViewDefinition, type ViewId, type WrapParams } from './registry';
 
 type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
+
+const viewEvents: Record<
+  ViewId,
+  | 'home_viewed'
+  | 'project_viewed'
+  | 'task_viewed'
+  | 'settings_viewed'
+  | 'skills_viewed'
+  | 'mcp_viewed'
+> = {
+  home: 'home_viewed',
+  project: 'project_viewed',
+  task: 'task_viewed',
+  settings: 'settings_viewed',
+  skills: 'skills_viewed',
+  mcp: 'mcp_viewed',
+};
 
 export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   const { closeModal } = useModalContext();
@@ -43,9 +62,50 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
     runInAction(() => appState.navigation.sync(currentViewId, viewParamsStore));
   }, [currentViewId, viewParamsStore]);
 
+  useEffect(() => {
+    const initialViewId = appState.navigation.currentViewId;
+    focusTracker.initialize({ view: initialViewId });
+    captureTelemetry(viewEvents[initialViewId], { from_view: null, dwell_ms: 0 });
+
+    const onBlur = () => {
+      focusTracker.transition({}, 'window_blur');
+    };
+    const onFocus = () => {
+      focusTracker.transition({}, 'window_focus');
+    };
+
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
   const navigate = useCallback(
     (...args: unknown[]) => {
       const [viewId, params] = args as [ViewId, Record<string, unknown> | undefined];
+      if (viewId !== currentViewId) {
+        const transition = focusTracker.transition(
+          viewId === 'task'
+            ? { view: viewId }
+            : {
+                view: viewId,
+                mainPanel: null,
+                rightPanel: null,
+                focusedRegion: null,
+                conversationIndex: null,
+              },
+          'navigation'
+        );
+
+        captureTelemetry(viewEvents[viewId], {
+          from_view: transition?.previous.view ?? null,
+          dwell_ms: transition?.durationMs ?? 0,
+        });
+      }
+
       startTransition(() => {
         setCurrentViewId(viewId);
         // Only overwrite stored params when the caller explicitly passes them;
@@ -56,7 +116,7 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
         closeModal();
       });
     },
-    [closeModal]
+    [closeModal, currentViewId]
   ) as NavigateFnTyped;
 
   const updateViewParams = useCallback(

@@ -17,6 +17,7 @@ import { repoService } from '@main/core/github/services/repo-service';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getGitLocalExec, getGitSshExec, type ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
+import { capture, identify as telemetryIdentify } from '@main/lib/telemetry';
 
 export const githubController = createRPCController({
   getStatus: async (): Promise<GitHubStatusResponse> => {
@@ -39,7 +40,15 @@ export const githubController = createRPCController({
 
   auth: async (): Promise<GitHubAuthResponse> => {
     try {
-      return await githubAuthService.startDeviceFlowAuth();
+      const result = await githubAuthService.startDeviceFlowAuth();
+      if (result.success) {
+        capture('integration_connected', { provider: 'github' });
+        const user = await githubAuthService.getCurrentUser();
+        if (user?.login) {
+          telemetryIdentify(user.login);
+        }
+      }
+      return result;
     } catch (error) {
       log.error('GitHub authentication failed:', error);
       return { success: false, error: 'Authentication failed' };
@@ -49,7 +58,19 @@ export const githubController = createRPCController({
   connectOAuth: async (): Promise<GitHubConnectResponse> => {
     try {
       const { baseUrl } = ACCOUNT_CONFIG.authServer;
-      return await githubAuthService.startOAuthFlow(baseUrl);
+      const result = await githubAuthService.startOAuthFlow(baseUrl);
+      if (result.success) {
+        capture('integration_connected', { provider: 'github' });
+        if (result.user?.login) {
+          telemetryIdentify(result.user.login);
+        } else {
+          const user = await githubAuthService.getCurrentUser();
+          if (user?.login) {
+            telemetryIdentify(user.login);
+          }
+        }
+      }
+      return result;
     } catch (error) {
       log.error('GitHub OAuth connect failed:', error);
       return { success: false, error: 'OAuth connection failed' };
@@ -78,6 +99,7 @@ export const githubController = createRPCController({
   logout: async () => {
     try {
       await githubAuthService.logout();
+      capture('integration_disconnected', { provider: 'github' });
       return { success: true };
     } catch (error) {
       log.error('GitHub logout failed:', error);

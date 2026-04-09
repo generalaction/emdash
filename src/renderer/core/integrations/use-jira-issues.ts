@@ -84,10 +84,6 @@ export function useJiraIssues({ enabled = true }: UseJiraIssuesOptions = {}): Us
     queryFn: async () => {
       const result = await rpc.jira.searchIssues(debouncedTerm.trim(), SEARCH_LIMIT);
       if (result?.success) {
-        void (async () => {
-          const { captureTelemetry } = await import('../../lib/telemetryClient');
-          captureTelemetry('jira_issues_searched');
-        })();
         return (result.issues ?? []).map(toIssue);
       }
       return [] as Issue[];

@@ -14,7 +14,7 @@ const SidebarRightToggleButton: React.FC = () => {
   const handleClick = async () => {
     const nextCollapsed = !collapsed;
     const nextState = nextCollapsed ? 'closed' : 'open';
-    captureTelemetry('toolbar_right_sidebar_clicked', { state: nextState });
+    captureTelemetry('sidebar_toggled', { side: 'right', state: nextState });
 
     toggle();
   };

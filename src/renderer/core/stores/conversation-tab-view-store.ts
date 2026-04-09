@@ -1,4 +1,5 @@
 import { action, autorun, computed, makeObservable, observable, reaction } from 'mobx';
+import { focusTracker } from '@renderer/lib/focus-tracker';
 import type { ConversationManagerStore, ConversationStore } from './conversation-manager';
 import type { TabViewProvider, TabViewSnapshot } from './generic-tab-view';
 import type { Snapshottable } from './snapshottable';
@@ -98,7 +99,12 @@ export class ConversationTabViewStore
   }
 
   setActiveTab(id: string): void {
+    const previousTabId = this.activeTabId;
     setTabActive(this, id);
+    if (previousTabId !== this.activeTabId) {
+      const index = this.activeTabId ? this.tabOrder.indexOf(this.activeTabId) : -1;
+      focusTracker.transition({ conversationIndex: index >= 0 ? index : null }, 'tab_switch');
+    }
   }
 
   reorderTabs(fromIndex: number, toIndex: number): void {

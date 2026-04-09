@@ -17,7 +17,7 @@ const ThemeCard: React.FC = () => {
           onClick={async () => {
             if (theme !== 'emlight') {
               void import('../../../lib/telemetryClient').then(({ captureTelemetry }) => {
-                captureTelemetry('theme_changed', { theme: 'emlight' });
+                captureTelemetry('setting_changed', { setting: 'theme' });
               });
             }
             setTheme('emlight');

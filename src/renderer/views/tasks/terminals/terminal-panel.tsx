@@ -14,6 +14,7 @@ import { PtySession } from '@renderer/core/stores/pty-session';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
+import { log } from '@renderer/lib/logger';
 import { cn } from '@renderer/lib/utils';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TabbedPtyPanel } from '../tabbed-pty-panel';
@@ -58,7 +59,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       });
       terminalTabView.setActiveTab(id);
     } catch (error) {
-      console.error('Failed to create terminal:', error);
+      log.error('Failed to create terminal:', error);
     }
   };
 
