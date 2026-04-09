@@ -103,7 +103,10 @@ const PullRequestsSection = observer(function PullRequestsSection({
   onToggleCollapsed: () => void;
 }) {
   const provisioned = useProvisionedTask();
-  const { pullRequests, nameWithOwner, taskBranch } = provisioned.workspace.pr;
+  const { pr, nameWithOwner: nwoResource } = provisioned.workspace;
+  const nameWithOwner = nwoResource.data ?? null;
+  const taskBranch = provisioned.taskBranch;
+  const { pullRequests } = pr;
   const showCreatePrModal = useShowModal('createPrModal');
 
   const activePr = pullRequests.find((pr) => pr.status === 'open') || pullRequests[0];

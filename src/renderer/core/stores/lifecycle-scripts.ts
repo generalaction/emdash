@@ -38,16 +38,14 @@ export class LifecycleScriptStore {
 
 export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptStore, never> {
   private readonly projectId: string;
-  private readonly getTaskId: () => string;
   private readonly workspaceId: string;
   private _loaded = false;
   scripts = observable.map<string, LifecycleScriptStore>();
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
 
-  constructor(projectId: string, getTaskId: () => string, workspaceId: string) {
+  constructor(projectId: string, workspaceId: string) {
     this.projectId = projectId;
-    this.getTaskId = getTaskId;
     this.workspaceId = workspaceId;
     makeObservable(this, {
       scripts: observable,
@@ -110,7 +108,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
 
   private async load(): Promise<void> {
     this._loaded = true;
-    const settings = await rpc.tasks.getTaskSettings(this.projectId, this.getTaskId());
+    const settings = await rpc.tasks.getWorkspaceSettings(this.projectId, this.workspaceId);
 
     const entries: { type: ScriptType; command: string; label: string }[] = [];
     if (settings.scripts?.setup) {

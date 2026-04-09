@@ -1,4 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
+import { workspaceKey } from '@shared/workspace-key';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
@@ -16,11 +17,10 @@ export async function provisionTask(taskId: string) {
 
   const existingTask = project.getTask(taskId);
 
-  if (existingTask)
-    return {
-      path: existingTask.workspace.path,
-      workspaceId: existingTask.workspace.id,
-    };
+  if (existingTask) {
+    const wsId = workspaceKey(existingTask.taskBranch);
+    return { path: project.getWorkspace(wsId)?.path ?? '' };
+  }
 
   const [existingTerminals, existingConversations] = await Promise.all([
     db
@@ -43,8 +43,5 @@ export async function provisionTask(taskId: string) {
     .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP` })
     .where(eq(tasks.id, taskId));
 
-  return {
-    path: result.data.workspace.path,
-    workspaceId: result.data.workspace.id,
-  };
+  return { path: project.getWorkspace(workspaceKey(task.taskBranch))?.path ?? '' };
 }

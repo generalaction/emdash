@@ -7,6 +7,7 @@ import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
+import { workspaceKey } from '@shared/workspace-key';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -19,7 +20,6 @@ import { SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-con
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import type { Workspace } from '@main/core/workspaces/workspace';
-import { workspaceKey } from '@main/core/workspaces/workspace-key';
 import { WorkspaceLifecycleService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { log } from '@main/lib/logger';
@@ -291,7 +291,6 @@ export class SshProjectProvider implements ProjectProvider {
         taskId: task.id,
         taskBranch: task.taskBranch,
         sourceBranch: task.sourceBranch,
-        workspace,
         taskEnvVars,
         conversations: conversationProvider,
         terminals: terminalProvider,
@@ -370,27 +369,34 @@ export class SshProjectProvider implements ProjectProvider {
     return promise;
   }
 
+  getWorkspace(
+    workspaceId: string
+  ): import('@main/core/workspaces/workspace').Workspace | undefined {
+    return this.workspaceRegistry.get(workspaceId);
+  }
+
   private async doTeardownTask(task: TaskProvider): Promise<void> {
-    const settings = await getEffectiveTaskSettings({
-      projectSettings: this.settings,
-      taskFs: task.workspace.fs,
-    });
+    const wsId = workspaceKey(task.taskBranch);
+    const workspace = this.workspaceRegistry.get(wsId);
 
-    const scripts = settings.scripts;
+    if (workspace) {
+      const settings = await getEffectiveTaskSettings({
+        projectSettings: this.settings,
+        taskFs: workspace.fs,
+      });
+      const scripts = settings.scripts;
 
-    if (scripts?.teardown && this.workspaceRegistry.refCount(task.workspace.id) === 1) {
-      await task.workspace.lifecycleService.runLifecycleScript(
-        {
-          type: 'teardown',
-          script: scripts.teardown,
-        },
-        { waitForExit: true, exit: true }
-      );
+      if (scripts?.teardown && this.workspaceRegistry.refCount(wsId) === 1) {
+        await workspace.lifecycleService.runLifecycleScript(
+          { type: 'teardown', script: scripts.teardown },
+          { waitForExit: true, exit: true }
+        );
+      }
     }
 
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
-    await this.workspaceRegistry.release(task.workspace.id);
+    await this.workspaceRegistry.release(wsId);
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {
@@ -446,7 +452,8 @@ export class SshProjectProvider implements ProjectProvider {
     if (!env) throw new Error(`No provisioned environment for task: ${taskId}`);
 
     const sftp = await this.getSftp();
-    const destDir = env.workspace.path;
+    const wsId = workspaceKey(env.taskBranch);
+    const destDir = this.workspaceRegistry.get(wsId)?.path ?? env.taskId;
 
     return Promise.all(
       localPaths.map(async (localPath) => {

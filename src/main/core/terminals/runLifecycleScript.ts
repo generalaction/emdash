@@ -1,25 +1,23 @@
-import { projectManager } from '../projects/project-manager';
 import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
+import { resolveWorkspace } from '../projects/utils';
 
 export async function runLifecycleScript({
   projectId,
-  taskId,
+  workspaceId,
   type,
 }: {
   projectId: string;
-  taskId: string;
+  workspaceId: string;
   type: 'setup' | 'run' | 'teardown';
 }) {
-  const project = projectManager.getProject(projectId);
-  if (!project) throw new Error('Project not found');
+  const workspace = resolveWorkspace(projectId, workspaceId);
+  if (!workspace) throw new Error('Workspace not found');
 
-  const task = project?.getTask(taskId);
-  if (!task) throw new Error('Task not found');
   const settings = await getEffectiveTaskSettings({
-    projectSettings: project.settings,
-    taskFs: task.workspace.fs,
+    projectSettings: workspace.settings,
+    taskFs: workspace.fs,
   });
   const script = settings.scripts?.[type];
   if (!script) return;
-  await task.workspace.lifecycleService.runLifecycleScript({ type, script });
+  await workspace.lifecycleService.runLifecycleScript({ type, script });
 }

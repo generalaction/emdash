@@ -272,7 +272,7 @@ export class PrService {
 
       const taskBranch = env.taskBranch;
       const remoteName = await project.settings.getRemote();
-      const remotes = await env.workspace.git.getRemotes();
+      const remotes = await project.git.getRemotes();
       const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
       const nameWithOwner = remoteUrl ? parseNameWithOwner(remoteUrl) : null;
 

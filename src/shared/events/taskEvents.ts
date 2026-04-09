@@ -10,5 +10,6 @@ export const taskStatusUpdatedChannel = defineEvent<{
 export const taskPrUpdatedChannel = defineEvent<{
   taskId: string;
   projectId: string;
+  workspaceId: string;
   prs: PullRequest[];
 }>('task:pr-updated');

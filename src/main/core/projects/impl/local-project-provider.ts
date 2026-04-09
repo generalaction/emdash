@@ -6,6 +6,7 @@ import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { type Terminal } from '@shared/terminals';
+import { workspaceKey } from '@shared/workspace-key';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -18,7 +19,6 @@ import { appSettingsService } from '@main/core/settings/settings-service';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getGitLocalExec } from '@main/core/utils/exec';
 import type { Workspace } from '@main/core/workspaces/workspace';
-import { workspaceKey } from '@main/core/workspaces/workspace-key';
 import { WorkspaceLifecycleService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { log } from '@main/lib/logger';
@@ -253,7 +253,6 @@ export class LocalProjectProvider implements ProjectProvider {
         taskId: task.id,
         taskBranch: task.taskBranch,
         sourceBranch: task.sourceBranch,
-        workspace,
         taskEnvVars,
         conversations: conversationProvider,
         terminals: terminalProvider,
@@ -328,23 +327,34 @@ export class LocalProjectProvider implements ProjectProvider {
     return promise;
   }
 
-  private async doTeardownTask(task: TaskProvider): Promise<void> {
-    const settings = await getEffectiveTaskSettings({
-      projectSettings: this.settings,
-      taskFs: task.workspace.fs,
-    });
-    const scripts = settings.scripts;
+  getWorkspace(
+    workspaceId: string
+  ): import('@main/core/workspaces/workspace').Workspace | undefined {
+    return this.workspaceRegistry.get(workspaceId);
+  }
 
-    if (scripts?.teardown && this.workspaceRegistry.refCount(task.workspace.id) === 1) {
-      await task.workspace.lifecycleService.runLifecycleScript(
-        { type: 'teardown', script: scripts.teardown },
-        { waitForExit: true, exit: true }
-      );
+  private async doTeardownTask(task: TaskProvider): Promise<void> {
+    const wsId = workspaceKey(task.taskBranch);
+    const workspace = this.workspaceRegistry.get(wsId);
+
+    if (workspace) {
+      const settings = await getEffectiveTaskSettings({
+        projectSettings: this.settings,
+        taskFs: workspace.fs,
+      });
+      const scripts = settings.scripts;
+
+      if (scripts?.teardown && this.workspaceRegistry.refCount(wsId) === 1) {
+        await workspace.lifecycleService.runLifecycleScript(
+          { type: 'teardown', script: scripts.teardown },
+          { waitForExit: true, exit: true }
+        );
+      }
     }
 
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
-    await this.workspaceRegistry.release(task.workspace.id);
+    await this.workspaceRegistry.release(wsId);
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {

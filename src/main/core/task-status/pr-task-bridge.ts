@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { taskPrUpdatedChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type { PullRequest } from '@shared/pull-requests';
 import type { TaskLifecycleStatus } from '@shared/tasks';
+import { workspaceKey } from '@shared/workspace-key';
 import { db } from '@main/db/client';
 import { pullRequests, tasks, tasksPullRequests } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -30,7 +31,12 @@ export async function onPrUpserted(pr: PullRequest, _projectId: string): Promise
   if (!headBranch) return;
 
   const matchingTasks = await db
-    .select({ id: tasks.id, projectId: tasks.projectId, status: tasks.status })
+    .select({
+      id: tasks.id,
+      projectId: tasks.projectId,
+      status: tasks.status,
+      taskBranch: tasks.taskBranch,
+    })
     .from(tasks)
     .where(eq(tasks.taskBranch, headBranch));
 
@@ -51,6 +57,7 @@ export async function onPrUpserted(pr: PullRequest, _projectId: string): Promise
     events.emit(taskPrUpdatedChannel, {
       taskId: task.id,
       projectId: task.projectId,
+      workspaceId: workspaceKey(task.taskBranch ?? undefined),
       prs: linked.map(({ pr: row }) => prRowToPullRequest(row)),
     });
 

@@ -67,7 +67,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     if (!activeScript) return;
     void rpc.terminals.runLifecycleScript({
       projectId,
-      taskId,
+      workspaceId: provisionedTask.workspaceId,
       type: activeScript.data.type,
     });
   };
