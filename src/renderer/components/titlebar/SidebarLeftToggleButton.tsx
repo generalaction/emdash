@@ -18,7 +18,7 @@ const SidebarLeftToggleButton: React.FC<SidebarLeftToggleButtonProps> = ({
     if (isDisabled) return;
     const newState = !isLeftOpen;
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-      captureTelemetry('toolbar_left_sidebar_clicked', { state: newState ? 'open' : 'closed' });
+      captureTelemetry('sidebar_toggled', { side: 'left', state: newState ? 'open' : 'closed' });
     });
     toggleLeft();
   };

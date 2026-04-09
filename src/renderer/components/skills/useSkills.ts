@@ -132,9 +132,6 @@ export function useSkills() {
   }, [selectedSkillId, showDetailModal, detailData, catalog]);
 
   const openDetail = useCallback((skill: CatalogSkill) => {
-    import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
-      captureTelemetry('skill_detail_viewed', { source: skill.source });
-    });
     setSelectedSkillId(skill.id);
     setShowDetailModal(true);
   }, []);

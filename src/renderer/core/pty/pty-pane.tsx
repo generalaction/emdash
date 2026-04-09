@@ -1,5 +1,4 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
-import { captureTelemetry } from '@renderer/lib/telemetryClient';
 import { log } from '../../lib/logger';
 import { rpc } from '../ipc';
 import type { FrontendPty, SessionTheme } from './pty';
@@ -62,7 +61,6 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
     useImperativeHandle(ref, () => ({ focus }), [focus]);
 
     const handleFocus = () => {
-      captureTelemetry('terminal_entered');
       focus();
     };
 
