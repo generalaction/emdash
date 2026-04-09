@@ -1,5 +1,6 @@
 import { makeAutoObservable } from 'mobx';
 import type { TaskViewSnapshot } from '@shared/view-state';
+import { focusTracker } from '@renderer/lib/focus-tracker';
 import { MainPanelView, RightPanelView } from '../tasks/types';
 import type { ConversationManagerStore } from './conversation-manager';
 import { ConversationTabViewStore } from './conversation-tab-view-store';
@@ -72,14 +73,23 @@ export class TaskViewStore {
   }
 
   setView(v: MainPanelView): void {
+    if (this.view !== v) {
+      focusTracker.transition({ mainPanel: v }, 'panel_switch');
+    }
     this.view = v;
   }
 
   setRightPanelView(v: RightPanelView): void {
+    if (this.rightPanelView !== v) {
+      focusTracker.transition({ rightPanel: v }, 'panel_switch');
+    }
     this.rightPanelView = v;
   }
 
   setFocusedRegion(region: 'main' | 'right'): void {
+    if (this.focusedRegion !== region) {
+      focusTracker.transition({ focusedRegion: region }, 'region_switch');
+    }
     this.focusedRegion = region;
   }
 
