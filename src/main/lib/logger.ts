@@ -1,39 +1,5 @@
-type Level = 'debug' | 'info' | 'warn' | 'error';
+import { createLogger } from '@shared/logger';
 
-function envLevel(): Level {
-  const hasDebugFlag = process.argv.includes('--debug-logs') || process.argv.includes('--dev');
-  if (hasDebugFlag) return 'debug';
-  return 'warn';
-}
-
-function enabled(target: Level, current: Level): boolean {
-  const order: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
-  return order[target] >= order[current];
-}
-
-const current = envLevel();
-
-export const log = {
-  debug: (...args: unknown[]) => {
-    if (enabled('debug', current)) {
-      // eslint-disable-next-line no-console
-      console.debug(...args);
-    }
-  },
-  info: (...args: unknown[]) => {
-    if (enabled('info', current)) {
-      // eslint-disable-next-line no-console
-      console.info(...args);
-    }
-  },
-  warn: (...args: unknown[]) => {
-    if (enabled('warn', current)) {
-      // eslint-disable-next-line no-console
-      console.warn(...args);
-    }
-  },
-  error: (...args: unknown[]) => {
-    // eslint-disable-next-line no-console
-    console.error(...args);
-  },
-};
+export const log = createLogger({
+  debugFlag: process.argv.includes('--debug-logs'),
+});
