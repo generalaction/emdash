@@ -11,10 +11,10 @@ import {
 } from '@renderer/components/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
 import { Switch } from '@renderer/components/ui/switch';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { getPaneContainer } from '@renderer/core/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/core/pty/pty-dimensions';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import { getProjectStore } from '@renderer/core/stores/project-selectors';
 import { asProvisioned, getTaskStore } from '@renderer/core/stores/task-selectors';
 

@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { PullRequestView } from '@renderer/components/projects/pr-view';
+import { PullRequestView } from '@renderer/core/projects/components/pr-view';
 import { asMounted, getProjectStore } from '@renderer/core/stores/project-selectors';
 import { useParams } from '@renderer/core/view/navigation-provider';
 import { SettingsPanel } from './settings-panel';

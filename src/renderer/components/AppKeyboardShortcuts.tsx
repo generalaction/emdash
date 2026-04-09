@@ -1,6 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';

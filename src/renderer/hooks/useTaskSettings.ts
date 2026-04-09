@@ -1,4 +1,4 @@
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 
 export interface TaskSettingsModel {
   autoGenerateName: boolean;

@@ -1,7 +1,7 @@
 import { GitBranch } from 'lucide-react';
 import type { PullRequest } from '@shared/pull-requests';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { cn } from '@renderer/lib/utils';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 /**
  * Renders the GitHub-style merge summary line, e.g.:

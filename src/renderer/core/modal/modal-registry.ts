@@ -1,4 +1,3 @@
-import { AddProjectModal } from '@renderer/components/add-project-modal/add-project-modal';
 import { AddRemoteModal } from '@renderer/components/add-remote-modal/add-remote-modal';
 import { AddSshConnModal } from '@renderer/components/add-ssh-conn-modal/add-ssh-conn-modal';
 import { CommandPaletteModal } from '@renderer/components/cmdk/CommandPaletteModal';
@@ -9,11 +8,11 @@ import { McpModal } from '@renderer/components/mcp/McpModal';
 import { UpdateModalOverlay } from '@renderer/components/updates/UpdateModal';
 import { CreateConversationModal } from '@renderer/core/conversations/create-conversation-modal';
 import { IntegrationSetupModal } from '@renderer/core/integrations/integration-setup-modal';
-import { NewProjectModal } from '@renderer/core/projects/new-project-modal';
 import { CreateTaskModal } from '@renderer/core/tasks/create-task-modal/create-task-modal';
 import { CreatePrModal } from '@renderer/views/tasks/diff-view/changes-panel/pr-section/create-pr-modal';
 import { ConflictDialog } from '@renderer/views/tasks/editor/conflict-dialog';
 import { RenameTaskModal } from '@renderer/views/tasks/rename-task-modal';
+import { AddProjectModal } from '../projects/components/add-project-modal/add-project-modal';
 import { ModalComponent } from './modal-provider';
 
 export type ModalRegistryEntry = {
@@ -27,7 +26,7 @@ export type ModalRegistryEntry = {
 
 export const modalRegistry = {
   updateModal: { component: UpdateModalOverlay, popupClassName: 'max-w-sm' },
-  newProjectModal: { component: NewProjectModal, popupClassName: 'max-w-md' },
+
   taskModal: { component: CreateTaskModal },
   addProjectModal: { component: AddProjectModal },
   addSshConnModal: { component: AddSshConnModal },

@@ -2,7 +2,7 @@ import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { rpc } from '@renderer/core/ipc';
 import { cn } from '@renderer/lib/utils';
-import { Separator } from '../ui/separator';
+import { Separator } from '../../../components/ui/separator';
 import { AccountTab } from './AccountTab';
 import { CliAgentsList } from './CliAgentsList';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';

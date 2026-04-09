@@ -14,7 +14,7 @@ import {
 } from '@renderer/components/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
-import { useRepository } from '@renderer/core/projects/use-repository';
+import { useRepository } from '@renderer/core/projects/repository/use-repository';
 import { appState } from '@renderer/core/stores/app-state';
 import {
   getProjectManagerStore,

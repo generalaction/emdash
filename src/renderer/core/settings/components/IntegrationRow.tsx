@@ -1,6 +1,11 @@
 import { Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../../../components/ui/tooltip';
 
 type IntegrationStatus =
   | 'connected'

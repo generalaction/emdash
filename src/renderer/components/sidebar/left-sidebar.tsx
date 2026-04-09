@@ -1,7 +1,6 @@
 import { FolderPlus, MessageSquareShare, Plug, Puzzle, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
-import { useGithubContext } from '@renderer/core/github-context-provider';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { appState } from '@renderer/core/stores/app-state';
 import {
@@ -29,7 +28,6 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
   const appVersion = appState.appInfo.info.data?.appVersion;
-  const { user: githubUser } = useGithubContext();
 
   const showAddProjectModal = useShowModal('addProjectModal');
   const showFeedbackModal = useShowModal('feedbackModal');
@@ -98,7 +96,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
         <div className="flex items-center gap-2 justify-between px-3 py-2 border-t border-border">
           <button
             className="flex items-center min-w-0 w-full gap-2 text-sm text-foreground-muted hover:text-foreground px-3 py-1.5 rounded-md hover:bg-background-tertiary-1"
-            onClick={() => showFeedbackModal({ githubUser })}
+            onClick={() => showFeedbackModal({})}
           >
             <MessageSquareShare className="size-4 shrink-0" />
             <span className="truncate">Give feedback</span>

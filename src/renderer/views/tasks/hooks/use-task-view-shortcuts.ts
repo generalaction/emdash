@@ -1,5 +1,5 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import { getTaskManagerStore } from '@renderer/core/stores/task-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';

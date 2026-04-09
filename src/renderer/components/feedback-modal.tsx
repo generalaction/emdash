@@ -1,5 +1,6 @@
 import { CornerDownLeft, Paperclip } from 'lucide-react';
 import React, { useCallback } from 'react';
+import { useGithubContext } from '@renderer/core/github-context-provider';
 import { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import { useAttachments } from '../hooks/use-attachments';
 import { useFeedbackSubmit } from '../hooks/use-feedback-submit';
@@ -16,18 +17,13 @@ import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
 
 type FeedbackModalArgs = {
-  githubUser?: {
-    login?: string;
-    name?: string;
-    html_url?: string;
-    email?: string;
-  } | null;
   blurb?: string;
 };
 
 type Props = BaseModalProps<void> & FeedbackModalArgs;
 
-export function FeedbackModal({ onSuccess, githubUser, blurb }: Props) {
+export function FeedbackModal({ onSuccess, blurb }: Props) {
+  const { user: githubUser } = useGithubContext();
   const {
     attachments,
     fileInputRef,

@@ -6,7 +6,7 @@ import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { appState } from '@renderer/core/stores/app-state';
 import { formatBytes } from '@renderer/lib/formatBytes';
-import { rpc } from '../../core/ipc';
+import { rpc } from '../../ipc';
 import { SettingRow } from './SettingRow';
 
 const isDev = !window.electronAPI;

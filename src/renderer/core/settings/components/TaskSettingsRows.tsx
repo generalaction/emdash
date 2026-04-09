@@ -1,9 +1,14 @@
 import { Info } from 'lucide-react';
 import React from 'react';
-import { useTaskSettings } from '../../hooks/useTaskSettings';
-import { agentMeta } from '../../providers/meta';
-import { Switch } from '../ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Switch } from '../../../components/ui/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../../../components/ui/tooltip';
+import { useTaskSettings } from '../../../hooks/useTaskSettings';
+import { agentMeta } from '../../../providers/meta';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

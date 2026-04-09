@@ -8,7 +8,7 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import { rpc } from '../core/ipc';
 
 const iconModules = import.meta.glob('../../assets/images/*', {

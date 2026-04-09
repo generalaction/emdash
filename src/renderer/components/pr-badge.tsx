@@ -1,6 +1,6 @@
 import { type PullRequest } from '@shared/pull-requests';
 import { cn } from '@renderer/lib/utils';
-import { PrNumberBadge, StatusIcon } from './projects/pr-row';
+import { PrNumberBadge, StatusIcon } from '../core/projects/components/pr-row';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 interface PrBadgeProps {

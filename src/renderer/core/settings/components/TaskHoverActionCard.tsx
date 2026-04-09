@@ -1,6 +1,12 @@
 import React from 'react';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../../components/ui/select';
 
 const TaskHoverActionCard: React.FC = () => {
   const { value: iface, update, isLoading, isSaving } = useAppSettingsKey('interface');

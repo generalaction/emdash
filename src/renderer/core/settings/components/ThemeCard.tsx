@@ -1,6 +1,6 @@
 import { Moon, Sun } from 'lucide-react';
 import React from 'react';
-import { useTheme } from '../../hooks/useTheme';
+import { useTheme } from '../../../hooks/useTheme';
 
 const ThemeCard: React.FC = () => {
   const { theme, setTheme } = useTheme();
@@ -16,7 +16,7 @@ const ThemeCard: React.FC = () => {
           type="button"
           onClick={async () => {
             if (theme !== 'emlight') {
-              void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+              void import('../../../lib/telemetryClient').then(({ captureTelemetry }) => {
                 captureTelemetry('theme_changed', { theme: 'emlight' });
               });
             }

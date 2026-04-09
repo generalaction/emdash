@@ -1,8 +1,8 @@
 import React from 'react';
-import { rpc } from '../../core/ipc';
-import { useTelemetryConsent } from '../../hooks/useTelemetryConsent';
-import { Button } from '../ui/button';
-import { Switch } from '../ui/switch';
+import { Button } from '../../../components/ui/button';
+import { Switch } from '../../../components/ui/switch';
+import { useTelemetryConsent } from '../../../hooks/useTelemetryConsent';
+import { rpc } from '../../ipc';
 import { SettingRow } from './SettingRow';
 
 const TelemetryCard: React.FC = () => {
@@ -40,7 +40,7 @@ const TelemetryCard: React.FC = () => {
           <Switch
             checked={prefEnabled}
             onCheckedChange={async (checked) => {
-              void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
+              void import('../../../lib/telemetryClient').then(({ captureTelemetry }) => {
                 captureTelemetry('telemetry_toggled', { enabled: checked });
               });
               void setTelemetryEnabled(checked);
