@@ -93,10 +93,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           >
             {taskName}
           </span>
-          <TaskGitDiffStats
-            task={task}
-            className="text-[10px] h-full shrink-0 flex items-center pr-1"
-          />
+          <TaskGitDiffStats task={task} className="h-full shrink-0 flex items-center pr-1" />
         </div>
         <TaskSidebarAgentStatus task={task} />
       </SidebarMenuRow>

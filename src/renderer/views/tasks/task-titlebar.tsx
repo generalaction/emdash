@@ -2,12 +2,10 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
-  ExternalLink,
   FileDiff,
   Files,
   GitBranch,
   GitCommit,
-  Globe,
   ListTree,
   MessageSquare,
   Pin,
@@ -25,7 +23,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui
 import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
-import { rpc } from '@renderer/core/ipc';
 import { getProjectStore, projectDisplayName } from '@renderer/core/stores/project-selectors';
 import {
   getRegisteredTaskData,
@@ -36,54 +33,11 @@ import {
 import { RightPanelView } from '@renderer/core/tasks/types';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { cn } from '@renderer/lib/utils';
+import { DevServerPills } from './components/dev-server-pills';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
 import { useProvisionedTask, useTaskViewContext } from './task-view-context';
 import { useGitActions } from './use-git-actions';
-
-function formatUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.port ? `${u.hostname}:${u.port}` : u.hostname;
-  } catch {
-    return url;
-  }
-}
-
-const DevServerPills = observer(function DevServerPills({
-  projectId: _projectId,
-  taskId: _taskId,
-}: {
-  projectId: string;
-  taskId: string;
-}) {
-  const urls = useProvisionedTask().devServers.urls;
-
-  if (urls.length === 0) return null;
-
-  return (
-    <>
-      {urls.map((url) => (
-        <Tooltip key={url}>
-          <TooltipTrigger>
-            <button
-              type="button"
-              onClick={() => rpc.app.openExternal(url)}
-              className="flex h-7 rounded-md items-center gap-1.5 border border-green-300 bg-green-50 px-2 py-1 text-xs text-foreground-muted transition-colors hover:border-green-400 hover:text-foreground"
-            >
-              <Globe className="size-3 shrink-0 text-green-700" />
-              <span className="text-green-700">{formatUrl(url)}</span>
-              <ExternalLink className="size-3 shrink-0 text-green-700" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">
-            Dev server running at {url}
-          </TooltipContent>
-        </Tooltip>
-      ))}
-    </>
-  );
-});
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -91,23 +45,37 @@ export const TaskTitlebar = observer(function TaskTitlebar() {
   const kind = taskViewKind(taskStore, projectId);
 
   if (kind !== 'ready') {
-    return <PendingTaskTitlebar name={taskDisplayName(taskStore)} />;
+    return <PendingTaskTitlebar taskId={taskId} projectId={projectId} />;
   }
 
   return <ActiveTaskTitlebar taskId={taskId} projectId={projectId} />;
 });
 
-function PendingTaskTitlebar({ name }: { name?: string }) {
+const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
+  taskId,
+  projectId,
+}: {
+  taskId: string;
+  projectId: string;
+}) {
+  const taskStore = getTaskStore(projectId, taskId)!;
+  const projectName = projectDisplayName(getProjectStore(projectId));
+  const name = taskDisplayName(taskStore);
+
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
-          <span className="text-sm text-muted-foreground">{name}</span>
+          <span className="flex items-center gap-1">
+            <span className="text-sm text-foreground-passive">{projectName}</span>
+            <span className="text-sm text-foreground-passive">/</span>
+            {name}
+          </span>
         </div>
       }
     />
   );
-}
+});
 
 const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   projectId,

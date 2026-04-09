@@ -35,18 +35,16 @@ export const ConversationsTabs = observer(function ConversationsTabs({
       renderTabPrefix={(s) => {
         const config = agentConfig[s.data.providerId];
         return (
-          <span className="flex items-center gap-1">
-            <AgentLogo
-              logo={config.logo}
-              alt={config.alt}
-              isSvg={config.isSvg}
-              invertInDark={config.invertInDark}
-              className="size-4"
-            />
-            <AgentStatusIndicator status={s.indicatorStatus} />
-          </span>
+          <AgentLogo
+            logo={config.logo}
+            alt={config.alt}
+            isSvg={config.isSvg}
+            invertInDark={config.invertInDark}
+            className="size-4"
+          />
         );
       }}
+      renderTabSuffix={(s) => <AgentStatusIndicator status={s.indicatorStatus} disableTooltip />}
       onRename={(id, name) => void conversationMgr.renameConversation(id, name)}
       onReorder={(from, to) => conversationTabs.reorderTabs(from, to)}
       actions={

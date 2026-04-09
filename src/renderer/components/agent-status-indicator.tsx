@@ -9,6 +9,7 @@ export type AgentIndicatorStatus = AgentStatus | null;
 interface AgentStatusIndicatorProps {
   status: AgentIndicatorStatus;
   className?: string;
+  disableTooltip?: boolean;
 }
 
 const STATUS_LABELS = {
@@ -18,7 +19,11 @@ const STATUS_LABELS = {
   completed: 'Agent completed',
 };
 
-export function AgentStatusIndicator({ status, className }: AgentStatusIndicatorProps) {
+export function AgentStatusIndicator({
+  status,
+  className,
+  disableTooltip,
+}: AgentStatusIndicatorProps) {
   useEffect(() => {
     console.log('status', status);
   }, [status]);
@@ -58,13 +63,15 @@ export function AgentStatusIndicator({ status, className }: AgentStatusIndicator
     }
   };
 
+  const indicator = (
+    <span className="size-6 flex items-center justify-center">{renderIndicator()}</span>
+  );
+
+  if (disableTooltip) return indicator;
+
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={
-          <span className="size-6 flex items-center justify-center">{renderIndicator()}</span>
-        }
-      />
+      <TooltipTrigger render={indicator} />
       <TooltipContent>{STATUS_LABELS[status]}</TooltipContent>
     </Tooltip>
   );

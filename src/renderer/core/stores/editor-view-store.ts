@@ -1,7 +1,7 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { EditorViewSnapshot } from '@shared/view-state';
-import { getMonacoLanguageId } from '../../lib/diffUtils';
+import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
 import { getFileKind } from '../editor/fileKind';
 import { getDefaultRenderer } from '../editor/renderer-utils';
 import { EditorTab } from '../editor/types';
@@ -37,10 +37,6 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     this.modelRootPath = `task:${taskId}`;
     makeAutoObservable(this, { modelRootPath: false });
   }
-
-  // ---------------------------------------------------------------------------
-  // Computed getters
-  // ---------------------------------------------------------------------------
 
   get tabs(): Array<EditorTab & { isDirty: boolean; bufferUri: string }> {
     return this._tabs.map((tab) => {
@@ -287,10 +283,6 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Lifecycle
-  // ---------------------------------------------------------------------------
-
   initialize(): void {
     rpc.fs.watchSetPaths(this.projectId, this.taskId, [''], 'editor').catch(() => {});
     this._unsubscribeFsWatch = events.on(
@@ -300,11 +292,6 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     );
   }
 
-  /**
-   * Re-registers Monaco models for all currently open tabs and restores any
-   * crash-recovery buffer content. Called by EditorProvider on mount so that
-   * Monaco models (which are ephemeral) are recreated after a remount.
-   */
   async restore(): Promise<void> {
     for (const tab of this._tabs) {
       void this._registerModels(tab.path);
@@ -330,10 +317,6 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
       this._unregisterModels(uri);
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
 
   private _makeTab(filePath: string, isPreview: boolean, tabId?: string): EditorTab {
     const kind = getFileKind(filePath);
@@ -400,7 +383,6 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
         'buffer'
       );
     }
-    // For 'binary' and other non-Monaco kinds, no model registration is needed.
   }
 
   private _unregisterModels(bufferUri: string): void {

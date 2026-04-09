@@ -47,6 +47,7 @@ export interface TabBarProps<TEntity> {
   onSelect: (id: string) => void;
   onRemove?: (id: string) => void;
   renderTabPrefix?: (entity: TEntity) => React.ReactNode;
+  renderTabSuffix?: (entity: TEntity) => React.ReactNode;
   onRename?: (id: string, newName: string) => void;
   onReorder?: (fromIndex: number, toIndex: number) => void;
   /** Rendered in the right-side area. Caller is responsible for all buttons and their click handlers. */
@@ -61,6 +62,7 @@ export const TabBar = observer(function TabBar<TEntity>({
   onSelect,
   onRemove,
   renderTabPrefix,
+  renderTabSuffix,
   onRename,
   onReorder,
   actions,
@@ -104,16 +106,23 @@ export const TabBar = observer(function TabBar<TEntity>({
               )}
             </span>
             {onRemove && (
-              <button
-                disabled={isEditing}
-                className="size-5 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove(id);
-                }}
-              >
-                <X className="size-4" />
-              </button>
+              <div className="relative size-5 flex items-center justify-center">
+                {renderTabSuffix && (
+                  <span className="transition-opacity group-hover:opacity-0">
+                    {renderTabSuffix(entity)}
+                  </span>
+                )}
+                <button
+                  disabled={isEditing}
+                  className="absolute inset-0 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(id);
+                  }}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             )}
           </div>
         </button>
