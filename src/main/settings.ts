@@ -131,7 +131,7 @@ export interface AppSettings {
   changelog?: {
     dismissedVersions: string[];
   };
-  pinnedAgents?: string[];
+  pinnedAgents?: ProviderId[];
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -216,6 +216,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   defaultOpenInApp: 'terminal',
   hiddenOpenInApps: [],
+  changelog: {
+    dismissedVersions: [],
+  },
   pinnedAgents: [],
 };
 
@@ -613,6 +616,21 @@ export function normalizeSettings(input: AppSettings): AppSettings {
   } else {
     out.hiddenOpenInApps = [];
   }
+
+  // Changelog
+  const rawDismissed = (input as any)?.changelog?.dismissedVersions;
+  out.changelog = {
+    dismissedVersions: Array.isArray(rawDismissed)
+      ? [
+          ...new Set(
+            rawDismissed
+              .filter((v): v is string => typeof v === 'string')
+              .map((v) => v.trim().replace(/^v/i, ''))
+              .filter(Boolean)
+          ),
+        ]
+      : [],
+  };
 
   // Pinned Agents
   const rawPinned = (input as any)?.pinnedAgents;
