@@ -51,8 +51,10 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
   diffType,
   originalRef,
 }: StackedDiffPanelProps) {
-  const { projectId, taskId } = useTaskViewContext();
-  const diffView = useProvisionedTask().taskView.diffView;
+  const { projectId } = useTaskViewContext();
+  const provisioned = useProvisionedTask();
+  const { workspaceId } = provisioned;
+  const diffView = provisioned.taskView.diffView;
   const activeFile = diffView.activeFile;
   const viewMode = diffView.viewMode;
   const diffStyle = diffView.diffStyle;
@@ -131,12 +133,12 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
         if (aborted.value) break;
         if (isBinaryForDiff(file.path)) continue;
         const language = getLanguageFromPath(file.path);
-        const root = `task:${taskId}`;
+        const root = `workspace:${workspaceId}`;
         try {
           if (diffType === 'staged') {
             await modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               file.path,
               language,
@@ -145,7 +147,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
             );
             await modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               file.path,
               language,
@@ -155,7 +157,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
           } else if (diffType === 'git') {
             await modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               file.path,
               language,
@@ -164,7 +166,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
             );
             await modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               file.path,
               language,
@@ -172,10 +174,17 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
               'HEAD'
             );
           } else {
-            await modelRegistry.registerModel(projectId, taskId, root, file.path, language, 'disk');
             await modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
+              root,
+              file.path,
+              language,
+              'disk'
+            );
+            await modelRegistry.registerModel(
+              projectId,
+              workspaceId,
               root,
               file.path,
               language,
@@ -210,7 +219,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, taskId, diffType, originalRef, filePathsKey]);
+  }, [projectId, workspaceId, diffType, originalRef, filePathsKey]);
 
   // Click → scroll: when activeFile changes or mode switches back to stacked
   useEffect(() => {
@@ -270,7 +279,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
             >
               <StackedFileSection
                 file={file}
-                taskId={taskId}
+                workspaceId={workspaceId}
                 diffStyle={diffStyle}
                 diffType={diffType}
                 originalRef={originalRef}
@@ -285,7 +294,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
 
 interface StackedFileSectionProps {
   file: GitChange;
-  taskId: string;
+  workspaceId: string;
   diffStyle: 'unified' | 'split';
   diffType: 'disk' | 'staged' | 'git';
   /** Git ref for the left (original/before) side. Used when diffType is 'disk' or 'git'. */
@@ -296,7 +305,7 @@ const MIN_EDITOR_HEIGHT = 100;
 
 const StackedFileSection = observer(function StackedFileSection({
   file,
-  taskId,
+  workspaceId,
   diffStyle,
   diffType,
   originalRef,
@@ -305,7 +314,7 @@ const StackedFileSection = observer(function StackedFileSection({
   const [forceLoad, setForceLoad] = useState(false);
   const [contentHeight, setContentHeight] = useState<number | null>(null);
 
-  const uri = buildMonacoModelPath(`task:${taskId}`, file.path);
+  const uri = buildMonacoModelPath(`workspace:${workspaceId}`, file.path);
   const language = getLanguageFromPath(file.path);
   const isBinary = isBinaryForDiff(file.path);
 

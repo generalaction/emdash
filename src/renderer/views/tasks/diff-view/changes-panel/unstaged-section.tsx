@@ -10,7 +10,7 @@ import { usePrefetchModels } from './use-prefetch-models';
 import { VirtualizedChangesList } from './virtualized-changes-list';
 
 export const UnstagedSection = observer(function UnstagedSection() {
-  const { projectId, taskId } = useTaskViewContext();
+  const { projectId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const git = provisioned.workspace.git;
   const changesView = provisioned.taskView.diffView.changesView;
@@ -26,7 +26,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
       ? diffView.activeFile.path
       : undefined;
 
-  const prefetch = usePrefetchModels(projectId, taskId, 'disk', 'HEAD');
+  const prefetch = usePrefetchModels(projectId, provisioned.workspaceId, 'disk', 'HEAD');
 
   const showConfirmActionModal = useShowModal('confirmActionModal');
 
