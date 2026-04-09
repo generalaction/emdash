@@ -105,22 +105,6 @@ export class ProvisionedTask {
       term.dispose();
     }
   }
-
-  async updateLinkedIssue(issue?: Issue): Promise<void> {
-    const previousIssue = this._taskData.linkedIssue;
-    try {
-      await rpc.tasks.updateLinkedIssue(this._taskData.id, issue);
-      runInAction(() => {
-        this._taskData.linkedIssue = issue;
-      });
-    } catch (e) {
-      runInAction(() => {
-        this._taskData.linkedIssue = previousIssue;
-      });
-      log.error(e);
-      throw e;
-    }
-  }
 }
 
 export class TaskStore {
@@ -260,6 +244,25 @@ export class TaskStore {
         task.isPinned = previous;
       });
       log.error(e);
+      throw e;
+    }
+  }
+
+  async updateLinkedIssue(issue?: Issue): Promise<void> {
+    if (this.state === 'unregistered') return;
+    const task = registeredTaskData(this);
+    if (!task) return;
+    const previousIssue = task.linkedIssue;
+    try {
+      await rpc.tasks.updateLinkedIssue(task.id, issue);
+      runInAction(() => {
+        task.linkedIssue = issue;
+      });
+    } catch (e) {
+      runInAction(() => {
+        task.linkedIssue = previousIssue;
+      });
+      console.error(e);
       throw e;
     }
   }
