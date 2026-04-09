@@ -3,7 +3,6 @@ import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-import { ExecFn } from '../utils/exec';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 

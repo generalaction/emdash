@@ -1,9 +1,11 @@
 import { Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useCallback } from 'react';
 import { MarkdownRenderer } from '@renderer/components/ui/markdown-renderer';
+import { rpc } from '@renderer/core/ipc';
 import { modelRegistry } from '@renderer/core/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
-import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 
 interface MarkdownEditorRendererProps {
   filePath: string;
@@ -16,7 +18,10 @@ interface MarkdownEditorRendererProps {
 export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   filePath,
 }: MarkdownEditorRendererProps) {
-  const editorView = useProvisionedTask().taskView.editorView;
+  const { projectId } = useTaskViewContext();
+  const provisioned = useProvisionedTask();
+  const { workspaceId } = provisioned;
+  const editorView = provisioned.taskView.editorView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
   // Reading bufferVersions creates a MobX tracking dependency so this observer()
   // component re-renders whenever the buffer content changes or is first populated.
@@ -25,14 +30,22 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const content = modelRegistry.getValue(bufferUri) ?? '';
   const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
 
+  const resolveImage = useCallback(
+    async (src: string): Promise<string | null> => {
+      const imagePath = fileDir ? `${fileDir}/${src}` : src;
+      const result = await rpc.fs.readImage(projectId, workspaceId, imagePath);
+      return result.success ? (result.data?.dataUrl ?? null) : null;
+    },
+    [projectId, workspaceId, fileDir]
+  );
+
   return (
     <div className="relative h-full overflow-y-auto">
       <MarkdownRenderer
         content={content}
         variant="full"
         className="w-full max-w-3xl px-8 py-8"
-        rootPath={editorView.modelRootPath}
-        fileDir={fileDir}
+        resolveImage={resolveImage}
       />
 
       <button

@@ -15,6 +15,7 @@ export function resolveLogLevel(args?: { envLevel?: string; debugFlag?: boolean 
 
 export function createLogger(args?: { envLevel?: string; debugFlag?: boolean }) {
   const level = resolveLogLevel({
+    // @ts-expect-error - VITE_LOG_LEVEL is not typed
     envLevel: args?.envLevel ?? import.meta.env.VITE_LOG_LEVEL,
     debugFlag: args?.debugFlag,
   });
