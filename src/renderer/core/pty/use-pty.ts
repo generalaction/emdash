@@ -4,7 +4,6 @@ import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { log } from '../../lib/logger';
-import { pendingInjectionManager } from '../../lib/PendingInjectionManager';
 import { events, rpc } from '../ipc';
 import { panelDragStore } from '../view/panel-drag-store';
 import { usePaneSizingContext } from './pane-sizing-context';
@@ -463,15 +462,6 @@ export function usePty(
               keystrokeBufferRef.current += ch;
             }
           }
-        }
-        const pendingText = pendingInjectionManager.getPending();
-        if (pendingText && isEnterPress && !isNewlineInsert) {
-          const stripped = filtered.replace(/[\r\n]+$/g, '');
-          const enterSequence = filtered.includes('\r') ? '\r' : '\n';
-          const injectedData = stripped + pendingText + enterSequence + enterSequence;
-          rpc.pty.sendInput(sessionId, injectedData);
-          pendingInjectionManager.markUsed();
-          return;
         }
 
         rpc.pty.sendInput(sessionId, filtered);

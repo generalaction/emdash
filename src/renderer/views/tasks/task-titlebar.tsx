@@ -13,7 +13,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { IssueSelector } from '@renderer/components/issue-selector';
+import { IssueSelector } from '@renderer/components/issue-selector/issue-selector';
 import { OpenInMenu } from '@renderer/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/components/titlebar/Titlebar';
 import { Badge } from '@renderer/components/ui/badge';

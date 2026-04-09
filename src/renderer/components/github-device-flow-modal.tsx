@@ -8,10 +8,10 @@ import {
 import type { GitHubUser } from '@shared/github';
 import type { BaseModalProps } from '@renderer/core/modal/modal-provider';
 import emdashLogo from '../../assets/images/emdash/emdash_logo_white.svg';
-import { useGithubContext } from '../core/github-context-provider';
 import { events, rpc } from '../core/ipc';
 import { useToast } from '../hooks/use-toast';
 import { log } from '../lib/logger';
+import { useGithubContext } from '../providers/github-context-provider';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
 

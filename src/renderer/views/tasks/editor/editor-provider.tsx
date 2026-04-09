@@ -2,6 +2,7 @@ import { autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef } from 'react';
+import { registerActiveCodeEditor } from '@renderer/core/editor/activeCodeEditor';
 import { useDiffDecorations } from '@renderer/core/editor/use-diff-decorations';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { codeEditorPool } from '@renderer/core/monaco/monaco-code-pool';
@@ -14,7 +15,6 @@ import { defineMonacoThemes, getMonacoTheme } from '@renderer/core/monaco/monaco
 import { buildMonacoModelPath } from '@renderer/core/monaco/monacoModelPath';
 import { useMonacoLease } from '@renderer/core/monaco/use-monaco-lease';
 import { useTheme } from '@renderer/hooks/useTheme';
-import { registerActiveCodeEditor } from '@renderer/lib/activeCodeEditor';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { useProvisionedTask } from '../task-view-context';
 

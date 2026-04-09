@@ -14,7 +14,7 @@ import {
   TooltipTrigger,
 } from '../../../components/ui/tooltip';
 import { useTheme } from '../../../hooks/useTheme';
-import { useGithubContext } from '../../github-context-provider';
+import { useGithubContext } from '../../../providers/github-context-provider';
 import { useIntegrationsContext } from '../../integrations/integrations-provider';
 import { useShowModal } from '../../modal/modal-provider';
 

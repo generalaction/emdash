@@ -1,6 +1,5 @@
 import { Home, Server } from 'lucide-react';
 import { useState } from 'react';
-import { SshConnectionSelector } from '@renderer/components/ssh/ssh-connection-selector';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogContentArea,
@@ -20,6 +19,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { SshConnectionSelector } from '@renderer/core/projects/components/add-project-modal/ssh-connection-selector';
 import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import { getProjectManagerStore } from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';

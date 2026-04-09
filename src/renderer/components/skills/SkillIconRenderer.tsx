@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { useTheme } from '../../hooks/useTheme';
-import { resolveSkillIcon } from '../../lib/skillIcons';
+import { resolveSkillIcon } from './skillIcons';
 
 type SkillIconSize = 'sm' | 'md';
 

@@ -1,7 +1,7 @@
 import { Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
-import { FileIcon } from '@renderer/components/FileExplorer/FileIcons';
+import { FileIcon } from '@renderer/components/file-icons';
 import { ReorderList } from '@renderer/components/reorder-list';
 import { Separator } from '@renderer/components/ui/separator';
 import { EditorTab } from '@renderer/core/editor/types';

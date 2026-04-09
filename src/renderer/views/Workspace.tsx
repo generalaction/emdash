@@ -1,7 +1,7 @@
-import { AppKeyboardShortcuts } from '@renderer/components/AppKeyboardShortcuts';
-import { LeftSidebar } from '@renderer/components/sidebar/left-sidebar';
+import { AppKeyboardShortcuts } from '@renderer/components/app-keyboard-shortcuts';
 import { Toaster } from '@renderer/components/ui/toaster';
 import { ModalRenderer } from '@renderer/core/modal/modal-renderer';
+import { LeftSidebar } from '@renderer/core/sidebar/left-sidebar';
 import {
   useViewLayoutOverride,
   useWorkspaceSlots,

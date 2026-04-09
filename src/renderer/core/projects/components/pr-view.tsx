@@ -15,14 +15,14 @@ import {
   SelectValue,
 } from '@renderer/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
-import { useParams } from '@renderer/core/view/navigation-provider';
-import { useNameWithOwner } from '@renderer/hooks/useNameWithOwner';
 import {
   usePrViewState,
   type LabelItem,
   type StatusFilter,
   type UserItem,
-} from '@renderer/hooks/usePrViewState';
+} from '@renderer/core/projects/components/usePrViewState';
+import { useParams } from '@renderer/core/view/navigation-provider';
+import { useNameWithOwner } from '@renderer/hooks/useNameWithOwner';
 import { PrVirtualList } from './pr-virtual-list';
 
 const SORT_OPTIONS: { value: PrSortField; label: string }[] = [

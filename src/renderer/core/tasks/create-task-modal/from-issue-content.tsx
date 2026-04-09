@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Branch } from '@shared/git';
-import { InlineIssueSelector } from '@renderer/components/inline-issue-selector';
-import { SelectedIssueValue } from '@renderer/components/issue-selector';
+import { InlineIssueSelector } from '@renderer/components/issue-selector/inline-issue-selector';
+import { SelectedIssueValue } from '@renderer/components/issue-selector/issue-selector';
 import { BranchPickerField } from './branch-picker-field';
 import { TaskNameField } from './task-name-field';
 import { FromIssueModeState } from './use-from-issue-mode';

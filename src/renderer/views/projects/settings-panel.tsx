@@ -1,6 +1,6 @@
 import { Spinner } from '@renderer/components/ui/spinner';
 import { ProjectSettingsForm } from '@renderer/core/projects/components/project-settings-form';
-import { useProjectSettings } from '@renderer/core/projects/components/use-project-settings';
+import { useProjectSettings } from '@renderer/core/projects/use-project-settings';
 import { useParams } from '@renderer/core/view/navigation-provider';
 
 export function SettingsPanel() {

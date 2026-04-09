@@ -20,7 +20,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '../../../components/ui/tooltip';
-import { useProviderSettings } from '../../../hooks/useProviderSettings';
+import { useProviderSettings } from '../use-provider-settings';
 
 interface CustomCommandModalProps {
   isOpen: boolean;

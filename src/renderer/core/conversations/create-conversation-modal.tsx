@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useMemo, useState } from 'react';
 import { AgentProviderId } from '@shared/agent-provider-registry';
-import { AgentSelector } from '@renderer/components/agent-selector';
+import { AgentSelector } from '@renderer/components/agent-selector/agent-selector';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
 import {
   DialogContentArea,

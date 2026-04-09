@@ -1,5 +1,5 @@
 import React from 'react';
-import { captureComponentError } from '../lib/errorTracking';
+import { captureComponentError } from '../_legacy/errorTracking';
 
 type ErrorBoundaryState = {
   hasError: boolean;

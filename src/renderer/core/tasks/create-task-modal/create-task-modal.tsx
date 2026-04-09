@@ -2,7 +2,6 @@ import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
-import { ProjectSelector } from '@renderer/components/project-selector';
 import { AnimatedHeight } from '@renderer/components/ui/animated-height';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox';
 import { ConfirmButton } from '@renderer/components/ui/confirm-button';
@@ -20,6 +19,7 @@ import {
   getProjectManagerStore,
   mountedProjectData,
 } from '@renderer/core/stores/project-selectors';
+import { ProjectSelector } from '@renderer/core/tasks/create-task-modal/project-selector';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { useNameWithOwner } from '@renderer/hooks/useNameWithOwner';
 import { FromBranchContent } from './from-branch-content';
