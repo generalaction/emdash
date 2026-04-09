@@ -1,3 +1,4 @@
+import type { PullRequest } from '@shared/pull-requests';
 import { DevServerStore } from './dev-server-store';
 import { FilesStore } from './files-store';
 import { GitStore } from './git';
@@ -11,11 +12,11 @@ export class WorkspaceStore {
   pr: PrStore;
   devServers: DevServerStore;
 
-  constructor(projectId: string, taskId: string) {
+  constructor(projectId: string, taskId: string, getPrs: () => PullRequest[]) {
     this.git = new GitStore(projectId, taskId);
     this.files = new FilesStore(projectId, taskId);
     this.lifecycleScripts = new LifecycleScriptsStore(projectId, taskId);
-    this.pr = new PrStore(projectId, taskId, this.git);
+    this.pr = new PrStore(projectId, taskId, this.git, getPrs);
     this.devServers = new DevServerStore(taskId);
   }
 

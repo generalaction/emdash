@@ -8,7 +8,7 @@ import {
 import { memo, ReactNode } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
 import { Button } from '@renderer/components/ui/button';
-import RelativeTime from '@renderer/components/ui/relative-time';
+import { RelativeTime } from '@renderer/components/ui/relative-time';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { cn } from '@renderer/lib/utils';

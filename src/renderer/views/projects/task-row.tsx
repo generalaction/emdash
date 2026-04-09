@@ -6,11 +6,10 @@ import { PrBadge } from '@renderer/components/pr-badge';
 import { TaskContextMenu } from '@renderer/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/components/tasks/task-git-diff-stats';
 import { Checkbox } from '@renderer/components/ui/checkbox';
-import RelativeTime from '@renderer/components/ui/relative-time';
+import { RelativeTime } from '@renderer/components/ui/relative-time';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { type TaskStore } from '@renderer/core/stores/task';
 import { getTaskManagerStore, taskAgentStatus } from '@renderer/core/stores/task-selectors';
-import { LifecycleStatusIndicator } from '@renderer/core/tasks/components/lifecycleStatusIndicator';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { agentConfig } from '@renderer/lib/agentConfig';
 import { cn } from '@renderer/lib/utils';
@@ -85,12 +84,6 @@ export const TaskRow = observer(function TaskRow({
           />
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <LifecycleStatusIndicator
-            lifecycleStatus={task.data.status}
-            onLifecycleStatusChange={(status) => {
-              task.updateStatus(status);
-            }}
-          />
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <span className="min-w-0 text-left text-sm truncate">{task.data.name}</span>
             <TaskGitDiffStats task={task} className="text-xs shrink-0" />

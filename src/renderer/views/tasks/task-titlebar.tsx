@@ -33,7 +33,6 @@ import {
   taskDisplayName,
   taskViewKind,
 } from '@renderer/core/stores/task-selectors';
-import { LifecycleStatusIndicator } from '@renderer/core/tasks/components/lifecycleStatusIndicator';
 import { RightPanelView } from '@renderer/core/tasks/types';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { cn } from '@renderer/lib/utils';
@@ -147,17 +146,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         <div className="flex items-center gap-1 px-2">
           <Popover>
             <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-              <div
-                className="h-6 w-6 flex items-center justify-center"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <LifecycleStatusIndicator
-                  lifecycleStatus={taskPayload.status}
-                  onLifecycleStatusChange={(status) => {
-                    taskStore.updateStatus(status);
-                  }}
-                />
-              </div>
               <span className="flex items-center gap-1">
                 <span className="text-sm text-foreground-passive">{projectName}</span>
                 <span className="text-sm text-foreground-passive">/</span>

@@ -26,6 +26,7 @@ function parseTimestamp(input: string | number | Date): Date | null {
 }
 
 function toCompactLabel(date: Date): string {
+  if (Date.now() - date.getTime() < 60_000) return 'now';
   return formatDistanceToNowStrict(date, { roundingMethod: 'floor', addSuffix: false })
     .replace(/ seconds?/, 's')
     .replace(/ minutes?/, 'm')
@@ -70,5 +71,3 @@ export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className, co
     </time>
   );
 };
-
-export default RelativeTime;

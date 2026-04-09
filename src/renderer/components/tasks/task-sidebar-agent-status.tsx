@@ -5,6 +5,7 @@ import { isUnprovisioned, isUnregistered, type TaskStore } from '@renderer/core/
 import { taskAgentStatus } from '@renderer/core/stores/task-selectors';
 import { CLISpinner } from '@renderer/core/tasks/components/cliSpinner';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
+import { RelativeTime } from '../ui/relative-time';
 
 /**
  * Sidebar tail: spinner while bootstrapping, otherwise aggregate agent status indicator.
@@ -34,5 +35,15 @@ export const TaskSidebarAgentStatus = observer(function TaskSidebarAgentStatus({
     );
   }
 
-  return <AgentStatusIndicator status={status} />;
+  if (status) {
+    return <AgentStatusIndicator status={status} />;
+  }
+
+  return (
+    <RelativeTime
+      value={task.data.createdAt}
+      className="text-xs text-foreground-passive font-mono pr-1 h-full flex items-center"
+      compact
+    />
+  );
 });

@@ -46,7 +46,11 @@ export class ProvisionedTask {
     this._taskData = taskData;
     this.path = path;
 
-    this.workspace = new WorkspaceStore(taskData.projectId, taskData.id);
+    this.workspace = new WorkspaceStore(
+      taskData.projectId,
+      taskData.id,
+      () => (this._taskData as Task).prs
+    );
     this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
     this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
     this.taskView = new TaskViewStore(

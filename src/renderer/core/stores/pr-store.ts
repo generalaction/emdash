@@ -1,23 +1,16 @@
 import { reaction } from 'mobx';
-import type { GitChange } from '@shared/git';
+import type { Commit, GitChange } from '@shared/git';
 import type { PrCheckRun, PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/core/ipc';
 import type { PrComment } from '@renderer/lib/github/types';
 import type { GitStore } from './git';
 import { Resource } from './resource';
 
-export interface PrListData {
-  prs: PullRequest[];
-  nameWithOwner: string | null;
-  taskBranch: string | null;
-}
-
 type MergeMode = 'merge' | 'squash' | 'rebase';
 export type MergeResult = { success: true } | { success: false; error: string };
 
 export class PrStore {
-  readonly prList: Resource<PrListData>;
-  readonly commitHistory: Resource<{ commits: import('@shared/git').Commit[]; aheadCount: number }>;
+  readonly commitHistory: Resource<{ commits: Commit[]; aheadCount: number }>;
 
   private _prFiles = new Map<string, Resource<GitChange[]>>();
   private _prCheckRuns = new Map<string, Resource<PrCheckRun[]>>();
@@ -26,34 +19,14 @@ export class PrStore {
   constructor(
     private readonly projectId: string,
     private readonly taskId: string,
-    private readonly git: GitStore
+    private readonly git: GitStore,
+    private readonly _getPrs: () => PullRequest[]
   ) {
-    this.prList = new Resource<PrListData>(
-      () => this._fetchPrList(),
-      [
-        { kind: 'poll', intervalMs: 60_000, pauseWhenHidden: true, demandGated: true },
-        // Invalidate whenever git status reloads (same trigger as old PrProvider).
-        {
-          kind: 'event',
-          subscribe: (h) => reaction(() => git.status.data, h),
-          onEvent: 'reload',
-        },
-      ]
-    );
-
     this.commitHistory = new Resource(() => this._fetchCommitHistory(), [{ kind: 'demand' }]);
   }
 
   get pullRequests(): PullRequest[] {
-    return this.prList.data?.prs ?? [];
-  }
-
-  get nameWithOwner(): string | null {
-    return this.prList.data?.nameWithOwner ?? null;
-  }
-
-  get taskBranch(): string | null {
-    return this.prList.data?.taskBranch ?? null;
+    return this._getPrs();
   }
 
   getFiles(pr: PullRequest): Resource<GitChange[]> {
@@ -110,9 +83,6 @@ export class PrStore {
       pr.metadata.number,
       options
     );
-    if (result.success) {
-      this.prList.invalidate();
-    }
     return result.success
       ? { success: true }
       : { success: false, error: result.error ?? 'Merge failed' };
@@ -122,7 +92,6 @@ export class PrStore {
     const pr = this.pullRequests.find((p) => p.id === id);
     if (!pr) return;
     await rpc.pullRequests.markReadyForReview(pr.nameWithOwner, pr.metadata.number);
-    this.prList.invalidate();
   }
 
   async addComment(pr: PullRequest, body: string): Promise<void> {
@@ -133,7 +102,6 @@ export class PrStore {
   }
 
   refresh(id: string): void {
-    this.prList.invalidate();
     const pr = this.pullRequests.find((p) => p.id === id);
     if (pr) {
       const checkRunsKey = `${pr.nameWithOwner}:${pr.metadata.number}`;
@@ -142,21 +110,14 @@ export class PrStore {
   }
 
   start(): void {
-    this.prList.start();
+    // PR list is push-driven via pr-task-bridge; nothing to start here.
   }
 
   dispose(): void {
-    this.prList.dispose();
     this.commitHistory.dispose();
     for (const r of this._prFiles.values()) r.dispose();
     for (const r of this._prCheckRuns.values()) r.dispose();
     for (const r of this._prComments.values()) r.dispose();
-  }
-
-  private async _fetchPrList(): Promise<PrListData> {
-    const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, this.taskId);
-    if (!result.success) return { prs: [], nameWithOwner: null, taskBranch: null };
-    return result.data;
   }
 
   private async _fetchPrFiles(baseRefName: string): Promise<GitChange[]> {

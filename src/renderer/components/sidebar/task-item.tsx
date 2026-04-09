@@ -3,9 +3,7 @@ import { TaskContextMenu } from '@renderer/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/components/tasks/task-git-diff-stats';
 import { TaskSidebarAgentStatus } from '@renderer/components/tasks/task-sidebar-agent-status';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { sidebarStore } from '@renderer/core/stores/app-state';
 import { getTaskManagerStore, getTaskStore } from '@renderer/core/stores/task-selectors';
-import { LifecycleStatusIndicator } from '@renderer/core/tasks/components/lifecycleStatusIndicator';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
 import { SidebarMenuRow } from './sidebar-primitives';
@@ -40,8 +38,6 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       (task.phase === 'provision' || task.phase === 'provision-error'));
 
   const taskName = task.data.name;
-  const lifecycleStatus = task.data.status;
-  const showStatus = sidebarStore.showSidebarTaskStatus;
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
@@ -79,9 +75,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       <SidebarMenuRow
         className={cn(
           'group/row flex items-center justify-between px-1 h-8 gap-1',
-          rowVariant === 'pinned'
-            ? cn('pl-1', !showStatus && 'pl-2')
-            : cn('pl-6', !showStatus && 'pl-8')
+          rowVariant === 'pinned' ? 'pl-2' : 'pl-8'
         )}
         isActive={isActive}
         onMouseDown={(e) => e.preventDefault()}
@@ -90,34 +84,19 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           navigate('task', { projectId, taskId });
         }}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch">
-          {showStatus && (
-            <div
-              className="h-6 w-6 flex items-center justify-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <LifecycleStatusIndicator
-                lifecycleStatus={lifecycleStatus}
-                onLifecycleStatusChange={(next) => {
-                  task.updateStatus(next);
-                }}
-              />
-            </div>
-          )}
-          <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
-            <span
-              className={cn(
-                'min-w-0 truncate text-left transition-colors',
-                isBootstrapping && 'text-foreground/40'
-              )}
-            >
-              {taskName}
-            </span>
-            <TaskGitDiffStats
-              task={task}
-              className="text-[10px] h-full shrink-0 flex items-center pr-1"
-            />
-          </div>
+        <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
+          <span
+            className={cn(
+              'min-w-0 truncate text-left transition-colors',
+              isBootstrapping && 'text-foreground/40'
+            )}
+          >
+            {taskName}
+          </span>
+          <TaskGitDiffStats
+            task={task}
+            className="text-[10px] h-full shrink-0 flex items-center pr-1"
+          />
         </div>
         <TaskSidebarAgentStatus task={task} />
       </SidebarMenuRow>

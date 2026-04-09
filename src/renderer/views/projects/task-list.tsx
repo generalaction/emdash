@@ -2,7 +2,6 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
-import { StatusIcon } from '@renderer/components/projects/pr-row';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { SearchInput } from '@renderer/components/ui/search-input';
@@ -179,7 +178,7 @@ export const TaskList = observer(function TaskList() {
 
   return (
     <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
-      <div className="flex flex-col gap-4 border-b border-border pb-2 shrink-0">
+      <div className="flex flex-col gap-4 border-b border-border pb-3 shrink-0">
         <div className="flex items-center gap-2 flex-wrap justify-between">
           <ToggleGroup
             multiple={false}
