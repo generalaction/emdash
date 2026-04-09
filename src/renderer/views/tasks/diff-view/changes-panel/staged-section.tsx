@@ -12,7 +12,7 @@ import { usePrefetchModels } from './use-prefetch-models';
 import { VirtualizedChangesList } from './virtualized-changes-list';
 
 export const StagedSection = observer(function StagedSection() {
-  const { projectId, taskId } = useTaskViewContext();
+  const { projectId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const git = provisioned.workspace.git;
   const changesView = provisioned.taskView.diffView.changesView;
@@ -29,7 +29,7 @@ export const StagedSection = observer(function StagedSection() {
       ? diffView.activeFile.path
       : undefined;
 
-  const prefetch = usePrefetchModels(projectId, taskId, 'staged', 'HEAD');
+  const prefetch = usePrefetchModels(projectId, provisioned.workspaceId, 'staged', 'HEAD');
 
   const handleSelectChange = (path: string) => {
     diffView.setActiveFile({ path, type: 'staged', originalRef: 'HEAD' });

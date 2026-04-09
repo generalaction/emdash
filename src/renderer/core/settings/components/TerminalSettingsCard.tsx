@@ -1,11 +1,11 @@
 import { Check, ChevronDown } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
-import { rpc } from '../../core/ipc';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { Switch } from '../ui/switch';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
+import { Switch } from '../../../components/ui/switch';
+import { rpc } from '../../ipc';
 import { SettingRow } from './SettingRow';
 
 type FontOption = {

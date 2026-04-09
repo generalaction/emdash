@@ -3,9 +3,11 @@ import { TaskContextMenu } from '@renderer/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/components/tasks/task-git-diff-stats';
 import { TaskSidebarAgentStatus } from '@renderer/components/tasks/task-sidebar-agent-status';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { TaskStore } from '@renderer/core/stores/task';
 import { getTaskManagerStore, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
 import { cn } from '@renderer/lib/utils';
+import { PrBadge } from '../pr-badge';
 import { SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
@@ -94,9 +96,15 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
             {taskName}
           </span>
           <TaskGitDiffStats task={task} className="h-full shrink-0 flex items-center pr-1" />
+          <RenderPrBadge task={task} />
         </div>
         <TaskSidebarAgentStatus task={task} />
       </SidebarMenuRow>
     </TaskContextMenu>
   );
+});
+
+const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
+  if (!('prs' in task.data)) return null;
+  return task.data.prs.length > 0 ? <PrBadge variant="compact" pr={task.data.prs[0]} /> : null;
 });

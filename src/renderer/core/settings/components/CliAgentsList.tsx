@@ -6,9 +6,14 @@ import { appState } from '@renderer/core/stores/app-state';
 import { type DependencyState } from '@renderer/core/stores/dependencies-store';
 import { log } from '@renderer/lib/logger';
 import { agentMeta } from '@renderer/providers/meta';
-import { rpc } from '../../core/ipc';
-import { CliAgentStatus } from '../../types/connections';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../../../components/ui/tooltip';
+import { CliAgentStatus } from '../../../types/connections';
+import { rpc } from '../../ipc';
 import CustomCommandModal from './CustomCommandModal';
 import IntegrationRow from './IntegrationRow';
 

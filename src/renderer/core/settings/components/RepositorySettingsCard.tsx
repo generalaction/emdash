@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
-import { Input } from '../ui/input';
-import { Switch } from '../ui/switch';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
+import { Input } from '../../../components/ui/input';
+import { Switch } from '../../../components/ui/switch';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

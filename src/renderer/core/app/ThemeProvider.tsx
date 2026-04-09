@@ -1,6 +1,6 @@
 import { createContext, useEffect, type ReactNode } from 'react';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { applyThemeToAll } from '@renderer/core/pty/pty';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import { useLocalStorage } from '@renderer/hooks/useLocalStorage';
 
 type Theme = 'emlight' | 'emdark';

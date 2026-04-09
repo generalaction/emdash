@@ -1,8 +1,14 @@
 import React from 'react';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import { cn } from '@renderer/lib/utils';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Switch } from '../ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../../components/ui/select';
+import { Switch } from '../../../components/ui/switch';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

@@ -1,13 +1,13 @@
 import { GitMerge, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
-import { PrMergeLine } from '@renderer/components/projects/pr-merge-line';
-import { PrNumberBadge, StatusIcon } from '@renderer/components/projects/pr-row';
 import { Button } from '@renderer/components/ui/button';
 import { SplitButton, type SplitButtonAction } from '@renderer/components/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
+import { PrMergeLine } from '@renderer/core/projects/components/pr-merge-line';
+import { PrNumberBadge, StatusIcon } from '@renderer/core/projects/components/pr-row';
 import { cn } from '@renderer/lib/utils';
 import { useProvisionedTask } from '@renderer/views/tasks/task-view-context';
 import { PrChecksList } from './pr-checks-list';

@@ -6,6 +6,7 @@ import type { PrSortField } from '@shared/pull-requests';
 import { Button } from '@renderer/components/ui/button';
 import { Input } from '@renderer/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover';
+import { SearchInput } from '@renderer/components/ui/search-input';
 import {
   Select,
   SelectContent,
@@ -13,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { useParams } from '@renderer/core/view/navigation-provider';
 import { useNameWithOwner } from '@renderer/hooks/useNameWithOwner';
 import {
@@ -21,8 +23,6 @@ import {
   type StatusFilter,
   type UserItem,
 } from '@renderer/hooks/usePrViewState';
-import { SearchInput } from '../ui/search-input';
-import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { PrVirtualList } from './pr-virtual-list';
 
 const SORT_OPTIONS: { value: PrSortField; label: string }[] = [

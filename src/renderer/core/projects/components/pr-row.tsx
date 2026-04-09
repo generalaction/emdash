@@ -9,20 +9,23 @@ import { memo, ReactNode } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
 import { Button } from '@renderer/components/ui/button';
 import { RelativeTime } from '@renderer/components/ui/relative-time';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { cn } from '@renderer/lib/utils';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { PrMergeLine } from './pr-merge-line';
 
 export function StatusIcon({
   status,
   className,
+  disableTooltip = false,
 }: {
+  disableTooltip?: boolean;
   status: PullRequest['status'];
   className?: string;
 }) {
   const renderTooltip = (children: ReactNode, text: string) => {
+    if (disableTooltip) return children;
     return (
       <Tooltip>
         <TooltipTrigger>{children}</TooltipTrigger>

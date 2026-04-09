@@ -2,7 +2,7 @@ import { ChevronRight, FolderClosed, Loader2, Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect } from 'react';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { usePrefetchRepository } from '@renderer/core/projects/use-repository';
+import { usePrefetchRepository } from '@renderer/core/projects/repository/use-repository';
 import { sidebarStore } from '@renderer/core/stores/app-state';
 import { isUnregisteredProject, UnregisteredProject } from '@renderer/core/stores/project';
 import { getProjectStore, projectViewKind } from '@renderer/core/stores/project-selectors';

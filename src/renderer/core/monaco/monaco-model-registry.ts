@@ -396,6 +396,38 @@ class MonacoModelRegistry {
         clearTimeout(timer);
         this.evictionTimers.delete(uri);
       }
+      // Re-attach the content-change listener if it was eagerly disposed when
+      // refs previously dropped to 0 (tab close), but the model survived the
+      // 60 s eviction window and is now being re-registered.
+      if (!this.bufferContentDisposables.has(uri)) {
+        const disposable = existing.model.onDidChangeContent(() => {
+          if (this.reloadingFromDisk.has(uri)) return;
+          runInAction(() => {
+            if (this.computeIsDirtyRaw(uri)) this.dirtyUris.add(uri);
+            else this.dirtyUris.delete(uri);
+            this.bufferVersions.set(uri, (this.bufferVersions.get(uri) ?? 0) + 1);
+          });
+          const existingTimer = this.bufferAutosaveTimers.get(uri);
+          if (existingTimer) clearTimeout(existingTimer);
+          this.bufferAutosaveTimers.set(
+            uri,
+            setTimeout(() => {
+              this.bufferAutosaveTimers.delete(uri);
+              const currentEntry = this.modelMap.get(uri);
+              if (!currentEntry || currentEntry.type !== 'buffer') return;
+              if (!this.isDirty(uri)) return;
+              const value = currentEntry.model.getValue();
+              void rpc.editorBuffer.saveBuffer(
+                currentEntry.projectId,
+                currentEntry.workspaceId,
+                currentEntry.filePath,
+                value
+              );
+            }, BUFFER_DEBOUNCE_MS)
+          );
+        });
+        this.bufferContentDisposables.set(uri, disposable);
+      }
       return uri;
     }
 

@@ -6,7 +6,7 @@ import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/ta
 import { VirtualizedChangesList } from '../virtualized-changes-list';
 
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {
-  const { projectId, taskId } = useTaskViewContext();
+  const { projectId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const prStore = provisioned.workspace.pr;
   const diffView = provisioned.taskView.diffView;
@@ -14,7 +14,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const baseRef = pr.metadata.baseRefName;
   const prFiles = prStore.getFiles(pr).data ?? [];
 
-  const prefetchPrDiff = usePrefetchModels(projectId, taskId, 'git', baseRef);
+  const prefetchPrDiff = usePrefetchModels(projectId, provisioned.workspaceId, 'git', baseRef);
 
   // Use diffView.activeFile to derive the active path — avoids separate React state.
   const activePath = diffView.activeFile?.type === 'git' ? diffView.activeFile.path : undefined;

@@ -1,11 +1,11 @@
 import { ChevronUp, FileCode, Folder, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { FileEntry } from '@shared/ssh';
+import { Button } from '@renderer/components/ui/button';
+import { Input } from '@renderer/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover';
 import { rpc } from '@renderer/core/ipc';
 import { cn } from '@renderer/lib/utils';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 interface RemoteDirectorySelectorProps {
   connectionId: string | undefined;

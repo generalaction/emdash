@@ -31,8 +31,10 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
 }: {
   children: ReactNode;
 }) {
-  const { projectId, taskId } = useTaskViewContext();
-  const diffView = useProvisionedTask().taskView.diffView;
+  const { projectId } = useTaskViewContext();
+  const provisioned = useProvisionedTask();
+  const { workspaceId } = provisioned;
+  const diffView = provisioned.taskView.diffView;
   const { effectiveTheme } = useTheme();
 
   // Lease is exposed as a MobX observable box — all three async signals
@@ -95,12 +97,12 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
         () => diffView.activeFile ?? null,
         (activeFile) => {
           if (!activeFile || isBinaryForDiff(activeFile.path)) return;
-          const root = `task:${taskId}`;
+          const root = `workspace:${workspaceId}`;
           const language = getLanguageFromPath(activeFile.path);
           if (activeFile.type === 'disk') {
             void modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               activeFile.path,
               language,
@@ -108,7 +110,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
             );
             void modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               activeFile.path,
               language,
@@ -118,7 +120,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
           } else if (activeFile.type === 'staged') {
             void modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               activeFile.path,
               language,
@@ -127,7 +129,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
             );
             void modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               activeFile.path,
               language,
@@ -137,7 +139,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
           } else {
             void modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               activeFile.path,
               language,
@@ -146,7 +148,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
             );
             void modelRegistry.registerModel(
               projectId,
-              taskId,
+              workspaceId,
               root,
               activeFile.path,
               language,
@@ -179,7 +181,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
           return;
         }
 
-        const root = `task:${taskId}`;
+        const root = `workspace:${workspaceId}`;
         const uri = buildMonacoModelPath(root, activeFile.path);
         const language = getLanguageFromPath(activeFile.path);
 

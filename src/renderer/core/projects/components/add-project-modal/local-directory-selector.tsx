@@ -1,8 +1,8 @@
 import { Folder } from 'lucide-react';
 import { useState } from 'react';
+import { Button } from '@renderer/components/ui/button';
 import { rpc } from '@renderer/core/ipc';
 import { cn } from '@renderer/lib/utils';
-import { Button } from '../ui/button';
 
 interface LocalDirectorySelectorProps {
   title: string;

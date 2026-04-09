@@ -16,7 +16,7 @@ interface PrefetchEntry {
  */
 export function usePrefetchModels(
   projectId: string,
-  taskId: string,
+  workspaceId: string,
   type: 'disk' | 'staged' | 'git',
   originalRef: string
 ) {
@@ -30,32 +30,32 @@ export function usePrefetchModels(
         for (const gitUri of entry.gitUris) modelRegistry.unregisterModel(gitUri);
       }
     };
-  }, [taskId]);
+  }, [workspaceId]);
 
   return useCallback(
     (filePath: string) => {
       if (prefetchedRef.current.has(filePath)) return;
       if (isBinaryForDiff(filePath)) return;
       const language = getLanguageFromPath(filePath);
-      const root = `task:${taskId}`;
+      const root = `workspace:${workspaceId}`;
       const uri = buildMonacoModelPath(root, filePath);
       const entry: PrefetchEntry = { gitUris: [] };
 
       if (type === 'disk') {
         void modelRegistry
-          .registerModel(projectId, taskId, root, filePath, language, 'disk')
+          .registerModel(projectId, workspaceId, root, filePath, language, 'disk')
           .catch(() => {});
         void modelRegistry
-          .registerModel(projectId, taskId, root, filePath, language, 'git', originalRef)
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', originalRef)
           .catch(() => {});
         entry.diskUri = modelRegistry.toDiskUri(uri);
         entry.gitUris = [modelRegistry.toGitUri(uri, originalRef)];
       } else if (type === 'staged') {
         void modelRegistry
-          .registerModel(projectId, taskId, root, filePath, language, 'git', 'HEAD')
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', 'HEAD')
           .catch(() => {});
         void modelRegistry
-          .registerModel(projectId, taskId, root, filePath, language, 'git', 'staged')
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', 'staged')
           .catch(() => {});
         entry.gitUris = [
           modelRegistry.toGitUri(uri, 'HEAD'),
@@ -63,10 +63,10 @@ export function usePrefetchModels(
         ];
       } else {
         void modelRegistry
-          .registerModel(projectId, taskId, root, filePath, language, 'git', originalRef)
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', originalRef)
           .catch(() => {});
         void modelRegistry
-          .registerModel(projectId, taskId, root, filePath, language, 'git', 'HEAD')
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', 'HEAD')
           .catch(() => {});
         entry.gitUris = [
           modelRegistry.toGitUri(uri, originalRef),
@@ -76,6 +76,6 @@ export function usePrefetchModels(
 
       prefetchedRef.current.set(filePath, entry);
     },
-    [projectId, taskId, type, originalRef]
+    [projectId, workspaceId, type, originalRef]
   );
 }

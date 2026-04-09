@@ -6,12 +6,17 @@ import gitlabSvg from '@/assets/images/GitLab.svg?raw';
 import jiraSvg from '@/assets/images/Jira.svg?raw';
 import linearSvg from '@/assets/images/Linear.svg?raw';
 import plainSvg from '@/assets/images/Plain.svg?raw';
-import { useGithubContext } from '../../core/github-context-provider';
-import { useIntegrationsContext } from '../../core/integrations/integrations-provider';
-import { useShowModal } from '../../core/modal/modal-provider';
-import { useTheme } from '../../hooks/useTheme';
-import { Button } from '../ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { Button } from '../../../components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../../../components/ui/tooltip';
+import { useTheme } from '../../../hooks/useTheme';
+import { useGithubContext } from '../../github-context-provider';
+import { useIntegrationsContext } from '../../integrations/integrations-provider';
+import { useShowModal } from '../../modal/modal-provider';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {

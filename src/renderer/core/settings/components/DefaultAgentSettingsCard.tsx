@@ -2,7 +2,7 @@ import React from 'react';
 import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { AppSettings } from '@shared/app-settings';
 import { AgentSelector } from '@renderer/components/agent-selector';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import type { Agent } from '@renderer/types';
 import { SettingRow } from './SettingRow';
 

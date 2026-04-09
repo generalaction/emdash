@@ -21,7 +21,6 @@ export interface McpModalProps {
   providers: McpProvidersResponse[];
   onSave: (server: McpServer) => Promise<void>;
   onRemove?: (serverName: string) => void;
-  onClose: () => void;
   onSuccess: (result: unknown) => void;
 }
 

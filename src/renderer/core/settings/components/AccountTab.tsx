@@ -1,12 +1,12 @@
 import { LogIn, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
+import { Button } from '../../../components/ui/button';
 import {
   useAccountHealth,
   useAccountSession,
   useAccountSignIn,
   useAccountSignOut,
-} from '../../hooks/useAccount';
-import { Button } from '../ui/button';
+} from '../../../hooks/useAccount';
 import { ServerUnavailableMessage } from './ServerUnavailableMessage';
 
 export function AccountTab() {

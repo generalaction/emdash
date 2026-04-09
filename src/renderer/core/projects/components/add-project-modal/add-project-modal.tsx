@@ -1,18 +1,29 @@
 import { Home, Server } from 'lucide-react';
 import { useState } from 'react';
-import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
+import { SshConnectionSelector } from '@renderer/components/ssh/ssh-connection-selector';
+import { ConfirmButton } from '@renderer/components/ui/confirm-button';
+import {
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@renderer/components/ui/dialog';
+import { Field, FieldLabel } from '@renderer/components/ui/field';
+import { ModalLayout } from '@renderer/components/ui/modal-layout';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/core/modal/modal-provider';
+import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
 import { getProjectManagerStore } from '@renderer/core/stores/project-selectors';
 import { useNavigate } from '@renderer/core/view/navigation-provider';
 import { log } from '@renderer/lib/logger';
-import { SshConnectionSelector } from '../ssh/ssh-connection-selector';
-import { ConfirmButton } from '../ui/confirm-button';
-import { DialogContentArea, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Field, FieldLabel } from '../ui/field';
-import { ModalLayout } from '../ui/modal-layout';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { useCloneMode, useNewMode, usePickMode } from './modes';
 

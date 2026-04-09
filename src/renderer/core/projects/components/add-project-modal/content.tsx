@@ -1,11 +1,11 @@
 import { ChevronsUpDownIcon } from 'lucide-react';
-import { ComboboxTrigger, ComboboxValue } from '../ui/combobox';
-import { ComboboxPopover } from '../ui/combobox-popover';
-import { Field, FieldGroup, FieldLabel } from '../ui/field';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { Separator } from '../ui/separator';
+import { ComboboxTrigger, ComboboxValue } from '@renderer/components/ui/combobox';
+import { ComboboxPopover } from '@renderer/components/ui/combobox-popover';
+import { Field, FieldGroup, FieldLabel } from '@renderer/components/ui/field';
+import { Input } from '@renderer/components/ui/input';
+import { Label } from '@renderer/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@renderer/components/ui/radio-group';
+import { Separator } from '@renderer/components/ui/separator';
 import { Strategy } from './add-project-modal';
 import { LocalDirectorySelector } from './local-directory-selector';
 import { CloneModeState, NewModeState, PickModeState } from './modes';
