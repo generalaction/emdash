@@ -1,11 +1,9 @@
 import { ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React from 'react';
 import { sidebarStore } from '@renderer/core/stores/app-state';
 import { Button } from '../ui/button';
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuLabel,
@@ -21,7 +19,11 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
       <MicroLabel className="text-foreground-tertiary-passive">Projects</MicroLabel>
       <DropdownMenu>
         <DropdownMenuTrigger>
-          <Button size="icon-xs" variant="ghost">
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            className="hover:bg-transparent text-foreground-muted hover:text-foreground"
+          >
             <ListFilter />
           </Button>
         </DropdownMenuTrigger>
@@ -39,23 +41,6 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
               <DropdownMenuRadioItem value="created-at">Created at</DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="updated-at">Updated at</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
-          </DropdownMenuGroup>
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>Display</DropdownMenuLabel>
-            <DropdownMenuCheckboxItem
-              checked={sidebarStore.showSidebarTaskStatus}
-              onCheckedChange={(checked) => sidebarStore.setShowSidebarTaskStatus(checked === true)}
-            >
-              Show task status
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={sidebarStore.taskGroupBy === 'task-status'}
-              onCheckedChange={(checked) =>
-                sidebarStore.setTaskGroupBy(checked === true ? 'task-status' : 'none')
-              }
-            >
-              Group by task status
-            </DropdownMenuCheckboxItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>

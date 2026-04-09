@@ -44,7 +44,7 @@ function TaskVirtualList({
   return (
     <div
       ref={parentRef}
-      className="overflow-y-auto min-h-0 flex-1"
+      className="overflow-y-auto min-h-0 flex-1 py-3"
       style={{ scrollbarWidth: 'none' }}
     >
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -55,10 +55,7 @@ function TaskVirtualList({
               key={virtualItem.key}
               data-index={virtualItem.index}
               ref={virtualizer.measureElement}
-              className={cn(
-                'border-b border-border py-1',
-                virtualItem.index === tasks.length - 1 && 'border-b-0'
-              )}
+              className={cn(virtualItem.index === tasks.length - 1 && 'border-b-0')}
               style={{
                 position: 'absolute',
                 top: 0,
@@ -181,7 +178,7 @@ export const TaskList = observer(function TaskList() {
 
   return (
     <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
-      <div className="flex flex-col gap-4 border-b border-border pb-2 shrink-0">
+      <div className="flex flex-col gap-4 border-b border-border pb-3 shrink-0">
         <div className="flex items-center gap-2 flex-wrap justify-between">
           <ToggleGroup
             multiple={false}

@@ -10,6 +10,7 @@ import {
   Globe,
   ListTree,
   MessageSquare,
+  Pin,
   RefreshCcw,
   Terminal,
 } from 'lucide-react';
@@ -25,15 +26,16 @@ import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui/tooltip';
 import { rpc } from '@renderer/core/ipc';
+import { getProjectStore, projectDisplayName } from '@renderer/core/stores/project-selectors';
 import {
   getRegisteredTaskData,
   getTaskStore,
   taskDisplayName,
   taskViewKind,
 } from '@renderer/core/stores/task-selectors';
-import { LifecycleStatusIndicator } from '@renderer/core/tasks/components/lifecycleStatusIndicator';
 import { RightPanelView } from '@renderer/core/tasks/types';
 import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
+import { cn } from '@renderer/lib/utils';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
 import { useProvisionedTask, useTaskViewContext } from './task-view-context';
@@ -137,24 +139,18 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     isPushing,
   } = useGitActions(projectId, taskId);
 
+  const projectName = projectDisplayName(getProjectStore(projectId));
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
           <Popover>
             <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-              <div
-                className="h-6 w-6 flex items-center justify-center"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <LifecycleStatusIndicator
-                  lifecycleStatus={taskPayload.status}
-                  onLifecycleStatusChange={(status) => {
-                    taskStore.updateStatus(status);
-                  }}
-                />
-              </div>
-              {taskDisplayName(taskStore)}
+              <span className="flex items-center gap-1">
+                <span className="text-sm text-foreground-passive">{projectName}</span>
+                <span className="text-sm text-foreground-passive">/</span>
+                {taskDisplayName(taskStore)}
+              </span>
               <ChevronDown className="size-3.5 shrink-0" />
             </PopoverTrigger>
             <PopoverContent align="start" className="w-96 p-4 flex flex-col gap-2">
@@ -286,6 +282,18 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               />
             </PopoverContent>
           </Popover>
+          <button
+            className={cn(
+              'text-foreground-muted ml-1',
+              taskPayload.isPinned && 'text-muted-foreground'
+            )}
+            onClick={() => taskStore.setPinned(!taskPayload.isPinned)}
+          >
+            <Pin
+              className={cn('size-3.5', taskPayload.isPinned && 'text-foreground-muted')}
+              fill={taskPayload.isPinned ? 'currentColor' : 'none'}
+            />
+          </button>
         </div>
       }
       rightSlot={

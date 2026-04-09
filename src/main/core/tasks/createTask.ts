@@ -1,18 +1,16 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { err, ok, Result } from '@shared/result';
 import type { CreateTaskError, CreateTaskParams, Task } from '@shared/tasks';
 import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
-import {
-  findPrForBranch,
-  linkTaskToPr,
-  resolveInitialStatus,
-} from '@main/core/task-status/pr-task-bridge';
+import { findPrForBranch, resolveInitialStatus } from '@main/core/task-status/pr-task-bridge';
 import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { pullRequests, tasks, tasksPullRequests } from '@main/db/schema';
 import { createConversation } from '../conversations/createConversation';
 import type { ProvisionTaskError } from '../projects/project-provider';
+import { prRowToPullRequest } from '../pull-requests/pr-utils';
 import { appSettingsService } from '../settings/settings-service';
+import { mapTaskRowToTask } from './core';
 
 function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
   const msg = error.message;
@@ -142,13 +140,11 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
   const remoteUrl = remotes.find((r) => r.name === remote)?.url;
   const nameWithOwner = remoteUrl ? parseNameWithOwner(remoteUrl) : null;
 
-  let existingPrUrl: string | null = null;
   let initialStatus = params.initialStatus ?? 'in_progress';
 
   if (!params.initialStatus && taskBranch && nameWithOwner) {
     const existingPr = await findPrForBranch(taskBranch, nameWithOwner);
     if (existingPr) {
-      existingPrUrl = existingPr.url;
       initialStatus = resolveInitialStatus(existingPr);
     }
   }
@@ -165,38 +161,33 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
+      lastInteractedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
 
-  // Write the tasks_pull_requests link now that the task row exists.
-  if (existingPrUrl) {
-    await linkTaskToPr(params.id, existingPrUrl);
+  // Look up all PRs in the DB cache that match this task's branch, link them, and
+  // include them in the returned task so the renderer has them from the start.
+  let linkedPrs: Task['prs'] = [];
+  if (taskBranch) {
+    const conditions = nameWithOwner
+      ? and(eq(pullRequests.headRefName, taskBranch), eq(pullRequests.nameWithOwner, nameWithOwner))
+      : eq(pullRequests.headRefName, taskBranch);
+    const prRows = await db.select().from(pullRequests).where(conditions);
+    if (prRows.length > 0) {
+      await db
+        .insert(tasksPullRequests)
+        .values(prRows.map((pr) => ({ taskId: params.id, pullRequestUrl: pr.url })))
+        .onConflictDoNothing();
+      linkedPrs = prRows.map(prRowToPullRequest);
+    }
   }
 
-  const task: Task = {
-    id: params.id,
-    projectId: params.projectId,
-    name: params.name,
-    status: initialStatus,
-    sourceBranch: dbSourceBranch,
-    taskBranch,
-    linkedIssue: params.linkedIssue ?? undefined,
-    createdAt: taskRow.createdAt,
-    updatedAt: taskRow.updatedAt,
-    statusChangedAt: taskRow.statusChangedAt,
-    isPinned: taskRow.isPinned === 1,
-  };
+  const task = mapTaskRowToTask(taskRow, linkedPrs);
 
   const provisionResult = await project.provisionTask(task, [], []);
   if (!provisionResult.success) {
     return err(mapProvisionError(provisionResult.error));
   }
-
-  const lastInteractedAt = new Date().toISOString();
-  await db
-    .update(tasks)
-    .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP` })
-    .where(eq(tasks.id, params.id));
 
   if (params.initialConversation) {
     await createConversation({
@@ -205,5 +196,5 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
     });
   }
 
-  return ok({ ...task, lastInteractedAt });
+  return ok(task);
 }

@@ -1,4 +1,5 @@
 import { CreateConversationParams } from '@shared/conversations';
+import { PullRequest } from './pull-requests';
 
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
 
@@ -30,6 +31,8 @@ export type Task = {
   lastInteractedAt?: string;
   linkedIssue?: Issue;
   isPinned: boolean;
+  prs: PullRequest[];
+  conversations: Record<string, number>;
 };
 
 export type TaskBootstrapStatus =

@@ -1,37 +1,24 @@
-import { Archive, Pencil, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { AgentStatusIndicator } from '@renderer/components/agent-status-indicator';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@renderer/components/ui/context-menu';
+import { TaskContextMenu } from '@renderer/components/task-context-menu';
+import { TaskGitDiffStats } from '@renderer/components/tasks/task-git-diff-stats';
+import { TaskSidebarAgentStatus } from '@renderer/components/tasks/task-sidebar-agent-status';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { sidebarStore } from '@renderer/core/stores/app-state';
-import {
-  getTaskGitStore,
-  getTaskManagerStore,
-  getTaskStore,
-  taskAgentStatus,
-} from '@renderer/core/stores/task-selectors';
-import { CLISpinner } from '@renderer/core/tasks/components/cliSpinner';
-import { LifecycleStatusIndicator } from '@renderer/core/tasks/components/lifecycleStatusIndicator';
+import { getTaskManagerStore, getTaskStore } from '@renderer/core/stores/task-selectors';
 import { useNavigate, useParams, useWorkspaceSlots } from '@renderer/core/view/navigation-provider';
-import { useDelayedBoolean } from '@renderer/hooks/use-delay-boolean';
 import { cn } from '@renderer/lib/utils';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
   taskId: string;
   projectId: string;
+  /** Pinned strip uses tighter padding than tasks nested under a project. */
+  rowVariant?: 'underProject' | 'pinned';
 }
 
 export const SidebarTaskItem = observer(function SidebarTaskItem({
   taskId,
   projectId,
+  rowVariant = 'underProject',
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
@@ -44,24 +31,13 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const task = getTaskStore(projectId, taskId)!;
   const taskManager = getTaskManagerStore(projectId);
-  const git = getTaskGitStore(projectId, taskId);
 
   const isBootstrapping =
     task.state === 'unregistered' ||
     (task.state === 'unprovisioned' &&
       (task.phase === 'provision' || task.phase === 'provision-error'));
 
-  const delayedIsBootstrapping = useDelayedBoolean(isBootstrapping, 500);
-
   const taskName = task.data.name;
-  const lifecycleStatus = task.data.status;
-  const status = taskAgentStatus(task);
-  const showStatus = sidebarStore.showSidebarTaskStatus;
-
-  const linesAdded = git?.totalLinesAdded ?? 0;
-  const linesDeleted = git?.totalLinesDeleted ?? 0;
-  const showLineDiffStats =
-    git !== undefined && !git.isLoading && !git.error && (linesAdded > 0 || linesDeleted > 0);
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
@@ -83,80 +59,47 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       },
     });
 
+  const canPin = task.state !== 'unregistered';
+
   return (
-    <ContextMenu>
-      <ContextMenuTrigger>
-        <SidebarMenuRow
-          className={cn('group/row flex items-center px-1 h-8 gap-1 pl-6', !showStatus && 'pl-8')}
-          isActive={isActive}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            handleProvision();
-            navigate('task', { projectId, taskId });
-          }}
-        >
-          {showStatus && (
-            <div
-              className="h-6 w-6 flex items-center justify-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <LifecycleStatusIndicator
-                lifecycleStatus={lifecycleStatus}
-                onLifecycleStatusChange={(next) => {
-                  task.updateStatus(next);
-                }}
-              />
-            </div>
-          )}
-          <div className="flex items-center gap-1 min-w-0">
-            <span
-              className={cn(
-                'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
-                isBootstrapping && 'text-foreground/40'
-              )}
-            >
-              {taskName}
-            </span>
-            {showLineDiffStats ? (
-              <span
-                className="shrink-0 tabular-nums text-[10px] h-full flex items-center leading-none text-muted-foreground pr-1 font-mono"
-                aria-label={`${linesAdded} lines added, ${linesDeleted} lines removed`}
-              >
-                {linesAdded > 0 ? <span className="text-green-600">+{linesAdded}</span> : null}
-                {linesAdded > 0 && linesDeleted > 0 ? ' ' : null}
-                {linesDeleted > 0 ? <span className="text-red-600">-{linesDeleted}</span> : null}
-              </span>
-            ) : null}
-          </div>
-          {delayedIsBootstrapping ? (
-            <Tooltip>
-              <TooltipTrigger>
-                <span className="size-6 flex justify-center items-center">
-                  <CLISpinner variant="2" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>Creating task workspace...</TooltipContent>
-            </Tooltip>
-          ) : (
-            <AgentStatusIndicator status={status} />
-          )}
-        </SidebarMenuRow>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={handleRename}>
-          <Pencil className="size-4" />
-          Rename
-        </ContextMenuItem>
-        <ContextMenuItem onClick={handleArchive}>
-          <Archive className="size-4" />
-          Archive
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" onClick={handleDelete}>
-          <Trash2 className="size-4" />
-          Delete
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <TaskContextMenu
+      isPinned={task.data.isPinned}
+      canPin={canPin}
+      isArchived={false}
+      onPin={() => void task.setPinned(true)}
+      onUnpin={() => void task.setPinned(false)}
+      onRename={handleRename}
+      onArchive={handleArchive}
+      onDelete={handleDelete}
+    >
+      <SidebarMenuRow
+        className={cn(
+          'group/row flex items-center justify-between px-1 h-8 gap-1',
+          rowVariant === 'pinned' ? 'pl-2' : 'pl-8'
+        )}
+        isActive={isActive}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => {
+          handleProvision();
+          navigate('task', { projectId, taskId });
+        }}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
+          <span
+            className={cn(
+              'min-w-0 truncate text-left transition-colors',
+              isBootstrapping && 'text-foreground/40'
+            )}
+          >
+            {taskName}
+          </span>
+          <TaskGitDiffStats
+            task={task}
+            className="text-[10px] h-full shrink-0 flex items-center pr-1"
+          />
+        </div>
+        <TaskSidebarAgentStatus task={task} />
+      </SidebarMenuRow>
+    </TaskContextMenu>
   );
 });

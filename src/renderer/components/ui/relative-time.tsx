@@ -1,16 +1,19 @@
-import { formatDistanceToNowStrict } from 'date-fns';
+import { formatDistanceToNow, formatDistanceToNowStrict } from 'date-fns';
 import React, { useEffect, useMemo, useState } from 'react';
+import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip';
 
 type RelativeTimeProps = {
   value: string | number | Date;
   className?: string;
+  /** Renders an abbreviated form (e.g. "3d", "5mo") with a tooltip showing the full text. */
+  compact?: boolean;
 };
 
 function parseTimestamp(input: string | number | Date): Date | null {
   if (input instanceof Date) return input;
   if (typeof input === 'number') {
     const d = new Date(input);
-    return isNaN(d.getTime()) ? null : d;
+    return Number.isNaN(d.getTime()) ? null : d;
   }
 
   const raw = String(input).trim();
@@ -19,10 +22,21 @@ function parseTimestamp(input: string | number | Date): Date | null {
   const normalized = raw.includes('Z') || raw.includes('+') ? raw : raw.replace(' ', 'T') + 'Z';
 
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? null : d;
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className }) => {
+function toCompactLabel(date: Date): string {
+  if (Date.now() - date.getTime() < 60_000) return 'now';
+  return formatDistanceToNowStrict(date, { roundingMethod: 'floor', addSuffix: false })
+    .replace(/ seconds?/, 's')
+    .replace(/ minutes?/, 'm')
+    .replace(/ hours?/, 'h')
+    .replace(/ days?/, 'd')
+    .replace(/ months?/, 'mo')
+    .replace(/ years?/, 'y');
+}
+
+export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className, compact }) => {
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -35,6 +49,21 @@ export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className }) 
     return <span className={className}>—</span>;
   }
 
+  if (compact) {
+    const short = toCompactLabel(date);
+    const long = formatDistanceToNow(date, { addSuffix: true });
+    return (
+      <Tooltip>
+        <TooltipTrigger>
+          <time className={className} dateTime={date.toISOString()}>
+            {short}
+          </time>
+        </TooltipTrigger>
+        <TooltipContent>{long}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
   const label = formatDistanceToNowStrict(date, { addSuffix: true });
   return (
     <time className={className} dateTime={date.toISOString()}>
@@ -42,5 +71,3 @@ export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className }) 
     </time>
   );
 };
-
-export default RelativeTime;

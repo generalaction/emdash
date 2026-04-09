@@ -32,7 +32,6 @@ export interface TaskProvider {
   readonly taskId: string;
   readonly taskBranch: string | undefined;
   readonly sourceBranch: string;
-  readonly workspace: Workspace;
   readonly taskEnvVars: Record<string, string>;
   readonly conversations: ConversationProvider;
   readonly terminals: TerminalProvider;
@@ -44,6 +43,7 @@ export interface ProjectProvider {
   readonly git: GitProvider;
   readonly fs: FileSystemProvider;
   getRemoteState(): Promise<ProjectRemoteState>;
+  getWorkspace(workspaceId: string): Workspace | undefined;
   provisionTask(
     args: Task,
     conversations: Conversation[],

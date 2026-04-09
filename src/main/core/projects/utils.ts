@@ -4,6 +4,10 @@ export function resolveTask(projectId: string, taskId: string) {
   return projectManager.getProject(projectId)?.getTask(taskId) ?? null;
 }
 
+export function resolveWorkspace(projectId: string, workspaceId: string) {
+  return projectManager.getProject(projectId)?.getWorkspace(workspaceId) ?? null;
+}
+
 export class TimeoutSignal extends Error {
   constructor(readonly ms: number) {
     super(`Operation timed out after ${ms}ms`);

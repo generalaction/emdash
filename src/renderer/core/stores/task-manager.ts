@@ -1,6 +1,6 @@
 import { makeObservable, observable, runInAction } from 'mobx';
-import { taskStatusUpdatedChannel } from '@shared/events/taskEvents';
-import type { CreateTaskError, CreateTaskParams, TaskLifecycleStatus } from '@shared/tasks';
+import { taskPrUpdatedChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import type { CreateTaskError, CreateTaskParams, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { events, rpc } from '@renderer/core/ipc';
 import { getProjectManagerStore } from './project-selectors';
@@ -51,6 +51,17 @@ export class TaskManagerStore {
       if (store && isProvisioned(store)) {
         runInAction(() => {
           store.data.status = status as TaskLifecycleStatus;
+        });
+      }
+    });
+
+    events.on(taskPrUpdatedChannel, ({ taskId, projectId: evtProjectId, prs }) => {
+      if (evtProjectId !== this.projectId) return;
+      const store = this.tasks.get(taskId);
+      console.log('taskPrUpdatedChannel', taskId, projectId, prs);
+      if (store && isRegistered(store)) {
+        runInAction(() => {
+          (store.data as Task).prs = prs;
         });
       }
     });
@@ -145,7 +156,6 @@ export class TaskManagerStore {
             current.transitionToProvisioned(
               { ...current.data },
               result.path,
-              result.workspaceId,
               savedSnapshot as TaskViewSnapshot | undefined
             );
             current.activate();

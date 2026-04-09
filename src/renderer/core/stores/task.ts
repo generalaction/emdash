@@ -1,6 +1,7 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
+import { workspaceKey } from '@shared/workspace-key';
 import { rpc } from '../ipc';
 import { ConversationManagerStore } from './conversation-manager';
 import { DevServerStore } from './dev-server-store';
@@ -36,7 +37,6 @@ export class ProvisionedTask {
   readonly terminals: TerminalManagerStore;
   readonly taskView: TaskViewStore;
 
-  /** Same object as `TaskStore.data` when provisioned; not separately observable (see makeAutoObservable). */
   readonly _taskData: Task;
   readonly path: string;
   readonly workspaceId: string;
@@ -47,13 +47,21 @@ export class ProvisionedTask {
     return this.taskView.snapshot;
   }
 
-  constructor(taskData: Task, path: string, workspaceId: string, savedSnapshot?: TaskViewSnapshot) {
+  get taskBranch(): string | undefined {
+    return this._taskData.taskBranch;
+  }
+
+  constructor(taskData: Task, path: string, savedSnapshot?: TaskViewSnapshot) {
     this._taskData = taskData;
     this.path = path;
-    this.workspaceId = workspaceId;
+    this.workspaceId = workspaceKey(taskData.taskBranch);
 
-    this.workspace = workspaceRegistry.acquire(taskData.projectId, workspaceId, taskData.id);
-    this.devServers = new DevServerStore(taskData.id, workspaceId);
+    this.workspace = workspaceRegistry.acquire(
+      taskData.projectId,
+      this.workspaceId,
+      taskData.prs ?? []
+    );
+    this.devServers = new DevServerStore(taskData.id, this.workspaceId);
     this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
     this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
     this.taskView = new TaskViewStore(
@@ -64,7 +72,7 @@ export class ProvisionedTask {
         pr: this.workspace.pr,
         projectId: taskData.projectId,
         taskId: taskData.id,
-        workspaceId,
+        workspaceId: this.workspaceId,
       },
       savedSnapshot
     );
@@ -90,7 +98,7 @@ export class ProvisionedTask {
   dispose(): void {
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
-    workspaceRegistry.release(this._taskData.projectId, this.workspaceId, this._taskData.id);
+    workspaceRegistry.release(this._taskData.projectId, this.workspaceId);
     this.devServers.dispose();
     this.taskView.dispose();
     this.conversations.dispose();
@@ -150,14 +158,9 @@ export class TaskStore {
     });
   }
 
-  transitionToProvisioned(
-    data: Task,
-    path: string,
-    workspaceId: string,
-    savedSnapshot?: TaskViewSnapshot
-  ): void {
+  transitionToProvisioned(data: Task, path: string, savedSnapshot?: TaskViewSnapshot): void {
     this.data = data;
-    this.provisionedTask = new ProvisionedTask(data, path, workspaceId, savedSnapshot);
+    this.provisionedTask = new ProvisionedTask(data, path, savedSnapshot);
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
@@ -188,6 +191,21 @@ export class TaskStore {
   dispose(): void {
     this.provisionedTask?.dispose();
     this.provisionedTask = null;
+  }
+
+  get conversationStats(): Record<string, number> {
+    if (this.state === 'unregistered') {
+      return {};
+    }
+    if (this.state === 'provisioned' && this.provisionedTask) {
+      const counts: Record<string, number> = {};
+      for (const conv of this.provisionedTask.conversations.conversations.values()) {
+        const id = conv.data.providerId;
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+      return counts;
+    }
+    return (this.data as Task).conversations;
   }
 
   async rename(name: string): Promise<void> {
@@ -245,13 +263,6 @@ export class TaskStore {
       console.error(e);
       throw e;
     }
-  }
-
-  async togglePinned(): Promise<void> {
-    if (this.state === 'unregistered') return;
-    const task = registeredTaskData(this);
-    if (!task) return;
-    await this.setPinned(!task.isPinned);
   }
 }
 

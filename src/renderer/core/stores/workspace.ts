@@ -1,25 +1,32 @@
+import type { PullRequest } from '@shared/pull-requests';
+import { rpc } from '@renderer/core/ipc';
 import { FilesStore } from './files-store';
 import { GitStore } from './git';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
 import { PrStore } from './pr-store';
+import { Resource } from './resource';
 
 export class WorkspaceStore {
   git: GitStore;
   files: FilesStore;
   lifecycleScripts: LifecycleScriptsStore;
   pr: PrStore;
+  readonly nameWithOwner: Resource<string | null>;
 
-  constructor(projectId: string, workspaceId: string, getTaskId: () => string) {
-    this.git = new GitStore(projectId, getTaskId, workspaceId);
-    this.files = new FilesStore(projectId, getTaskId, workspaceId);
-    this.lifecycleScripts = new LifecycleScriptsStore(projectId, getTaskId, workspaceId);
-    this.pr = new PrStore(projectId, getTaskId, this.git);
+  constructor(projectId: string, workspaceId: string, initialPrs: PullRequest[]) {
+    this.git = new GitStore(projectId, workspaceId);
+    this.files = new FilesStore(projectId, workspaceId);
+    this.lifecycleScripts = new LifecycleScriptsStore(projectId, workspaceId);
+    this.pr = new PrStore(projectId, workspaceId, this.git, initialPrs);
+    this.nameWithOwner = new Resource<string | null>(async () => {
+      const result = await rpc.pullRequests.getNameWithOwner(projectId);
+      return result.status === 'ready' ? result.nameWithOwner : null;
+    }, [{ kind: 'demand' }]);
   }
 
   activate(): void {
     this.git.startWatching();
     this.files.startWatching();
-    this.pr.start();
   }
 
   dispose(): void {
@@ -27,5 +34,6 @@ export class WorkspaceStore {
     this.files.dispose();
     this.lifecycleScripts.dispose();
     this.pr.dispose();
+    this.nameWithOwner.dispose();
   }
 }
