@@ -12,6 +12,7 @@ import {
   ScriptType,
 } from '@renderer/core/stores/lifecycle-scripts';
 import { TerminalManagerStore, TerminalStore } from '@renderer/core/stores/terminal-manager';
+import { TerminalTabViewStore } from '@renderer/core/stores/terminal-tab-view-store';
 
 export function getTerminalsPaneSize() {
   const container = getPaneContainer('terminals');
@@ -39,6 +40,7 @@ function scriptIcon(type: ScriptType): React.ReactNode {
 interface TerminalsTabsProps {
   projectId: string;
   taskId: string;
+  terminalTabView: TerminalTabViewStore | null;
   terminalMgr: TerminalManagerStore | null;
   /** Extra content rendered in the right-side actions area (e.g. mode toggle button). */
   actions?: React.ReactNode;
@@ -47,14 +49,15 @@ interface TerminalsTabsProps {
 export const TerminalsTabs = observer(function TerminalsTabs({
   projectId,
   taskId,
+  terminalTabView,
   terminalMgr,
   actions,
 }: TerminalsTabsProps) {
-  if (!terminalMgr) return null;
+  if (!terminalTabView || !terminalMgr) return null;
 
   const handleAdd = async () => {
     const id = crypto.randomUUID();
-    const name = nextTerminalName(terminalMgr.tabs.map((s) => s.data.name));
+    const name = nextTerminalName(terminalTabView.tabs.map((s) => s.data.name));
     try {
       await terminalMgr.createTerminal({
         id,
@@ -63,6 +66,7 @@ export const TerminalsTabs = observer(function TerminalsTabs({
         name,
         initialSize: getTerminalsPaneSize(),
       });
+      terminalTabView.setActiveTab(id);
     } catch (error) {
       console.error('Failed to create terminal:', error);
     }
@@ -70,17 +74,17 @@ export const TerminalsTabs = observer(function TerminalsTabs({
 
   return (
     <TabBar<TerminalStore>
-      tabs={terminalMgr.tabs}
-      activeTabId={terminalMgr.activeTabId}
+      tabs={terminalTabView.tabs}
+      activeTabId={terminalTabView.activeTabId}
       getId={(s) => s.data.id}
       getLabel={(s) => s.data.name}
-      onSelect={(id) => terminalMgr.setActiveTab(id)}
+      onSelect={(id) => terminalTabView.setActiveTab(id)}
       onRemove={(id) => {
-        terminalMgr.removeTab(id);
+        terminalTabView.removeTab(id);
       }}
       renderTabPrefix={() => <Terminal className="size-3" />}
       onRename={(id, name) => void terminalMgr.renameTerminal(id, name)}
-      onReorder={(from, to) => terminalMgr.reorderTabs(from, to)}
+      onReorder={(from, to) => terminalTabView.reorderTabs(from, to)}
       actions={
         <div className="flex items-center">
           <Tooltip>

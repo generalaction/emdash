@@ -20,13 +20,13 @@ async function bootstrap() {
   initSoundPlayer();
   const [navResult, sidebarResult] = await Promise.all([
     rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
-    rpc.viewState.get('sidebar') as Promise<SidebarSnapshot> | null,
+    rpc.viewState.get('sidebar'),
     appState.projects.load(),
   ]);
 
   if (navResult) appState.navigation.restoreSnapshot(navResult);
   if (sidebarResult) {
-    appState.sidebar.restoreSnapshot(sidebarResult);
+    appState.sidebar.restoreSnapshot(sidebarResult as Partial<SidebarSnapshot>);
   } else {
     appState.sidebar.expandAllProjects();
   }

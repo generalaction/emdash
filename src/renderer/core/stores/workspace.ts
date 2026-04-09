@@ -9,10 +9,23 @@ export class WorkspaceStore {
   lifecycleScripts: LifecycleScriptsStore;
   pr: PrStore;
 
-  constructor(projectId: string, taskId: string) {
-    this.git = new GitStore(projectId, taskId);
-    this.files = new FilesStore(projectId, taskId);
-    this.lifecycleScripts = new LifecycleScriptsStore(projectId, taskId);
-    this.pr = new PrStore(projectId, taskId, this.git);
+  constructor(projectId: string, workspaceId: string, getTaskId: () => string) {
+    this.git = new GitStore(projectId, getTaskId, workspaceId);
+    this.files = new FilesStore(projectId, getTaskId, workspaceId);
+    this.lifecycleScripts = new LifecycleScriptsStore(projectId, getTaskId, workspaceId);
+    this.pr = new PrStore(projectId, getTaskId, this.git);
+  }
+
+  activate(): void {
+    this.git.startWatching();
+    this.files.startWatching();
+    this.pr.start();
+  }
+
+  dispose(): void {
+    this.git.dispose();
+    this.files.dispose();
+    this.lifecycleScripts.dispose();
+    this.pr.dispose();
   }
 }

@@ -157,12 +157,19 @@ function mapStatusContextBucket(state: string): CheckRunBucket {
 // PrService
 // ---------------------------------------------------------------------------
 
+export type PrUpsertedHook = (pr: PullRequest, projectId: string) => Promise<void> | void;
+
 export class PrService {
   private readonly kv = new KV<PrKvSchema>('pr');
   private readonly syncInFlight = new Map<string, Promise<void>>();
   private readonly syncDone = new Set<string>();
+  private readonly upsertHooks: PrUpsertedHook[] = [];
 
   constructor(private readonly getOctokit: () => Promise<Octokit>) {}
+
+  registerUpsertHook(hook: PrUpsertedHook): void {
+    this.upsertHooks.push(hook);
+  }
 
   // ── DB-cached reads ──────────────────────────────────────────────────────
 
@@ -264,7 +271,7 @@ export class PrService {
 
       const taskBranch = env.taskBranch;
       const remoteName = await project.settings.getRemote();
-      const remotes = await env.git.getRemotes();
+      const remotes = await env.workspace.git.getRemotes();
       const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
       const nameWithOwner = remoteUrl ? parseNameWithOwner(remoteUrl) : null;
 
@@ -632,7 +639,15 @@ export class PrService {
         .onConflictDoNothing();
     }
 
-    return this.dbRowToUnified(row);
+    const result = this.dbRowToUnified(row);
+
+    for (const hook of this.upsertHooks) {
+      await Promise.resolve(hook(result, projectId ?? '')).catch((e: unknown) =>
+        log.error('PrService upsertHook failed:', e)
+      );
+    }
+
+    return result;
   }
 
   private async upsertMany(projectId: string, prs: PullRequest[]): Promise<PullRequest[]> {
@@ -798,6 +813,7 @@ export class PrService {
       authorDisplayName: pr.author?.displayName ?? null,
       authorAvatarUrl: pr.author?.avatarUrl ?? null,
       isDraft: Number(pr.isDraft),
+      headRefName: pr.metadata.headRefName ?? null,
       metadata: JSON.stringify(pr.metadata),
       createdAt: pr.createdAt,
       updatedAt: pr.updatedAt,

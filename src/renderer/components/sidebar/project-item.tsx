@@ -97,7 +97,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         )}
         <span
           className={cn(
-            'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors',
+            'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors select-none',
             projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
               'text-foreground-tertiary-passive'
           )}

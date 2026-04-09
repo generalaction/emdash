@@ -16,9 +16,12 @@ import type { GitProvider } from '@main/core/git/types';
 import { githubAuthService } from '@main/core/github/services/github-auth-service';
 import { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { TaskLifecycleService } from '@main/core/tasks/task-lifecycle-service';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
+import type { Workspace } from '@main/core/workspaces/workspace';
+import { workspaceKey } from '@main/core/workspaces/workspace-key';
+import { WorkspaceLifecycleService } from '@main/core/workspaces/workspace-lifecycle-service';
+import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { log } from '@main/lib/logger';
 import type {
   ProjectProvider,
@@ -78,6 +81,7 @@ export class SshProjectProvider implements ProjectProvider {
   private tearingDownTasks = new Map<string, Promise<Result<void, TeardownTaskError>>>();
   private bootstrapErrors = new Map<string, ProvisionTaskError>();
   private worktreeService: WorktreeService;
+  private workspaceRegistry = new WorkspaceRegistry();
   private cachedSftp: SFTPWrapper | undefined;
 
   constructor(
@@ -170,165 +174,163 @@ export class SshProjectProvider implements ProjectProvider {
       taskId: task.id,
     });
 
-    let workDir: string;
+    const workspaceId = workspaceKey(task.taskBranch);
+    const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
+      const workDir = await this.resolveTaskWorkDir(task);
+      const workspaceFs = new SshFileSystem(this.proxy, workDir);
+      const projectSettings = await this.settings.get();
+      const defaultBranch = await this.settings.getDefaultBranch();
+      const bootstrapTaskEnvVars = getTaskEnvVars({
+        taskId: task.id,
+        taskName: task.name,
+        taskPath: workDir,
+        projectPath: this.project.path,
+        defaultBranch,
+        portSeed: workDir,
+      });
+      const tmuxEnabled = projectSettings.tmux ?? false;
+      const taskLevelSettings = await getEffectiveTaskSettings({
+        projectSettings: this.settings,
+        taskFs: workspaceFs,
+      });
+      const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
+      const scripts = taskLevelSettings.scripts;
+      const proxy = this.proxy;
+      const exec = getSshExec(proxy);
+      const workspaceTerminals = new SshTerminalProvider({
+        projectId: this.project.id,
+        scopeId: workspaceId,
+        taskPath: workDir,
+        tmux: tmuxEnabled,
+        shellSetup,
+        exec,
+        proxy,
+        taskEnvVars: bootstrapTaskEnvVars,
+      });
+      const lifecycleService = new WorkspaceLifecycleService({
+        projectId: this.project.id,
+        workspaceId,
+        terminals: workspaceTerminals,
+      });
+      const workspaceGitExec = getGitSshExec(proxy, () => githubAuthService.getToken());
+      const createdWorkspace: Workspace = {
+        id: workspaceId,
+        path: workDir,
+        fs: workspaceFs,
+        git: new GitService(workDir, workspaceGitExec, workspaceFs),
+        settings: this.settings,
+        lifecycleService,
+      };
 
-    if (task.taskBranch) {
-      const existing = await this.worktreeService.getWorktree(task.taskBranch);
-      if (existing) {
-        workDir = existing;
-      } else if (task.taskBranch === task.sourceBranch) {
-        const result = await this.worktreeService.checkoutExistingBranch(task.taskBranch);
-        if (!result.success) {
-          switch (result.error.type) {
-            case 'branch-not-found':
-              throw new Error(`Branch "${task.taskBranch}" was not found locally or on remote`);
-            case 'worktree-setup-failed': {
-              const causeMsg =
-                result.error.cause instanceof Error
-                  ? result.error.cause.message
-                  : String(result.error.cause);
-              throw new Error(
-                `Failed to set up worktree for branch "${task.taskBranch}": ${causeMsg}`
-              );
-            }
-            default:
-              throw new Error(`Failed to set up worktree for branch "${task.taskBranch}"`);
-          }
-        }
-        workDir = result.data;
-      } else {
-        const result = await this.worktreeService.serveWorktree(task.sourceBranch, task.taskBranch);
-        if (!result.success) {
-          switch (result.error.type) {
-            case 'reserve-failed':
-              throw new Error(`Could not prepare worktree for branch "${task.sourceBranch}"`);
-            case 'worktree-setup-failed':
-              throw new Error(`Failed to set up worktree for task`);
-            default:
-              throw new Error(`Failed to set up worktree for task`);
-          }
-        }
-        workDir = result.data;
+      if (scripts?.setup) {
+        void lifecycleService.prepareAndRunLifecycleScript({
+          type: 'setup',
+          script: scripts.setup,
+        });
       }
-    } else {
-      workDir = this.project.path;
-    }
+      if (scripts?.run) {
+        void lifecycleService.prepareAndRunLifecycleScript({
+          type: 'run',
+          script: scripts.run,
+        });
+      }
+      if (scripts?.teardown) {
+        void lifecycleService.prepareLifecycleScript({
+          type: 'teardown',
+          script: scripts.teardown,
+        });
+      }
 
-    const taskFs = new SshFileSystem(this.proxy, workDir);
-    const projectSettings = await this.settings.get();
-    const defaultBranch = await this.settings.getDefaultBranch();
-    const taskEnvVars = getTaskEnvVars({
-      taskId: task.id,
-      taskName: task.name,
-      taskPath: workDir,
-      projectPath: this.project.path,
-      defaultBranch,
-      portSeed: workDir,
-    });
-    const tmuxEnabled = projectSettings.tmux ?? false;
-
-    const taskLevelSettings = await getEffectiveTaskSettings({
-      projectSettings: this.settings,
-      taskFs,
-    });
-    const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
-    const scripts = taskLevelSettings.scripts;
-    const proxy = this.proxy;
-
-    const taskGitExec = getGitSshExec(proxy, () => githubAuthService.getToken());
-    const exec = getSshExec(proxy);
-    const taskGit = new GitService(workDir, taskGitExec, taskFs);
-    const conversationProvider = new SshConversationProvider({
-      projectId: this.project.id,
-      taskPath: workDir,
-      taskId: task.id,
-      tmux: tmuxEnabled,
-      shellSetup,
-      exec,
-      proxy,
-      taskEnvVars,
+      return createdWorkspace;
     });
 
-    const terminalProvider = new SshTerminalProvider({
-      projectId: this.project.id,
-      taskId: task.id,
-      taskPath: workDir,
-      tmux: tmuxEnabled,
-      shellSetup,
-      exec,
-      proxy,
-      taskEnvVars,
-    });
-
-    const taskLifecycleService = new TaskLifecycleService({
-      projectId: this.project.id,
-      taskId: task.id,
-      terminals: terminalProvider,
-    });
-
-    const taskEnv: TaskProvider = {
-      taskId: task.id,
-      taskPath: workDir,
-      taskBranch: task.taskBranch,
-      sourceBranch: task.sourceBranch,
-      taskEnvVars,
-      fs: taskFs,
-      git: taskGit,
-      conversations: conversationProvider,
-      terminals: terminalProvider,
-      settings: this.settings,
-      lifecycleService: taskLifecycleService,
-    };
-
-    if (scripts?.setup) {
-      void taskLifecycleService.prepareAndRunLifecycleScript({
-        type: 'setup',
-        script: scripts.setup,
+    let provisionSucceeded = false;
+    try {
+      const projectSettings = await this.settings.get();
+      const defaultBranch = await this.settings.getDefaultBranch();
+      const taskEnvVars = getTaskEnvVars({
+        taskId: task.id,
+        taskName: task.name,
+        taskPath: workspace.path,
+        projectPath: this.project.path,
+        defaultBranch,
+        portSeed: workspace.path,
       });
-    }
-
-    if (scripts?.run) {
-      void taskLifecycleService.prepareAndRunLifecycleScript({
-        type: 'run',
-        script: scripts.run,
+      const tmuxEnabled = projectSettings.tmux ?? false;
+      const taskLevelSettings = await getEffectiveTaskSettings({
+        projectSettings: this.settings,
+        taskFs: workspace.fs,
       });
-    }
+      const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
+      const proxy = this.proxy;
+      const exec = getSshExec(proxy);
 
-    if (scripts?.teardown) {
-      void taskLifecycleService.prepareLifecycleScript({
-        type: 'teardown',
-        script: scripts.teardown,
+      const conversationProvider = new SshConversationProvider({
+        projectId: this.project.id,
+        taskPath: workspace.path,
+        taskId: task.id,
+        tmux: tmuxEnabled,
+        shellSetup,
+        exec,
+        proxy,
+        taskEnvVars,
       });
+
+      const terminalProvider = new SshTerminalProvider({
+        projectId: this.project.id,
+        scopeId: task.id,
+        taskPath: workspace.path,
+        tmux: tmuxEnabled,
+        shellSetup,
+        exec,
+        proxy,
+        taskEnvVars,
+      });
+
+      const taskEnv: TaskProvider = {
+        taskId: task.id,
+        taskBranch: task.taskBranch,
+        sourceBranch: task.sourceBranch,
+        workspace,
+        taskEnvVars,
+        conversations: conversationProvider,
+        terminals: terminalProvider,
+      };
+
+      Promise.all(
+        terminals.map((term) =>
+          terminalProvider.spawnTerminal(term).catch((e) => {
+            log.error('SshEnvironmentProvider: failed to hydrate terminal', {
+              terminalId: term.id,
+              error: String(e),
+            });
+          })
+        )
+      );
+
+      Promise.all(
+        conversations.map((conv) =>
+          conversationProvider.startSession(conv, undefined, true).catch((e) => {
+            log.error('SshEnvironmentProvider: failed to hydrate conversation', {
+              conversationId: conv.id,
+              error: String(e),
+            });
+          })
+        )
+      );
+
+      this.terminalProviders.set(task.id, terminalProvider);
+      this.conversationProviders.set(task.id, conversationProvider);
+      log.debug('SshProjectProvider: doProvisionTask DONE', {
+        taskId: task.id,
+      });
+      provisionSucceeded = true;
+      return taskEnv;
+    } finally {
+      if (!provisionSucceeded) {
+        await this.workspaceRegistry.release(workspace.id).catch(() => {});
+      }
     }
-
-    Promise.all(
-      terminals.map((term) =>
-        terminalProvider.spawnTerminal(term).catch((e) => {
-          log.error('SshEnvironmentProvider: failed to hydrate terminal', {
-            terminalId: term.id,
-            error: String(e),
-          });
-        })
-      )
-    );
-
-    Promise.all(
-      conversations.map((conv) =>
-        conversationProvider.startSession(conv, undefined, true).catch((e) => {
-          log.error('SshEnvironmentProvider: failed to hydrate conversation', {
-            conversationId: conv.id,
-            error: String(e),
-          });
-        })
-      )
-    );
-
-    this.terminalProviders.set(task.id, terminalProvider);
-    this.conversationProviders.set(task.id, conversationProvider);
-    log.debug('SshProjectProvider: doProvisionTask DONE', {
-      taskId: task.id,
-    });
-    return taskEnv;
   }
 
   getTask(taskId: string): TaskProvider | undefined {
@@ -371,13 +373,13 @@ export class SshProjectProvider implements ProjectProvider {
   private async doTeardownTask(task: TaskProvider): Promise<void> {
     const settings = await getEffectiveTaskSettings({
       projectSettings: this.settings,
-      taskFs: task.fs,
+      taskFs: task.workspace.fs,
     });
 
     const scripts = settings.scripts;
 
-    if (scripts?.teardown && task.lifecycleService) {
-      await task.lifecycleService.runLifecycleScript(
+    if (scripts?.teardown && this.workspaceRegistry.refCount(task.workspace.id) === 1) {
+      await task.workspace.lifecycleService.runLifecycleScript(
         {
           type: 'teardown',
           script: scripts.teardown,
@@ -388,6 +390,7 @@ export class SshProjectProvider implements ProjectProvider {
 
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
+    await this.workspaceRegistry.release(task.workspace.id);
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {
@@ -411,8 +414,10 @@ export class SshProjectProvider implements ProjectProvider {
       this.tasks.clear();
       this.conversationProviders.clear();
       this.terminalProviders.clear();
+      await this.workspaceRegistry.releaseAll();
     } else {
       await Promise.all(Array.from(this.tasks.keys()).map((id) => this.teardownTask(id)));
+      await this.workspaceRegistry.releaseAll();
     }
   }
 
@@ -441,7 +446,7 @@ export class SshProjectProvider implements ProjectProvider {
     if (!env) throw new Error(`No provisioned environment for task: ${taskId}`);
 
     const sftp = await this.getSftp();
-    const destDir = env.taskPath;
+    const destDir = env.workspace.path;
 
     return Promise.all(
       localPaths.map(async (localPath) => {
@@ -464,5 +469,51 @@ export class SshProjectProvider implements ProjectProvider {
     } catch {
       return { hasRemote: false, selectedRemoteUrl: null };
     }
+  }
+
+  private async resolveTaskWorkDir(task: Task): Promise<string> {
+    if (!task.taskBranch) {
+      return this.project.path;
+    }
+
+    const existing = await this.worktreeService.getWorktree(task.taskBranch);
+    if (existing) {
+      return existing;
+    }
+
+    if (task.taskBranch === task.sourceBranch) {
+      const result = await this.worktreeService.checkoutExistingBranch(task.taskBranch);
+      if (!result.success) {
+        switch (result.error.type) {
+          case 'branch-not-found':
+            throw new Error(`Branch "${task.taskBranch}" was not found locally or on remote`);
+          case 'worktree-setup-failed': {
+            const causeMsg =
+              result.error.cause instanceof Error
+                ? result.error.cause.message
+                : String(result.error.cause);
+            throw new Error(
+              `Failed to set up worktree for branch "${task.taskBranch}": ${causeMsg}`
+            );
+          }
+          default:
+            throw new Error(`Failed to set up worktree for branch "${task.taskBranch}"`);
+        }
+      }
+      return result.data;
+    }
+
+    const result = await this.worktreeService.serveWorktree(task.sourceBranch, task.taskBranch);
+    if (!result.success) {
+      switch (result.error.type) {
+        case 'reserve-failed':
+          throw new Error(`Could not prepare worktree for branch "${task.sourceBranch}"`);
+        case 'worktree-setup-failed':
+          throw new Error('Failed to set up worktree for task');
+        default:
+          throw new Error('Failed to set up worktree for task');
+      }
+    }
+    return result.data;
   }
 }

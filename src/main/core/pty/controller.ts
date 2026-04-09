@@ -59,13 +59,13 @@ export const ptyController = createRPCController({
    * and return their remote paths.  Uses the SFTP subsystem of the already-
    * connected ssh2 client — no local ssh/scp binaries are involved.
    *
-   * The session ID encodes the project and task (`projectId:taskId:leafId`),
-   * so no extra arguments are needed to locate the destination.
+   * The session ID encodes the project and scope (`projectId:scopeId:leafId`),
+   * where `scopeId` is a task ID for conversation uploads.
    */
   uploadFiles: async (args: { sessionId: string; localPaths: string[] }) => {
     try {
-      const [projectId, taskId] = args.sessionId.split(':');
-      if (!projectId || !taskId) {
+      const [projectId, scopeId] = args.sessionId.split(':');
+      if (!projectId || !scopeId) {
         return err({ type: 'invalid_session' as const });
       }
 
@@ -75,7 +75,7 @@ export const ptyController = createRPCController({
       }
 
       const remotePaths = await (provider as SshProjectProvider).uploadFiles(
-        taskId,
+        scopeId,
         args.localPaths
       );
       return ok({ remotePaths });

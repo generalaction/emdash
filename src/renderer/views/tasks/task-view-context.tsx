@@ -12,6 +12,37 @@ import {
 import { ViewLayoutOverrideContext } from '@renderer/core/view/navigation-provider';
 import { ProjectViewWrapper } from '@renderer/views/projects/project-view-wrapper';
 
+const ProvisionedTaskContext = createContext<ProvisionedTask | null>(null);
+
+export const ProvisionedTaskProvider = observer(function ProvisionedTaskProvider({
+  projectId,
+  taskId,
+  children,
+}: {
+  projectId: string;
+  taskId: string;
+  children: ReactNode;
+}) {
+  const provisioned = asProvisioned(getTaskStore(projectId, taskId));
+  if (!provisioned) return null;
+  return (
+    <ProvisionedTaskContext.Provider value={provisioned}>
+      {children}
+    </ProvisionedTaskContext.Provider>
+  );
+});
+
+/** Non-nullable. Only call inside a ProvisionedTaskProvider subtree (kind === 'ready'). */
+export function useProvisionedTask(): ProvisionedTask {
+  const ctx = useContext(ProvisionedTaskContext);
+  if (!ctx) {
+    throw new Error(
+      'useProvisionedTask must be used inside ProvisionedTaskProvider (kind === "ready")'
+    );
+  }
+  return ctx;
+}
+
 interface TaskViewContext {
   projectId: string;
   taskId: string;
@@ -56,26 +87,4 @@ export function useTaskViewContext(): TaskViewContext {
 export function useTaskViewKind(): TaskViewKind {
   const { projectId, taskId } = useTaskViewContext();
   return taskViewKind(getTaskStore(projectId, taskId), projectId);
-}
-
-/** Returns the provisioned task if ready, otherwise null. Safe to call at any task view state. */
-export function useProvisionedTask(): ProvisionedTask | null {
-  const { projectId, taskId } = useTaskViewContext();
-  return asProvisioned(getTaskStore(projectId, taskId)) ?? null;
-}
-
-/**
- * Returns the provisioned task, throwing if the task is not yet provisioned.
- * Only call this inside components that are guarded by `kind !== 'ready'`.
- */
-export function useRequireProvisionedTask(): ProvisionedTask {
-  const { projectId, taskId } = useTaskViewContext();
-  const provisioned = asProvisioned(getTaskStore(projectId, taskId));
-  if (!provisioned) {
-    throw new Error(
-      `useRequireProvisionedTask: task "${taskId}" is not provisioned. ` +
-        `This component must only render inside a provisioned task guard (kind !== 'ready').`
-    );
-  }
-  return provisioned;
 }

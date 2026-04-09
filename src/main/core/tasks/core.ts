@@ -14,5 +14,7 @@ export function mapTaskRowToTask(row: TaskRow): Task {
     lastInteractedAt: row.lastInteractedAt ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    statusChangedAt: row.statusChangedAt,
+    isPinned: row.isPinned === 1,
   };
 }

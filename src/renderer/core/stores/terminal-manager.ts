@@ -1,101 +1,25 @@
-import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import { makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { CreateTerminalParams, Terminal } from '@shared/terminals';
 import { rpc } from '@renderer/core/ipc';
-import { TabViewProvider, TabViewSnapshot } from '@renderer/core/stores/generic-tab-view';
-import { Snapshottable } from '@renderer/core/stores/snapshottable';
-import {
-  addTabId,
-  removeTabId,
-  reorderTabIds,
-  setNextTabActive,
-  setPreviousTabActive,
-  setTabActive,
-  setTabActiveIndex,
-} from '@renderer/core/stores/tab-utils';
 import { PtySession } from './pty-session';
 
-export class TerminalManagerStore
-  implements TabViewProvider<TerminalStore, CreateTerminalParams>, Snapshottable<TabViewSnapshot>
-{
+export class TerminalManagerStore {
   private readonly projectId: string;
   private readonly taskId: string;
   private _loaded = false;
   terminals = observable.map<string, TerminalStore>();
-  tabOrder: string[] = [];
-  activeTabId: string | undefined = undefined;
 
   constructor(projectId: string, taskId: string) {
     this.projectId = projectId;
     this.taskId = taskId;
     makeObservable(this, {
       terminals: observable,
-      tabOrder: observable,
-      activeTabId: observable,
-      tabs: computed,
-      activeTab: computed,
-      snapshot: computed,
-      addTab: action,
-      removeTab: action,
-      reorderTabs: action,
-      setNextTabActive: action,
-      setPreviousTabActive: action,
-      setTabActiveIndex: action,
-      setActiveTab: action,
     });
-    onBecomeObserved(this, 'tabOrder', () => {
+    onBecomeObserved(this, 'terminals', () => {
       if (this._loaded) return;
       this.load();
     });
-  }
-
-  get tabs(): TerminalStore[] {
-    return this.tabOrder.map((id) => this.terminals.get(id)).filter(Boolean) as TerminalStore[];
-  }
-
-  get activeTab(): TerminalStore | undefined {
-    return this.activeTabId ? this.terminals.get(this.activeTabId) : undefined;
-  }
-
-  get snapshot(): TabViewSnapshot {
-    return { tabOrder: this.tabOrder.slice(), activeTabId: this.activeTabId };
-  }
-
-  restoreSnapshot(snapshot: Partial<TabViewSnapshot>): void {
-    if (snapshot.tabOrder) this.tabOrder = snapshot.tabOrder;
-    if (snapshot.activeTabId !== undefined) this.activeTabId = snapshot.activeTabId;
-  }
-
-  setActiveTab(id: string): void {
-    setTabActive(this, id);
-  }
-
-  reorderTabs(fromIndex: number, toIndex: number): void {
-    reorderTabIds(this, fromIndex, toIndex);
-  }
-
-  setNextTabActive(): void {
-    setNextTabActive(this);
-  }
-
-  setPreviousTabActive(): void {
-    setPreviousTabActive(this);
-  }
-
-  setTabActiveIndex(index: number): void {
-    setTabActiveIndex(this, index);
-  }
-
-  addTab(params: CreateTerminalParams): void {
-    void this.createTerminal(params);
-  }
-
-  removeTab(terminalId: string): void {
-    void this.deleteTerminal(terminalId);
-  }
-
-  closeActiveTab(): void {
-    if (this.activeTabId) this.removeTab(this.activeTabId);
   }
 
   async load() {
@@ -105,11 +29,7 @@ export class TerminalManagerStore
       for (const terminal of terminals) {
         const store = new TerminalStore(terminal);
         this.terminals.set(terminal.id, store);
-        addTabId(this, terminal.id);
         void store.session.connect();
-      }
-      if (!this.activeTabId && this.tabOrder.length > 0) {
-        this.activeTabId = this.tabOrder[0];
       }
     });
   }
@@ -125,8 +45,6 @@ export class TerminalManagerStore
     runInAction(() => {
       const store = new TerminalStore(optimistic);
       this.terminals.set(params.id, store);
-      addTabId(this, params.id);
-      setTabActive(this, params.id);
       void store.session.connect();
     });
 
@@ -143,21 +61,17 @@ export class TerminalManagerStore
       runInAction(() => {
         this.terminals.get(params.id)?.dispose();
         this.terminals.delete(params.id);
-        removeTabId(this, params.id);
       });
       throw err;
     }
   }
 
   async deleteTerminal(terminalId: string): Promise<void> {
-    const snapshot = this.terminals.get(terminalId);
-    if (!snapshot) return;
-
-    const tabSnapshot = this.snapshot;
+    const store = this.terminals.get(terminalId);
+    if (!store) return;
 
     runInAction(() => {
       this.terminals.delete(terminalId);
-      removeTabId(this, terminalId);
     });
 
     try {
@@ -166,11 +80,10 @@ export class TerminalManagerStore
         taskId: this.taskId,
         terminalId,
       });
-      snapshot.dispose();
+      store.dispose();
     } catch (err) {
       runInAction(() => {
-        this.terminals.set(terminalId, snapshot);
-        this.restoreSnapshot(tabSnapshot);
+        this.terminals.set(terminalId, store);
       });
       throw err;
     }

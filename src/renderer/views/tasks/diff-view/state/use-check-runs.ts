@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
 import { computeCheckRunsSummary, type CheckRun } from '@renderer/lib/github';
-import { useRequireProvisionedTask } from '../../task-view-context';
+import { useProvisionedTask } from '../../task-view-context';
 
 export function useCheckRuns(pr: PullRequest) {
-  const prStore = useRequireProvisionedTask().workspace.pr;
+  const prStore = useProvisionedTask().workspace.pr;
   const resource = prStore.getCheckRuns(pr);
 
   const checks = useMemo(

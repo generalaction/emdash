@@ -1,6 +1,5 @@
 import { projectManager } from '../projects/project-manager';
 import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
-import { TaskLifecycleService } from '../tasks/task-lifecycle-service';
 
 export async function runLifecycleScript({
   projectId,
@@ -18,16 +17,9 @@ export async function runLifecycleScript({
   if (!task) throw new Error('Task not found');
   const settings = await getEffectiveTaskSettings({
     projectSettings: project.settings,
-    taskFs: task.fs,
+    taskFs: task.workspace.fs,
   });
   const script = settings.scripts?.[type];
   if (!script) return;
-
-  const lifecycle = new TaskLifecycleService({
-    projectId,
-    taskId,
-    terminals: task.terminals,
-  });
-
-  await lifecycle.runLifecycleScript({ type, script });
+  await task.workspace.lifecycleService.runLifecycleScript({ type, script });
 }

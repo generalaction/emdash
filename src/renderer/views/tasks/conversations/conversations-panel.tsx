@@ -8,7 +8,6 @@ import { EmptyState } from '@renderer/components/ui/empty-state';
 import { ShortcutHint } from '@renderer/components/ui/shortcut-hint';
 import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
-import { getTaskView } from '@renderer/core/stores/task-selectors';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
@@ -18,43 +17,43 @@ import { ConversationsTabs } from './conversation-tabs';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
   const { projectId, taskId } = useTaskViewContext();
-  const taskStore = useProvisionedTask();
-  const conversationMgr = taskStore?.conversations;
+  const provisioned = useProvisionedTask();
+  const conversationTabs = provisioned.taskView.conversationTabs;
   const showCreateConversationModal = useShowModal('createConversationModal');
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const isActive = useIsActiveTask(taskId);
   const [isPanelFocused, setIsPanelFocused] = useState(false);
 
-  const autoFocus = isActive && getTaskView(projectId, taskId)?.focusedRegion === 'main';
+  const autoFocus = isActive && provisioned.taskView.focusedRegion === 'main';
 
   const handleCreate = () =>
     showCreateConversationModal({
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {
-        conversationMgr?.setActiveTab(conversationId);
-        getTaskView(projectId, taskId)?.setFocusedRegion('main');
+        conversationTabs.setActiveTab(conversationId);
+        provisioned.taskView.setFocusedRegion('main');
       },
     });
 
-  useTabShortcuts(conversationMgr, { focused: isPanelFocused });
+  useTabShortcuts(conversationTabs, { focused: isPanelFocused });
   useHotkey(getEffectiveHotkey('newConversation', keyboard), handleCreate);
 
   useEffect(() => {
-    conversationMgr?.setVisible(isActive);
+    conversationTabs.setVisible(isActive);
     return () => {
-      conversationMgr?.setVisible(false);
+      conversationTabs.setVisible(false);
     };
-  }, [conversationMgr, isActive]);
+  }, [conversationTabs, isActive]);
 
   return (
     <TabbedPtyPanel
       autoFocus={autoFocus}
       onFocusChange={(focused) => {
         setIsPanelFocused(focused);
-        if (focused) getTaskView(projectId, taskId)?.setFocusedRegion('main');
+        if (focused) provisioned.taskView.setFocusedRegion('main');
       }}
-      store={conversationMgr}
+      store={conversationTabs}
       paneId="conversations"
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}

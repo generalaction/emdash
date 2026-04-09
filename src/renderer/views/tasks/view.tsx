@@ -6,7 +6,7 @@ import {
   taskViewKind,
 } from '@renderer/core/stores/task-selectors';
 import type { ViewDefinition } from '@renderer/core/view/registry';
-import { TaskViewWrapper } from '@renderer/views/tasks/task-view-context';
+import { ProvisionedTaskProvider, TaskViewWrapper } from '@renderer/views/tasks/task-view-context';
 import { EditorProvider } from './editor/editor-provider';
 import { TaskMainPanel } from './main-panel';
 import { TaskRightSidebar } from './right-panel';
@@ -44,9 +44,11 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
 
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
-        {children}
-      </EditorProvider>
+      <ProvisionedTaskProvider projectId={projectId} taskId={taskId}>
+        <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
+          {children}
+        </EditorProvider>
+      </ProvisionedTaskProvider>
     </TaskViewWrapper>
   );
 });

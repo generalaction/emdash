@@ -3,11 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { selectAheadCount } from '@renderer/core/stores/diff-selectors';
-import { getTaskView } from '@renderer/core/stores/task-selectors';
-import {
-  useRequireProvisionedTask,
-  useTaskViewContext,
-} from '@renderer/views/tasks/task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '@renderer/views/tasks/task-view-context';
 import { ActionCard } from './action-card';
 import { CommitCard } from './commit-card';
 import { PushCard } from './push-card';
@@ -17,10 +13,10 @@ import { VirtualizedChangesList } from './virtualized-changes-list';
 
 export const StagedSection = observer(function StagedSection() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = useRequireProvisionedTask();
+  const provisioned = useProvisionedTask();
   const git = provisioned.workspace.git;
-  const changesView = provisioned.diffView.changesView;
-  const diffView = provisioned.diffView;
+  const changesView = provisioned.taskView.diffView.changesView;
+  const diffView = provisioned.taskView.diffView;
 
   const changes = git.stagedFileChanges;
   const hasChanges = changes.length > 0;
@@ -29,7 +25,7 @@ export const StagedSection = observer(function StagedSection() {
   const hasPRs = changesView.expandedSections.pullRequests;
 
   const activePath =
-    getTaskView(projectId, taskId)?.view === 'diff' && diffView.activeFile?.type === 'staged'
+    provisioned.taskView.view === 'diff' && diffView.activeFile?.type === 'staged'
       ? diffView.activeFile.path
       : undefined;
 
@@ -37,7 +33,7 @@ export const StagedSection = observer(function StagedSection() {
 
   const handleSelectChange = (path: string) => {
     diffView.setActiveFile({ path, type: 'staged', originalRef: 'HEAD' });
-    getTaskView(projectId, taskId)?.setView('diff');
+    provisioned.taskView.setView('diff');
   };
 
   const handleUnstageSelection = () => {

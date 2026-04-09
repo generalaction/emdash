@@ -9,7 +9,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const changes = await env.git.getStatus();
+      const changes = await env.workspace.git.getStatus();
       return ok({ changes });
     } catch (e) {
       log.error('gitCtrl.getStatus failed', { projectId, taskId, error: e });
@@ -21,7 +21,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const changes = await env.git.getChangedFiles(base);
+      const changes = await env.workspace.git.getChangedFiles(base);
       return ok({ changes });
     } catch (e) {
       log.error('gitCtrl.getChangedFiles failed', { projectId, taskId, base, error: e });
@@ -33,7 +33,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const content = await env.git.getFileAtHead(filePath);
+      const content = await env.workspace.git.getFileAtHead(filePath);
       return ok({ content });
     } catch (e) {
       log.error('gitCtrl.getFileAtHead failed', { projectId, taskId, filePath, error: e });
@@ -45,7 +45,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const content = await env.git.getFileAtRef(filePath, ref);
+      const content = await env.workspace.git.getFileAtRef(filePath, ref);
       return ok({ content });
     } catch (e) {
       log.error('gitCtrl.getFileAtRef failed', { projectId, taskId, filePath, ref, error: e });
@@ -57,7 +57,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const content = await env.git.getFileAtIndex(filePath);
+      const content = await env.workspace.git.getFileAtIndex(filePath);
       return ok({ content });
     } catch (e) {
       log.error('gitCtrl.getFileAtIndex failed', { projectId, taskId, filePath, error: e });
@@ -69,7 +69,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const diff = await env.git.getFileDiff(filePath, base);
+      const diff = await env.workspace.git.getFileDiff(filePath, base);
       return ok({ diff });
     } catch (e) {
       log.error('gitCtrl.getFileDiff failed', { projectId, taskId, filePath, error: e });
@@ -81,7 +81,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.stageFiles([filePath]);
+      await env.workspace.git.stageFiles([filePath]);
       return ok();
     } catch (e) {
       log.error('gitCtrl.stageFile failed', { projectId, taskId, filePath, error: e });
@@ -93,7 +93,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.stageFiles(filePaths);
+      await env.workspace.git.stageFiles(filePaths);
       return ok();
     } catch (e) {
       log.error('gitCtrl.stageFiles failed', { projectId, taskId, filePaths, error: e });
@@ -105,7 +105,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.stageAllFiles();
+      await env.workspace.git.stageAllFiles();
       return ok();
     } catch (e) {
       log.error('gitCtrl.stageAllFiles failed', { projectId, taskId, error: e });
@@ -117,7 +117,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.unstageFiles([filePath]);
+      await env.workspace.git.unstageFiles([filePath]);
       return ok();
     } catch (e) {
       log.error('gitCtrl.unstageFile failed', { projectId, taskId, filePath, error: e });
@@ -129,7 +129,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.unstageFiles(filePaths);
+      await env.workspace.git.unstageFiles(filePaths);
       return ok();
     } catch (e) {
       log.error('gitCtrl.unstageFiles failed', { projectId, taskId, filePaths, error: e });
@@ -141,7 +141,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.unstageAllFiles();
+      await env.workspace.git.unstageAllFiles();
       return ok();
     } catch (e) {
       log.error('gitCtrl.unstageAllFiles failed', { projectId, taskId, error: e });
@@ -153,7 +153,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.revertFiles([filePath]);
+      await env.workspace.git.revertFiles([filePath]);
       return ok();
     } catch (e) {
       log.error('gitCtrl.revertFile failed', { projectId, taskId, filePath, error: e });
@@ -165,7 +165,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.revertFiles(filePaths);
+      await env.workspace.git.revertFiles(filePaths);
       return ok();
     } catch (e) {
       log.error('gitCtrl.revertFiles failed', { projectId, taskId, filePaths, error: e });
@@ -177,7 +177,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      await env.git.revertAllFiles();
+      await env.workspace.git.revertAllFiles();
       return ok();
     } catch (e) {
       log.error('gitCtrl.revertAllFiles failed', { projectId, taskId, error: e });
@@ -188,7 +188,7 @@ export const gitController = createRPCController({
   commit: async (projectId: string, taskId: string, message: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.commit(message);
+    const result = await env.workspace.git.commit(message);
     if (!result.success) return err(result.error);
     return ok({ hash: result.data.hash });
   },
@@ -196,7 +196,7 @@ export const gitController = createRPCController({
   fetch: async (projectId: string, taskId: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.fetch();
+    const result = await env.workspace.git.fetch();
     if (!result.success) return err(result.error);
     return ok();
   },
@@ -204,7 +204,7 @@ export const gitController = createRPCController({
   push: async (projectId: string, taskId: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.push();
+    const result = await env.workspace.git.push();
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
   },
@@ -213,7 +213,7 @@ export const gitController = createRPCController({
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
     try {
-      await env.git.addRemote(name, url);
+      await env.workspace.git.addRemote(name, url);
       return ok();
     } catch (e) {
       return err({ type: 'git_error' as const, message: String(e) });
@@ -223,7 +223,7 @@ export const gitController = createRPCController({
   publishBranch: async (projectId: string, taskId: string, branchName: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.publishBranch(branchName);
+    const result = await env.workspace.git.publishBranch(branchName);
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
   },
@@ -231,7 +231,7 @@ export const gitController = createRPCController({
   pull: async (projectId: string, taskId: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.pull();
+    const result = await env.workspace.git.pull();
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
   },
@@ -239,7 +239,7 @@ export const gitController = createRPCController({
   softReset: async (projectId: string, taskId: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.softReset();
+    const result = await env.workspace.git.softReset();
     if (!result.success) return err(result.error);
     return ok({ subject: result.data.subject, body: result.data.body });
   },
@@ -254,7 +254,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const result = await env.git.getLog({ maxCount, skip, knownAheadCount });
+      const result = await env.workspace.git.getLog({ maxCount, skip, knownAheadCount });
       return ok({ commits: result.commits, aheadCount: result.aheadCount });
     } catch (e) {
       log.error('gitCtrl.getLog failed', { projectId, taskId, error: e });
@@ -266,7 +266,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const commit = await env.git.getLatestCommit();
+      const commit = await env.workspace.git.getLatestCommit();
       return ok({ commit });
     } catch (e) {
       log.error('gitCtrl.getLatestCommit failed', { projectId, taskId, error: e });
@@ -278,7 +278,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const files = await env.git.getCommitFiles(commitHash);
+      const files = await env.workspace.git.getCommitFiles(commitHash);
       return ok({ files });
     } catch (e) {
       log.error('gitCtrl.getCommitFiles failed', { projectId, taskId, commitHash, error: e });
@@ -295,7 +295,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const diff = await env.git.getCommitFileDiff(commitHash, filePath);
+      const diff = await env.workspace.git.getCommitFileDiff(commitHash, filePath);
       return ok({ diff });
     } catch (e) {
       log.error('gitCtrl.getCommitFileDiff failed', {
@@ -313,7 +313,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const status = await env.git.getBranchStatus();
+      const status = await env.workspace.git.getBranchStatus();
       return ok(status);
     } catch (e) {
       log.error('gitCtrl.getBranchStatus failed', { projectId, taskId, error: e });
@@ -325,7 +325,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const branches = await env.git.getBranches();
+      const branches = await env.workspace.git.getBranches();
       return ok({ branches });
     } catch (e) {
       log.error('gitCtrl.getBranches failed', { projectId, taskId, error: e });
@@ -337,7 +337,7 @@ export const gitController = createRPCController({
     try {
       const env = resolveTask(projectId, taskId);
       if (!env) return err({ type: 'not_found' as const });
-      const defaultBranch = await env.git.getDefaultBranch();
+      const defaultBranch = await env.workspace.git.getDefaultBranch();
       return ok(defaultBranch);
     } catch (e) {
       log.error('gitCtrl.getDefaultBranch failed', { projectId, taskId, error: e });
@@ -348,7 +348,7 @@ export const gitController = createRPCController({
   renameBranch: async (projectId: string, taskId: string, oldBranch: string, newBranch: string) => {
     const env = resolveTask(projectId, taskId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.renameBranch(oldBranch, newBranch);
+    const result = await env.workspace.git.renameBranch(oldBranch, newBranch);
     if (!result.success) return err(result.error);
     return ok({ remotePushed: result.data.remotePushed });
   },

@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
@@ -20,11 +20,19 @@ export async function renameTask(
 
   if (oldBranch) {
     if (oldBranch !== row.sourceBranch) {
-      const suffix = Math.random().toString(36).slice(2, 7);
-      const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
-      newBranch = branchPrefix ? `${branchPrefix}/${newName}-${suffix}` : `${newName}-${suffix}`;
+      const siblings = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.projectId, row.projectId), eq(tasks.taskBranch, oldBranch)))
+        .limit(2);
 
-      await project.git.renameBranch(oldBranch, newBranch);
+      if (siblings.length === 1) {
+        const suffix = Math.random().toString(36).slice(2, 7);
+        const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
+        newBranch = branchPrefix ? `${branchPrefix}/${newName}-${suffix}` : `${newName}-${suffix}`;
+
+        await project.git.renameBranch(oldBranch, newBranch);
+      }
     }
   }
 

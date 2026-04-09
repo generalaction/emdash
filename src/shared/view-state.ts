@@ -42,6 +42,17 @@ export type NavigationSnapshot = {
   viewParams: Record<string, unknown>;
 };
 
+export type SidebarTaskSortBy = 'created-at' | 'updated-at';
+
+export type SidebarTaskGroupBy = 'none' | 'task-status';
+
+/** Persisted sidebar UI state; fields may be absent in older DB blobs. */
 export type SidebarSnapshot = {
-  expandedProjectIds: string[];
+  expandedProjectIds?: string[];
+  projectOrder?: string[];
+  taskOrderByProject?: Record<string, string[]>;
+  pinnedTaskIds?: string[];
+  showSidebarTaskStatus?: boolean;
+  taskSortBy?: SidebarTaskSortBy;
+  taskGroupBy?: SidebarTaskGroupBy;
 };

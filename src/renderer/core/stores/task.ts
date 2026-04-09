@@ -4,12 +4,11 @@ import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '../ipc';
 import { ConversationManagerStore } from './conversation-manager';
 import { DevServerStore } from './dev-server-store';
-import { DiffViewStore } from './diff-view-store';
-import { EditorViewStore } from './editor-view-store';
 import { snapshotRegistry } from './snapshot-registry';
 import { TaskViewStore } from './task-view';
 import { TerminalManagerStore } from './terminal-manager';
-import { WorkspaceStore } from './workspace';
+import type { WorkspaceStore } from './workspace';
+import { workspaceRegistry } from './workspace-registry';
 
 export type UnregisteredTaskPhase = 'creating' | 'create-error';
 
@@ -24,112 +23,92 @@ export type UnregisteredTaskData = {
   id: string;
   name: string;
   status: TaskLifecycleStatus;
+  lastInteractedAt: string;
+  createdAt: string;
+  statusChangedAt: string;
+  isPinned: boolean;
 };
 
 export class ProvisionedTask {
   readonly workspace: WorkspaceStore;
-  readonly diffView: DiffViewStore;
   readonly devServers: DevServerStore;
   readonly conversations: ConversationManagerStore;
   readonly terminals: TerminalManagerStore;
-  readonly editorView: EditorViewStore;
   readonly taskView: TaskViewStore;
 
-  data: Task;
+  /** Same object as `TaskStore.data` when provisioned; not separately observable (see makeAutoObservable). */
+  readonly _taskData: Task;
   readonly path: string;
+  readonly workspaceId: string;
 
   private _snapshotDisposer: (() => void) | null = null;
 
   get snapshot(): TaskViewSnapshot {
-    return {
-      ...this.taskView.snapshot,
-      conversations: this.conversations.snapshot,
-      terminals: this.terminals.snapshot,
-      editor: this.editorView.snapshot,
-      diffView: this.diffView.snapshot,
-    };
+    return this.taskView.snapshot;
   }
 
-  constructor(data: Task, path: string, savedSnapshot?: TaskViewSnapshot) {
-    this.data = data;
+  constructor(taskData: Task, path: string, workspaceId: string, savedSnapshot?: TaskViewSnapshot) {
+    this._taskData = taskData;
     this.path = path;
+    this.workspaceId = workspaceId;
 
-    this.workspace = new WorkspaceStore(data.projectId, data.id);
-    this.diffView = new DiffViewStore(this.workspace.git, this.workspace.pr);
-    this.devServers = new DevServerStore(data.id);
-    this.conversations = new ConversationManagerStore(data.projectId, data.id);
-    this.terminals = new TerminalManagerStore(data.projectId, data.id);
-    this.editorView = new EditorViewStore(data.projectId, data.id);
-    this.taskView = new TaskViewStore(savedSnapshot);
-
-    if (savedSnapshot) {
-      this.conversations.restoreSnapshot(savedSnapshot.conversations ?? {});
-      this.terminals.restoreSnapshot(savedSnapshot.terminals ?? {});
-      this.editorView.restoreSnapshot(savedSnapshot.editor ?? {});
-      this.diffView.restoreSnapshot(savedSnapshot.diffView ?? {});
-    }
+    this.workspace = workspaceRegistry.acquire(taskData.projectId, workspaceId, taskData.id);
+    this.devServers = new DevServerStore(taskData.id, workspaceId);
+    this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
+    this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
+    this.taskView = new TaskViewStore(
+      {
+        conversations: this.conversations,
+        terminals: this.terminals,
+        git: this.workspace.git,
+        pr: this.workspace.pr,
+        projectId: taskData.projectId,
+        taskId: taskData.id,
+        workspaceId,
+      },
+      savedSnapshot
+    );
 
     makeAutoObservable(this, {
       workspace: false,
-      diffView: false,
       devServers: false,
       conversations: false,
       terminals: false,
-      editorView: false,
       taskView: false,
+      /** Owned by TaskStore.data — do not attach a second observable tree here */
+      _taskData: false,
     });
 
-    this._snapshotDisposer = snapshotRegistry.register(`task:${data.id}`, () => this.snapshot);
+    this._snapshotDisposer = snapshotRegistry.register(`task:${taskData.id}`, () => this.snapshot);
   }
 
   activate(): void {
-    this.workspace.git.startWatching();
-    this.workspace.files.startWatching();
-    this.workspace.pr.start();
-    this.editorView.initialize();
+    workspaceRegistry.activate(this._taskData.projectId, this.workspaceId);
+    this.taskView.editorView.initialize();
   }
 
   dispose(): void {
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
-    this.editorView.dispose();
-    this.workspace.git.dispose();
-    this.workspace.files.dispose();
-    this.diffView.dispose();
+    workspaceRegistry.release(this._taskData.projectId, this.workspaceId, this._taskData.id);
     this.devServers.dispose();
-    this.workspace.pr.dispose();
+    this.taskView.dispose();
     this.conversations.dispose();
     for (const term of this.terminals.terminals.values()) {
       term.dispose();
     }
   }
 
-  async updateStatus(status: TaskLifecycleStatus): Promise<void> {
-    const previousStatus = this.data.status;
-    runInAction(() => {
-      this.data.status = status;
-    });
-    try {
-      await rpc.tasks.updateTaskStatus(this.data.id, status);
-    } catch (e) {
-      runInAction(() => {
-        this.data.status = previousStatus;
-      });
-      console.error(e);
-      throw e;
-    }
-  }
-
   async updateLinkedIssue(issue?: Issue): Promise<void> {
-    const previousIssue = this.data.linkedIssue;
+    const previousIssue = this._taskData.linkedIssue;
     try {
-      await rpc.tasks.updateLinkedIssue(this.data.id, issue);
+      await rpc.tasks.updateLinkedIssue(this._taskData.id, issue);
       runInAction(() => {
-        this.data.linkedIssue = issue;
+        this._taskData.linkedIssue = issue;
       });
     } catch (e) {
       runInAction(() => {
-        this.data.linkedIssue = previousIssue;
+        this._taskData.linkedIssue = previousIssue;
       });
       console.error(e);
       throw e;
@@ -164,12 +143,21 @@ export class TaskStore {
     this.state = state;
     this.data = data;
     this.phase = phase;
-    makeAutoObservable(this, { provisionedTask: observable.ref });
+    makeAutoObservable(this, {
+      provisionedTask: observable.ref,
+      /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
+      data: observable,
+    });
   }
 
-  transitionToProvisioned(data: Task, path: string, savedSnapshot?: TaskViewSnapshot): void {
-    this.provisionedTask = new ProvisionedTask(data, path, savedSnapshot);
+  transitionToProvisioned(
+    data: Task,
+    path: string,
+    workspaceId: string,
+    savedSnapshot?: TaskViewSnapshot
+  ): void {
     this.data = data;
+    this.provisionedTask = new ProvisionedTask(data, path, workspaceId, savedSnapshot);
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
@@ -204,7 +192,8 @@ export class TaskStore {
 
   async rename(name: string): Promise<void> {
     if (this.state !== 'provisioned') return;
-    const task = this.data as Task;
+    const task = registeredTaskData(this);
+    if (!task) return;
     try {
       await rpc.tasks.renameTask(task.projectId, task.id, name);
       runInAction(() => {
@@ -217,6 +206,52 @@ export class TaskStore {
       console.error(e);
       throw e;
     }
+  }
+
+  async updateStatus(status: TaskLifecycleStatus): Promise<void> {
+    const previousStatus = this.data.status;
+    const previousStatusChangedAt = this.data.statusChangedAt;
+    const nextChangedAt = new Date().toISOString();
+    runInAction(() => {
+      this.data.status = status;
+      this.data.statusChangedAt = nextChangedAt;
+    });
+    try {
+      await rpc.tasks.updateTaskStatus(this.data.id, status);
+    } catch (e) {
+      runInAction(() => {
+        this.data.status = previousStatus;
+        this.data.statusChangedAt = previousStatusChangedAt;
+      });
+      console.error(e);
+      throw e;
+    }
+  }
+
+  async setPinned(isPinned: boolean): Promise<void> {
+    if (this.state === 'unregistered') return;
+    const task = registeredTaskData(this);
+    if (!task) return;
+    const previous = task.isPinned;
+    runInAction(() => {
+      task.isPinned = isPinned;
+    });
+    try {
+      await rpc.tasks.setTaskPinned(task.id, isPinned);
+    } catch (e) {
+      runInAction(() => {
+        task.isPinned = previous;
+      });
+      console.error(e);
+      throw e;
+    }
+  }
+
+  async togglePinned(): Promise<void> {
+    if (this.state === 'unregistered') return;
+    const task = registeredTaskData(this);
+    if (!task) return;
+    await this.setPinned(!task.isPinned);
   }
 }
 
@@ -252,6 +287,15 @@ export function isProvisioned(
   t: TaskStore
 ): t is TaskStore & { state: 'provisioned'; data: Task; provisionedTask: ProvisionedTask } {
   return t.state === 'provisioned';
+}
+
+/** Full `Task` payload when registered (unprovisioned or provisioned); `undefined` when unregistered. */
+export function registeredTaskData(store: TaskStore): Task | undefined {
+  return isRegistered(store) ? store.data : undefined;
+}
+
+export function unregisteredTaskData(store: TaskStore): UnregisteredTaskData | undefined {
+  return isUnregistered(store) ? store.data : undefined;
 }
 
 export function createUnregisteredTask(data: UnregisteredTaskData): TaskStore {

@@ -12,6 +12,7 @@ export async function updateTaskStatus(taskId: string, status: TaskLifecycleStat
     .set({
       status,
       updatedAt: sql`CURRENT_TIMESTAMP`,
+      statusChangedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(tasks.id, taskId));
 }

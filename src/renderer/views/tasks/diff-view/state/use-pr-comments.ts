@@ -1,8 +1,8 @@
 import type { PullRequest } from '@shared/pull-requests';
-import { useRequireProvisionedTask } from '../../task-view-context';
+import { useProvisionedTask } from '../../task-view-context';
 
 export function usePrComments(pr: PullRequest) {
-  const prStore = useRequireProvisionedTask().workspace.pr;
+  const prStore = useProvisionedTask().workspace.pr;
   const resource = prStore.getComments(pr);
 
   return {

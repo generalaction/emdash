@@ -11,7 +11,6 @@ import { useAppSettingsKey } from '@renderer/core/app/use-app-settings-key';
 import { rpc } from '@renderer/core/ipc';
 import { TabViewProvider } from '@renderer/core/stores/generic-tab-view';
 import { PtySession } from '@renderer/core/stores/pty-session';
-import { getTaskView } from '@renderer/core/stores/task-selectors';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
 import { getEffectiveHotkey } from '@renderer/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/hooks/useTabShortcuts';
@@ -32,23 +31,23 @@ type AnyPtyEntity = { data: { id: string }; session: PtySession };
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
-  const taskStore = useProvisionedTask();
-  const terminalMgr = taskStore?.terminals;
-  const lifecycleScriptsMgr = taskStore?.workspace.lifecycleScripts ?? null;
+  const provisionedTask = useProvisionedTask();
+  const terminalMgr = provisionedTask.terminals;
+  const terminalTabView = provisionedTask.taskView.terminalTabs;
+  const lifecycleScriptsMgr = provisionedTask.workspace.lifecycleScripts ?? null;
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const { isRightOpen } = useWorkspaceLayoutContext();
   const isActive = useIsActiveTask(taskId);
   const [isPanelFocused, setIsPanelFocused] = useState(false);
   const [mode, setMode] = useState<PanelMode>('terminals');
 
-  const autoFocus =
-    isActive && isRightOpen && getTaskView(projectId, taskId)?.focusedRegion === 'right';
+  const autoFocus = isActive && isRightOpen && provisionedTask.taskView.focusedRegion === 'right';
 
   const handleCreate = async () => {
     if (!terminalMgr) return;
-    getTaskView(projectId, taskId)?.setFocusedRegion('right');
+    provisionedTask.taskView.setFocusedRegion('right');
     const id = crypto.randomUUID();
-    const name = nextTerminalName(terminalMgr.tabs.map((s) => s.data.name));
+    const name = nextTerminalName((terminalTabView.tabs ?? []).map((s) => s.data.name));
     try {
       await terminalMgr.createTerminal({
         id,
@@ -57,6 +56,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         name,
         initialSize: getTerminalsPaneSize(),
       });
+      terminalTabView.setActiveTab(id);
     } catch (error) {
       console.error('Failed to create terminal:', error);
     }
@@ -72,7 +72,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     });
   };
 
-  const activeStore = mode === 'terminals' ? terminalMgr : lifecycleScriptsMgr;
+  const activeStore = mode === 'terminals' ? terminalTabView : lifecycleScriptsMgr;
   useTabShortcuts(activeStore ?? undefined, { focused: isPanelFocused });
   useHotkey(getEffectiveHotkey('newTerminal', keyboard), () => void handleCreate(), {
     enabled: mode === 'terminals',
@@ -129,7 +129,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     </div>
   ) : null;
 
-  const store = (mode === 'terminals' ? terminalMgr : lifecycleScriptsMgr) as
+  const store = (mode === 'terminals' ? terminalTabView : lifecycleScriptsMgr) as
     | TabViewProvider<AnyPtyEntity, never>
     | undefined;
 
@@ -138,7 +138,8 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       <TerminalsTabs
         projectId={projectId}
         taskId={taskId}
-        terminalMgr={terminalMgr ?? null}
+        terminalTabView={terminalTabView}
+        terminalMgr={terminalMgr}
         actions={toggleButton}
       />
     ) : (
@@ -189,7 +190,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       autoFocus={autoFocus}
       onFocusChange={(focused) => {
         setIsPanelFocused(focused);
-        if (focused) getTaskView(projectId, taskId)?.setFocusedRegion('right');
+        if (focused) provisionedTask.taskView.setFocusedRegion('right');
       }}
       store={store}
       paneId={mode === 'terminals' ? 'terminals' : 'lifecycle-scripts'}

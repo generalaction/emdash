@@ -1,38 +1,37 @@
 import { useCallback, useTransition } from 'react';
-import { getTaskView } from '@renderer/core/stores/task-selectors';
 import { useWorkspaceLayoutContext } from '@renderer/core/view/layout-provider';
-import { useTaskViewContext } from '../task-view-context';
+import { useProvisionedTask } from '../task-view-context';
 
 export function useTaskViewNavigation() {
-  const { projectId, taskId } = useTaskViewContext();
+  const provisionedTask = useProvisionedTask();
   const { setCollapsed } = useWorkspaceLayoutContext();
   const [isPending, startTransition] = useTransition();
 
   const openAgentsView = useCallback(() => {
     startTransition(() => {
-      const taskView = getTaskView(projectId, taskId);
-      taskView?.setView('agents');
-      if (taskView?.rightPanelView === 'files') taskView?.setRightPanelView('changes');
+      const { taskView } = provisionedTask;
+      taskView.setView('agents');
+      if (taskView.rightPanelView === 'files') taskView.setRightPanelView('changes');
     });
-  }, [projectId, taskId]);
+  }, [provisionedTask]);
 
   const openEditorView = useCallback(() => {
     startTransition(() => {
-      const taskView = getTaskView(projectId, taskId);
-      taskView?.setView('editor');
-      taskView?.setRightPanelView('files');
+      const { taskView } = provisionedTask;
+      taskView.setView('editor');
+      taskView.setRightPanelView('files');
     });
     setCollapsed('right', false);
-  }, [projectId, taskId, setCollapsed]);
+  }, [provisionedTask, setCollapsed]);
 
   const openDiffView = useCallback(() => {
     startTransition(() => {
-      const taskView = getTaskView(projectId, taskId);
-      taskView?.setView('diff');
-      taskView?.setRightPanelView('changes');
+      const { taskView } = provisionedTask;
+      taskView.setView('diff');
+      taskView.setRightPanelView('changes');
     });
     setCollapsed('right', false);
-  }, [projectId, taskId, setCollapsed]);
+  }, [provisionedTask, setCollapsed]);
 
   return {
     isPending,

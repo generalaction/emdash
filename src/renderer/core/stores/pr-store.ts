@@ -25,7 +25,7 @@ export class PrStore {
 
   constructor(
     private readonly projectId: string,
-    private readonly taskId: string,
+    private readonly getTaskId: () => string,
     private readonly git: GitStore
   ) {
     this.prList = new Resource<PrListData>(
@@ -154,7 +154,7 @@ export class PrStore {
   }
 
   private async _fetchPrList(): Promise<PrListData> {
-    const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, this.taskId);
+    const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, this.getTaskId());
     if (!result.success) return { prs: [], nameWithOwner: null, taskBranch: null };
     return result.data;
   }
@@ -162,7 +162,7 @@ export class PrStore {
   private async _fetchPrFiles(baseRefName: string): Promise<GitChange[]> {
     const result = await rpc.git.getChangedFiles(
       this.projectId,
-      this.taskId,
+      this.getTaskId(),
       `${baseRefName}...HEAD`
     );
     return result.success ? result.data.changes : [];
@@ -186,7 +186,7 @@ export class PrStore {
     commits: import('@shared/git').Commit[];
     aheadCount: number;
   }> {
-    const result = await rpc.git.getLog(this.projectId, this.taskId);
+    const result = await rpc.git.getLog(this.projectId, this.getTaskId());
     if (!result.success) return { commits: [], aheadCount: 0 };
     return result.data;
   }

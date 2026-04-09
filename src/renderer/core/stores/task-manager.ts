@@ -1,7 +1,8 @@
 import { makeObservable, observable, runInAction } from 'mobx';
+import { taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type { CreateTaskError, CreateTaskParams, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { rpc } from '@renderer/core/ipc';
+import { events, rpc } from '@renderer/core/ipc';
 import { getProjectManagerStore } from './project-selectors';
 import {
   createUnprovisionedTask,
@@ -43,6 +44,16 @@ export class TaskManagerStore {
   constructor(projectId: string) {
     this.projectId = projectId;
     makeObservable(this, { tasks: observable });
+
+    events.on(taskStatusUpdatedChannel, ({ taskId, projectId: evtProjectId, status }) => {
+      if (evtProjectId !== this.projectId) return;
+      const store = this.tasks.get(taskId);
+      if (store && isProvisioned(store)) {
+        runInAction(() => {
+          store.data.status = status as TaskLifecycleStatus;
+        });
+      }
+    });
   }
 
   loadTasks(): Promise<void> {
@@ -64,8 +75,12 @@ export class TaskManagerStore {
         params.id,
         createUnregisteredTask({
           id: params.id,
+          lastInteractedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
           name: params.name,
           status: params.initialStatus ?? 'in_progress',
+          statusChangedAt: new Date().toISOString(),
+          isPinned: false,
         })
       );
     });
@@ -130,6 +145,7 @@ export class TaskManagerStore {
             current.transitionToProvisioned(
               { ...current.data },
               result.path,
+              result.workspaceId,
               savedSnapshot as TaskViewSnapshot | undefined
             );
             current.activate();
@@ -196,6 +212,12 @@ export class TaskManagerStore {
 
     this._teardownPromises.set(taskId, promise);
     return promise;
+  }
+
+  async setTaskPinned(taskId: string, isPinned: boolean): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task) return;
+    await task.setPinned(isPinned);
   }
 
   async archiveTask(taskId: string): Promise<void> {
