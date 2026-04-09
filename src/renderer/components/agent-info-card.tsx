@@ -1,142 +1,27 @@
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  getDescriptionForProvider,
   getDocUrlForProvider,
   getInstallCommandForProvider,
+  getProvider,
 } from '@shared/agent-provider-registry';
 import { agentConfig } from '@renderer/lib/agentConfig';
 import { type UiAgent } from '@renderer/providers/meta';
 import AgentLogo from './agent-logo';
 import { Button } from './ui/button';
 
-type AgentInfo = {
-  title: string;
-  description?: string;
-  hostingNote?: string;
-  installCommand?: string;
-};
-
-const agentInfo: Record<UiAgent, AgentInfo> = {
-  codex: {
-    title: 'Codex',
-    description:
-      'CLI that connects to OpenAI models for project-aware code assistance and terminal workflows.',
-  },
-  claude: {
-    title: 'Claude Code',
-    description:
-      'CLI that uses Anthropic Claude for code edits, explanations, and structured refactors in the terminal.',
-  },
-  qwen: {
-    title: 'Qwen Code',
-    description:
-      "Command-line interface to Alibaba's Qwen Code models for coding assistance and code completion.",
-  },
-  droid: {
-    title: 'Droid',
-    description: "Factory AI's agent CLI for running multi-step coding tasks from the terminal.",
-  },
-  gemini: {
-    title: 'Gemini',
-    description:
-      'CLI that uses Google Gemini models to assist with coding, reasoning, and command-line tasks.',
-  },
-  cursor: {
-    title: 'Cursor',
-    description:
-      "Cursor's agent CLI; provides editor-style, project-aware assistance from the shell.",
-  },
-  copilot: {
-    title: 'GitHub Copilot',
-    description:
-      'GitHub Copilot CLI brings Copilot prompts to the terminal for code, shell, and search help.',
-  },
-  amp: {
-    title: 'Amp',
-    description:
-      'Amp Code CLI for agentic coding sessions against your repository from the terminal.',
-  },
-  opencode: {
-    title: 'OpenCode',
-    description:
-      'OpenCode CLI that interfaces with models for code generation and edits from the shell.',
-  },
-  charm: {
-    title: 'Charm',
-    description: 'Charm Crush agent CLI providing terminal-first AI assistance for coding tasks.',
-  },
-  auggie: {
-    title: 'Auggie',
-    description:
-      'Augment Code CLI to run an agent against your repository for code changes and reviews.',
-  },
-  goose: {
-    title: 'Goose',
-    description: 'Goose CLI that routes tasks to tools and models for coding workflows.',
-  },
-  kimi: {
-    title: 'Kimi',
-    description:
-      'Kimi CLI by Moonshot AI, with shell execution, Zsh integration, ACP, and MCP support.',
-    hostingNote:
-      'macOS/Linux only; first run on macOS may take a few seconds due to security checks.',
-  },
-  kilocode: {
-    title: 'Kilocode',
-    description:
-      'Kilo AI coding assistant with multiple modes, broad model support, and checkpoint-based workflows.',
-  },
-  kiro: {
-    title: 'Kiro',
-    description:
-      'Kiro CLI by AWS, focused on interactive terminal-first development assistance and workflow automation.',
-  },
-  rovo: {
-    title: 'Rovo Dev',
-    description:
-      'Atlassian Rovo Dev CLI integrates terminal assistance with Jira, Confluence, and Bitbucket workflows.',
-  },
-  cline: {
-    title: 'Cline',
-    description:
-      'Cline CLI runs coding agents directly in your terminal with multi-provider model support.',
-  },
-  continue: {
-    title: 'Continue',
-    description:
-      'Continue CLI is a modular coding agent with configurable models, rules, and MCP tool support.',
-  },
-  codebuff: {
-    title: 'Codebuff',
-    description:
-      'Codebuff is an AI coding agent for project-directory assistance and day-to-day development tasks.',
-  },
-  mistral: {
-    title: 'Mistral Vibe',
-    description:
-      'Mistral AI terminal coding assistant with conversational codebase help, execution tools, and file operations.',
-  },
-  pi: {
-    title: 'Pi',
-    description:
-      'Minimal terminal coding agent with multi-provider model support and extensible custom tools.',
-  },
-  autohand: {
-    title: 'Autohand Code',
-    description:
-      'Terminal coding agent with auto-commit, dry-run previews, community skills, and headless automation modes.',
-  },
-};
-
 type Props = {
   id: UiAgent;
 };
 
 export const AgentInfoCard: React.FC<Props> = ({ id }) => {
-  const info = agentInfo[id];
+  const provider = getProvider(id);
   const config = agentConfig[id];
-  const installCommand =
-    info.installCommand ?? getInstallCommandForProvider(id) ?? 'npm install -g @openai/codex';
+  const description = getDescriptionForProvider(id);
+  const installCommand = getInstallCommandForProvider(id) ?? 'npm install -g @openai/codex';
+  const docUrl = getDocUrlForProvider(id);
+  const title = provider?.name ?? id;
   const [copied, setCopied] = useState(false);
   const copyResetRef = useRef<number | null>(null);
 
@@ -184,18 +69,18 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
         <div className="flex items-baseline gap-1 text-sm leading-none">
           <span className="text-foreground-muted">{config.name}</span>
           <span className="text-foreground-muted">/</span>
-          <strong className="font-medium text-foreground">{info.title}</strong>
+          <strong className="font-medium text-foreground">{title}</strong>
         </div>
       </div>
 
-      {info.description ? (
-        <p className="mb-2 text-xs leading-relaxed text-foreground-muted">{info.description}</p>
+      {description ? (
+        <p className="mb-2 text-xs leading-relaxed text-foreground-muted">{description}</p>
       ) : null}
 
-      {getDocUrlForProvider(id) ? (
+      {docUrl ? (
         <div className="mb-2">
           <a
-            href={getDocUrlForProvider(id) ?? ''}
+            href={docUrl}
             target="_blank"
             rel="noreferrer noopener"
             className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-background-1"
@@ -229,16 +114,12 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
             void handleCopyClick();
           }}
           className="ml-2 text-foreground-muted"
-          aria-label={`Copy install command for ${info.title}`}
+          aria-label={`Copy install command for ${title}`}
           title={copied ? 'Copied' : 'Copy command'}
         >
           <CopyIndicatorIcon className="h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       </div>
-
-      {info.hostingNote ? (
-        <div className="text-xs leading-relaxed text-foreground-muted">{info.hostingNote}</div>
-      ) : null}
     </div>
   );
 };
