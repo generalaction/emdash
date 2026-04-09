@@ -6,6 +6,7 @@ import {
   RateLimitError,
 } from '@team-plain/graphql';
 import keytar from 'keytar';
+import { log } from '@main/lib/logger';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -159,7 +160,7 @@ export class PlainService {
 
       return result.edges.map((edge) => this.mapThread(edge.node.thread)).filter(Boolean);
     } catch (error) {
-      console.error('[Plain] searchThreads error:', error);
+      log.error('[Plain] searchThreads error:', error);
       return [];
     }
   }
@@ -192,7 +193,7 @@ export class PlainService {
       this._cachedToken = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
       return this._cachedToken;
     } catch (error) {
-      console.error('Failed to read Plain token from keychain:', error);
+      log.error('Failed to read Plain token from keychain:', error);
       return null;
     }
   }

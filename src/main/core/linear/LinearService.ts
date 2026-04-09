@@ -1,5 +1,6 @@
 import { LinearClient } from '@linear/sdk';
 import keytar from 'keytar';
+import { log } from '@main/lib/logger';
 import { capture } from '@main/lib/telemetry';
 
 export interface LinearIssue {
@@ -112,7 +113,7 @@ export class LinearService {
       capture('integration_disconnected', { provider: 'linear' });
       return { success: true };
     } catch (error) {
-      console.error('Failed to clear Linear token:', error);
+      log.error('Failed to clear Linear token:', error);
       return {
         success: false,
         error: 'Unable to remove Linear token from keychain.',
@@ -181,7 +182,7 @@ export class LinearService {
 
       return data?.searchIssues?.nodes ?? [];
     } catch (error) {
-      console.error('[Linear] searchIssues error:', error);
+      log.error('[Linear] searchIssues error:', error);
       return [];
     }
   }
@@ -196,7 +197,7 @@ export class LinearService {
       await keytar.setPassword(this.SERVICE_NAME, this.ACCOUNT_NAME, clean);
       this._cachedToken = clean;
     } catch (error) {
-      console.error('Failed to store Linear token:', error);
+      log.error('Failed to store Linear token:', error);
       throw new Error('Unable to store Linear token securely.');
     }
   }
@@ -207,7 +208,7 @@ export class LinearService {
       this._cachedToken = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
       return this._cachedToken;
     } catch (error) {
-      console.error('Failed to read Linear token from keychain:', error);
+      log.error('Failed to read Linear token from keychain:', error);
       return null;
     }
   }

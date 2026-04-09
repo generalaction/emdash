@@ -14,6 +14,7 @@ import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
 import {
   buildGhosttyRemoteExecArgs,
@@ -128,7 +129,7 @@ class AppService {
         }
         availability[openInApp.id] = isAvailable;
       } catch (error) {
-        console.error(`Error checking installed app ${openInApp.id}:`, error);
+        log.error(`Error checking installed app ${openInApp.id}:`, error);
         availability[openInApp.id] = false;
       }
     }
