@@ -1,10 +1,11 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import { taskPrUpdatedChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type { PullRequest } from '@shared/pull-requests';
 import type { TaskLifecycleStatus } from '@shared/tasks';
 import { db } from '@main/db/client';
 import { pullRequests, tasks, tasksPullRequests } from '@main/db/schema';
 import { events } from '@main/lib/events';
+import { prRowToPullRequest } from '../pull-requests/pr-utils';
 
 // ---------------------------------------------------------------------------
 // Transition logic
@@ -41,6 +42,18 @@ export async function onPrUpserted(pr: PullRequest, _projectId: string): Promise
     .onConflictDoNothing();
 
   for (const task of matchingTasks) {
+    const linked = await db
+      .select({ pr: pullRequests })
+      .from(tasksPullRequests)
+      .innerJoin(pullRequests, eq(pullRequests.url, tasksPullRequests.pullRequestUrl))
+      .where(eq(tasksPullRequests.taskId, task.id));
+
+    events.emit(taskPrUpdatedChannel, {
+      taskId: task.id,
+      projectId: task.projectId,
+      prs: linked.map(({ pr: row }) => prRowToPullRequest(row)),
+    });
+
     const next = resolveNextStatus(pr.status, pr.isDraft, task.status as TaskLifecycleStatus);
     if (!next) continue;
     await db

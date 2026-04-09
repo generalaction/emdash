@@ -2,6 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
+import { StatusIcon } from '@renderer/components/projects/pr-row';
 import { Button } from '@renderer/components/ui/button';
 import { EmptyState } from '@renderer/components/ui/empty-state';
 import { SearchInput } from '@renderer/components/ui/search-input';
@@ -44,7 +45,7 @@ function TaskVirtualList({
   return (
     <div
       ref={parentRef}
-      className="overflow-y-auto min-h-0 flex-1"
+      className="overflow-y-auto min-h-0 flex-1 py-3"
       style={{ scrollbarWidth: 'none' }}
     >
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -55,10 +56,7 @@ function TaskVirtualList({
               key={virtualItem.key}
               data-index={virtualItem.index}
               ref={virtualizer.measureElement}
-              className={cn(
-                'border-b border-border py-1',
-                virtualItem.index === tasks.length - 1 && 'border-b-0'
-              )}
+              className={cn(virtualItem.index === tasks.length - 1 && 'border-b-0')}
               style={{
                 position: 'absolute',
                 top: 0,

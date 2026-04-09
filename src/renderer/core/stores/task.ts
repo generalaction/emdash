@@ -177,6 +177,21 @@ export class TaskStore {
     this.provisionedTask = null;
   }
 
+  get conversationStats(): Record<string, number> {
+    if (this.state === 'unregistered') {
+      return {};
+    }
+    if (this.state === 'provisioned' && this.provisionedTask) {
+      const counts: Record<string, number> = {};
+      for (const conv of this.provisionedTask.conversations.conversations.values()) {
+        const id = conv.data.providerId;
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+      return counts;
+    }
+    return (this.data as Task).conversations;
+  }
+
   async rename(name: string): Promise<void> {
     if (this.state !== 'provisioned') return;
     const task = registeredTaskData(this);

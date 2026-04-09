@@ -1,4 +1,3 @@
-import { formatDistanceToNow, formatDistanceToNowStrict } from 'date-fns';
 import {
   ExternalLink,
   GitMerge,
@@ -9,6 +8,7 @@ import {
 import { memo, ReactNode } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
 import { Button } from '@renderer/components/ui/button';
+import RelativeTime from '@renderer/components/ui/relative-time';
 import { rpc } from '@renderer/core/ipc';
 import { useShowModal } from '@renderer/core/modal/modal-provider';
 import { cn } from '@renderer/lib/utils';
@@ -49,9 +49,11 @@ export function StatusIcon({
   );
 }
 
-export function PrNumberBadge({ number }: { number: number }) {
+export function PrNumberBadge({ number, className }: { number: number; className?: string }) {
   return (
-    <span className="font-mono text-xs text-foreground-muted shrink-0 tracking-wide">
+    <span
+      className={cn('font-mono text-xs text-foreground-muted shrink-0 tracking-wide', className)}
+    >
       #{number}
     </span>
   );
@@ -64,23 +66,6 @@ export const PrRow = memo(function PrRow({
   pr: PullRequest;
   projectId: string;
 }) {
-  const openedAgoShort = formatDistanceToNowStrict(new Date(pr.createdAt), {
-    roundingMethod: 'floor',
-    addSuffix: false,
-  })
-    .replace(' seconds', 's')
-    .replace(' second', 's')
-    .replace(' minutes', 'm')
-    .replace(' minute', 'm')
-    .replace(' hours', 'h')
-    .replace(' hour', 'h')
-    .replace(' days', 'd')
-    .replace(' day', 'd')
-    .replace(' months', 'mo')
-    .replace(' month', 'mo')
-    .replace(' years', 'y')
-    .replace(' year', 'y');
-  const openedAgoLong = formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true });
   const showCreateTaskModal = useShowModal('taskModal');
 
   return (
@@ -109,12 +94,7 @@ export const PrRow = memo(function PrRow({
               <TooltipContent>Open PR on github</TooltipContent>
             </Tooltip>
           </div>
-          <Tooltip>
-            <TooltipTrigger>
-              <span className="text-xs text-foreground-passive">{openedAgoShort}</span>
-            </TooltipTrigger>
-            <TooltipContent>opened {openedAgoLong}</TooltipContent>
-          </Tooltip>
+          <RelativeTime value={pr.createdAt} className="text-xs text-foreground-passive" compact />
         </div>
         <PrMergeLine pr={pr} />
       </div>

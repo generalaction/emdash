@@ -45,7 +45,19 @@ const SidebarVirtualList = observer(function SidebarVirtualList() {
     overscan: 8,
   });
 
-  // Scroll to the active item whenever navigation changes.
+  // Expand the parent project when navigating to a task (not when `rows` changes —
+  // otherwise collapsing while staying on that task would immediately re-expand).
+  useEffect(() => {
+    if (currentView !== 'task') return;
+    const targetProjectId = taskParams.projectId;
+    const targetTaskId = taskParams.taskId;
+    if (!targetProjectId || !targetTaskId) return;
+    const activeTask = getTaskStore(targetProjectId, targetTaskId);
+    if (activeTask?.data.isPinned) return;
+    sidebarStore.ensureProjectExpanded(targetProjectId);
+  }, [currentView, taskParams.projectId, taskParams.taskId]);
+
+  // Scroll the active project/task into view when navigation or row layout changes.
   useEffect(() => {
     let targetProjectId: string | null = null;
     let targetTaskId: string | null = null;
@@ -64,7 +76,6 @@ const SidebarVirtualList = observer(function SidebarVirtualList() {
       if (activeTask?.data.isPinned) {
         return;
       }
-      sidebarStore.ensureProjectExpanded(targetProjectId);
     }
 
     const activeIndex = rows.findIndex((row) => {
