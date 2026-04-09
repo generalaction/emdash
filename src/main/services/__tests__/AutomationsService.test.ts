@@ -588,6 +588,11 @@ describe('AutomationsService', () => {
       expect(logs).toHaveLength(1);
       expect(logs[0].status).toBe('running');
       expect(logs[0].automationId).toBe(automation.id);
+      expect(
+        (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns.has(
+          automation.id
+        )
+      ).toBe(true);
     });
 
     it('should update run log status', async () => {
@@ -610,6 +615,33 @@ describe('AutomationsService', () => {
       expect(logs[0].status).toBe('success');
       expect(logs[0].taskId).toBe('task-123');
       expect(logs[0].finishedAt).toBeTruthy();
+    });
+
+    it('should clear in-flight state when a run log finishes', async () => {
+      const automation = await automationsService.create({
+        name: 'Clear In Flight',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 9, minute: 0 },
+      });
+
+      const runLogId = await automationsService.createManualRunLog(automation.id);
+      const inFlightRuns = (automationsService as unknown as { inFlightRuns: Set<string> })
+        .inFlightRuns;
+
+      expect(inFlightRuns.has(automation.id)).toBe(true);
+
+      await automationsService.updateRunLog(
+        runLogId,
+        {
+          status: 'success',
+          finishedAt: new Date().toISOString(),
+        },
+        automation.id
+      );
+
+      expect(inFlightRuns.has(automation.id)).toBe(false);
     });
 
     it('should increment runCount on manual trigger', async () => {
@@ -899,10 +931,11 @@ describe('AutomationsService', () => {
 
       const originalNextRunAt = automation.nextRunAt;
       const runLogId = await automationsService.createManualRunLog(automation.id);
-
-      const inFlightRuns = (automationsService as unknown as { inFlightRuns: Set<string> })
-        .inFlightRuns;
-      inFlightRuns.add(automation.id);
+      expect(
+        (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns.has(
+          automation.id
+        )
+      ).toBe(true);
 
       vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
       await automationsService.reconcileMissedRunsAfterResume();
@@ -921,6 +954,39 @@ describe('AutomationsService', () => {
       expect(fetched!.lastRunError).toBeNull();
       expect(fetched!.nextRunAt).toBe(originalNextRunAt);
       expect(triggerCb).not.toHaveBeenCalled();
+    });
+
+    it('should fail the catch-up run and clear in-flight state when trigger delivery throws', async () => {
+      automationsService.onTrigger(() => {
+        throw new Error('Renderer unavailable');
+      });
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 0, 0));
+      const automation = await automationsService.create({
+        name: 'Delivery Failure',
+        projectId: 'p1',
+        prompt: 'test',
+        agentId: 'agent-1',
+        schedule: { type: 'daily', hour: 10, minute: 15 },
+      });
+
+      vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
+      await automationsService.reconcileMissedRunsAfterResume();
+
+      const logs = await automationsService.getRunLogs(automation.id);
+      expect(logs).toHaveLength(1);
+      expect(logs[0].status).toBe('failure');
+      expect(logs[0].error).toBe('Renderer unavailable');
+      expect(logs[0].finishedAt).toBeTruthy();
+      expect(
+        (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns.has(
+          automation.id
+        )
+      ).toBe(false);
+
+      const fetched = await automationsService.get(automation.id);
+      expect(fetched!.lastRunResult).toBe('failure');
+      expect(fetched!.lastRunError).toBe('Renderer unavailable');
     });
 
     it('should catch-up AND clean up orphaned runs for the same automation', async () => {

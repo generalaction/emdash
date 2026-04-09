@@ -118,11 +118,15 @@ function sendTriggerToRenderer(automation: Automation, runLogId: string): void {
     );
     // Mark the dropped run log as failed so it doesn't stay orphaned
     void automationsService
-      .updateRunLog(dropped.runLogId, {
-        status: 'failure',
-        finishedAt: new Date().toISOString(),
-        error: 'Dropped due to trigger queue overflow',
-      })
+      .updateRunLog(
+        dropped.runLogId,
+        {
+          status: 'failure',
+          finishedAt: new Date().toISOString(),
+          error: 'Dropped due to trigger queue overflow',
+        },
+        dropped.automation.id
+      )
       .catch((err) => log.error('[Automations] Failed to mark dropped run log as failed:', err));
   }
   triggerQueue.push({ automation, runLogId });
@@ -329,12 +333,16 @@ export function registerAutomationsIpc(): void {
     try {
       validateCompleteRunArg(args);
 
-      await automationsService.updateRunLog(args.runLogId, {
-        status: args.status,
-        finishedAt: new Date().toISOString(),
-        taskId: args.taskId ?? null,
-        error: args.error ?? null,
-      });
+      await automationsService.updateRunLog(
+        args.runLogId,
+        {
+          status: args.status,
+          finishedAt: new Date().toISOString(),
+          taskId: args.taskId ?? null,
+          error: args.error ?? null,
+        },
+        args.automationId
+      );
 
       await automationsService.setLastRunResult(args.automationId, args.status, args.error);
 

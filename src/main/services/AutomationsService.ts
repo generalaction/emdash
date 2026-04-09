@@ -296,6 +296,7 @@ class AutomationsService {
     this.ticking = false;
     this.triggerTicking = false;
     this.reconciling = false;
+    this.triggerCallbacks = [];
     this.knownEventIds.clear();
     this.inFlightRuns.clear();
     this.stop();
@@ -411,20 +412,7 @@ class AutomationsService {
       }
     });
 
-    for (const { automation, runLogId } of triggers) {
-      for (const cb of this.triggerCallbacks) {
-        try {
-          cb(automation, runLogId);
-        } catch (err) {
-          log.error(`[Automations] Trigger callback failed for ${automation.id}:`, err);
-          await this.setLastRunResult(
-            automation.id,
-            'failure',
-            err instanceof Error ? err.message : String(err)
-          );
-        }
-      }
-    }
+    await this.dispatchTriggers(triggers, 'Trigger callback failed');
   }
 
   // -------------------------------------------------------------------
@@ -517,20 +505,7 @@ class AutomationsService {
       }
     }
 
-    for (const { automation, runLogId } of triggers) {
-      for (const cb of this.triggerCallbacks) {
-        try {
-          cb(automation, runLogId);
-        } catch (err) {
-          log.error(`[Automations] Trigger callback failed for ${automation.id}:`, err);
-          await this.setLastRunResult(
-            automation.id,
-            'failure',
-            err instanceof Error ? err.message : String(err)
-          );
-        }
-      }
-    }
+    await this.dispatchTriggers(triggers, 'Trigger callback failed');
   }
 
   private enrichPromptWithEvent(
@@ -1227,6 +1202,8 @@ class AutomationsService {
         taskId: null,
       });
 
+      this.inFlightRuns.add(automationId);
+
       const rows = await db
         .select({ runCount: automationsTable.runCount })
         .from(automationsTable)
@@ -1394,24 +1371,44 @@ class AutomationsService {
         }
       });
 
-      // Fire trigger callbacks outside the mutex
-      for (const { automation, runLogId } of triggers) {
-        for (const cb of this.triggerCallbacks) {
-          try {
-            cb(automation, runLogId);
-          } catch (err) {
-            log.error(`[Automations] Catch-up trigger callback failed for ${automation.id}:`, err);
-            await this.setLastRunResult(
-              automation.id,
-              'failure',
-              err instanceof Error ? err.message : String(err)
-            );
-          }
-        }
-      }
+      await this.dispatchTriggers(triggers, 'Catch-up trigger callback failed');
     } finally {
       this.reconciling = false;
     }
+  }
+
+  private async dispatchTriggers(
+    triggers: Array<{ automation: Automation; runLogId: string }>,
+    errorContext: string
+  ): Promise<void> {
+    for (const { automation, runLogId } of triggers) {
+      for (const cb of this.triggerCallbacks) {
+        try {
+          cb(automation, runLogId);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          log.error(`[Automations] ${errorContext} for ${automation.id}:`, err);
+          await this.failRunDispatch(runLogId, automation.id, message);
+        }
+      }
+    }
+  }
+
+  private async failRunDispatch(
+    runLogId: string,
+    automationId: string,
+    errorMessage: string
+  ): Promise<void> {
+    await this.updateRunLog(
+      runLogId,
+      {
+        status: 'failure',
+        error: errorMessage,
+        finishedAt: new Date().toISOString(),
+      },
+      automationId
+    );
+    await this.setLastRunResult(automationId, 'failure', errorMessage);
   }
 }
 
