@@ -13,7 +13,7 @@ const ThemeCard: React.FC = () => {
   ];
 
   return (
-    <div className="grid gap-3">
+    <div id="theme-card" className="grid gap-3">
       <div>
         <div className="text-sm font-medium text-foreground">Color mode</div>
         <div className="text-sm text-muted-foreground">Choose how Emdash looks.</div>

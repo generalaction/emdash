@@ -26,6 +26,7 @@ import { useModalContext } from '../contexts/ModalProvider';
 import GitLabSetupForm from './integrations/GitLabSetupForm';
 import ForgejoSetupForm from './integrations/ForgejoSetupForm';
 import { GithubDeviceFlowModal } from './GithubDeviceFlowModal';
+import { INTEGRATION_REGISTRY, type IntegrationId } from './integrations/registry';
 
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {
@@ -472,21 +473,27 @@ const IntegrationsCard: React.FC = () => {
     }
   }, []);
 
-  const integrations = [
+  // Runtime state per integration. Static metadata (name/description/order)
+  // lives in INTEGRATION_REGISTRY so it can be shared with the settings
+  // search index.
+  const integrationRuntime: Record<
+    IntegrationId,
     {
-      id: 'github',
-      name: 'GitHub',
-      description: 'Connect your repositories',
+      logoSvg: string;
+      connected: boolean;
+      loading: boolean;
+      onConnect: () => void;
+      onDisconnect: () => void;
+    }
+  > = {
+    github: {
       logoSvg: githubSvg,
       connected: authenticated,
       loading: isLoading,
       onConnect: handleGithubConnect,
       onDisconnect: handleGithubDisconnect,
     },
-    {
-      id: 'linear',
-      name: 'Linear',
-      description: 'Work on Linear tickets',
+    linear: {
       logoSvg: linearSvg,
       connected: linearConnected,
       loading: linearLoading,
@@ -496,10 +503,7 @@ const IntegrationsCard: React.FC = () => {
       },
       onDisconnect: handleLinearDisconnect,
     },
-    {
-      id: 'jira',
-      name: 'Jira',
-      description: 'Work on Jira tickets',
+    jira: {
       logoSvg: jiraSvg,
       connected: jiraConnected,
       loading: jiraLoading,
@@ -509,10 +513,7 @@ const IntegrationsCard: React.FC = () => {
       },
       onDisconnect: handleJiraDisconnect,
     },
-    {
-      id: 'gitlab',
-      name: 'GitLab',
-      description: 'Work on GitLab issues',
+    gitlab: {
       logoSvg: gitlabSvg,
       connected: gitlabConnected,
       loading: gitlabLoading,
@@ -522,10 +523,7 @@ const IntegrationsCard: React.FC = () => {
       },
       onDisconnect: handleGitlabDisconnect,
     },
-    {
-      id: 'plain',
-      name: 'Plain',
-      description: 'Work on support threads',
+    plain: {
       logoSvg: plainSvg,
       connected: plainConnected,
       loading: plainLoading,
@@ -535,10 +533,7 @@ const IntegrationsCard: React.FC = () => {
       },
       onDisconnect: handlePlainDisconnect,
     },
-    {
-      id: 'forgejo',
-      name: 'Forgejo',
-      description: 'Work on Forgejo issues',
+    forgejo: {
       logoSvg: forgejoSvg,
       connected: forgejoConnected,
       loading: forgejoLoading,
@@ -548,10 +543,7 @@ const IntegrationsCard: React.FC = () => {
       },
       onDisconnect: handleForgejoDisconnect,
     },
-    {
-      id: 'sentry',
-      name: 'Sentry',
-      description: 'Fix errors from Sentry',
+    sentry: {
       logoSvg: sentrySvg,
       connected: sentryConnected,
       loading: sentryLoading,
@@ -561,11 +553,17 @@ const IntegrationsCard: React.FC = () => {
       },
       onDisconnect: handleSentryDisconnect,
     },
-  ];
+  };
+
+  const integrations = INTEGRATION_REGISTRY.map((entry) => ({
+    ...entry,
+    ...integrationRuntime[entry.id as IntegrationId],
+  }));
 
   return (
     <>
       <div
+        id="integrations-card"
         className="grid gap-3"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
       >

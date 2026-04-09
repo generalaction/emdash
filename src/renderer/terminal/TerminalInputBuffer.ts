@@ -43,25 +43,42 @@ export class TerminalInputBuffer {
     this.onCapture = onCapture;
   }
 
+  private processInputCharacter(ch: string): void {
+    if (ch === '\r' || ch === '\n') {
+      // Enter pressed — snapshot the buffer as a pending message
+      if (this.buffer.trim()) {
+        this.pendingMessage = this.buffer.trim();
+      }
+      this.buffer = '';
+      return;
+    }
+
+    if (ch === '\x7f' || ch === '\b') {
+      // Backspace
+      this.buffer = this.buffer.slice(0, -1);
+      return;
+    }
+
+    if (ch === '\x15') {
+      // Ctrl+U — line kill: discard current input and any pending message
+      this.buffer = '';
+      this.pendingMessage = null;
+      return;
+    }
+
+    if (ch.charCodeAt(0) >= 32) {
+      // Printable character
+      this.buffer += ch;
+    }
+  }
+
   /** Feed raw terminal input data (keystrokes). */
   feed(data: string): void {
     if (this.captured) return;
 
     const clean = stripAnsi(data, { includePrivateCsiParams: true, stripOscSt: true });
     for (const ch of clean) {
-      if (ch === '\r' || ch === '\n') {
-        // Enter pressed — snapshot the buffer as a pending message
-        if (this.buffer.trim()) {
-          this.pendingMessage = this.buffer.trim();
-        }
-        this.buffer = '';
-      } else if (ch === '\x7f' || ch === '\b') {
-        // Backspace
-        this.buffer = this.buffer.slice(0, -1);
-      } else if (ch.charCodeAt(0) >= 32) {
-        // Printable character
-        this.buffer += ch;
-      }
+      this.processInputCharacter(ch);
     }
   }
 
@@ -70,19 +87,19 @@ export class TerminalInputBuffer {
    * If we have a pending message that passes validation, fire the callback.
    */
   confirmSubmit(): void {
-    if (this.captured) return;
-    if (!this.pendingMessage) return;
+    if (this.captured || !this.pendingMessage) return;
 
-    if (isRealTaskInput(this.pendingMessage)) {
-      this.captured = true;
-      const message = this.pendingMessage;
-      this.pendingMessage = null;
-      this.buffer = '';
-      this.onCapture(message);
-    } else {
+    if (!isRealTaskInput(this.pendingMessage)) {
       // Not a real task input — discard and keep listening
       this.pendingMessage = null;
+      return;
     }
+
+    this.captured = true;
+    const message = this.pendingMessage;
+    this.pendingMessage = null;
+    this.buffer = '';
+    this.onCapture(message);
   }
 
   /** Whether the buffer has already fired its callback. */
