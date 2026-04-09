@@ -1,12 +1,11 @@
 import React from 'react';
-import { isValidProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId, isValidProviderId } from '@shared/agent-provider-registry';
 import type { AppSettings } from '@shared/app-settings';
 import { AgentSelector } from '@renderer/components/agent-selector/agent-selector';
 import { useAppSettingsKey } from '@renderer/core/settings/use-app-settings-key';
-import type { Agent } from '@renderer/types';
 import { SettingRow } from './SettingRow';
 
-const DEFAULT_AGENT: Agent = 'claude';
+const DEFAULT_AGENT: AgentProviderId = 'claude';
 
 const DefaultAgentSettingsCard: React.FC = () => {
   const {
@@ -16,11 +15,11 @@ const DefaultAgentSettingsCard: React.FC = () => {
     isSaving: saving,
   } = useAppSettingsKey('defaultAgent');
 
-  const defaultAgent: Agent = isValidProviderId(defaultAgentValue)
-    ? (defaultAgentValue as Agent)
+  const defaultAgent: AgentProviderId = isValidProviderId(defaultAgentValue)
+    ? (defaultAgentValue as AgentProviderId)
     : DEFAULT_AGENT;
 
-  const handleChange = (agent: Agent) => {
+  const handleChange = (agent: AgentProviderId) => {
     update(agent as AppSettings['defaultAgent']);
   };
 

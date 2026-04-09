@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
+import { AgentProviderId } from '@shared/agent-provider-registry';
 import type { McpCatalogEntry, McpServer } from '@shared/mcp/types';
 import { agentConfig } from '../../lib/agentConfig';
 import { McpServerIcon } from '../../lib/mcpIcons';
-import type { Agent } from '../../types';
 import AgentLogo from '../agent-logo';
 
 interface McpCardProps {
@@ -24,7 +24,7 @@ function getTransport(server?: McpServer, entry?: McpCatalogEntry): 'stdio' | 'h
 function getSyncedProviders(server?: McpServer) {
   if (!server) return [];
   return server.providers.flatMap((id) => {
-    const cfg = agentConfig[id as Agent];
+    const cfg = agentConfig[id as AgentProviderId];
     return cfg ? [{ id, ...cfg }] : [];
   });
 }

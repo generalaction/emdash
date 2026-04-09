@@ -4,12 +4,10 @@ import React from 'react';
 import { EMDASH_RELEASES_URL } from '@shared/urls';
 import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
+import { rpc } from '@renderer/core/ipc';
 import { appState } from '@renderer/core/stores/app-state';
 import { formatBytes } from '@renderer/lib/formatBytes';
-import { rpc } from '../../ipc';
 import { SettingRow } from './SettingRow';
-
-const isDev = !window.electronAPI;
 
 export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   const update = appState.update;
@@ -26,7 +24,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
     </div>
   );
 
-  if (isDev) {
+  if (import.meta.env.DEV) {
     return (
       <SettingRow
         title={versionTitle}

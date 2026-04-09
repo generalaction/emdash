@@ -1,3 +1,4 @@
+import { AgentProviderId } from '@shared/agent-provider-registry';
 import ampLogo from '../../assets/images/ampcode.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import augmentLogoSvg from '../../assets/images/Auggie.svg?raw';
@@ -20,7 +21,6 @@ import openaiLogoSvg from '../../assets/images/openai.svg?raw';
 import opencodeLogo from '../../assets/images/opencode.png';
 import piLogo from '../../assets/images/pi.png';
 import qwenLogo from '../../assets/images/qwen.png';
-import type { Agent } from '../types';
 
 export type AgentInfo = {
   name: string;
@@ -31,7 +31,7 @@ export type AgentInfo = {
 };
 
 // Agents with initial prompt support first, then those without
-export const agentConfig: Record<Agent, AgentInfo> = {
+export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   claude: { name: 'Claude Code', logo: claudeLogo, alt: 'Claude Code' },
   codex: { name: 'Codex', logo: openaiLogoSvg, alt: 'Codex', isSvg: true },
   cursor: { name: 'Cursor', logo: cursorLogoSvg, alt: 'Cursor CLI', isSvg: true },

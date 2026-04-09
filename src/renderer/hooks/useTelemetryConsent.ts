@@ -18,29 +18,35 @@ const initialState: TelemetryState = {
 export function useTelemetryConsent() {
   const [state, setState] = useState<TelemetryState>(initialState);
 
-  const refresh = useCallback(async () => {
-    setState((prev) => ({ ...prev, loading: true }));
-    try {
-      const res = await rpc.telemetry.getStatus();
+  const applyStatus = useCallback(
+    (res: Awaited<ReturnType<typeof rpc.telemetry.getStatus>> | null) => {
       if (res?.status) {
         const { envDisabled: envOff, userOptOut, hasKeyAndHost } = res.status;
         setState({
-          prefEnabled: !Boolean(envOff) && userOptOut !== true,
-          envDisabled: Boolean(envOff),
-          hasKeyAndHost: Boolean(hasKeyAndHost),
+          prefEnabled: !envOff && userOptOut !== true,
+          envDisabled: !!envOff,
+          hasKeyAndHost: !!hasKeyAndHost,
           loading: false,
         });
-        return;
+      } else {
+        setState((prev) => ({ ...prev, loading: false }));
       }
+    },
+    []
+  );
+
+  const refresh = useCallback(async () => {
+    setState((prev) => ({ ...prev, loading: true }));
+    try {
+      applyStatus(await rpc.telemetry.getStatus());
     } catch {
-      // ignore and fall through to loading reset
+      setState((prev) => ({ ...prev, loading: false }));
     }
-    setState((prev) => ({ ...prev, loading: false }));
-  }, []);
+  }, [applyStatus]);
 
   const setTelemetryEnabled = useCallback(
     async (enabled: boolean) => {
-      setState((prev) => ({ ...prev, prefEnabled: enabled }));
+      setState((prev) => ({ ...prev, prefEnabled: enabled, loading: true }));
       try {
         await rpc.telemetry.setEnabled(enabled);
       } catch {
@@ -51,10 +57,20 @@ export function useTelemetryConsent() {
     [refresh]
   );
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+    rpc.telemetry
+      .getStatus()
+      .then((res) => {
+        if (!cancelled) applyStatus(res);
+      })
+      .catch(() => {
+        if (!cancelled) setState((prev) => ({ ...prev, loading: false }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyStatus]);
 
   return {
     ...state,

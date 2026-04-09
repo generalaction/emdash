@@ -1,7 +1,7 @@
 import React from 'react';
+import { AgentProviderId } from '@shared/agent-provider-registry';
 import type { McpProvidersResponse } from '@shared/mcp/types';
 import { agentConfig } from '../../lib/agentConfig';
-import type { Agent } from '../../types';
 import AgentLogo from '../agent-logo';
 import { Button } from '../ui/button';
 import { Field, FieldLabel } from '../ui/field';
@@ -27,7 +27,7 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
           .filter((p) => p.installed)
           .map((p) => {
             const unsupported = transport === 'http' && !p.supportsHttp;
-            const logo = agentConfig[p.id as Agent];
+            const logo = agentConfig[p.id as AgentProviderId];
             return (
               <Button
                 key={p.id}

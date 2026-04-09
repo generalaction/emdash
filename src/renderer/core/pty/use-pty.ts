@@ -428,7 +428,7 @@ export function usePty(
       });
 
       // ── Handle terminal input ──────────────────────────────────────────────
-      const handleTerminalInput = (data: string, isNewlineInsert = false) => {
+      const handleTerminalInput = (data: string) => {
         onActivityRef.current?.();
 
         let filtered = data;

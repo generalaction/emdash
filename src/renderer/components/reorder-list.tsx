@@ -1,7 +1,8 @@
-import { Reorder } from 'motion/react';
-import React, { JSX } from 'react';
+import { HTMLElements, Reorder } from 'motion/react';
+import React from 'react';
 
 type Axis = 'x' | 'y';
+type ReorderTag = keyof HTMLElements;
 
 interface ReorderListProps<T> {
   items: T[];
@@ -10,7 +11,7 @@ interface ReorderListProps<T> {
   className?: string;
   itemClassName?: string;
   layoutScroll?: boolean;
-  as?: keyof JSX.IntrinsicElements | React.ComponentType<any>;
+  as?: ReorderTag;
   getKey?: (item: T, index: number) => string | number;
   children: (item: T, index: number) => React.ReactNode;
 }
@@ -27,18 +28,18 @@ export function ReorderList<T>({
   children,
 }: ReorderListProps<T>) {
   return (
-    <Reorder.Group
-      as={as as any}
+    <Reorder.Group<T, typeof as>
+      as={as}
       axis={axis}
       values={items}
-      onReorder={onReorder as any}
+      onReorder={onReorder}
       layoutScroll={layoutScroll}
       className={className}
     >
       {items.map((item, index) => (
-        <Reorder.Item
-          key={(getKey ? getKey(item, index) : (index as any)) as React.Key}
-          value={item as any}
+        <Reorder.Item<T>
+          key={getKey ? getKey(item, index) : index}
+          value={item}
           className={itemClassName}
           transition={{ layout: { duration: 0 } }}
         >

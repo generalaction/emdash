@@ -38,7 +38,7 @@ export type CloneModeState = ReturnType<typeof useCloneMode>;
 
 export function useNewMode(defaultPath: string) {
   const [name, setName] = useState('');
-  const [nameIsTouched, setNameIsTouched] = useState<boolean>(false);
+  const [_, setNameIsTouched] = useState<boolean>(false);
   const [repositoryName, setRepositoryName] = useState('');
   const [repositoryNameIsTouched, setRepositoryNameIsTouched] = useState<boolean>(false);
   const [repositoryOwnerOverride, setRepositoryOwnerOverride] = useState<
