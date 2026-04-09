@@ -1,15 +1,14 @@
-import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import './index.css';
 import 'devicon/devicon.min.css';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
-import { rpc } from './core/ipc';
-import { codeEditorPool } from './core/monaco/monaco-code-pool';
-import { diffEditorPool } from './core/monaco/monaco-diff-pool';
-import { appState } from './core/stores/app-state';
-import { log } from './lib/logger';
-import { initSoundPlayer } from './lib/soundPlayer';
+import { rpc } from '@renderer/lib/ipc';
+import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
+import { diffEditorPool } from '@renderer/lib/monaco/monaco-diff-pool';
+import { log } from '@renderer/utils/logger';
+import { initSoundPlayer } from '@renderer/utils/soundPlayer';
+import { appState } from './lib/stores/app-state';
 
 async function bootstrap() {
   // Pre-warm Monaco immediately — runs in parallel with data loading.

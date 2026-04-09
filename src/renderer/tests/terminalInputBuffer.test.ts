@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TerminalInputBuffer } from '../core/pty/pty-input-buffer';
+import { TerminalInputBuffer } from '@renderer/lib/pty/pty-input-buffer';
 
 describe('TerminalInputBuffer', () => {
   it('captures a message after Enter + confirmSubmit', () => {

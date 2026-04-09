@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Branch, DefaultBranch } from '@shared/git';
-import { resolveDefaultSelectedBranch } from '@renderer/core/tasks/create-task-modal/use-branch-selection';
+import { resolveDefaultSelectedBranch } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
 
 describe('resolveDefaultSelectedBranch', () => {
   it('prefers matching local branch for the default branch', () => {

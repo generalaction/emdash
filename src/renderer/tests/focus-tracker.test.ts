@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FocusTracker } from '@renderer/lib/focus-tracker';
+import { FocusTracker } from '@renderer/utils/focus-tracker';
 
 describe('FocusTracker', () => {
   it('emits exited focus state with duration on transition', () => {

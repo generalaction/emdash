@@ -1,6 +1,6 @@
 import type { TelemetryEventProperties } from '@shared/telemetry';
-import { log } from '@renderer/lib/logger';
-import { captureTelemetry } from '../lib/telemetryClient';
+import { log } from '@renderer/utils/logger';
+import { captureTelemetry } from '../utils/telemetryClient';
 
 interface ErrorContext {
   // Component/UI context

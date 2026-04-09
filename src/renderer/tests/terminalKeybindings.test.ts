@@ -7,7 +7,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
   type KeyEventLike,
-} from '../core/pty/pty-keybindings';
+} from '@renderer/lib/pty/pty-keybindings';
 
 describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
   const makeEvent = (overrides: Partial<KeyEventLike> = {}): KeyEventLike => ({

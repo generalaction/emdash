@@ -1,19 +1,19 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import ErrorBoundary from './components/error-boundary';
-import { RightSidebarProvider } from './components/ui/right-sidebar';
-import { TooltipProvider } from './components/ui/tooltip';
-import { IntegrationsProvider } from './core/integrations/integrations-provider';
-import { ModalProvider } from './core/modal/modal-provider';
-import { TerminalPoolProvider } from './core/pty/pty-pool-provider';
-import { queryClient } from './core/query-client';
-import { WorkspaceLayoutContextProvider } from './core/view/layout-provider';
-import { WorkspaceViewProvider } from './core/view/provider';
-import { useLocalStorage } from './hooks/useLocalStorage';
-import { GithubContextProvider } from './providers/github-context-provider';
-import { SshConnectionProvider } from './providers/ssh-connection-provider';
-import { ThemeProvider } from './providers/theme-provider';
-import { WelcomeScreen } from './views/welcome';
-import { Workspace } from './views/workspace';
+import { WelcomeScreen } from './app/welcome';
+import { Workspace } from './app/workspace';
+import { IntegrationsProvider } from './features/integrations/integrations-provider';
+import ErrorBoundary from './lib/components/error-boundary';
+import { useLocalStorage } from './lib/hooks/useLocalStorage';
+import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
+import { WorkspaceViewProvider } from './lib/layout/provider';
+import { ModalProvider } from './lib/modal/modal-provider';
+import { GithubContextProvider } from './lib/providers/github-context-provider';
+import { SshConnectionProvider } from './lib/providers/ssh-connection-provider';
+import { ThemeProvider } from './lib/providers/theme-provider';
+import { TerminalPoolProvider } from './lib/pty/pty-pool-provider';
+import { queryClient } from './lib/query-client';
+import { RightSidebarProvider } from './lib/ui/right-sidebar';
+import { TooltipProvider } from './lib/ui/tooltip';
 
 export const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
 
