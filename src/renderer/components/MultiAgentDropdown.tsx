@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { rpc } from '@/lib/rpc';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
@@ -27,14 +27,20 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
 }) => {
   // Setup state for pinned agents (persisted via rpc.appSettings)
   const [pinnedAgents, setPinnedAgents] = useState<string[]>([]);
+  const pinMutationIdRef = useRef(0);
 
   useEffect(() => {
     let cancel = false;
-    rpc.appSettings.get().then((settings) => {
-      if (!cancel && settings?.pinnedAgents) {
-        setPinnedAgents(settings.pinnedAgents);
-      }
-    });
+    rpc.appSettings
+      .get()
+      .then((settings) => {
+        if (!cancel && settings?.pinnedAgents) {
+          setPinnedAgents(settings.pinnedAgents);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load pinned agents', error);
+      });
     return () => {
       cancel = true;
     };
@@ -45,28 +51,32 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
     e.stopPropagation();
 
     const previousState = [...pinnedAgents];
+    const mutationId = ++pinMutationIdRef.current;
 
     const next = pinnedAgents.includes(agentId)
       ? pinnedAgents.filter((a) => a !== agentId)
-      : [...pinnedAgents, agentId];
+      : [agentId, ...pinnedAgents.filter((a) => a !== agentId)];
     setPinnedAgents(next);
 
     try {
       await rpc.appSettings.update({ pinnedAgents: next });
     } catch (error) {
       console.error('Failed to save pinned agents', error);
-      // If the save fails, roll the UI back
-      setPinnedAgents(previousState);
+      if (pinMutationIdRef.current === mutationId) {
+        setPinnedAgents(previousState);
+      }
     }
   };
 
   // Dynamically sort agents
   const sortedAgents = React.useMemo(() => {
+    const pinOrder = new Map(pinnedAgents.map((id, idx) => [id, idx]));
     return Object.entries(agentConfig).sort(([keyA], [keyB]) => {
-      const aPinned = pinnedAgents.includes(keyA);
-      const bPinned = pinnedAgents.includes(keyB);
-      if (aPinned && !bPinned) return -1;
-      if (!aPinned && bPinned) return 1;
+      const aOrder = pinOrder.get(keyA);
+      const bOrder = pinOrder.get(keyB);
+      if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder;
+      if (aOrder !== undefined) return -1;
+      if (bOrder !== undefined) return 1;
       return 0;
     });
   }, [pinnedAgents]);
@@ -253,7 +263,9 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                         </div>
                       )}
                       <button
+                        type="button"
                         onClick={(e) => togglePin(key, e)}
+                        aria-label={pinnedAgents.includes(key) ? 'Unpin agent' : 'Pin agent to top'}
                         className={`flex items-center justify-center rounded p-1 transition-opacity hover:bg-muted-foreground/20 ${
                           pinnedAgents.includes(key)
                             ? 'text-foreground opacity-100' // Always visible if pinned
