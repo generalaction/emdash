@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import ErrorBoundary from './components/error-boundary';
 import { RightSidebarProvider } from './components/ui/right-sidebar';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -7,6 +7,7 @@ import { GithubContextProvider } from './core/github-context-provider';
 import { IntegrationsProvider } from './core/integrations/integrations-provider';
 import { ModalProvider } from './core/modal/modal-provider';
 import { TerminalPoolProvider } from './core/pty/pty-pool-provider';
+import { queryClient } from './core/query-client';
 import { SshConnectionProvider } from './core/ssh/ssh-connection-provider';
 import { WorkspaceLayoutContextProvider } from './core/view/layout-provider';
 import { WorkspaceViewProvider } from './core/view/provider';
@@ -15,8 +16,6 @@ import { WelcomeScreen } from './views/welcome';
 import { Workspace } from './views/workspace';
 
 export const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
-
-const queryClient = new QueryClient();
 
 export function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean>(FIRST_LAUNCH_KEY, true);

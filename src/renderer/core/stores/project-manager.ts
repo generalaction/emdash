@@ -2,6 +2,7 @@ import { makeObservable, observable, runInAction } from 'mobx';
 import { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/core/ipc';
+import { queryClient } from '@renderer/core/query-client';
 import { captureTelemetry } from '@renderer/lib/telemetryClient';
 import { appState } from './app-state';
 import {
@@ -241,6 +242,14 @@ export class ProjectManagerStore {
               savedSnapshot as ProjectViewSnapshot | undefined
             );
           }
+        });
+        queryClient.prefetchQuery({
+          queryKey: ['repository', 'branches', projectId],
+          queryFn: () => rpc.repository.getBranches(projectId),
+        });
+        queryClient.prefetchQuery({
+          queryKey: ['repository', 'defaultBranch', projectId],
+          queryFn: () => rpc.repository.getDefaultBranch(projectId),
         });
         // Load the task list before provisioning so the tasks map is populated.
         const taskManager = this.projects.get(projectId)?.mountedProject?.taskManager;
