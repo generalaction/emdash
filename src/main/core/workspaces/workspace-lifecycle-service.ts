@@ -13,22 +13,22 @@ type LifecycleScript = {
   script: string;
 };
 
-export class TaskLifecycleService {
+export class WorkspaceLifecycleService {
   private readonly projectId: string;
-  private readonly taskId: string;
+  private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;
 
   constructor({
     projectId,
-    taskId,
+    workspaceId,
     terminals,
   }: {
     projectId: string;
-    taskId: string;
+    workspaceId: string;
     terminals: TerminalProvider;
   }) {
     this.projectId = projectId;
-    this.taskId = taskId;
+    this.workspaceId = workspaceId;
     this.terminals = terminals;
   }
 
@@ -38,11 +38,11 @@ export class TaskLifecycleService {
   }> {
     const terminalId = await createScriptTerminalId({
       projectId: this.projectId,
-      taskId: this.taskId,
+      scopeId: this.workspaceId,
       type: script.type,
       script: script.script,
     });
-    const sessionId = makePtySessionId(this.projectId, this.taskId, terminalId);
+    const sessionId = makePtySessionId(this.projectId, this.workspaceId, terminalId);
     return { terminalId, sessionId };
   }
 
@@ -57,7 +57,7 @@ export class TaskLifecycleService {
       terminal: {
         id: terminalId,
         projectId: this.projectId,
-        taskId: this.taskId,
+        taskId: this.workspaceId,
         name: script.type,
       },
       command: '',
@@ -91,7 +91,7 @@ export class TaskLifecycleService {
     const pty = ptySessionRegistry.get(sessionId);
     if (!pty) {
       throw new Error(
-        `Lifecycle script session unavailable for ${script.type} in task ${this.taskId}`
+        `Lifecycle script session unavailable for ${script.type} in workspace ${this.workspaceId}`
       );
     }
 
@@ -120,5 +120,9 @@ export class TaskLifecycleService {
     const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS }, ...executeOptions } = options;
     await this.prepareLifecycleScript(script, { initialSize });
     await this.runLifecycleScript(script, { initialSize, ...executeOptions });
+  }
+
+  async dispose(): Promise<void> {
+    await this.terminals.destroyAll();
   }
 }

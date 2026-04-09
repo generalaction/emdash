@@ -31,7 +31,7 @@ export class SshTerminalProvider implements TerminalProvider {
   private respawnCounts = new Map<string, number>();
   private terminals = new Map<string, Terminal>();
   private readonly projectId: string;
-  private readonly taskId: string;
+  private readonly scopeId: string;
   private readonly taskPath: string;
   private readonly taskEnvVars: Record<string, string>;
   private readonly tmux: boolean;
@@ -41,7 +41,7 @@ export class SshTerminalProvider implements TerminalProvider {
 
   constructor({
     projectId,
-    taskId,
+    scopeId,
     taskPath,
     taskEnvVars = {},
     tmux = false,
@@ -50,7 +50,7 @@ export class SshTerminalProvider implements TerminalProvider {
     proxy,
   }: {
     projectId: string;
-    taskId: string;
+    scopeId: string;
     taskPath: string;
     taskEnvVars?: Record<string, string>;
     tmux?: boolean;
@@ -59,7 +59,7 @@ export class SshTerminalProvider implements TerminalProvider {
     proxy: SshClientProxy;
   }) {
     this.projectId = projectId;
-    this.taskId = taskId;
+    this.scopeId = scopeId;
     this.taskPath = taskPath;
     this.taskEnvVars = taskEnvVars;
     this.tmux = tmux;
@@ -115,7 +115,7 @@ export class SshTerminalProvider implements TerminalProvider {
     }
 
     const cfg: GeneralSessionConfig = {
-      taskId: this.taskId,
+      taskId: this.scopeId,
       cwd: this.taskPath,
       shellSetup: this.shellSetup,
       tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
@@ -144,7 +144,7 @@ export class SshTerminalProvider implements TerminalProvider {
     if (policy.watchDevServer) {
       wireTerminalDevServerWatcher({
         pty,
-        taskId: this.taskId,
+        scopeId: this.scopeId,
         terminalId: terminal.id,
         probe: false,
       });
@@ -208,7 +208,7 @@ export class SshTerminalProvider implements TerminalProvider {
   }
 
   async killTerminal(terminalId: string): Promise<void> {
-    const sessionId = makePtySessionId(this.projectId, this.taskId, terminalId);
+    const sessionId = makePtySessionId(this.projectId, this.scopeId, terminalId);
     const pty = this.sessions.get(sessionId);
     if (pty) {
       try {

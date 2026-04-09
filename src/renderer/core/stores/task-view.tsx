@@ -17,6 +17,7 @@ interface TaskViewResources {
   pr: PrStore;
   projectId: string;
   taskId: string;
+  workspaceId: string;
 }
 
 export class TaskViewStore {
@@ -35,7 +36,11 @@ export class TaskViewStore {
 
     this.conversationTabs = new ConversationTabViewStore(resources.conversations);
     this.terminalTabs = new TerminalTabViewStore(resources.terminals);
-    this.editorView = new EditorViewStore(resources.projectId, resources.taskId);
+    this.editorView = new EditorViewStore(
+      resources.projectId,
+      resources.taskId,
+      resources.workspaceId
+    );
     this.diffView = new DiffViewStore(resources.git, resources.pr);
 
     if (savedSnapshot?.conversations) {

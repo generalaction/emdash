@@ -3,10 +3,12 @@ import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { rpc } from '../ipc';
 import { ConversationManagerStore } from './conversation-manager';
+import { DevServerStore } from './dev-server-store';
 import { snapshotRegistry } from './snapshot-registry';
 import { TaskViewStore } from './task-view';
 import { TerminalManagerStore } from './terminal-manager';
-import { WorkspaceStore } from './workspace';
+import type { WorkspaceStore } from './workspace';
+import { workspaceRegistry } from './workspace-registry';
 
 export type UnregisteredTaskPhase = 'creating' | 'create-error';
 
@@ -29,12 +31,14 @@ export type UnregisteredTaskData = {
 
 export class ProvisionedTask {
   readonly workspace: WorkspaceStore;
+  readonly devServers: DevServerStore;
   readonly conversations: ConversationManagerStore;
   readonly terminals: TerminalManagerStore;
   readonly taskView: TaskViewStore;
 
   readonly _taskData: Task;
   readonly path: string;
+  readonly workspaceId: string;
 
   private _snapshotDisposer: (() => void) | null = null;
 
@@ -42,15 +46,13 @@ export class ProvisionedTask {
     return this.taskView.snapshot;
   }
 
-  constructor(taskData: Task, path: string, savedSnapshot?: TaskViewSnapshot) {
+  constructor(taskData: Task, path: string, workspaceId: string, savedSnapshot?: TaskViewSnapshot) {
     this._taskData = taskData;
     this.path = path;
+    this.workspaceId = workspaceId;
 
-    this.workspace = new WorkspaceStore(
-      taskData.projectId,
-      taskData.id,
-      () => (this._taskData as Task).prs
-    );
+    this.workspace = workspaceRegistry.acquire(taskData.projectId, workspaceId, taskData.id);
+    this.devServers = new DevServerStore(taskData.id, workspaceId);
     this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
     this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
     this.taskView = new TaskViewStore(
@@ -61,12 +63,14 @@ export class ProvisionedTask {
         pr: this.workspace.pr,
         projectId: taskData.projectId,
         taskId: taskData.id,
+        workspaceId,
       },
       savedSnapshot
     );
 
     makeAutoObservable(this, {
       workspace: false,
+      devServers: false,
       conversations: false,
       terminals: false,
       taskView: false,
@@ -78,16 +82,15 @@ export class ProvisionedTask {
   }
 
   activate(): void {
-    this.workspace.git.startWatching();
-    this.workspace.files.startWatching();
-    this.workspace.pr.start();
+    workspaceRegistry.activate(this._taskData.projectId, this.workspaceId);
     this.taskView.editorView.initialize();
   }
 
   dispose(): void {
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
-    this.workspace.dispose();
+    workspaceRegistry.release(this._taskData.projectId, this.workspaceId, this._taskData.id);
+    this.devServers.dispose();
     this.taskView.dispose();
     this.conversations.dispose();
     for (const term of this.terminals.terminals.values()) {
@@ -146,9 +149,14 @@ export class TaskStore {
     });
   }
 
-  transitionToProvisioned(data: Task, path: string, savedSnapshot?: TaskViewSnapshot): void {
+  transitionToProvisioned(
+    data: Task,
+    path: string,
+    workspaceId: string,
+    savedSnapshot?: TaskViewSnapshot
+  ): void {
     this.data = data;
-    this.provisionedTask = new ProvisionedTask(data, path, savedSnapshot);
+    this.provisionedTask = new ProvisionedTask(data, path, workspaceId, savedSnapshot);
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
