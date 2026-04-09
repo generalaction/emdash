@@ -128,6 +128,9 @@ export interface AppSettings {
   };
   defaultOpenInApp?: OpenInAppId;
   hiddenOpenInApps?: OpenInAppId[];
+  changelog?: {
+    dismissedVersions: string[];
+  };
   pinnedAgents?: string[];
 }
 
