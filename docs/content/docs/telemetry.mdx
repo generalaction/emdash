@@ -48,12 +48,17 @@ Anonymous, aggregated usage data only. If you have authenticated with GitHub, yo
 
 Events track which features are used, not what you do with them:
 
-- Navigation and attention (view transitions, focused panel/region, dwell time)
-- Core funnel actions (project/task/conversation/PR lifecycle)
-- Integrations (connected/disconnected, linked issues)
-- Agent runs (started/finished, provider, duration, exit code)
-- MCP and skills activity
-- Settings and sidebar usage
+- Project management (create, open, delete)
+- Task management (create, delete, switch provider)
+- Terminal (open, execute)
+- Changes (view diff, create PR)
+- Plan mode (enable/disable)
+- Settings (theme, notifications, default provider)
+- Integrations (Linear, Jira, GitHub issues)
+- Skills (view, install, uninstall, create)
+- Remote projects (SSH connection, test)
+- Browser preview (open, close, navigate)
+- UI interactions (toolbar, sidebar, Kanban)
 
 All events include only: event name, anonymized properties (e.g., `provider: "claude"`). No file paths, code, prompts, or identifying information.
 
@@ -62,37 +67,49 @@ All events include only: event name, anonymized properties (e.g., `provider: "cl
 
 **App Lifecycle:** `app_started`, `app_closed`, `app_window_focused`, `app_session`
 
-**Attention & Views:** `focus_changed`, `home_viewed`, `project_viewed`, `task_viewed`, `settings_viewed`, `skills_viewed`, `mcp_viewed`
+**GitHub:** `github_connection_triggered`, `github_connected`
 
-**Modals:** `modal_opened`, `modal_closed`
+**Projects:** `project_add_clicked`, `project_open_clicked`, `project_create_clicked`, `project_clone_clicked`, `project_create_success`, `project_clone_success`, `project_added_success`, `project_deleted`, `project_view_opened`
 
-**Projects:** `project_added`, `project_deleted`
+**Tasks:** `task_created`, `task_deleted`, `task_provider_switched`, `task_custom_named`, `task_advanced_options_opened`, `task_created_with_issue`
 
-**Tasks:** `task_created`, `task_status_changed`, `task_deleted`
+**Terminal:** `terminal_entered`, `terminal_command_executed`, `terminal_new_terminal_created`, `terminal_deleted`
 
-**Conversations & Agent Runs:** `conversation_created`, `agent_run_started`, `agent_run_finished`
+**Changes & PRs:** `changes_viewed`, `pr_created`, `pr_creation_failed`, `pr_viewed`
 
-**PRs:** `pr_created`, `pr_creation_failed`
+**Plan Mode:** `plan_mode_enabled`, `plan_mode_disabled`
 
-**Integrations:** `integration_connected`, `integration_disconnected`, `issue_linked_to_task`
+**Linear:** `linear_connected`, `linear_disconnected`, `linear_issues_searched`, `linear_issue_selected`
 
-**External Tools:** `open_in_external`, `ssh_connection_attempted`
+**Jira:** `jira_connected`, `jira_disconnected`, `jira_issues_searched`, `jira_issue_selected`
 
-**MCP & Skills:** `mcp_server_added`, `mcp_server_removed`, `skill_installed`, `skill_uninstalled`, `skill_created`
+**Container:** `container_connect_clicked`, `container_connect_success`, `container_connect_failed`
 
-**Settings & Layout:** `setting_changed`, `sidebar_toggled`
+**Toolbar:** `toolbar_feedback_clicked`, `toolbar_left_sidebar_clicked`, `toolbar_right_sidebar_clicked`, `toolbar_settings_clicked`, `toolbar_open_in_menu_clicked`, `toolbar_open_in_selected`, `toolbar_kanban_toggled`
 
-**Error/Diagnostics:** `$exception`, `error`, `task_snapshot`, `daily_active_user`, `db_setup`
+**GitHub Issues:** `github_issues_searched`, `github_issue_selected`
+
+**Skills:** `skills_view_opened`, `skill_installed`, `skill_uninstalled`, `skill_created`, `skill_detail_viewed`
+
+**Remote Server / SSH:** `remote_project_modal_opened`, `remote_project_connection_tested`, `remote_project_created`, `ssh_connection_saved`, `ssh_connection_deleted`, `ssh_connect_success`, `ssh_connect_failed`, `ssh_disconnected`, `ssh_reconnect_attempted`, `ssh_settings_opened`
+
+**Browser Preview:** `browser_preview_opened`, `browser_preview_closed`, `browser_preview_url_navigated`
+
+**Settings:** `settings_tab_viewed`, `theme_changed`, `telemetry_toggled`, `notification_settings_changed`, `default_provider_changed`
+
+**Agent:** `agent_run_start`, `agent_run_finish`, `agent_prompt_sent`
+
+**Aggregates:** `task_snapshot`, `daily_active_user`, `db_setup`, `feature_used`, `error`
 
 </details>
 
 ### Agent Events
 
-**`agent_run_started`** / **`agent_run_finished`**
+**`agent_run_start`** / **`agent_run_finish`**
 
 - `provider` (e.g., "claude", "codex")
+- `outcome` (`ok` or `error`)
 - `duration_ms`
-- `exit_code`
 
 ## What We Don't Collect
 
@@ -133,21 +150,8 @@ PostHog credentials are public and committed in `src/main/appConfig.json`. CI ca
 3. Document here
 4. No PII or sensitive data
 
-### Schema Versioning (v0 → v1)
-
-All v1 events include `schema_version: 1`. Historical v0 events have no `schema_version` property.
-
-| v0 event(s)                                                               | v1 event                                   |
-| ------------------------------------------------------------------------- | ------------------------------------------ |
-| `linear_connected` / `jira_connected`                                     | `integration_connected` (+ `provider`)     |
-| `linear_disconnected` / `jira_disconnected`                               | `integration_disconnected` (+ `provider`)  |
-| `github_issue_selected` / `jira_issue_selected` / `linear_issue_selected` | `issue_linked_to_task` (+ `provider`)      |
-| `toolbar_left_sidebar_clicked` / `toolbar_right_sidebar_clicked`          | `sidebar_toggled` (+ `side`)               |
-| `theme_changed` / `telemetry_toggled` / `default_provider_changed`        | `setting_changed` (+ `setting`)            |
-| `agent_run_start` / `agent_run_finish`                                    | `agent_run_started` / `agent_run_finished` |
-
 ## Questions
 
-- **Code:** `src/main/lib/telemetry.ts`, `src/main/core/telemetry/controller.ts`
+- **Code:** `src/main/telemetry.ts`, `src/main/ipc/telemetryIpc.ts`
 - **Issues:** [GitHub Issues](https://github.com/generalaction/emdash/issues)
 - **Discuss:** [GitHub Discussions](https://github.com/generalaction/emdash/discussions)
