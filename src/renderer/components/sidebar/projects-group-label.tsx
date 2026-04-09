@@ -30,16 +30,19 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
         <DropdownMenuContent className="min-w-48">
           <DropdownMenuGroup>
             <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={sidebarStore.taskSortBy}
-              onValueChange={(value) => {
-                if (value === 'created-at' || value === 'updated-at') {
-                  sidebarStore.setTaskSortBy(value);
-                }
-              }}
-            >
-              <DropdownMenuRadioItem value="created-at">Created at</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="updated-at">Updated at</DropdownMenuRadioItem>
+            <DropdownMenuRadioGroup value={sidebarStore.taskSortBy}>
+              <DropdownMenuRadioItem
+                value="created-at"
+                onClick={() => sidebarStore.applySort('created-at')}
+              >
+                Created at
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem
+                value="updated-at"
+                onClick={() => sidebarStore.applySort('updated-at')}
+              >
+                Updated at
+              </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
         </DropdownMenuContent>

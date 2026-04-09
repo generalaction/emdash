@@ -180,6 +180,12 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     this.taskSortBy = sortBy;
   }
 
+  /** Set the sort key and clear all manual task orders so the list fully re-sorts. */
+  applySort(sortBy: SidebarTaskSortBy): void {
+    this.taskSortBy = sortBy;
+    this.taskOrderByProject = {};
+  }
+
   setProjectOrder(ids: string[]): void {
     this.projectOrder = ids;
   }
@@ -196,10 +202,12 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
         seen.add(id);
       }
     }
-    const tail = tasks
+    // New tasks (not in the manual order) are sorted by date and prepended so
+    // they always appear at the top rather than buried after manually-ordered tasks.
+    const newTasks = tasks
       .filter((t) => !seen.has(t.data.id))
       .sort((a, b) => this.compareSidebarTasks(a, b));
-    return [...result, ...tail];
+    return [...newTasks, ...result];
   }
 
   setTaskOrder(projectId: string, orderedIds: string[]): void {

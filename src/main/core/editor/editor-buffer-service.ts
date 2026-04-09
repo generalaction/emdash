@@ -5,37 +5,39 @@ import { editorBuffers } from '@/main/db/schema';
 export class EditorBufferService {
   async saveBuffer(
     projectId: string,
-    taskId: string,
+    workspaceId: string,
     filePath: string,
     content: string
   ): Promise<void> {
-    const id = `${projectId}:${taskId}:${filePath}`;
+    const id = `${projectId}:${workspaceId}:${filePath}`;
     await db
       .insert(editorBuffers)
-      .values({ id, projectId, taskId, filePath, content, updatedAt: Date.now() })
+      .values({ id, projectId, workspaceId, filePath, content, updatedAt: Date.now() })
       .onConflictDoUpdate({
         target: editorBuffers.id,
         set: { content, updatedAt: Date.now() },
       });
   }
 
-  async clearBuffer(projectId: string, taskId: string, filePath: string): Promise<void> {
-    const id = `${projectId}:${taskId}:${filePath}`;
+  async clearBuffer(projectId: string, workspaceId: string, filePath: string): Promise<void> {
+    const id = `${projectId}:${workspaceId}:${filePath}`;
     await db.delete(editorBuffers).where(eq(editorBuffers.id, id));
   }
 
-  async clearAllForTask(taskId: string): Promise<void> {
-    await db.delete(editorBuffers).where(eq(editorBuffers.taskId, taskId));
+  async clearAllForWorkspace(workspaceId: string): Promise<void> {
+    await db.delete(editorBuffers).where(eq(editorBuffers.workspaceId, workspaceId));
   }
 
   async listBuffers(
     projectId: string,
-    taskId: string
+    workspaceId: string
   ): Promise<{ filePath: string; content: string }[]> {
     const rows = await db
       .select({ filePath: editorBuffers.filePath, content: editorBuffers.content })
       .from(editorBuffers)
-      .where(and(eq(editorBuffers.projectId, projectId), eq(editorBuffers.taskId, taskId)));
+      .where(
+        and(eq(editorBuffers.projectId, projectId), eq(editorBuffers.workspaceId, workspaceId))
+      );
     return rows;
   }
 

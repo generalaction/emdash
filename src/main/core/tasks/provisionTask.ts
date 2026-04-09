@@ -19,7 +19,7 @@ export async function provisionTask(taskId: string) {
 
   if (existingTask) {
     const wsId = workspaceKey(existingTask.taskBranch);
-    return { path: project.getWorkspace(wsId)?.path ?? '' };
+    return { path: project.getWorkspace(wsId)?.path ?? '', workspaceId: wsId };
   }
 
   const [existingTerminals, existingConversations] = await Promise.all([
@@ -43,5 +43,6 @@ export async function provisionTask(taskId: string) {
     .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP` })
     .where(eq(tasks.id, taskId));
 
-  return { path: project.getWorkspace(workspaceKey(task.taskBranch))?.path ?? '' };
+  const wsId = workspaceKey(task.taskBranch);
+  return { path: project.getWorkspace(wsId)?.path ?? '', workspaceId: wsId };
 }

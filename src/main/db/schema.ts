@@ -293,19 +293,20 @@ export const lineComments = sqliteTable(
 export const editorBuffers = sqliteTable(
   'editor_buffers',
   {
-    id: text('id').primaryKey(), // `${projectId}:${taskId}:${filePath}`
+    id: text('id').primaryKey(), // `${projectId}:${workspaceId}:${filePath}`
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
-    taskId: text('task_id')
-      .notNull()
-      .references(() => tasks.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').notNull(),
     filePath: text('file_path').notNull(),
     content: text('content').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
   (table) => ({
-    taskFileIdx: index('idx_editor_buffers_task_file').on(table.taskId, table.filePath),
+    workspaceFileIdx: index('idx_editor_buffers_workspace_file').on(
+      table.workspaceId,
+      table.filePath
+    ),
   })
 );
 

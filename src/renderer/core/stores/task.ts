@@ -71,7 +71,6 @@ export class ProvisionedTask {
         git: this.workspace.git,
         pr: this.workspace.pr,
         projectId: taskData.projectId,
-        taskId: taskData.id,
         workspaceId: this.workspaceId,
       },
       savedSnapshot
@@ -92,7 +91,6 @@ export class ProvisionedTask {
 
   activate(): void {
     workspaceRegistry.activate(this._taskData.projectId, this.workspaceId);
-    this.taskView.editorView.initialize();
   }
 
   dispose(): void {

@@ -1,11 +1,10 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { EditorViewSnapshot } from '@shared/view-state';
 import { getMonacoLanguageId } from '@renderer/lib/diffUtils';
 import { getFileKind } from '../editor/fileKind';
 import { getDefaultRenderer } from '../editor/renderer-utils';
 import { EditorTab } from '../editor/types';
-import { events, rpc } from '../ipc';
+import { rpc } from '../ipc';
 import { modelRegistry } from '../monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '../monaco/monacoModelPath';
 import { FileRendererData } from '../tasks/types';
@@ -27,14 +26,11 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
   /** Persisted navigation state for the file tree sidebar. */
   expandedPaths = observable.set<string>();
 
-  private _unsubscribeFsWatch: (() => void) | null = null;
-
   constructor(
     private readonly projectId: string,
-    private readonly taskId: string,
     private readonly workspaceId: string
   ) {
-    this.modelRootPath = `task:${taskId}`;
+    this.modelRootPath = `workspace:${workspaceId}`;
     makeAutoObservable(this, { modelRootPath: false });
   }
 
@@ -158,7 +154,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
       // Unregister the outgoing preview's models before mutating.
       const oldFilePath = prevPreview.path;
       this._unregisterModels(prevUri);
-      void rpc.editorBuffer.clearBuffer(this.projectId, this.taskId, oldFilePath);
+      void rpc.editorBuffer.clearBuffer(this.projectId, this.workspaceId, oldFilePath);
 
       const kind = getFileKind(filePath);
       // Mutate in place — tabId unchanged, React sees one render with new content.
@@ -188,7 +184,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     const tab = this._tabs[idx];
     const uri = buildMonacoModelPath(this.modelRootPath, tab.path);
     this._unregisterModels(uri);
-    void rpc.editorBuffer.clearBuffer(this.projectId, this.taskId, tab.path);
+    void rpc.editorBuffer.clearBuffer(this.projectId, this.workspaceId, tab.path);
     this._tabs.splice(idx, 1);
     if (this.activeTabId === tabId) {
       this.activeTabId = (this._tabs[idx] ?? this._tabs[idx - 1])?.tabId ?? null;
@@ -268,7 +264,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
 
     if (accept) {
       modelRegistry.reloadFromDisk(uri);
-      void rpc.editorBuffer.clearBuffer(this.projectId, this.taskId, tab.path);
+      void rpc.editorBuffer.clearBuffer(this.projectId, this.workspaceId, tab.path);
     } else {
       runInAction(() => {
         this.isSaving = true;
@@ -283,21 +279,21 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     }
   }
 
-  initialize(): void {
-    rpc.fs.watchSetPaths(this.projectId, this.taskId, [''], 'editor').catch(() => {});
-    this._unsubscribeFsWatch = events.on(
-      fsWatchEventChannel,
-      (data) => void modelRegistry.handleFsEvents(this.taskId, data.events),
-      this.workspaceId
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
+  /**
+   * Re-registers Monaco models for all currently open tabs and restores any
+   * crash-recovery buffer content. Called by EditorProvider on mount so that
+   * Monaco models (which are ephemeral) are recreated after a remount.
+   */
   async restore(): Promise<void> {
     for (const tab of this._tabs) {
       void this._registerModels(tab.path);
     }
     try {
-      const buffers = await rpc.editorBuffer.listBuffers(this.projectId, this.taskId);
+      const buffers = await rpc.editorBuffer.listBuffers(this.projectId, this.workspaceId);
       for (const { filePath, content } of buffers) {
         const uri = buildMonacoModelPath(this.modelRootPath, filePath);
         const model = modelRegistry.getModelByUri(uri);
@@ -309,14 +305,15 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
   }
 
   dispose(): void {
-    this._unsubscribeFsWatch?.();
-    this._unsubscribeFsWatch = null;
-    rpc.fs.watchStop(this.projectId, this.taskId, 'editor').catch(() => {});
     for (const tab of this._tabs) {
       const uri = buildMonacoModelPath(this.modelRootPath, tab.path);
       this._unregisterModels(uri);
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private _makeTab(filePath: string, isPreview: boolean, tabId?: string): EditorTab {
     const kind = getFileKind(filePath);
@@ -335,7 +332,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     const kind = getFileKind(filePath);
 
     if (kind === 'image') {
-      const result = await rpc.fs.readImage(this.projectId, this.taskId, filePath);
+      const result = await rpc.fs.readImage(this.projectId, this.workspaceId, filePath);
       runInAction(() => {
         const tab = this._tabs.find((t) => t.path === filePath);
         if (tab) {
@@ -360,7 +357,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
 
       await modelRegistry.registerModel(
         this.projectId,
-        this.taskId,
+        this.workspaceId,
         this.modelRootPath,
         filePath,
         language,
@@ -368,7 +365,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
       );
       await modelRegistry.registerModel(
         this.projectId,
-        this.taskId,
+        this.workspaceId,
         this.modelRootPath,
         filePath,
         language,
@@ -376,7 +373,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
       );
       await modelRegistry.registerModel(
         this.projectId,
-        this.taskId,
+        this.workspaceId,
         this.modelRootPath,
         filePath,
         language,

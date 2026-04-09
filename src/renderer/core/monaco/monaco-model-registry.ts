@@ -1,7 +1,8 @@
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { FileWatchEvent } from '@shared/fs';
-import { rpc } from '@renderer/core/ipc';
+import { events, rpc } from '@renderer/core/ipc';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -17,7 +18,7 @@ interface BufferModelEntry {
   viewState: monaco.editor.ICodeEditorViewState | null;
   refs: number;
   projectId: string;
-  taskId: string;
+  workspaceId: string;
   filePath: string;
   language: string;
 }
@@ -27,7 +28,7 @@ interface DiskModelEntry {
   model: monaco.editor.ITextModel;
   refs: number;
   projectId: string;
-  taskId: string;
+  workspaceId: string;
   filePath: string;
   language: string;
 }
@@ -37,7 +38,7 @@ interface GitModelEntry {
   model: monaco.editor.ITextModel;
   refs: number;
   projectId: string;
-  taskId: string;
+  workspaceId: string;
   filePath: string;
   language: string;
   /** The git ref — 'HEAD' for the current commit; any ref string for PR/merge-target diffs. */
@@ -60,7 +61,12 @@ export type ModelStatus = 'loading' | 'ready' | 'error';
  *
  * **Registration** (`registerModel` / `unregisterModel`): ref-counted. Models are kept in memory
  * for 60 s after the last `unregisterModel` call, then evicted. Re-registering before the timer
- * fires cancels the eviction. FS watching is owned by `EditorProvider` (task-scoped), not the registry.
+ * fires cancels the eviction.
+ *
+ * **FS watching**: the registry self-manages `fsWatchEventChannel` subscriptions per workspace.
+ * When the first disk or git model for a workspace is registered it auto-subscribes; when the
+ * last model for that workspace is evicted it auto-unsubscribes. Callers do not need to wire
+ * any FS event handling.
  *
  * Binary files must be filtered by callers before registering (use `getFileKind` from fileKind.ts).
  */
@@ -119,7 +125,7 @@ class MonacoModelRegistry {
   /**
    * In-flight fetch deduplication. Prevents duplicate RPCs when two callers
    * register the same file concurrently before either resolves.
-   * Key: `{projectId}:{taskId}:{filePath}:disk` or `…:git:{ref}`
+   * Key: `{projectId}:{workspaceId}:{filePath}:disk` or `…:git:{ref}`
    */
   private pendingFetches = new Map<string, Promise<string | null>>();
 
@@ -159,6 +165,35 @@ class MonacoModelRegistry {
   private bufferContentDisposables = new Map<string, { dispose(): void }>();
 
   // ---------------------------------------------------------------------------
+  // FS event subscription management — one subscription per workspaceId
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Active fsWatchEventChannel unsubscribe functions, keyed by workspaceId.
+   * Auto-subscribed when the first disk/git model for a workspace is created;
+   * auto-unsubscribed when the last model for that workspace is evicted.
+   */
+  private workspaceSubscriptions = new Map<string, () => void>();
+
+  private _ensureWorkspaceSubscription(workspaceId: string): void {
+    if (this.workspaceSubscriptions.has(workspaceId)) return;
+    const unsub = events.on(
+      fsWatchEventChannel,
+      (data) => void this._handleFsEvents(workspaceId, data.events),
+      workspaceId
+    );
+    this.workspaceSubscriptions.set(workspaceId, unsub);
+  }
+
+  private _maybeReleaseWorkspaceSubscription(workspaceId: string): void {
+    const hasModels = [...this.modelMap.values()].some((e) => e.workspaceId === workspaceId);
+    if (!hasModels) {
+      this.workspaceSubscriptions.get(workspaceId)?.();
+      this.workspaceSubscriptions.delete(workspaceId);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // URI helpers (public)
   // ---------------------------------------------------------------------------
 
@@ -169,7 +204,7 @@ class MonacoModelRegistry {
   /**
    * Convert a buffer URI (file://) to a git:// URI for the given ref.
    * Ref is percent-encoded so slashes in branch names (e.g. origin/main) are safe.
-   * Example: file://task:abc/src/index.ts + ref='HEAD' → git://task:abc/HEAD/src/index.ts
+   * Example: file://workspace:abc/src/index.ts + ref='HEAD' → git://workspace:abc/HEAD/src/index.ts
    */
   toGitUri(bufferUri: string, ref: string): string {
     const withoutScheme = bufferUri.replace(/^file:\/\//, '');
@@ -199,13 +234,10 @@ class MonacoModelRegistry {
   /**
    * Register (or increment the reference count of) a model for `filePath`.
    *
-   * - `'disk'`          — fetches disk content via RPC, creates `disk://` model.
-   *                       FS watching is NOT started here; it starts only when a React
-   *                       component observes via `useModelStatus` (in an `observer()` component).
-   * - `'git'`            — fetches git content via RPC; creates `git://` model.
-   *                       .git dir watch starts only when observed.
-   * - `'buffer'`        — seeds from the existing disk model (disk must be registered first).
-   *                       Creates `file://` model, fires any queued `onceBufferReady` callbacks.
+   * - `'disk'`   — fetches disk content via RPC, creates `disk://` model.
+   * - `'git'`    — fetches git content via RPC; creates `git://` model.
+   * - `'buffer'` — seeds from the existing disk model (disk must be registered first).
+   *               Creates `file://` model, fires any queued `onceBufferReady` callbacks.
    *
    * Idempotent: if the model already exists, just increments ref count and returns the URI.
    *
@@ -213,7 +245,7 @@ class MonacoModelRegistry {
    */
   async registerModel(
     projectId: string,
-    taskId: string,
+    workspaceId: string,
     modelRootPath: string,
     filePath: string,
     language: string,
@@ -224,9 +256,9 @@ class MonacoModelRegistry {
 
     switch (type) {
       case 'disk':
-        return this.registerDisk(projectId, taskId, uri, filePath, language);
+        return this.registerDisk(projectId, workspaceId, uri, filePath, language);
       case 'git':
-        return this.registerGit(projectId, taskId, uri, filePath, language, ref);
+        return this.registerGit(projectId, workspaceId, uri, filePath, language, ref);
       case 'buffer':
         return this.registerBuffer(uri, language);
     }
@@ -234,7 +266,7 @@ class MonacoModelRegistry {
 
   private async registerDisk(
     projectId: string,
-    taskId: string,
+    workspaceId: string,
     uri: string,
     filePath: string,
     language: string
@@ -259,10 +291,10 @@ class MonacoModelRegistry {
     let content: string;
     let m: typeof monaco;
     try {
-      const fetchKey = `${projectId}:${taskId}:${filePath}:disk`;
+      const fetchKey = `${projectId}:${workspaceId}:${filePath}:disk`;
       [content, m] = await Promise.all([
         this.dedupFetch(fetchKey, async () => {
-          const res = await rpc.fs.readFile(projectId, taskId, filePath);
+          const res = await rpc.fs.readFile(projectId, workspaceId, filePath);
           if (!res.success)
             throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${res.error}`);
           const result = res.data.content;
@@ -284,11 +316,12 @@ class MonacoModelRegistry {
       model,
       refs: 1,
       projectId,
-      taskId,
+      workspaceId,
       filePath,
       language,
     };
     this.modelMap.set(diskUri, entry);
+    this._ensureWorkspaceSubscription(workspaceId);
 
     this.modelStatus.set(diskUri, 'ready');
 
@@ -297,7 +330,7 @@ class MonacoModelRegistry {
 
   private async registerGit(
     projectId: string,
-    taskId: string,
+    workspaceId: string,
     uri: string,
     filePath: string,
     language: string,
@@ -319,14 +352,14 @@ class MonacoModelRegistry {
     this.modelStatus.set(gitUri, 'loading');
 
     // Run the RPC fetch and Monaco initialization in parallel.
-    const fetchKey = `${projectId}:${taskId}:${filePath}:git:${ref}`;
+    const fetchKey = `${projectId}:${workspaceId}:${filePath}:git:${ref}`;
     const [content, m] = await Promise.all([
       this.dedupFetch(fetchKey, async () => {
         if (ref === 'staged') {
-          const res = await rpc.git.getFileAtIndex(projectId, taskId, filePath);
+          const res = await rpc.git.getFileAtIndex(projectId, workspaceId, filePath);
           return res.success ? res.data.content : null;
         }
-        const res = await rpc.git.getFileAtRef(projectId, taskId, filePath, ref);
+        const res = await rpc.git.getFileAtRef(projectId, workspaceId, filePath, ref);
         return res.success ? res.data.content : null;
       }),
       this.monacoReadyPromise,
@@ -340,12 +373,13 @@ class MonacoModelRegistry {
       model,
       refs: 1,
       projectId,
-      taskId,
+      workspaceId,
       filePath,
       language,
       ref,
     };
     this.modelMap.set(gitUri, entry);
+    this._ensureWorkspaceSubscription(workspaceId);
 
     this.modelStatus.set(gitUri, 'ready');
 
@@ -370,7 +404,7 @@ class MonacoModelRegistry {
     const diskEntry = this.modelMap.get(this.toDiskUri(uri));
     const seedContent = diskEntry?.type === 'disk' ? diskEntry.model.getValue() : '';
     const projectId = diskEntry?.projectId ?? '';
-    const taskId = diskEntry?.taskId ?? '';
+    const workspaceId = diskEntry?.workspaceId ?? '';
     const filePath = diskEntry?.filePath ?? '';
 
     {
@@ -382,7 +416,7 @@ class MonacoModelRegistry {
         model,
         refs: 1,
         projectId,
-        taskId,
+        workspaceId,
         filePath,
         language,
         viewState: null,
@@ -414,7 +448,7 @@ class MonacoModelRegistry {
             const value = currentEntry.model.getValue();
             void rpc.editorBuffer.saveBuffer(
               currentEntry.projectId,
-              currentEntry.taskId,
+              currentEntry.workspaceId,
               currentEntry.filePath,
               value
             );
@@ -460,6 +494,8 @@ class MonacoModelRegistry {
     entry.refs -= 1;
     if (entry.refs > 0) return;
 
+    const workspaceId = entry.workspaceId;
+
     // refs === 0 — start 60 s cleanup timer. If the model is re-registered before
     // the timer fires, the timer is cancelled in the register* methods above.
     const t = setTimeout(() => {
@@ -484,6 +520,8 @@ class MonacoModelRegistry {
           this.bufferVersions.delete(uri);
         });
       }
+      // Release workspace subscription if this was the last model for the workspace.
+      this._maybeReleaseWorkspaceSubscription(workspaceId);
     }, 60_000);
     this.evictionTimers.set(uri, t);
 
@@ -656,12 +694,12 @@ class MonacoModelRegistry {
     if (!buf || buf.type !== 'buffer') return null;
 
     const content = buf.model.getValue();
-    const result = await rpc.fs.writeFile(buf.projectId, buf.taskId, buf.filePath, content);
+    const result = await rpc.fs.writeFile(buf.projectId, buf.workspaceId, buf.filePath, content);
     if (!result.success) return null;
 
     this.markSaved(uri);
     this.pendingConflicts.delete(uri);
-    void rpc.editorBuffer.clearBuffer(buf.projectId, buf.taskId, buf.filePath);
+    void rpc.editorBuffer.clearBuffer(buf.projectId, buf.workspaceId, buf.filePath);
     return content;
   }
 
@@ -677,13 +715,18 @@ class MonacoModelRegistry {
     const entry = this.modelMap.get(uri);
     if (!entry) return;
     if (entry.type === 'disk') {
-      const res = await rpc.fs.readFile(entry.projectId, entry.taskId, entry.filePath);
+      const res = await rpc.fs.readFile(entry.projectId, entry.workspaceId, entry.filePath);
       if (res.success) this.applyDiskUpdate(uri, entry, res.data.content);
     } else if (entry.type === 'git') {
       const res =
         entry.ref === 'staged'
-          ? await rpc.git.getFileAtIndex(entry.projectId, entry.taskId, entry.filePath)
-          : await rpc.git.getFileAtRef(entry.projectId, entry.taskId, entry.filePath, entry.ref);
+          ? await rpc.git.getFileAtIndex(entry.projectId, entry.workspaceId, entry.filePath)
+          : await rpc.git.getFileAtRef(
+              entry.projectId,
+              entry.workspaceId,
+              entry.filePath,
+              entry.ref
+            );
       if (res.success && res.data.content !== null) {
         entry.model.setValue(res.data.content);
       }
@@ -694,14 +737,17 @@ class MonacoModelRegistry {
   // Git model refresh (triggered by .git dir watcher)
   // ---------------------------------------------------------------------------
 
-  private async refreshGitModelsForTask(projectId: string, taskId: string): Promise<void> {
+  private async refreshGitModelsForWorkspace(
+    projectId: string,
+    workspaceId: string
+  ): Promise<void> {
     const gitEntries = [...this.modelMap.entries()].filter(
-      ([uri, e]) => e.type === 'git' && e.taskId === taskId && uri.startsWith('git://')
+      ([uri, e]) => e.type === 'git' && e.workspaceId === workspaceId && uri.startsWith('git://')
     ) as [string, GitModelEntry][];
 
     for (const [_gitUri, entry] of gitEntries) {
       if (entry.ref !== 'HEAD') continue;
-      const result = await rpc.git.getFileAtRef(projectId, taskId, entry.filePath, 'HEAD');
+      const result = await rpc.git.getFileAtRef(projectId, workspaceId, entry.filePath, 'HEAD');
       if (!result.success || result.data.content === null) continue;
       if (entry.model.getValue() !== result.data.content) {
         entry.model.setValue(result.data.content);
@@ -710,7 +756,7 @@ class MonacoModelRegistry {
   }
 
   // ---------------------------------------------------------------------------
-  // Disk update helper (shared by handleFsEvents, pollTask, invalidateModel)
+  // Disk update helper (shared by _handleFsEvents and invalidateModel)
   // ---------------------------------------------------------------------------
 
   private applyDiskUpdate(diskUri: string, entry: DiskModelEntry, newContent: string): void {
@@ -739,33 +785,37 @@ class MonacoModelRegistry {
     }
   }
 
-  async handleFsEvents(taskId: string, fsEvents: FileWatchEvent[]): Promise<void> {
+  private async _handleFsEvents(workspaceId: string, fsEvents: FileWatchEvent[]): Promise<void> {
     // Route .git dir events → git model refresh.
     const hasGitEvent = fsEvents.some((e) => e.path.startsWith('.git'));
     if (hasGitEvent) {
       const gitEntry = [...this.modelMap.values()].find(
-        (e): e is GitModelEntry => e.type === 'git' && e.taskId === taskId
+        (e): e is GitModelEntry => e.type === 'git' && e.workspaceId === workspaceId
       );
-      if (gitEntry) void this.refreshGitModelsForTask(gitEntry.projectId, taskId);
+      if (gitEntry) void this.refreshGitModelsForWorkspace(gitEntry.projectId, workspaceId);
     }
 
     // Process disk file modification events (skip .git paths).
     for (const event of fsEvents.filter((e) => e.type === 'modify' && !e.path.startsWith('.git'))) {
-      const diskEntry = this.findDiskEntryByTaskAndPath(taskId, event.path);
+      const diskEntry = this._findDiskEntryByWorkspaceAndPath(workspaceId, event.path);
       if (!diskEntry) continue;
       const { diskUri, entry } = diskEntry;
-      const result = await rpc.fs.readFile(entry.projectId, taskId, event.path);
+      const result = await rpc.fs.readFile(entry.projectId, workspaceId, event.path);
       if (!result.success) continue;
       this.applyDiskUpdate(diskUri, entry, result.data.content);
     }
   }
 
-  private findDiskEntryByTaskAndPath(
-    taskId: string,
+  private _findDiskEntryByWorkspaceAndPath(
+    workspaceId: string,
     filePath: string
   ): { diskUri: string; entry: DiskModelEntry } | undefined {
     for (const [diskUri, entry] of this.modelMap) {
-      if (entry.type === 'disk' && entry.taskId === taskId && entry.filePath === filePath) {
+      if (
+        entry.type === 'disk' &&
+        entry.workspaceId === workspaceId &&
+        entry.filePath === filePath
+      ) {
         return { diskUri, entry };
       }
     }

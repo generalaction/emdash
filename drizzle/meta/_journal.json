@@ -57,6 +57,13 @@
       "when": 1775660444488,
       "tag": "0007_serious_ben_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1775743702649,
+      "tag": "0008_dapper_menace",
+      "breakpoints": true
     }
   ]
 }
