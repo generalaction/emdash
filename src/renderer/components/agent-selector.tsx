@@ -17,7 +17,6 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from './ui/combobox';
-import { TooltipProvider } from './ui/tooltip';
 
 interface AgentOption {
   value: string;
@@ -112,43 +111,41 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
           </ComboboxTrigger>
           <ComboboxContent className="min-w-(--anchor-width)">
             <ComboboxInput showTrigger={false} placeholder="Search agents..." />
-            <TooltipProvider delay={150}>
-              <ComboboxList className="pb-0">
-                {(group: AgentGroup) => (
-                  <ComboboxGroup key={group.value} items={group.items} className="py-1">
-                    <ComboboxLabel>{group.label}</ComboboxLabel>
-                    <ComboboxCollection>
-                      {(item: AgentOption) => {
-                        const config = agentConfig[item.agentId];
-                        return (
-                          <AgentTooltipRow key={item.value} id={item.agentId}>
-                            <ComboboxItem
-                              value={item}
-                              disabled={item.disabled}
-                              className={cn(
-                                item.disabled &&
-                                  'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed'
-                              )}
-                            >
-                              {config && (
-                                <AgentLogo
-                                  logo={config.logo}
-                                  alt={config.alt}
-                                  isSvg={config.isSvg}
-                                  invertInDark={config.invertInDark}
-                                  className="h-4 w-4 shrink-0 rounded-sm"
-                                />
-                              )}
-                              {item.label}
-                            </ComboboxItem>
-                          </AgentTooltipRow>
-                        );
-                      }}
-                    </ComboboxCollection>
-                  </ComboboxGroup>
-                )}
-              </ComboboxList>
-            </TooltipProvider>
+            <ComboboxList className="pb-0">
+              {(group: AgentGroup) => (
+                <ComboboxGroup key={group.value} items={group.items} className="py-1">
+                  <ComboboxLabel>{group.label}</ComboboxLabel>
+                  <ComboboxCollection>
+                    {(item: AgentOption) => {
+                      const config = agentConfig[item.agentId];
+                      return (
+                        <AgentTooltipRow key={item.value} id={item.agentId}>
+                          <ComboboxItem
+                            value={item}
+                            disabled={item.disabled}
+                            className={cn(
+                              item.disabled &&
+                                'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed'
+                            )}
+                          >
+                            {config && (
+                              <AgentLogo
+                                logo={config.logo}
+                                alt={config.alt}
+                                isSvg={config.isSvg}
+                                invertInDark={config.invertInDark}
+                                className="h-4 w-4 shrink-0 rounded-sm"
+                              />
+                            )}
+                            {item.label}
+                          </ComboboxItem>
+                        </AgentTooltipRow>
+                      );
+                    }}
+                  </ComboboxCollection>
+                </ComboboxGroup>
+              )}
+            </ComboboxList>
           </ComboboxContent>
         </Combobox>
       </div>
