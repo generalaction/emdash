@@ -72,6 +72,11 @@ beforeAll(async () => {
   automationsService = mod.automationsService;
 });
 
+/** Helper to access the private inFlightRuns set without repeating the cast. */
+function getInFlightRuns(): Set<string> {
+  return (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns;
+}
+
 // ---------------------------------------------------------------------------
 // computeNextRun — tested indirectly via create + schedule
 // We can also test it by creating automations and checking nextRunAt
@@ -588,11 +593,7 @@ describe('AutomationsService', () => {
       expect(logs).toHaveLength(1);
       expect(logs[0].status).toBe('running');
       expect(logs[0].automationId).toBe(automation.id);
-      expect(
-        (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns.has(
-          automation.id
-        )
-      ).toBe(true);
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
     });
 
     it('should update run log status', async () => {
@@ -627,10 +628,8 @@ describe('AutomationsService', () => {
       });
 
       const runLogId = await automationsService.createManualRunLog(automation.id);
-      const inFlightRuns = (automationsService as unknown as { inFlightRuns: Set<string> })
-        .inFlightRuns;
 
-      expect(inFlightRuns.has(automation.id)).toBe(true);
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
 
       await automationsService.updateRunLog(
         runLogId,
@@ -641,7 +640,7 @@ describe('AutomationsService', () => {
         automation.id
       );
 
-      expect(inFlightRuns.has(automation.id)).toBe(false);
+      expect(getInFlightRuns().has(automation.id)).toBe(false);
     });
 
     it('should increment runCount on manual trigger', async () => {
@@ -758,11 +757,7 @@ describe('AutomationsService', () => {
       const logs = await automationsService.getRunLogs(automation.id);
       expect(logs).toHaveLength(1);
       expect(logs[0].status).toBe('running');
-      expect(
-        (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns.has(
-          automation.id
-        )
-      ).toBe(true);
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
 
       // runCount should be incremented
       expect(fetched!.runCount).toBe(1);
@@ -859,14 +854,13 @@ describe('AutomationsService', () => {
 
       await automationsService.createManualRunLog(automation.id);
 
-      const inFlightRuns = (automationsService as unknown as { inFlightRuns: Set<string> })
-        .inFlightRuns;
-      inFlightRuns.add(automation.id);
+      // createManualRunLog populates inFlightRuns via the public API
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
 
       vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
       await automationsService.reconcileMissedRuns();
 
-      expect(inFlightRuns.has(automation.id)).toBe(false);
+      expect(getInFlightRuns().has(automation.id)).toBe(false);
     });
 
     it('should mark runs exceeding max duration as timed out', async () => {
@@ -931,11 +925,7 @@ describe('AutomationsService', () => {
 
       const originalNextRunAt = automation.nextRunAt;
       const runLogId = await automationsService.createManualRunLog(automation.id);
-      expect(
-        (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns.has(
-          automation.id
-        )
-      ).toBe(true);
+      expect(getInFlightRuns().has(automation.id)).toBe(true);
 
       vi.setSystemTime(new Date(2025, 5, 15, 10, 30, 0));
       await automationsService.reconcileMissedRunsAfterResume();
@@ -978,11 +968,7 @@ describe('AutomationsService', () => {
       expect(logs[0].status).toBe('failure');
       expect(logs[0].error).toBe('Renderer unavailable');
       expect(logs[0].finishedAt).toBeTruthy();
-      expect(
-        (automationsService as unknown as { inFlightRuns: Set<string> }).inFlightRuns.has(
-          automation.id
-        )
-      ).toBe(false);
+      expect(getInFlightRuns().has(automation.id)).toBe(false);
 
       const fetched = await automationsService.get(automation.id);
       expect(fetched!.lastRunResult).toBe('failure');
