@@ -28,7 +28,7 @@ export function PrBadge({ variant = 'default', pr, className }: PrBadgeProps) {
       case 'compact':
         return (
           <div className={cn('px-1 flex items-center justify-center', className)}>
-            <StatusIcon className="size-3" status={pr.status} />
+            <StatusIcon className="size-3" status={pr.status} disableTooltip />
           </div>
         );
     }

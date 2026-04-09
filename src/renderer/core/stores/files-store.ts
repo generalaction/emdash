@@ -176,6 +176,8 @@ export class FilesStore {
           void this._loadDirInternal(entry.path);
         }
       }
+
+      this._bumpTreeDebounced();
     } catch {
       // Silently ignore errors for individual directories
     } finally {
