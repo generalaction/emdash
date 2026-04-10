@@ -1,6 +1,7 @@
 import { IntegrationSetupModal } from '@renderer/features/integrations/integration-setup-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
 import { AddProjectModal } from '@renderer/features/projects/components/add-project-modal/add-project-modal';
+import { CreateSkillModal } from '@renderer/features/skills/components/CreateSkillModal';
 import { AddRemoteModal } from '@renderer/features/tasks/add-remote-modal';
 import { CreateConversationModal } from '@renderer/features/tasks/conversations/create-conversation-modal';
 import { CreateTaskModal } from '@renderer/features/tasks/create-task-modal/create-task-modal';
@@ -38,6 +39,7 @@ export const modalRegistry = {
   createConversationModal: { component: CreateConversationModal },
   feedbackModal: { component: FeedbackModal },
   mcpServerModal: { component: McpModal },
+  createSkillModal: { component: CreateSkillModal },
   conflictDialog: { component: ConflictDialog, popupClassName: 'sm:max-w-sm' },
   createPrModal: {
     component: CreatePrModal,

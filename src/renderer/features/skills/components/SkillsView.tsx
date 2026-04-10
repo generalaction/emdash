@@ -1,21 +1,9 @@
 import { Loader2, Plus, RefreshCw, Search } from 'lucide-react';
-import React, { useState } from 'react';
-import { isValidSkillName } from '@shared/skills/validation';
+import React from 'react';
 import { rpc } from '@renderer/lib/ipc';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogContentArea,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@renderer/lib/ui/dialog';
 import { Input } from '@renderer/lib/ui/input';
-import { Label } from '@renderer/lib/ui/label';
-import { Textarea } from '@renderer/lib/ui/textarea';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import SkillCard from './SkillCard';
 import SkillDetailModal from './SkillDetailModal';
 import { useSkills } from './useSkills';
@@ -28,8 +16,6 @@ const SkillsView: React.FC = () => {
     setSearchQuery,
     selectedSkill,
     showDetailModal,
-    showCreateModal,
-    setShowCreateModal,
     installedSkills,
     recommendedSkills,
     refresh,
@@ -37,54 +23,8 @@ const SkillsView: React.FC = () => {
     uninstall,
     openDetail,
     closeDetail,
-    loadCatalog,
   } = useSkills();
-
-  // New Skill form state
-  const [newName, setNewName] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newContent, setNewContent] = useState('');
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-
-  const handleCreateSkill = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCreateError(null);
-
-    const trimmedName = newName.trim();
-    if (!isValidSkillName(trimmedName)) {
-      setCreateError('Name must be lowercase letters, numbers, and hyphens (2-64 chars).');
-      return;
-    }
-    if (!newDescription.trim()) {
-      setCreateError('Description is required.');
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const result = await rpc.skills.create({
-        name: trimmedName,
-        description: newDescription.trim(),
-        content: newContent.trim(),
-      });
-      if (result.success) {
-        captureTelemetry('skill_created');
-
-        setShowCreateModal(false);
-        setNewName('');
-        setNewDescription('');
-        setNewContent('');
-        await loadCatalog();
-      } else {
-        setCreateError(result.error || 'Failed to create skill');
-      }
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create skill');
-    } finally {
-      setIsCreating(false);
-    }
-  };
+  const showCreateSkillModal = useShowModal('createSkillModal');
 
   const handleOpenTerminal = (skillPath: string) => {
     rpc.app.openIn({ app: 'terminal', path: skillPath });
@@ -131,7 +71,7 @@ const SkillsView: React.FC = () => {
               className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
             />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowCreateModal(true)}>
+          <Button variant="outline" size="sm" onClick={() => showCreateSkillModal({})}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             New Skill
           </Button>
@@ -215,90 +155,6 @@ const SkillsView: React.FC = () => {
         onUninstall={uninstall}
         onOpenTerminal={handleOpenTerminal}
       />
-
-      <Dialog
-        open={showCreateModal}
-        onOpenChange={(open) => {
-          if (!open && !isCreating) {
-            setShowCreateModal(false);
-            setNewName('');
-            setNewDescription('');
-            setNewContent('');
-            setCreateError(null);
-          }
-        }}
-      >
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>New Skill</DialogTitle>
-            <DialogDescription className="text-xs">
-              Create a new skill module in ~/.agentskills/
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogContentArea>
-            <form onSubmit={handleCreateSkill} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="skill-name" className="text-xs">
-                  Name
-                </Label>
-                <Input
-                  id="skill-name"
-                  placeholder="my-skill"
-                  value={newName}
-                  onChange={(e) => {
-                    setNewName(e.target.value);
-                    setCreateError(null);
-                  }}
-                  className="text-sm"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Lowercase letters, numbers, and hyphens
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="skill-desc" className="text-xs">
-                  Description
-                </Label>
-                <Input
-                  id="skill-desc"
-                  placeholder="What does this skill do?"
-                  value={newDescription}
-                  onChange={(e) => {
-                    setNewDescription(e.target.value);
-                    setCreateError(null);
-                  }}
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="skill-content" className="text-xs">
-                  Instructions
-                </Label>
-                <Textarea
-                  id="skill-content"
-                  placeholder="Write the skill instructions here. The YAML frontmatter (name and description) will be added automatically."
-                  value={newContent}
-                  onChange={(e) => {
-                    setNewContent(e.target.value);
-                    setCreateError(null);
-                  }}
-                  className="min-h-[200px] font-mono text-sm"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Define what this skill does and how agents should use it
-                </p>
-              </div>
-              {createError && <p className="text-xs text-destructive">{createError}</p>}
-            </form>
-          </DialogContentArea>
-          <DialogFooter>
-            <Button type="submit" size="sm" disabled={isCreating}>
-              {isCreating ? 'Creating...' : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
