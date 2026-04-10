@@ -3,6 +3,7 @@ import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 import { TabbedPtyPanel } from '@renderer/features/tasks/tabbed-pty-panel';
@@ -24,6 +25,8 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const isActive = useIsActiveTask(taskId);
   const [isPanelFocused, setIsPanelFocused] = useState(false);
+  const mountedProject = asMounted(getProjectStore(projectId));
+  const shouldSetWorkingOnEnter = mountedProject?.data.type !== 'ssh';
 
   const autoFocus = isActive && provisioned.taskView.focusedRegion === 'main';
 
@@ -58,7 +61,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
       paneId="conversations"
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}
-      onEnterPress={(s) => s.setWorking()}
+      onEnterPress={shouldSetWorkingOnEnter ? (s) => s.setWorking() : undefined}
       tabBar={<ConversationsTabs projectId={projectId} taskId={taskId} />}
       emptyState={
         <EmptyState

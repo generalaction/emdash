@@ -1,11 +1,12 @@
 import { Home, Server } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useSshConnectionContext } from '@renderer/lib/providers/ssh-connection-provider';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -63,6 +64,14 @@ export function AddProjectModal({
   const [strategy, setStrategy] = useState<Strategy>(strategyProp ?? 'local');
   const [mode, setMode] = useState<Mode>(modeProp ?? 'pick');
   const [connectionId, setConnectionId] = useState<string | undefined>(connectionIdProp);
+  const { connections } = useSshConnectionContext();
+  const availableConnectionIds = useMemo(
+    () =>
+      connections.map((connection) => connection.id).filter((id): id is string => id !== undefined),
+    [connections]
+  );
+  const selectedConnectionId =
+    strategy === 'ssh' ? (connectionId ?? availableConnectionIds[0]) : connectionId;
 
   const { navigate } = useNavigate();
 
@@ -94,7 +103,7 @@ export function AddProjectModal({
   const cloneState = useCloneMode(defaultPath);
 
   const activeMode = { pick: pickState, new: newState, clone: cloneState }[mode];
-  const canCreate = activeMode.isValid && (strategy === 'local' || !!connectionId);
+  const canCreate = activeMode.isValid && (strategy === 'local' || !!selectedConnectionId);
 
   const handleSubmit = async () => {
     try {
@@ -107,7 +116,10 @@ export function AddProjectModal({
         }
       }
       if (strategy === 'ssh') {
-        const project = await rpc.projects.getSshProjectByPath(pickState.path, connectionId!);
+        const project = await rpc.projects.getSshProjectByPath(
+          pickState.path,
+          selectedConnectionId!
+        );
         if (project) {
           navigate('project', { projectId: project.id });
           onClose();
@@ -120,8 +132,8 @@ export function AddProjectModal({
 
     const id = crypto.randomUUID();
     const projectType =
-      strategy === 'ssh' && connectionId
-        ? { type: 'ssh' as const, connectionId }
+      strategy === 'ssh' && selectedConnectionId
+        ? { type: 'ssh' as const, connectionId: selectedConnectionId }
         : { type: 'local' as const };
 
     switch (mode) {
@@ -223,20 +235,28 @@ export function AddProjectModal({
           <Field>
             <FieldLabel>SSH Connection</FieldLabel>
             <SshConnectionSelector
-              connectionId={connectionId}
+              connectionId={selectedConnectionId}
               onConnectionIdChange={setConnectionId}
               onAddConnection={handleAddConnection}
             />
           </Field>
         )}
         {mode === 'pick' && (
-          <PickExistingPanel strategy={strategy} connectionId={connectionId} state={pickState} />
+          <PickExistingPanel
+            strategy={strategy}
+            connectionId={selectedConnectionId}
+            state={pickState}
+          />
         )}
         {mode === 'new' && (
-          <CreateNewPanel strategy={strategy} connectionId={connectionId} state={newState} />
+          <CreateNewPanel
+            strategy={strategy}
+            connectionId={selectedConnectionId}
+            state={newState}
+          />
         )}
         {mode === 'clone' && (
-          <ClonePanel strategy={strategy} connectionId={connectionId} state={cloneState} />
+          <ClonePanel strategy={strategy} connectionId={selectedConnectionId} state={cloneState} />
         )}
       </DialogContentArea>
     </ModalLayout>

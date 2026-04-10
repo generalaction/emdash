@@ -23,17 +23,14 @@ export function SshConnectionSelector({
       label: connection.name,
     }));
 
+  const selectedOption = connectionId
+    ? (options.find((o) => o.value === connectionId) ?? null)
+    : null;
+
   return (
     <ComboboxPopover
       items={options}
-      defaultValue={
-        connectionId
-          ? {
-              value: connectionId,
-              label: options.find((o) => o.value === connectionId)?.label ?? connectionId,
-            }
-          : options[0]
-      }
+      value={selectedOption}
       onValueChange={(conn) => onConnectionIdChange(conn.value)}
       actions={[
         {

@@ -99,7 +99,19 @@ export function SshConnectionProvider({ children }: { children: React.ReactNode 
   const saveConnectionMutation = useMutation({
     mutationFn: (config: Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }) =>
       rpc.ssh.saveConnection(config),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: SSH_CONNECTIONS_KEY }),
+    onSuccess: (savedConnection) => {
+      queryClient.setQueryData<SshConfig[]>(SSH_CONNECTIONS_KEY, (previous = []) => {
+        const existingIndex = previous.findIndex(
+          (connection) => connection.id === savedConnection.id
+        );
+        if (existingIndex === -1) return [...previous, savedConnection];
+
+        const next = [...previous];
+        next[existingIndex] = savedConnection;
+        return next;
+      });
+      void queryClient.invalidateQueries({ queryKey: SSH_CONNECTIONS_KEY });
+    },
   });
 
   const renameConnectionMutation = useMutation({
