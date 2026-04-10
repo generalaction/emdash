@@ -10,6 +10,7 @@ import {
 import type { GitHubConnectResponse, GitHubUser } from '@shared/github';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { getLocalExec } from '@main/core/utils/exec';
+import { KV } from '@main/db/kv';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { extractGhCliToken } from './gh-cli-token';
@@ -39,6 +40,11 @@ export type TokenSource = 'keytar' | 'cli' | null;
 export interface GitHubAuthService {
   getToken(): Promise<string | null>;
   getTokenSource(): Promise<TokenSource>;
+  getStatus(): Promise<{
+    authenticated: boolean;
+    user: GitHubUser | null;
+    tokenSource: TokenSource;
+  }>;
   isAuthenticated(): Promise<boolean>;
   getCurrentUser(): Promise<GitHubUser | null>;
   getUserInfo(token: string): Promise<GitHubUser | null>;
@@ -51,7 +57,12 @@ export interface GitHubAuthService {
 
 const SERVICE_NAME = 'emdash-github';
 const ACCOUNT_NAME = 'github-token';
-const TOKEN_SOURCE_ACCOUNT_NAME = 'github-token-source';
+
+interface GitHubKVSchema extends Record<string, unknown> {
+  tokenSource: Exclude<TokenSource, null>;
+}
+
+const githubKV = new KV<GitHubKVSchema>('github');
 
 const GITHUB_CONFIG = {
   clientId: 'Ov23ligC35uHWopzCeWf',
@@ -61,14 +72,34 @@ const GITHUB_CONFIG = {
 export class GitHubAuthServiceImpl implements GitHubAuthService {
   private deviceFlowAbortController: AbortController | null = null;
 
-  private async getStoredTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
+  private parseTokenSource(raw: unknown): Exclude<TokenSource, null> | null {
+    return raw === 'cli' || raw === 'keytar' ? raw : null;
+  }
+
+  private async getStoredTokenSource(): Promise<Exclude<TokenSource, null> | null> {
     try {
-      const [token, rawSource] = await Promise.all([
-        keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME),
-        keytar.getPassword(SERVICE_NAME, TOKEN_SOURCE_ACCOUNT_NAME),
-      ]);
-      const source: TokenSource = rawSource === 'cli' || rawSource === 'keytar' ? rawSource : null;
-      return { token: token ?? null, source };
+      return this.parseTokenSource(await githubKV.get('tokenSource'));
+    } catch {
+      return null;
+    }
+  }
+
+  private async setStoredTokenSource(source: Exclude<TokenSource, null>): Promise<void> {
+    await githubKV.set('tokenSource', source);
+  }
+
+  private async clearStoredTokenSource(): Promise<void> {
+    await githubKV.del('tokenSource');
+  }
+
+  private async getStoredTokenRecord(): Promise<{
+    token: string | null;
+    source: Exclude<TokenSource, null> | null;
+  }> {
+    try {
+      const token = (await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME)) ?? null;
+      const source = await this.getStoredTokenSource();
+      return { token, source };
     } catch {
       return { token: null, source: null };
     }
@@ -77,11 +108,11 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
   private async clearStoredToken(): Promise<void> {
     await Promise.all([
       keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME),
-      keytar.deletePassword(SERVICE_NAME, TOKEN_SOURCE_ACCOUNT_NAME),
+      this.clearStoredTokenSource(),
     ]);
   }
 
-  async getToken(): Promise<string | null> {
+  private async resolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
     const { token: storedToken, source } = await this.getStoredTokenRecord();
     const exec = getLocalExec();
 
@@ -93,7 +124,7 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
         } catch (error) {
           log.warn('Failed to clear stale CLI token from keytar:', error);
         }
-        return null;
+        return { token: null, source: null };
       }
       if (cliToken !== storedToken) {
         try {
@@ -101,35 +132,53 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
         } catch (error) {
           log.warn('Failed to sync refreshed CLI token to keytar:', error);
         }
-        return cliToken;
+        return { token: cliToken, source: 'cli' };
       }
-      return storedToken;
+      return { token: storedToken, source: 'cli' };
     }
 
-    if (storedToken) return storedToken;
+    if (storedToken) {
+      return { token: storedToken, source: source ?? 'keytar' };
+    }
 
     const cliToken = await extractGhCliToken(exec);
-    if (!cliToken) return null;
+    if (!cliToken) return { token: null, source: null };
 
     try {
       await this.storeToken(cliToken, 'cli');
     } catch (error) {
       log.warn('Failed to cache CLI token in keytar:', error);
     }
-    return cliToken;
+    return { token: cliToken, source: 'cli' };
+  }
+
+  async getToken(): Promise<string | null> {
+    const { token } = await this.resolveTokenRecord();
+    return token;
   }
 
   async getTokenSource(): Promise<TokenSource> {
-    const token = await this.getToken();
+    const { token, source } = await this.resolveTokenRecord();
     if (!token) return null;
+    return source ?? 'keytar';
+  }
 
-    const { source } = await this.getStoredTokenRecord();
-    if (source) return source;
+  async getStatus(): Promise<{
+    authenticated: boolean;
+    user: GitHubUser | null;
+    tokenSource: TokenSource;
+  }> {
+    const { token, source } = await this.resolveTokenRecord();
+    if (!token) {
+      return { authenticated: false, user: null, tokenSource: null };
+    }
 
-    const cliToken = await extractGhCliToken(getLocalExec());
-    if (cliToken && cliToken === token) return 'cli';
-
-    return 'keytar';
+    const user = await this.getUserInfo(token);
+    return {
+      authenticated: true,
+      user,
+      tokenSource: source ?? 'keytar',
+    };
   }
 
   async isAuthenticated(): Promise<boolean> {
@@ -243,10 +292,8 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
   }
 
   async storeToken(token: string, source: Exclude<TokenSource, null> = 'keytar'): Promise<void> {
-    await Promise.all([
-      keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, token),
-      keytar.setPassword(SERVICE_NAME, TOKEN_SOURCE_ACCOUNT_NAME, source),
-    ]);
+    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, token);
+    await this.setStoredTokenSource(source);
   }
 
   cancelAuth(): void {
