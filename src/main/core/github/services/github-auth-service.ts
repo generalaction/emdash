@@ -40,6 +40,11 @@ export type TokenSource = 'keytar' | 'cli' | null;
 export interface GitHubAuthService {
   getToken(): Promise<string | null>;
   getTokenSource(): Promise<TokenSource>;
+  getStatus(): Promise<{
+    authenticated: boolean;
+    user: GitHubUser | null;
+    tokenSource: TokenSource;
+  }>;
   isAuthenticated(): Promise<boolean>;
   getCurrentUser(): Promise<GitHubUser | null>;
   getUserInfo(token: string): Promise<GitHubUser | null>;
@@ -107,7 +112,7 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
     ]);
   }
 
-  async getToken(): Promise<string | null> {
+  private async resolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
     const { token: storedToken, source } = await this.getStoredTokenRecord();
     const exec = getLocalExec();
 
@@ -119,7 +124,7 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
         } catch (error) {
           log.warn('Failed to clear stale CLI token from keytar:', error);
         }
-        return null;
+        return { token: null, source: null };
       }
       if (cliToken !== storedToken) {
         try {
@@ -127,35 +132,53 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
         } catch (error) {
           log.warn('Failed to sync refreshed CLI token to keytar:', error);
         }
-        return cliToken;
+        return { token: cliToken, source: 'cli' };
       }
-      return storedToken;
+      return { token: storedToken, source: 'cli' };
     }
 
-    if (storedToken) return storedToken;
+    if (storedToken) {
+      return { token: storedToken, source: source ?? 'keytar' };
+    }
 
     const cliToken = await extractGhCliToken(exec);
-    if (!cliToken) return null;
+    if (!cliToken) return { token: null, source: null };
 
     try {
       await this.storeToken(cliToken, 'cli');
     } catch (error) {
       log.warn('Failed to cache CLI token in keytar:', error);
     }
-    return cliToken;
+    return { token: cliToken, source: 'cli' };
+  }
+
+  async getToken(): Promise<string | null> {
+    const { token } = await this.resolveTokenRecord();
+    return token;
   }
 
   async getTokenSource(): Promise<TokenSource> {
-    const token = await this.getToken();
+    const { token, source } = await this.resolveTokenRecord();
     if (!token) return null;
+    return source ?? 'keytar';
+  }
 
-    const { source } = await this.getStoredTokenRecord();
-    if (source) return source;
+  async getStatus(): Promise<{
+    authenticated: boolean;
+    user: GitHubUser | null;
+    tokenSource: TokenSource;
+  }> {
+    const { token, source } = await this.resolveTokenRecord();
+    if (!token) {
+      return { authenticated: false, user: null, tokenSource: null };
+    }
 
-    const cliToken = await extractGhCliToken(getLocalExec());
-    if (cliToken && cliToken === token) return 'cli';
-
-    return 'keytar';
+    const user = await this.getUserInfo(token);
+    return {
+      authenticated: true,
+      user,
+      tokenSource: source ?? 'keytar',
+    };
   }
 
   async isAuthenticated(): Promise<boolean> {

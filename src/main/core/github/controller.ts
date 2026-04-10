@@ -22,16 +22,7 @@ import { capture, identify as telemetryIdentify } from '@main/lib/telemetry';
 export const githubController = createRPCController({
   getStatus: async (): Promise<GitHubStatusResponse> => {
     try {
-      const authenticated = await githubAuthService.isAuthenticated();
-
-      const [user, tokenSource] = authenticated
-        ? await Promise.all([
-            githubAuthService.getCurrentUser(),
-            githubAuthService.getTokenSource(),
-          ])
-        : [null, null];
-
-      return { authenticated, user, tokenSource };
+      return await githubAuthService.getStatus();
     } catch (error) {
       log.error('GitHub status check failed:', error);
       return { authenticated: false, user: null, tokenSource: null };
