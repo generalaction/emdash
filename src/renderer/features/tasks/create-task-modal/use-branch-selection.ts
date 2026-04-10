@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Branch, DefaultBranch } from '@shared/git';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 
@@ -35,6 +36,9 @@ export function useBranchSelection(
   branches: Branch[],
   defaultBranch: DefaultBranch | undefined
 ) {
+  const { value: localProject } = useAppSettingsKey('localProject');
+  const pushOnCreateByDefault = localProject?.pushOnCreate ?? true;
+
   // Store the user's branch override alongside the project it belongs to.
   // When the project changes the override is for a different project and is
   // ignored, so defaultBranch takes effect automatically — no effect needed.
@@ -59,7 +63,11 @@ export function useBranchSelection(
   );
 
   const [createBranchAndWorktree, setCreateBranchAndWorktree] = useState(true);
-  const [pushBranch, setPushBranch] = useState(false);
+  const [pushBranchOverride, setPushBranchOverride] = useState<boolean | undefined>(undefined);
+  const pushBranch = pushBranchOverride ?? pushOnCreateByDefault;
+  const setPushBranch = useCallback((value: boolean) => {
+    setPushBranchOverride(value);
+  }, []);
 
   return {
     selectedBranch,
