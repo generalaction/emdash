@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Branch, DefaultBranch } from '@shared/git';
 import { resolveDefaultSelectedBranch } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
+
+vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
+  useAppSettingsKey: () => ({ value: { pushOnCreate: true } }),
+}));
 
 describe('resolveDefaultSelectedBranch', () => {
   it('prefers matching local branch for the default branch', () => {
