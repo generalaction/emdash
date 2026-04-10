@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AgentProviderId } from '@shared/agent-provider-registry';
 import { getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -17,6 +17,7 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
+import { nextDefaultConversationTitle } from './conversation-title-utils';
 
 function getConversationsPaneSize() {
   const container = getPaneContainer('conversations');
@@ -41,17 +42,10 @@ export const CreateConversationModal = observer(function CreateConversationModal
     undefined
   );
   const skipPermissions = skipPermissionsOverride ?? defaultSkipPermissions;
-
-  const providerIdConversationsCount = useMemo(() => {
-    if (!conversationMgr) return 0;
-    return Array.from(conversationMgr.conversations.values()).filter(
-      (c) => c.data.providerId === providerId
-    ).length;
-  }, [conversationMgr, conversationMgr?.conversations.size, providerId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const title = useMemo(() => {
-    return `${providerId} (${providerIdConversationsCount + 1})`;
-  }, [providerId, providerIdConversationsCount]);
+  const title = nextDefaultConversationTitle(
+    providerId,
+    Array.from(conversationMgr?.conversations.values() ?? [], (conversation) => conversation.data)
+  );
 
   const handleCreateConversation = useCallback(() => {
     const id = crypto.randomUUID();
