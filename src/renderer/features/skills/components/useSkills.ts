@@ -14,13 +14,8 @@ export function useSkills() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const {
-    data: catalog = null,
-    isPending: isLoading,
-    refetch: loadCatalog,
-  } = useQuery({
+  const { data: catalog = null, isPending: isLoading } = useQuery({
     queryKey: CATALOG_QUERY_KEY,
     queryFn: async () => {
       const result = await rpc.skills.getCatalog();
@@ -172,8 +167,6 @@ export function useSkills() {
     setSearchQuery,
     selectedSkill,
     showDetailModal,
-    showCreateModal,
-    setShowCreateModal,
     filteredSkills,
     installedSkills,
     recommendedSkills,
@@ -182,6 +175,5 @@ export function useSkills() {
     uninstall,
     openDetail,
     closeDetail,
-    loadCatalog,
   };
 }
