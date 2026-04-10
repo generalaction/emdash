@@ -89,12 +89,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
         {tabs.length === 0 ? (
           emptyState
         ) : (
-          <div
-            className={cn(
-              'flex min-h-0 flex-1 flex-col transition-opacity duration-150',
-              !autoFocus && 'opacity-50'
-            )}
-          >
+          <div className={cn('flex min-h-0 flex-1 flex-col')}>
             {activeSessionId && activeSession?.status === 'ready' && activeSession.pty && (
               <TerminalPane
                 ref={terminalRef}

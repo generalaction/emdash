@@ -192,7 +192,7 @@ export function PaneSizingProvider({ paneId, sessionIds, children }: PaneSizingP
 
   return (
     <PaneSizingContext.Provider value={value}>
-      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col px-2 pb-2">
+      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col p-2">
         {children}
       </div>
     </PaneSizingContext.Provider>

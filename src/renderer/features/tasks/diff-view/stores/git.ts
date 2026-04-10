@@ -6,10 +6,6 @@ import { err, ok } from '@shared/result';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface BranchStatus {
   branch: string;
   upstream?: string;
@@ -22,10 +18,6 @@ interface GitStatusData {
   totalLinesAdded: number;
   totalLinesDeleted: number;
 }
-
-// ---------------------------------------------------------------------------
-// GitStore
-// ---------------------------------------------------------------------------
 
 export class GitStore {
   readonly status: Resource<GitStatusData>;
@@ -49,7 +41,7 @@ export class GitStore {
             };
           },
           onEvent: 'reload',
-          debounceMs: 400,
+          debounceMs: 500,
         },
       ]
     );

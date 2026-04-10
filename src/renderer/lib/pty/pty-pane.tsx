@@ -135,4 +135,3 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
 TerminalPaneComponent.displayName = 'TerminalPane';
 
 export const TerminalPane = React.memo(TerminalPaneComponent);
-export default TerminalPane;
