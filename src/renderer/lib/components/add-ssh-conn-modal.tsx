@@ -400,45 +400,46 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
             </form.Subscribe>
           </FieldGroup>
         </form>
-      </DialogContentArea>
-
-      {/* Test connection result */}
-      {testState !== 'idle' && (
-        <div className="mx-4 rounded-md border border-input px-3 py-2 text-sm">
-          <div className="flex items-center gap-2">
-            {testState === 'testing' && (
-              <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
-            )}
-            {testState === 'success' && <CheckCircle2 className="size-4 text-green-500" />}
-            {testState === 'error' && <XCircle className="size-4 text-destructive" />}
-            <span className="flex-1 font-medium">
-              {testState === 'testing' && 'Testing connection…'}
-              {testState === 'success' &&
-                'Connected' + (testResult?.latency ? ' (' + testResult.latency + 'ms)' : '')}
-              {testState === 'error' && (testResult?.error ?? 'Connection failed')}
-            </span>
-            {testState === 'error' && testResult?.debugLogs && testResult.debugLogs.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowDebugLogs((v) => !v)}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                {showDebugLogs ? (
-                  <ChevronUp className="size-3" />
-                ) : (
-                  <ChevronDown className="size-3" />
+        {/* Test connection result */}
+        {testState !== 'idle' && (
+          <div className="rounded-md border border-input px-3 py-2 text-sm">
+            <div className="flex items-center gap-2">
+              {testState === 'testing' && (
+                <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
+              )}
+              {testState === 'success' && <CheckCircle2 className="size-4 text-green-500" />}
+              {testState === 'error' && <XCircle className="size-4 text-destructive" />}
+              <span className="flex-1 font-medium">
+                {testState === 'testing' && 'Testing connection…'}
+                {testState === 'success' &&
+                  'Connected' + (testResult?.latency ? ' (' + testResult.latency + 'ms)' : '')}
+                {testState === 'error' && (testResult?.error ?? 'Connection failed')}
+              </span>
+              {testState === 'error' &&
+                testResult?.debugLogs &&
+                testResult.debugLogs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDebugLogs((v) => !v)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {showDebugLogs ? (
+                      <ChevronUp className="size-3" />
+                    ) : (
+                      <ChevronDown className="size-3" />
+                    )}
+                    Logs
+                  </button>
                 )}
-                Logs
-              </button>
+            </div>
+            {showDebugLogs && testResult?.debugLogs && (
+              <pre className="mt-2 max-h-32 overflow-y-auto rounded bg-muted px-2 py-1.5 text-xs text-muted-foreground">
+                {testResult.debugLogs.join('\n')}
+              </pre>
             )}
           </div>
-          {showDebugLogs && testResult?.debugLogs && (
-            <pre className="mt-2 max-h-32 overflow-y-auto rounded bg-muted px-2 py-1.5 text-xs text-muted-foreground">
-              {testResult.debugLogs.join('\n')}
-            </pre>
-          )}
-        </div>
-      )}
+        )}
+      </DialogContentArea>
     </ModalLayout>
   );
 }
