@@ -24,18 +24,20 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
   projectId: string;
   taskId: string;
 }) {
-  const kind = taskViewKind(getTaskStore(projectId, taskId), projectId);
+  const taskStore = getTaskStore(projectId, taskId);
+  const kind = taskViewKind(taskStore, projectId);
 
   // Auto-provision when the task view is rendered with an idle task — covers
   // session restore where the task wasn't in openTaskIds, direct navigation,
   // and any other path that lands on the task view before provisioning runs.
   useEffect(() => {
     if (kind !== 'idle') return;
+    if (taskStore && 'archivedAt' in taskStore.data && taskStore.data.archivedAt) return;
 
     getTaskManagerStore(projectId)
       ?.provisionTask(taskId)
       .catch(() => {});
-  }, [kind, projectId, taskId]);
+  }, [kind, projectId, taskId, taskStore]);
 
   if (kind !== 'ready') {
     return (
