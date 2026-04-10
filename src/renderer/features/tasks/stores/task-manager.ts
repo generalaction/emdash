@@ -23,7 +23,7 @@ function formatCreateTaskError(error: CreateTaskError): string {
     case 'branch-already-exists':
       return `Branch "${error.branch}" already exists. Try a different task name.`;
     case 'invalid-base-branch':
-      return `Source branch "${error.branch}" is not a valid base. Check that the branch exists on the remote.`;
+      return `Source branch "${error.branch}" is not a valid base. Check that it exists locally or on the selected remote.`;
     case 'worktree-setup-failed':
       return `Could not set up the worktree: ${error.message}`;
     case 'pr-fetch-failed':
