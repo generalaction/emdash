@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Conversation } from '@shared/conversations';
 import { LocalProject } from '@shared/projects';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
@@ -15,9 +16,11 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
 import { githubAuthService } from '@main/core/github/services/github-auth-service';
+import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
-import { getGitLocalExec } from '@main/core/utils/exec';
+import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { WorkspaceLifecycleService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
@@ -36,6 +39,7 @@ import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 const TASK_TIMEOUT_MS = 60_000;
+const TEARDOWN_SCRIPT_WAIT_MS = 10_000;
 
 function toProvisionError(e: unknown): ProvisionTaskError {
   if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
@@ -72,6 +76,7 @@ export class LocalProjectProvider implements ProjectProvider {
   private bootstrapErrors = new Map<string, ProvisionTaskError>();
   private worktreeService: WorktreeService;
   private workspaceRegistry = new WorkspaceRegistry();
+  private readonly localExec = getLocalExec();
 
   constructor(
     private readonly project: LocalProject,
@@ -307,14 +312,23 @@ export class LocalProjectProvider implements ProjectProvider {
   async teardownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
     if (this.tearingDownTasks.has(taskId)) return this.tearingDownTasks.get(taskId)!;
     const task = this.tasks.get(taskId);
-    if (!task) return ok();
+    if (!task) {
+      await this.cleanupDetachedTmuxSessions(taskId);
+      return ok();
+    }
 
     const promise = withTimeout(this.doTeardownTask(task), TASK_TIMEOUT_MS)
       .then(() => ok<void>())
-      .catch((e) => {
+      .catch(async (e) => {
         log.error('LocalProjectProvider: failed to teardown task', {
           taskId,
           error: String(e),
+        });
+        await this.cleanupDetachedTmuxSessions(taskId).catch((cleanupError) => {
+          log.warn('LocalProjectProvider: fallback tmux cleanup failed', {
+            taskId,
+            error: String(cleanupError),
+          });
         });
         return err<TeardownTaskError>(toTeardownError(e));
       })
@@ -345,16 +359,41 @@ export class LocalProjectProvider implements ProjectProvider {
       const scripts = settings.scripts;
 
       if (scripts?.teardown && this.workspaceRegistry.refCount(wsId) === 1) {
-        await workspace.lifecycleService.runLifecycleScript(
-          { type: 'teardown', script: scripts.teardown },
-          { waitForExit: true, exit: true }
-        );
+        try {
+          const runTeardown = workspace.lifecycleService.runLifecycleScript(
+            { type: 'teardown', script: scripts.teardown },
+            { waitForExit: true, exit: true }
+          );
+          await withTimeout(runTeardown, TEARDOWN_SCRIPT_WAIT_MS);
+        } catch (error) {
+          if (error instanceof TimeoutSignal) {
+            log.debug('LocalProjectProvider: teardown script wait timed out', {
+              taskId: task.taskId,
+              timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
+            });
+          } else {
+            log.warn('LocalProjectProvider: teardown script failed (continuing cleanup)', {
+              taskId: task.taskId,
+              error: String(error),
+            });
+          }
+        }
       }
     }
 
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
     await this.workspaceRegistry.release(wsId);
+  }
+
+  private async cleanupDetachedTmuxSessions(taskId: string): Promise<void> {
+    const { conversationIds, terminalIds } = await getTaskSessionLeafIds(this.project.id, taskId);
+    const sessionIds = [...conversationIds, ...terminalIds].map((leafId) =>
+      makePtySessionId(this.project.id, taskId, leafId)
+    );
+    await Promise.all(
+      sessionIds.map((sessionId) => killTmuxSession(this.localExec, makeTmuxSessionName(sessionId)))
+    );
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {

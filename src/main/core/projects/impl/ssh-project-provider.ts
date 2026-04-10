@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
 import { Conversation } from '@shared/conversations';
 import type { SshProject } from '@shared/projects';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
@@ -15,8 +16,10 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
 import { githubAuthService } from '@main/core/github/services/github-auth-service';
+import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import type { Workspace } from '@main/core/workspaces/workspace';
@@ -37,6 +40,7 @@ import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 const TASK_TIMEOUT_MS = 60_000;
+const TEARDOWN_SCRIPT_WAIT_MS = 10_000;
 
 function toProvisionError(e: unknown): ProvisionTaskError {
   if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
@@ -347,14 +351,23 @@ export class SshProjectProvider implements ProjectProvider {
   async teardownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
     if (this.tearingDownTasks.has(taskId)) return this.tearingDownTasks.get(taskId)!;
     const task = this.tasks.get(taskId);
-    if (!task) return ok();
+    if (!task) {
+      await this.cleanupDetachedTmuxSessions(taskId);
+      return ok();
+    }
 
     const promise = withTimeout(this.doTeardownTask(task), TASK_TIMEOUT_MS)
       .then(() => ok<void>())
-      .catch((e) => {
+      .catch(async (e) => {
         log.error('SshProjectProvider: failed to teardown task', {
           taskId,
           error: String(e),
+        });
+        await this.cleanupDetachedTmuxSessions(taskId).catch((cleanupError) => {
+          log.warn('SshProjectProvider: fallback tmux cleanup failed', {
+            taskId,
+            error: String(cleanupError),
+          });
         });
         return err<TeardownTaskError>(toTeardownError(e));
       })
@@ -387,16 +400,42 @@ export class SshProjectProvider implements ProjectProvider {
       const scripts = settings.scripts;
 
       if (scripts?.teardown && this.workspaceRegistry.refCount(wsId) === 1) {
-        await workspace.lifecycleService.runLifecycleScript(
-          { type: 'teardown', script: scripts.teardown },
-          { waitForExit: true, exit: true }
-        );
+        try {
+          const runTeardown = workspace.lifecycleService.runLifecycleScript(
+            { type: 'teardown', script: scripts.teardown },
+            { waitForExit: true, exit: true }
+          );
+          await withTimeout(runTeardown, TEARDOWN_SCRIPT_WAIT_MS);
+        } catch (error) {
+          if (error instanceof TimeoutSignal) {
+            log.debug('SshProjectProvider: teardown script wait timed out', {
+              taskId: task.taskId,
+              timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
+            });
+          } else {
+            log.warn('SshProjectProvider: teardown script failed (continuing cleanup)', {
+              taskId: task.taskId,
+              error: String(error),
+            });
+          }
+        }
       }
     }
 
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
     await this.workspaceRegistry.release(wsId);
+  }
+
+  private async cleanupDetachedTmuxSessions(taskId: string): Promise<void> {
+    const { conversationIds, terminalIds } = await getTaskSessionLeafIds(this.project.id, taskId);
+    const sessionIds = [...conversationIds, ...terminalIds].map((leafId) =>
+      makePtySessionId(this.project.id, taskId, leafId)
+    );
+    const exec = getSshExec(this.proxy);
+    await Promise.all(
+      sessionIds.map((sessionId) => killTmuxSession(exec, makeTmuxSessionName(sessionId)))
+    );
   }
 
   async removeTaskWorktree(taskBranch: string): Promise<void> {

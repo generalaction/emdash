@@ -12,22 +12,22 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
 
   const project = projectManager.getProject(projectId);
 
+  if (project) {
+    const teardownResult = await project.teardownTask(taskId).catch((e) => {
+      log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
+      return null;
+    });
+
+    if (teardownResult && !teardownResult.success) {
+      log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
+    }
+  }
+
   await db.delete(tasks).where(eq(tasks.id, taskId));
   void viewStateService.del(`task:${taskId}`);
   capture('task_deleted');
 
   if (project) {
-    void project
-      .teardownTask(taskId)
-      .then((teardownResult) => {
-        if (!teardownResult.success) {
-          log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
-        }
-      })
-      .catch((e) => {
-        log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
-      });
-
     if (task.taskBranch) {
       const siblings = await db
         .select({ id: tasks.id })

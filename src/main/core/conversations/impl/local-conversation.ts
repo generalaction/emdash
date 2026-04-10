@@ -27,6 +27,7 @@ const MAX_RESPAWNS = 2;
 
 export class LocalConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
+  private knownSessionIds = new Set<string>();
   private respawnCounts = new Map<string, number>();
   private readonly projectId: string;
   private readonly taskPath: string;
@@ -73,6 +74,7 @@ export class LocalConversationProvider implements ConversationProvider {
       conversation.taskId,
       conversation.id
     );
+    this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
 
     await claudeTrustService.maybeAutoTrustLocal({
@@ -188,28 +190,31 @@ export class LocalConversationProvider implements ConversationProvider {
 
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
+    this.knownSessionIds.delete(sessionId);
     const pty = this.sessions.get(sessionId);
-    if (!pty) return;
-    try {
-      pty.kill();
-    } catch (e) {
-      log.warn('LocalAgentProvider: error killing PTY', { sessionId, error: String(e) });
+    if (pty) {
+      try {
+        pty.kill();
+      } catch (e) {
+        log.warn('LocalAgentProvider: error killing PTY', { sessionId, error: String(e) });
+      }
+      this.sessions.delete(sessionId);
+      ptySessionRegistry.unregister(sessionId);
     }
-    this.sessions.delete(sessionId);
-    ptySessionRegistry.unregister(sessionId);
     if (this.tmux) {
       await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
     }
   }
 
   async destroyAll(): Promise<void> {
-    const sessionIds = Array.from(this.sessions.keys());
+    const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
       await Promise.all(
         sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
       );
     }
+    this.knownSessionIds.clear();
   }
 
   async detachAll(): Promise<void> {
