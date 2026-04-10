@@ -24,6 +24,7 @@ type SpawnPolicy = {
 
 export class LocalTerminalProvider implements TerminalProvider {
   private sessions = new Map<string, Pty>();
+  private knownSessionIds = new Set<string>();
   private respawnCounts = new Map<string, number>();
   private readonly projectId: string;
   private readonly scopeId: string;
@@ -98,6 +99,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     policy: SpawnPolicy
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+    this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
 
     const cfg: GeneralSessionConfig = {
@@ -162,6 +164,7 @@ export class LocalTerminalProvider implements TerminalProvider {
 
   async killTerminal(terminalId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.scopeId, terminalId);
+    this.knownSessionIds.delete(sessionId);
     const pty = this.sessions.get(sessionId);
     if (pty) {
       try {
@@ -176,13 +179,14 @@ export class LocalTerminalProvider implements TerminalProvider {
   }
 
   async destroyAll(): Promise<void> {
-    const sessionIds = Array.from(this.sessions.keys());
+    const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
       await Promise.all(
         sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
       );
     }
+    this.knownSessionIds.clear();
   }
 
   async detachAll(): Promise<void> {
