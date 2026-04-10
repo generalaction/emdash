@@ -8,7 +8,6 @@ import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
