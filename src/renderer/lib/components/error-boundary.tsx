@@ -1,5 +1,6 @@
 import React from 'react';
 import { captureComponentError } from '../../_legacy/errorTracking';
+import { Button } from '../ui/button';
 
 type ErrorBoundaryState = {
   hasError: boolean;
@@ -29,13 +30,6 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
         error_boundary: true,
         severity: 'critical',
       });
-
-      // Also log to app logger if available
-      void import('../../utils/logger').then(({ log }) => {
-        try {
-          log.error('Renderer crash caught by ErrorBoundary', { error, info });
-        } catch {}
-      });
     } catch {}
   }
 
@@ -56,13 +50,9 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
           <h1 className="mb-2 text-lg font-semibold">Something went wrong</h1>
           <p className="mb-4 break-all text-sm text-muted-foreground">{message}</p>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm"
-              onClick={this.handleReload}
-            >
+            <Button variant="default" onClick={this.handleReload}>
               Reload
-            </button>
+            </Button>
           </div>
         </div>
       </div>

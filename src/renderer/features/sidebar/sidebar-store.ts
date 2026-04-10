@@ -14,7 +14,7 @@ function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
   return value === 'created-at' || value === 'updated-at' ? value : undefined;
 }
 
-function getSortInstant(task: TaskStore, kind: 'created' | 'updated'): string {
+export function getSortInstant(task: TaskStore, kind: 'created' | 'updated'): string {
   const reg = registeredTaskData(task);
   if (reg) {
     if (kind === 'created') return reg.createdAt;

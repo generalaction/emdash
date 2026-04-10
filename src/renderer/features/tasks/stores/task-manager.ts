@@ -153,7 +153,7 @@ export class TaskManagerStore {
           const current = this.tasks.get(taskId);
           if (current && isUnprovisioned(current)) {
             current.transitionToProvisioned(
-              { ...current.data },
+              { ...current.data, lastInteractedAt: new Date().toISOString() },
               result.path,
               savedSnapshot as TaskViewSnapshot | undefined
             );
