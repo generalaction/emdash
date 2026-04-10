@@ -34,7 +34,7 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
 
   const nameSlot = displayName ? (
     <div className="flex items-center px-2 gap-2">
-      <span className="text-sm text-muted-foreground">{displayName}</span>
+      <span className="text-sm text-foreground-muted">{displayName}</span>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -86,12 +86,14 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
       leftSlot={nameSlot}
       rightSlot={
         <div className="flex items-center gap-2 mr-2">
-          <OpenInMenu
-            path={mounted.data.path}
-            isRemote={isRemote}
-            sshConnectionId={sshConnectionId}
-            className="h-7 bg-background"
-          />
+          {!isRemote && (
+            <OpenInMenu
+              path={mounted.data.path}
+              isRemote={isRemote}
+              sshConnectionId={sshConnectionId}
+              className="h-7 bg-background"
+            />
+          )}
           <ToggleGroup
             variant="outline"
             size="sm"

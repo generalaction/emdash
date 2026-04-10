@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
+  asMounted,
   getProjectStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
@@ -36,6 +37,7 @@ import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { isMountedProject } from '../projects/stores/project';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector } from './components/issue-selector/issue-selector';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
@@ -68,7 +70,7 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   return (
     <Titlebar
       leftSlot={
-        <div className="flex items-center gap-1 px-2">
+        <div className="flex items-center gap-1 px-2 text-sm text-foreground-muted">
           <span className="flex items-center gap-1">
             <span className="text-sm text-foreground-passive">{projectName}</span>
             <span className="text-sm text-foreground-passive">/</span>
@@ -110,7 +112,11 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     isPushing,
   } = useGitActions(projectId, taskId);
 
+  const projectStore = asMounted(getProjectStore(projectId));
+
   const projectName = projectDisplayName(getProjectStore(projectId));
+
+  const isRemoteProject = projectStore?.data.type === 'ssh';
   return (
     <Titlebar
       leftSlot={
@@ -270,7 +276,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       rightSlot={
         <div className="flex items-center gap-2 mr-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
-          <OpenInMenu path={provisionedTask.path} className="h-7  bg-background" />
+          {!isRemoteProject && (
+            <OpenInMenu path={provisionedTask.path} className="h-7  bg-background" />
+          )}
           <ToggleGroup
             disabled={delayedIsPending}
             variant="outline"
