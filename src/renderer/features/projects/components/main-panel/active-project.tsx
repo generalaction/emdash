@@ -1,8 +1,8 @@
 import { observer } from 'mobx-react-lite';
-import { PullRequestView } from '@renderer/features/projects/components/pr-view';
+import { PullRequestView } from '@renderer/features/projects/components/pr-view/pr-view';
+import { SettingsPanel } from '@renderer/features/projects/components/settings-view/settings-panel';
+import { TaskList } from '@renderer/features/projects/components/task-view/task-list';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
-import { SettingsPanel } from '@renderer/features/projects/view/settings-panel';
-import { TaskList } from '@renderer/features/projects/view/task-list';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 
 export const ActiveProject = observer(function ActiveProject() {

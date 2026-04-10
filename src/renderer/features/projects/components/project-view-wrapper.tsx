@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { RepositoryProvider } from './repository-provider';
+import { RepositoryProvider } from '../repository-provider';
 
 interface ProjectViewWrapperProps {
   children: ReactNode;

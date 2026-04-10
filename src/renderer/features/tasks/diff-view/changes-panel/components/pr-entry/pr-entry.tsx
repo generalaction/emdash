@@ -1,9 +1,10 @@
 import { GitMerge, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
-import { PrMergeLine } from '@renderer/features/projects/components/pr-merge-line';
-import { PrNumberBadge, StatusIcon } from '@renderer/features/projects/components/pr-row';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
+import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
+import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';

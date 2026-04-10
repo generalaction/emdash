@@ -1,66 +1,14 @@
-import {
-  ExternalLink,
-  GitMerge,
-  GitPullRequestArrow,
-  GitPullRequestClosed,
-  ScanSearch,
-} from 'lucide-react';
-import { memo, ReactNode } from 'react';
+import { ExternalLink, ScanSearch } from 'lucide-react';
+import { memo } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
+import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
+import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
+import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { cn } from '@renderer/utils/utils';
-import { PrMergeLine } from './pr-merge-line';
-
-export function StatusIcon({
-  status,
-  className,
-  disableTooltip = false,
-}: {
-  disableTooltip?: boolean;
-  status: PullRequest['status'];
-  className?: string;
-}) {
-  const renderTooltip = (children: ReactNode, text: string) => {
-    if (disableTooltip) return children;
-    return (
-      <Tooltip>
-        <TooltipTrigger>{children}</TooltipTrigger>
-        <TooltipContent>{text}</TooltipContent>
-      </Tooltip>
-    );
-  };
-
-  if (status === 'merged') {
-    return renderTooltip(
-      <GitMerge className={cn('size-4 shrink-0 text-purple-500', className)} />,
-      'Merged'
-    );
-  }
-  if (status === 'closed') {
-    return renderTooltip(
-      <GitPullRequestClosed className={cn('size-4 shrink-0 text-red-500', className)} />,
-      'Closed'
-    );
-  }
-  return renderTooltip(
-    <GitPullRequestArrow className={cn('size-4 shrink-0 text-green-600', className)} />,
-    'Open'
-  );
-}
-
-export function PrNumberBadge({ number, className }: { number: number; className?: string }) {
-  return (
-    <span
-      className={cn('font-mono text-xs text-foreground-muted shrink-0 tracking-wide', className)}
-    >
-      #{number}
-    </span>
-  );
-}
 
 export const PrRow = memo(function PrRow({
   pr,

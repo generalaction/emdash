@@ -1,4 +1,4 @@
-import { ProjectSettingsForm } from '@renderer/features/projects/components/project-settings-form';
+import { ProjectSettingsForm } from '@renderer/features/projects/components/settings-view/project-settings-form';
 import { useProjectSettings } from '@renderer/features/projects/use-project-settings';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { Spinner } from '@renderer/lib/ui/spinner';

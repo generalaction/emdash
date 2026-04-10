@@ -1,16 +1,14 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { isUnregisteredProject } from '@renderer/features/projects/stores/project';
+import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { isUnregisteredProject } from '../../stores/project';
 import {
   getProjectStore,
   projectViewKind,
   unmountedMountErrorMessage,
-} from '@renderer/features/projects/stores/project-selectors';
-import { ProjectViewWrapper } from '@renderer/features/projects/view/project-view-wrapper';
-import { useParams } from '@renderer/lib/layout/navigation-provider';
+} from '../../stores/project-selectors';
 import { ActiveProject } from './active-project';
 import { PendingProjectStatus } from './pending-project';
-import { ProjectTitlebar } from './project-titlebar';
 
 export const ProjectMainPanel = observer(function ProjectMainPanel() {
   const {
@@ -59,9 +57,3 @@ function ProjectBootstrapErrorPanel({ message }: { message: string }) {
     </div>
   );
 }
-
-export const projectView = {
-  WrapView: ProjectViewWrapper,
-  TitlebarSlot: ProjectTitlebar,
-  MainPanel: ProjectMainPanel,
-};

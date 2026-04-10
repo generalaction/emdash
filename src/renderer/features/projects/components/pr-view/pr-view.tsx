@@ -8,7 +8,7 @@ import {
   type LabelItem,
   type StatusFilter,
   type UserItem,
-} from '@renderer/features/projects/components/usePrViewState';
+} from '@renderer/features/projects/components/pr-view/usePrViewState';
 import { useNameWithOwner } from '@renderer/lib/hooks/useNameWithOwner';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';

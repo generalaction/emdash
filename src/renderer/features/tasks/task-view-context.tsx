@@ -1,8 +1,8 @@
 import { observer } from 'mobx-react-lite';
 import { createContext, ReactNode, useContext } from 'react';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
+import { ProjectViewWrapper } from '@renderer/features/projects/components/project-view-wrapper';
 import { useProjectSettings } from '@renderer/features/projects/use-project-settings';
-import { ProjectViewWrapper } from '@renderer/features/projects/view/project-view-wrapper';
 import { type ProvisionedTask } from '@renderer/features/tasks/stores/task';
 import {
   asProvisioned,

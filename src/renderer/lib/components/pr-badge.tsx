@@ -1,13 +1,14 @@
 import { ExternalLink } from 'lucide-react';
 import { type PullRequest } from '@shared/pull-requests';
-import { PrMergeLine } from '@renderer/features/projects/components/pr-merge-line';
-import { PrNumberBadge, StatusIcon } from '@renderer/features/projects/components/pr-row';
+import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
 import { rpc } from '../ipc';
 import { Button } from '../ui/button';
 import { RelativeTime } from '../ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { PrNumberBadge } from './pr-number-badge';
+import { StatusIcon } from './pr-status-icon';
 
 interface PrBadgeProps {
   variant?: 'default' | 'compact';
