@@ -41,7 +41,7 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
                 value="updated-at"
                 onClick={() => sidebarStore.applySort('updated-at')}
               >
-                Updated at
+                Last used
               </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>

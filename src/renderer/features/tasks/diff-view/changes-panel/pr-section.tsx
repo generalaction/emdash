@@ -16,12 +16,10 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const { pr, nameWithOwner: nwoResource } = provisioned.workspace;
   const nameWithOwner = nwoResource.data ?? null;
   const taskBranch = provisioned.taskBranch;
-  const { pullRequests } = pr;
+  const { pullRequests, currentPr } = pr;
   const showCreatePrModal = useShowModal('createPrModal');
 
-  const activePr = pullRequests.find((pr) => pr.status === 'open') || pullRequests[0];
-
-  const hasOpenPr = Boolean(activePr);
+  const hasOpenPr = pullRequests.some((p) => p.status === 'open');
   const hasUpstream = provisioned.workspace.git.isBranchPublished;
 
   return (
@@ -39,6 +37,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
                   nameWithOwner: nameWithOwner ?? '',
                   branchName: taskBranch,
                   draft: false,
+                  workspaceId: provisioned.workspaceId,
                   onSuccess: () => {},
                 })
             : undefined
@@ -56,7 +55,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
             description="Push your branch and create a PR to start a review."
           />
         ) : null}
-        {nameWithOwner && activePr && <PullRequestEntry key={activePr.id} pr={activePr} />}
+        {nameWithOwner && currentPr && <PullRequestEntry key={currentPr.id} pr={currentPr} />}
       </div>
     </>
   );

@@ -4,7 +4,11 @@ import {
   getProjectStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
-import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  asProvisioned,
+  getTaskGitStore,
+  getTaskStore,
+} from '@renderer/features/tasks/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { useGitActions } from '@renderer/features/tasks/use-git-actions';
 import { useNameWithOwner } from '@renderer/lib/hooks/useNameWithOwner';
@@ -14,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
+  const workspaceId = asProvisioned(getTaskStore(projectId, taskId))?.workspaceId;
   const branchName = getTaskGitStore(projectId, taskId)?.branchStatus.data?.branch;
   const projectName = projectDisplayName(getProjectStore(projectId)) ?? 'repository';
   const { data: remoteState } = useNameWithOwner(projectId);
@@ -35,13 +40,13 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const shouldOfferAddRemote = remoteState?.status === 'no_remote';
 
   const handlePublishClick = () => {
-    if (!branchName) return;
+    if (!branchName || !workspaceId) return;
     if (shouldOfferAddRemote) {
       showAddRemoteModal({
         projectId,
         projectName,
         branchName,
-        taskId,
+        workspaceId,
       });
       return;
     }

@@ -58,7 +58,6 @@ export class TaskManagerStore {
     events.on(taskPrUpdatedChannel, ({ taskId, projectId: evtProjectId, prs }) => {
       if (evtProjectId !== this.projectId) return;
       const store = this.tasks.get(taskId);
-      console.log('taskPrUpdatedChannel', taskId, projectId, prs);
       if (store && isRegistered(store)) {
         runInAction(() => {
           (store.data as Task).prs = prs;

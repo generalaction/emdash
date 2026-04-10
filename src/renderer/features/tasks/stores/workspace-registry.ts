@@ -14,7 +14,7 @@ function makeKey(projectId: string, workspaceId: string): string {
 export class WorkspaceRegistryStore {
   private readonly entries = new Map<string, WorkspaceRegistryEntry>();
 
-  acquire(projectId: string, workspaceId: string, initialPrs: PullRequest[]): WorkspaceStore {
+  acquire(projectId: string, workspaceId: string, getPrs: () => PullRequest[]): WorkspaceStore {
     const key = makeKey(projectId, workspaceId);
     const existing = this.entries.get(key);
     if (existing) {
@@ -22,7 +22,7 @@ export class WorkspaceRegistryStore {
       return existing.store;
     }
 
-    const store = new WorkspaceStore(projectId, workspaceId, initialPrs);
+    const store = new WorkspaceStore(projectId, workspaceId, getPrs);
     this.entries.set(key, { store, refCount: 1, activated: false });
     return store;
   }

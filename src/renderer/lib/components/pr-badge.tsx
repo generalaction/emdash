@@ -44,10 +44,10 @@ export function PrBadge({ variant = 'default', pr, className }: PrBadgeProps) {
     <Popover>
       <PopoverTrigger openOnHover>{renderBadge()}</PopoverTrigger>
       <PopoverContent>
-        <div>
-          <div className="flex items-center gap-2 justify-between">
-            <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <StatusIcon status={pr.status} />
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 justify-between no-wrap">
+            <div className="flex items-center gap-2  min-w-0">
+              <StatusIcon status={pr.status} className="size-3" />
               <span className="text-sm text-foreground leading-snug truncate min-w-0">
                 {pr.title}
               </span>

@@ -1,4 +1,5 @@
 import { observer } from 'mobx-react-lite';
+import { selectCurrentPr } from '@shared/pull-requests';
 import { type Task } from '@shared/tasks';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
@@ -53,6 +54,7 @@ export const TaskRow = observer(function TaskRow({
   const isArchived = Boolean(task.data.archivedAt);
   const canPin = task.state !== 'unregistered';
   const agentAttention = taskAgentStatus(task);
+  const currentPr = task.data.prs ? selectCurrentPr(task.data.prs) : undefined;
 
   return (
     <TaskContextMenu
@@ -90,7 +92,7 @@ export const TaskRow = observer(function TaskRow({
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <span className="min-w-0 text-left text-sm truncate">{task.data.name}</span>
             <TaskGitDiffStats task={task} className="text-xs shrink-0" />
-            {task.data.prs && task.data.prs.length > 0 && <PrBadge pr={task.data.prs[0]} />}
+            {currentPr && <PrBadge pr={currentPr} />}
           </div>
         </div>
         <div className="flex items-center shrink-0 [&>span]:ring-2 [&>span]:ring-background [&>span:not(:first-child)]:-ml-1.5">

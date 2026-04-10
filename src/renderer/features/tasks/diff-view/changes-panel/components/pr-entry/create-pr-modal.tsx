@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
@@ -15,13 +14,20 @@ export type CreatePrModalArgs = {
   nameWithOwner: string;
   branchName: string;
   draft: boolean;
+  workspaceId: string;
 };
 
 type Props = BaseModalProps<void> & CreatePrModalArgs;
 
-export function CreatePrModal({ nameWithOwner, branchName, draft, onSuccess, onClose }: Props) {
-  const { projectId, taskId } = useTaskViewContext();
-  const queryClient = useQueryClient();
+export function CreatePrModal({
+  nameWithOwner,
+  branchName,
+  draft,
+  workspaceId,
+  onSuccess,
+  onClose,
+}: Props) {
+  const { projectId } = useTaskViewContext();
   const showConfirm = useShowModal('confirmActionModal');
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
@@ -32,13 +38,13 @@ export function CreatePrModal({ nameWithOwner, branchName, draft, onSuccess, onC
   const doPushAndCreate = async (capturedTitle: string, capturedDescription: string) => {
     setIsCreating(true);
     try {
-      const pushResult = await rpc.git.push(projectId, taskId);
+      const pushResult = await rpc.git.push(projectId, workspaceId);
       if (!pushResult.success) {
         log.error('Failed to push branch:', pushResult.error);
         return;
       }
 
-      const defaultBranchResult = await rpc.git.getDefaultBranch(projectId, taskId);
+      const defaultBranchResult = await rpc.git.getDefaultBranch(projectId, workspaceId);
       const base = defaultBranchResult.success ? defaultBranchResult.data.name : 'main';
 
       const result = await rpc.pullRequests.createPullRequest({
@@ -51,10 +57,6 @@ export function CreatePrModal({ nameWithOwner, branchName, draft, onSuccess, onC
       });
 
       if (result.success) {
-        void queryClient.invalidateQueries({
-          queryKey: ['pullRequests', 'task', projectId, taskId],
-        });
-        void queryClient.invalidateQueries({ queryKey: ['branch-status', projectId, taskId] });
         onSuccess();
       }
     } finally {
@@ -68,7 +70,7 @@ export function CreatePrModal({ nameWithOwner, branchName, draft, onSuccess, onC
     const capturedTitle = title.trim();
     const capturedDescription = description.trim();
 
-    const statusResult = await rpc.git.getBranchStatus(projectId, taskId);
+    const statusResult = await rpc.git.getBranchStatus(projectId, workspaceId);
     const isPushed = statusResult.success && Boolean(statusResult.data.upstream);
 
     if (!isPushed) {

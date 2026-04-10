@@ -8,10 +8,6 @@ import { pullRequests, tasks, tasksPullRequests } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { prRowToPullRequest } from '../pull-requests/pr-utils';
 
-// ---------------------------------------------------------------------------
-// Transition logic
-// ---------------------------------------------------------------------------
-
 function resolveNextStatus(
   prStatus: string,
   isDraft: boolean,
@@ -21,10 +17,6 @@ function resolveNextStatus(
   if (prStatus === 'merged' && currentStatus === 'review') return 'done';
   return null;
 }
-
-// ---------------------------------------------------------------------------
-// Ongoing hook — registered on PrService, fires after every upsertSingle
-// ---------------------------------------------------------------------------
 
 export async function onPrUpserted(pr: PullRequest, _projectId: string): Promise<void> {
   const headBranch = pr.metadata.headRefName;

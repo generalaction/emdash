@@ -23,7 +23,7 @@ export type AddRemoteModalArgs = {
   projectId: string;
   projectName: string;
   branchName: string;
-  taskId: string;
+  workspaceId: string;
 };
 
 type Props = BaseModalProps<void> & AddRemoteModalArgs;
@@ -35,7 +35,13 @@ function toErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export function AddRemoteModal({ projectId, projectName, taskId, branchName, onSuccess }: Props) {
+export function AddRemoteModal({
+  projectId,
+  projectName,
+  workspaceId,
+  branchName,
+  onSuccess,
+}: Props) {
   const [tab, setTab] = useState<Tab>('create');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,14 +86,19 @@ export function AddRemoteModal({ projectId, projectName, taskId, branchName, onS
         }
 
         const cloneUrl = `https://github.com/${result.nameWithOwner}.git`;
-        const addRemoteResult = await rpc.git.addRemote(projectId, taskId, 'origin', cloneUrl);
+        const addRemoteResult = await rpc.git.addRemote(projectId, workspaceId, 'origin', cloneUrl);
 
         if (!addRemoteResult.success) {
           setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
           return;
         }
       } else {
-        const addRemoteResult = await rpc.git.addRemote(projectId, taskId, 'origin', url.trim());
+        const addRemoteResult = await rpc.git.addRemote(
+          projectId,
+          workspaceId,
+          'origin',
+          url.trim()
+        );
 
         if (!addRemoteResult.success) {
           setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
@@ -95,7 +106,7 @@ export function AddRemoteModal({ projectId, projectName, taskId, branchName, onS
         }
       }
 
-      const publishResult = await rpc.git.publishBranch(projectId, taskId, branchName);
+      const publishResult = await rpc.git.publishBranch(projectId, workspaceId, branchName);
       if (!publishResult.success) {
         setError(toErrorMessage(publishResult.error, 'Failed to publish branch'));
         return;

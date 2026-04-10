@@ -60,7 +60,7 @@ export class ProvisionedTask {
     this.workspace = workspaceRegistry.acquire(
       taskData.projectId,
       this.workspaceId,
-      taskData.prs ?? []
+      () => (this._taskData as Task).prs ?? []
     );
     this.devServers = new DevServerStore(taskData.id, this.workspaceId);
     this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
@@ -143,7 +143,7 @@ export class TaskStore {
 
   transitionToProvisioned(data: Task, path: string, savedSnapshot?: TaskViewSnapshot): void {
     this.data = data;
-    this.provisionedTask = new ProvisionedTask(data, path, savedSnapshot);
+    this.provisionedTask = new ProvisionedTask(this.data as Task, path, savedSnapshot);
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;

@@ -1,4 +1,5 @@
 import { observer } from 'mobx-react-lite';
+import { selectCurrentPr } from '@shared/pull-requests';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
@@ -110,5 +111,6 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
 const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
   if (!('prs' in task.data)) return null;
-  return task.data.prs.length > 0 ? <PrBadge variant="compact" pr={task.data.prs[0]} /> : null;
+  const pr = selectCurrentPr(task.data.prs);
+  return pr ? <PrBadge variant="compact" pr={pr} /> : null;
 });

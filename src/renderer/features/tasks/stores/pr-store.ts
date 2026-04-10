@@ -1,9 +1,8 @@
-import { makeObservable, observable, reaction, runInAction } from 'mobx';
-import { taskPrUpdatedChannel } from '@shared/events/taskEvents';
+import { reaction } from 'mobx';
 import type { Commit, GitChange } from '@shared/git';
-import type { PrCheckRun, PullRequest } from '@shared/pull-requests';
+import { selectCurrentPr, type PrCheckRun, type PullRequest } from '@shared/pull-requests';
 import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git';
-import { events, rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import type { PrComment } from '@renderer/utils/github/types';
 
@@ -13,38 +12,25 @@ export type MergeResult = { success: true } | { success: false; error: string };
 export class PrStore {
   readonly commitHistory: Resource<{ commits: Commit[]; aheadCount: number }>;
 
-  prs: PullRequest[];
-
   private _prFiles = new Map<string, Resource<GitChange[]>>();
   private _prCheckRuns = new Map<string, Resource<PrCheckRun[]>>();
   private _prComments = new Map<string, Resource<PrComment[]>>();
-  private _unsubscribePrUpdates: (() => void) | null = null;
 
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly git: GitStore,
-    initialPrs: PullRequest[]
+    private readonly getPrs: () => PullRequest[]
   ) {
-    this.prs = initialPrs;
-    makeObservable(this, { prs: observable });
     this.commitHistory = new Resource(() => this._fetchCommitHistory(), [{ kind: 'demand' }]);
-
-    this._unsubscribePrUpdates = events.on(
-      taskPrUpdatedChannel,
-      (event) => {
-        if (event.projectId === this.projectId && event.workspaceId === this.workspaceId) {
-          runInAction(() => {
-            this.prs = event.prs;
-          });
-        }
-      },
-      workspaceId
-    );
   }
 
   get pullRequests(): PullRequest[] {
-    return this.prs;
+    return this.getPrs();
+  }
+
+  get currentPr(): PullRequest | undefined {
+    return selectCurrentPr(this.getPrs());
   }
 
   getFiles(pr: PullRequest): Resource<GitChange[]> {
@@ -94,7 +80,7 @@ export class PrStore {
     id: string,
     options: { strategy: MergeMode; commitHeadOid?: string }
   ): Promise<MergeResult> {
-    const pr = this.prs.find((p) => p.id === id);
+    const pr = this.getPrs().find((p) => p.id === id);
     if (!pr) return { success: false, error: 'Pull request not found' };
     const result = await rpc.pullRequests.mergePullRequest(
       pr.nameWithOwner,
@@ -107,7 +93,7 @@ export class PrStore {
   }
 
   async markReadyForReview(id: string): Promise<void> {
-    const pr = this.prs.find((p) => p.id === id);
+    const pr = this.getPrs().find((p) => p.id === id);
     if (!pr) return;
     await rpc.pullRequests.markReadyForReview(pr.nameWithOwner, pr.metadata.number);
   }
@@ -120,7 +106,7 @@ export class PrStore {
   }
 
   refresh(id: string): void {
-    const pr = this.prs.find((p) => p.id === id);
+    const pr = this.getPrs().find((p) => p.id === id);
     if (pr) {
       const checkRunsKey = `${pr.nameWithOwner}:${pr.metadata.number}`;
       this._prCheckRuns.get(checkRunsKey)?.invalidate();
@@ -128,8 +114,6 @@ export class PrStore {
   }
 
   dispose(): void {
-    this._unsubscribePrUpdates?.();
-    this._unsubscribePrUpdates = null;
     this.commitHistory.dispose();
     for (const r of this._prFiles.values()) r.dispose();
     for (const r of this._prCheckRuns.values()) r.dispose();

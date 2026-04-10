@@ -94,6 +94,17 @@ export type GitHubPullRequest = PullRequestBase & {
 
 export type PullRequest = GitHubPullRequest;
 
+/**
+ * Returns the open PR if one exists, otherwise the most recently created PR.
+ * Use this everywhere a single "current" PR needs to be displayed.
+ */
+export function selectCurrentPr(prs: PullRequest[]): PullRequest | undefined {
+  if (prs.length === 0) return undefined;
+  const open = prs.find((pr) => pr.status === 'open');
+  if (open) return open;
+  return prs.reduce((a, b) => (a.createdAt >= b.createdAt ? a : b), prs[0]);
+}
+
 // ── Pass-through types (service → renderer) ────────────────────────
 
 export interface PullRequestFile {

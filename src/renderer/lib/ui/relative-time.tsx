@@ -1,6 +1,5 @@
-import { formatDistanceToNow, formatDistanceToNowStrict } from 'date-fns';
+import { formatDistanceToNowStrict } from 'date-fns';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip';
 
 type RelativeTimeProps = {
   value: string | number | Date;
@@ -51,16 +50,11 @@ export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className, co
 
   if (compact) {
     const short = toCompactLabel(date);
-    const long = formatDistanceToNow(date, { addSuffix: true });
+
     return (
-      <Tooltip>
-        <TooltipTrigger>
-          <time className={className} dateTime={date.toISOString()}>
-            {short}
-          </time>
-        </TooltipTrigger>
-        <TooltipContent>{long}</TooltipContent>
-      </Tooltip>
+      <time className={className} dateTime={date.toISOString()}>
+        {short}
+      </time>
     );
   }
 

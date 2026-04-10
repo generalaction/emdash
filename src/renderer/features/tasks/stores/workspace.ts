@@ -13,11 +13,11 @@ export class WorkspaceStore {
   pr: PrStore;
   readonly nameWithOwner: Resource<string | null>;
 
-  constructor(projectId: string, workspaceId: string, initialPrs: PullRequest[]) {
+  constructor(projectId: string, workspaceId: string, getPrs: () => PullRequest[]) {
     this.git = new GitStore(projectId, workspaceId);
     this.files = new FilesStore(projectId, workspaceId);
     this.lifecycleScripts = new LifecycleScriptsStore(projectId, workspaceId);
-    this.pr = new PrStore(projectId, workspaceId, this.git, initialPrs);
+    this.pr = new PrStore(projectId, workspaceId, this.git, getPrs);
     this.nameWithOwner = new Resource<string | null>(async () => {
       const result = await rpc.pullRequests.getNameWithOwner(projectId);
       return result.status === 'ready' ? result.nameWithOwner : null;
