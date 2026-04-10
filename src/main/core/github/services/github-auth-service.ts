@@ -10,6 +10,7 @@ import {
 import type { GitHubConnectResponse, GitHubUser } from '@shared/github';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { getLocalExec } from '@main/core/utils/exec';
+import { KV } from '@main/db/kv';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { extractGhCliToken } from './gh-cli-token';
@@ -51,7 +52,12 @@ export interface GitHubAuthService {
 
 const SERVICE_NAME = 'emdash-github';
 const ACCOUNT_NAME = 'github-token';
-const TOKEN_SOURCE_ACCOUNT_NAME = 'github-token-source';
+
+interface GitHubKVSchema extends Record<string, unknown> {
+  tokenSource: Exclude<TokenSource, null>;
+}
+
+const githubKV = new KV<GitHubKVSchema>('github');
 
 const GITHUB_CONFIG = {
   clientId: 'Ov23ligC35uHWopzCeWf',
@@ -61,14 +67,34 @@ const GITHUB_CONFIG = {
 export class GitHubAuthServiceImpl implements GitHubAuthService {
   private deviceFlowAbortController: AbortController | null = null;
 
-  private async getStoredTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
+  private parseTokenSource(raw: unknown): Exclude<TokenSource, null> | null {
+    return raw === 'cli' || raw === 'keytar' ? raw : null;
+  }
+
+  private async getStoredTokenSource(): Promise<Exclude<TokenSource, null> | null> {
     try {
-      const [token, rawSource] = await Promise.all([
-        keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME),
-        keytar.getPassword(SERVICE_NAME, TOKEN_SOURCE_ACCOUNT_NAME),
-      ]);
-      const source: TokenSource = rawSource === 'cli' || rawSource === 'keytar' ? rawSource : null;
-      return { token: token ?? null, source };
+      return this.parseTokenSource(await githubKV.get('tokenSource'));
+    } catch {
+      return null;
+    }
+  }
+
+  private async setStoredTokenSource(source: Exclude<TokenSource, null>): Promise<void> {
+    await githubKV.set('tokenSource', source);
+  }
+
+  private async clearStoredTokenSource(): Promise<void> {
+    await githubKV.del('tokenSource');
+  }
+
+  private async getStoredTokenRecord(): Promise<{
+    token: string | null;
+    source: Exclude<TokenSource, null> | null;
+  }> {
+    try {
+      const token = (await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME)) ?? null;
+      const source = await this.getStoredTokenSource();
+      return { token, source };
     } catch {
       return { token: null, source: null };
     }
@@ -77,7 +103,7 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
   private async clearStoredToken(): Promise<void> {
     await Promise.all([
       keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME),
-      keytar.deletePassword(SERVICE_NAME, TOKEN_SOURCE_ACCOUNT_NAME),
+      this.clearStoredTokenSource(),
     ]);
   }
 
@@ -243,10 +269,8 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
   }
 
   async storeToken(token: string, source: Exclude<TokenSource, null> = 'keytar'): Promise<void> {
-    await Promise.all([
-      keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, token),
-      keytar.setPassword(SERVICE_NAME, TOKEN_SOURCE_ACCOUNT_NAME, source),
-    ]);
+    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, token);
+    await this.setStoredTokenSource(source);
   }
 
   cancelAuth(): void {
