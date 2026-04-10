@@ -17,8 +17,7 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
   const git = asProvisioned(task)?.workspace.git;
   const linesAdded = git?.totalLinesAdded ?? 0;
   const linesDeleted = git?.totalLinesDeleted ?? 0;
-  const visible =
-    git !== undefined && !git.isLoading && !git.error && (linesAdded > 0 || linesDeleted > 0);
+  const visible = git !== undefined && !git.error && (linesAdded > 0 || linesDeleted > 0);
 
   if (!visible) return null;
 

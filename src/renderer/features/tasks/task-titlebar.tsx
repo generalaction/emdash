@@ -37,7 +37,6 @@ import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { isMountedProject } from '../projects/stores/project';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector } from './components/issue-selector/issue-selector';
 import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
