@@ -10,9 +10,9 @@ import { Button } from '@renderer/lib/ui/button';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
-import { PrChecksList } from './pr-checks-list';
-import { PrCommitsList } from './pr-commits-list';
-import { PrFilesList } from './pr-files-list';
+import { PrChecksList } from './checks-list';
+import { PrCommitsList } from './commits-list';
+import { PrFilesList } from './files-list';
 
 type MergeMode = 'merge' | 'squash' | 'rebase';
 

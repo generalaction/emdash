@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import type { GitChange } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
-import { usePrefetchModels } from '@renderer/features/tasks/diff-view/changes-panel/use-prefetch-models';
+import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { VirtualizedChangesList } from '../virtualized-changes-list';
 
@@ -14,7 +14,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const baseRef = pr.metadata.baseRefName;
   const prFiles = prStore.getFiles(pr).data ?? [];
 
-  const prefetchPrDiff = usePrefetchModels(projectId, provisioned.workspaceId, 'git', baseRef);
+  const prefetchPrDiff = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'git', baseRef);
 
   // Use diffView.activeFile to derive the active path — avoids separate React state.
   const activePath = diffView.activeFile?.type === 'git' ? diffView.activeFile.path : undefined;

@@ -4,10 +4,10 @@ import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { ActionCard } from './action-card';
-import { SectionHeader } from './section-header';
-import { usePrefetchModels } from './use-prefetch-models';
-import { VirtualizedChangesList } from './virtualized-changes-list';
+import { ActionCard } from './components/action-card';
+import { SectionHeader } from './components/section-header';
+import { VirtualizedChangesList } from './components/virtualized-changes-list';
+import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 
 export const UnstagedSection = observer(function UnstagedSection() {
   const { projectId } = useTaskViewContext();
@@ -26,7 +26,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
       ? diffView.activeFile.path
       : undefined;
 
-  const prefetch = usePrefetchModels(projectId, provisioned.workspaceId, 'disk', 'HEAD');
+  const prefetch = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'disk', 'HEAD');
 
   const showConfirmActionModal = useShowModal('confirmActionModal');
 

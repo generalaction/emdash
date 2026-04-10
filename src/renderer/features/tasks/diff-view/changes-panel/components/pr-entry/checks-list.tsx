@@ -2,7 +2,7 @@ import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucid
 import type { CheckRunBucket, PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { formatCheckDuration, type CheckRun } from '@renderer/utils/github';
-import { useCheckRuns } from '../../state/use-check-runs';
+import { useCheckRuns } from '../../../state/use-check-runs';
 
 const bucketOrder: Record<CheckRunBucket, number> = {
   fail: 0,

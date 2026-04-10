@@ -14,7 +14,7 @@ interface PrefetchEntry {
  * clicks to open a diff the models are already loaded. Models are unregistered on unmount.
  * TTL eviction (60 s after last subscriber leaves) handles any remaining cleanup.
  */
-export function usePrefetchModels(
+export function usePrefetchDiffModels(
   projectId: string,
   workspaceId: string,
   type: 'disk' | 'staged' | 'git',

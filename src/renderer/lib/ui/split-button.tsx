@@ -6,7 +6,8 @@ import { Button, buttonVariants } from './button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from './dropdown-menu';
 
@@ -30,6 +31,7 @@ interface SplitButtonProps {
   size?: SplitButtonSize;
   className?: string;
   dropdownContentClassName?: string;
+  onValueChange?: (value: string) => void;
 }
 
 const chevronConfig: Record<SplitButtonSize, { px: string; iconSize: string }> = {
@@ -49,8 +51,10 @@ export function SplitButton({
   size = 'default',
   className,
   dropdownContentClassName,
+  onValueChange,
 }: SplitButtonProps) {
   const [selectedValue, setSelectedValue] = useState(defaultValue ?? actions[0]?.value);
+  const [open, setOpen] = useState(false);
 
   const selectedAction = actions.find((a) => a.value === selectedValue) ?? actions[0];
   if (!selectedAction) return null;
@@ -70,7 +74,7 @@ export function SplitButton({
         {icon}
         {loading ? (loadingLabel ?? 'Loading...') : selectedAction.label}
       </Button>
-      <DropdownMenu>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger
           render={
             <Button
@@ -84,20 +88,33 @@ export function SplitButton({
           <ChevronDown className={iconSize} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className={cn('w-64', dropdownContentClassName)}>
-          {actions.map((action) => (
-            <DropdownMenuItem
-              key={action.value}
-              onClick={() => setSelectedValue(action.value)}
-              className="flex-col items-start gap-0.5 py-2"
-            >
-              <span className="font-medium">{action.label}</span>
-              {action.description && (
-                <span className="text-xs text-muted-foreground whitespace-normal">
-                  {action.description}
-                </span>
-              )}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuRadioGroup
+            value={selectedValue}
+            onValueChange={(value) => {
+              if (value) {
+                setSelectedValue(value);
+                onValueChange?.(value);
+                setTimeout(() => {
+                  setOpen(false);
+                }, 50);
+              }
+            }}
+          >
+            {actions.map((action) => (
+              <DropdownMenuRadioItem
+                key={action.value}
+                value={action.value}
+                className="flex-col items-start gap-1 py-2"
+              >
+                <span className="text-sm">{action.label}</span>
+                {action.description && (
+                  <span className="text-xs text-foreground-muted whitespace-normal">
+                    {action.description}
+                  </span>
+                )}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

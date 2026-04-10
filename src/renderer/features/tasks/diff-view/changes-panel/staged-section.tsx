@@ -1,15 +1,13 @@
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { selectAheadCount } from '@renderer/features/tasks/diff-view/stores/diff-selectors';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { ActionCard } from './action-card';
-import { CommitCard } from './commit-card';
-import { PushCard } from './push-card';
-import { SectionHeader } from './section-header';
-import { usePrefetchModels } from './use-prefetch-models';
-import { VirtualizedChangesList } from './virtualized-changes-list';
+import { ActionCard } from './components/action-card';
+import { CommitCard } from './components/commit-card';
+import { SectionHeader } from './components/section-header';
+import { VirtualizedChangesList } from './components/virtualized-changes-list';
+import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 
 export const StagedSection = observer(function StagedSection() {
   const { projectId } = useTaskViewContext();
@@ -29,7 +27,7 @@ export const StagedSection = observer(function StagedSection() {
       ? diffView.activeFile.path
       : undefined;
 
-  const prefetch = usePrefetchModels(projectId, provisioned.workspaceId, 'staged', 'HEAD');
+  const prefetch = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'staged', 'HEAD');
 
   const handleSelectChange = (path: string) => {
     diffView.setActiveFile({ path, type: 'staged', originalRef: 'HEAD' });
@@ -52,13 +50,6 @@ export const StagedSection = observer(function StagedSection() {
     void git.unstageAllFiles();
     changesView.setExpanded({ unstaged: true, staged: false, pullRequests: hasPRs });
   };
-
-  const handleCommit = (message: string) => {
-    void git.commit(message);
-    changesView.setExpanded({ unstaged: true, staged: false, pullRequests: hasPRs });
-  };
-
-  const ahead = selectAheadCount(git);
 
   return (
     <>
@@ -116,8 +107,7 @@ export const StagedSection = observer(function StagedSection() {
             onPrefetch={(change) => prefetch(change.path)}
           />
         </div>
-        {hasChanges && <CommitCard onCommit={handleCommit} />}
-        {!hasChanges && ahead > 0 && <PushCard />}
+        {hasChanges && <CommitCard />}
       </div>
     </>
   );

@@ -13,6 +13,7 @@ export type DiffViewSnapshot = {
   diffStyle: 'unified' | 'split';
   viewMode: 'stacked' | 'file';
   activeFile?: ActiveFile;
+  commitAction: 'commit' | 'commit-push' | null;
 };
 
 export interface ActiveFile {

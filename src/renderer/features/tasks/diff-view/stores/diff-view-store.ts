@@ -16,6 +16,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   activeFile: ActiveFile | null = null;
   diffStyle: 'unified' | 'split' = 'unified';
   viewMode: 'stacked' | 'file' = 'stacked';
+  commitAction: 'commit' | 'commit-push' | null = null;
   /**
    * True when the current diff context has more files than MAX_STACKED_FILES.
    * The stacked view toggle is disabled in the UI while this is true.
@@ -39,6 +40,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       diffStyle: observable,
       viewMode: observable,
       stackedDiffDisabled: observable,
+      commitAction: observable,
       setActiveFile: action,
       setDiffStyle: action,
       setViewMode: action,
@@ -117,15 +119,12 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Snapshottable
-  // ---------------------------------------------------------------------------
-
   get snapshot(): DiffViewSnapshot {
     return {
       diffStyle: this.diffStyle,
       viewMode: this.viewMode,
       activeFile: this.activeFile ? { ...this.activeFile, scrollBehavior: undefined } : undefined,
+      commitAction: this.commitAction,
     };
   }
 
@@ -133,14 +132,20 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     if (snapshot.diffStyle) this.diffStyle = snapshot.diffStyle;
     if (snapshot.viewMode) this.viewMode = snapshot.viewMode;
     if (snapshot.activeFile) this.activeFile = snapshot.activeFile;
+    if (snapshot.commitAction) this.commitAction = snapshot.commitAction;
     // Apply limit in case the persisted viewMode is 'stacked' but the file
     // count already exceeds the threshold.
     this._applyStackedLimit();
   }
 
-  // ---------------------------------------------------------------------------
-  // Actions
-  // ---------------------------------------------------------------------------
+  get effectiveCommitAction(): 'commit' | 'commit-push' {
+    if (this.commitAction !== null) return this.commitAction;
+    return this.git.isBranchPublished ? 'commit-push' : 'commit';
+  }
+
+  setCommitAction(action: 'commit' | 'commit-push' | null): void {
+    this.commitAction = action;
+  }
 
   setActiveFile(file: ActiveFile | null): void {
     this.activeFile = file;
@@ -160,10 +165,6 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     this._disposeReactions = [];
     this.changesView.dispose();
   }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
 
   private _currentFileCount(): number {
     const file = this.activeFile;
