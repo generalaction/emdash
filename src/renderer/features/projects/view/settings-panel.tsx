@@ -7,7 +7,7 @@ export function SettingsPanel() {
   const {
     params: { projectId },
   } = useParams('project');
-  const { settings, isLoading, save, isSaving } = useProjectSettings(projectId);
+  const { settings, isLoading, save } = useProjectSettings(projectId);
 
   if (isLoading || !settings) {
     return (
@@ -19,11 +19,11 @@ export function SettingsPanel() {
 
   return (
     <ProjectSettingsForm
+      key={projectId}
       projectId={projectId}
       initial={settings}
       onSuccess={() => {}}
       save={save}
-      isSaving={isSaving}
     />
   );
 }

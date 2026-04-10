@@ -1,5 +1,5 @@
-import { GitBranch } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Check, GitBranch, Loader2, Undo2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import type { Branch } from '@shared/git';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { useBranches } from '@renderer/features/projects/repository/use-branches';
@@ -76,35 +76,49 @@ export interface ProjectSettingsFormProps {
   initial: ProjectSettings;
   onSuccess: () => void;
   save: (settings: ProjectSettings) => Promise<void>;
-  isSaving: boolean;
 }
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export function ProjectSettingsForm({
   projectId,
   initial,
   onSuccess,
   save,
-  isSaving,
 }: ProjectSettingsFormProps) {
   const { branches } = useBranches(projectId);
   const { remotes } = useRemotes(projectId);
 
   const baseline = useMemo(() => settingsToForm(initial), [initial]);
   const [form, setForm] = useState<FormState>(baseline);
+  const [savedForm, setSavedForm] = useState<FormState>(baseline);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
 
-  useEffect(() => {
-    setForm(baseline);
-  }, [baseline]);
-
-  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
+  const formSnapshot = useMemo(() => JSON.stringify(form), [form]);
+  const savedSnapshot = useMemo(() => JSON.stringify(savedForm), [savedForm]);
+  const dirty = formSnapshot !== savedSnapshot;
+  const saving = saveStatus === 'saving';
+  const saved = saveStatus === 'saved' && !dirty;
+  const saveDisabled = saving || !dirty;
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((current) => ({ ...current, [key]: value }));
+    setSaveStatus((current) => (current === 'idle' ? current : 'idle'));
   }
 
   async function handleSave() {
-    await save(formToSettings(form));
-    onSuccess();
+    const formAtSubmit = form;
+
+    setSaveStatus('saving');
+
+    try {
+      await save(formToSettings(formAtSubmit));
+      setSavedForm(formAtSubmit);
+      setSaveStatus('saved');
+      onSuccess();
+    } catch {
+      setSaveStatus('error');
+    }
   }
 
   return (
@@ -265,11 +279,22 @@ export function ProjectSettingsForm({
         </FieldGroup>
       </div>
       <div className="flex justify-end gap-2 pt-5 pb-10">
-        <Button variant="outline" onClick={() => setForm(baseline)} disabled={!isDirty || isSaving}>
-          Cancel
+        <Button
+          variant="outline"
+          onClick={() => {
+            setForm(savedForm);
+            if (saveStatus === 'error') setSaveStatus('idle');
+          }}
+          disabled={!dirty || saving}
+        >
+          <Undo2 />
         </Button>
-        <ConfirmButton onClick={() => void handleSave()} disabled={!isDirty || isSaving}>
-          {isSaving ? 'Saving…' : 'Save'}
+        <ConfirmButton onClick={() => void handleSave()} disabled={saveDisabled}>
+          <span className="inline-flex min-w-[5.5rem] items-center justify-center gap-1.5">
+            {saving && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {!saving && saved && <Check className="size-4" aria-hidden="true" />}
+            {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
+          </span>
         </ConfirmButton>
       </div>
     </div>
