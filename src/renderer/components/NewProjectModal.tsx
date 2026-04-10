@@ -18,12 +18,29 @@ interface Owner {
   type: 'User' | 'Organization';
 }
 
+type TemplateType = 'blank' | 't3' | 'vite-react' | 'gStack';
+
+interface TemplateOption {
+  value: TemplateType;
+  label: string;
+  description: string;
+  isNew?: boolean;
+}
+
+const TEMPLATE_OPTIONS: TemplateOption[] = [
+  { value: 'blank', label: 'Blank', description: 'Start from scratch' },
+  { value: 't3', label: 'T3 Stack', description: 'Full-stack T3 app' },
+  { value: 'vite-react', label: 'Vite + React', description: 'Fast React setup with Vite' },
+  { value: 'gStack', label: 'gStack', description: 'Garry Tan gstack starter repo', isNew: true },
+];
+
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuccess }) => {
   const [repoName, setRepoName] = useState('');
   const [description, setDescription] = useState('');
   const [owner, setOwner] = useState<string>('');
   const [_owners, setOwners] = useState<Owner[]>([]);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [template, setTemplate] = useState<TemplateType>('blank');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -62,6 +79,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
     setRepoName('');
     setDescription('');
     setIsPrivate(false);
+    setTemplate('blank');
     setError(null);
     setValidationError(null);
     setIsValidating(false);
@@ -136,6 +154,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
           description: description.trim() || undefined,
           owner,
           isPrivate,
+          template,
         });
 
         if (result.success && result.projectPath) {
@@ -159,7 +178,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
         setIsCreating(false);
       }
     },
-    [repoName, description, owner, isPrivate, validationError, onSuccess, onClose]
+    [repoName, description, owner, isPrivate, template, validationError, onSuccess, onClose]
   );
 
   return (
@@ -190,6 +209,34 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ onClose, onSuc
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label className="mb-2 block">Template</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {TEMPLATE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setTemplate(option.value)}
+                  className={`relative flex flex-col items-start rounded-lg border p-3 transition-all ${
+                    template === option.value
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-muted-foreground'
+                  }`}
+                >
+                  <span className="text-sm font-medium">{option.label}</span>
+                  <span className="text-left text-xs text-muted-foreground">
+                    {option.description}
+                  </span>
+                  {option.isNew && (
+                    <span className="absolute right-2 top-2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                      New
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <Label htmlFor="repo-name" className="mb-2 block">
               Repository name <span className="text-destructive">*</span>

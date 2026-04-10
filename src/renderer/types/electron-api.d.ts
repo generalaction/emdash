@@ -907,6 +907,7 @@ declare global {
         owner: string;
         isPrivate: boolean;
         gitignoreTemplate?: string;
+        template?: 'blank' | 't3' | 'vite-react' | 'gStack';
       }) => Promise<{
         success: boolean;
         projectPath?: string;

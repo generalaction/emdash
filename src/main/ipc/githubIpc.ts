@@ -549,6 +549,7 @@ export function registerGithubIpc() {
         owner: string;
         isPrivate: boolean;
         gitignoreTemplate?: string;
+        template?: 'blank' | 't3' | 'vite-react' | 'gStack';
       }
     ) => {
       let githubRepoCreated = false;
@@ -557,7 +558,22 @@ export function registerGithubIpc() {
       let localPath: string | undefined;
 
       try {
-        const { name, description, owner, isPrivate, gitignoreTemplate } = params;
+        const { name, description, owner, isPrivate, gitignoreTemplate, template } = params;
+
+        // Validate required fields
+        if (!name || !name.trim()) {
+          return {
+            success: false,
+            error: 'Repository name is required',
+          };
+        }
+
+        if (!owner || !owner.trim()) {
+          return {
+            success: false,
+            error: 'Owner is required. Please ensure you are authenticated.',
+          };
+        }
 
         // Validate inputs
         const formatValidation = githubService.validateRepositoryName(name);
@@ -597,42 +613,85 @@ export function registerGithubIpc() {
         }
 
         // Create GitHub repository
-        const repoInfo = await githubService.createRepository({
-          name,
-          description,
-          owner,
-          isPrivate,
-        });
+        let repoInfo: { url: string; defaultBranch: string; fullName: string };
+
+        if (template && template !== 'blank') {
+          if (template === 'vite-react') {
+            repoInfo = await githubService.createViteReactProject({
+              name,
+              description,
+              owner,
+              isPrivate,
+              localPath: localPath!,
+            });
+          } else if (template === 't3') {
+            repoInfo = await githubService.createProjectFromTemplate({
+              name,
+              description,
+              owner,
+              isPrivate,
+              templateOwner: 't3dotgg',
+              templateRepo: 'create-t3-app',
+              localPath: localPath!,
+            });
+          } else if (template === 'gStack') {
+            repoInfo = await githubService.createGstackProject({
+              name,
+              description,
+              owner,
+              isPrivate,
+              localPath: localPath!,
+            });
+          } else {
+            repoInfo = await githubService.createRepository({
+              name,
+              description,
+              owner,
+              isPrivate,
+            });
+          }
+        } else {
+          repoInfo = await githubService.createRepository({
+            name,
+            description,
+            owner,
+            isPrivate,
+          });
+        }
         githubRepoCreated = true;
         repoUrl = repoInfo.url;
 
-        // Clone repository
-        const cloneResult = await githubService.cloneRepository(repoUrl, localPath);
-        if (!cloneResult.success) {
-          // Cleanup: delete GitHub repo on clone failure
-          try {
-            // Security: Use quoteShellArg to prevent command injection
-            const repoRef = `${quoteShellArg(owner)}/${quoteShellArg(name)}`;
-            await execAsync(`gh repo delete ${repoRef} --yes`, {
-              timeout: 10000,
-            });
-          } catch (cleanupError) {
-            log.warn('Failed to cleanup GitHub repo after clone failure:', cleanupError);
+        // Clone repository (skip for gStack since createGstackProject already handles it)
+        if (template !== 'gStack') {
+          const cloneResult = await githubService.cloneRepository(repoUrl, localPath);
+          if (!cloneResult.success) {
+            // Cleanup: delete GitHub repo on clone failure
+            try {
+              // Security: Use quoteShellArg to prevent command injection
+              const repoRef = `${quoteShellArg(owner)}/${quoteShellArg(name)}`;
+              await execAsync(`gh repo delete ${repoRef} --yes`, {
+                timeout: 10000,
+              });
+            } catch (cleanupError) {
+              log.warn('Failed to cleanup GitHub repo after clone failure:', cleanupError);
+            }
+            return {
+              success: false,
+              error: cloneResult.error || 'Failed to clone repository',
+            };
           }
-          return {
-            success: false,
-            error: cloneResult.error || 'Failed to clone repository',
-          };
+          localDirCreated = true;
         }
-        localDirCreated = true;
 
-        // Initialize project (create README, commit, push)
-        await githubService.initializeNewProject({
-          repoUrl,
-          localPath,
-          name,
-          description,
-        });
+        // Initialize project (create README, commit, push) - skip for templates as they already have content
+        if (!template || template === 'blank') {
+          await githubService.initializeNewProject({
+            repoUrl,
+            localPath,
+            name,
+            description,
+          });
+        }
 
         // TODO: Add .gitignore if template specified (for future enhancement)
 
