@@ -1,5 +1,5 @@
-import { Check, FolderOpen, Trash2 } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import { FolderOpen, Trash2 } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
 import { Button } from '@renderer/lib/ui/button';
@@ -33,23 +33,17 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   onOpenTerminal,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [justInstalled, setJustInstalled] = useState(false);
-
-  // Reset justInstalled when the modal opens with a different skill
-  useEffect(() => {
-    if (isOpen) setJustInstalled(false);
-  }, [isOpen, skill?.id]);
 
   const handleInstall = useCallback(async () => {
     if (!skill) return;
     setIsProcessing(true);
     try {
       const success = await onInstall(skill.id);
-      if (success) setJustInstalled(true);
+      if (success) onClose();
     } finally {
       setIsProcessing(false);
     }
-  }, [skill, onInstall]);
+  }, [skill, onInstall, onClose]);
 
   const handleUninstall = useCallback(async () => {
     if (!skill) return;
@@ -141,16 +135,10 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
               )}
             </>
           )}
-          {!skill.installed && !justInstalled && (
+          {!skill.installed && (
             <ConfirmButton size="sm" onClick={() => void handleInstall()} disabled={isProcessing}>
               {isProcessing ? 'Installing...' : 'Install'}
             </ConfirmButton>
-          )}
-          {justInstalled && (
-            <Button size="sm" variant="outline" disabled>
-              <Check className="mr-1.5 h-3.5 w-3.5" />
-              Installed
-            </Button>
           )}
         </DialogFooter>
       </DialogContent>
