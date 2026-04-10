@@ -50,7 +50,10 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     taskManager?.provisionTask(taskId);
   };
 
-  const handleArchive = () => void taskManager?.archiveTask(taskId);
+  const handleArchive = () => {
+    if (isActive) navigate('project', { projectId });
+    void taskManager?.archiveTask(taskId);
+  };
 
   const handleRename = () => showRename({ projectId, taskId, currentName: taskName });
 
