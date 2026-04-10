@@ -1,7 +1,13 @@
+import { ExternalLink } from 'lucide-react';
 import { type PullRequest } from '@shared/pull-requests';
+import { PrMergeLine } from '@renderer/features/projects/components/pr-merge-line';
 import { PrNumberBadge, StatusIcon } from '@renderer/features/projects/components/pr-row';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
+import { rpc } from '../ipc';
+import { Button } from '../ui/button';
+import { RelativeTime } from '../ui/relative-time';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 interface PrBadgeProps {
   variant?: 'default' | 'compact';
@@ -38,7 +44,36 @@ export function PrBadge({ variant = 'default', pr, className }: PrBadgeProps) {
     <Popover>
       <PopoverTrigger openOnHover>{renderBadge()}</PopoverTrigger>
       <PopoverContent>
-        <div>Pr card</div>
+        <div>
+          <div className="flex items-center gap-2 justify-between">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <StatusIcon status={pr.status} />
+              <span className="text-sm text-foreground leading-snug truncate min-w-0">
+                {pr.title}
+              </span>
+              <PrNumberBadge number={pr.metadata.number} />
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => rpc.app.openExternal(pr.url)}
+                  >
+                    <ExternalLink className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Open PR on github</TooltipContent>
+              </Tooltip>
+            </div>
+            <RelativeTime
+              value={pr.createdAt}
+              className="text-xs text-foreground-passive"
+              compact
+            />
+          </div>
+          <PrMergeLine pr={pr} />
+        </div>
       </PopoverContent>
     </Popover>
   );
