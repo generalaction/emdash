@@ -30,8 +30,7 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
 
   useCloseGuard(isCreating);
 
-  const handleCreateSkill = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleCreateSkill = async () => {
     setCreateError(null);
 
     const trimmedName = name.trim();
@@ -58,8 +57,8 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
       }
 
       captureTelemetry('skill_created');
-      await queryClient.invalidateQueries({ queryKey: ['skills', 'catalog'] });
       onSuccess();
+      void queryClient.invalidateQueries({ queryKey: ['skills', 'catalog'] });
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : 'Failed to create skill');
     } finally {
@@ -76,7 +75,7 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
       </DialogHeader>
 
       <DialogContentArea>
-        <form id="create-skill-form" onSubmit={handleCreateSkill} className="space-y-4">
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="skill-name" className="text-xs">
               Name
@@ -132,14 +131,19 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
           </div>
 
           {createError && <p className="text-xs text-destructive">{createError}</p>}
-        </form>
+        </div>
       </DialogContentArea>
 
       <DialogFooter className="gap-2 sm:gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isCreating}>
           Cancel
         </Button>
-        <ConfirmButton type="submit" form="create-skill-form" size="sm" disabled={isCreating}>
+        <ConfirmButton
+          type="button"
+          onClick={() => void handleCreateSkill()}
+          size="sm"
+          disabled={isCreating}
+        >
           {isCreating ? 'Creating...' : 'Create'}
         </ConfirmButton>
       </DialogFooter>
