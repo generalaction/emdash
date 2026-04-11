@@ -32,7 +32,8 @@ export default function HiddenToolsSettingsCard() {
       <div className="space-y-2">
         {sortedApps.map((app) => {
           const isDetected = availability[app.id] ?? app.alwaysAvailable ?? false;
-          const isVisible = !hiddenApps.includes(app.id);
+          const isVisible = isDetected && !hiddenApps.includes(app.id);
+          const canToggleVisibility = isDetected;
           const label = labels[app.id] ?? app.label;
           const icon = icons[app.id];
           const indicatorClass = isDetected ? 'bg-emerald-500' : 'bg-muted-foreground/50';
@@ -58,14 +59,18 @@ export default function HiddenToolsSettingsCard() {
                       <span>
                         <Switch
                           checked={isVisible}
-                          disabled={isLoading || isSaving}
+                          disabled={isLoading || isSaving || !canToggleVisibility}
                           onCheckedChange={(checked) => toggle(app.id, checked)}
                           aria-label={`${isVisible ? 'Hide' : 'Show'} ${label} in open menu`}
                         />
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs">
-                      {isVisible ? 'Hide from menu' : 'Show in menu'}
+                      {!isDetected
+                        ? 'Install this tool to show it in menu'
+                        : isVisible
+                          ? 'Hide from menu'
+                          : 'Show in menu'}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
