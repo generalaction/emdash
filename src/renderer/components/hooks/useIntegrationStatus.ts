@@ -51,7 +51,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
     isLoading: githubLoading,
   } = useGithubContext();
 
-  const isGithubConnected = githubInstalled && githubAuthenticated;
+  const isGithubConnected = githubAuthenticated;
 
   // Check Linear connection
   useEffect(() => {
@@ -154,21 +154,13 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   }, []);
 
   const handleGithubConnect = useCallback(async () => {
-    if (!githubInstalled) {
-      try {
-        await window.electronAPI.openExternal('https://cli.github.com/manual/installation');
-      } catch (error) {
-        console.error('Failed to open GitHub CLI install docs:', error);
-      }
-      return;
-    }
     try {
       await githubLogin();
     } catch (error) {
       console.error('Failed to connect GitHub:', error);
       throw error;
     }
-  }, [githubInstalled, githubLogin]);
+  }, [githubLogin]);
 
   const handleJiraConnect = useCallback(
     async (credentials: { siteUrl: string; email: string; token: string }) => {

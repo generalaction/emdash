@@ -17,15 +17,13 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
     useGithubContext();
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState<boolean>(false);
-  const [isInstalling, setIsInstalling] = useState(false);
   const [cliInstalled, setCLIInstalled] = useState(true);
 
   const status: GithubConnectionStatus = useMemo(() => {
-    if (!installed) {
-      return 'missing';
-    }
-    return authenticated ? 'connected' : 'disconnected';
-  }, [installed, authenticated]);
+    if (authenticated) return 'connected';
+    if (!installed) return 'missing';
+    return 'disconnected';
+  }, [authenticated, installed]);
 
   useEffect(() => {
     onStatusChange?.(status);
@@ -50,27 +48,6 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
   const handleConnect = useCallback(async () => {
     setMessage(null);
     setIsError(false);
-
-    // Check if gh CLI is installed
-    const cliPresent = await window.electronAPI.githubCheckCLIInstalled();
-
-    if (!cliPresent) {
-      // Offer to install
-      setMessage('GitHub CLI not found. Installing...');
-      setIsInstalling(true);
-
-      const installResult = await window.electronAPI.githubInstallCLI();
-      setIsInstalling(false);
-
-      if (!installResult.success) {
-        setMessage(`Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`);
-        setIsError(true);
-        return;
-      }
-
-      setMessage('GitHub CLI installed successfully!');
-      setCLIInstalled(true);
-    }
 
     // Proceed with OAuth authentication
     try {
@@ -127,12 +104,24 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
         <div className="space-y-3">
           <div className="rounded-lg border border-dashed border-border bg-white p-3 dark:border-border dark:bg-background">
             <p className="text-sm text-muted-foreground">
-              Install GitHub CLI (gh) to enable repo access.
+              GitHub CLI is optional. Install it only if you want CLI-backed PR actions.
             </p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={handleInstall}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Install GitHub CLI
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" size="sm" onClick={handleConnect} disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Connecting…
+                </>
+              ) : (
+                'Sign in with GitHub'
+              )}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={handleInstall}>
+              <ExternalLink className="mr-2 h-4 w-4" /> Install GitHub CLI
+            </Button>
+          </div>
         </div>
       ) : status === 'connected' ? (
         <div className="space-y-3">
@@ -174,13 +163,14 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            gh stays signed in to keep PR actions working.
+            Disconnecting here only removes Emdash's GitHub token. Your local `gh` login is left
+            alone.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Sign in to gh to enable cloning and PR actions.
+            Sign in to connect GitHub in Emdash. GitHub CLI remains optional.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button
@@ -189,10 +179,10 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
               disabled={isLoading}
               aria-busy={isLoading}
             >
-              {isLoading || isInstalling ? (
+              {isLoading ? (
                 <>
                   <Spinner size="sm" className="mr-2" />
-                  {isInstalling ? 'Installing CLI...' : 'Connecting…'}
+                  Connecting…
                 </>
               ) : (
                 'Sign in with GitHub'
@@ -201,6 +191,11 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
             <Button type="button" variant="outline" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCcw className="mr-2 h-4 w-4" /> Check status
             </Button>
+            {!cliInstalled ? (
+              <Button type="button" variant="outline" onClick={handleInstall} disabled={isLoading}>
+                <ExternalLink className="mr-2 h-4 w-4" /> Install GitHub CLI
+              </Button>
+            ) : null}
           </div>
         </div>
       )}

@@ -73,6 +73,7 @@ vi.mock('child_process', () => {
 const setPasswordMock = vi.fn().mockResolvedValue(undefined);
 const getPasswordMock = vi.fn().mockResolvedValue(null);
 const deletePasswordMock = vi.fn().mockResolvedValue(undefined);
+const fetchMock = vi.fn();
 
 vi.mock('keytar', () => {
   const module = {
@@ -99,21 +100,62 @@ describe('GitHubService.isAuthenticated', () => {
     prCountStdout = '0';
     setPasswordMock.mockClear();
     getPasswordMock.mockClear();
+    deletePasswordMock.mockClear();
     getPasswordMock.mockResolvedValue(null);
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      statusText: 'OK',
+      json: async () => ({
+        id: 1,
+        login: 'tester',
+        name: 'Tester',
+        email: '',
+        avatar_url: '',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('treats GitHub CLI login as authenticated even without stored token', async () => {
+  it('does not treat a global gh login as authenticated without an Emdash token', async () => {
+    const service = new GitHubService();
+
+    const result = await service.isAuthenticated();
+
+    expect(result).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(execCalls.find((cmd) => cmd.startsWith('gh auth status'))).toBeUndefined();
+    expect(setPasswordMock).not.toHaveBeenCalled();
+  });
+
+  it('treats a stored Emdash token as authenticated', async () => {
+    getPasswordMock.mockResolvedValue('gho_mocktoken');
+
     const service = new GitHubService();
 
     const result = await service.isAuthenticated();
 
     expect(result).toBe(true);
-    expect(execCalls.find((cmd) => cmd.startsWith('gh auth status'))).toBeDefined();
-    expect(execCalls.find((cmd) => cmd.startsWith('gh auth token'))).toBeUndefined();
-    expect(setPasswordMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith('https://api.github.com/user', {
+      headers: {
+        Authorization: 'Bearer gho_mocktoken',
+        Accept: 'application/vnd.github.v3+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+  });
+
+  it('logout only clears Emdash token storage', async () => {
+    const service = new GitHubService();
+
+    await service.logout();
+
+    expect(deletePasswordMock).toHaveBeenCalledWith('emdash-github', 'github-token');
+    expect(execCalls).toEqual([]);
   });
 
   it('sorts listed issues by updatedAt descending', async () => {
+    getPasswordMock.mockResolvedValue('gho_mocktoken');
     issueListStdout = JSON.stringify([
       { number: 11, title: 'Older', updatedAt: '2026-03-01T10:00:00.000Z' },
       { number: 12, title: 'Newest', updatedAt: '2026-03-03T12:00:00.000Z' },
@@ -127,6 +169,7 @@ describe('GitHubService.isAuthenticated', () => {
   });
 
   it('sorts searched issues by updatedAt descending', async () => {
+    getPasswordMock.mockResolvedValue('gho_mocktoken');
     issueSearchStdout = JSON.stringify([
       { number: 101, title: 'Stale', updatedAt: '2026-03-02T08:00:00.000Z' },
       { number: 102, title: 'Fresh', updatedAt: '2026-03-04T08:00:00.000Z' },
@@ -140,6 +183,7 @@ describe('GitHubService.isAuthenticated', () => {
   });
 
   it('limits pull requests and returns the total open PR count', async () => {
+    getPasswordMock.mockResolvedValue('gho_mocktoken');
     prListStdout = JSON.stringify([
       { number: 8, title: 'Older', updatedAt: '2026-03-01T10:00:00.000Z' },
       { number: 9, title: 'Newest', updatedAt: '2026-03-03T10:00:00.000Z' },
@@ -158,6 +202,7 @@ describe('GitHubService.isAuthenticated', () => {
   });
 
   it('passes search queries through to gh pr list and the filtered count lookup', async () => {
+    getPasswordMock.mockResolvedValue('gho_mocktoken');
     prListStdout = JSON.stringify([
       { number: 17, title: 'Needs review', updatedAt: '2026-03-04T10:00:00.000Z' },
     ]);

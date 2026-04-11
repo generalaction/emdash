@@ -48,7 +48,7 @@ const SvgLogo = ({ raw }: { raw: string }) => {
 };
 
 const IntegrationsCard: React.FC = () => {
-  const { installed, authenticated, isLoading, login, logout, checkStatus } = useGithubContext();
+  const { authenticated, isLoading, login, logout, checkStatus } = useGithubContext();
   const { hasAccount, checkServerHealth, refreshSession } = useEmdashAccount();
   const { showModal, closeModal } = useModalContext();
 
@@ -170,18 +170,6 @@ const IntegrationsCard: React.FC = () => {
   const handleGithubConnect = useCallback(async () => {
     setGithubError(null);
     try {
-      if (!installed) {
-        // Auto-install gh CLI
-        const installResult = await window.electronAPI.githubInstallCLI();
-        if (!installResult.success) {
-          setGithubError(
-            `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`
-          );
-          return;
-        }
-        await checkStatus();
-      }
-
       if (hasAccount && (await checkServerHealth())) {
         try {
           const result = await window.electronAPI.githubAuthOAuth();
@@ -221,16 +209,7 @@ const IntegrationsCard: React.FC = () => {
       setGithubError('Could not connect.');
       closeModal();
     }
-  }, [
-    hasAccount,
-    checkServerHealth,
-    refreshSession,
-    checkStatus,
-    login,
-    installed,
-    showModal,
-    closeModal,
-  ]);
+  }, [hasAccount, checkServerHealth, refreshSession, checkStatus, login, showModal, closeModal]);
 
   const handleGithubDisconnect = useCallback(async () => {
     setGithubError(null);

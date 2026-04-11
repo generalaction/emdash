@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useToast } from '../hooks/use-toast';
 import { useModalContext } from './ModalProvider';
-import { useAppContext } from './AppContextProvider';
 import { useEmdashAccount } from './EmdashAccountProvider';
 
 type GithubUser = any;
@@ -15,13 +14,13 @@ type GithubContextValue = {
   isLoading: boolean;
   isInitialized: boolean;
 
-  /** True during the handleGithubConnect flow (CLI install + auth start) */
+  /** True during the handleGithubConnect flow */
   githubLoading: boolean;
   githubStatusMessage: string | undefined;
   needsGhInstall: boolean;
   needsGhAuth: boolean;
 
-  /** Full connect flow: installs CLI if needed, starts device flow, shows modal */
+  /** Full connect flow: authenticates via account or device flow and shows the modal */
   handleGithubConnect: () => Promise<void>;
   /** Raw login — starts the device flow and returns the IPC result */
   login: () => Promise<any>;
@@ -38,7 +37,6 @@ const GithubContext = createContext<GithubContextValue | null>(null);
 export function GithubContextProvider({ children }: { children: React.ReactNode }) {
   const { showModal } = useModalContext();
   const { toast } = useToast();
-  const { platform } = useAppContext();
   const { hasAccount, checkServerHealth, refreshSession } = useEmdashAccount();
   const queryClient = useQueryClient();
 
@@ -136,41 +134,6 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     setGithubStatusMessage(undefined);
 
     try {
-      setGithubStatusMessage('Checking for GitHub CLI...');
-      const cliInstalled = await window.electronAPI.githubCheckCLIInstalled();
-
-      if (!cliInstalled) {
-        let installMessage = 'Installing GitHub CLI...';
-        if (platform === 'darwin') {
-          installMessage = 'Installing GitHub CLI via Homebrew...';
-        } else if (platform === 'linux') {
-          installMessage = 'Installing GitHub CLI via apt...';
-        } else if (platform === 'win32') {
-          installMessage = 'Installing GitHub CLI via winget...';
-        }
-
-        setGithubStatusMessage(installMessage);
-        const installResult = await window.electronAPI.githubInstallCLI();
-
-        if (!installResult.success) {
-          setGithubLoading(false);
-          setGithubStatusMessage(undefined);
-          toast({
-            title: 'Installation Failed',
-            description: `Could not auto-install gh CLI: ${installResult.error || 'Unknown error'}`,
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        setGithubStatusMessage('GitHub CLI installed! Setting up connection...');
-        toast({
-          title: 'GitHub CLI Installed',
-          description: 'Now authenticating with GitHub...',
-        });
-        void checkStatus();
-      }
-
       if (hasAccount && (await checkServerHealth())) {
         setGithubStatusMessage('Authenticating via Emdash account...');
         try {
@@ -220,7 +183,6 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     hasAccount,
     checkServerHealth,
     refreshSession,
-    platform,
     toast,
     checkStatus,
     login,

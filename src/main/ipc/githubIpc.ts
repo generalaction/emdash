@@ -23,32 +23,66 @@ const slugify = (name: string) =>
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 
+function parseGitHubRepository(remoteUrl: string): string | null {
+  const trimmed = remoteUrl.trim();
+  if (!trimmed) return null;
+
+  const match = trimmed.match(
+    /(?:git@github\.com:|https?:\/\/github\.com\/)([^/\s]+)\/([^/\s]+?)(?:\.git)?$/
+  );
+  if (!match) return null;
+
+  return `${match[1]}/${match[2]}`;
+}
+
+async function getDefaultBranchForRepo(projectPath: string): Promise<string> {
+  try {
+    const { stdout } = await execAsync(
+      'git symbolic-ref --quiet --short refs/remotes/origin/HEAD',
+      {
+        cwd: projectPath,
+      }
+    );
+    const ref = stdout.trim();
+    if (ref.startsWith('origin/')) {
+      return ref.slice('origin/'.length) || 'main';
+    }
+  } catch {
+    // Fall back to main when origin/HEAD is unavailable.
+  }
+
+  return 'main';
+}
+
 export function registerGithubIpc() {
   ipcMain.handle('github:connect', async (_, projectPath: string) => {
     try {
-      // Check if GitHub CLI is authenticated
       const isAuth = await githubService.isAuthenticated();
       if (!isAuth) {
-        return { success: false, error: 'GitHub CLI not authenticated' };
+        return { success: false, error: 'GitHub is not connected' };
       }
 
-      // Get repository info from GitHub CLI
       try {
-        const { stdout } = await execAsync(
-          'gh repo view --json name,nameWithOwner,defaultBranchRef',
-          { cwd: projectPath }
-        );
-        const repoInfo = JSON.parse(stdout);
+        const { stdout } = await execAsync('git config --get remote.origin.url', {
+          cwd: projectPath,
+        });
+        const repository = parseGitHubRepository(stdout);
+        if (!repository) {
+          return {
+            success: false,
+            error: 'Repository is not using a GitHub origin remote',
+          };
+        }
 
         return {
           success: true,
-          repository: repoInfo.nameWithOwner,
-          branch: repoInfo.defaultBranchRef?.name || 'main',
+          repository,
+          branch: await getDefaultBranchForRepo(projectPath),
         };
       } catch (error) {
         return {
           success: false,
-          error: 'Repository not found on GitHub or not connected to GitHub CLI',
+          error: 'Could not resolve the GitHub repository for this project',
         };
       }
     } catch (error) {
@@ -97,27 +131,22 @@ export function registerGithubIpc() {
     }
   });
 
-  // GitHub status: installed + authenticated + user
+  // GitHub status: optional gh install + Emdash auth + user
   ipcMain.handle('github:getStatus', async () => {
     try {
-      let installed = true;
-      try {
-        await execAsync('gh --version');
-      } catch {
-        installed = false;
-      }
+      const installed = await githubCLIInstaller.isInstalled();
 
       let authenticated = false;
       let user: any = null;
-      if (installed) {
-        try {
-          const { stdout } = await execAsync('gh api user');
-          user = JSON.parse(stdout);
-          authenticated = true;
-        } catch {
-          authenticated = false;
-          user = null;
+      try {
+        const token = await githubService.getStoredToken();
+        if (token) {
+          user = await githubService.getUserInfo(token);
+          authenticated = !!user;
         }
+      } catch {
+        authenticated = false;
+        user = null;
       }
 
       return { installed, authenticated, user };
@@ -129,7 +158,7 @@ export function registerGithubIpc() {
 
   ipcMain.handle('github:getUser', async () => {
     try {
-      const token = await (githubService as any)['getStoredToken']();
+      const token = await githubService.getStoredToken();
       if (!token) return null;
       return await githubService.getUserInfo(token);
     } catch (error) {
@@ -140,7 +169,7 @@ export function registerGithubIpc() {
 
   ipcMain.handle('github:getRepositories', async () => {
     try {
-      const token = await (githubService as any)['getStoredToken']();
+      const token = await githubService.getStoredToken();
       if (!token) throw new Error('Not authenticated');
       return await githubService.getRepositories(token);
     } catch (error) {
@@ -613,8 +642,10 @@ export function registerGithubIpc() {
           try {
             // Security: Use quoteShellArg to prevent command injection
             const repoRef = `${quoteShellArg(owner)}/${quoteShellArg(name)}`;
+            const env = await githubService.getCliEnvironment();
             await execAsync(`gh repo delete ${repoRef} --yes`, {
               timeout: 10000,
+              env,
             });
           } catch (cleanupError) {
             log.warn('Failed to cleanup GitHub repo after clone failure:', cleanupError);
