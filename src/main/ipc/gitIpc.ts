@@ -33,11 +33,30 @@ import {
 } from '../utils/remoteProjectResolver';
 import { RemoteGitService } from '../services/RemoteGitService';
 import { sshService } from '../services/ssh/SshService';
+import { githubService } from '../services/GitHubService';
 
 const remoteGitService = new RemoteGitService(sshService);
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
+
+async function execGhAsync(command: string, options?: any) {
+  const env = await githubService.getCliEnvironment(options?.env);
+  const result = await execAsync(command, { encoding: 'utf8', ...options, env });
+  return {
+    stdout: String(result.stdout),
+    stderr: String(result.stderr),
+  };
+}
+
+async function execGhFileAsync(args: string[], options?: any) {
+  const env = await githubService.getCliEnvironment(options?.env);
+  const result = await execFileAsync('gh', args, { encoding: 'utf8', ...options, env });
+  return {
+    stdout: String(result.stdout),
+    stderr: String(result.stderr),
+  };
+}
 
 const GIT_STATUS_DEBOUNCE_MS = 500;
 const supportsRecursiveWatch = process.platform === 'darwin' || process.platform === 'win32';
@@ -704,7 +723,7 @@ export function registerGitIpc() {
     ];
     const cmd = `gh pr view --json ${queryFields.join(',')} -q .`;
     try {
-      const { stdout } = await execAsync(cmd, { cwd: taskPath });
+      const { stdout } = await execGhAsync(cmd, { cwd: taskPath });
       const json = (stdout || '').trim();
       if (!json) return { pr: null, prKnown: true };
       return { pr: JSON.parse(json), prKnown: true };
@@ -1202,7 +1221,7 @@ export function registerGitIpc() {
         } catch {}
         let defaultBranch = 'main';
         try {
-          const { stdout } = await execAsync(
+          const { stdout } = await execGhAsync(
             'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
             { cwd: taskPath }
           );
@@ -1277,7 +1296,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         let stdout: string;
         let stderr: string;
         try {
-          const result = await execAsync(cmd, { cwd: taskPath });
+          const result = await execGhAsync(cmd, { cwd: taskPath });
           stdout = result.stdout || '';
           stderr = result.stderr || '';
         } finally {
@@ -1303,7 +1322,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
             const didPatchBody = await patchCurrentPrBodyWithIssueFooter({
               taskPath,
               metadata: taskMetadata,
-              execFile: execFileAsync,
+              execFile: (file, args, options) =>
+                file === 'gh' ? execGhFileAsync(args, options) : execFileAsync(file, args, options),
               prUrl: url,
             });
             if (didPatchBody) {
@@ -1383,7 +1403,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // Attempt 1: gh pr view (works when branch tracking points to a PR)
         let data: any = null;
         try {
-          const { stdout } = await execAsync(cmd, { cwd: taskPath });
+          const { stdout } = await execGhAsync(cmd, { cwd: taskPath });
           const json = (stdout || '').trim();
           data = json ? JSON.parse(json) : null;
         } catch (viewErr) {
@@ -1405,7 +1425,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
             currentBranch = branchOut.trim();
             if (currentBranch) {
               const listCmd = `gh pr list --head ${JSON.stringify(currentBranch)} --json ${queryFields.join(',')} --limit 1`;
-              const { stdout: listOut } = await execAsync(listCmd, { cwd: taskPath });
+              const { stdout: listOut } = await execGhAsync(listCmd, { cwd: taskPath });
               const listJson = (listOut || '').trim();
               const listData = listJson ? JSON.parse(listJson) : [];
               if (listData.length > 0) {
@@ -1422,7 +1442,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // the parent/upstream repo for a PR with head "<fork-owner>:<branch>".
         if (!data && currentBranch) {
           try {
-            const { stdout: repoOut } = await execAsync('gh repo view --json owner,parent', {
+            const { stdout: repoOut } = await execGhAsync('gh repo view --json owner,parent', {
               cwd: taskPath,
             });
             const repoData = repoOut.trim() ? JSON.parse(repoOut.trim()) : null;
@@ -1433,7 +1453,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
               const forkOwnerLogin = repoData?.owner?.login;
               const forkFields = [...queryFields, 'headRepositoryOwner'];
               const forkListCmd = `gh pr list --head ${JSON.stringify(currentBranch)} --repo ${JSON.stringify(parentRepo)} --state open --json ${forkFields.join(',')} --limit 10`;
-              const { stdout: forkOut } = await execAsync(forkListCmd, { cwd: taskPath });
+              const { stdout: forkOut } = await execGhAsync(forkListCmd, { cwd: taskPath });
               const forkJson = (forkOut || '').trim();
               const forkData = forkJson ? JSON.parse(forkJson) : [];
               const match = forkOwnerLogin
@@ -1565,7 +1585,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         if (admin) ghArgs.push('--admin');
 
         try {
-          const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+          const { stdout, stderr } = await execGhFileAsync(ghArgs, { cwd: taskPath });
           const output = [stdout, stderr].filter(Boolean).join('\n').trim();
           return { success: true, output };
         } catch (err) {
@@ -1628,7 +1648,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
 
         await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
-        const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+        const { stdout, stderr } = await execGhFileAsync(ghArgs, { cwd: taskPath });
         const output = [stdout, stderr].filter(Boolean).join('\n').trim();
         return { success: true, output };
       } catch (error) {
@@ -1675,7 +1695,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         }
 
         await execFileAsync(GIT, ['rev-parse', '--is-inside-work-tree'], { cwd: taskPath });
-        const { stdout, stderr } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+        const { stdout, stderr } = await execGhFileAsync(ghArgs, { cwd: taskPath });
         const output = [stdout, stderr].filter(Boolean).join('\n').trim();
         return { success: true, output };
       } catch (error) {
@@ -1800,8 +1820,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
       try {
         // Detect fork: if this repo has a parent, find the PR number there
-        const { stdout: repoOut } = await execFileAsync(
-          'gh',
+        const { stdout: repoOut } = await execGhFileAsync(
           ['repo', 'view', '--json', 'owner,parent'],
           { cwd: taskPath }
         );
@@ -1815,8 +1834,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           });
           const currentBranch = branchOut.trim();
           if (currentBranch) {
-            const { stdout: listOut } = await execFileAsync(
-              'gh',
+            const { stdout: listOut } = await execGhFileAsync(
               [
                 'pr',
                 'list',
@@ -1864,18 +1882,17 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         const checksArgs = prRef
           ? ['pr', 'checks', prRef, ...repoFlag, '--json', fields]
           : ['pr', 'checks', '--json', fields];
-        const { stdout } = await execFileAsync('gh', checksArgs, { cwd: taskPath });
+        const { stdout } = await execGhFileAsync(checksArgs, { cwd: taskPath });
         const json = (stdout || '').trim();
         const checks = json ? JSON.parse(json) : [];
 
         // Fetch html_url from the GitHub API instead, which always points to the
         // actual check run page on GitHub.
         try {
-          const { stdout: shaOut } = await execFileAsync('gh', headRefOidArgs, { cwd: taskPath });
+          const { stdout: shaOut } = await execGhFileAsync(headRefOidArgs, { cwd: taskPath });
           const sha = shaOut.trim();
           if (sha) {
-            const { stdout: apiOut } = await execFileAsync(
-              'gh',
+            const { stdout: apiOut } = await execGhFileAsync(
               [
                 'api',
                 `${checkRunsApiRepo}/commits/${sha}/check-runs`,
@@ -2002,7 +2019,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           if (prNumber) ghArgs.push(String(prNumber));
           ghArgs.push('--json', 'comments,reviews,number');
 
-          const { stdout } = await execFileAsync('gh', ghArgs, { cwd: taskPath });
+          const { stdout } = await execGhFileAsync(ghArgs, { cwd: taskPath });
           const json = (stdout || '').trim();
           const data = json ? JSON.parse(json) : { comments: [], reviews: [], number: 0 };
 
@@ -2015,8 +2032,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
             try {
               const avatarMap = new Map<string, string>();
 
-              const { stdout: commentsApi } = await execFileAsync(
-                'gh',
+              const { stdout: commentsApi } = await execGhFileAsync(
                 [
                   'api',
                   `repos/{owner}/{repo}/issues/${data.number}/comments`,
@@ -2039,8 +2055,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
                 } catch {}
               }
 
-              const { stdout: reviewsApi } = await execFileAsync(
-                'gh',
+              const { stdout: reviewsApi } = await execGhFileAsync(
                 [
                   'api',
                   `repos/{owner}/{repo}/pulls/${data.number}/reviews`,
@@ -2142,7 +2157,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // Determine default branch via gh, fallback to main/master
         let defaultBranch = 'main';
         try {
-          const { stdout } = await execAsync(
+          const { stdout } = await execGhAsync(
             'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
             { cwd: taskPath }
           );
@@ -2296,8 +2311,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // Determine default branch
         let defaultBranch = 'main';
         try {
-          const { stdout } = await execFileAsync(
-            'gh',
+          const { stdout } = await execGhFileAsync(
             ['repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'],
             { cwd: taskPath }
           );
@@ -2530,7 +2544,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
       let defaultBranch = 'main';
       try {
-        const { stdout } = await execAsync(
+        const { stdout } = await execGhAsync(
           'gh repo view --json defaultBranchRef -q .defaultBranchRef.name',
           { cwd: taskPath }
         );
@@ -2593,7 +2607,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       }
       try {
         const prCreateArgs = ['pr', 'create', '--fill', '--base', defaultBranch];
-        const { stdout: prOut } = await execFileAsync('gh', prCreateArgs, { cwd: taskPath });
+        const { stdout: prOut } = await execGhFileAsync(prCreateArgs, { cwd: taskPath });
         const urlMatch = prOut?.match(/https?:\/\/\S+/);
         prUrl = urlMatch ? urlMatch[0] : '';
         prExists = true;
@@ -2611,7 +2625,8 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
           await patchCurrentPrBodyWithIssueFooter({
             taskPath,
             metadata: taskMetadata,
-            execFile: execFileAsync,
+            execFile: (file, args, options) =>
+              file === 'gh' ? execGhFileAsync(args, options) : execFileAsync(file, args, options),
             prUrl,
           });
         } catch (editError) {
@@ -2624,7 +2639,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
 
       // Merge PR (branch cleanup happens when workspace is deleted)
       try {
-        await execAsync('gh pr merge --merge', { cwd: taskPath });
+        await execGhAsync('gh pr merge --merge', { cwd: taskPath });
         return { success: true, prUrl };
       } catch (e) {
         const errMsg = (e as { stderr?: string })?.stderr || String(e);

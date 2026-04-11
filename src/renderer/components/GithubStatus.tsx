@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Github } from 'lucide-react';
+import { Github } from 'lucide-react';
 import githubLogo from '../../assets/images/github.png';
 import { Button } from './ui/button';
 import { Spinner } from './ui/spinner';
@@ -30,7 +30,7 @@ export function GithubStatus({
     return null;
   }
 
-  // Not installed - show install button
+  // CLI missing but app auth is still available
   if (!installed) {
     return (
       <Button
@@ -44,18 +44,18 @@ export function GithubStatus({
           <>
             <Spinner size="sm" className="flex-shrink-0" />
             <span className="min-w-0 truncate text-xs font-medium">
-              {statusMessage || 'Installing GitHub CLI...'}
+              {statusMessage || 'Connecting to GitHub...'}
             </span>
           </>
         ) : (
           <>
-            <Download className="h-4 w-4 flex-shrink-0" />
+            <Github className="h-4 w-4 flex-shrink-0" />
             <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
               <span className="w-full truncate text-xs font-medium leading-tight">
                 Connect GitHub
               </span>
               <span className="w-full truncate text-[10px] leading-tight opacity-80">
-                Install & sign in
+                Sign in with GitHub
               </span>
             </div>
           </>

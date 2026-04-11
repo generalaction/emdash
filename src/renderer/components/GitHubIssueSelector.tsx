@@ -188,7 +188,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
       <div className={className}>
         <Input value="" placeholder="GitHub integration unavailable" disabled />
         <p className="mt-2 text-xs text-muted-foreground">
-          Connect GitHub CLI in Settings to browse issues.
+          Connect GitHub in Settings to browse issues.
         </p>
       </div>
     );
@@ -336,7 +336,7 @@ export const GitHubIssueSelector: React.FC<GitHubIssueSelectorProps> = ({
             </Badge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Sign in with GitHub CLI in Settings to browse and attach issues here.
+            Sign in with GitHub in Settings to browse and attach issues here.
           </p>
         </div>
       ) : null}
