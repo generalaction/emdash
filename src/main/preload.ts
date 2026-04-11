@@ -411,7 +411,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('git:update-index', args),
   revertFile: (args: { taskPath: string; taskId?: string; filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
-  gitCommit: (args: { taskPath: string; message: string }) =>
+  gitCommit: (args: { taskPath: string; message: string; noVerify?: boolean }) =>
     ipcRenderer.invoke('git:commit', args),
   gitPush: (args: { taskPath: string }) => ipcRenderer.invoke('git:push', args),
   gitPull: (args: { taskPath: string }) => ipcRenderer.invoke('git:pull', args),

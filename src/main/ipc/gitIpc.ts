@@ -2252,9 +2252,15 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         return { success: true, branch: activeBranch, output: (out || '').trim() };
       } catch (error) {
         log.error('Failed to commit and push:', error);
-        const errObj = error as { stderr?: string; message?: string };
-        const errMsg = errObj?.stderr?.trim() || errObj?.message || String(error);
-        return { success: false, error: errMsg };
+        const errObj = error as { stderr?: string; stdout?: string; message?: string };
+        // Hooks (husky/lint-staged etc.) often write failure details to stdout, not stderr.
+        const stderr = errObj?.stderr?.trim() ?? '';
+        const stdout = errObj?.stdout?.trim() ?? '';
+        const combined = [stdout, stderr].filter(Boolean).join('\n').trim();
+        return {
+          success: false,
+          error: combined || errObj?.message || String(error),
+        };
       }
     }
   );
@@ -2737,17 +2743,29 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
     }
   );
 
-  ipcMain.handle('git:commit', async (_, args: { taskPath: string; message: string }) => {
-    try {
-      const pathErr = validateTaskPath(args.taskPath);
-      if (pathErr) return { success: false, error: pathErr };
-      const result = await gitCommit(args.taskPath, args.message);
-      broadcastGitStatusChange(args.taskPath);
-      return { success: true, hash: result.hash };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+  ipcMain.handle(
+    'git:commit',
+    async (_, args: { taskPath: string; message: string; noVerify?: boolean }) => {
+      try {
+        const pathErr = validateTaskPath(args.taskPath);
+        if (pathErr) return { success: false, error: pathErr };
+        const result = await gitCommit(args.taskPath, args.message, { noVerify: args.noVerify });
+        broadcastGitStatusChange(args.taskPath);
+        return { success: true, hash: result.hash };
+      } catch (error) {
+        const errObj = error as { stderr?: string; stdout?: string; message?: string };
+        // Hooks (husky/lint-staged etc.) often write failure details to stdout, not just stderr.
+        // Combine both so the renderer can show the full output.
+        const stderr = errObj?.stderr?.trim() ?? '';
+        const stdout = errObj?.stdout?.trim() ?? '';
+        const combined = [stdout, stderr].filter(Boolean).join('\n').trim();
+        return {
+          success: false,
+          error: combined || errObj?.message || String(error),
+        };
+      }
     }
-  });
+  );
 
   ipcMain.handle('git:push', async (_, args: { taskPath: string }) => {
     try {
@@ -2756,8 +2774,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       const result = await gitPush(args.taskPath);
       return { success: true, output: result.output };
     } catch (error) {
-      const errObj = error as { stderr?: string; message?: string };
-      return { success: false, error: errObj?.stderr?.trim() || errObj?.message || String(error) };
+      const errObj = error as { stderr?: string; stdout?: string; message?: string };
+      // Hooks (husky/lint-staged etc.) often write failure details to stdout, not just stderr.
+      const stderr = errObj?.stderr?.trim() ?? '';
+      const stdout = errObj?.stdout?.trim() ?? '';
+      const combined = [stdout, stderr].filter(Boolean).join('\n').trim();
+      return { success: false, error: combined || errObj?.message || String(error) };
     }
   });
 
@@ -2768,8 +2790,12 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
       const result = await gitPull(args.taskPath);
       return { success: true, output: result.output };
     } catch (error) {
-      const errObj = error as { stderr?: string; message?: string };
-      return { success: false, error: errObj?.stderr?.trim() || errObj?.message || String(error) };
+      const errObj = error as { stderr?: string; stdout?: string; message?: string };
+      // Hooks (husky/lint-staged etc.) often write failure details to stdout, not just stderr.
+      const stderr = errObj?.stderr?.trim() ?? '';
+      const stdout = errObj?.stdout?.trim() ?? '';
+      const combined = [stdout, stderr].filter(Boolean).join('\n').trim();
+      return { success: false, error: combined || errObj?.message || String(error) };
     }
   });
 

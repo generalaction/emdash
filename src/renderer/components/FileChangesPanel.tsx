@@ -5,6 +5,8 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { useToast } from '../hooks/use-toast';
+import { useErrorDetails } from '../hooks/useErrorDetails';
+import { friendlyGitError } from '../lib/friendlyGitError';
 import { useCreatePR } from '../hooks/useCreatePR';
 import { useFileChanges, type FileChange } from '../hooks/useFileChanges';
 import { dispatchFileChangeEvent } from '../lib/fileChangeEvents';
@@ -228,6 +230,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
     taskId: resolvedTaskId,
   });
   const { toast } = useToast();
+  const { showError, errorDialog } = useErrorDetails();
   const hasChanges = fileChanges.length > 0;
   const stagedCount = fileChanges.filter((change) => change.isStaged).length;
   const hasStagedChanges = stagedCount > 0;
@@ -447,18 +450,15 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           if (taskPathRef.current === taskPathAtCommit) setBranchStatusLoading(false);
         }
       } else {
-        toast({
-          title: 'Commit Failed',
-          description:
-            typeof result.error === 'string' ? result.error : 'Failed to commit and push changes.',
-          variant: 'destructive',
-        });
+        showError(
+          'Commit Failed',
+          typeof result.error === 'string' ? result.error : 'Failed to commit and push changes.',
+          { summarize: friendlyGitError }
+        );
       }
-    } catch (_error) {
-      toast({
-        title: 'Commit Failed',
-        description: 'An unexpected error occurred.',
-        variant: 'destructive',
+    } catch (error) {
+      showError('Commit Failed', error instanceof Error ? error.message : String(error), {
+        summarize: friendlyGitError,
       });
     } finally {
       setIsCommitting(false);
@@ -1070,6 +1070,7 @@ const FileChangesPanelComponent: React.FC<FileChangesPanelProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {errorDialog}
     </div>
   );
 };
