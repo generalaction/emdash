@@ -58,9 +58,11 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
       if (ctx?.prev !== undefined) {
         queryClient.setQueryData(['appSettings', key, 'meta'], ctx.prev);
       }
+      queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
       queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
       queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
     },
   });

@@ -15,18 +15,26 @@ const RepositorySettingsCard: React.FC = () => {
     resetField,
   } = useAppSettingsKey('localProject');
 
+  const branchPrefix = localProject?.branchPrefix ?? '';
+  const pushOnCreate = localProject?.pushOnCreate ?? true;
+
   const example = useMemo(() => {
-    const prefix = localProject?.branchPrefix ?? '';
-    return `${prefix}/my-feature-a3f`;
-  }, [localProject?.branchPrefix]);
+    return `${branchPrefix}/my-feature-a3f`;
+  }, [branchPrefix]);
 
   return (
     <div className="grid gap-8">
       <div className="grid gap-2">
         <div className="flex items-center gap-2">
           <Input
-            defaultValue={localProject?.branchPrefix ?? ''}
-            onBlur={(e) => update({ branchPrefix: e.target.value.trim() })}
+            key={branchPrefix}
+            defaultValue={branchPrefix}
+            onBlur={(e) => {
+              const next = e.target.value.trim();
+              if (next !== branchPrefix) {
+                update({ branchPrefix: next });
+              }
+            }}
             placeholder="Branch prefix"
             aria-label="Branch prefix"
             disabled={loading}
@@ -57,7 +65,7 @@ const RepositorySettingsCard: React.FC = () => {
               />
             )}
             <Switch
-              defaultChecked={localProject?.pushOnCreate ?? true}
+              checked={pushOnCreate}
               onCheckedChange={(checked) => update({ pushOnCreate: checked })}
               disabled={loading || saving}
               aria-label="Enable automatic push on create"
