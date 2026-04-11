@@ -12,7 +12,7 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
-import { githubAuthService } from './core/github/services/github-auth-service';
+import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
 import { prService } from './core/pull-requests/pr-service';
 import { appSettingsService } from './core/settings/settings-service';
@@ -102,7 +102,7 @@ app.whenReady().then(async () => {
     log.warn('Failed to load account session token:', e);
   });
 
-  providerTokenRegistry.register('github', (token) => githubAuthService.storeToken(token));
+  providerTokenRegistry.register('github', (token) => githubConnectionService.storeToken(token));
 
   registerRPCRouter(rpcRouter, ipcMain);
 

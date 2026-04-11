@@ -34,6 +34,7 @@ type GithubContextValue = {
 };
 
 const GITHUB_STATUS_KEY = ['github:status'] as const;
+const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
 
 const GithubContext = createContext<GithubContextValue | null>(null);
 
@@ -72,7 +73,10 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const logoutMutation = useMutation({
     mutationFn: () => rpc.github.logout(),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: GITHUB_STATUS_KEY }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: GITHUB_STATUS_KEY });
+      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+    },
   });
 
   const isLoading = isFetching || loginMutation.isPending || logoutMutation.isPending;
@@ -95,12 +99,13 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     async (flowUser: GitHubUser) => {
       void checkStatus();
       setTimeout(() => void checkStatus(), 500);
+      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
       toast({
         title: 'Connected to GitHub',
         description: `Signed in as ${flowUser?.login || flowUser?.name || 'user'}`,
       });
     },
-    [checkStatus, toast]
+    [checkStatus, queryClient, toast]
   );
 
   const handleDeviceFlowError = useCallback(
@@ -151,6 +156,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         const oauthResult = await rpc.github.connectOAuth();
         if (oauthResult?.success) {
           await checkStatus();
+          void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
           if (oauthResult.user) {
             toast({
               title: 'Connected to GitHub',
@@ -180,7 +186,16 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         variant: 'destructive',
       });
     }
-  }, [toast, checkStatus, login, showModal, handleDeviceFlowError, hasAccount, fetchAccountHealth]);
+  }, [
+    toast,
+    checkStatus,
+    login,
+    showModal,
+    handleDeviceFlowError,
+    hasAccount,
+    fetchAccountHealth,
+    queryClient,
+  ]);
 
   const cancelGithubConnect = useCallback(() => {
     const flowLabel = githubStatusMessage ? 'OAuth flow' : 'Device flow';

@@ -1,177 +1,80 @@
 import { useCallback, useMemo, useState } from 'react';
+import type { ConnectionStatus } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
-import { useForgejoIssues } from '@renderer/features/integrations/use-forgejo-issues';
-import { useGitHubIssues } from '@renderer/features/integrations/use-github-issues';
-import { useGitLabIssues } from '@renderer/features/integrations/use-gitlab-issues';
-import { useJiraIssues } from '@renderer/features/integrations/use-jira-issues';
-import { useLinearIssues } from '@renderer/features/integrations/use-linear-issues';
-import { usePlainIssues } from '@renderer/features/integrations/use-plain-issues';
-import { useIntegrationStatus } from './useIntegrationStatus';
+import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
+import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
+import { useIssues } from '@renderer/features/integrations/use-issues';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
+function isProviderUsable(
+  status: ConnectionStatus | undefined,
+  context: { projectPath?: string; nameWithOwner?: string }
+): boolean {
+  if (!status?.connected) return false;
+  if (status.capabilities.requiresProjectPath && !context.projectPath) return false;
+  if (status.capabilities.requiresNameWithOwner && !context.nameWithOwner) return false;
+  return true;
+}
+
 export function useIssueSearch(nameWithOwner: string, projectPath = '') {
-  const {
-    isLinearConnected,
-    isGithubConnected,
-    isJiraConnected,
-    isGitlabConnected,
-    isPlainConnected,
-    isForgejoConnected,
-  } = useIntegrationStatus();
-  const canUseGitlab = isGitlabConnected === true && !!projectPath;
-  const canUseForgejo = isForgejoConnected === true && !!projectPath;
+  const { connectionStatus, isCheckingConnections } = useIntegrationsContext();
+  const context = useMemo(() => ({ projectPath, nameWithOwner }), [projectPath, nameWithOwner]);
+
   const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
     null
   );
 
-  const linearIssues = useLinearIssues({ enabled: isLinearConnected === true });
-  const githubIssues = useGitHubIssues({
-    nameWithOwner,
-    enabled: isGithubConnected && !!nameWithOwner,
-  });
-  const jiraIssues = useJiraIssues({ enabled: isJiraConnected === true });
-  const gitlabIssues = useGitLabIssues({
-    projectPath,
-    enabled: canUseGitlab,
-  });
-  const plainIssues = usePlainIssues({ enabled: isPlainConnected === true });
-  const forgejoIssues = useForgejoIssues({
-    projectPath,
-    enabled: canUseForgejo,
-  });
-
-  const hasAnyIntegration = !!(
-    isLinearConnected ||
-    isGithubConnected ||
-    isJiraConnected ||
-    canUseGitlab ||
-    isPlainConnected ||
-    canUseForgejo
+  const connectedProviders = useMemo(
+    () =>
+      ISSUE_PROVIDER_ORDER.filter((provider) =>
+        isProviderUsable(connectionStatus[provider], context)
+      ),
+    [connectionStatus, context]
   );
 
+  const hasAnyIntegration = connectedProviders.length > 0;
+
   const issueProvider = useMemo(() => {
-    if (!selectedIssueProvider) {
-      if (isLinearConnected) return 'linear' as const;
-      if (isGithubConnected) return 'github' as const;
-      if (isJiraConnected) return 'jira' as const;
-      if (canUseGitlab) return 'gitlab' as const;
-      if (isPlainConnected) return 'plain' as const;
-      if (canUseForgejo) return 'forgejo' as const;
+    if (
+      selectedIssueProvider &&
+      isProviderUsable(connectionStatus[selectedIssueProvider], context)
+    ) {
+      return selectedIssueProvider;
     }
-    return selectedIssueProvider;
-  }, [
-    isLinearConnected,
-    isGithubConnected,
-    isJiraConnected,
-    canUseGitlab,
-    isPlainConnected,
-    canUseForgejo,
-    selectedIssueProvider,
-  ]);
+
+    return connectedProviders[0] ?? null;
+  }, [connectedProviders, connectionStatus, context, selectedIssueProvider]);
+
+  const issuesHook = useIssues(issueProvider, {
+    nameWithOwner,
+    projectPath,
+    enabled: !!issueProvider,
+  });
 
   const handleSetSearchTerm = useCallback(
     (term: string) => {
-      switch (issueProvider) {
-        case 'linear':
-          return linearIssues.setSearchTerm(term);
-        case 'github':
-          return githubIssues.setSearchTerm(term);
-        case 'jira':
-          return jiraIssues.setSearchTerm(term);
-        case 'gitlab':
-          return gitlabIssues.setSearchTerm(term);
-        case 'plain':
-          return plainIssues.setSearchTerm(term);
-        case 'forgejo':
-          return forgejoIssues.setSearchTerm(term);
-        default:
-          return;
-      }
+      if (!issueProvider) return;
+      issuesHook.setSearchTerm(term);
     },
-    [
-      issueProvider,
-      linearIssues,
-      githubIssues,
-      jiraIssues,
-      gitlabIssues,
-      plainIssues,
-      forgejoIssues,
-    ]
+    [issueProvider, issuesHook]
   );
 
   const isProviderDisabled = useCallback(
-    (provider: Issue['provider']) => {
-      if (!hasAnyIntegration) return true;
-      if (provider === 'linear') return !isLinearConnected;
-      if (provider === 'github') return !isGithubConnected;
-      if (provider === 'jira') return !isJiraConnected;
-      if (provider === 'gitlab') return !canUseGitlab;
-      if (provider === 'plain') return !isPlainConnected;
-      if (provider === 'forgejo') return !canUseForgejo;
-      return false;
-    },
-    [
-      hasAnyIntegration,
-      isLinearConnected,
-      isGithubConnected,
-      isJiraConnected,
-      canUseGitlab,
-      isPlainConnected,
-      canUseForgejo,
-    ]
+    (provider: Issue['provider']) => !isProviderUsable(connectionStatus[provider], context),
+    [connectionStatus, context]
   );
 
-  const issues = useMemo(() => {
-    if (!issueProvider) return [];
-    if (issueProvider === 'linear') return linearIssues.issues;
-    if (issueProvider === 'github') return githubIssues.issues;
-    if (issueProvider === 'jira') return jiraIssues.issues;
-    if (issueProvider === 'gitlab') return gitlabIssues.issues;
-    if (issueProvider === 'plain') return plainIssues.issues;
-    if (issueProvider === 'forgejo') return forgejoIssues.issues;
-    return [];
-  }, [
-    issueProvider,
-    linearIssues.issues,
-    githubIssues.issues,
-    jiraIssues.issues,
-    gitlabIssues.issues,
-    plainIssues.issues,
-    forgejoIssues.issues,
-  ]);
-
-  const activeHook =
-    issueProvider === 'linear'
-      ? linearIssues
-      : issueProvider === 'github'
-        ? githubIssues
-        : issueProvider === 'jira'
-          ? jiraIssues
-          : issueProvider === 'gitlab'
-            ? gitlabIssues
-            : issueProvider === 'forgejo'
-              ? forgejoIssues
-              : plainIssues;
-
-  const isProviderLoading = !!issueProvider && (activeHook.isLoading || activeHook.isSearching);
-
-  const connectedProviderCount = [
-    isLinearConnected,
-    isGithubConnected,
-    isJiraConnected,
-    canUseGitlab,
-    isPlainConnected,
-    canUseForgejo,
-  ].filter(Boolean).length;
+  const isProviderLoading =
+    (!!issueProvider && (issuesHook.isLoading || issuesHook.isSearching)) || isCheckingConnections;
 
   return {
-    issues,
+    issues: issuesHook.issues,
     issueProvider,
     hasAnyIntegration,
     isProviderLoading,
     isProviderDisabled,
-    connectedProviderCount,
+    connectedProviderCount: connectedProviders.length,
     handleSetSearchTerm,
     setSelectedIssueProvider,
   };

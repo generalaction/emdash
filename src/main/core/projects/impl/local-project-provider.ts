@@ -15,7 +15,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
-import { githubAuthService } from '@main/core/github/services/github-auth-service';
+import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
@@ -87,7 +87,7 @@ export class LocalProjectProvider implements ProjectProvider {
   ) {
     this.settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
     this.fs = new LocalFileSystem(project.path);
-    const gitExec = getGitLocalExec(() => githubAuthService.getToken());
+    const gitExec = getGitLocalExec(() => githubConnectionService.getToken());
     this.git = new GitService(project.path, gitExec, this.fs);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
@@ -143,7 +143,7 @@ export class LocalProjectProvider implements ProjectProvider {
     const workspaceId = workspaceKey(task.taskBranch);
     const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
       const workDir = await this.resolveTaskWorkDir(task);
-      const exec = getGitLocalExec(() => githubAuthService.getToken());
+      const exec = getGitLocalExec(() => githubConnectionService.getToken());
       const workspaceFs = new LocalFileSystem(workDir);
       await new HookConfigWriter(workspaceFs, exec).writeAll();
 
@@ -216,7 +216,7 @@ export class LocalProjectProvider implements ProjectProvider {
 
     let provisionSucceeded = false;
     try {
-      const exec = getGitLocalExec(() => githubAuthService.getToken());
+      const exec = getGitLocalExec(() => githubConnectionService.getToken());
       const projectSettings = await this.settings.get();
       const defaultBranch = await this.settings.getDefaultBranch();
       const taskEnvVars = getTaskEnvVars({

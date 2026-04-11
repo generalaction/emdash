@@ -1,264 +1,190 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext } from 'react';
+import {
+  ISSUE_PROVIDER_CAPABILITIES,
+  type ConnectionStatusMap,
+  type IssueProviderType,
+} from '@shared/issue-providers';
 import { rpc } from '@renderer/lib/ipc';
+import { useProviderConnection } from './use-provider-connection';
+
+export const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
+
+const DEFAULT_CONNECTION_STATUS: ConnectionStatusMap = Object.fromEntries(
+  Object.entries(ISSUE_PROVIDER_CAPABILITIES).map(([provider, capabilities]) => [
+    provider,
+    { connected: false, capabilities },
+  ])
+) as ConnectionStatusMap;
+
+const DEFAULT_CONNECT_ERROR = 'Failed to connect.';
+
+function validateTokenInput(token: string): string | null {
+  return token.trim() ? null : 'Invalid API key';
+}
+
+function validateJiraCredentials(input: {
+  siteUrl: string;
+  email: string;
+  token: string;
+}): string | null {
+  if (!input.siteUrl?.trim() || !input.email?.trim() || !input.token?.trim()) {
+    return 'Site URL, email, and API token are required.';
+  }
+  return null;
+}
+
+function validateInstanceCredentials(input: { instanceUrl: string; token: string }): string | null {
+  if (!input.instanceUrl?.trim() || !input.token?.trim()) {
+    return 'Instance URL and API token are required.';
+  }
+  return null;
+}
+
+const PROVIDER_CONNECTION_CONFIG = {
+  linear: {
+    connectMutationFn: (apiKey: string) => rpc.linear.saveToken(apiKey),
+    disconnectMutationFn: () => rpc.linear.clearToken(),
+    fallbackError: DEFAULT_CONNECT_ERROR,
+    validateInput: validateTokenInput,
+  },
+  jira: {
+    connectMutationFn: (credentials: { siteUrl: string; email: string; token: string }) =>
+      rpc.jira.saveCredentials(credentials),
+    disconnectMutationFn: () => rpc.jira.clearCredentials(),
+    fallbackError: DEFAULT_CONNECT_ERROR,
+    validateInput: validateJiraCredentials,
+  },
+  gitlab: {
+    connectMutationFn: (credentials: { instanceUrl: string; token: string }) =>
+      rpc.gitlab.saveCredentials(credentials),
+    disconnectMutationFn: () => rpc.gitlab.clearCredentials(),
+    fallbackError: DEFAULT_CONNECT_ERROR,
+    validateInput: validateInstanceCredentials,
+  },
+  plain: {
+    connectMutationFn: (apiKey: string) => rpc.plain.saveToken(apiKey),
+    disconnectMutationFn: () => rpc.plain.clearToken(),
+    fallbackError: DEFAULT_CONNECT_ERROR,
+    validateInput: validateTokenInput,
+  },
+  forgejo: {
+    connectMutationFn: (credentials: { instanceUrl: string; token: string }) =>
+      rpc.forgejo.saveCredentials(credentials),
+    disconnectMutationFn: () => rpc.forgejo.clearCredentials(),
+    fallbackError: DEFAULT_CONNECT_ERROR,
+    validateInput: validateInstanceCredentials,
+  },
+} as const;
 
 type IntegrationsContextValue = {
-  // Linear
+  connectionStatus: ConnectionStatusMap;
+  isCheckingConnections: boolean;
+
+  // Legacy-friendly fields consumed around settings/issue selector.
   isLinearConnected: boolean | null;
+  isJiraConnected: boolean | null;
+  isGitlabConnected: boolean | null;
+  isPlainConnected: boolean | null;
+  isForgejoConnected: boolean | null;
+
+  // Auth mutations stay per provider.
   isLinearLoading: boolean;
-  linearWorkspaceName: string | null | undefined;
+  isJiraLoading: boolean;
+  isGitlabLoading: boolean;
+  isPlainLoading: boolean;
+  isForgejoLoading: boolean;
   connectLinear: (apiKey: string) => Promise<void>;
   disconnectLinear: () => Promise<void>;
-
-  // Jira
-  isJiraConnected: boolean | null;
-  isJiraLoading: boolean;
   connectJira: (credentials: { siteUrl: string; email: string; token: string }) => Promise<void>;
   disconnectJira: () => Promise<void>;
-
-  // GitLab
-  isGitlabConnected: boolean | null;
-  isGitlabLoading: boolean;
   connectGitlab: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
   disconnectGitlab: () => Promise<void>;
-
-  // Plain
-  isPlainConnected: boolean | null;
-  isPlainLoading: boolean;
   connectPlain: (apiKey: string) => Promise<void>;
   disconnectPlain: () => Promise<void>;
-
-  // Forgejo
-  isForgejoConnected: boolean | null;
-  isForgejoLoading: boolean;
   connectForgejo: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
   disconnectForgejo: () => Promise<void>;
 };
 
-const LINEAR_STATUS_KEY = ['linear:status'] as const;
-const JIRA_STATUS_KEY = ['jira:status'] as const;
-const GITLAB_STATUS_KEY = ['gitlab:status'] as const;
-const PLAIN_STATUS_KEY = ['plain:status'] as const;
-const FORGEJO_STATUS_KEY = ['forgejo:status'] as const;
-
 const IntegrationsContext = createContext<IntegrationsContextValue | null>(null);
+
+function isConnected(
+  statusData: ConnectionStatusMap | undefined,
+  provider: IssueProviderType
+): boolean | null {
+  if (!statusData) {
+    return null;
+  }
+
+  return !!statusData[provider]?.connected;
+}
 
 export function IntegrationsProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
-  const { data: linearData, isFetching: linearFetching } = useQuery({
-    queryKey: LINEAR_STATUS_KEY,
-    queryFn: () => rpc.linear.checkConnection(),
+  const {
+    data: statusData,
+    isFetching: isCheckingConnections,
+    isLoading: isInitialConnectionCheck,
+  } = useQuery({
+    queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY,
+    queryFn: () => rpc.issues.checkAllConnections(),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
 
-  const connectLinearMutation = useMutation({
-    mutationFn: (apiKey: string) => rpc.linear.saveToken(apiKey),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: LINEAR_STATUS_KEY }),
+  const invalidateStatuses = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+  }, [queryClient]);
+
+  const linearConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.linear,
+    invalidate: invalidateStatuses,
+  });
+  const jiraConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.jira,
+    invalidate: invalidateStatuses,
+  });
+  const gitlabConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.gitlab,
+    invalidate: invalidateStatuses,
+  });
+  const plainConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.plain,
+    invalidate: invalidateStatuses,
+  });
+  const forgejoConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.forgejo,
+    invalidate: invalidateStatuses,
   });
 
-  const disconnectLinearMutation = useMutation({
-    mutationFn: () => rpc.linear.clearToken(),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: LINEAR_STATUS_KEY }),
-  });
-
-  const connectLinear = useCallback(
-    async (apiKey: string) => {
-      if (!apiKey) throw new Error('Invalid API key');
-      const result = await connectLinearMutation.mutateAsync(apiKey);
-      if (!result?.success) {
-        throw new Error(result?.error || 'Could not connect Linear. Try again.');
-      }
-    },
-    [connectLinearMutation]
-  );
-
-  const disconnectLinear = useCallback(async () => {
-    await disconnectLinearMutation.mutateAsync();
-  }, [disconnectLinearMutation]);
-
-  // ── Jira ────────────────────────────────────────────────────────────────────
-
-  const { data: jiraData, isFetching: jiraFetching } = useQuery({
-    queryKey: JIRA_STATUS_KEY,
-    queryFn: () => rpc.jira.checkConnection(),
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
-  });
-
-  const connectJiraMutation = useMutation({
-    mutationFn: (credentials: { siteUrl: string; email: string; token: string }) =>
-      rpc.jira.saveCredentials(credentials),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: JIRA_STATUS_KEY }),
-  });
-
-  const disconnectJiraMutation = useMutation({
-    mutationFn: () => rpc.jira.clearCredentials(),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: JIRA_STATUS_KEY }),
-  });
-
-  const connectJira = useCallback(
-    async (credentials: { siteUrl: string; email: string; token: string }) => {
-      const res = await connectJiraMutation.mutateAsync(credentials);
-      if (!res?.success) {
-        throw new Error(res?.error || 'Failed to connect.');
-      }
-    },
-    [connectJiraMutation]
-  );
-
-  const disconnectJira = useCallback(async () => {
-    await disconnectJiraMutation.mutateAsync();
-  }, [disconnectJiraMutation]);
-
-  // ── GitLab ──────────────────────────────────────────────────────────────────
-
-  const { data: gitlabData, isFetching: gitlabFetching } = useQuery({
-    queryKey: GITLAB_STATUS_KEY,
-    queryFn: () => rpc.gitlab.checkConnection(),
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
-  });
-
-  const connectGitlabMutation = useMutation({
-    mutationFn: (credentials: { instanceUrl: string; token: string }) =>
-      rpc.gitlab.saveCredentials(credentials),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: GITLAB_STATUS_KEY }),
-  });
-
-  const disconnectGitlabMutation = useMutation({
-    mutationFn: () => rpc.gitlab.clearCredentials(),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: GITLAB_STATUS_KEY }),
-  });
-
-  const connectGitlab = useCallback(
-    async (credentials: { instanceUrl: string; token: string }) => {
-      const result = await connectGitlabMutation.mutateAsync(credentials);
-      if (!result?.success) {
-        throw new Error(result?.error || 'Failed to connect.');
-      }
-    },
-    [connectGitlabMutation]
-  );
-
-  const disconnectGitlab = useCallback(async () => {
-    await disconnectGitlabMutation.mutateAsync();
-  }, [disconnectGitlabMutation]);
-
-  // ── Plain ────────────────────────────────────────────────────────────────────
-
-  const { data: plainData, isFetching: plainFetching } = useQuery({
-    queryKey: PLAIN_STATUS_KEY,
-    queryFn: () => rpc.plain.checkConnection(),
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
-  });
-
-  const connectPlainMutation = useMutation({
-    mutationFn: (apiKey: string) => rpc.plain.saveToken(apiKey),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: PLAIN_STATUS_KEY }),
-  });
-
-  const disconnectPlainMutation = useMutation({
-    mutationFn: () => rpc.plain.clearToken(),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: PLAIN_STATUS_KEY }),
-  });
-
-  const connectPlain = useCallback(
-    async (apiKey: string) => {
-      if (!apiKey) throw new Error('Invalid API key');
-      const result = await connectPlainMutation.mutateAsync(apiKey);
-      if (!result?.success) {
-        throw new Error(result?.error || 'Could not connect Plain. Try again.');
-      }
-    },
-    [connectPlainMutation]
-  );
-
-  const disconnectPlain = useCallback(async () => {
-    await disconnectPlainMutation.mutateAsync();
-  }, [disconnectPlainMutation]);
-
-  // ── Forgejo ───────────────────────────────────────────────────────────────
-
-  const { data: forgejoData, isFetching: forgejoFetching } = useQuery({
-    queryKey: FORGEJO_STATUS_KEY,
-    queryFn: () => rpc.forgejo.checkConnection(),
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
-  });
-
-  const connectForgejoMutation = useMutation({
-    mutationFn: (credentials: { instanceUrl: string; token: string }) =>
-      rpc.forgejo.saveCredentials(credentials),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: FORGEJO_STATUS_KEY }),
-  });
-
-  const disconnectForgejoMutation = useMutation({
-    mutationFn: () => rpc.forgejo.clearCredentials(),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: FORGEJO_STATUS_KEY }),
-  });
-
-  const connectForgejo = useCallback(
-    async (credentials: { instanceUrl: string; token: string }) => {
-      const result = await connectForgejoMutation.mutateAsync(credentials);
-      if (!result?.success) {
-        throw new Error(result?.error || 'Failed to connect.');
-      }
-    },
-    [connectForgejoMutation]
-  );
-
-  const disconnectForgejo = useCallback(async () => {
-    await disconnectForgejoMutation.mutateAsync();
-  }, [disconnectForgejoMutation]);
-
-  const isLinearConnected = linearData === undefined ? null : !!linearData?.connected;
-  const linearWorkspaceName = linearData?.workspaceName ?? null;
-  const isLinearLoading =
-    linearFetching || connectLinearMutation.isPending || disconnectLinearMutation.isPending;
-
-  const isJiraConnected = jiraData === undefined ? null : !!jiraData?.connected;
-  const isJiraLoading =
-    jiraFetching || connectJiraMutation.isPending || disconnectJiraMutation.isPending;
-
-  const isGitlabConnected = gitlabData === undefined ? null : !!gitlabData?.connected;
-  const isGitlabLoading =
-    gitlabFetching || connectGitlabMutation.isPending || disconnectGitlabMutation.isPending;
-
-  const isPlainConnected = plainData === undefined ? null : !!plainData?.connected;
-  const isPlainLoading =
-    plainFetching || connectPlainMutation.isPending || disconnectPlainMutation.isPending;
-
-  const isForgejoConnected = forgejoData === undefined ? null : !!forgejoData?.connected;
-  const isForgejoLoading =
-    forgejoFetching || connectForgejoMutation.isPending || disconnectForgejoMutation.isPending;
+  const connectionStatus = statusData ?? DEFAULT_CONNECTION_STATUS;
 
   return (
     <IntegrationsContext.Provider
       value={{
-        isLinearConnected,
-        isLinearLoading,
-        linearWorkspaceName,
-        connectLinear,
-        disconnectLinear,
-        isJiraConnected,
-        isJiraLoading,
-        connectJira,
-        disconnectJira,
-        isGitlabConnected,
-        isGitlabLoading,
-        connectGitlab,
-        disconnectGitlab,
-        isPlainConnected,
-        isPlainLoading,
-        connectPlain,
-        disconnectPlain,
-        isForgejoConnected,
-        isForgejoLoading,
-        connectForgejo,
-        disconnectForgejo,
+        connectionStatus,
+        isCheckingConnections,
+        isLinearConnected: isConnected(statusData, 'linear'),
+        isJiraConnected: isConnected(statusData, 'jira'),
+        isGitlabConnected: isConnected(statusData, 'gitlab'),
+        isPlainConnected: isConnected(statusData, 'plain'),
+        isForgejoConnected: isConnected(statusData, 'forgejo'),
+        isLinearLoading: isInitialConnectionCheck || linearConnection.isLoading,
+        isJiraLoading: isInitialConnectionCheck || jiraConnection.isLoading,
+        isGitlabLoading: isInitialConnectionCheck || gitlabConnection.isLoading,
+        isPlainLoading: isInitialConnectionCheck || plainConnection.isLoading,
+        isForgejoLoading: isInitialConnectionCheck || forgejoConnection.isLoading,
+        connectLinear: linearConnection.connect,
+        disconnectLinear: linearConnection.disconnect,
+        connectJira: jiraConnection.connect,
+        disconnectJira: jiraConnection.disconnect,
+        connectGitlab: gitlabConnection.connect,
+        disconnectGitlab: gitlabConnection.disconnect,
+        connectPlain: plainConnection.connect,
+        disconnectPlain: plainConnection.disconnect,
+        connectForgejo: forgejoConnection.connect,
+        disconnectForgejo: forgejoConnection.disconnect,
       }}
     >
       {children}

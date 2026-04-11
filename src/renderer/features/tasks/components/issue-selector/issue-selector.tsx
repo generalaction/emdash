@@ -1,12 +1,10 @@
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { forwardRef, useCallback, useRef, useState } from 'react';
-import forgejoLogo from '@/assets/images/Forgejo.svg';
-import githubLogo from '@/assets/images/github.png';
-import gitlabLogo from '@/assets/images/GitLab.svg';
-import jiraLogo from '@/assets/images/jira.png';
-import linearLogo from '@/assets/images/Linear.svg';
-import plainLogo from '@/assets/images/Plain.svg';
 import type { Issue } from '@shared/tasks';
+import {
+  ISSUE_PROVIDER_META,
+  ISSUE_PROVIDER_ORDER,
+} from '@renderer/features/integrations/issue-provider-meta';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Badge } from '@renderer/lib/ui/badge';
@@ -25,8 +23,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { useIssueSearch } from './useIssueSearch';
-
-export const ISSUE_PROVIDERS = ['linear', 'github', 'jira', 'gitlab', 'forgejo', 'plain'] as const;
 
 function getStatusColorClass(status?: string) {
   if (!status) return '';
@@ -73,30 +69,9 @@ export function ProviderLogo({
   provider: Issue['provider'];
   className?: string;
 }) {
-  const src =
-    provider === 'linear'
-      ? linearLogo
-      : provider === 'github'
-        ? githubLogo
-        : provider === 'jira'
-          ? jiraLogo
-          : provider === 'gitlab'
-            ? gitlabLogo
-            : provider === 'forgejo'
-              ? forgejoLogo
-              : plainLogo;
-  const alt =
-    provider === 'linear'
-      ? 'Linear'
-      : provider === 'github'
-        ? 'GitHub'
-        : provider === 'jira'
-          ? 'Jira'
-          : provider === 'gitlab'
-            ? 'GitLab'
-            : provider === 'forgejo'
-              ? 'Forgejo'
-              : 'Plain';
+  const meta = ISSUE_PROVIDER_META[provider];
+  const src = meta.logo;
+  const alt = meta.displayName;
   return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
 }
 
@@ -174,10 +149,10 @@ export function IssueSelector({
           <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
         </SelectTrigger>
         <SelectContent>
-          {ISSUE_PROVIDERS.map((p) => (
+          {ISSUE_PROVIDER_ORDER.map((p) => (
             <SelectItem key={p} value={p} disabled={isProviderDisabled(p)}>
               <ProviderLogo provider={p} className="h-3.5 w-3.5" />
-              <span className="capitalize">{p}</span>
+              <span>{ISSUE_PROVIDER_META[p].displayName}</span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -269,7 +244,7 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
       <div className="flex items-center justify-between w-full ">
         <div className="flex items-center gap-2">
           <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
-          <span className="capitalize">{issue.provider + ' issue'}</span>
+          <span>{`${ISSUE_PROVIDER_META[issue.provider].displayName} issue`}</span>
           <IssueIdentifier identifier={issue.identifier} />
         </div>
         <Button
@@ -300,7 +275,7 @@ export function ConnectIssueIntegrationPlaceholder() {
   return (
     <div className="flex flex-col gap-4 w-full border border-border border-dashed items-center justify-center rounded-md p-4">
       <div className="flex items-center gap-2 w-full justify-center">
-        {ISSUE_PROVIDERS.map((provider) => (
+        {ISSUE_PROVIDER_ORDER.map((provider) => (
           <ProviderLogo key={provider} provider={provider} className="size-4 opacity-50" />
         ))}
       </div>

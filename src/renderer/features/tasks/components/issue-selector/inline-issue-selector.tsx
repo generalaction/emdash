@@ -1,16 +1,15 @@
 import { Check, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Issue } from '@shared/tasks';
+import {
+  ISSUE_PROVIDER_META,
+  ISSUE_PROVIDER_ORDER,
+} from '@renderer/features/integrations/issue-provider-meta';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@renderer/lib/ui/input-group';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { cn } from '@renderer/utils/utils';
-import {
-  ConnectIssueIntegrationPlaceholder,
-  ISSUE_PROVIDERS,
-  IssueRow,
-  ProviderLogo,
-} from './issue-selector';
+import { ConnectIssueIntegrationPlaceholder, IssueRow, ProviderLogo } from './issue-selector';
 import { useIssueSearch } from './useIssueSearch';
 
 export interface InlineIssueSelectorProps {
@@ -120,10 +119,10 @@ export function InlineIssueSelector({
           <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
         </SelectTrigger>
         <SelectContent>
-          {ISSUE_PROVIDERS.map((p) => (
+          {ISSUE_PROVIDER_ORDER.map((p) => (
             <SelectItem key={p} value={p} disabled={isProviderDisabled(p)}>
               <ProviderLogo provider={p} className="h-3.5 w-3.5" />
-              <span className="capitalize">{p}</span>
+              <span>{ISSUE_PROVIDER_META[p].displayName}</span>
             </SelectItem>
           ))}
         </SelectContent>

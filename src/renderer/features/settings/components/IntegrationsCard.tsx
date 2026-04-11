@@ -44,9 +44,9 @@ const IntegrationsCard: React.FC = () => {
     checkStatus,
   } = useGithubContext();
   const {
+    connectionStatus,
     isLinearConnected,
     isLinearLoading,
-    linearWorkspaceName,
     disconnectLinear,
     isJiraConnected,
     isJiraLoading,
@@ -89,7 +89,9 @@ const IntegrationsCard: React.FC = () => {
       id: 'linear',
       name: 'Linear',
       description:
-        isLinearConnected && linearWorkspaceName ? linearWorkspaceName : 'Work on Linear tickets',
+        isLinearConnected && connectionStatus.linear.displayName
+          ? connectionStatus.linear.displayName
+          : 'Work on Linear tickets',
       logoSvg: linearSvg,
       connected: !!isLinearConnected,
       loading: isLinearLoading,
@@ -99,7 +101,10 @@ const IntegrationsCard: React.FC = () => {
     {
       id: 'jira',
       name: 'Jira',
-      description: 'Work on Jira tickets',
+      description:
+        isJiraConnected && connectionStatus.jira.displayName
+          ? connectionStatus.jira.displayName
+          : 'Work on Jira tickets',
       logoSvg: jiraSvg,
       connected: !!isJiraConnected,
       loading: isJiraLoading,
@@ -109,7 +114,10 @@ const IntegrationsCard: React.FC = () => {
     {
       id: 'gitlab',
       name: 'GitLab',
-      description: 'Work on GitLab issues',
+      description:
+        isGitlabConnected && connectionStatus.gitlab.displayName
+          ? connectionStatus.gitlab.displayName
+          : 'Work on GitLab issues',
       logoSvg: gitlabSvg,
       connected: !!isGitlabConnected,
       loading: isGitlabLoading,
@@ -129,7 +137,10 @@ const IntegrationsCard: React.FC = () => {
     {
       id: 'forgejo',
       name: 'Forgejo',
-      description: 'Work on Forgejo issues',
+      description:
+        isForgejoConnected && connectionStatus.forgejo.displayName
+          ? connectionStatus.forgejo.displayName
+          : 'Work on Forgejo issues',
       logoSvg: forgejoSvg,
       connected: !!isForgejoConnected,
       loading: isForgejoLoading,
