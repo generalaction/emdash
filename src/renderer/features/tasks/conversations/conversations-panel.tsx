@@ -8,7 +8,10 @@ import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 import { TabbedPtyPanel } from '@renderer/features/tasks/tabbed-pty-panel';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import {
+  getEffectiveHotkey,
+  getHotkeyRegistration,
+} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -27,6 +30,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const [isPanelFocused, setIsPanelFocused] = useState(false);
   const mountedProject = asMounted(getProjectStore(projectId));
   const shouldSetWorkingOnEnter = mountedProject?.data.type !== 'ssh';
+  const newConversationHotkey = getEffectiveHotkey('newConversation', keyboard);
 
   const autoFocus = isActive && provisioned.taskView.focusedRegion === 'main';
 
@@ -41,7 +45,9 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     });
 
   useTabShortcuts(conversationTabs, { focused: isPanelFocused });
-  useHotkey(getEffectiveHotkey('newConversation', keyboard), handleCreate);
+  useHotkey(getHotkeyRegistration('newConversation', keyboard), handleCreate, {
+    enabled: newConversationHotkey !== null,
+  });
 
   useEffect(() => {
     conversationTabs.setVisible(isActive);

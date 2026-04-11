@@ -1,6 +1,9 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import {
+  getEffectiveHotkey,
+  getHotkeyRegistration,
+} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
@@ -23,6 +26,13 @@ export function AppKeyboardShortcuts() {
   const { toggleLeft, toggleRight } = useWorkspaceLayoutContext();
   const { toggleTheme } = useTheme();
   const { navigate } = useNavigate();
+  const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
+  const settingsHotkey = getEffectiveHotkey('settings', keyboard);
+  const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
+  const toggleRightSidebarHotkey = getEffectiveHotkey('toggleRightSidebar', keyboard);
+  const toggleThemeHotkey = getEffectiveHotkey('toggleTheme', keyboard);
+  const newProjectHotkey = getEffectiveHotkey('newProject', keyboard);
+  const newTaskHotkey = getEffectiveHotkey('newTask', keyboard);
 
   // Resolve current project context from whichever view is active
   const { currentView } = useWorkspaceSlots();
@@ -35,26 +45,38 @@ export function AppKeyboardShortcuts() {
         ? projectParams.projectId
         : undefined;
 
-  useHotkey(getEffectiveHotkey('commandPalette', keyboard), () => showCmdPalette({}));
+  useHotkey(getHotkeyRegistration('commandPalette', keyboard), () => showCmdPalette({}), {
+    enabled: commandPaletteHotkey !== null,
+  });
 
-  useHotkey(getEffectiveHotkey('settings', keyboard), () => navigate('settings'));
+  useHotkey(getHotkeyRegistration('settings', keyboard), () => navigate('settings'), {
+    enabled: settingsHotkey !== null,
+  });
 
-  useHotkey(getEffectiveHotkey('toggleLeftSidebar', keyboard), () => toggleLeft());
+  useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
+    enabled: toggleLeftSidebarHotkey !== null,
+  });
 
-  useHotkey(getEffectiveHotkey('toggleRightSidebar', keyboard), () => toggleRight());
+  useHotkey(getHotkeyRegistration('toggleRightSidebar', keyboard), () => toggleRight(), {
+    enabled: toggleRightSidebarHotkey !== null,
+  });
 
-  useHotkey(getEffectiveHotkey('toggleTheme', keyboard), () => toggleTheme());
+  useHotkey(getHotkeyRegistration('toggleTheme', keyboard), () => toggleTheme(), {
+    enabled: toggleThemeHotkey !== null,
+  });
 
-  useHotkey(getEffectiveHotkey('newProject', keyboard), () =>
-    showNewProject({ strategy: 'local', mode: 'pick' })
+  useHotkey(
+    getHotkeyRegistration('newProject', keyboard),
+    () => showNewProject({ strategy: 'local', mode: 'pick' }),
+    { enabled: newProjectHotkey !== null }
   );
 
   useHotkey(
-    getEffectiveHotkey('newTask', keyboard),
+    getHotkeyRegistration('newTask', keyboard),
     () => {
       if (currentProjectId) showCreateTask({ projectId: currentProjectId });
     },
-    { enabled: !!currentProjectId }
+    { enabled: !!currentProjectId && newTaskHotkey !== null }
   );
 
   return null;
