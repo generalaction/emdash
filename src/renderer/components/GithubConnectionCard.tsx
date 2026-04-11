@@ -17,7 +17,7 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
     useGithubContext();
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState<boolean>(false);
-  const [cliInstalled, setCLIInstalled] = useState(true);
+  const [cliInstalled, setCLIInstalled] = useState(installed);
 
   const status: GithubConnectionStatus = useMemo(() => {
     if (authenticated) return 'connected';
@@ -28,6 +28,10 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
   useEffect(() => {
     onStatusChange?.(status);
   }, [status, onStatusChange]);
+
+  useEffect(() => {
+    setCLIInstalled(installed);
+  }, [installed]);
 
   useEffect(() => {
     // Check if CLI is installed on mount

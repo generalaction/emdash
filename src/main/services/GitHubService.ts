@@ -1262,6 +1262,7 @@ export class GitHubService {
       await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
     } catch (error) {
       console.error('Failed to clear keychain token:', error);
+      throw new Error('Failed to clear keychain token');
     }
   }
 
