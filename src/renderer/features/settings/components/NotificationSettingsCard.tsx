@@ -89,7 +89,7 @@ const NotificationSettingsCard: React.FC = () => {
                 <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="min-w-max">
                   <SelectItem value="always">Always</SelectItem>
                   <SelectItem value="unfocused">Only when unfocused</SelectItem>
                 </SelectContent>
