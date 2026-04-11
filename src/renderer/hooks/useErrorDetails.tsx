@@ -43,7 +43,7 @@ export function useErrorDetails(): UseErrorDetailsResult {
   const [details, setDetails] = useState<{ title: string; message: string } | null>(null);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
@@ -53,7 +53,7 @@ export function useErrorDetails(): UseErrorDetailsResult {
 
   const showError = useCallback(
     (title: string, rawError: string, options?: ShowErrorOptions) => {
-      const fullMessage = rawError || 'Unknown error';
+      const fullMessage = rawError?.trim() ? rawError : 'Unknown error';
       const summarize = options?.summarize ?? defaultSummarize;
       toast({
         title,
