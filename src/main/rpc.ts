@@ -9,6 +9,7 @@ import { filesController } from './core/fs/controller';
 import { gitController } from './core/git/controller';
 import { githubController } from './core/github/controller';
 import { gitlabController } from './core/gitlab/controller';
+import { issueController } from './core/issues/controller';
 import { jiraController } from './core/jira/controller';
 import { lineCommentsController } from './core/line-comments';
 import { linearController } from './core/linear/controller';
@@ -40,6 +41,7 @@ export const rpcRouter = createRPCRouter({
   forgejo: forgejoController,
   github: githubController,
   gitlab: gitlabController,
+  issues: issueController,
   jira: jiraController,
   linear: linearController,
   plain: plainController,
