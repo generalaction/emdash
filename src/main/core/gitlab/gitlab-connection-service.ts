@@ -156,24 +156,24 @@ export class GitLabConnectionService {
     projectPath: string
   ): Promise<{ client: Gitlab; projectId: number; projectName: string | null }> {
     const { instanceUrl, client } = await this.requireAuth();
-    const remote = await resolveOriginRemote(projectPath);
-
-    assertRemoteHostMatchesInstance(remote.host, instanceUrl, 'GitLab');
 
     try {
-      const project = (await client.Projects.show(encodeURIComponent(remote.slug))) as Record<
-        string,
-        unknown
-      >;
+      const remote = await resolveOriginRemote(projectPath);
+
+      assertRemoteHostMatchesInstance(remote.host, instanceUrl, 'GitLab');
+
+      const project = (await client.Projects.show(remote.slug)) as Record<string, unknown>;
       const projectId = this.readNumber(project.id);
       if (projectId === null) {
         throw new Error('Unable to resolve GitLab project ID.');
       }
 
+      const projectName = this.readString(project.name);
+
       return {
         client,
         projectId,
-        projectName: this.readString(project.name),
+        projectName,
       };
     } catch (error) {
       throw new Error(toGitLabErrorMessage(error, 'Unable to resolve GitLab project from origin.'));
