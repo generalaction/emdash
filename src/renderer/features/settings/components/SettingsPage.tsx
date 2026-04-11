@@ -117,7 +117,7 @@ export function SettingsPage({
     repository: {
       title: 'Repository',
       description: 'Configure repository and branch settings.',
-      sections: [{ title: 'Branch name', component: <RepositorySettingsCard /> }],
+      sections: [{ title: 'Branch prefix', component: <RepositorySettingsCard /> }],
     },
     interface: {
       title: 'Interface',
