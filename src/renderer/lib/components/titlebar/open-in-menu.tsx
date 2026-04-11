@@ -4,7 +4,10 @@ import React, { useCallback, useMemo } from 'react';
 import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import {
+  getEffectiveHotkey,
+  getHotkeyRegistration,
+} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/ipc';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
@@ -29,6 +32,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
   const { icons, labels, installedApps, availability, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
   const { value: keyboard } = useAppSettingsKey('keyboard');
+  const openInHotkey = getEffectiveHotkey('openInEditor', keyboard);
 
   const defaultApp: OpenInAppId | null =
     openIn?.default && isValidOpenInAppId(openIn.default) ? openIn.default : null;
@@ -92,12 +96,12 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
   const buttonAppLabel = buttonAppId ? (labels[buttonAppId] ?? buttonAppId) : null;
 
   useHotkey(
-    getEffectiveHotkey('openInEditor', keyboard),
+    getHotkeyRegistration('openInEditor', keyboard),
     () => {
       if (!buttonAppId) return;
       void triggerOpenIn(buttonAppId);
     },
-    { enabled: !!buttonAppId && !loading }
+    { enabled: !!buttonAppId && !loading && openInHotkey !== null }
   );
 
   const shortenedPath = useMemo(() => path.split('/').slice(-2).join('/'), [path]);

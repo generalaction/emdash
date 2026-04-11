@@ -78,7 +78,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   const shouldReduceMotion = useReducedMotion();
 
   const shortcutDisplay = useCallback(
-    (key: ShortcutSettingsKey) => formatForDisplay(getEffectiveHotkey(key, keyboard)),
+    (key: ShortcutSettingsKey) => {
+      const hotkey = getEffectiveHotkey(key, keyboard);
+      return hotkey ? formatForDisplay(hotkey) : '';
+    },
     [keyboard]
   );
 

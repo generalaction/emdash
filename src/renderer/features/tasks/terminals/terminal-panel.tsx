@@ -6,7 +6,10 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { TabbedPtyPanel } from '@renderer/features/tasks/tabbed-pty-panel';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import {
+  getEffectiveHotkey,
+  getHotkeyRegistration,
+} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
@@ -41,6 +44,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const isActive = useIsActiveTask(taskId);
   const [isPanelFocused, setIsPanelFocused] = useState(false);
   const [mode, setMode] = useState<PanelMode>('terminals');
+  const newTerminalHotkey = getEffectiveHotkey('newTerminal', keyboard);
 
   const autoFocus = isActive && isRightOpen && provisionedTask.taskView.focusedRegion === 'right';
 
@@ -75,8 +79,8 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const activeStore = mode === 'terminals' ? terminalTabView : lifecycleScriptsMgr;
   useTabShortcuts(activeStore ?? undefined, { focused: isPanelFocused });
-  useHotkey(getEffectiveHotkey('newTerminal', keyboard), () => void handleCreate(), {
-    enabled: mode === 'terminals',
+  useHotkey(getHotkeyRegistration('newTerminal', keyboard), () => void handleCreate(), {
+    enabled: mode === 'terminals' && newTerminalHotkey !== null,
   });
 
   const runScriptButton = (

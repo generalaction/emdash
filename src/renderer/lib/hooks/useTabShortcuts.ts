@@ -1,6 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getEffectiveHotkey } from './useKeyboardShortcuts';
+import { getEffectiveHotkey, getHotkeyRegistration } from './useKeyboardShortcuts';
 
 /**
  * Minimal interface required for tab navigation shortcuts.
@@ -43,28 +43,31 @@ export function useTabShortcuts(
 ): void {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const enabled = !!store && (options?.focused ?? true);
+  const tabNextHotkey = getEffectiveHotkey('tabNext', keyboard);
+  const tabPrevHotkey = getEffectiveHotkey('tabPrev', keyboard);
+  const tabCloseHotkey = getEffectiveHotkey('tabClose', keyboard);
 
   useHotkey(
-    getEffectiveHotkey('tabNext', keyboard),
+    getHotkeyRegistration('tabNext', keyboard),
     () => {
       store?.setNextTabActive();
     },
-    { enabled, conflictBehavior: 'allow' }
+    { enabled: enabled && tabNextHotkey !== null, conflictBehavior: 'allow' }
   );
   useHotkey(
-    getEffectiveHotkey('tabPrev', keyboard),
+    getHotkeyRegistration('tabPrev', keyboard),
     () => {
       store?.setPreviousTabActive();
     },
-    { enabled, conflictBehavior: 'allow' }
+    { enabled: enabled && tabPrevHotkey !== null, conflictBehavior: 'allow' }
   );
   useHotkey(
-    getEffectiveHotkey('tabClose', keyboard),
+    getHotkeyRegistration('tabClose', keyboard),
     (e) => {
       e.preventDefault();
       store?.closeActiveTab();
     },
-    { enabled, conflictBehavior: 'allow' }
+    { enabled: enabled && tabCloseHotkey !== null, conflictBehavior: 'allow' }
   );
   useHotkey(
     'Mod+1',

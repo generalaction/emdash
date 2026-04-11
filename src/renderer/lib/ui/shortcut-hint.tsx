@@ -15,7 +15,7 @@ interface ShortcutHintProps {
 export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, className }) => {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const hotkey = getEffectiveHotkey(settingsKey, keyboard);
-  const display = formatForDisplay(hotkey);
+  const display = hotkey ? formatForDisplay(hotkey) : '';
 
   if (!display) return null;
 
