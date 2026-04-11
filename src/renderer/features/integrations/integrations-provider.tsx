@@ -122,7 +122,11 @@ function isConnected(
 export function IntegrationsProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
-  const { data: statusData, isFetching: isCheckingConnections } = useQuery({
+  const {
+    data: statusData,
+    isFetching: isCheckingConnections,
+    isLoading: isInitialConnectionCheck,
+  } = useQuery({
     queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY,
     queryFn: () => rpc.issues.checkAllConnections(),
     staleTime: 30_000,
@@ -166,11 +170,11 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
         isGitlabConnected: isConnected(statusData, 'gitlab'),
         isPlainConnected: isConnected(statusData, 'plain'),
         isForgejoConnected: isConnected(statusData, 'forgejo'),
-        isLinearLoading: isCheckingConnections || linearConnection.isLoading,
-        isJiraLoading: isCheckingConnections || jiraConnection.isLoading,
-        isGitlabLoading: isCheckingConnections || gitlabConnection.isLoading,
-        isPlainLoading: isCheckingConnections || plainConnection.isLoading,
-        isForgejoLoading: isCheckingConnections || forgejoConnection.isLoading,
+        isLinearLoading: isInitialConnectionCheck || linearConnection.isLoading,
+        isJiraLoading: isInitialConnectionCheck || jiraConnection.isLoading,
+        isGitlabLoading: isInitialConnectionCheck || gitlabConnection.isLoading,
+        isPlainLoading: isInitialConnectionCheck || plainConnection.isLoading,
+        isForgejoLoading: isInitialConnectionCheck || forgejoConnection.isLoading,
         connectLinear: linearConnection.connect,
         disconnectLinear: linearConnection.disconnect,
         connectJira: jiraConnection.connect,
