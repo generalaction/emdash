@@ -93,12 +93,14 @@ const KeyboardSettingsCard: React.FC = () => {
                 const capturing = editingKey === key && recorder.isRecording;
 
                 return (
-                  <div key={key} className="flex items-center justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="text-sm">{def.label}</div>
-                      <div className="text-xs text-muted-foreground">{def.description}</div>
+                  <div key={key} className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-2">
+                    <div className="min-w-0 flex-1 basis-64 space-y-1">
+                      <div className="break-words text-sm">{def.label}</div>
+                      <div className="break-words text-xs text-muted-foreground">
+                        {def.description}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="ml-auto flex shrink-0 items-center gap-2">
                       {capturing ? (
                         <>
                           <Button
