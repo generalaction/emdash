@@ -191,7 +191,7 @@ const GithubConnectionCard: React.FC<GithubConnectionCardProps> = ({ onStatusCha
             <Button type="button" variant="outline" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCcw className="mr-2 h-4 w-4" /> Check status
             </Button>
-            {!cliInstalled ? (
+            {!cliInstalled && !installed ? (
               <Button type="button" variant="outline" onClick={handleInstall} disabled={isLoading}>
                 <ExternalLink className="mr-2 h-4 w-4" /> Install GitHub CLI
               </Button>

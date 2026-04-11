@@ -47,7 +47,7 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   const {
     installed: githubInstalled,
     authenticated: githubAuthenticated,
-    login: githubLogin,
+    handleGithubConnect: githubConnect,
     isLoading: githubLoading,
   } = useGithubContext();
 
@@ -155,12 +155,12 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
 
   const handleGithubConnect = useCallback(async () => {
     try {
-      await githubLogin();
+      await githubConnect();
     } catch (error) {
       console.error('Failed to connect GitHub:', error);
       throw error;
     }
-  }, [githubLogin]);
+  }, [githubConnect]);
 
   const handleJiraConnect = useCallback(
     async (credentials: { siteUrl: string; email: string; token: string }) => {

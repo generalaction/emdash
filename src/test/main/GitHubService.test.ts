@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promisify } from 'util';
 
 const execCalls: string[] = [];
@@ -115,6 +115,10 @@ describe('GitHubService.isAuthenticated', () => {
       }),
     });
     vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('does not treat a global gh login as authenticated without an Emdash token', async () => {

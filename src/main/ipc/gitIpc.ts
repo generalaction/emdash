@@ -2311,8 +2311,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
         // Determine default branch
         let defaultBranch = 'main';
         try {
-          const { stdout } = await execFileAsync(
-            'gh',
+          const { stdout } = await execGhFileAsync(
             ['repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'],
             { cwd: taskPath }
           );

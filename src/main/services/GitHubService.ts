@@ -680,7 +680,7 @@ export class GitHubService {
       });
 
       if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.statusText}`);
+        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
       }
 
       const userData = await response.json();
