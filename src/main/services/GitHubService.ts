@@ -1,4 +1,4 @@
-import { exec, spawn } from 'child_process';
+import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -114,11 +114,9 @@ export class GitHubService {
 
   /**
    * Store a GitHub token obtained via OAuth (Emdash Accounts flow).
-   * Also authenticates the gh CLI with the token.
    */
   async storeTokenFromOAuth(token: string): Promise<void> {
     await this.storeToken(token);
-    await this.authenticateGHCLI(token);
   }
 
   /**
@@ -132,7 +130,6 @@ export class GitHubService {
 
       if (result.providerId === 'github') {
         await this.storeToken(result.accessToken);
-        await this.authenticateGHCLI(result.accessToken);
       }
 
       const user = await this.getUserInfo(result.accessToken);
@@ -448,12 +445,6 @@ export class GitHubService {
           console.warn('Failed to store token:', error);
         }
 
-        try {
-          await this.authenticateGHCLI(token);
-        } catch {
-          // Silent fail - gh CLI might not be installed
-        }
-
         const mainWindow = getMainWindow();
         if (user && mainWindow) {
           mainWindow.webContents.send('github:auth:user-updated', {
@@ -488,71 +479,28 @@ export class GitHubService {
   }
 
   /**
-   * Authenticate gh CLI with the OAuth token
-   */
-  private async authenticateGHCLI(token: string): Promise<void> {
-    try {
-      // Check if gh CLI is installed first
-      await execAsync('gh --version');
-
-      // Security: Authenticate gh CLI with token via stdin (not shell interpolation)
-      // This prevents command injection if token contains shell metacharacters
-      await new Promise<void>((resolve, reject) => {
-        const child = spawn('gh', ['auth', 'login', '--with-token'], {
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
-
-        child.on('close', (code) => {
-          if (code === 0) {
-            resolve();
-          } else {
-            reject(new Error(`gh auth login failed with code ${code}`));
-          }
-        });
-
-        child.on('error', reject);
-
-        // Write token to stdin and close it
-        child.stdin.write(token);
-        child.stdin.end();
-      });
-    } catch (error) {
-      console.warn('Could not authenticate gh CLI (may not be installed):', error);
-      // Don't throw - OAuth still succeeded even if gh CLI isn't available
-    }
-  }
-
-  /**
-   * Execute gh command with automatic re-auth on failure
+   * Execute gh command using emdash's own stored token via GH_TOKEN env var.
+   * This avoids touching the user's gh CLI auth config (~/.config/gh/hosts.yml),
+   * so emdash and the user's gh CLI maintain separate auth sessions and rate limits.
    */
   private async execGH(
     command: string,
-    options?: any
+    options?: Record<string, unknown>
   ): Promise<{ stdout: string; stderr: string }> {
-    try {
-      const result = await execAsync(command, { encoding: 'utf8', ...options });
-      return {
-        stdout: String(result.stdout),
-        stderr: String(result.stderr),
-      };
-    } catch (error: any) {
-      // Check if it's an auth error
-      if (error.message && error.message.includes('not authenticated')) {
-        // Try to re-authenticate gh CLI with stored token
-        const token = await this.getStoredToken();
-        if (token) {
-          await this.authenticateGHCLI(token);
-
-          // Retry the command
-          const result = await execAsync(command, { encoding: 'utf8', ...options });
-          return {
-            stdout: String(result.stdout),
-            stderr: String(result.stderr),
-          };
-        }
-      }
-      throw error;
+    const token = await this.getStoredToken();
+    if (!token) {
+      throw new Error('GitHub not authenticated — no stored token');
     }
+    const optEnv = (options?.env as Record<string, string>) ?? {};
+    // Inject emdash's token via GH_TOKEN so the gh CLI uses emdash's own auth
+    // instead of the user's ~/.config/gh/hosts.yml.
+    const env = { ...process.env, ...optEnv, GH_TOKEN: token };
+
+    const result = await execAsync(command, { encoding: 'utf8', ...options, env });
+    return {
+      stdout: String(result.stdout),
+      stderr: String(result.stderr),
+    };
   }
 
   /**
@@ -692,21 +640,14 @@ export class GitHubService {
   }
 
   /**
-   * Check if user is authenticated
+   * Check if emdash has a valid stored GitHub token.
+   * Only checks emdash's own keychain token — never inspects gh CLI auth state.
    */
   async isAuthenticated(): Promise<boolean> {
     try {
-      // First check if gh CLI is authenticated system-wide
-      const isGHAuth = await this.isGHCLIAuthenticated();
-      if (isGHAuth) {
-        return true;
-      }
-
-      // Fall back to checking stored token
       const token = await this.getStoredToken();
 
       if (!token) {
-        // No stored token, user needs to authenticate
         return false;
       }
 
@@ -715,20 +656,6 @@ export class GitHubService {
       return !!user;
     } catch (error) {
       console.error('Authentication check failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Check if gh CLI is authenticated system-wide
-   */
-  private async isGHCLIAuthenticated(): Promise<boolean> {
-    try {
-      // gh auth status exits with 0 if authenticated, non-zero otherwise
-      await execAsync('gh auth status');
-      return true;
-    } catch (error) {
-      // Not authenticated or gh CLI not installed
       return false;
     }
   }
@@ -1334,25 +1261,17 @@ export class GitHubService {
   }
 
   /**
-   * Logout and clear stored token
+   * Logout by clearing emdash's stored token.
+   * Does NOT touch the user's gh CLI auth — emdash uses its own token
+   * via the GH_TOKEN env var, so the user's `gh auth` stays intact.
    */
   async logout(): Promise<void> {
-    // Run both operations in parallel since they're independent
-    await Promise.allSettled([
-      // Logout from gh CLI
-      execAsync('echo Y | gh auth logout --hostname github.com').catch((error) => {
-        console.warn('Failed to logout from gh CLI (may not be installed or logged in):', error);
-      }),
-      // Clear keychain token
-      (async () => {
-        try {
-          const keytar = await import('keytar');
-          await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
-        } catch (error) {
-          console.error('Failed to clear keychain token:', error);
-        }
-      })(),
-    ]);
+    try {
+      const keytar = await import('keytar');
+      await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+    } catch (error) {
+      console.error('Failed to clear keychain token:', error);
+    }
   }
 
   /**

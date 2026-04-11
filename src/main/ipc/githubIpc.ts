@@ -107,17 +107,24 @@ export function registerGithubIpc() {
         installed = false;
       }
 
+      // Check emdash's own stored token — not the user's gh CLI auth
       let authenticated = false;
-      let user: any = null;
-      if (installed) {
-        try {
-          const { stdout } = await execAsync('gh api user');
-          user = JSON.parse(stdout);
-          authenticated = true;
-        } catch {
-          authenticated = false;
-          user = null;
+      let user: {
+        id: number;
+        login: string;
+        name: string;
+        email: string;
+        avatar_url: string;
+      } | null = null;
+      try {
+        const token = await (githubService as any)['getStoredToken']();
+        if (token) {
+          user = await githubService.getUserInfo(token);
+          authenticated = !!user;
         }
+      } catch {
+        authenticated = false;
+        user = null;
       }
 
       return { installed, authenticated, user };

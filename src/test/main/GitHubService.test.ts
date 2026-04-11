@@ -102,18 +102,19 @@ describe('GitHubService.isAuthenticated', () => {
     getPasswordMock.mockResolvedValue(null);
   });
 
-  it('treats GitHub CLI login as authenticated even without stored token', async () => {
+  it('returns false when no stored token exists, even if gh CLI is authenticated', async () => {
     const service = new GitHubService();
 
     const result = await service.isAuthenticated();
 
-    expect(result).toBe(true);
-    expect(execCalls.find((cmd) => cmd.startsWith('gh auth status'))).toBeDefined();
-    expect(execCalls.find((cmd) => cmd.startsWith('gh auth token'))).toBeUndefined();
+    expect(result).toBe(false);
+    // Should NOT check gh CLI auth status — emdash uses its own token
+    expect(execCalls.find((cmd) => cmd.startsWith('gh auth status'))).toBeUndefined();
     expect(setPasswordMock).not.toHaveBeenCalled();
   });
 
   it('sorts listed issues by updatedAt descending', async () => {
+    getPasswordMock.mockResolvedValue('gho_test_token');
     issueListStdout = JSON.stringify([
       { number: 11, title: 'Older', updatedAt: '2026-03-01T10:00:00.000Z' },
       { number: 12, title: 'Newest', updatedAt: '2026-03-03T12:00:00.000Z' },
@@ -127,6 +128,7 @@ describe('GitHubService.isAuthenticated', () => {
   });
 
   it('sorts searched issues by updatedAt descending', async () => {
+    getPasswordMock.mockResolvedValue('gho_test_token');
     issueSearchStdout = JSON.stringify([
       { number: 101, title: 'Stale', updatedAt: '2026-03-02T08:00:00.000Z' },
       { number: 102, title: 'Fresh', updatedAt: '2026-03-04T08:00:00.000Z' },
@@ -140,6 +142,7 @@ describe('GitHubService.isAuthenticated', () => {
   });
 
   it('limits pull requests and returns the total open PR count', async () => {
+    getPasswordMock.mockResolvedValue('gho_test_token');
     prListStdout = JSON.stringify([
       { number: 8, title: 'Older', updatedAt: '2026-03-01T10:00:00.000Z' },
       { number: 9, title: 'Newest', updatedAt: '2026-03-03T10:00:00.000Z' },
@@ -158,6 +161,7 @@ describe('GitHubService.isAuthenticated', () => {
   });
 
   it('passes search queries through to gh pr list and the filtered count lookup', async () => {
+    getPasswordMock.mockResolvedValue('gho_test_token');
     prListStdout = JSON.stringify([
       { number: 17, title: 'Needs review', updatedAt: '2026-03-04T10:00:00.000Z' },
     ]);
