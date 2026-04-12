@@ -703,7 +703,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
         };
         if (connectionId && remotePath) {
           opts.connectionId = connectionId;
-          opts.remotePath = remotePath;
+          opts.remotePath = constructSubRoot(remotePath, node.path);
         }
 
         const result = await window.electronAPI.fsList(subRoot, opts);
