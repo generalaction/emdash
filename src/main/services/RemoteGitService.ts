@@ -704,7 +704,11 @@ export class RemoteGitService {
       'git remote show origin 2>/dev/null | sed -n "/HEAD branch/s/.*: //p"',
       cwd
     );
-    if (remoteResult.exitCode === 0 && remoteResult.stdout.trim()) {
+    if (
+      remoteResult.exitCode === 0 &&
+      remoteResult.stdout.trim() &&
+      remoteResult.stdout.trim() !== '(unknown)'
+    ) {
       return remoteResult.stdout.trim();
     }
 
