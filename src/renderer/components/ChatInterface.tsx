@@ -1257,7 +1257,7 @@ const ChatInterface: React.FC<Props> = ({
                       ? 'bg-card'
                       : 'bg-white'
                   : agent === 'mistral'
-                    ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                    ? effectiveTheme !== 'light'
                       ? effectiveTheme === 'dark-black'
                         ? 'bg-[#141820]'
                         : 'bg-[#202938]'
@@ -1313,18 +1313,18 @@ const ChatInterface: React.FC<Props> = ({
                       markActiveReviewPromptSent();
                     }
                   }}
-                  variant={
-                    effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-                  }
+                  variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
                   themeOverride={
                     agent === 'charm'
                       ? {
                           background:
                             effectiveTheme === 'dark-black'
                               ? '#0a0a0a'
-                              : effectiveTheme === 'dark'
-                                ? '#1f2937'
-                                : '#ffffff',
+                              : effectiveTheme === 'green'
+                                ? '#365A3C'
+                                : effectiveTheme === 'dark'
+                                  ? '#1f2937'
+                                  : '#ffffff',
                           selectionBackground: 'rgba(96, 165, 250, 0.35)',
                           selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
                         }
@@ -1333,9 +1333,11 @@ const ChatInterface: React.FC<Props> = ({
                             background:
                               effectiveTheme === 'dark-black'
                                 ? '#141820'
-                                : effectiveTheme === 'dark'
-                                  ? '#202938'
-                                  : '#ffffff',
+                                : effectiveTheme === 'green'
+                                  ? '#365A3C'
+                                  : effectiveTheme === 'dark'
+                                    ? '#202938'
+                                    : '#ffffff',
                             selectionBackground: 'rgba(96, 165, 250, 0.35)',
                             selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
                           }
@@ -1345,12 +1347,16 @@ const ChatInterface: React.FC<Props> = ({
                               selectionBackground: 'rgba(96, 165, 250, 0.35)',
                               selectionForeground: '#f9fafb',
                             }
-                          : undefined
+                          : effectiveTheme === 'green'
+                            ? {
+                                background: '#2E5234',
+                                selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                                selectionForeground: '#f9fafb',
+                              }
+                            : undefined
                   }
                   contentFilter={
-                    agent === 'charm' &&
-                    effectiveTheme !== 'dark' &&
-                    effectiveTheme !== 'dark-black'
+                    agent === 'charm' && effectiveTheme === 'light'
                       ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'
                       : undefined
                   }

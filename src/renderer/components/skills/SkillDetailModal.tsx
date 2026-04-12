@@ -93,7 +93,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [justInstalled, setJustInstalled] = useState(false);
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
+  const isDark = effectiveTheme !== 'light';
 
   useEffect(() => {
     if (isOpen) setJustInstalled(false);

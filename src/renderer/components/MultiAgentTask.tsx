@@ -562,7 +562,7 @@ const MultiAgentTask: React.FC<Props> = ({
     <TaskScopeProvider value={{ taskId: task.id, taskPath: activeVariantPath, projectPath }}>
       <div className="relative flex h-full flex-col">
         {variants.map((v, idx) => {
-          const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
+          const isDark = effectiveTheme !== 'light';
           const isActive = idx === activeTabIndex;
           return (
             <div
@@ -677,9 +677,11 @@ const MultiAgentTask: React.FC<Props> = ({
                               background:
                                 effectiveTheme === 'dark-black'
                                   ? '#141820'
-                                  : isDark
-                                    ? '#202938'
-                                    : '#ffffff',
+                                  : effectiveTheme === 'green'
+                                    ? '#365A3C'
+                                    : isDark
+                                      ? '#202938'
+                                      : '#ffffff',
                               selectionBackground: 'rgba(96, 165, 250, 0.35)',
                               selectionForeground: isDark ? '#f9fafb' : '#0f172a',
                             }
@@ -689,7 +691,13 @@ const MultiAgentTask: React.FC<Props> = ({
                                 selectionBackground: 'rgba(96, 165, 250, 0.35)',
                                 selectionForeground: '#f9fafb',
                               }
-                            : undefined
+                            : effectiveTheme === 'green'
+                              ? {
+                                  background: '#2E5234',
+                                  selectionBackground: 'rgba(96, 165, 250, 0.35)',
+                                  selectionForeground: '#f9fafb',
+                                }
+                              : undefined
                       }
                       className="h-full w-full"
                       onStartSuccess={() => {

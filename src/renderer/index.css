@@ -103,6 +103,35 @@
     --selection: 217 92% 70%;
     --selection-foreground: 0 0% 95%;
   }
+
+  .green {
+    --background: 130 28% 25%; /* forest green #2E5234 */
+    --foreground: 120 12% 90%; /* light sage #dde6dd */
+    --card: 130 28% 25%; /* same as background */
+    --card-foreground: 120 12% 90%;
+    --popover: 130 24% 28%; /* slightly lighter for dropdowns */
+    --popover-foreground: 120 12% 90%;
+    --primary: 120 12% 90%;
+    --primary-foreground: 130 28% 25%;
+    --secondary: 130 20% 30%;
+    --secondary-foreground: 120 12% 90%;
+    --muted: 130 18% 32%;
+    --muted-foreground: 120 8% 65%;
+    --accent: 130 20% 30%;
+    --accent-foreground: 120 12% 90%;
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 130 14% 37%;
+    --input: 130 14% 37%;
+    --ring: 120 8% 65%;
+    --chart-1: 140 70% 40%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --selection: 120 60% 50%;
+    --selection-foreground: 130 28% 25%;
+  }
 }
 
 @layer base {
@@ -162,6 +191,14 @@
   }
 
   .dark-black *::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  .green *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+  }
+
+  .green *::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.4);
   }
 }

@@ -23,6 +23,13 @@ export const MONACO_DIFF_COLORS = {
     removedTextBackground: '#8813375C', // rose-900 with slightly higher opacity for black bg
     removedLineBackground: '#88133773', // rose-900 with 45% opacity for lines
   },
+  green: {
+    editorBackground: '#2E5234', // forest green
+    insertedTextBackground: '#064e3b5C', // emerald-900 with higher opacity for green bg
+    insertedLineBackground: '#064e3b73', // emerald-900 with 45% opacity for lines
+    removedTextBackground: '#8813375C', // rose-900 with higher opacity for green bg
+    removedLineBackground: '#88133773', // rose-900 with 45% opacity for lines
+  },
   light: {
     editorBackground: '#f8fafc', // slate-50 - light grey/white background
     // Emerald (green) for additions - emerald-50

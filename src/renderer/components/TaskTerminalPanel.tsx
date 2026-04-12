@@ -439,13 +439,24 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     const isMistral = agent === 'mistral';
     const darkBackground = isMistral ? '#202938' : '#1e1e1e';
     const blackBackground = isMistral ? '#141820' : '#000000';
+    const greenBackground = '#2E5234';
 
-    return effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+    return effectiveTheme !== 'light'
       ? {
-          background: effectiveTheme === 'dark-black' ? blackBackground : darkBackground,
-          foreground: '#d4d4d4',
-          cursor: '#aeafad',
-          cursorAccent: effectiveTheme === 'dark-black' ? blackBackground : darkBackground,
+          background:
+            effectiveTheme === 'dark-black'
+              ? blackBackground
+              : effectiveTheme === 'green'
+                ? greenBackground
+                : darkBackground,
+          foreground: effectiveTheme === 'green' ? '#dde6dd' : '#d4d4d4',
+          cursor: effectiveTheme === 'green' ? '#dde6dd' : '#aeafad',
+          cursorAccent:
+            effectiveTheme === 'dark-black'
+              ? blackBackground
+              : effectiveTheme === 'green'
+                ? greenBackground
+                : darkBackground,
           selectionBackground: 'rgba(96, 165, 250, 0.35)',
           selectionForeground: '#f9fafb',
           black: '#000000',
@@ -741,9 +752,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           <LifecycleTerminalView
             key={`${task?.id ?? 'no-task'}-${selection.selectedLifecycle}`}
             content={lifecycleLogContent}
-            variant={
-              effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-            }
+            variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
             themeOverride={themeOverride}
             className="flex-1"
           />
@@ -752,7 +761,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         <div
           className={cn(
             'bw-terminal relative flex-1 overflow-hidden',
-            effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+            effectiveTheme !== 'light'
               ? agent === 'mistral'
                 ? effectiveTheme === 'dark-black'
                   ? 'bg-[#141820]'
@@ -797,11 +806,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                           remote?.connectionId ? { connectionId: remote.connectionId } : undefined
                         }
                         env={taskEnv}
-                        variant={
-                          effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                            ? 'dark'
-                            : 'light'
-                        }
+                        variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
                         themeOverride={themeOverride}
                         className="h-full w-full"
                         keepAlive
@@ -828,11 +833,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                       remote={
                         remote?.connectionId ? { connectionId: remote.connectionId } : undefined
                       }
-                      variant={
-                        effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                          ? 'dark'
-                          : 'light'
-                      }
+                      variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
                       themeOverride={themeOverride}
                       className="h-full w-full"
                       keepAlive
@@ -861,7 +862,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 : 'Terminal'
           }
           onClose={handleCloseExpandedTerminal}
-          variant={effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'}
+          variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
         />
       )}
     </div>

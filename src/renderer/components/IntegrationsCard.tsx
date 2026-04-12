@@ -31,7 +31,7 @@ import { INTEGRATION_REGISTRY, type IntegrationId } from './integrations/registr
 /** Light mode: original SVG colors. Dark / dark-black: primary colour. */
 const SvgLogo = ({ raw }: { raw: string }) => {
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
+  const isDark = effectiveTheme !== 'light';
 
   const processed = isDark
     ? raw

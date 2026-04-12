@@ -17,7 +17,7 @@ interface McpServerCardProps {
 
 const McpIcon: React.FC<{ name: string; catalogKey?: string }> = ({ name, catalogKey }) => {
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
+  const isDark = effectiveTheme !== 'light';
   const iconDef = catalogKey ? mcpIconMap[catalogKey] : undefined;
 
   if (iconDef && iconDef.type === 'svg' && iconDef.data) {
