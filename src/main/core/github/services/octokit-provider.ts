@@ -1,11 +1,11 @@
 import { Octokit } from '@octokit/rest';
-import { githubAuthService } from './github-auth-service';
+import { githubConnectionService } from './github-connection-service';
 
 let cachedOctokit: Octokit | null = null;
 let cachedToken: string | null = null;
 
 export async function getOctokit(): Promise<Octokit> {
-  const token = await githubAuthService.getToken();
+  const token = await githubConnectionService.getToken();
   if (!token) throw new Error('Not authenticated');
   if (token !== cachedToken) {
     cachedOctokit = new Octokit({ auth: token });

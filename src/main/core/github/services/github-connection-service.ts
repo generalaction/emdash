@@ -37,7 +37,7 @@ export interface DeviceCodeResult {
  */
 export type TokenSource = 'keytar' | 'cli' | null;
 
-export interface GitHubAuthService {
+export interface GitHubConnectionService {
   getToken(): Promise<string | null>;
   getTokenSource(): Promise<TokenSource>;
   getStatus(): Promise<{
@@ -69,7 +69,7 @@ const GITHUB_CONFIG = {
   scopes: ['repo', 'read:user', 'read:org'],
 } as const;
 
-export class GitHubAuthServiceImpl implements GitHubAuthService {
+export class GitHubConnectionServiceImpl implements GitHubConnectionService {
   private deviceFlowAbortController: AbortController | null = null;
 
   private parseTokenSource(raw: unknown): Exclude<TokenSource, null> | null {
@@ -308,4 +308,4 @@ export class GitHubAuthServiceImpl implements GitHubAuthService {
   }
 }
 
-export const githubAuthService = new GitHubAuthServiceImpl();
+export const githubConnectionService = new GitHubConnectionServiceImpl();

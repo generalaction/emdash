@@ -17,6 +17,8 @@ export interface AppShortcutDef {
   hideFromSettings?: boolean;
 }
 
+type ShortcutOverrides = Partial<Record<ShortcutSettingsKey, string | null>>;
+
 /**
  * Preserves literal key types for `keyof` inference while widening each value
  * to the full `AppShortcutDef` interface (so optional fields like
@@ -156,12 +158,26 @@ export const APP_SHORTCUTS = defineShortcuts({
 export type ShortcutSettingsKey = keyof typeof APP_SHORTCUTS;
 
 /**
- * Returns the user's stored hotkey for an action, or the default if none is stored.
- * Cast to `Hotkey` since the values are always valid hotkey strings at runtime.
+ * Returns the currently assigned hotkey for an action.
+ * - `undefined` override -> falls back to default
+ * - `null` override -> unassigned (disabled)
  */
 export function getEffectiveHotkey(
   key: ShortcutSettingsKey,
-  custom?: Partial<Record<ShortcutSettingsKey, string>>
+  custom?: ShortcutOverrides
+): Hotkey | null {
+  const configured = custom?.[key];
+  if (configured === null) return null;
+  return (configured ?? APP_SHORTCUTS[key].defaultHotkey) as Hotkey;
+}
+
+/**
+ * Always returns a valid hotkey string for hook registration.
+ * Pair this with `getEffectiveHotkey(...) !== null` in `enabled`.
+ */
+export function getHotkeyRegistration(
+  key: ShortcutSettingsKey,
+  custom?: ShortcutOverrides
 ): Hotkey {
-  return (custom?.[key] ?? APP_SHORTCUTS[key].defaultHotkey) as Hotkey;
+  return (getEffectiveHotkey(key, custom) ?? APP_SHORTCUTS[key].defaultHotkey) as Hotkey;
 }

@@ -15,7 +15,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
 import type { GitProvider } from '@main/core/git/types';
-import { githubAuthService } from '@main/core/github/services/github-auth-service';
+import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
@@ -98,7 +98,7 @@ export class SshProjectProvider implements ProjectProvider {
   ) {
     this.fs = new SshFileSystem(this.proxy, project.path);
     this.settings = new SshProjectSettingsProvider(this.fs, bareRefName(project.baseRef));
-    const gitExec = getGitSshExec(this.proxy, () => githubAuthService.getToken());
+    const gitExec = getGitSshExec(this.proxy, () => githubConnectionService.getToken());
     this.git = new GitService(project.path, gitExec, this.fs);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
@@ -216,7 +216,7 @@ export class SshProjectProvider implements ProjectProvider {
         workspaceId,
         terminals: workspaceTerminals,
       });
-      const workspaceGitExec = getGitSshExec(proxy, () => githubAuthService.getToken());
+      const workspaceGitExec = getGitSshExec(proxy, () => githubConnectionService.getToken());
       const createdWorkspace: Workspace = {
         id: workspaceId,
         path: workDir,

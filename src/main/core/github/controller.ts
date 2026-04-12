@@ -11,8 +11,7 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
-import { githubAuthService } from '@main/core/github/services/github-auth-service';
-import { issueService } from '@main/core/github/services/issue-service';
+import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { repoService } from '@main/core/github/services/repo-service';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getGitLocalExec, getGitSshExec, type ExecFn } from '@main/core/utils/exec';
@@ -22,7 +21,7 @@ import { capture, identify as telemetryIdentify } from '@main/lib/telemetry';
 export const githubController = createRPCController({
   getStatus: async (): Promise<GitHubStatusResponse> => {
     try {
-      return await githubAuthService.getStatus();
+      return await githubConnectionService.getStatus();
     } catch (error) {
       log.error('GitHub status check failed:', error);
       return { authenticated: false, user: null, tokenSource: null };
@@ -31,10 +30,10 @@ export const githubController = createRPCController({
 
   auth: async (): Promise<GitHubAuthResponse> => {
     try {
-      const result = await githubAuthService.startDeviceFlowAuth();
+      const result = await githubConnectionService.startDeviceFlowAuth();
       if (result.success) {
         capture('integration_connected', { provider: 'github' });
-        const user = await githubAuthService.getCurrentUser();
+        const user = await githubConnectionService.getCurrentUser();
         if (user?.login) {
           telemetryIdentify(user.login);
         }
@@ -49,13 +48,13 @@ export const githubController = createRPCController({
   connectOAuth: async (): Promise<GitHubConnectResponse> => {
     try {
       const { baseUrl } = ACCOUNT_CONFIG.authServer;
-      const result = await githubAuthService.startOAuthFlow(baseUrl);
+      const result = await githubConnectionService.startOAuthFlow(baseUrl);
       if (result.success) {
         capture('integration_connected', { provider: 'github' });
         if (result.user?.login) {
           telemetryIdentify(result.user.login);
         } else {
-          const user = await githubAuthService.getCurrentUser();
+          const user = await githubConnectionService.getCurrentUser();
           if (user?.login) {
             telemetryIdentify(user.login);
           }
@@ -70,7 +69,7 @@ export const githubController = createRPCController({
 
   authCancel: async () => {
     try {
-      githubAuthService.cancelAuth();
+      githubConnectionService.cancelAuth();
       return { success: true };
     } catch (error) {
       log.error('Failed to cancel GitHub auth:', error);
@@ -80,7 +79,7 @@ export const githubController = createRPCController({
 
   isAuthenticated: async () => {
     try {
-      return await githubAuthService.isAuthenticated();
+      return await githubConnectionService.isAuthenticated();
     } catch (error) {
       log.error('GitHub authentication check failed:', error);
       return false;
@@ -89,7 +88,7 @@ export const githubController = createRPCController({
 
   logout: async () => {
     try {
-      await githubAuthService.logout();
+      await githubConnectionService.logout();
       capture('integration_disconnected', { provider: 'github' });
       return { success: true };
     } catch (error) {
@@ -100,7 +99,7 @@ export const githubController = createRPCController({
 
   getUser: async () => {
     try {
-      return await githubAuthService.getCurrentUser();
+      return await githubConnectionService.getCurrentUser();
     } catch (error) {
       log.error('Failed to get user info:', error);
       return null;
@@ -109,41 +108,11 @@ export const githubController = createRPCController({
 
   storeToken: async (token: string) => {
     try {
-      await githubAuthService.storeToken(token);
+      await githubConnectionService.storeToken(token);
       return { success: true };
     } catch (error) {
       log.error('Failed to store token:', error);
       return { success: false, error: 'Failed to store token' };
-    }
-  },
-
-  issuesList: async (nameWithOwner: string, limit?: number) => {
-    try {
-      const issues = await issueService.listIssues(nameWithOwner, limit ?? 50);
-      return { success: true, issues };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to list issues';
-      return { success: false, error: message };
-    }
-  },
-
-  issuesSearch: async (nameWithOwner: string, searchTerm: string, limit?: number) => {
-    try {
-      const issues = await issueService.searchIssues(nameWithOwner, searchTerm, limit ?? 20);
-      return { success: true, issues };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to search issues';
-      return { success: false, error: message };
-    }
-  },
-
-  issuesGet: async (nameWithOwner: string, issueNumber: number) => {
-    try {
-      const issue = await issueService.getIssue(nameWithOwner, issueNumber);
-      return { success: !!issue, issue: issue ?? undefined };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to get issue';
-      return { success: false, error: message };
     }
   },
 
@@ -272,10 +241,10 @@ export const githubController = createRPCController({
 
       if (connectionId) {
         const proxy = await sshConnectionManager.connect(connectionId);
-        exec = getGitSshExec(proxy, () => githubAuthService.getToken());
+        exec = getGitSshExec(proxy, () => githubConnectionService.getToken());
         parentFs = new SshFileSystem(proxy, path.posix.dirname(targetPath));
       } else {
-        exec = getGitLocalExec(() => githubAuthService.getToken());
+        exec = getGitLocalExec(() => githubConnectionService.getToken());
         parentFs = new LocalFileSystem(path.dirname(targetPath));
       }
 
@@ -302,10 +271,10 @@ export const githubController = createRPCController({
 
       if (params.connectionId) {
         const proxy = await sshConnectionManager.connect(params.connectionId);
-        exec = getGitSshExec(proxy, () => githubAuthService.getToken());
+        exec = getGitSshExec(proxy, () => githubConnectionService.getToken());
         projectFs = new SshFileSystem(proxy, params.targetPath);
       } else {
-        exec = getGitLocalExec(() => githubAuthService.getToken());
+        exec = getGitLocalExec(() => githubConnectionService.getToken());
         projectFs = new LocalFileSystem(params.targetPath);
       }
 
@@ -356,7 +325,7 @@ export const githubController = createRPCController({
         (settings as { projects?: { defaultDirectory?: string } }).projects?.defaultDirectory ??
         path.join(homedir(), 'emdash-projects');
       const localPath = path.join(projectDir, name);
-      const exec = getGitLocalExec(() => githubAuthService.getToken());
+      const exec = getGitLocalExec(() => githubConnectionService.getToken());
       const parentFs = new LocalFileSystem(path.dirname(localPath));
       await parentFs.mkdir('.', { recursive: true });
       const cloneResult = await cloneRepository(cloneUrl, localPath, exec);

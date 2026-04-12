@@ -1,4 +1,5 @@
 import { formatForDisplay, useHotkeyRecorder, type Hotkey } from '@tanstack/react-hotkeys';
+import { RotateCcw, X } from 'lucide-react';
 import React, { useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { toast } from '@renderer/lib/hooks/use-toast';
@@ -8,7 +9,7 @@ import {
   type ShortcutSettingsKey,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { Button } from '@renderer/lib/ui/button';
-import { ResetToDefaultButton } from './ResetToDefaultButton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 const CONFIGURABLE_SHORTCUTS = (
   Object.entries(APP_SHORTCUTS) as [
@@ -32,7 +33,6 @@ const KeyboardSettingsCard: React.FC = () => {
     update,
     isLoading: loading,
     isSaving: saving,
-    isFieldOverridden,
     resetField,
   } = useAppSettingsKey('keyboard');
 
@@ -79,6 +79,14 @@ const KeyboardSettingsCard: React.FC = () => {
     });
   };
 
+  const handleClear = (key: ShortcutSettingsKey) => {
+    update({ [key]: null });
+    toast({
+      title: 'Shortcut removed',
+      description: `${APP_SHORTCUTS[key].label} no longer has a key binding.`,
+    });
+  };
+
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
       <div className="space-y-6">
@@ -91,9 +99,17 @@ const KeyboardSettingsCard: React.FC = () => {
               {shortcuts.map(([key, def]) => {
                 const effectiveHotkey = getEffectiveHotkey(key, keyboard);
                 const capturing = editingKey === key && recorder.isRecording;
+                const cleared = keyboard?.[key] === null;
+                const showClear = !cleared;
+                const showReset = effectiveHotkey !== def.defaultHotkey;
+                const showActions = showClear || showReset;
+                const displayHotkey = effectiveHotkey ? formatForDisplay(effectiveHotkey) : '';
 
                 return (
-                  <div key={key} className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-2">
+                  <div
+                    key={key}
+                    className="group/shortcut flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-2"
+                  >
                     <div className="min-w-0 flex-1 basis-64 space-y-1">
                       <div className="break-words text-sm">{def.label}</div>
                       <div className="break-words text-xs text-muted-foreground">
@@ -125,11 +141,47 @@ const KeyboardSettingsCard: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          {isFieldOverridden(key) && (
-                            <ResetToDefaultButton
-                              onReset={() => handleReset(key)}
-                              disabled={loading || saving}
-                            />
+                          {showActions && (
+                            <div className="pointer-events-none flex items-center gap-1 opacity-0 transition-opacity group-hover/shortcut:pointer-events-auto group-hover/shortcut:opacity-100">
+                              <TooltipProvider delay={150}>
+                                {showClear && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-muted-foreground hover:text-foreground"
+                                        onClick={() => handleClear(key)}
+                                        disabled={loading || saving}
+                                        aria-label="Remove shortcut"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">Remove shortcut</TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {showReset && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-muted-foreground hover:text-foreground"
+                                        onClick={() => handleReset(key)}
+                                        disabled={loading || saving}
+                                        aria-label="Reset to default"
+                                      >
+                                        <RotateCcw className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">Reset to default</TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </TooltipProvider>
+                            </div>
                           )}
                           <Button
                             type="button"
@@ -139,7 +191,7 @@ const KeyboardSettingsCard: React.FC = () => {
                             onClick={() => startCapture(key)}
                             disabled={loading || saving}
                           >
-                            {formatForDisplay(effectiveHotkey)}
+                            {displayHotkey}
                           </Button>
                         </>
                       )}
