@@ -15,13 +15,13 @@ export const TERMINAL_SELECTION = {
 } as const;
 
 export const GREEN_COLORS = {
-  background: '#21462E',
-  card: '#294E36',
+  background: '#215031',
+  card: '#295839',
   foreground: '#dde6dd',
-  lineHighlight: '#30573D',
+  lineHighlight: '#306140',
   lineNumber: '#6D8E78',
-  gutter: '#21462E',
-  unchangedRegion: '#193C2A',
+  gutter: '#215031',
+  unchangedRegion: '#19462D',
 } as const;
 
 /** Per-theme base terminal backgrounds (non-agent-specific). */
@@ -97,7 +97,7 @@ export function getTerminalContainerClass(effectiveTheme: EffectiveTheme, agent?
 
   if (agent === 'mistral') {
     if (effectiveTheme === 'dark-black') return 'bg-[#141820]';
-    if (effectiveTheme === 'green') return 'bg-[#294E36]';
+    if (effectiveTheme === 'green') return 'bg-[#295839]';
     if (effectiveTheme !== 'light') return 'bg-[#202938]';
     return 'bg-white';
   }

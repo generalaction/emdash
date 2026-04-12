@@ -105,24 +105,24 @@
   }
 
   .green {
-    --background: 141 36% 20%; /* forest green #21462E */
+    --background: 141 42% 22%; /* forest green #215031 */
     --foreground: 120 12% 90%; /* light sage #dde6dd */
-    --card: 141 36% 20%; /* same as background */
+    --card: 141 42% 22%; /* same as background */
     --card-foreground: 120 12% 90%;
-    --popover: 141 32% 23%; /* slightly lighter for dropdowns */
+    --popover: 141 38% 25%; /* slightly lighter for dropdowns */
     --popover-foreground: 120 12% 90%;
     --primary: 120 12% 90%;
-    --primary-foreground: 141 36% 20%;
-    --secondary: 141 28% 25%;
+    --primary-foreground: 141 42% 22%;
+    --secondary: 141 34% 27%;
     --secondary-foreground: 120 12% 90%;
-    --muted: 141 26% 27%;
+    --muted: 141 32% 29%;
     --muted-foreground: 120 8% 65%;
-    --accent: 141 28% 25%;
+    --accent: 141 34% 27%;
     --accent-foreground: 120 12% 90%;
     --destructive: 0 62.8% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 141 22% 32%;
-    --input: 141 22% 32%;
+    --border: 141 28% 34%;
+    --input: 141 28% 34%;
     --ring: 120 8% 65%;
     --chart-1: 140 70% 40%;
     --chart-2: 160 60% 45%;
@@ -130,7 +130,7 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
     --selection: 120 60% 50%;
-    --selection-foreground: 141 36% 20%;
+    --selection-foreground: 141 42% 22%;
   }
 }
 
