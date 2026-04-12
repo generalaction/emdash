@@ -184,19 +184,21 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="p-0 gap-0 overflow-hidden max-w-lg" showCloseButton={false}>
-        <DialogHeader className="flex-row items-start justify-between border-b border-border/60 px-6 py-4 gap-4">
-          <div>
-            <DialogTitle className="text-lg font-semibold">
-              {provider.name} Execution Settings
-            </DialogTitle>
-            <DialogDescription className="mt-0.5">
-              Customize the agent execution command
-            </DialogDescription>
-          </div>
-        </DialogHeader>
+      <DialogContent
+        className="max-h-[85vh] max-w-lg gap-0 overflow-hidden p-0"
+        showCloseButton={false}
+      >
+        <div className="border-b border-border/60">
+          <DialogHeader className="flex-row items-start gap-4">
+            <div>
+              <DialogTitle className="text-lg font-semibold">
+                {provider.name} Execution Settings
+              </DialogTitle>
+            </div>
+          </DialogHeader>
+        </div>
 
-        <div className="max-h-[60vh] overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-sm text-muted-foreground">Loading...</div>
