@@ -4,6 +4,7 @@ import _electronUpdater, {
   type UpdateInfo,
   type Logger as UpdaterLogger,
 } from 'electron-updater';
+import { UPDATE_CHANNEL } from '@shared/app-identity';
 import {
   updateAvailableEvent,
   updateCheckingEvent,
@@ -20,7 +21,6 @@ import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
 
 const { autoUpdater } = _electronUpdater;
 
-const CHANNEL = 'v1';
 const ALLOW_PRERELEASE = false;
 const ALLOW_DOWNGRADE = false;
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
@@ -76,7 +76,7 @@ class UpdateService {
 
     log.info('AutoUpdateService initialized', {
       version: this.updateState.currentVersion,
-      channel: CHANNEL,
+      channel: UPDATE_CHANNEL,
     });
 
     this.scheduleNextCheck(STARTUP_DELAY_MS);
@@ -86,7 +86,7 @@ class UpdateService {
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.autoRunAppAfterInstall = true;
-    autoUpdater.channel = CHANNEL;
+    autoUpdater.channel = UPDATE_CHANNEL;
     autoUpdater.allowPrerelease = ALLOW_PRERELEASE;
     autoUpdater.allowDowngrade = ALLOW_DOWNGRADE;
     autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };
@@ -195,7 +195,7 @@ class UpdateService {
     }
 
     log.info('Checking for updates...', {
-      channel: CHANNEL,
+      channel: UPDATE_CHANNEL,
       currentVersion: this.updateState.currentVersion,
     });
 

@@ -1,8 +1,9 @@
 import { join, normalize, sep } from 'node:path';
 import { net, protocol } from 'electron';
+import { APP_NAME_LOWER } from '@shared/app-identity';
 
 export const APP_SCHEME = 'app';
-export const APP_ORIGIN = `${APP_SCHEME}://emdash`;
+export const APP_ORIGIN = `${APP_SCHEME}://${APP_NAME_LOWER}`;
 
 export function registerAppScheme(): void {
   protocol.registerSchemesAsPrivileged([

@@ -11,7 +11,7 @@ on:
         required: false
         default: 'both'
       dry_run:
-        description: 'Build signed+stapled but DO NOT publish a GitHub Release (artifacts only)'
+        description: 'Build signed+stapled but DO NOT publish (artifacts only)'
         required: false
         default: 'false'
 
@@ -26,7 +26,6 @@ jobs:
         id: init
         run: |
           set -euo pipefail
-          # Normalize dry_run from workflow_dispatch inputs (string: true/false)
           DRY=${{ inputs.dry_run || '' }}
           if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
           DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
@@ -35,240 +34,88 @@ jobs:
             *) DRY=false ;;
           esac
           echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10.28.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
-
-      - name: Setup Python 3.11 for node-gyp
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Python build deps (setuptools shim for distutils)
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          echo "python=$(which python3)" >> $GITHUB_ENV
+      - run: python -m pip install --upgrade pip setuptools wheel
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
 
-      - name: Install dependencies (strict lockfile)
-        env:
-          npm_config_python: ${{ env.python }}
-        run: pnpm install --frozen-lockfile
-
-      - name: Build app (ts + vite)
-        run: pnpm run build
-
-      - name: Inject PostHog config (dev build job)
+      - name: Inject telemetry
         env:
           PH_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.POSTHOG_HOST }}
-        run: |
-          set -euo pipefail
-          if [ -z "${PH_KEY:-}" ] || [ -z "${PH_HOST:-}" ]; then
-            echo "PostHog secrets not set; skipping telemetry injection (DMG will have telemetry disabled)."
-            exit 0
-          fi
-          mkdir -p dist/main
-          cat > dist/main/appConfig.json <<'JSON'
-          {
-            "posthogHost": "__PH_HOST__",
-            "posthogKey": "__PH_KEY__"
-          }
-          JSON
-          sed -i '' "s#__PH_HOST__#${PH_HOST}#g" dist/main/appConfig.json
-          sed -i '' "s#__PH_KEY__#${PH_KEY}#g" dist/main/appConfig.json
-          echo "Wrote dist/main/appConfig.json"
+        run: node --experimental-strip-types scripts/release/inject-telemetry.ts
 
-      - name: Build DMG(s) (no publish)
+      - name: Build unsigned DMGs
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: |
-          set -euo pipefail
-          ARCH_INPUT="${{ github.event.inputs.arch }}"
-          if [ -z "$ARCH_INPUT" ] || [ "$ARCH_INPUT" = "both" ]; then
-            ARCHS=(x64 arm64)
-          elif [ "$ARCH_INPUT" = "arm64" ]; then
-            ARCHS=(arm64)
-          elif [ "$ARCH_INPUT" = "x64" ]; then
-            ARCHS=(x64)
-          else
-            echo "Unknown arch input: $ARCH_INPUT" && exit 1
-          fi
-          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          # Build each architecture separately to ensure native modules match.
-          # Building both at once with --x64 --arm64 would use the same node_modules/
-          # for both, causing architecture mismatches (issue #706).
-          for A in "${ARCHS[@]}"; do
-            echo "=== Building for $A ==="
-            echo "Rebuilding native modules for $A (Electron $ELECTRON_VERSION)"
-            npm_config_build_from_source=true pnpm exec electron-rebuild -f -a "$A" -v "$ELECTRON_VERSION" -o sqlite3,node-pty,keytar
-            echo "Packaging $A DMG"
-            pnpm exec electron-builder --mac dmg --$A --publish never --config.npmRebuild=false
-          done
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg
 
-      - name: Verify native module architectures match Electron
-        run: |
-          set -euo pipefail
-          # Verify that each build has native modules matching its Electron binary architecture.
-          # This catches issues like #706 where x64 builds had arm64 native modules.
-          VERIFIED_COUNT=0
-          for APP_DIR in release/mac-*/emdash.app; do
-            [ -d "$APP_DIR" ] || continue
-            ARCH_DIR=$(basename "$(dirname "$APP_DIR")")
-            case "$ARCH_DIR" in
-              mac-arm64) EXPECTED_ARCH="arm64" ;;
-              mac-x64|mac)  EXPECTED_ARCH="x86_64" ;;
-              *) echo "Unknown arch dir: $ARCH_DIR"; continue ;;
-            esac
-            echo "=== Checking $APP_DIR (expected: $EXPECTED_ARCH) ==="
-            ELECTRON_BIN="$APP_DIR/Contents/MacOS/emdash"
-            SQLITE_NODE="$APP_DIR/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node"
-            # Check Electron binary architecture
-            ELECTRON_ARCH=$(file "$ELECTRON_BIN" | grep -o 'arm64\|x86_64' | head -1)
-            echo "Electron binary: $ELECTRON_ARCH"
-            if [ "$ELECTRON_ARCH" != "$EXPECTED_ARCH" ]; then
-              echo "::error::Electron arch mismatch: got $ELECTRON_ARCH, expected $EXPECTED_ARCH"
-              exit 1
-            fi
-            # Check sqlite3 native module architecture
-            if [ -f "$SQLITE_NODE" ]; then
-              SQLITE_ARCH=$(file "$SQLITE_NODE" | grep -o 'arm64\|x86_64' | head -1)
-              echo "sqlite3 native module: $SQLITE_ARCH"
-              if [ "$SQLITE_ARCH" != "$EXPECTED_ARCH" ]; then
-                echo "::error::sqlite3 arch mismatch: got $SQLITE_ARCH, expected $EXPECTED_ARCH"
-                exit 1
-              fi
-            else
-              echo "::warning::sqlite3 native module not found at $SQLITE_NODE"
-            fi
-            VERIFIED_COUNT=$((VERIFIED_COUNT + 1))
-          done
-          if [ "$VERIFIED_COUNT" -eq 0 ]; then
-            echo "::error::No app bundles found to verify"
-            exit 1
-          fi
-          echo "Verified $VERIFIED_COUNT app bundle(s)"
-
-      - name: Smoke test sqlite3 in packaged app (arm64)
-        if: ${{ github.event.inputs.arch == '' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
-        run: |
-          set -euo pipefail
-          APP="release/mac-arm64/emdash.app"
-          if [ -d "$APP" ]; then
-            echo "Requiring sqlite3 using packaged Electron (arm64)…"
-            NODE_PATH="$APP/Contents/Resources/app.asar.unpacked/node_modules" \
-            ELECTRON_RUN_AS_NODE=1 "$APP/Contents/MacOS/emdash" -e "require('sqlite3'); console.log('sqlite3 OK')"
-          else
-            echo "Arm64 app not found at $APP" && exit 1
-          fi
+      - name: Verify macOS bundle
+        run: node --experimental-strip-types scripts/release/verify-mac.ts --smoke-test
 
   release-linux:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     environment: release
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10.28.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
-
-      - name: Setup Python 3.11 for node-gyp
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Python build deps (setuptools)
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          echo "python=$(which python3)" >> $GITHUB_ENV
-
+      - run: python -m pip install --upgrade pip setuptools wheel
       - name: Install system build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libsecret-1-dev rpm
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libsecret-1-dev rpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
 
-      - name: Install dependencies (allow platform optional deps)
-        env:
-          npm_config_python: ${{ env.python }}
-        run: |
-          # pnpm lockfiles are cross-platform; keep lockfile strict for reproducible builds
-          pnpm install --frozen-lockfile
-
-      - name: Build app (ts + vite)
-        run: pnpm run build
-
-      - name: Inject PostHog config
+      - name: Inject telemetry
         env:
           PH_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.POSTHOG_HOST }}
-        run: |
-          set -euo pipefail
-          if [ -z "${PH_KEY:-}" ] || [ -z "${PH_HOST:-}" ]; then
-            echo "PostHog secrets not set; skipping telemetry injection (app will have telemetry disabled)."
-            exit 0
-          fi
-          mkdir -p dist/main
-          cat > dist/main/appConfig.json <<'JSON'
-          {
-            "posthogHost": "__PH_HOST__",
-            "posthogKey": "__PH_KEY__"
-          }
-          JSON
-          sed -i "s#__PH_HOST__#${PH_HOST}#g" dist/main/appConfig.json
-          sed -i "s#__PH_KEY__#${PH_KEY}#g" dist/main/appConfig.json
-          echo "Wrote dist/main/appConfig.json"
+        run: node --experimental-strip-types scripts/release/inject-telemetry.ts
 
-      - name: Rebuild native modules for Electron (x64)
-        run: |
-          set -euo pipefail
-          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty,keytar
+      - name: Build Linux packages
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform linux --arch x64
 
-      - name: Build Linux packages (AppImage, .deb and .rpm)
-        run: pnpm run package:linux
-
-      - name: Upload Linux packages to GitHub Release
+      - name: Upload to R2
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          # Create if missing, or publish if draft
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --draft=false --prerelease=false
-          else
-            gh release create "$TAG" --title "$TAG" --generate-notes --no-latest || gh release edit "$TAG" --draft=false --prerelease=false
-          fi
-          # Upload Linux packages and metadata
-          FILES=(release/emdash-*.AppImage release/emdash-*.deb release/emdash-*.rpm)
-          if [ -f release/v1-linux.yml ]; then FILES+=(release/v1-linux.yml); fi
-          gh release upload "$TAG" "${FILES[@]}" --clobber
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: node --experimental-strip-types scripts/release/upload-r2.ts
 
   release-win:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: windows-2022
     permissions:
-      contents: write
+      contents: read
     environment: release
     steps:
       - name: Init flags
@@ -278,7 +125,6 @@ jobs:
           set -euo pipefail
           DRY=${{ inputs.dry_run || '' }}
           if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
-          # For branch pushes, always do a dry run to avoid creating "releases" for branch names.
           if [ "${GITHUB_EVENT_NAME:-}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "branch" ]; then
             DRY=true
           fi
@@ -289,34 +135,25 @@ jobs:
           esac
           echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10.28.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          # Node 22 can trigger native module source builds that are flakier on Windows.
-          # Node 20 is within engines range and closer to Electron's Node baseline.
           node-version: '20'
           cache: 'pnpm'
-
-      - name: Setup Python 3.11 for node-gyp
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Python build deps (setuptools shim for distutils)
+      - name: Install Python build deps
         shell: bash
         run: |
           python -m pip install --upgrade pip setuptools wheel
           echo "python=$(which python)" >> "$GITHUB_ENV"
 
-      - name: Install dependencies (strict lockfile)
+      - name: Install dependencies
         shell: bash
         env:
           npm_config_python: ${{ env.python }}
@@ -324,30 +161,16 @@ jobs:
           GYP_MSVS_VERSION: 2022
         run: pnpm install --frozen-lockfile
 
-      - name: Build app (ts + vite)
+      - name: Build app
         shell: bash
         run: pnpm run build
 
-      - name: Inject PostHog config
+      - name: Inject telemetry
         shell: bash
         env:
           PH_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.POSTHOG_HOST }}
-        run: |
-          set -euo pipefail
-          if [ -z "${PH_KEY:-}" ] || [ -z "${PH_HOST:-}" ]; then
-            echo "PostHog secrets not set; skipping telemetry injection (app will have telemetry disabled)."
-            exit 0
-          fi
-          node - <<'NODE'
-          const fs = require('node:fs');
-          fs.mkdirSync('dist/main', { recursive: true });
-          fs.writeFileSync(
-            'dist/main/appConfig.json',
-            JSON.stringify({ posthogHost: process.env.PH_HOST, posthogKey: process.env.PH_KEY }, null, 2)
-          );
-          console.log('Wrote dist/main/appConfig.json');
-          NODE
+        run: node --experimental-strip-types scripts/release/inject-telemetry.ts
 
       - name: Check Azure Trusted Signing secrets
         id: signing
@@ -359,104 +182,59 @@ jobs:
         run: |
           if [ -n "$AZ_TENANT" ] && [ -n "$AZ_CLIENT" ] && [ -n "$AZ_SECRET" ]; then
             echo "has_signing=true" >> "$GITHUB_OUTPUT"
-            echo "Azure Trusted Signing secrets are configured."
           else
             echo "has_signing=false" >> "$GITHUB_OUTPUT"
             echo "::warning::Azure Trusted Signing secrets not configured. Windows build will be unsigned."
           fi
 
-      - name: Rebuild native modules (x64)
-        shell: bash
-        run: |
-          set -euo pipefail
-          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty,keytar
-
-      - name: Build Windows packages (NSIS + MSI) (no publish)
+      - name: Build Windows packages
         shell: bash
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        run: |
-          set -euo pipefail
-          pnpm exec electron-builder --win nsis msi --x64 --publish never --config.npmRebuild=false
-          ls -lah release || true
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform win --arch x64
 
       - name: Verify Windows code signature
         if: ${{ steps.signing.outputs.has_signing == 'true' }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $files = @()
-          $files += Get-ChildItem -Path release -Filter 'emdash-*.exe' -ErrorAction SilentlyContinue
-          $files += Get-ChildItem -Path release -Filter 'emdash-*.msi' -ErrorAction SilentlyContinue
-          if ($files.Count -eq 0) {
-            Write-Host "::error::No .exe or .msi files found in release/ to verify"
-            exit 1
-          }
-          $failed = $false
-          foreach ($f in $files) {
-            Write-Host "Verifying signature on $($f.Name)..."
-            $sig = Get-AuthenticodeSignature -FilePath $f.FullName
-            if ($sig.Status -ne 'Valid') {
-              Write-Host "::error::Signature invalid on $($f.Name): $($sig.Status) - $($sig.StatusMessage)"
-              $failed = $true
-            } else {
-              Write-Host "  Status: $($sig.Status)"
-              Write-Host "  Subject: $($sig.SignerCertificate.Subject)"
-              Write-Host "  Issuer: $($sig.SignerCertificate.Issuer)"
-              Write-Host "  Thumbprint: $($sig.SignerCertificate.Thumbprint)"
-            }
-          }
-          if ($failed) { exit 1 }
-          Write-Host "All Windows installers are properly signed."
+        shell: bash
+        run: node --experimental-strip-types scripts/release/verify-win.ts
 
-      - name: Publish GitHub Release and upload Windows artifacts
+      - name: Upload to R2
         if: ${{ steps.init.outputs.dry_run != 'true' }}
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          # Create if missing, or publish if draft
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --draft=false --prerelease=false
-          else
-            gh release create "$TAG" --title "$TAG" --generate-notes --no-latest || gh release edit "$TAG" --draft=false --prerelease=false
-          fi
-          FILES=(release/emdash-*.exe release/emdash-*.msi)
-          if ls release/*.blockmap >/dev/null 2>&1; then FILES+=(release/*.blockmap); fi
-          if [ -f release/v1.yml ]; then FILES+=(release/v1.yml); fi
-          if [ -f release/v1-win.yml ]; then FILES+=(release/v1-win.yml); fi
-          gh release upload "$TAG" "${FILES[@]}" --clobber
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: node --experimental-strip-types scripts/release/upload-r2.ts
 
-      - name: Upload Windows artifacts (dry-run)
+      - name: Upload artifacts (dry-run)
         if: ${{ steps.init.outputs.dry_run == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: WINDOWS-ARTIFACTS
           path: |
-            release/emdash-*.exe
-            release/emdash-*.msi
+            release/emdash-beta-*.exe
+            release/emdash-beta-*.msi
             release/*.blockmap
-            release/v1*.yml
+            release/v1-beta*.yml
           if-no-files-found: error
 
   release-mac:
-    # Run for tagged pushes (normal release) and for manual runs (dry run or ad-hoc release)
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     permissions:
-      contents: write
+      contents: read
     environment: release
     steps:
       - name: Init flags
         id: init
         run: |
           set -euo pipefail
-          # Normalize dry_run from workflow_dispatch inputs (string: true/false)
           DRY=${{ inputs.dry_run || '' }}
           if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
           DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
@@ -465,34 +243,23 @@ jobs:
             *) DRY=false ;;
           esac
           echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10.28.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
-
-      - name: Setup Python 3.11 for node-gyp
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Python build deps (setuptools shim for distutils)
-        run: |
+      - run: |
           python -m pip install --upgrade pip setuptools wheel
           echo "python=$(which python3)" >> $GITHUB_ENV
-
-      - name: Install dependencies (strict lockfile)
-        env:
-          npm_config_python: ${{ env.python }}
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
       - name: Import Apple signing certificate
         uses: apple-actions/import-codesign-certs@v2
@@ -500,299 +267,54 @@ jobs:
           p12-file-base64: ${{ secrets.CERTIFICATE_P12 }}
           p12-password: ${{ secrets.CERTIFICATE_PASSWORD }}
 
-      - name: Build app (ts + vite)
-        run: pnpm run build
+      - run: pnpm run build
 
-      - name: Inject PostHog config (release job)
+      - name: Inject telemetry
         env:
           PH_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           PH_HOST: ${{ secrets.POSTHOG_HOST }}
-        run: |
-          set -euo pipefail
-          if [ -z "${PH_KEY:-}" ] || [ -z "${PH_HOST:-}" ]; then
-            echo "::warning::PostHog secrets not set; telemetry will be disabled in this build."
-            exit 0
-          fi
-          mkdir -p dist/main
-          cat > dist/main/appConfig.json <<'JSON'
-          {
-            "posthogHost": "__PH_HOST__",
-            "posthogKey": "__PH_KEY__"
-          }
-          JSON
-          sed -i '' "s#__PH_HOST__#${PH_HOST}#g" dist/main/appConfig.json
-          sed -i '' "s#__PH_KEY__#${PH_KEY}#g" dist/main/appConfig.json
-          echo "Wrote dist/main/appConfig.json"
+        run: node --experimental-strip-types scripts/release/inject-telemetry.ts
 
-      - name: Check notarization secrets
-        id: flags
-        env:
-          K: ${{ secrets.APPLE_API_KEY }}
-          KID: ${{ secrets.APPLE_API_KEY_ID }}
-          ISS: ${{ secrets.APPLE_API_ISSUER }}
-        run: |
-          if [ -n "$K" ] && [ -n "$KID" ] && [ -n "$ISS" ]; then
-            echo "has_apple_api=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_apple_api=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Prepare Apple API key (if provided)
-        if: ${{ steps.flags.outputs.has_apple_api == 'true' }}
-        run: |
-          echo "${{ secrets.APPLE_API_KEY }}" > ./apple_api_key.p8
-          echo "APPLE_API_KEY=$(pwd)/apple_api_key.p8" >> $GITHUB_ENV
-          echo "APPLE_API_KEY_ID=${{ secrets.APPLE_API_KEY_ID }}" >> $GITHUB_ENV
-          echo "APPLE_API_ISSUER=${{ secrets.APPLE_API_ISSUER }}" >> $GITHUB_ENV
-
-      - name: Build signed DMG(s) (do not publish yet)
+      - name: Build signed DMGs + ZIPs
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'true'
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          # Guard against legacy env vars overriding cert-import flow
-          unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME
-          # Force Apple ID notarization for the app build to avoid bad APPLE_API_KEY paths
-          unset APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER
-          export TEAM_ID="${APPLE_TEAM_ID}"
-          export NOTARIZE_TEAM_ID="${APPLE_TEAM_ID}"
-          echo "App notarization method: Apple ID (TEAM_ID=$TEAM_ID)"
-          ARCH_INPUT="${{ github.event.inputs.arch }}"
-          if [ -z "$ARCH_INPUT" ] || [ "$ARCH_INPUT" = "both" ]; then
-            ARCHS=(x64 arm64)
-          elif [ "$ARCH_INPUT" = "arm64" ]; then
-            ARCHS=(arm64)
-          elif [ "$ARCH_INPUT" = "x64" ]; then
-            ARCHS=(x64)
-          else
-            echo "Unknown arch input: $ARCH_INPUT" && exit 1
-          fi
-          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          # Build each architecture separately to ensure native modules match.
-          # Building both at once with --x64 --arm64 would use the same node_modules/
-          # for both, causing architecture mismatches (issue #706).
-          for A in "${ARCHS[@]}"; do
-            echo "=== Building for $A ==="
-            echo "Rebuilding native modules for $A (Electron $ELECTRON_VERSION)"
-            npm_config_build_from_source=true pnpm exec electron-rebuild -f -a "$A" -v "$ELECTRON_VERSION" -o sqlite3,node-pty,keytar
-            echo "Packaging $A DMG and ZIP"
-            pnpm exec electron-builder --mac dmg zip --$A --publish never --config.npmRebuild=false
-          done
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg,zip
 
-      - name: Verify native module architectures match Electron
-        run: |
-          set -euo pipefail
-          # Verify that each build has native modules matching its Electron binary architecture.
-          # This catches issues like #706 where x64 builds had arm64 native modules.
-          VERIFIED_COUNT=0
-          for APP_DIR in release/mac-*/emdash.app; do
-            [ -d "$APP_DIR" ] || continue
-            ARCH_DIR=$(basename "$(dirname "$APP_DIR")")
-            case "$ARCH_DIR" in
-              mac-arm64) EXPECTED_ARCH="arm64" ;;
-              mac-x64|mac)  EXPECTED_ARCH="x86_64" ;;
-              *) echo "Unknown arch dir: $ARCH_DIR"; continue ;;
-            esac
-            echo "=== Checking $APP_DIR (expected: $EXPECTED_ARCH) ==="
-            ELECTRON_BIN="$APP_DIR/Contents/MacOS/emdash"
-            SQLITE_NODE="$APP_DIR/Contents/Resources/app.asar.unpacked/node_modules/sqlite3/build/Release/node_sqlite3.node"
-            # Check Electron binary architecture
-            ELECTRON_ARCH=$(file "$ELECTRON_BIN" | grep -o 'arm64\|x86_64' | head -1)
-            echo "Electron binary: $ELECTRON_ARCH"
-            if [ "$ELECTRON_ARCH" != "$EXPECTED_ARCH" ]; then
-              echo "::error::Electron arch mismatch: got $ELECTRON_ARCH, expected $EXPECTED_ARCH"
-              exit 1
-            fi
-            # Check sqlite3 native module architecture
-            if [ -f "$SQLITE_NODE" ]; then
-              SQLITE_ARCH=$(file "$SQLITE_NODE" | grep -o 'arm64\|x86_64' | head -1)
-              echo "sqlite3 native module: $SQLITE_ARCH"
-              if [ "$SQLITE_ARCH" != "$EXPECTED_ARCH" ]; then
-                echo "::error::sqlite3 arch mismatch: got $SQLITE_ARCH, expected $EXPECTED_ARCH"
-                exit 1
-              fi
-            else
-              echo "::warning::sqlite3 native module not found at $SQLITE_NODE"
-            fi
-            VERIFIED_COUNT=$((VERIFIED_COUNT + 1))
-          done
-          if [ "$VERIFIED_COUNT" -eq 0 ]; then
-            echo "::error::No app bundles found to verify"
-            exit 1
-          fi
-          echo "Verified $VERIFIED_COUNT app bundle(s)"
+      - name: Verify macOS bundle
+        run: >
+          node --experimental-strip-types scripts/release/verify-mac.ts
+          --smoke-test --expected-team-id ${{ secrets.APPLE_TEAM_ID }}
 
-      - name: Smoke test sqlite3 in packaged app (arm64, signed)
-        if: ${{ github.event.inputs.arch == '' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
-        run: |
-          set -euo pipefail
-          APP="release/mac-arm64/emdash.app"
-          if [ -d "$APP" ]; then
-            echo "Requiring sqlite3 using packaged Electron (arm64, signed)…"
-            NODE_PATH="$APP/Contents/Resources/app.asar.unpacked/node_modules" \
-            ELECTRON_RUN_AS_NODE=1 "$APP/Contents/MacOS/emdash" -e "require('sqlite3'); console.log('sqlite3 OK')"
-          else
-            echo "Arm64 app not found at $APP" && exit 1
-          fi
-
-      - name: Verify Developer ID signing
-        env:
-          EXPECT_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          set -euo pipefail
-          FAILED=0
-          for APP in release/mac*/emdash.app; do
-            if [ -d "$APP" ]; then
-              echo "Checking codesign for $APP"
-              META=$(codesign -dv --verbose=4 "$APP" 2>&1)
-              echo "$META" | grep -q "Authority=Developer ID Application" || { echo "::error::Not Developer ID Application signed"; FAILED=1; }
-              if [ -n "${EXPECT_TEAM_ID:-}" ]; then
-                TID=$(printf "%s\n" "$META" | awk -F= '/TeamIdentifier=/{print $2; exit}')
-                if [ "$TID" != "$EXPECT_TEAM_ID" ]; then
-                  echo "::error::TeamIdentifier mismatch (got '$TID', expected '$EXPECT_TEAM_ID')"; FAILED=1
-                fi
-              fi
-            fi
-          done
-          [ "$FAILED" -eq 0 ] || exit 1
-
-      - name: Verify bundle metadata and integrity (no app notarization required)
-        run: |
-          set -euo pipefail
-          for APP in release/mac*/emdash.app; do
-            if [ -d "$APP" ]; then
-              echo "Asserting bundle ID and resources for $APP"
-              PLIST="$APP/Contents/Info.plist"
-              if [ ! -f "$PLIST" ]; then
-                echo "::error::Missing Info.plist at $PLIST"; exit 1
-              fi
-              # Read CFBundleIdentifier robustly (defaults can be flaky on raw files)
-              BID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST" 2>/dev/null || true)
-              if [ -z "$BID" ]; then
-                BID=$(plutil -extract CFBundleIdentifier xml1 -o - "$PLIST" 2>/dev/null | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | head -n1)
-              fi
-              if [ "$BID" != "com.emdash" ]; then
-                echo "::error::CFBundleIdentifier mismatch (got '$BID', expected 'com.emdash')"; exit 1
-              fi
-              # Ensure packaged resources exist (prevents white-screen adhoc shells)
-              if [ ! -f "$APP/Contents/Resources/app.asar" ] && [ ! -d "$APP/Contents/Resources/app" ]; then
-                echo "::error::Missing packaged renderer resources (app.asar or Resources/app)"; exit 1
-              fi
-              echo "codesign --verify --deep --strict"
-              codesign --verify --deep --strict --verbose=2 "$APP"
-              echo "Skip spctl on raw app (validated later via DMG end-to-end check)"
-            fi
-          done
-
-      - name: Staple and validate artifacts (best-effort for app)
-        run: |
-          set -euo pipefail
-          # Staple apps
-          for APP in release/mac*/emdash.app; do
-            if [ -d "$APP" ]; then
-              echo "Attempt staple $APP (may be not notarized)"; xcrun stapler staple "$APP" || echo "App staple skipped"
-              echo "Validate $APP (best-effort)"; xcrun stapler validate "$APP" || echo "App validate skipped"
-            fi
-          done
-          # Staple DMGs
-          for DMG in release/*.dmg; do
-            if [ -f "$DMG" ]; then
-              echo "Stapling $DMG (best-effort; only app must be stapled)"
-              if ! xcrun stapler staple "$DMG"; then
-                echo "Warning: DMG notarization ticket not found (expected if only app was notarized). Skipping."
-              else
-                xcrun stapler validate "$DMG" || echo "Warning: DMG validate failed; app is stapled and validated."
-              fi
-            fi
-          done
-
-      - name: Notarize and staple DMGs (ensures user-downloadable DMG works)
-        if: ${{ steps.flags.outputs.has_apple_api == 'true' }}
-        env:
-          APPLE_API_KEY: ${{ env.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ env.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ env.APPLE_API_ISSUER }}
-        run: |
-          set -euo pipefail
-          for DMG in release/*.dmg; do
-            [ -f "$DMG" ] || continue
-            echo "Submitting $DMG to Apple Notary (notarytool)..."
-            xcrun notarytool submit "$DMG" \
-              --key "$APPLE_API_KEY" \
-              --key-id "$APPLE_API_KEY_ID" \
-              --issuer "$APPLE_API_ISSUER" \
-              --wait
-            echo "Stapling $DMG after notarization"
-            xcrun stapler staple -v "$DMG"
-            xcrun stapler validate "$DMG"
-          done
-
-      - name: 'End-to-end check: app inside DMG passes Gatekeeper'
-        run: |
-          set -euo pipefail
-          for DMG in release/*.dmg; do
-            [ -f "$DMG" ] || continue
-            MNT=$(mktemp -d)
-            echo "Mounting $DMG at $MNT"; hdiutil attach "$DMG" -mountpoint "$MNT" -nobrowse -quiet
-            APP="$MNT/emdash.app"
-            if [ ! -d "$APP" ]; then
-              echo "::error::No emdash.app found inside $DMG"; hdiutil detach "$MNT" -quiet || true; rm -rf "$MNT"; exit 1
-            fi
-            echo "codesign info for app inside DMG:"; codesign -dv --verbose=4 "$APP" 2>&1 | sed -n '1,60p'
-            echo "Gatekeeper assessment (should be accepted):"; spctl -a -vv --type execute "$APP"
-            hdiutil detach "$MNT" -quiet || true; rm -rf "$MNT"
-          done
-
-      - name: Publish GitHub Release and upload artifacts
+      - name: Notarize and staple
         if: ${{ steps.init.outputs.dry_run != 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          # Create if missing, or publish if draft
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --draft=false --prerelease=false
-          else
-            gh release create "$TAG" --title "$TAG" --generate-notes --no-latest || gh release edit "$TAG" --draft=false --prerelease=false
-          fi
-          # Upload stapled DMGs, ZIPs (for auto-update), and update files
-          FILES=(release/emdash-*.dmg release/emdash-*.zip)
-          if ls release/*.blockmap >/dev/null 2>&1; then FILES+=(release/*.blockmap); fi
-          if [ -f release/v1-mac.yml ]; then FILES+=(release/v1-mac.yml); fi
-          gh release upload "$TAG" "${FILES[@]}" --clobber
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: node --experimental-strip-types scripts/release/notarize-mac.ts
 
-      - name: Inspect built artifacts (dry-run)
-        if: ${{ steps.init.outputs.dry_run == 'true' }}
-        run: |
-          set -euo pipefail
-          echo "Contents of release/:"
-          ls -lah release || true
-          echo "Find DMGs:"
-          find release -maxdepth 1 -type f -name 'emdash-*.dmg' -print
-          DMG_COUNT=$(find release -maxdepth 1 -type f -name 'emdash-*.dmg' | wc -l | tr -d ' ')
-          if [ "$DMG_COUNT" -eq 0 ]; then
-            echo "::error::No DMG files found in release/."; exit 1
-          fi
+      - name: Upload to R2
+        if: ${{ steps.init.outputs.dry_run != 'true' }}
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: node --experimental-strip-types scripts/release/upload-r2.ts
 
-      - name: Upload signed DMGs (dry-run)
+      - name: Upload artifacts (dry-run)
         if: ${{ steps.init.outputs.dry_run == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: SIGNED-STAPLED-DMGS
-          path: release/emdash-*.dmg
-          if-no-files-found: error
-
-      - name: Upload supplemental files (blockmaps/yml) (dry-run)
-        if: ${{ steps.init.outputs.dry_run == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: SIGNED-STAPLED-DMGS-extras
           path: |
+            release/emdash-beta-*.dmg
+            release/emdash-beta-*.zip
             release/*.blockmap
-            release/v1-mac.yml
-          if-no-files-found: ignore
+            release/v1-beta*.yml
+          if-no-files-found: error

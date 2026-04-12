@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { BrowserWindow } from 'electron';
 import appIcon from '@/assets/images/emdash/emdash_logo.png?asset';
+import { PRODUCT_NAME } from '@shared/app-identity';
 import { capture, checkAndReportDailyActiveUser } from '@main/lib/telemetry';
 import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
 import { APP_ORIGIN } from './protocol';
@@ -13,7 +14,7 @@ export function createMainWindow(): BrowserWindow {
     height: 900,
     minWidth: 700,
     minHeight: 500,
-    title: 'Emdash',
+    title: PRODUCT_NAME,
     // In production, electron-builder injects the icon from the app bundle.
     ...(import.meta.env.DEV && { icon: appIcon }),
     webPreferences: {

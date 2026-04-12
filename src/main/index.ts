@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import dotenv from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
+import { PRODUCT_NAME } from '@shared/app-identity';
 import { registerRPCRouter } from '@shared/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
@@ -32,7 +33,7 @@ if (process.platform === 'linux') {
 
 registerAppScheme();
 
-app.setName('Emdash');
+app.setName(PRODUCT_NAME);
 
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0];
@@ -79,7 +80,7 @@ app.whenReady().then(async () => {
     log.error('Failed to initialize database:', error);
     dialog.showErrorBox(
       'Database Initialization Failed',
-      `Emdash could not start because the database failed to initialize.\n\n${error instanceof Error ? error.message : String(error)}`
+      `${PRODUCT_NAME} could not start because the database failed to initialize.\n\n${error instanceof Error ? error.message : String(error)}`
     );
     app.quit();
     return;

@@ -1,4 +1,5 @@
 import React from 'react';
+import { PRODUCT_NAME } from '@shared/app-identity';
 import { useTelemetryConsent } from '@renderer/lib/hooks/useTelemetryConsent';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
@@ -14,7 +15,7 @@ const TelemetryCard: React.FC = () => {
       title="Privacy & Telemetry"
       description={
         <div>
-          <p>Help improve Emdash by sending anonymous usage data.</p>
+          <p>Help improve {PRODUCT_NAME} by sending anonymous usage data.</p>
           <p>
             <span>See </span>
             <Button
