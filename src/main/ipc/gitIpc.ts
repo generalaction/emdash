@@ -1234,7 +1234,7 @@ export function registerGitIpc() {
               { cwd: taskPath }
             );
             const db2 = (stdout || '').trim();
-            if (db2) defaultBranch = db2;
+            if (db2 && db2 !== '(unknown)') defaultBranch = db2;
           } catch {}
         }
 
@@ -2170,7 +2170,7 @@ current branch '${currentBranch}' ahead of base '${baseRef}'.`,
               { cwd: taskPath }
             );
             const db2 = (stdout || '').trim();
-            if (db2) defaultBranch = db2;
+            if (db2 && db2 !== '(unknown)') defaultBranch = db2;
           } catch {}
         }
 

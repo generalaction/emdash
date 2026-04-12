@@ -225,6 +225,15 @@ export class WorktreeService {
       } else {
         baseRefInfo = await this.resolveProjectBaseRef(projectPath, projectId);
       }
+
+      // Initialize empty repos on the same branch we intend to use as the worktree base.
+      if (!(await this.hasCommits(projectPath))) {
+        const initBranch = await this.initializeEmptyRepo(projectPath, baseRefInfo.branch);
+        log.info(
+          `Empty repo initialized with branch '${initBranch}', proceeding with worktree creation`
+        );
+      }
+
       const fetchedBaseRef = await this.fetchBaseRefWithFallback(
         projectPath,
         projectId,
@@ -646,7 +655,10 @@ export class WorktreeService {
         cwd: projectPath,
       });
       const match = stdout.match(/HEAD branch:\s*(\S+)/);
-      return match ? match[1] : 'main';
+      if (match && match[1] !== '(unknown)') {
+        return match[1];
+      }
+      return 'main';
     } catch {
       return 'main';
     }
@@ -847,6 +859,17 @@ export class WorktreeService {
         throw new Error(`Failed to fetch ${target.fullRef}: ${message}`);
       }
 
+      // Remote ref is missing — check if the branch exists locally (e.g. after initializing an empty repo).
+      try {
+        await execFileAsync('git', ['rev-parse', '--verify', `refs/heads/${target.branch}`], {
+          cwd: projectPath,
+        });
+        log.info(`Remote ref ${target.fullRef} is missing, using local branch '${target.branch}'`);
+        return { remote: '', branch: target.branch, fullRef: target.branch };
+      } catch {
+        // Local branch doesn't exist either; continue to fallback logic.
+      }
+
       // Attempt fallback to default branch
       const fallback = await this.buildDefaultBaseRef(projectPath);
       if (fallback.fullRef === target.fullRef) {
@@ -903,6 +926,33 @@ export class WorktreeService {
       }
       return false;
     }
+  }
+
+  async hasCommits(projectPath: string): Promise<boolean> {
+    try {
+      await execFileAsync('git', ['rev-parse', '--verify', 'HEAD'], {
+        cwd: projectPath,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async initializeEmptyRepo(projectPath: string, branchName: string): Promise<string> {
+    const targetBranch = this.sanitizeBranchName(branchName.trim() || 'main');
+
+    log.info(`Initializing empty repository with initial commit on branch '${targetBranch}'`);
+
+    await execFileAsync('git', ['symbolic-ref', 'HEAD', `refs/heads/${targetBranch}`], {
+      cwd: projectPath,
+    });
+
+    await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+      cwd: projectPath,
+    });
+
+    return targetBranch;
   }
 
   /**
