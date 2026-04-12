@@ -1,5 +1,6 @@
 import { loader } from '@monaco-editor/react';
 import { MONACO_DIFF_COLORS } from './monacoDiffColors';
+import { GREEN_COLORS } from './terminalThemeColors';
 
 let themesRegistered = false;
 
@@ -49,7 +50,7 @@ export async function registerDiffThemes(): Promise<void> {
       'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.green.insertedLineBackground,
       'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.green.removedTextBackground,
       'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.green.removedLineBackground,
-      'diffEditor.unchangedRegionBackground': '#264830',
+      'diffEditor.unchangedRegionBackground': GREEN_COLORS.unchangedRegion,
     },
   });
 

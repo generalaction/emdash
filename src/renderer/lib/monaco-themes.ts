@@ -4,6 +4,7 @@
  */
 
 import type { Monaco } from '@monaco-editor/react';
+import { GREEN_COLORS } from './terminalThemeColors';
 
 // Track registration per Monaco instance. Some views initialize Monaco independently.
 const registeredMonacoInstances = new WeakSet<object>();
@@ -49,11 +50,11 @@ export function defineMonacoThemes(monaco: Monaco): void {
     inherit: true,
     rules: [],
     colors: {
-      'editor.background': '#2E5234',
-      'editor.foreground': '#dde6dd',
-      'editor.lineHighlightBackground': '#3D6343',
-      'editorLineNumber.foreground': '#7a9a7e',
-      'editorGutter.background': '#2E5234',
+      'editor.background': GREEN_COLORS.background,
+      'editor.foreground': GREEN_COLORS.foreground,
+      'editor.lineHighlightBackground': GREEN_COLORS.lineHighlight,
+      'editorLineNumber.foreground': GREEN_COLORS.lineNumber,
+      'editorGutter.background': GREEN_COLORS.gutter,
     },
   });
 

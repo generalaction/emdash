@@ -28,6 +28,7 @@ import { formatCommentsForAgent } from '@/lib/formatCommentsForAgent';
 import { buildPromptInjectionPayload } from '@/lib/terminalInjection';
 import { TaskScopeProvider } from './TaskScopeContext';
 import TaskContextBadges from './TaskContextBadges';
+import { getTerminalThemeOverride, getTerminalContainerClass } from '../lib/terminalThemeColors';
 
 interface Props {
   task: Task;
@@ -637,15 +638,7 @@ const MultiAgentTask: React.FC<Props> = ({
                   onWheelCapture={handleTerminalViewportWheelForwarding}
                 >
                   <div
-                    className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                      v.agent === 'mistral'
-                        ? isDark
-                          ? 'bg-[#202938]'
-                          : 'bg-white'
-                        : isDark
-                          ? 'bg-card'
-                          : 'bg-white'
-                    }`}
+                    className={`mx-auto h-full max-w-4xl overflow-hidden rounded-md ${getTerminalContainerClass(effectiveTheme, v.agent)}`}
                   >
                     <TerminalPane
                       ref={isActive ? activeTerminalRef : undefined}
@@ -671,34 +664,7 @@ const MultiAgentTask: React.FC<Props> = ({
                       keepAlive
                       mapShiftEnterToCtrlJ
                       variant={isDark ? 'dark' : 'light'}
-                      themeOverride={
-                        v.agent === 'mistral'
-                          ? {
-                              background:
-                                effectiveTheme === 'dark-black'
-                                  ? '#141820'
-                                  : effectiveTheme === 'green'
-                                    ? '#365A3C'
-                                    : isDark
-                                      ? '#202938'
-                                      : '#ffffff',
-                              selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                              selectionForeground: isDark ? '#f9fafb' : '#0f172a',
-                            }
-                          : effectiveTheme === 'dark-black'
-                            ? {
-                                background: '#000000',
-                                selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                                selectionForeground: '#f9fafb',
-                              }
-                            : effectiveTheme === 'green'
-                              ? {
-                                  background: '#2E5234',
-                                  selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                                  selectionForeground: '#f9fafb',
-                                }
-                              : undefined
-                      }
+                      themeOverride={getTerminalThemeOverride(effectiveTheme, v.agent)}
                       className="h-full w-full"
                       onStartSuccess={() => {
                         if (

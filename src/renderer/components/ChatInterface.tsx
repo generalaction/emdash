@@ -37,6 +37,7 @@ import { useWorkspaceConnection } from '../hooks/useWorkspaceConnection';
 import { useTerminalSearch } from '../hooks/useTerminalSearch';
 import { TerminalSearchOverlay } from './TerminalSearchOverlay';
 import { getReviewConversationMetadata, parseConversationMetadata } from '@shared/reviewPreset';
+import { getTerminalThemeOverride, getTerminalContainerClass } from '../lib/terminalThemeColors';
 import {
   getConversationTabLabel,
   planConversationTitleUpdates,
@@ -1249,21 +1250,7 @@ const ChatInterface: React.FC<Props> = ({
           >
             <div
               ref={terminalPanelRef}
-              className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                agent === 'charm'
-                  ? effectiveTheme === 'dark-black'
-                    ? 'bg-black'
-                    : effectiveTheme === 'dark'
-                      ? 'bg-card'
-                      : 'bg-white'
-                  : agent === 'mistral'
-                    ? effectiveTheme !== 'light'
-                      ? effectiveTheme === 'dark-black'
-                        ? 'bg-[#141820]'
-                        : 'bg-[#202938]'
-                      : 'bg-white'
-                    : ''
-              }`}
+              className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${getTerminalContainerClass(effectiveTheme, agent)}`}
             >
               <TerminalSearchOverlay
                 isOpen={isSearchOpen}
@@ -1314,47 +1301,7 @@ const ChatInterface: React.FC<Props> = ({
                     }
                   }}
                   variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
-                  themeOverride={
-                    agent === 'charm'
-                      ? {
-                          background:
-                            effectiveTheme === 'dark-black'
-                              ? '#0a0a0a'
-                              : effectiveTheme === 'green'
-                                ? '#365A3C'
-                                : effectiveTheme === 'dark'
-                                  ? '#1f2937'
-                                  : '#ffffff',
-                          selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                          selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
-                        }
-                      : agent === 'mistral'
-                        ? {
-                            background:
-                              effectiveTheme === 'dark-black'
-                                ? '#141820'
-                                : effectiveTheme === 'green'
-                                  ? '#365A3C'
-                                  : effectiveTheme === 'dark'
-                                    ? '#202938'
-                                    : '#ffffff',
-                            selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                            selectionForeground: effectiveTheme === 'light' ? '#0f172a' : '#f9fafb',
-                          }
-                        : effectiveTheme === 'dark-black'
-                          ? {
-                              background: '#000000',
-                              selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                              selectionForeground: '#f9fafb',
-                            }
-                          : effectiveTheme === 'green'
-                            ? {
-                                background: '#2E5234',
-                                selectionBackground: 'rgba(96, 165, 250, 0.35)',
-                                selectionForeground: '#f9fafb',
-                              }
-                            : undefined
-                  }
+                  themeOverride={getTerminalThemeOverride(effectiveTheme, agent)}
                   contentFilter={
                     agent === 'charm' && effectiveTheme === 'light'
                       ? 'invert(1) hue-rotate(180deg) brightness(1.1) contrast(1.05)'

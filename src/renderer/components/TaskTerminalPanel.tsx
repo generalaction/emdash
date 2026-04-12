@@ -30,6 +30,13 @@ import {
 } from '@shared/lifecycle';
 import { shouldDisablePlay } from '../lib/lifecycleUi';
 import ExpandedTerminalModal from './ExpandedTerminalModal';
+import {
+  GREEN_COLORS,
+  TERMINAL_BACKGROUNDS,
+  MISTRAL_BACKGROUNDS,
+  TERMINAL_SELECTION,
+  getTerminalContainerClass,
+} from '../lib/terminalThemeColors';
 
 interface Task {
   id: string;
@@ -437,28 +444,16 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   const defaultTheme = useMemo(() => {
     const isMistral = agent === 'mistral';
-    const darkBackground = isMistral ? '#202938' : '#1e1e1e';
-    const blackBackground = isMistral ? '#141820' : '#000000';
-    const greenBackground = '#2E5234';
+    const backgrounds = isMistral ? MISTRAL_BACKGROUNDS : TERMINAL_BACKGROUNDS;
+    const bg = backgrounds[effectiveTheme] ?? backgrounds.dark;
 
     return effectiveTheme !== 'light'
       ? {
-          background:
-            effectiveTheme === 'dark-black'
-              ? blackBackground
-              : effectiveTheme === 'green'
-                ? greenBackground
-                : darkBackground,
-          foreground: effectiveTheme === 'green' ? '#dde6dd' : '#d4d4d4',
-          cursor: effectiveTheme === 'green' ? '#dde6dd' : '#aeafad',
-          cursorAccent:
-            effectiveTheme === 'dark-black'
-              ? blackBackground
-              : effectiveTheme === 'green'
-                ? greenBackground
-                : darkBackground,
-          selectionBackground: 'rgba(96, 165, 250, 0.35)',
-          selectionForeground: '#f9fafb',
+          background: bg,
+          foreground: effectiveTheme === 'green' ? GREEN_COLORS.foreground : '#d4d4d4',
+          cursor: effectiveTheme === 'green' ? GREEN_COLORS.foreground : '#aeafad',
+          cursorAccent: bg,
+          ...TERMINAL_SELECTION.dark,
           black: '#000000',
           red: '#cd3131',
           green: '#0dbc79',
@@ -761,13 +756,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         <div
           className={cn(
             'bw-terminal relative flex-1 overflow-hidden',
-            effectiveTheme !== 'light'
-              ? agent === 'mistral'
-                ? effectiveTheme === 'dark-black'
-                  ? 'bg-[#141820]'
-                  : 'bg-[#202938]'
-                : 'bg-card'
-              : 'bg-white'
+            getTerminalContainerClass(effectiveTheme, agent)
           )}
         >
           <TerminalSearchOverlay
