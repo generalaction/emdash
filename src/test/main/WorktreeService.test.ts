@@ -396,5 +396,59 @@ describe('WorktreeService', () => {
 
       expect(upstream).toBe(`origin/${branchName}`);
     });
+
+    it('initializes empty repos on the resolved base branch without pushing to origin', async () => {
+      const emptyRepo = path.join(tempDir, 'empty-repo');
+      const emptyOrigin = path.join(tempDir, 'empty-origin.git');
+      fs.mkdirSync(emptyRepo);
+      fs.mkdirSync(emptyOrigin);
+
+      execSync('git init', { cwd: emptyRepo, stdio: 'pipe' });
+      execSync('git config user.email "test@test.com"', { cwd: emptyRepo, stdio: 'pipe' });
+      execSync('git config user.name "Test"', { cwd: emptyRepo, stdio: 'pipe' });
+      execSync('git init --bare', { cwd: emptyOrigin, stdio: 'pipe' });
+      execFileSync('git', ['remote', 'add', 'origin', emptyOrigin], {
+        cwd: emptyRepo,
+        stdio: 'pipe',
+      });
+
+      const { projectSettingsService } = await import('../../main/services/ProjectSettingsService');
+      vi.mocked(projectSettingsService.getProjectSettings).mockResolvedValue({
+        projectId: 'proj-1',
+        name: 'empty-repo',
+        path: emptyRepo,
+        baseRef: 'origin/main',
+        gitBranch: 'main',
+      });
+
+      const { worktreeService } = await import('../../main/services/WorktreeService');
+      const worktree = await worktreeService.createWorktree(emptyRepo, 'Empty Repo Task', 'proj-1');
+
+      expect(worktree.branch).toMatch(/^emdash\/empty-repo-task-/);
+      expect(fs.existsSync(worktree.path)).toBe(true);
+
+      const currentBranch = execFileSync('git', ['branch', '--show-current'], {
+        cwd: emptyRepo,
+        encoding: 'utf8',
+      }).trim();
+      expect(currentBranch).toBe('main');
+
+      expect(() =>
+        execFileSync('git', ['rev-parse', '--verify', 'refs/heads/main'], {
+          cwd: emptyRepo,
+          stdio: 'pipe',
+        })
+      ).not.toThrow();
+
+      const remoteHeads = execFileSync(
+        'git',
+        ['for-each-ref', '--format=%(refname)', 'refs/heads'],
+        {
+          cwd: emptyOrigin,
+          encoding: 'utf8',
+        }
+      ).trim();
+      expect(remoteHeads).toBe('');
+    });
   });
 });

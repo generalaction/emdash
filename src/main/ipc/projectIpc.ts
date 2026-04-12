@@ -51,7 +51,10 @@ const detectDefaultBranch = async (projectPath: string, remote?: string | null) 
       cwd: projectPath,
     });
     const match = stdout.match(/HEAD branch:\s*(\S+)/);
-    return match ? match[1] : null;
+    if (match && match[1] !== '(unknown)') {
+      return match[1];
+    }
+    return null;
   } catch {
     return null;
   }

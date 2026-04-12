@@ -248,6 +248,14 @@ export class WorktreePoolService {
       fs.mkdirSync(worktreesDir, { recursive: true });
     }
 
+    // Skip reserve creation for empty repos (no commits).
+    // The first createWorktree() call will initialize the repo,
+    // and the pool will replenish on the next task creation.
+    if (!(await worktreeService.hasCommits(projectPath))) {
+      log.info('WorktreePool: Skipping reserve creation for empty repository', { projectId });
+      return;
+    }
+
     // Keep reserve refs fresh in the background so claim remains instant.
     await this.refreshRefsForReserveCreation(projectPath, projectId);
 
