@@ -429,11 +429,19 @@ export async function getFileDiff(
 }
 
 /** Commit staged files (no push). Returns the commit hash. */
-export async function commit(taskPath: string, message: string): Promise<{ hash: string }> {
+export async function commit(
+  taskPath: string,
+  message: string,
+  options: { noVerify?: boolean } = {}
+): Promise<{ hash: string }> {
   if (!message || !message.trim()) {
     throw new Error('Commit message cannot be empty');
   }
-  await execFileAsync('git', ['commit', '-m', message], { cwd: taskPath });
+  const args = ['commit', '-m', message];
+  if (options.noVerify) {
+    args.push('--no-verify');
+  }
+  await execFileAsync('git', args, { cwd: taskPath });
   const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: taskPath });
   return { hash: stdout.trim() };
 }

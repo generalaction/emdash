@@ -683,7 +683,13 @@ export class GitHubService {
         throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
       }
 
-      const userData = await response.json();
+      const userData = (await response.json()) as {
+        id: number;
+        login: string;
+        name: string | null;
+        email: string | null;
+        avatar_url: string;
+      };
 
       return {
         id: userData.id,

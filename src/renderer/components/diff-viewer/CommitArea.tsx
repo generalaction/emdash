@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowUp, ArrowDown, Undo2, Loader2 } from 'lucide-react';
 import { useToast } from '../../hooks/use-toast';
+import { useErrorDetails } from '../../hooks/useErrorDetails';
+import { friendlyGitError } from '../../lib/friendlyGitError';
 import type { FileChange } from '../../hooks/useFileChanges';
 import { subscribeToFileChanges } from '../../lib/fileChangeEvents';
+import { Checkbox } from '../ui/checkbox';
 
 interface CommitAreaProps {
   taskPath?: string;
@@ -17,30 +20,13 @@ interface LatestCommit {
   isPushed: boolean;
 }
 
-function friendlyGitError(raw: string): string {
-  const s = raw.toLowerCase();
-  if (s.includes('non-fast-forward') || s.includes('tip of your current branch is behind'))
-    return 'Remote has new commits. Pull before pushing.';
-  if (s.includes('merge conflict') || s.includes('fix conflicts'))
-    return 'Merge conflicts detected. Resolve them in your editor.';
-  if (s.includes('permission denied') || s.includes('authentication'))
-    return 'Authentication failed. Check your credentials.';
-  if (s.includes('could not resolve host') || s.includes('unable to access'))
-    return 'Cannot reach remote. Check your network connection.';
-  if (s.includes('no such remote')) return 'No remote configured for this repository.';
-  if (s.includes('cannot undo the initial commit')) return 'Cannot undo the initial commit.';
-  if (s.includes('nothing to commit')) return 'Nothing to commit.';
-  // Return first meaningful line, capped
-  const firstLine = raw.split('\n').find((l) => l.trim().length > 0) || raw;
-  return firstLine.length > 120 ? firstLine.slice(0, 120) + '...' : firstLine;
-}
-
 export const CommitArea: React.FC<CommitAreaProps> = ({
   taskPath,
   fileChanges,
   onRefreshChanges,
 }) => {
   const { toast } = useToast();
+  const { showError, errorDialog } = useErrorDetails();
   const [commitMessage, setCommitMessage] = useState('');
   const [description, setDescription] = useState('');
   const [branch, setBranch] = useState<string | null>(null);
@@ -51,6 +37,14 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
   const [isUndoing, setIsUndoing] = useState(false);
   const [aheadCount, setAheadCount] = useState(0);
   const [behindCount, setBehindCount] = useState(0);
+  const [skipHooks, setSkipHooks] = useState(false);
+
+  const showGitError = useCallback(
+    (title: string, rawError: string) => {
+      showError(title, rawError, { summarize: friendlyGitError });
+    },
+    [showError]
+  );
 
   const hasStagedFiles = fileChanges.some((f) => f.isStaged);
   const canCommit = hasStagedFiles && commitMessage.trim().length > 0 && !isCommitting;
@@ -96,7 +90,11 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
       const message = description.trim()
         ? `${commitMessage.trim()}\n\n${description.trim()}`
         : commitMessage.trim();
-      const result = await window.electronAPI.gitCommit({ taskPath, message });
+      const result = await window.electronAPI.gitCommit({
+        taskPath,
+        message,
+        noVerify: skipHooks,
+      });
       if (result.success) {
         setCommitMessage('');
         setDescription('');
@@ -104,18 +102,10 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
         await fetchLatestCommit();
         await fetchBranch();
       } else {
-        toast({
-          title: 'Commit failed',
-          description: friendlyGitError(result?.error || 'Unknown error'),
-          variant: 'destructive',
-        });
+        showGitError('Commit failed', result?.error || 'Unknown error');
       }
     } catch (err) {
-      toast({
-        title: 'Commit failed',
-        description: friendlyGitError(err instanceof Error ? err.message : String(err)),
-        variant: 'destructive',
-      });
+      showGitError('Commit failed', err instanceof Error ? err.message : String(err));
     } finally {
       setIsCommitting(false);
     }
@@ -131,20 +121,12 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
       if (result?.success) {
         toast({ title: 'Pushed successfully' });
       } else {
-        toast({
-          title: 'Push failed',
-          description: friendlyGitError(result?.error || 'Unknown error'),
-          variant: 'destructive',
-        });
+        showGitError('Push failed', result?.error || 'Unknown error');
       }
       await fetchBranch();
       await fetchLatestCommit();
     } catch (err) {
-      toast({
-        title: 'Push failed',
-        description: friendlyGitError(err instanceof Error ? err.message : String(err)),
-        variant: 'destructive',
-      });
+      showGitError('Push failed', err instanceof Error ? err.message : String(err));
     } finally {
       setIsPushing(false);
     }
@@ -156,21 +138,13 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
     try {
       const result = await window.electronAPI.gitPull({ taskPath });
       if (!result?.success) {
-        toast({
-          title: 'Pull failed',
-          description: friendlyGitError(result?.error || 'Unknown error'),
-          variant: 'destructive',
-        });
+        showGitError('Pull failed', result?.error || 'Unknown error');
       }
       await fetchBranch();
       await fetchLatestCommit();
       await onRefreshChanges?.();
     } catch (err) {
-      toast({
-        title: 'Pull failed',
-        description: friendlyGitError(err instanceof Error ? err.message : String(err)),
-        variant: 'destructive',
-      });
+      showGitError('Pull failed', err instanceof Error ? err.message : String(err));
     } finally {
       setIsPulling(false);
     }
@@ -188,18 +162,10 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
         await fetchLatestCommit();
         await fetchBranch();
       } else {
-        toast({
-          title: 'Undo failed',
-          description: friendlyGitError(result?.error || 'Unknown error'),
-          variant: 'destructive',
-        });
+        showGitError('Undo failed', result?.error || 'Unknown error');
       }
     } catch (err) {
-      toast({
-        title: 'Undo failed',
-        description: friendlyGitError(err instanceof Error ? err.message : String(err)),
-        variant: 'destructive',
-      });
+      showGitError('Undo failed', err instanceof Error ? err.message : String(err));
     } finally {
       setIsUndoing(false);
     }
@@ -236,6 +202,20 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
         rows={3}
         className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
       />
+
+      {/* Skip git hooks toggle */}
+      <label
+        className="flex cursor-pointer select-none items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        title="Pass --no-verify when committing. Bypasses pre-commit and commit-msg hooks."
+      >
+        <Checkbox
+          checked={skipHooks}
+          onCheckedChange={(checked) => setSkipHooks(checked === true)}
+          className="h-3.5 w-3.5"
+        />
+        Skip git hooks
+        <span className="font-mono text-[10px] opacity-60">--no-verify</span>
+      </label>
 
       {/* Commit & Push & Pull buttons */}
       <div className="flex gap-2">
@@ -308,6 +288,8 @@ export const CommitArea: React.FC<CommitAreaProps> = ({
           )}
         </div>
       )}
+
+      {errorDialog}
     </div>
   );
 };

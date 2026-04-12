@@ -431,7 +431,7 @@ declare global {
         action?: 'reverted';
         error?: string;
       }>;
-      gitCommit: (args: { taskPath: string; message: string }) => Promise<{
+      gitCommit: (args: { taskPath: string; message: string; noVerify?: boolean }) => Promise<{
         success: boolean;
         hash?: string;
         error?: string;
