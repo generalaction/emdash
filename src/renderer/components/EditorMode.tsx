@@ -17,6 +17,7 @@ import { getMonacoLanguageId } from '@/lib/diffUtils';
 import { buildMonacoModelPath } from '@/lib/monacoModelPath';
 import { registerActiveCodeEditor } from '@/lib/activeCodeEditor';
 import { addMonacoKeyboardShortcuts } from '@/lib/monaco-config';
+import { getMonacoTheme } from '@/lib/monaco-themes';
 import { useTheme } from '@/hooks/useTheme';
 import { useRightSidebar } from './ui/right-sidebar';
 
@@ -555,7 +556,7 @@ export default function EditorMode({ taskPath, taskName, onClose }: EditorModePr
                   value={fileContent}
                   onChange={(value) => setFileContent(value || '')}
                   onMount={handleEditorMount}
-                  theme={effectiveTheme !== 'light' ? 'vs-dark' : 'vs'}
+                  theme={getMonacoTheme(effectiveTheme)}
                   options={{
                     minimap: { enabled: true },
                     fontSize: 13,

@@ -97,7 +97,7 @@ export function getTerminalContainerClass(effectiveTheme: EffectiveTheme, agent?
 
   if (agent === 'mistral') {
     if (effectiveTheme === 'dark-black') return 'bg-[#141820]';
-    if (effectiveTheme === 'green') return `bg-[${GREEN_COLORS.card}]`;
+    if (effectiveTheme === 'green') return 'bg-[#365A3C]';
     if (effectiveTheme !== 'light') return 'bg-[#202938]';
     return 'bg-white';
   }
