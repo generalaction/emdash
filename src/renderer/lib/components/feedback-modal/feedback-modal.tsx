@@ -3,6 +3,7 @@ import React, { useCallback } from 'react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DialogContentArea,
@@ -25,6 +26,7 @@ type Props = BaseModalProps<void> & FeedbackModalArgs;
 
 export function FeedbackModal({ onSuccess, blurb }: Props) {
   const { user: githubUser } = useGithubContext();
+  const appVersion = appState.appInfo.info.data?.appVersion;
   const {
     attachments,
     fileInputRef,
@@ -49,6 +51,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
     canSubmit,
   } = useFeedbackSubmit({
     githubUser,
+    appVersion,
     onSuccess: () => {
       resetAttachments();
       onSuccess();
