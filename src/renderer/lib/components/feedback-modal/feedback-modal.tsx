@@ -1,4 +1,4 @@
-import { CornerDownLeft, Paperclip } from 'lucide-react';
+import { Paperclip } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
