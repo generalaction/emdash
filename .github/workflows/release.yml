@@ -51,6 +51,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
+      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
+
       - name: Inject telemetry
         env:
           PH_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
@@ -91,6 +93,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libsecret-1-dev rpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
+
+      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
 
       - name: Inject telemetry
         env:
@@ -164,6 +168,9 @@ jobs:
       - name: Build app
         shell: bash
         run: pnpm run build
+
+      - shell: bash
+        run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
 
       - name: Inject telemetry
         shell: bash
@@ -268,6 +275,8 @@ jobs:
           p12-password: ${{ secrets.CERTIFICATE_PASSWORD }}
 
       - run: pnpm run build
+
+      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
 
       - name: Inject telemetry
         env:
