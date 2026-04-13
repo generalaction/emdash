@@ -88,7 +88,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
   );
 
   // ---------------------------------------------------------------------------
-  // Model registration — runs on mount for an already-selected activeFile and on every change.
+  // Model registration — triggered on activeFile change only.
   // Idempotent/ref-counted; fast no-ops if StackedDiffView pre-registered them.
   // ---------------------------------------------------------------------------
   useEffect(
@@ -156,8 +156,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
               'HEAD'
             );
           }
-        },
-        { fireImmediately: true }
+        }
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
