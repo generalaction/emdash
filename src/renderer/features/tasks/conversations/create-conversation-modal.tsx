@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { AgentProviderId } from '@shared/agent-provider-registry';
+import { AgentProviderId, isValidProviderId } from '@shared/agent-provider-registry';
 import { getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
@@ -32,7 +32,13 @@ export const CreateConversationModal = observer(function CreateConversationModal
   projectId: string;
   taskId: string;
 }) {
-  const [providerId, setProviderId] = useState<AgentProviderId>('claude');
+  const [providerOverride, setProviderOverride] = useState<AgentProviderId | null>(null);
+  const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
+  const defaultProviderId: AgentProviderId = isValidProviderId(defaultAgentValue)
+    ? defaultAgentValue
+    : 'claude';
+  const providerId = providerOverride ?? defaultProviderId;
+
   const projectData = getProjectStore(projectId)?.data;
   const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
@@ -72,7 +78,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
             <FieldLabel>Agent</FieldLabel>
             <AgentSelector
               value={providerId}
-              onChange={setProviderId}
+              onChange={setProviderOverride}
               connectionId={connectionId}
             />
           </Field>
