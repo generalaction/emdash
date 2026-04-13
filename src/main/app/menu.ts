@@ -2,8 +2,8 @@ import { app, Menu, shell } from 'electron';
 import {
   menuCheckForUpdatesChannel,
   menuCloseTabChannel,
-  menuOpenSettingsChannel,
   menuRedoChannel,
+  menuToggleSettingsChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
 import { EMDASH_DOCS_URL, EMDASH_RELEASES_URL } from '@shared/urls';
@@ -27,7 +27,7 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => events.emit(menuOpenSettingsChannel, undefined),
+                click: () => events.emit(menuToggleSettingsChannel, undefined),
               },
               {
                 label: 'Check for Updates\u2026',
@@ -59,7 +59,7 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => events.emit(menuOpenSettingsChannel, undefined),
+                click: () => events.emit(menuToggleSettingsChannel, undefined),
               },
               { type: 'separator' as const },
             ]

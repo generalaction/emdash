@@ -1,6 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useCallback, useEffect, useRef } from 'react';
-import { menuOpenSettingsChannel } from '@shared/events/appEvents';
+import { menuToggleSettingsChannel } from '@shared/events/appEvents';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import {
   getEffectiveHotkey,
@@ -64,7 +64,7 @@ export function AppKeyboardShortcuts() {
     navigate(targetView);
   }, [currentView, navigate]);
 
-  useEffect(() => events.on(menuOpenSettingsChannel, toggleSettings), [toggleSettings]);
+  useEffect(() => events.on(menuToggleSettingsChannel, toggleSettings), [toggleSettings]);
 
   useHotkey(getHotkeyRegistration('commandPalette', keyboard), () => showCmdPalette({}), {
     enabled: commandPaletteHotkey !== null,
