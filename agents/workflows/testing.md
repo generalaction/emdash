@@ -7,7 +7,7 @@ Run these before merging:
 ```bash
 pnpm run format
 pnpm run lint
-pnpm run type-check
+pnpm run typecheck
 pnpm run test
 ```
 
@@ -30,7 +30,7 @@ pnpm run test
 
 - `.github/workflows/code-consistency-check.yml` currently enforces:
   - `pnpm run format:check`
-  - `pnpm run type-check`
+  - `pnpm run typecheck`
   - `pnpm exec vitest run`
 - Lint is still expected locally even though it is not enabled in that workflow yet.
 

@@ -29,7 +29,7 @@ pnpm install
 pnpm run dev
 
 # Type checking, lint, build
- pnpm run type-check
+ pnpm run typecheck
  pnpm run lint
  pnpm run build
 ```
@@ -62,7 +62,7 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 
 ```
 pnpm run format      # Format code with Prettier (required)
-pnpm run type-check  # TypeScript type checking
+pnpm run typecheck  # TypeScript type checking
 pnpm run lint        # ESLint
 pnpm run build       # Build both main and renderer
 ```
@@ -98,7 +98,7 @@ TypeScript + ESLint + Prettier
 Pre-commit hooks handle formatting and linting automatically on staged files. For full-project checks you can run them manually:
 
 - `pnpm run format` -- format all files with Prettier
-- `pnpm run type-check` -- TypeScript type checking (whole project)
+- `pnpm run typecheck` -- TypeScript type checking (whole project)
 - `pnpm run lint` -- ESLint across all files
 - `pnpm exec vitest run` -- run the test suite
 
