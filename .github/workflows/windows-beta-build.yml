@@ -48,9 +48,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          # Node 22 can trigger native module source builds that are flakier on Windows.
-          # Node 20 is within engines range and closer to Electron's Node baseline.
-          node-version: '20'
+          node-version: '24'
           cache: 'pnpm'
 
       - name: Setup Python 3.11 for node-gyp
