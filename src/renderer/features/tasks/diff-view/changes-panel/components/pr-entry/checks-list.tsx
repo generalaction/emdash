@@ -1,4 +1,4 @@
-import { CheckCircle2, ExternalLink, Loader, Loader2, MinusCircle, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { CheckRunBucket, PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
