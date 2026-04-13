@@ -1,4 +1,4 @@
-import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { CheckRunBucket, PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
@@ -56,13 +56,22 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
   );
 }
 
-export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoading: boolean }) {
+export function ChecksList({
+  checks,
+  isLoading,
+  isWaitingForSecondPoll,
+}: {
+  checks: CheckRun[];
+  isLoading: boolean;
+  isWaitingForSecondPoll: boolean;
+}) {
   const sorted = [...checks].sort((a, b) => bucketOrder[a.bucket] - bucketOrder[b.bucket]);
   const hasChecks = checks.length > 0;
+  const shouldShowLoading = !hasChecks && (isLoading || isWaitingForSecondPoll);
 
-  if (!hasChecks && isLoading) {
+  if (shouldShowLoading) {
     return (
-      <div className="flex items-center justify-center py-6">
+      <div className="flex flex-col items-center justify-center gap-1 py-6 text-muted-foreground">
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
       </div>
     );
@@ -82,6 +91,12 @@ export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoadin
 }
 
 export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
-  const { checks, isLoading } = useCheckRuns(pr);
-  return <ChecksList checks={checks} isLoading={isLoading} />;
+  const { checks, isLoading, isWaitingForSecondPoll } = useCheckRuns(pr);
+  return (
+    <ChecksList
+      checks={checks}
+      isLoading={isLoading}
+      isWaitingForSecondPoll={isWaitingForSecondPoll}
+    />
+  );
 });

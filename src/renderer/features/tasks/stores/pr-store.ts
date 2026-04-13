@@ -1,4 +1,4 @@
-import { reaction } from 'mobx';
+import { observable, reaction, runInAction } from 'mobx';
 import type { Commit, GitChange } from '@shared/git';
 import { selectCurrentPr, type PrCheckRun, type PullRequest } from '@shared/pull-requests';
 import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git';
@@ -14,6 +14,7 @@ export class PrStore {
 
   private _prFiles = new Map<string, Resource<GitChange[]>>();
   private _prCheckRuns = new Map<string, Resource<PrCheckRun[]>>();
+  private _prCheckRunsSuccessfulLoads = observable.map<string, number>();
   private _prComments = new Map<string, Resource<PrComment[]>>();
 
   constructor(
@@ -55,13 +56,24 @@ export class PrStore {
   getCheckRuns(pr: PullRequest): Resource<PrCheckRun[]> {
     const key = `${pr.nameWithOwner}:${pr.metadata.number}`;
     if (!this._prCheckRuns.has(key)) {
-      const resource = new Resource<PrCheckRun[]>(
-        () => this._fetchCheckRuns(pr.nameWithOwner, pr.metadata.number),
-        [{ kind: 'poll', intervalMs: 15_000, pauseWhenHidden: true, demandGated: true }]
-      );
+      const resource = new Resource<PrCheckRun[]>(async () => {
+        const checks = await this._fetchCheckRuns(pr.nameWithOwner, pr.metadata.number);
+        runInAction(() => {
+          this._prCheckRunsSuccessfulLoads.set(
+            key,
+            (this._prCheckRunsSuccessfulLoads.get(key) ?? 0) + 1
+          );
+        });
+        return checks;
+      }, [{ kind: 'poll', intervalMs: 15_000, pauseWhenHidden: true, demandGated: true }]);
       this._prCheckRuns.set(key, resource);
     }
     return this._prCheckRuns.get(key)!;
+  }
+
+  getCheckRunsSuccessfulLoads(pr: PullRequest): number {
+    const key = `${pr.nameWithOwner}:${pr.metadata.number}`;
+    return this._prCheckRunsSuccessfulLoads.get(key) ?? 0;
   }
 
   getComments(pr: PullRequest): Resource<PrComment[]> {
@@ -118,6 +130,7 @@ export class PrStore {
     for (const r of this._prFiles.values()) r.dispose();
     for (const r of this._prCheckRuns.values()) r.dispose();
     for (const r of this._prComments.values()) r.dispose();
+    this._prCheckRunsSuccessfulLoads.clear();
   }
 
   private async _fetchPrFiles(baseRefName: string): Promise<GitChange[]> {

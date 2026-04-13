@@ -6,6 +6,7 @@ import { computeCheckRunsSummary, type CheckRun } from '@renderer/utils/github';
 export function useCheckRuns(pr: PullRequest) {
   const prStore = useProvisionedTask().workspace.pr;
   const resource = prStore.getCheckRuns(pr);
+  const successfulLoads = prStore.getCheckRunsSuccessfulLoads(pr);
 
   const checks = useMemo(
     () => (resource.data ?? []) as CheckRun[],
@@ -13,6 +14,7 @@ export function useCheckRuns(pr: PullRequest) {
     [resource.data]
   );
   const summary = useMemo(() => computeCheckRunsSummary(checks), [checks]);
+  const isWaitingForSecondPoll = checks.length === 0 && successfulLoads === 1 && !resource.loading;
 
   return {
     checks,
@@ -20,5 +22,6 @@ export function useCheckRuns(pr: PullRequest) {
     allComplete: summary.pending === 0,
     hasFailures: summary.failed > 0,
     isLoading: resource.loading,
+    isWaitingForSecondPoll,
   };
 }
