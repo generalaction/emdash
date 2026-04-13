@@ -5,64 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1774036008845,
-      "tag": "0000_mean_wither",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1774764754597,
-      "tag": "0001_abandoned_titania",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1774773660645,
-      "tag": "0002_brief_drax",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1774813914017,
-      "tag": "0003_wise_adam_destine",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1775579310225,
-      "tag": "0004_nappy_sauron",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1775658011558,
-      "tag": "0005_demonic_skin",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1775659616221,
-      "tag": "0006_redundant_vulture",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1775660444488,
-      "tag": "0007_serious_ben_grimm",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1775743702649,
-      "tag": "0008_dapper_menace",
+      "when": 1776084172070,
+      "tag": "0000_cuddly_scarecrow",
       "breakpoints": true
     }
   ]

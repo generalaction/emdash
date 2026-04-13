@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "77f94ade-90d8-472e-8df1-20e888388354",
+  "id": "c27ff25e-ba13-4a7d-93ba-45b2fe92bff2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "app_settings": {
@@ -150,8 +150,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "task_id": {
-          "name": "task_id",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -180,9 +180,9 @@
         }
       },
       "indexes": {
-        "idx_editor_buffers_task_file": {
-          "name": "idx_editor_buffers_task_file",
-          "columns": ["task_id", "file_path"],
+        "idx_editor_buffers_workspace_file": {
+          "name": "idx_editor_buffers_workspace_file",
+          "columns": ["workspace_id", "file_path"],
           "isUnique": false
         }
       },
@@ -192,15 +192,6 @@
           "tableFrom": "editor_buffers",
           "tableTo": "projects",
           "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "editor_buffers_task_id_tasks_id_fk": {
-          "name": "editor_buffers_task_id_tasks_id_fk",
-          "tableFrom": "editor_buffers",
-          "tableTo": "tasks",
-          "columnsFrom": ["task_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -409,6 +400,59 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
+    "project_pull_requests": {
+      "name": "project_pull_requests",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pull_request_url": {
+          "name": "pull_request_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_project_pull_requests_project_id": {
+          "name": "idx_project_pull_requests_project_id",
+          "columns": ["project_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "project_pull_requests_project_id_projects_id_fk": {
+          "name": "project_pull_requests_project_id_projects_id_fk",
+          "tableFrom": "project_pull_requests",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_pull_requests_pull_request_url_pull_requests_url_fk": {
+          "name": "project_pull_requests_pull_request_url_pull_requests_url_fk",
+          "tableFrom": "project_pull_requests",
+          "tableTo": "pull_requests",
+          "columnsFrom": ["pull_request_url"],
+          "columnsTo": ["url"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_pull_requests_project_id_pull_request_url_pk": {
+          "columns": ["project_id", "pull_request_url"],
+          "name": "project_pull_requests_project_id_pull_request_url_pk"
+        }
+      },
+      "uniqueConstraints": {}
+    },
     "projects": {
       "name": "projects",
       "columns": {
@@ -443,13 +487,6 @@
         },
         "base_ref": {
           "name": "base_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "git_remote": {
-          "name": "git_remote",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -505,6 +542,108 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
+    "pull_request_assignees": {
+      "name": "pull_request_assignees",
+      "columns": {
+        "pull_request_id": {
+          "name": "pull_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "login": {
+          "name": "login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_pra_login": {
+          "name": "idx_pra_login",
+          "columns": ["login"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "pull_request_assignees_pull_request_id_pull_requests_id_fk": {
+          "name": "pull_request_assignees_pull_request_id_pull_requests_id_fk",
+          "tableFrom": "pull_request_assignees",
+          "tableTo": "pull_requests",
+          "columnsFrom": ["pull_request_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "pull_request_assignees_pull_request_id_login_pk": {
+          "columns": ["pull_request_id", "login"],
+          "name": "pull_request_assignees_pull_request_id_login_pk"
+        }
+      },
+      "uniqueConstraints": {}
+    },
+    "pull_request_labels": {
+      "name": "pull_request_labels",
+      "columns": {
+        "pull_request_id": {
+          "name": "pull_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_prl_name": {
+          "name": "idx_prl_name",
+          "columns": ["name"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "pull_request_labels_pull_request_id_pull_requests_id_fk": {
+          "name": "pull_request_labels_pull_request_id_pull_requests_id_fk",
+          "tableFrom": "pull_request_labels",
+          "tableTo": "pull_requests",
+          "columnsFrom": ["pull_request_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "pull_request_labels_pull_request_id_name_pk": {
+          "columns": ["pull_request_id", "name"],
+          "name": "pull_request_labels_pull_request_id_name_pk"
+        }
+      },
+      "uniqueConstraints": {}
+    },
     "pull_requests": {
       "name": "pull_requests",
       "columns": {
@@ -545,6 +684,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -560,9 +706,37 @@
           "notNull": false,
           "autoincrement": false
         },
+        "author_login": {
+          "name": "author_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "author_display_name": {
+          "name": "author_display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "author_avatar_url": {
+          "name": "author_avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "is_draft": {
           "name": "is_draft",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "head_ref_name": {
+          "name": "head_ref_name",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -608,6 +782,16 @@
         "idx_pull_requests_name_with_owner": {
           "name": "idx_pull_requests_name_with_owner",
           "columns": ["name_with_owner"],
+          "isUnique": false
+        },
+        "idx_pull_requests_author_login": {
+          "name": "idx_pull_requests_author_login",
+          "columns": ["author_login"],
+          "isUnique": false
+        },
+        "idx_pull_requests_head_ref_name": {
+          "name": "idx_pull_requests_head_ref_name",
+          "columns": ["head_ref_name"],
           "isUnique": false
         }
       },
@@ -791,6 +975,29 @@
           "notNull": true,
           "autoincrement": false,
           "default": "CURRENT_TIMESTAMP"
+        },
+        "last_interacted_at": {
+          "name": "last_interacted_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status_changed_at": {
+          "name": "status_changed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "is_pinned": {
+          "name": "is_pinned",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         }
       },
       "indexes": {

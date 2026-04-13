@@ -1,7 +1,6 @@
-import { existsSync, renameSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { app } from 'electron';
-import { CURRENT_DB_FILENAME, LEGACY_DB_FILENAMES } from './default-path';
+import { CURRENT_DB_FILENAME } from './default-path';
 
 export interface ResolveDatabasePathOptions {
   userDataPath?: string;
@@ -14,49 +13,9 @@ export function resolveDatabasePath(options: ResolveDatabasePathOptions = {}): s
   }
 
   const userDataPath = options.userDataPath ?? app.getPath('userData');
-
-  const currentPath = join(userDataPath, CURRENT_DB_FILENAME);
-  if (existsSync(currentPath)) {
-    return currentPath;
-  }
-
-  // Dev safety: prior versions sometimes resolved userData under the default Electron app
-  // (e.g. ~/Library/Application Support/Electron).
-  try {
-    const userDataParent = dirname(userDataPath);
-    const legacyDirs = ['Electron', 'emdash', 'Emdash'];
-    for (const dirName of legacyDirs) {
-      const candidateDir = join(userDataParent, dirName);
-      const candidateCurrent = join(candidateDir, CURRENT_DB_FILENAME);
-      if (existsSync(candidateCurrent)) {
-        try {
-          renameSync(candidateCurrent, currentPath);
-          return currentPath;
-        } catch {
-          return candidateCurrent;
-        }
-      }
-    }
-  } catch {
-    // best-effort only
-  }
-
-  for (const legacyName of LEGACY_DB_FILENAMES) {
-    const legacyPath = join(userDataPath, legacyName);
-    if (existsSync(legacyPath)) {
-      try {
-        renameSync(legacyPath, currentPath);
-        return currentPath;
-      } catch {
-        return legacyPath;
-      }
-    }
-  }
-
-  return currentPath;
+  return join(userDataPath, CURRENT_DB_FILENAME);
 }
 
 export const databaseFilenames = {
   current: CURRENT_DB_FILENAME,
-  legacy: [...LEGACY_DB_FILENAMES],
 };
