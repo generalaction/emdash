@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { Input } from '@renderer/lib/ui/input';
+import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { useFeedbackSubmit } from './use-feedback-submit';
@@ -190,8 +191,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
             <>
               <span>Send Feedback</span>
               <span className="flex items-center gap-1 rounded border border-white/40 bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground dark:border-white/20 dark:bg-white/5">
-                <span>&#8984;</span>
-                <CornerDownLeft className="h-3 w-3" aria-hidden="true" />
+                <ShortcutHint settingsKey="confirm" />
               </span>
             </>
           )}
