@@ -2,7 +2,7 @@
 node_modules/
 dist/
 out/
-release/
+/release/
 
 # Logs
 *.log
