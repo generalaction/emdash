@@ -56,18 +56,10 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
   );
 }
 
-export function ChecksList({
-  checks,
-  isLoading,
-  isWaitingForSecondPoll,
-}: {
-  checks: CheckRun[];
-  isLoading: boolean;
-  isWaitingForSecondPoll: boolean;
-}) {
+export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoading: boolean }) {
   const sorted = [...checks].sort((a, b) => bucketOrder[a.bucket] - bucketOrder[b.bucket]);
   const hasChecks = checks.length > 0;
-  const shouldShowLoading = !hasChecks && (isLoading || isWaitingForSecondPoll);
+  const shouldShowLoading = !hasChecks && isLoading;
 
   if (shouldShowLoading) {
     return (
@@ -91,12 +83,6 @@ export function ChecksList({
 }
 
 export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
-  const { checks, isLoading, isWaitingForSecondPoll } = useCheckRuns(pr);
-  return (
-    <ChecksList
-      checks={checks}
-      isLoading={isLoading}
-      isWaitingForSecondPoll={isWaitingForSecondPoll}
-    />
-  );
+  const { checks, isLoading } = useCheckRuns(pr);
+  return <ChecksList checks={checks} isLoading={isLoading} />;
 });
