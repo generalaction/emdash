@@ -40,7 +40,7 @@ for (const arch of archs) {
     platformFlag,
     targets,
     archFlag,
-    '--publish never',
+    '--publish always',
     '--config electron-builder.config.ts',
     '--config.npmRebuild=false',
   ].join(' ');
