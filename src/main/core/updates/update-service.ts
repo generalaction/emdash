@@ -1,4 +1,3 @@
-import { app } from 'electron';
 import _electronUpdater, {
   type ProgressInfo,
   type UpdateInfo,
@@ -15,6 +14,7 @@ import {
   updateNotAvailableEvent,
   updateProgressEvent,
 } from '@shared/events/updateEvents';
+import { resolveAppVersion } from '@main/core/app/utils';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
@@ -50,29 +50,30 @@ class UpdateService {
   private checkTimer?: NodeJS.Timeout;
   private currentCheckPromise: Promise<UpdateInfo | null> | null = null;
   private initialized = false;
-  private downloadStartTime?: number;
+  private active = false;
   private installRequested = false;
   private installRestartGuardTimer?: NodeJS.Timeout;
 
   constructor() {
     this.updateState = {
       status: 'idle',
-      currentVersion: app.getVersion(),
+      currentVersion: 'unknown',
     };
   }
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
+    this.initialized = true;
 
-    if (import.meta.env.DEV) {
-      this.initialized = true;
-      return;
-    }
+    this.updateState.currentVersion = await resolveAppVersion();
+
+    if (import.meta.env.DEV && !import.meta.env.MAIN_VITE_APP_VERSION) return;
 
     this.setupAutoUpdater();
+    (autoUpdater as unknown as { currentVersion: string }).currentVersion =
+      this.updateState.currentVersion;
     this.setupEventListeners();
-
-    this.initialized = true;
+    this.active = true;
 
     log.info('AutoUpdateService initialized', {
       version: this.updateState.currentVersion,
@@ -97,6 +98,10 @@ class UpdateService {
       error: (...args: unknown[]) => log.error('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
     };
     autoUpdater.logger = updaterLogger;
+
+    if (import.meta.env.DEV) {
+      autoUpdater.forceDevUpdateConfig = true;
+    }
   }
 
   private setupEventListeners(): void {
@@ -160,7 +165,6 @@ class UpdateService {
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
       this.updateState.status = 'downloaded';
       this.updateState.rollbackVersion = this.updateState.currentVersion;
-      this.downloadStartTime = undefined;
       events.emit(updateDownloadedEvent, { version: info.version });
     });
   }
@@ -178,6 +182,7 @@ class UpdateService {
   }
 
   async checkForUpdates(): Promise<UpdateInfo | null> {
+    if (!this.active) return null;
     if (this.currentCheckPromise) return this.currentCheckPromise;
 
     this.currentCheckPromise = this._performCheck().finally(() => {
@@ -204,6 +209,7 @@ class UpdateService {
   }
 
   async downloadUpdate(): Promise<void> {
+    if (!this.active) throw new Error('Update service is not active');
     if (this.updateState.status === 'error' && this.updateState.availableVersion) {
       this.updateState.status = 'available';
     }
@@ -216,7 +222,6 @@ class UpdateService {
       throw new Error('No version information available for download');
     }
 
-    this.downloadStartTime = Date.now();
     this.updateState.status = 'downloading';
     events.emit(updateDownloadingEvent, { version: this.updateState.availableVersion });
 
@@ -233,7 +238,6 @@ class UpdateService {
       this.updateState.error = errorMessage;
       this.updateState.availableVersion = version;
       this.updateState.updateInfo = info;
-      this.downloadStartTime = undefined;
 
       events.emit(updateErrorEvent, { message: errorMessage });
       throw error;
@@ -241,6 +245,7 @@ class UpdateService {
   }
 
   quitAndInstall(): void {
+    if (!this.active) throw new Error('Update service is not active');
     if (this.installRequested) {
       log.info('quitAndInstall ignored: install already requested');
       return;

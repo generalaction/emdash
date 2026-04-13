@@ -6,6 +6,7 @@ import { defineConfig } from 'electron-vite';
 export default defineConfig({
   main: {
     root: 'src/main',
+    envDir: resolve('.'),
     resolve: {
       alias: {
         '@': resolve('src'),

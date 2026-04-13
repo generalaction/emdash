@@ -12,50 +12,17 @@ import { SettingRow } from './SettingRow';
 
 export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   const update = appState.update;
-  const appVersion = appState.appInfo.info.data?.appVersion;
 
   const versionTitle = (
     <div className="flex items-center gap-2">
       Version
-      {appVersion && (
+      {update.currentVersion && (
         <Badge variant="outline" className="h-5 px-2 font-mono text-xs">
-          v{appVersion}
+          v{update.currentVersion}
         </Badge>
       )}
     </div>
   );
-
-  if (import.meta.env.DEV) {
-    return (
-      <SettingRow
-        title={versionTitle}
-        description={
-          <>
-            Auto-updates are enabled in production builds.{' '}
-            <button
-              type="button"
-              onClick={() => rpc.app.openExternal(EMDASH_RELEASES_URL)}
-              className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground"
-            >
-              View changelog ↗
-            </button>
-          </>
-        }
-        control={
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            disabled
-            aria-label="Check for updates (disabled in development)"
-          >
-            <RefreshCw className="h-3 w-3" />
-          </Button>
-        }
-      />
-    );
-  }
 
   return (
     <div className="grid gap-3">
