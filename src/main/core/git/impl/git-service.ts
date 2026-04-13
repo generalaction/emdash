@@ -23,6 +23,7 @@ import type {
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { ExecFn } from '@main/core/utils/exec';
+import { DEFAULT_REMOTE_NAME } from '../remote-preference';
 import { GitProvider } from '../types';
 import {
   computeBaseRef,
@@ -416,8 +417,10 @@ export class GitService implements GitProvider {
     maxCount?: number;
     skip?: number;
     knownAheadCount?: number;
+    preferredRemote?: string;
   }): Promise<{ commits: Commit[]; aheadCount: number }> {
-    const { maxCount = 50, skip = 0, knownAheadCount } = options ?? {};
+    const { maxCount = 50, skip = 0, knownAheadCount, preferredRemote } = options ?? {};
+    const remote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
 
     let aheadCount = knownAheadCount ?? -1;
     if (aheadCount < 0) {
@@ -437,7 +440,7 @@ export class GitService implements GitProvider {
           const currentBranch = branchOut.trim();
           const { stdout } = await this.exec(
             'git',
-            ['rev-list', '--count', `origin/${currentBranch}..HEAD`],
+            ['rev-list', '--count', `${remote}/${currentBranch}..HEAD`],
             { cwd: this.path }
           );
           aheadCount = Number.parseInt(stdout.trim(), 10) || 0;
@@ -445,7 +448,7 @@ export class GitService implements GitProvider {
           try {
             const { stdout: defaultBranchOut } = await this.exec(
               'git',
-              ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'],
+              ['symbolic-ref', '--short', `refs/remotes/${remote}/HEAD`],
               { cwd: this.path }
             );
             const defaultBranch = defaultBranchOut.trim();
@@ -676,7 +679,7 @@ export class GitService implements GitProvider {
     }
   }
 
-  async push(): Promise<Result<{ output: string }, PushError>> {
+  async push(preferredRemote?: string): Promise<Result<{ output: string }, PushError>> {
     const doPush = async (args: string[]): Promise<string> => {
       const { stdout, stderr } = await this.exec('git', args, { cwd: this.path });
       return (stdout || stderr || '').trim();
@@ -703,7 +706,7 @@ export class GitService implements GitProvider {
             cwd: this.path,
           });
           const currentBranch = branchOut.trim();
-          let pushRemote = 'origin';
+          let pushRemote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
           try {
             const { stdout: remoteOut } = await this.exec(
               'git',

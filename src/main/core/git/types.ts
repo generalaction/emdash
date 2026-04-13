@@ -40,13 +40,14 @@ export interface GitProvider {
     maxCount?: number;
     skip?: number;
     knownAheadCount?: number;
+    preferredRemote?: string;
   }): Promise<{ commits: Commit[]; aheadCount: number }>;
   getLatestCommit(): Promise<Commit | null>;
   getCommitFiles(commitHash: string): Promise<CommitFile[]>;
 
   commit(message: string): Promise<Result<{ hash: string }, CommitError>>;
   fetch(): Promise<Result<void, FetchError>>;
-  push(): Promise<Result<{ output: string }, PushError>>;
+  push(preferredRemote?: string): Promise<Result<{ output: string }, PushError>>;
   publishBranch(
     branchName: string,
     remote?: string

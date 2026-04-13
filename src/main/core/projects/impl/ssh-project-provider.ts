@@ -14,6 +14,7 @@ import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
 import { bareRefName } from '@main/core/git/impl/git-utils';
+import { selectPreferredRemote } from '@main/core/git/remote-preference';
 import type { GitProvider } from '@main/core/git/types';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
@@ -508,8 +509,9 @@ export class SshProjectProvider implements ProjectProvider {
 
   async getRemoteState(): Promise<ProjectRemoteState> {
     try {
-      const remoteName = await this.settings.getRemote();
+      const configuredRemote = await this.settings.getRemote();
       const remotes = await this.git.getRemotes();
+      const remoteName = selectPreferredRemote(configuredRemote, remotes);
       const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
       return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
     } catch {
