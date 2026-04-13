@@ -1,4 +1,5 @@
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import type { CheckRunBucket, PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { formatCheckDuration, type CheckRun } from '@renderer/utils/github';
@@ -79,7 +80,7 @@ export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoadin
   );
 }
 
-export function PrChecksList({ pr }: { pr: PullRequest }) {
+export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
   const { checks, isLoading } = useCheckRuns(pr);
   return <ChecksList checks={checks} isLoading={isLoading} />;
-}
+});
