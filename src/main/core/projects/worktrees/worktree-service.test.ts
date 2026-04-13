@@ -130,6 +130,49 @@ describe('WorktreeService', () => {
       expect(reserveEntries).toHaveLength(1);
     });
 
+    it('creates reserve from a remote-only source branch', async () => {
+      const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-remote-'));
+      try {
+        await exec('git', ['init', '--bare'], { cwd: remoteDir });
+        await exec('git', ['remote', 'add', 'origin', remoteDir], { cwd: repoDir });
+        await exec('git', ['branch', 'refactor'], { cwd: repoDir });
+        await exec('git', ['push', '-u', 'origin', 'refactor'], { cwd: repoDir });
+        await exec('git', ['branch', '-D', 'refactor'], { cwd: repoDir });
+        await exec('git', ['fetch', 'origin'], { cwd: repoDir });
+
+        const svc = makeService();
+        await svc.ensureReserve('refactor');
+
+        expect(fs.existsSync(path.join(poolDir, '_reserve-refactor'))).toBe(true);
+      } finally {
+        fs.rmSync(remoteDir, { recursive: true, force: true });
+      }
+    });
+
+    it('falls back to origin when configured remote does not exist', async () => {
+      const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-remote-'));
+      try {
+        await exec('git', ['init', '--bare'], { cwd: remoteDir });
+        await exec('git', ['remote', 'add', 'origin', remoteDir], { cwd: repoDir });
+        await exec('git', ['branch', 'refactor'], { cwd: repoDir });
+        await exec('git', ['push', '-u', 'origin', 'refactor'], { cwd: repoDir });
+        await exec('git', ['branch', '-D', 'refactor'], { cwd: repoDir });
+        await exec('git', ['fetch', 'origin'], { cwd: repoDir });
+
+        const svc = makeService({
+          projectSettings: {
+            ...makeSettings(),
+            getRemote: async () => 'upstream',
+          } as ProjectSettingsProvider,
+        });
+        await svc.ensureReserve('refactor');
+
+        expect(fs.existsSync(path.join(poolDir, '_reserve-refactor'))).toBe(true);
+      } finally {
+        fs.rmSync(remoteDir, { recursive: true, force: true });
+      }
+    });
+
     it('re-adds worktree when branch exists but directory was deleted (stale branch)', async () => {
       // Regression: previously failed with "branch already exists" because createReserve
       // attempted `worktree add -b` even when the branch was already present.
