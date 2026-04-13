@@ -47,6 +47,7 @@ export class PrStore {
           },
         ]
       );
+      resource.start();
       this._prFiles.set(key, resource);
     }
     return this._prFiles.get(key)!;
@@ -110,6 +111,8 @@ export class PrStore {
     if (pr) {
       const checkRunsKey = `${pr.nameWithOwner}:${pr.metadata.number}`;
       this._prCheckRuns.get(checkRunsKey)?.invalidate();
+
+      void rpc.pullRequests.getPullRequest(pr.nameWithOwner, pr.metadata.number, true);
     }
   }
 

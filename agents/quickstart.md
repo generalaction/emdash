@@ -24,7 +24,7 @@ pnpm run reset
 ```bash
 pnpm run format
 pnpm run lint
-pnpm run type-check
+pnpm run typecheck
 pnpm test run
 ```
 

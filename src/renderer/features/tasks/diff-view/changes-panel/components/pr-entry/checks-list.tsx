@@ -1,4 +1,5 @@
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import type { CheckRunBucket, PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { formatCheckDuration, type CheckRun } from '@renderer/utils/github';
@@ -57,16 +58,18 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
 
 export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoading: boolean }) {
   const sorted = [...checks].sort((a, b) => bucketOrder[a.bucket] - bucketOrder[b.bucket]);
+  const hasChecks = checks.length > 0;
+  const shouldShowLoading = !hasChecks && isLoading;
 
-  if (isLoading) {
+  if (shouldShowLoading) {
     return (
-      <div className="flex items-center justify-center py-6">
+      <div className="flex flex-col items-center justify-center gap-1 py-6 text-muted-foreground">
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  if (checks.length === 0) {
+  if (!hasChecks) {
     return <div className="py-10 text-center text-xs text-muted-foreground">No checks</div>;
   }
 
@@ -79,7 +82,7 @@ export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoadin
   );
 }
 
-export function PrChecksList({ pr }: { pr: PullRequest }) {
+export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
   const { checks, isLoading } = useCheckRuns(pr);
   return <ChecksList checks={checks} isLoading={isLoading} />;
-}
+});
