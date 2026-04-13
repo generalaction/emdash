@@ -37,7 +37,7 @@ export class PrStore {
     const key = pr.metadata.baseRefName;
     if (!this._prFiles.has(key)) {
       const resource = new Resource<GitChange[]>(
-        () => this._fetchPrFiles(pr.metadata.baseRefName),
+        () => this._fetchPrFiles(pr.metadata.baseRefName, pr.metadata.changedFiles),
         [
           { kind: 'poll', intervalMs: 60_000, pauseWhenHidden: true, demandGated: true },
           {
@@ -123,13 +123,26 @@ export class PrStore {
     for (const r of this._prComments.values()) r.dispose();
   }
 
-  private async _fetchPrFiles(baseRefName: string): Promise<GitChange[]> {
-    const result = await rpc.git.getChangedFiles(
-      this.projectId,
-      this.workspaceId,
-      `${baseRefName}...HEAD`
-    );
-    return result.success ? result.data.changes : [];
+  private async _fetchPrFiles(
+    baseRefName: string,
+    expectedChangedFiles: number
+  ): Promise<GitChange[]> {
+    const remote = this.git.branchStatus.data?.upstream?.split('/')[0];
+    const ref = remote ? `${remote}/${baseRefName}...HEAD` : `${baseRefName}...HEAD`;
+
+    const tryRef = async (r: string): Promise<GitChange[] | null> => {
+      const result = await rpc.git.getChangedFiles(this.projectId, this.workspaceId, r);
+      if (!result.success) return null;
+      if (result.data.changes.length === 0 && expectedChangedFiles > 0) return null;
+      return result.data.changes;
+    };
+
+    const first = await tryRef(ref);
+    if (first) return first;
+
+    await rpc.git.fetch(this.projectId, this.workspaceId);
+
+    return (await tryRef(ref)) ?? [];
   }
 
   private async _fetchCheckRuns(nameWithOwner: string, prNumber: number): Promise<PrCheckRun[]> {
