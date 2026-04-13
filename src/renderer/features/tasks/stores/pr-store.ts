@@ -47,6 +47,7 @@ export class PrStore {
           },
         ]
       );
+      resource.start();
       this._prFiles.set(key, resource);
     }
     return this._prFiles.get(key)!;
