@@ -122,6 +122,7 @@ export class PrStore {
     if (pr) {
       const checkRunsKey = `${pr.nameWithOwner}:${pr.metadata.number}`;
       this._prCheckRuns.get(checkRunsKey)?.invalidate();
+      void this._refreshPullRequest(pr);
     }
   }
 
@@ -163,6 +164,25 @@ export class PrStore {
     const result = await rpc.git.getLog(this.projectId, this.workspaceId);
     if (!result.success) return { commits: [], aheadCount: 0 };
     return result.data;
+  }
+
+  private async _refreshPullRequest(pr: PullRequest): Promise<void> {
+    const result = await rpc.pullRequests.getPullRequest(
+      pr.nameWithOwner,
+      pr.metadata.number,
+      true
+    );
+    if (!result.success || !('pr' in result) || !result.pr) {
+      return;
+    }
+
+    const prs = this.getPrs();
+    const index = prs.findIndex((p) => p.id === pr.id);
+    if (index < 0) return;
+
+    runInAction(() => {
+      prs[index] = result.pr;
+    });
   }
 }
 
