@@ -58,8 +58,9 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
 
 export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoading: boolean }) {
   const sorted = [...checks].sort((a, b) => bucketOrder[a.bucket] - bucketOrder[b.bucket]);
+  const hasChecks = checks.length > 0;
 
-  if (isLoading) {
+  if (!hasChecks && isLoading) {
     return (
       <div className="flex items-center justify-center py-6">
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -67,7 +68,7 @@ export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoadin
     );
   }
 
-  if (checks.length === 0) {
+  if (!hasChecks) {
     return <div className="py-10 text-center text-xs text-muted-foreground">No checks</div>;
   }
 
