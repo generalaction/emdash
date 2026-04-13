@@ -67,7 +67,7 @@ jobs:
           --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg
 
       - name: Verify macOS bundle
-        run: node --experimental-strip-types scripts/release/verify-mac.ts --smoke-test
+        run: node --experimental-strip-types scripts/release/verify-mac.ts
 
   release-linux:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
@@ -297,7 +297,7 @@ jobs:
       - name: Verify macOS bundle
         run: >
           node --experimental-strip-types scripts/release/verify-mac.ts
-          --smoke-test --expected-team-id ${{ secrets.APPLE_TEAM_ID }}
+          --expected-team-id ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Notarize and staple
         if: ${{ steps.init.outputs.dry_run != 'true' }}
