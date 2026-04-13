@@ -1,16 +1,23 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
+import { useCallback, useEffect, useRef } from 'react';
+import { menuOpenSettingsChannel } from '@shared/events/appEvents';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { events } from '@renderer/lib/ipc';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
   useNavigate,
   useParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
+import {
+  getSettingsToggleDestination,
+  type NonSettingsViewId,
+} from '@renderer/lib/layout/settings-shortcut';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 
 /**
@@ -38,6 +45,7 @@ export function AppKeyboardShortcuts() {
   const { currentView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
   const { params: projectParams } = useParams('project');
+  const lastNonSettingsViewRef = useRef<NonSettingsViewId | null>(null);
   const currentProjectId =
     currentView === 'task'
       ? taskParams.projectId
@@ -45,11 +53,24 @@ export function AppKeyboardShortcuts() {
         ? projectParams.projectId
         : undefined;
 
+  useEffect(() => {
+    if (currentView !== 'settings') {
+      lastNonSettingsViewRef.current = currentView;
+    }
+  }, [currentView]);
+
+  const toggleSettings = useCallback(() => {
+    const targetView = getSettingsToggleDestination(currentView, lastNonSettingsViewRef.current);
+    navigate(targetView);
+  }, [currentView, navigate]);
+
+  useEffect(() => events.on(menuOpenSettingsChannel, toggleSettings), [toggleSettings]);
+
   useHotkey(getHotkeyRegistration('commandPalette', keyboard), () => showCmdPalette({}), {
     enabled: commandPaletteHotkey !== null,
   });
 
-  useHotkey(getHotkeyRegistration('settings', keyboard), () => navigate('settings'), {
+  useHotkey(getHotkeyRegistration('settings', keyboard), toggleSettings, {
     enabled: settingsHotkey !== null,
   });
 

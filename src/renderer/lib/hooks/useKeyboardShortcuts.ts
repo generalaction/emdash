@@ -40,7 +40,7 @@ export const APP_SHORTCUTS = defineShortcuts({
   settings: {
     defaultHotkey: 'Mod+,',
     label: 'Settings',
-    description: 'Open application settings',
+    description: 'Open or close application settings',
     category: 'Navigation',
   },
   toggleLeftSidebar: {
