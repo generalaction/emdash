@@ -253,6 +253,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 onValueChange={(issue) => {
                   taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
+                projectId={projectId}
                 nameWithOwner={''}
                 projectPath={provisionedTask.path}
               />

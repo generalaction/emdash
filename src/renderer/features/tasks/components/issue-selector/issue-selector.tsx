@@ -91,11 +91,13 @@ export function IssueRow({ issue }: { issue: Issue }) {
 export interface IssueSelectorProps {
   value: Issue | null;
   onValueChange: (issue: Issue | null) => void;
+  projectId?: string;
   nameWithOwner: string;
   projectPath?: string;
 }
 
 export function IssueSelector({
+  projectId,
   nameWithOwner,
   projectPath = '',
   value,
@@ -110,7 +112,7 @@ export function IssueSelector({
     connectedProviderCount,
     handleSetSearchTerm,
     setSelectedIssueProvider,
-  } = useIssueSearch(nameWithOwner, projectPath);
+  } = useIssueSearch(nameWithOwner, projectPath, projectId);
 
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const providerSelectOpenRef = useRef(false);

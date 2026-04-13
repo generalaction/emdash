@@ -22,6 +22,7 @@ export interface UseIssuesResult {
 }
 
 interface UseIssuesOptions {
+  projectId?: string;
   projectPath?: string;
   nameWithOwner?: string;
   enabled?: boolean;
@@ -37,6 +38,7 @@ function getSearchMinLength(provider: IssueProviderType | null): number {
 export function useIssues(
   provider: IssueProviderType | null,
   {
+    projectId,
     projectPath,
     nameWithOwner,
     enabled = true,
@@ -59,12 +61,20 @@ export function useIssues(
     isLoading: isLoadingInitial,
     error: initialError,
   } = useQuery({
-    queryKey: ['issues:initial', provider, projectPath ?? '', nameWithOwner ?? '', initialLimit],
+    queryKey: [
+      'issues:initial',
+      provider,
+      projectId ?? '',
+      projectPath ?? '',
+      nameWithOwner ?? '',
+      initialLimit,
+    ],
     queryFn: async () => {
       if (!provider) return [] as Issue[];
 
       const result = await rpc.issues.listIssues(provider, {
         limit: initialLimit,
+        projectId,
         projectPath,
         nameWithOwner,
       });
@@ -86,6 +96,7 @@ export function useIssues(
     queryKey: [
       'issues:search',
       provider,
+      projectId ?? '',
       projectPath ?? '',
       nameWithOwner ?? '',
       debouncedTerm.trim(),
@@ -97,6 +108,7 @@ export function useIssues(
       const result = await rpc.issues.searchIssues(provider, {
         limit: searchLimit,
         searchTerm: debouncedTerm.trim(),
+        projectId,
         projectPath,
         nameWithOwner,
       });

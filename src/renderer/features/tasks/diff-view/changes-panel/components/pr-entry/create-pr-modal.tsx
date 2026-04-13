@@ -103,8 +103,7 @@ export function CreatePrModal({
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
         {!hasGitHubRemote && (
           <p className="text-sm text-muted-foreground">
-            No GitHub remote detected. Configure a GitHub remote named{' '}
-            <code className="font-mono text-xs">origin</code> to create pull requests.
+            No GitHub remote detected. Configure a GitHub remote to create pull requests.
           </p>
         )}
         <Input
