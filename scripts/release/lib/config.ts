@@ -12,7 +12,7 @@ export {
 export const APP_BUNDLE = `${PRODUCT_NAME}.app`;
 export const APP_BINARY = PRODUCT_NAME;
 export const RELEASE_DIR = 'release';
-export const NATIVE_MODULES = ['better-sqlite3', 'node-pty', 'keytar'];
+export const NATIVE_MODULES = ['better-sqlite3', 'node-pty', 'keytar', '@parcel/watcher'];
 
 export function requireEnv(name: string): string {
   const val = process.env[name];

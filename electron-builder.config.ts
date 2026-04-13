@@ -18,6 +18,7 @@ const config: Configuration = {
     'node_modules/better-sqlite3/**',
     'node_modules/node-pty/**',
     'node_modules/keytar/**',
+    'node_modules/@parcel/watcher/**',
     '**/*.node',
   ],
   mac: {
