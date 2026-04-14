@@ -8,7 +8,6 @@ import { getTaskEnvVars } from '@shared/task/envVars';
 import { Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { type Terminal } from '@shared/terminals';
 import { workspaceKey } from '@shared/workspace-key';
-import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -146,7 +145,6 @@ export class LocalProjectProvider implements ProjectProvider {
       const workDir = await this.resolveTaskWorkDir(task);
       const exec = getGitLocalExec(() => githubConnectionService.getToken());
       const workspaceFs = new LocalFileSystem(workDir);
-      await new HookConfigWriter(workspaceFs, exec).writeAll();
 
       const projectSettings = await this.settings.get();
       const defaultBranch = await this.settings.getDefaultBranch();

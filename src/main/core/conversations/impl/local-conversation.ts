@@ -8,7 +8,9 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
+import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
@@ -36,6 +38,8 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly shellSetup?: string;
   private readonly exec: ExecFn;
   private readonly taskEnvVars: Record<string, string>;
+  private readonly hookConfigWriter: HookConfigWriter;
+  private readonly preparedHookProviders = new Set<string>();
 
   constructor({
     projectId,
@@ -61,6 +65,7 @@ export class LocalConversationProvider implements ConversationProvider {
     this.shellSetup = shellSetup;
     this.exec = exec;
     this.taskEnvVars = taskEnvVars;
+    this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), exec);
   }
 
   async startSession(
@@ -82,6 +87,7 @@ export class LocalConversationProvider implements ConversationProvider {
       cwd: this.taskPath,
       homedir: homedir(),
     });
+    await this.prepareHookConfig(conversation.providerId);
 
     const { command, args } = await buildAgentCommand({
       providerId: conversation.providerId,
@@ -186,6 +192,21 @@ export class LocalConversationProvider implements ConversationProvider {
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
     capture('agent_run_started', { provider: conversation.providerId });
+  }
+
+  private async prepareHookConfig(providerId: Conversation['providerId']): Promise<void> {
+    if (this.preparedHookProviders.has(providerId)) return;
+
+    try {
+      await this.hookConfigWriter.writeForProvider(providerId);
+      this.preparedHookProviders.add(providerId);
+    } catch (error) {
+      log.warn('LocalConversationProvider: failed to prepare hook config', {
+        providerId,
+        taskPath: this.taskPath,
+        error: String(error),
+      });
+    }
   }
 
   async stopSession(conversationId: string): Promise<void> {
