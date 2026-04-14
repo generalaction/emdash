@@ -7,6 +7,9 @@ let issueSearchStdout = '[]';
 let prListStdout = '[]';
 let repoViewStdout = 'generalaction/emdash';
 let prCountStdout = '0';
+let blockTokenStore = false;
+let releaseTokenStore: (() => void) | null = null;
+let notifyTokenStoreStarted: (() => void) | null = null;
 
 vi.mock('child_process', () => {
   const execImpl = (command: string, options?: any, callback?: any) => {
@@ -76,6 +79,15 @@ const keyFor = (serviceName: string, accountName: string) => `${serviceName}:${a
 
 const setPasswordMock = vi.fn(
   async (serviceName: string, accountName: string, password: string) => {
+    if (accountName === 'github-token') {
+      notifyTokenStoreStarted?.();
+      if (blockTokenStore) {
+        await new Promise<void>((resolve) => {
+          releaseTokenStore = resolve;
+        });
+      }
+    }
+
     keychain.set(keyFor(serviceName, accountName), password);
   }
 );
@@ -110,12 +122,24 @@ describe('GitHubService.isAuthenticated', () => {
     prListStdout = '[]';
     repoViewStdout = 'generalaction/emdash';
     prCountStdout = '0';
+    blockTokenStore = false;
+    releaseTokenStore = null;
+    notifyTokenStoreStarted = null;
     keychain.clear();
     setPasswordMock.mockClear();
     getPasswordMock.mockClear();
     deletePasswordMock.mockClear();
     setPasswordMock.mockImplementation(
       async (serviceName: string, accountName: string, password: string) => {
+        if (accountName === 'github-token') {
+          notifyTokenStoreStarted?.();
+          if (blockTokenStore) {
+            await new Promise<void>((resolve) => {
+              releaseTokenStore = resolve;
+            });
+          }
+        }
+
         keychain.set(keyFor(serviceName, accountName), password);
       }
     );
@@ -160,6 +184,30 @@ describe('GitHubService.isAuthenticated', () => {
         }),
       })
     );
+  });
+
+  it('does not persist a migrated token after logout races with migration', async () => {
+    const service = new GitHubService();
+
+    blockTokenStore = true;
+    const tokenStoreStarted = new Promise<void>((resolve) => {
+      notifyTokenStoreStarted = () => {
+        notifyTokenStoreStarted = null;
+        resolve();
+      };
+    });
+
+    const migration = service.getStoredToken();
+    await tokenStoreStarted;
+
+    const logout = service.logout();
+    releaseTokenStore?.();
+
+    expect(await migration).toBe('gho_mocktoken');
+    await logout;
+
+    expect(keychain.get('emdash-github:github-token') ?? null).toBeNull();
+    expect(keychain.get('emdash-github:github-migration-blocked')).toBe('1');
   });
 
   it('does not auto-migrate from the gh CLI after the user has logged out', async () => {
