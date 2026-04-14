@@ -97,12 +97,21 @@ export interface DeviceCodeResult {
 export class GitHubService {
   private readonly SERVICE_NAME = 'emdash-github';
   private readonly ACCOUNT_NAME = 'github-token';
+  private readonly MIGRATION_BLOCK_ACCOUNT = 'github-migration-blocked';
 
   // Polling state management
   private isPolling = false;
   private pollingInterval: NodeJS.Timeout | null = null;
   private currentDeviceCode: string | null = null;
   private currentInterval = 5;
+
+  // One-shot migration guard: try reading from `gh auth token` at most once
+  // per process when the Emdash keychain is empty.
+  private migrationAttempted = false;
+  private migrationInFlight: Promise<string | null> | null = null;
+
+  // Serializes auth state changes (logout + legacy token migration persistence).
+  private authStateLock: Promise<void> = Promise.resolve();
 
   /**
    * Authenticate with GitHub using Device Flow
@@ -1258,27 +1267,52 @@ export class GitHubService {
     }
   }
 
+  private async withAuthStateLock<T>(operation: () => Promise<T>): Promise<T> {
+    const previousLock = this.authStateLock;
+    let releaseLock!: () => void;
+
+    this.authStateLock = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+
+    await previousLock;
+
+    try {
+      return await operation();
+    } finally {
+      releaseLock();
+    }
+  }
+
   /**
    * Logout and clear stored token
    */
   async logout(): Promise<void> {
     this.stopPolling();
-    try {
-      const keytar = await import('keytar');
-      await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
-    } catch (error) {
-      console.error('Failed to clear keychain token:', error);
-      throw new Error('Failed to clear keychain token');
-    }
+    this.migrationAttempted = true;
+
+    await this.withAuthStateLock(async () => {
+      try {
+        const keytar = await import('keytar');
+        await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+        await keytar.setPassword(this.SERVICE_NAME, this.MIGRATION_BLOCK_ACCOUNT, '1');
+      } catch (error) {
+        console.error('Failed to clear keychain token:', error);
+        throw new Error('Failed to clear keychain token');
+      }
+    });
   }
 
   /**
    * Store authentication token securely
    */
-  private async storeToken(token: string): Promise<void> {
+  private async storeToken(token: string, source: 'user' | 'migration' = 'user'): Promise<void> {
     try {
       const keytar = await import('keytar');
       await keytar.setPassword(this.SERVICE_NAME, this.ACCOUNT_NAME, token);
+      if (source === 'user') {
+        await keytar.deletePassword(this.SERVICE_NAME, this.MIGRATION_BLOCK_ACCOUNT);
+      }
     } catch (error) {
       console.error('Failed to store token:', error);
       throw error;
@@ -1286,16 +1320,83 @@ export class GitHubService {
   }
 
   /**
-   * Retrieve stored authentication token
+   * Retrieve stored authentication token.
+   *
+   * Migration for users authenticated before the gh-CLI decouple: their token
+   * only lives in the global gh CLI state. If the Emdash keychain is empty we
+   * try `gh auth token` once and persist the result, so PR lists and other
+   * gh-backed features keep working without asking the user to re-auth.
    */
   async getStoredToken(): Promise<string | null> {
+    if (this.migrationInFlight) {
+      return this.migrationInFlight;
+    }
+
     try {
       const keytar = await import('keytar');
-      return await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      const stored = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      if (stored) return stored;
+
+      const migrationBlocked =
+        (await keytar.getPassword(this.SERVICE_NAME, this.MIGRATION_BLOCK_ACCOUNT)) === '1';
+      if (migrationBlocked) return null;
+
+      if (this.migrationInFlight) {
+        return this.migrationInFlight;
+      }
+
+      if (this.migrationAttempted) return null;
     } catch (error) {
       console.error('Failed to retrieve token:', error);
       return null;
     }
+
+    const inFlight = this.migrateTokenFromGHCLI();
+    this.migrationInFlight = inFlight;
+
+    try {
+      return await inFlight;
+    } finally {
+      if (this.migrationInFlight === inFlight) {
+        this.migrationInFlight = null;
+      }
+    }
+  }
+
+  private async migrateTokenFromGHCLI(): Promise<string | null> {
+    return this.withAuthStateLock(async () => {
+      if (this.migrationAttempted) return null;
+      this.migrationAttempted = true;
+
+      try {
+        const keytar = await import('keytar');
+
+        const migrationBlockedBeforeRead =
+          (await keytar.getPassword(this.SERVICE_NAME, this.MIGRATION_BLOCK_ACCOUNT)) === '1';
+        if (migrationBlockedBeforeRead) return null;
+
+        const { stdout } = await execAsync('gh auth token', { encoding: 'utf8' });
+        const token = String(stdout).trim();
+        if (!token) return null;
+
+        // Re-check auth state while still serialized with logout().
+        const stored = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+        if (stored) return stored;
+
+        const migrationBlockedAfterRead =
+          (await keytar.getPassword(this.SERVICE_NAME, this.MIGRATION_BLOCK_ACCOUNT)) === '1';
+        if (migrationBlockedAfterRead) return null;
+
+        try {
+          await this.storeToken(token, 'migration');
+        } catch (error) {
+          console.warn('Failed to persist migrated gh CLI token to keychain:', error);
+        }
+        return token;
+      } catch {
+        return null;
+      }
+    });
   }
   // -----------------------------------------------------------------------
   // Repo events API — efficient polling with ETag caching

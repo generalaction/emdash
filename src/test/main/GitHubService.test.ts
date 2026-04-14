@@ -7,6 +7,9 @@ let issueSearchStdout = '[]';
 let prListStdout = '[]';
 let repoViewStdout = 'generalaction/emdash';
 let prCountStdout = '0';
+let blockTokenStore = false;
+let releaseTokenStore: (() => void) | null = null;
+let notifyTokenStoreStarted: (() => void) | null = null;
 
 vi.mock('child_process', () => {
   const execImpl = (command: string, options?: any, callback?: any) => {
@@ -70,9 +73,30 @@ vi.mock('child_process', () => {
   };
 });
 
-const setPasswordMock = vi.fn().mockResolvedValue(undefined);
-const getPasswordMock = vi.fn().mockResolvedValue(null);
-const deletePasswordMock = vi.fn().mockResolvedValue(undefined);
+const keychain = new Map<string, string>();
+
+const keyFor = (serviceName: string, accountName: string) => `${serviceName}:${accountName}`;
+
+const setPasswordMock = vi.fn(
+  async (serviceName: string, accountName: string, password: string) => {
+    if (accountName === 'github-token') {
+      notifyTokenStoreStarted?.();
+      if (blockTokenStore) {
+        await new Promise<void>((resolve) => {
+          releaseTokenStore = resolve;
+        });
+      }
+    }
+
+    keychain.set(keyFor(serviceName, accountName), password);
+  }
+);
+const getPasswordMock = vi.fn(async (serviceName: string, accountName: string) => {
+  return keychain.get(keyFor(serviceName, accountName)) ?? null;
+});
+const deletePasswordMock = vi.fn(async (serviceName: string, accountName: string) => {
+  keychain.delete(keyFor(serviceName, accountName));
+});
 const fetchMock = vi.fn();
 
 vi.mock('keytar', () => {
@@ -98,10 +122,33 @@ describe('GitHubService.isAuthenticated', () => {
     prListStdout = '[]';
     repoViewStdout = 'generalaction/emdash';
     prCountStdout = '0';
+    blockTokenStore = false;
+    releaseTokenStore = null;
+    notifyTokenStoreStarted = null;
+    keychain.clear();
     setPasswordMock.mockClear();
     getPasswordMock.mockClear();
     deletePasswordMock.mockClear();
-    getPasswordMock.mockResolvedValue(null);
+    setPasswordMock.mockImplementation(
+      async (serviceName: string, accountName: string, password: string) => {
+        if (accountName === 'github-token') {
+          notifyTokenStoreStarted?.();
+          if (blockTokenStore) {
+            await new Promise<void>((resolve) => {
+              releaseTokenStore = resolve;
+            });
+          }
+        }
+
+        keychain.set(keyFor(serviceName, accountName), password);
+      }
+    );
+    getPasswordMock.mockImplementation(async (serviceName: string, accountName: string) => {
+      return keychain.get(keyFor(serviceName, accountName)) ?? null;
+    });
+    deletePasswordMock.mockImplementation(async (serviceName: string, accountName: string) => {
+      keychain.delete(keyFor(serviceName, accountName));
+    });
     fetchMock.mockReset();
     fetchMock.mockResolvedValue({
       ok: true,
@@ -121,14 +168,65 @@ describe('GitHubService.isAuthenticated', () => {
     vi.unstubAllGlobals();
   });
 
-  it('does not treat a global gh login as authenticated without an Emdash token', async () => {
+  it('migrates a token from the gh CLI into the keychain when Emdash has none', async () => {
     const service = new GitHubService();
 
     const result = await service.isAuthenticated();
 
+    expect(result).toBe(true);
+    expect(execCalls.find((cmd) => cmd.startsWith('gh auth token'))).toBeDefined();
+    expect(setPasswordMock).toHaveBeenCalledWith('emdash-github', 'github-token', 'gho_mocktoken');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.github.com/user',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer gho_mocktoken',
+        }),
+      })
+    );
+  });
+
+  it('does not persist a migrated token after logout races with migration', async () => {
+    const service = new GitHubService();
+
+    blockTokenStore = true;
+    const tokenStoreStarted = new Promise<void>((resolve) => {
+      notifyTokenStoreStarted = () => {
+        notifyTokenStoreStarted = null;
+        resolve();
+      };
+    });
+
+    const migration = service.getStoredToken();
+    await tokenStoreStarted;
+
+    const logout = service.logout();
+
+    expect(deletePasswordMock).not.toHaveBeenCalled();
+    expect(keychain.get('emdash-github:github-migration-blocked')).toBeUndefined();
+
+    releaseTokenStore?.();
+
+    expect(await migration).toBe('gho_mocktoken');
+    await logout;
+
+    expect(keychain.get('emdash-github:github-token') ?? null).toBeNull();
+    expect(keychain.get('emdash-github:github-migration-blocked')).toBe('1');
+  });
+
+  it('does not auto-migrate from the gh CLI after the user has logged out', async () => {
+    const service = new GitHubService();
+    await service.logout();
+
+    execCalls.length = 0;
+    setPasswordMock.mockClear();
+
+    // New service instance simulates an app restart.
+    const serviceAfterRestart = new GitHubService();
+    const result = await serviceAfterRestart.isAuthenticated();
+
     expect(result).toBe(false);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(execCalls.find((cmd) => cmd.startsWith('gh auth status'))).toBeUndefined();
+    expect(execCalls.find((cmd) => cmd.startsWith('gh auth token'))).toBeUndefined();
     expect(setPasswordMock).not.toHaveBeenCalled();
   });
 
@@ -155,6 +253,7 @@ describe('GitHubService.isAuthenticated', () => {
     await service.logout();
 
     expect(deletePasswordMock).toHaveBeenCalledWith('emdash-github', 'github-token');
+    expect(setPasswordMock).toHaveBeenCalledWith('emdash-github', 'github-migration-blocked', '1');
     expect(execCalls).toEqual([]);
   });
 
