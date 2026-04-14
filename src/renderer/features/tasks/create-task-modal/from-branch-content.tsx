@@ -6,12 +6,13 @@ import { FromBranchModeState } from './use-from-branch-mode';
 interface FromBranchContentProps {
   state: FromBranchModeState;
   branches: Branch[];
+  isUnborn?: boolean;
 }
 
-export function FromBranchContent({ state, branches }: FromBranchContentProps) {
+export function FromBranchContent({ state, branches, isUnborn }: FromBranchContentProps) {
   return (
     <div className="flex flex-col gap-4">
-      <BranchPickerField state={state} branches={branches} />
+      <BranchPickerField state={state} branches={branches} isUnborn={isUnborn} />
       <TaskNameField state={state} />
     </div>
   );

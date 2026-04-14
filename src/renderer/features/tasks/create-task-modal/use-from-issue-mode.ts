@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Branch, DefaultBranch } from '@shared/git';
+import { Branch, DefaultBranch, type GitHeadState } from '@shared/git';
 import { Issue } from '@shared/tasks';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
@@ -12,9 +12,10 @@ export type FromIssueModeState = ReturnType<typeof useFromIssueMode>;
 export function useFromIssueMode(
   selectedProjectId: string | undefined,
   branches: Branch[],
-  defaultBranch: DefaultBranch | undefined
+  defaultBranch: DefaultBranch | undefined,
+  headState: GitHeadState | undefined
 ) {
-  const branchSelection = useBranchSelection(selectedProjectId, branches, defaultBranch);
+  const branchSelection = useBranchSelection(selectedProjectId, branches, defaultBranch, headState);
   const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
   const { autoGenerateName } = useTaskSettings();
 

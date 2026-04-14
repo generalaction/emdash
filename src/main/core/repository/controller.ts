@@ -9,6 +9,13 @@ export const repositoryController = createRPCController({
     }
     return project.git.getBranches();
   },
+  getHeadState: async (projectId: string) => {
+    const project = projectManager.getProject(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+    return project.git.getHeadState();
+  },
   getDefaultBranch: async (projectId: string) => {
     const project = projectManager.getProject(projectId);
     if (!project) {

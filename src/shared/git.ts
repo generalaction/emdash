@@ -25,6 +25,11 @@ export interface GitInfo {
   rootPath: string;
 }
 
+export type GitHeadState = {
+  headName?: string;
+  isUnborn: boolean;
+};
+
 type GitRef = string & NonNullable<unknown>;
 
 export type DiffBase = 'HEAD' | 'staged' | GitRef;
