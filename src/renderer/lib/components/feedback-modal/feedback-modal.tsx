@@ -3,7 +3,9 @@ import React, { useCallback } from 'react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
+import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
   DialogDescription,
@@ -12,7 +14,6 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { Input } from '@renderer/lib/ui/input';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { useFeedbackSubmit } from './use-feedback-submit';
@@ -25,6 +26,7 @@ type Props = BaseModalProps<void> & FeedbackModalArgs;
 
 export function FeedbackModal({ onSuccess, blurb }: Props) {
   const { user: githubUser } = useGithubContext();
+  const appVersion = appState.appInfo.info.data?.appVersion;
   const {
     attachments,
     fileInputRef,
@@ -49,6 +51,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
     canSubmit,
   } = useFeedbackSubmit({
     githubUser,
+    appVersion,
     onSuccess: () => {
       resetAttachments();
       onSuccess();
@@ -62,13 +65,6 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
     },
     [handleSubmit, attachments]
   );
-
-  const handleMetaEnter = (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'enter') {
-      event.preventDefault();
-      void handleSubmit(attachments);
-    }
-  };
 
   return (
     <>
@@ -101,7 +97,6 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
                 setFeedbackDetails(event.target.value);
                 if (errorMessage) clearError();
               }}
-              onKeyDown={handleMetaEnter}
               onPaste={handlePaste}
             />
           </div>
@@ -119,7 +114,6 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
                 setContactEmail(event.target.value);
                 if (errorMessage) clearError();
               }}
-              onKeyDown={handleMetaEnter}
             />
           </div>
 
@@ -175,7 +169,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
           <Paperclip className="h-4 w-4" aria-hidden="true" />
           <span>Attach image</span>
         </Button>
-        <Button
+        <ConfirmButton
           type="submit"
           form="feedback-form"
           className="gap-2 px-4"
@@ -188,14 +182,9 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
               <span>Sending...</span>
             </>
           ) : (
-            <>
-              <span>Send Feedback</span>
-              <span className="flex items-center gap-1 rounded border border-white/40 bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground dark:border-white/20 dark:bg-white/5">
-                <ShortcutHint settingsKey="confirm" />
-              </span>
-            </>
+            <span>Send Feedback</span>
           )}
-        </Button>
+        </ConfirmButton>
       </DialogFooter>
     </>
   );
