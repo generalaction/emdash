@@ -16,6 +16,7 @@ export interface TabbedPtyPanelProps<TEntity> {
   autoFocus?: boolean;
   onFocusChange?: (focused: boolean) => void;
   onEnterPress?: (entity: TEntity) => void;
+  mapShiftEnterToCtrlJ?: boolean;
   remoteConnectionId?: string;
 }
 
@@ -29,6 +30,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   autoFocus,
   onFocusChange,
   onEnterPress,
+  mapShiftEnterToCtrlJ,
   remoteConnectionId,
 }: TabbedPtyPanelProps<TEntity>) {
   const tabs = useMemo(() => store?.tabs ?? [], [store?.tabs]);
@@ -99,6 +101,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
                 pty={activeSession.pty}
                 className="h-full w-full"
                 onEnterPress={activeOnEnterPress}
+                mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
                 remoteConnectionId={remoteConnectionId}
               />
             )}
