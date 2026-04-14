@@ -30,6 +30,8 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const [isPanelFocused, setIsPanelFocused] = useState(false);
   const mountedProject = asMounted(getProjectStore(projectId));
   const shouldSetWorkingOnEnter = mountedProject?.data.type !== 'ssh';
+  const remoteConnectionId =
+    mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
   const newConversationHotkey = getEffectiveHotkey('newConversation', keyboard);
 
   const autoFocus = isActive && provisioned.taskView.focusedRegion === 'main';
@@ -68,6 +70,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}
       onEnterPress={shouldSetWorkingOnEnter ? (s) => s.setWorking() : undefined}
+      remoteConnectionId={remoteConnectionId}
       tabBar={<ConversationsTabs projectId={projectId} taskId={taskId} />}
       emptyState={
         <EmptyState

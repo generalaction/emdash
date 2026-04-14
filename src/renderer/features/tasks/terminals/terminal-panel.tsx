@@ -3,6 +3,7 @@ import { LayoutList, Play, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { TabbedPtyPanel } from '@renderer/features/tasks/tabbed-pty-panel';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
@@ -42,6 +43,9 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const { isRightOpen } = useWorkspaceLayoutContext();
   const isActive = useIsActiveTask(taskId);
+  const mountedProject = asMounted(getProjectStore(projectId));
+  const remoteConnectionId =
+    mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
   const [isPanelFocused, setIsPanelFocused] = useState(false);
   const [mode, setMode] = useState<PanelMode>('terminals');
   const newTerminalHotkey = getEffectiveHotkey('newTerminal', keyboard);
@@ -201,6 +205,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       paneId={mode === 'terminals' ? 'terminals' : 'lifecycle-scripts'}
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}
+      remoteConnectionId={remoteConnectionId}
       tabBar={tabBar}
       emptyState={emptyState}
     />

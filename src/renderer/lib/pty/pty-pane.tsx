@@ -72,8 +72,8 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
 
         const paths: string[] = [];
         for (const file of Array.from(dt.files)) {
-          const p = (file as unknown as { path?: string }).path;
-          if (p) paths.push(p);
+          const path = window.electronAPI.getPathForFile(file).trim();
+          if (path) paths.push(path);
         }
         if (paths.length === 0) return;
 
