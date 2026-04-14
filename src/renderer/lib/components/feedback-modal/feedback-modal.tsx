@@ -26,7 +26,7 @@ type Props = BaseModalProps<void> & FeedbackModalArgs;
 
 export function FeedbackModal({ onSuccess, blurb }: Props) {
   const { user: githubUser } = useGithubContext();
-  const appVersion = appState.appInfo.info.data?.appVersion;
+  const appVersion = appState.update.currentVersion;
   const {
     attachments,
     fileInputRef,
