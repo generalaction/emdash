@@ -11,7 +11,6 @@ export class EncryptedAppSecretsStore {
   ) {}
 
   async getSecret(key: string): Promise<string | null> {
-    this.assertSecureStorageAvailable();
     const rows = await this.db
       .select({ secret: appSecrets.secret })
       .from(appSecrets)
@@ -23,6 +22,7 @@ export class EncryptedAppSecretsStore {
       return null;
     }
 
+    this.assertSecureStorageAvailable();
     return this.safeStorageApi.decryptString(Buffer.from(secret, 'base64'));
   }
 
