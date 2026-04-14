@@ -1269,7 +1269,7 @@ export class GitHubService {
 
   private async withAuthStateLock<T>(operation: () => Promise<T>): Promise<T> {
     const previousLock = this.authStateLock;
-    let releaseLock: (() => void) | null = null;
+    let releaseLock!: () => void;
 
     this.authStateLock = new Promise<void>((resolve) => {
       releaseLock = resolve;
@@ -1280,7 +1280,7 @@ export class GitHubService {
     try {
       return await operation();
     } finally {
-      releaseLock?.();
+      releaseLock();
     }
   }
 
