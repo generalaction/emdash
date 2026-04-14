@@ -1,5 +1,11 @@
 import type { Configuration } from 'electron-builder';
-import { APP_ID, ARTIFACT_PREFIX, PRODUCT_NAME, R2_BASE_URL } from './src/shared/app-identity';
+import {
+  APP_ID,
+  ARTIFACT_PREFIX,
+  PRODUCT_NAME,
+  R2_BASE_URL,
+  UPDATE_CHANNEL,
+} from './src/shared/app-identity';
 
 const config: Configuration = {
   appId: APP_ID,
@@ -10,6 +16,7 @@ const config: Configuration = {
     {
       provider: 'generic',
       url: R2_BASE_URL,
+      channel: UPDATE_CHANNEL,
     },
   ],
   generateUpdatesFilesForAllChannels: false,

@@ -1,13 +1,18 @@
 import { useCallback, useState } from 'react';
-import { Branch, DefaultBranch } from '@shared/git';
+import type { Branch, DefaultBranch, GitHeadState } from '@shared/git';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 
 export function resolveDefaultSelectedBranch(
   branches: Branch[],
-  defaultBranch: DefaultBranch | undefined
+  defaultBranch: DefaultBranch | undefined,
+  headState: GitHeadState | undefined
 ): Branch | undefined {
+  if (branches.length === 0 && headState?.headName) {
+    return { type: 'local', branch: headState.headName };
+  }
+
   if (!defaultBranch) return undefined;
 
   const local = branches.find(
@@ -34,7 +39,8 @@ export function resolveDefaultSelectedBranch(
 export function useBranchSelection(
   selectedProjectId: string | undefined,
   branches: Branch[],
-  defaultBranch: DefaultBranch | undefined
+  defaultBranch: DefaultBranch | undefined,
+  headState: GitHeadState | undefined
 ) {
   const { value: localProject } = useAppSettingsKey('localProject');
   const pushOnCreateByDefault = localProject?.pushOnCreate ?? true;
@@ -49,7 +55,7 @@ export function useBranchSelection(
   const selectedBranch: Branch | undefined =
     branchOverride !== undefined && branchOverride.projectId === selectedProjectId
       ? branchOverride.branch
-      : resolveDefaultSelectedBranch(branches, defaultBranch);
+      : resolveDefaultSelectedBranch(branches, defaultBranch, headState);
 
   const setSelectedBranch = useCallback(
     (branch: Branch | undefined) => {
@@ -62,12 +68,21 @@ export function useBranchSelection(
     [selectedProjectId]
   );
 
-  const [createBranchAndWorktree, setCreateBranchAndWorktree] = useState(true);
+  const [createBranchAndWorktreePreference, setCreateBranchAndWorktreePreference] = useState(true);
   const [pushBranchOverride, setPushBranchOverride] = useState<boolean | undefined>(undefined);
+  const isUnborn = headState?.isUnborn === true;
   const pushBranch = pushBranchOverride ?? pushOnCreateByDefault;
+  const createBranchAndWorktree = isUnborn ? false : createBranchAndWorktreePreference;
   const setPushBranch = useCallback((value: boolean) => {
     setPushBranchOverride(value);
   }, []);
+  const setCreateBranchAndWorktree = useCallback(
+    (value: boolean) => {
+      if (isUnborn) return;
+      setCreateBranchAndWorktreePreference(value);
+    },
+    [isUnborn]
+  );
 
   return {
     selectedBranch,

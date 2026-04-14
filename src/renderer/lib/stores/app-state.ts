@@ -1,13 +1,11 @@
 import { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
 import { SidebarStore } from '@renderer/features/sidebar/sidebar-store';
-import { AppInfoStore } from './app-info-store';
 import { DependenciesStore } from './dependencies-store';
 import { NavigationStore } from './navigation-store';
 import { snapshotRegistry, SnapshotRegistry } from './snapshot-registry';
 import { UpdateStore } from './update-store';
 
 class AppState {
-  readonly appInfo: AppInfoStore;
   readonly update: UpdateStore;
   readonly projects: ProjectManagerStore;
   readonly sidebar: SidebarStore;
@@ -17,7 +15,6 @@ class AppState {
 
   constructor() {
     this.snapshots = snapshotRegistry;
-    this.appInfo = new AppInfoStore();
     this.update = new UpdateStore();
     this.projects = new ProjectManagerStore();
     this.sidebar = new SidebarStore(this.projects);

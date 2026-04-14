@@ -14,10 +14,54 @@ interface GithubUser {
 
 interface FeedbackSubmitOptions {
   githubUser?: GithubUser | null;
+  appVersion?: string | null;
   onSuccess: () => void;
 }
 
-export function useFeedbackSubmit({ githubUser, onSuccess }: FeedbackSubmitOptions) {
+interface BuildFeedbackContentOptions {
+  feedback: string;
+  contactEmail: string;
+  githubUser?: GithubUser | null;
+  appVersion?: string | null;
+}
+
+export function buildFeedbackContent({
+  feedback,
+  contactEmail,
+  githubUser,
+  appVersion,
+}: BuildFeedbackContentOptions): string {
+  const trimmedFeedback = feedback.trim();
+  const trimmedContact = contactEmail.trim();
+  const metadataLines: string[] = [];
+
+  if (trimmedContact) {
+    metadataLines.push(`Contact: ${trimmedContact}`);
+  }
+
+  const githubLogin = githubUser?.login?.trim();
+  const githubName = githubUser?.name?.trim();
+  if (githubLogin || githubName) {
+    const parts: string[] = [];
+    if (githubName && githubLogin) {
+      parts.push(`${githubName} (@${githubLogin})`);
+    } else if (githubName) {
+      parts.push(githubName);
+    } else if (githubLogin) {
+      parts.push(`@${githubLogin}`);
+    }
+    metadataLines.push(`GitHub: ${parts.join(' ')}`);
+  }
+
+  const trimmedAppVersion = appVersion?.trim();
+  if (trimmedAppVersion) {
+    metadataLines.push(`Emdash Version: ${trimmedAppVersion}`);
+  }
+
+  return [trimmedFeedback, metadataLines.join('\n')].filter(Boolean).join('\n\n');
+}
+
+export function useFeedbackSubmit({ githubUser, appVersion, onSuccess }: FeedbackSubmitOptions) {
   const [feedbackDetails, setFeedbackDetails] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -46,27 +90,12 @@ export function useFeedbackSubmit({ githubUser, onSuccess }: FeedbackSubmitOptio
       setSubmitting(true);
       setErrorMessage(null);
 
-      const trimmedContact = contactEmail.trim();
-      const metadataLines: string[] = [];
-      if (trimmedContact) {
-        metadataLines.push(`Contact: ${trimmedContact}`);
-      }
-
-      const githubLogin = githubUser?.login?.trim();
-      const githubName = githubUser?.name?.trim();
-      if (githubLogin || githubName) {
-        const parts: string[] = [];
-        if (githubName && githubLogin) {
-          parts.push(`${githubName} (@${githubLogin})`);
-        } else if (githubName) {
-          parts.push(githubName);
-        } else if (githubLogin) {
-          parts.push(`@${githubLogin}`);
-        }
-        metadataLines.push(`GitHub: ${parts.join(' ')}`);
-      }
-
-      const content = [trimmedFeedback, metadataLines.join('\n')].filter(Boolean).join('\n\n');
+      const content = buildFeedbackContent({
+        feedback: trimmedFeedback,
+        contactEmail,
+        githubUser,
+        appVersion,
+      });
 
       try {
         let response: Response;
@@ -103,7 +132,7 @@ export function useFeedbackSubmit({ githubUser, onSuccess }: FeedbackSubmitOptio
         setSubmitting(false);
       }
     },
-    [contactEmail, feedbackDetails, githubUser, onSuccess, toast]
+    [appVersion, contactEmail, feedbackDetails, githubUser, onSuccess, toast]
   );
 
   return {

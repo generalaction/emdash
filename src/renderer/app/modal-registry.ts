@@ -13,7 +13,6 @@ import { CommandPaletteModal } from '@renderer/lib/components/cmdk/CommandPalett
 import { ConfirmActionDialog } from '@renderer/lib/components/confirm-action-dialog';
 import { FeedbackModal } from '@renderer/lib/components/feedback-modal/feedback-modal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-device-flow-modal';
-import { UpdateModalOverlay } from '@renderer/lib/components/updates/UpdateModal';
 import { ModalComponent } from '@renderer/lib/modal/modal-provider';
 
 export type ModalRegistryEntry = {
@@ -26,7 +25,6 @@ export type ModalRegistryEntry = {
 };
 
 export const modalRegistry = {
-  updateModal: { component: UpdateModalOverlay, popupClassName: 'max-w-sm' },
   taskModal: { component: CreateTaskModal },
   addProjectModal: { component: AddProjectModal },
   addSshConnModal: { component: AddSshConnModal },

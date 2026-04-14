@@ -11,6 +11,7 @@ import {
   FetchError,
   FetchPrRefError,
   GitChange,
+  GitHeadState,
   GitInfo,
   PullError,
   PushError,
@@ -66,6 +67,7 @@ export interface GitProvider {
   getDefaultBranch(remote?: string): Promise<DefaultBranch>;
   getRemotes(): Promise<{ name: string; url: string }[]>;
   addRemote(name: string, url: string): Promise<void>;
+  getHeadState(): Promise<GitHeadState>;
   createBranch(
     name: string,
     from: string,

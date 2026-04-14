@@ -19,7 +19,6 @@ async function bootstrap() {
     log.warn('[monaco-diff-pool] init failed:', error);
   });
 
-  appState.appInfo.load();
   appState.update.start();
   initSoundPlayer();
   const [navResult, sidebarResult] = await Promise.all([

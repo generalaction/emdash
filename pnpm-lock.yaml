@@ -167,9 +167,6 @@ importers:
       devicon:
         specifier: ^2.17.0
         version: 2.17.0
-      dotenv:
-        specifier: ^17.2.3
-        version: 17.2.4
       drizzle-orm:
         specifier: ^0.32.1
         version: 0.32.2(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/react@19.2.14)(better-sqlite3@12.6.2)(react@19.2.4)(sqlite3@5.1.7)
@@ -3610,10 +3607,6 @@ packages:
 
   dotenv@16.6.1:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
-    engines: {node: '>=12'}
-
-  dotenv@17.2.4:
-    resolution: {integrity: sha512-mudtfb4zRB4bVvdj0xRo+e6duH1csJRM8IukBqfTRvHotn9+LBXB8ynAidP9zHqoRC/fsllXgk4kCKlR21fIhw==}
     engines: {node: '>=12'}
 
   dotenv@9.0.2:
@@ -10214,8 +10207,6 @@ snapshots:
   dotenv-expand@5.1.0: {}
 
   dotenv@16.6.1: {}
-
-  dotenv@17.2.4: {}
 
   dotenv@9.0.2: {}
 

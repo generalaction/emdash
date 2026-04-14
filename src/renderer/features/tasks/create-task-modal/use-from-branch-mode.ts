@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { Branch, DefaultBranch } from '@shared/git';
+import { Branch, DefaultBranch, type GitHeadState } from '@shared/git';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
 import { useBranchSelection } from './use-branch-selection';
@@ -11,9 +11,10 @@ export type FromBranchModeState = ReturnType<typeof useFromBranchMode>;
 export function useFromBranchMode(
   selectedProjectId: string | undefined,
   branches: Branch[],
-  defaultBranch: DefaultBranch | undefined
+  defaultBranch: DefaultBranch | undefined,
+  headState: GitHeadState | undefined
 ) {
-  const branchSelection = useBranchSelection(selectedProjectId, branches, defaultBranch);
+  const branchSelection = useBranchSelection(selectedProjectId, branches, defaultBranch, headState);
   const { autoGenerateName } = useTaskSettings();
 
   const stableKey = useMemo(() => crypto.randomUUID(), []);

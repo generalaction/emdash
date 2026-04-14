@@ -12,6 +12,7 @@ import type {
   FetchError,
   FetchPrRefError,
   GitChange,
+  GitHeadState,
   GitInfo,
   LocalBranch,
   PullError,
@@ -1065,6 +1066,23 @@ export class GitService implements GitProvider {
       return remotes;
     } catch {
       return [];
+    }
+  }
+
+  async getHeadState(): Promise<GitHeadState> {
+    let headName: string | undefined;
+    try {
+      const { stdout } = await this.exec('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], {
+        cwd: this.path,
+      });
+      headName = stdout.trim() || undefined;
+    } catch {}
+
+    try {
+      await this.exec('git', ['rev-parse', '--verify', 'HEAD'], { cwd: this.path });
+      return { headName, isUnborn: false };
+    } catch {
+      return { headName, isUnborn: true };
     }
   }
 

@@ -129,6 +129,10 @@ const readPackageVersion = async (packageJsonPath: string): Promise<string | nul
 };
 
 export const resolveAppVersion = async (): Promise<string> => {
+  if (import.meta.env.MAIN_VITE_APP_VERSION) {
+    return import.meta.env.MAIN_VITE_APP_VERSION;
+  }
+
   try {
     const version = app.getVersion();
     if (version && version !== '0.0.0') return version;

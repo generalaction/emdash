@@ -13,6 +13,7 @@ interface BranchPickerFieldProps {
   branches: Branch[];
   label?: string;
   className?: string;
+  isUnborn?: boolean;
 }
 
 export function BranchPickerField({
@@ -20,6 +21,7 @@ export function BranchPickerField({
   branches,
   label = 'From Branch',
   className,
+  isUnborn = false,
 }: BranchPickerFieldProps) {
   const { createBranchAndWorktree, setCreateBranchAndWorktree, pushBranch, setPushBranch } = state;
 
@@ -47,29 +49,36 @@ export function BranchPickerField({
           </ComboboxTrigger>
         }
       />
-      <Collapsible className="border-t border-border">
-        <CollapsibleTrigger className="w-full p-2 hover:bg-background-1 data-open:bg-background-1 flex text-xs text-foreground-muted items-center gap-2 justify-between">
-          Should create and push feature branch
-          <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="overflow-hidden h-(--collapsible-panel-height) transition-[height] duration-200 ease-out">
-          <div className="p-2 flex flex-col gap-2">
-            <Field orientation="horizontal">
-              <Switch
-                checked={createBranchAndWorktree}
-                onCheckedChange={setCreateBranchAndWorktree}
-              />
-              <FieldLabel>Create task branch and worktree</FieldLabel>
-            </Field>
-            {createBranchAndWorktree && (
+      {!isUnborn && (
+        <Collapsible className="border-t border-border">
+          <CollapsibleTrigger className="w-full p-2 hover:bg-background-1 data-open:bg-background-1 flex text-xs text-foreground-muted items-center gap-2 justify-between">
+            Should create and push feature branch
+            <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="overflow-hidden h-(--collapsible-panel-height) transition-[height] duration-200 ease-out">
+            <div className="p-2 flex flex-col gap-2">
               <Field orientation="horizontal">
-                <Switch checked={pushBranch} onCheckedChange={setPushBranch} />
-                <FieldLabel>Push branch to remote</FieldLabel>
+                <Switch
+                  checked={createBranchAndWorktree}
+                  onCheckedChange={setCreateBranchAndWorktree}
+                />
+                <FieldLabel>Create task branch and worktree</FieldLabel>
               </Field>
-            )}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+              {createBranchAndWorktree && (
+                <Field orientation="horizontal">
+                  <Switch checked={pushBranch} onCheckedChange={setPushBranch} />
+                  <FieldLabel>Push branch to remote</FieldLabel>
+                </Field>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+      {isUnborn && (
+        <p className="border-t border-border bg-background-1 px-2 py-1 text-xs text-foreground-muted">
+          Create an initial commit to enable branch-based tasks.
+        </p>
+      )}
     </div>
   );
 }

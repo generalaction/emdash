@@ -1,14 +1,20 @@
-import { X } from 'lucide-react';
+import { ChevronDown, GitBranch, X } from 'lucide-react';
 import { useState } from 'react';
+import type { Branch } from '@shared/git';
+import { useRepository } from '@renderer/features/projects/repository/use-repository';
+import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import { BranchSelector } from '@renderer/lib/components/branch-selector';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
+import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { DialogClose } from '@renderer/lib/ui/dialog';
 import { Input } from '@renderer/lib/ui/input';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { log } from '@renderer/utils/logger';
+import { resolveInitialBaseBranch } from './base-branch';
 
 export type CreatePrModalArgs = {
   nameWithOwner: string;
@@ -27,15 +33,26 @@ export function CreatePrModal({
   onSuccess,
   onClose,
 }: Props) {
-  const { projectId } = useTaskViewContext();
+  const { projectId, taskId } = useTaskViewContext();
   const showConfirm = useShowModal('confirmActionModal');
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
+  const [selectedBaseOverride, setSelectedBaseOverride] = useState<Branch | undefined>();
   const [isCreating, setIsCreating] = useState(false);
+  const { branches, defaultBranch } = useRepository(projectId);
+  const taskPayload = getRegisteredTaskData(projectId, taskId);
 
   const hasGitHubRemote = Boolean(nameWithOwner);
+  const remoteBranches = branches.filter((b) => b.type === 'remote');
+  const selectedBase =
+    selectedBaseOverride ??
+    resolveInitialBaseBranch(remoteBranches, taskPayload?.sourceBranch, defaultBranch);
 
-  const doPushAndCreate = async (capturedTitle: string, capturedDescription: string) => {
+  const doPushAndCreate = async (
+    capturedTitle: string,
+    capturedDescription: string,
+    capturedBase: string
+  ) => {
     setIsCreating(true);
     try {
       const pushResult = await rpc.git.push(projectId, workspaceId);
@@ -44,13 +61,10 @@ export function CreatePrModal({
         return;
       }
 
-      const defaultBranchResult = await rpc.git.getDefaultBranch(projectId, workspaceId);
-      const base = defaultBranchResult.success ? defaultBranchResult.data.name : 'main';
-
       const result = await rpc.pullRequests.createPullRequest({
         nameWithOwner,
         head: branchName,
-        base,
+        base: capturedBase,
         title: capturedTitle,
         body: capturedDescription || undefined,
         draft,
@@ -65,10 +79,11 @@ export function CreatePrModal({
   };
 
   const handleCreate = async () => {
-    if (!title.trim() || !nameWithOwner) return;
+    if (!title.trim() || !nameWithOwner || !selectedBase?.branch) return;
 
     const capturedTitle = title.trim();
     const capturedDescription = description.trim();
+    const capturedBase = selectedBase.branch;
 
     const statusResult = await rpc.git.getBranchStatus(projectId, workspaceId);
     const isPushed = statusResult.success && Boolean(statusResult.data.upstream);
@@ -80,13 +95,13 @@ export function CreatePrModal({
         confirmLabel: 'Push & Create PR',
         variant: 'default',
         onSuccess: () => {
-          void doPushAndCreate(capturedTitle, capturedDescription);
+          void doPushAndCreate(capturedTitle, capturedDescription, capturedBase);
         },
       });
       return;
     }
 
-    void doPushAndCreate(capturedTitle, capturedDescription);
+    void doPushAndCreate(capturedTitle, capturedDescription, capturedBase);
   };
 
   return (
@@ -106,6 +121,28 @@ export function CreatePrModal({
             No GitHub remote detected. Configure a GitHub remote to create pull requests.
           </p>
         )}
+        <BranchSelector
+          branches={branches}
+          value={selectedBase}
+          onValueChange={setSelectedBaseOverride}
+          remoteOnly
+          trigger={
+            <ComboboxTrigger className="flex w-full items-center gap-2 justify-between border border-border rounded-md p-2 text-left outline-none">
+              <div className="flex flex-col text-left text-sm gap-0.5">
+                <span className="text-foreground-passive text-xs">Base Branch</span>
+                <span className="flex items-center gap-1">
+                  <GitBranch
+                    absoluteStrokeWidth
+                    strokeWidth={2}
+                    className="size-3.5 shrink-0 text-foreground-muted"
+                  />
+                  <ComboboxValue placeholder="Select a base branch" />
+                </span>
+              </div>
+              <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
+            </ComboboxTrigger>
+          }
+        />
         <Input
           placeholder="PR title"
           value={title}
@@ -127,7 +164,7 @@ export function CreatePrModal({
         <ConfirmButton
           size="sm"
           onClick={() => void handleCreate()}
-          disabled={!hasGitHubRemote || !title.trim() || isCreating}
+          disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim() || isCreating}
         >
           {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
         </ConfirmButton>

@@ -54,6 +54,13 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       taskBranch = branchPrefix
         ? `${branchPrefix}/${rawBranch}-${suffix}`
         : `${rawBranch}-${suffix}`;
+      const headState = await project.git.getHeadState();
+      if (headState.isUnborn) {
+        return err({
+          type: 'initial-commit-required',
+          branch: headState.headName ?? params.sourceBranch.branch,
+        });
+      }
       const createResult = await project.git.createBranch(
         taskBranch,
         params.sourceBranch.branch,

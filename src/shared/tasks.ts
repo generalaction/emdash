@@ -73,6 +73,7 @@ export type CreateTaskError =
   | { type: 'branch-not-found'; branch: string }
   | { type: 'branch-already-exists'; branch: string }
   | { type: 'invalid-base-branch'; branch: string }
+  | { type: 'initial-commit-required'; branch: string }
   | { type: 'worktree-setup-failed'; message: string }
   | { type: 'pr-fetch-failed'; message: string }
   | { type: 'provision-failed'; message: string };

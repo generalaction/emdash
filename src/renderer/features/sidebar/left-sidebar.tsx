@@ -7,8 +7,6 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { appState } from '@renderer/lib/stores/app-state';
-import { MicroLabel } from '@renderer/lib/ui/label';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
@@ -23,11 +21,11 @@ import {
 } from './sidebar-primitives';
 import { SidebarSpace } from './sidebar-space';
 import { SidebarVirtualList } from './sidebar-virtual-list';
+import { UpdateSection } from './update-section';
 
 export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
-  const appVersion = appState.appInfo.info.data?.appVersion;
 
   const showAddProjectModal = useShowModal('addProjectModal');
   const showFeedbackModal = useShowModal('feedbackModal');
@@ -101,10 +99,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
             <MessageSquareShare className="size-4 shrink-0" />
             <span className="truncate">Give feedback</span>
           </button>
-
-          {appVersion ? (
-            <MicroLabel className="lowercase text-foreground-passive">v{appVersion}</MicroLabel>
-          ) : null}
+          <UpdateSection />
         </div>
       </SidebarContainer>
     </div>

@@ -61,43 +61,45 @@ export function BranchSelector({
         </ComboboxTrigger>
       )}
       <ComboboxContent className="min-w-(--anchor-width) pb-1">
-        <ToggleGroup
-          value={[tab]}
-          onValueChange={([value]) => {
-            if (value) {
-              setTab(value as 'local' | 'remote');
-              inputRef.current?.focus();
-            }
-          }}
-          className="w-full border-0 border-b border-border rounded-b-none"
-        >
-          <ToggleGroupItem
-            value="local"
-            className="group flex-1 flex items-center gap-1"
-            disabled={remoteOnly || localCount === 0}
+        {!remoteOnly && (
+          <ToggleGroup
+            value={[tab]}
+            onValueChange={([value]) => {
+              if (value) {
+                setTab(value as 'local' | 'remote');
+                inputRef.current?.focus();
+              }
+            }}
+            className="w-full border-0 border-b border-border rounded-b-none"
           >
-            Local
-            <Badge
-              variant="secondary"
-              className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3"
+            <ToggleGroupItem
+              value="local"
+              className="group flex-1 flex items-center gap-1"
+              disabled={localCount === 0}
             >
-              {localCount}
-            </Badge>
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="remote"
-            className="group flex-1 flex items-center gap-1"
-            disabled={remoteOnly || remoteCount === 0}
-          >
-            Remote
-            <Badge
-              variant="secondary"
-              className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3"
+              Local
+              <Badge
+                variant="secondary"
+                className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3"
+              >
+                {localCount}
+              </Badge>
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="remote"
+              className="group flex-1 flex items-center gap-1"
+              disabled={remoteCount === 0}
             >
-              {remoteCount}
-            </Badge>
-          </ToggleGroupItem>
-        </ToggleGroup>
+              Remote
+              <Badge
+                variant="secondary"
+                className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3"
+              >
+                {remoteCount}
+              </Badge>
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
         <ComboboxInput showTrigger={false} placeholder="Search branches" inputRef={inputRef} />
         <ComboboxList>
           {(item) => (

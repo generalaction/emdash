@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
+import type { GitHeadState } from '@shared/git';
 import { rpc } from '@renderer/lib/ipc';
 
 export function useRepository(projectId: string | undefined) {
@@ -13,7 +14,12 @@ export function useRepository(projectId: string | undefined) {
     queryFn: () => rpc.repository.getDefaultBranch(projectId!),
     enabled: !!projectId,
   });
-  return { branches: branches ?? [], defaultBranch };
+  const { data: headState } = useQuery({
+    queryKey: ['repository', 'headState', projectId],
+    queryFn: () => rpc.repository.getHeadState(projectId!) as Promise<GitHeadState | undefined>,
+    enabled: !!projectId,
+  });
+  return { branches: branches ?? [], defaultBranch, headState };
 }
 
 export function usePrefetchRepository(projectId: string) {
@@ -27,6 +33,10 @@ export function usePrefetchRepository(projectId: string) {
     queryClient.prefetchQuery({
       queryKey: ['repository', 'defaultBranch', projectId],
       queryFn: () => rpc.repository.getDefaultBranch(projectId),
+    });
+    queryClient.prefetchQuery({
+      queryKey: ['repository', 'headState', projectId],
+      queryFn: () => rpc.repository.getHeadState(projectId) as Promise<GitHeadState | undefined>,
     });
   }, [queryClient, projectId]);
 

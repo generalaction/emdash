@@ -152,7 +152,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         lifecycleScriptsMgr={lifecycleScriptsMgr}
         actions={
           <div className="flex items-center">
-            {runScriptButton}
+            {lifecycleScriptsMgr?.tabs.length ? runScriptButton : null}
             {toggleButton}
           </div>
         }

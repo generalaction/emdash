@@ -36,13 +36,23 @@ export type UpdateState =
 
 export class UpdateStore {
   state: UpdateState = { status: 'idle' };
+  currentVersion = '';
+  availableVersion: string | undefined = undefined;
 
   constructor() {
     makeObservable(this, {
       state: observable,
+      currentVersion: observable,
+      availableVersion: observable,
       setState: action,
+      hasUpdate: computed,
       progressLabel: computed,
     });
+  }
+
+  get hasUpdate(): boolean {
+    const { status } = this.state;
+    return status === 'available' || status === 'downloading' || status === 'downloaded';
   }
 
   setState(state: UpdateState): void {
@@ -56,6 +66,12 @@ export class UpdateStore {
   }
 
   start(): void {
+    rpc.app.getAppVersion().then((v) => {
+      runInAction(() => {
+        this.currentVersion = v;
+      });
+    });
+
     events.on(updateCheckingEvent, () => {
       runInAction(() => {
         this.state = { status: 'checking' };
@@ -64,6 +80,7 @@ export class UpdateStore {
 
     events.on(updateAvailableEvent, (d) => {
       runInAction(() => {
+        this.availableVersion = d.version;
         this.state = { status: 'available', info: { version: d.version } };
       });
       this._maybeToastAvailable(d.version);
@@ -133,11 +150,12 @@ export class UpdateStore {
         return;
       }
       if (!res.success) {
-        const message = res.devDisabled
-          ? 'Updates are disabled in development.'
-          : (res.error ?? 'Failed to check for updates');
         runInAction(() => {
-          this.state = { status: 'error', message };
+          this.state = { status: 'error', message: res.error ?? 'Failed to check for updates' };
+        });
+      } else if (res.result === null) {
+        runInAction(() => {
+          this.state = { status: 'idle' };
         });
       }
     } catch {
@@ -157,9 +175,7 @@ export class UpdateStore {
         return;
       }
       if (!res.success) {
-        const message = res.devDisabled
-          ? 'Cannot download updates in development.'
-          : (res.error ?? 'Failed to download update');
+        const message = res.error ?? 'Failed to download update';
         runInAction(() => {
           this.state = { status: 'error', message };
         });
