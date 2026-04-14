@@ -20,11 +20,11 @@ describe('providerTokenRegistry', () => {
   });
 
   it('propagates handler errors', async () => {
-    const handler = vi.fn().mockRejectedValue(new Error('keytar failed'));
+    const handler = vi.fn().mockRejectedValue(new Error('secure storage failed'));
     providerTokenRegistry.register('github', handler);
 
     await expect(providerTokenRegistry.dispatch('github', 'token')).rejects.toThrow(
-      'keytar failed'
+      'secure storage failed'
     );
   });
 

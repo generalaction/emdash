@@ -1,5 +1,4 @@
 import { GitbeakerRequestError, Gitlab } from '@gitbeaker/rest';
-import keytar from 'keytar';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { resolvePreferredRemote } from '@main/core/issues/git-remote-resolver';
 import {
@@ -7,6 +6,7 @@ import {
   hasKnownNetworkErrorCode,
   normalizeHostedInstanceUrl,
 } from '@main/core/issues/helpers/hosted-instance';
+import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { KV } from '@main/db/kv';
 
 interface GitLabConnectionConfig {
@@ -55,8 +55,7 @@ function isNotConfigured(error: unknown): boolean {
 }
 
 export class GitLabConnectionService {
-  private readonly SERVICE_NAME = 'emdash-gitlab';
-  private readonly ACCOUNT_NAME = 'api-token';
+  private readonly GITLAB_TOKEN_SECRET_KEY = 'emdash-gitlab-token';
 
   private client: Gitlab | null = null;
   private clientKey: string | null = null;
@@ -79,7 +78,7 @@ export class GitLabConnectionService {
       const client = this.getClientForCredentials(normalizedUrl, cleanToken);
       const user = (await client.Users.showCurrentUser()) as Record<string, unknown>;
 
-      await keytar.setPassword(this.SERVICE_NAME, this.ACCOUNT_NAME, cleanToken);
+      await encryptedAppSecretsStore.setSecret(this.GITLAB_TOKEN_SECRET_KEY, cleanToken);
       await this.writeConnection({ instanceUrl: normalizedUrl });
 
       const username = this.readString(user.username) ?? undefined;
@@ -96,7 +95,7 @@ export class GitLabConnectionService {
 
   async clearCredentials(): Promise<{ success: boolean; error?: string }> {
     try {
-      await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      await encryptedAppSecretsStore.deleteSecret(this.GITLAB_TOKEN_SECRET_KEY);
       await gitlabKV.del('connection');
 
       this.client = null;
@@ -189,7 +188,7 @@ export class GitLabConnectionService {
       throw new Error(NOT_CONFIGURED_ERROR);
     }
 
-    const token = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+    const token = await encryptedAppSecretsStore.getSecret(this.GITLAB_TOKEN_SECRET_KEY);
     if (!token) {
       throw new Error(NOT_CONFIGURED_ERROR);
     }

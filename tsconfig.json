@@ -15,7 +15,6 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "types": ["react", "react-dom", "electron-vite/node", "node"],
-    "baseUrl": ".",
     "paths": {
       "@renderer/*": ["./src/renderer/*"],
       "@main/*": ["./src/main/*"],

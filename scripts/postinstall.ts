@@ -42,7 +42,6 @@ const disableNativeDb = process.env.EMDASH_DISABLE_NATIVE_DB === '1';
 const nativeModules = [];
 if (!disableNativeDb) nativeModules.push('better-sqlite3');
 if (!disablePty) nativeModules.push('node-pty');
-nativeModules.push('keytar');
 
 if (nativeModules.length === 0) {
   process.exit(0);

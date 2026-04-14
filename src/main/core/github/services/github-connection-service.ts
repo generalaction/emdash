@@ -1,6 +1,5 @@
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
 import { Octokit } from '@octokit/rest';
-import keytar from 'keytar';
 import {
   githubAuthCancelledChannel,
   githubAuthDeviceCodeChannel,
@@ -8,6 +7,7 @@ import {
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubConnectResponse, GitHubUser } from '@shared/github';
+import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { getLocalExec } from '@main/core/utils/exec';
 import { KV } from '@main/db/kv';
@@ -35,7 +35,7 @@ export interface DeviceCodeResult {
  * Manages GitHub authentication tokens regardless of how they were obtained
  * (Emdash Account OAuth, Device Flow, PAT, or extracted from gh CLI).
  */
-export type TokenSource = 'keytar' | 'cli' | null;
+export type TokenSource = 'secure_storage' | 'cli' | null;
 
 export interface GitHubConnectionService {
   getToken(): Promise<string | null>;
@@ -55,8 +55,7 @@ export interface GitHubConnectionService {
   logout(): Promise<void>;
 }
 
-const SERVICE_NAME = 'emdash-github';
-const ACCOUNT_NAME = 'github-token';
+const GITHUB_TOKEN_SECRET_KEY = 'emdash-github-token';
 
 interface GitHubKVSchema extends Record<string, unknown> {
   tokenSource: Exclude<TokenSource, null>;
@@ -73,7 +72,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
   private deviceFlowAbortController: AbortController | null = null;
 
   private parseTokenSource(raw: unknown): Exclude<TokenSource, null> | null {
-    return raw === 'cli' || raw === 'keytar' ? raw : null;
+    return raw === 'cli' || raw === 'secure_storage' ? raw : null;
   }
 
   private async getStoredTokenSource(): Promise<Exclude<TokenSource, null> | null> {
@@ -97,7 +96,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     source: Exclude<TokenSource, null> | null;
   }> {
     try {
-      const token = (await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME)) ?? null;
+      const token = (await encryptedAppSecretsStore.getSecret(GITHUB_TOKEN_SECRET_KEY)) ?? null;
       const source = await this.getStoredTokenSource();
       return { token, source };
     } catch {
@@ -107,7 +106,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
 
   private async clearStoredToken(): Promise<void> {
     await Promise.all([
-      keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME),
+      encryptedAppSecretsStore.deleteSecret(GITHUB_TOKEN_SECRET_KEY),
       this.clearStoredTokenSource(),
     ]);
   }
@@ -122,7 +121,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
         try {
           await this.clearStoredToken();
         } catch (error) {
-          log.warn('Failed to clear stale CLI token from keytar:', error);
+          log.warn('Failed to clear stale CLI token from secure storage:', error);
         }
         return { token: null, source: null };
       }
@@ -130,7 +129,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
         try {
           await this.storeToken(cliToken, 'cli');
         } catch (error) {
-          log.warn('Failed to sync refreshed CLI token to keytar:', error);
+          log.warn('Failed to sync refreshed CLI token to secure storage:', error);
         }
         return { token: cliToken, source: 'cli' };
       }
@@ -138,7 +137,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     }
 
     if (storedToken) {
-      return { token: storedToken, source: source ?? 'keytar' };
+      return { token: storedToken, source: source ?? 'secure_storage' };
     }
 
     const cliToken = await extractGhCliToken(exec);
@@ -147,7 +146,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     try {
       await this.storeToken(cliToken, 'cli');
     } catch (error) {
-      log.warn('Failed to cache CLI token in keytar:', error);
+      log.warn('Failed to cache CLI token in secure storage:', error);
     }
     return { token: cliToken, source: 'cli' };
   }
@@ -160,7 +159,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
   async getTokenSource(): Promise<TokenSource> {
     const { token, source } = await this.resolveTokenRecord();
     if (!token) return null;
-    return source ?? 'keytar';
+    return source ?? 'secure_storage';
   }
 
   async getStatus(): Promise<{
@@ -177,7 +176,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     return {
       authenticated: true,
       user,
-      tokenSource: source ?? 'keytar',
+      tokenSource: source ?? 'secure_storage',
     };
   }
 
@@ -291,8 +290,11 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     }
   }
 
-  async storeToken(token: string, source: Exclude<TokenSource, null> = 'keytar'): Promise<void> {
-    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, token);
+  async storeToken(
+    token: string,
+    source: Exclude<TokenSource, null> = 'secure_storage'
+  ): Promise<void> {
+    await encryptedAppSecretsStore.setSecret(GITHUB_TOKEN_SECRET_KEY, token);
     await this.setStoredTokenSource(source);
   }
 

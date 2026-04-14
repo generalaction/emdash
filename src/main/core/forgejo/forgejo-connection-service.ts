@@ -1,7 +1,6 @@
 import { userGetCurrent } from '@llamaduck/forgejo-ts';
 import { createClient, type Client } from '@llamaduck/forgejo-ts/client';
 import { AxiosError } from 'axios';
-import keytar from 'keytar';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { resolvePreferredRemote } from '@main/core/issues/git-remote-resolver';
 import {
@@ -9,6 +8,7 @@ import {
   hasKnownNetworkErrorCode,
   normalizeHostedInstanceUrl,
 } from '@main/core/issues/helpers/hosted-instance';
+import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { KV } from '@main/db/kv';
 
 interface ForgejoConnectionConfig {
@@ -56,8 +56,7 @@ function isNotConfigured(error: unknown): boolean {
 }
 
 export class ForgejoConnectionService {
-  private readonly SERVICE_NAME = 'emdash-forgejo';
-  private readonly ACCOUNT_NAME = 'api-token';
+  private readonly FORGEJO_TOKEN_SECRET_KEY = 'emdash-forgejo-token';
 
   private client: Client | null = null;
   private clientKey: string | null = null;
@@ -80,7 +79,7 @@ export class ForgejoConnectionService {
       const client = this.getClientForCredentials(normalizedUrl, cleanToken);
       const { data: user } = await userGetCurrent({ client, throwOnError: true });
 
-      await keytar.setPassword(this.SERVICE_NAME, this.ACCOUNT_NAME, cleanToken);
+      await encryptedAppSecretsStore.setSecret(this.FORGEJO_TOKEN_SECRET_KEY, cleanToken);
       await this.writeConnection({ instanceUrl: normalizedUrl });
 
       const username = user?.login ?? undefined;
@@ -97,7 +96,7 @@ export class ForgejoConnectionService {
 
   async clearCredentials(): Promise<{ success: boolean; error?: string }> {
     try {
-      await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      await encryptedAppSecretsStore.deleteSecret(this.FORGEJO_TOKEN_SECRET_KEY);
       await forgejoKV.del('connection');
 
       this.client = null;
@@ -179,7 +178,7 @@ export class ForgejoConnectionService {
       throw new Error(NOT_CONFIGURED_ERROR);
     }
 
-    const token = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+    const token = await encryptedAppSecretsStore.getSecret(this.FORGEJO_TOKEN_SECRET_KEY);
     if (!token) {
       throw new Error(NOT_CONFIGURED_ERROR);
     }

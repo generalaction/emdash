@@ -152,9 +152,9 @@ describe('EmdashAccountService', () => {
         user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
-      mockDispatch.mockRejectedValueOnce(new Error('keytar failed'));
+      mockDispatch.mockRejectedValueOnce(new Error('secure storage failed'));
 
-      await expect(service.signIn()).rejects.toThrow('keytar failed');
+      await expect(service.signIn()).rejects.toThrow('secure storage failed');
     });
 
     it('does not dispatch when provider token is absent', async () => {

@@ -1,12 +1,11 @@
 import { LinearClient } from '@linear/sdk';
-import keytar from 'keytar';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
+import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 import { capture } from '@main/lib/telemetry';
 
 export class LinearConnectionService {
-  private readonly SERVICE_NAME = 'emdash-linear';
-  private readonly ACCOUNT_NAME = 'api-token';
+  private readonly LINEAR_TOKEN_SECRET_KEY = 'emdash-linear-token';
 
   private cachedToken: string | null | undefined = undefined;
   private client: LinearClient | null = null;
@@ -43,7 +42,7 @@ export class LinearConnectionService {
 
   async clearToken(): Promise<{ success: boolean; error?: string }> {
     try {
-      await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      await encryptedAppSecretsStore.deleteSecret(this.LINEAR_TOKEN_SECRET_KEY);
       this.cachedToken = null;
       this.client = null;
       this.clientToken = null;
@@ -53,7 +52,7 @@ export class LinearConnectionService {
       log.error('Failed to clear Linear token:', error);
       return {
         success: false,
-        error: 'Unable to remove Linear token from keychain.',
+        error: 'Unable to remove Linear token from secure storage.',
       };
     }
   }
@@ -107,7 +106,7 @@ export class LinearConnectionService {
 
   private async storeToken(token: string): Promise<void> {
     try {
-      await keytar.setPassword(this.SERVICE_NAME, this.ACCOUNT_NAME, token);
+      await encryptedAppSecretsStore.setSecret(this.LINEAR_TOKEN_SECRET_KEY, token);
       this.cachedToken = token;
     } catch (error) {
       log.error('Failed to store Linear token:', error);
@@ -121,10 +120,10 @@ export class LinearConnectionService {
     }
 
     try {
-      this.cachedToken = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      this.cachedToken = await encryptedAppSecretsStore.getSecret(this.LINEAR_TOKEN_SECRET_KEY);
       return this.cachedToken;
     } catch (error) {
-      log.error('Failed to read Linear token from keychain:', error);
+      log.error('Failed to read Linear token from secure storage:', error);
       return null;
     }
   }

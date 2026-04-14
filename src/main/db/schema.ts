@@ -324,8 +324,21 @@ export const kv = sqliteTable(
   })
 );
 
+export const appSecrets = sqliteTable(
+  'app_secrets',
+  {
+    key: text('key').primaryKey(),
+    secret: text('secret').notNull(),
+  },
+  (table) => ({
+    keyIdx: uniqueIndex('idx_app_secrets_key').on(table.key),
+  })
+);
+
 export type KvRow = typeof kv.$inferSelect;
 export type KvInsert = typeof kv.$inferInsert;
+export type AppSecretRow = typeof appSecrets.$inferSelect;
+export type AppSecretInsert = typeof appSecrets.$inferInsert;
 
 export const sshConnectionsRelations = relations(sshConnections, ({ many }) => ({
   projects: many(projects),
