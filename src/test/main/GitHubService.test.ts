@@ -201,6 +201,10 @@ describe('GitHubService.isAuthenticated', () => {
     await tokenStoreStarted;
 
     const logout = service.logout();
+
+    expect(deletePasswordMock).not.toHaveBeenCalled();
+    expect(keychain.get('emdash-github:github-migration-blocked')).toBeUndefined();
+
     releaseTokenStore?.();
 
     expect(await migration).toBe('gho_mocktoken');
