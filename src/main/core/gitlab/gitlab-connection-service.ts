@@ -1,7 +1,7 @@
 import { GitbeakerRequestError, Gitlab } from '@gitbeaker/rest';
 import keytar from 'keytar';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
-import { resolveOriginRemote } from '@main/core/issues/git-remote-resolver';
+import { resolvePreferredRemote } from '@main/core/issues/git-remote-resolver';
 import {
   assertRemoteHostMatchesInstance,
   hasKnownNetworkErrorCode,
@@ -153,12 +153,13 @@ export class GitLabConnectionService {
   }
 
   async resolveProject(
-    projectPath: string
+    projectPath: string,
+    remoteName?: string
   ): Promise<{ client: Gitlab; projectId: number; projectName: string | null }> {
     const { instanceUrl, client } = await this.requireAuth();
 
     try {
-      const remote = await resolveOriginRemote(projectPath);
+      const remote = await resolvePreferredRemote(projectPath, remoteName);
 
       assertRemoteHostMatchesInstance(remote.host, instanceUrl, 'GitLab');
 
@@ -176,7 +177,9 @@ export class GitLabConnectionService {
         projectName,
       };
     } catch (error) {
-      throw new Error(toGitLabErrorMessage(error, 'Unable to resolve GitLab project from origin.'));
+      throw new Error(
+        toGitLabErrorMessage(error, 'Unable to resolve GitLab project from the selected remote.')
+      );
     }
   }
 

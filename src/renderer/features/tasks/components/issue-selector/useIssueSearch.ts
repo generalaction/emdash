@@ -17,7 +17,7 @@ function isProviderUsable(
   return true;
 }
 
-export function useIssueSearch(nameWithOwner: string, projectPath = '') {
+export function useIssueSearch(nameWithOwner: string, projectPath = '', projectId?: string) {
   const { connectionStatus, isCheckingConnections } = useIntegrationsContext();
   const context = useMemo(() => ({ projectPath, nameWithOwner }), [projectPath, nameWithOwner]);
 
@@ -47,6 +47,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '') {
   }, [connectedProviders, connectionStatus, context, selectedIssueProvider]);
 
   const issuesHook = useIssues(issueProvider, {
+    projectId,
     nameWithOwner,
     projectPath,
     enabled: !!issueProvider,

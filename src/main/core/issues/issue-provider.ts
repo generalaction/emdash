@@ -7,7 +7,9 @@ import type { Issue } from '@shared/tasks';
 
 export type IssueQueryOpts = {
   limit?: number;
+  projectId?: string;
   projectPath?: string;
+  remote?: string;
   nameWithOwner?: string;
 };
 

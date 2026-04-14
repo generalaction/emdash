@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { err, ok, Result } from '@shared/result';
 import { FileSystemProvider } from '@main/core/fs/types';
+import { DEFAULT_REMOTE_NAME } from '@main/core/git/remote-preference';
 import { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { ProjectSettingsProvider } from '../settings/schema';
@@ -105,9 +106,10 @@ export class WorktreeService {
     if (!branchExists) {
       // Case 1: fresh — create the branch and worktree together.
       // Use refs/heads/ prefix to avoid ambiguity when a tag exists with the same name.
+      const sourceRef = await this.resolveSourceBaseRef(sourceBranch);
       await this.exec(
         'git',
-        ['worktree', 'add', '-b', reserveBranchName, worktreePath, `refs/heads/${sourceBranch}`],
+        ['worktree', 'add', '-b', reserveBranchName, worktreePath, sourceRef],
         { cwd: this.repoPath }
       );
       return;
@@ -135,6 +137,34 @@ export class WorktreeService {
 
   private async ensureWorktreePoolDirExists(): Promise<void> {
     await this.rootFs.mkdir(this.worktreePoolPath, { recursive: true });
+  }
+
+  private async getRemoteCandidates(): Promise<string[]> {
+    const configuredRemote = (await this.projectSettings.getRemote().catch(() => '')).trim();
+    if (!configuredRemote || configuredRemote === DEFAULT_REMOTE_NAME) {
+      return [DEFAULT_REMOTE_NAME];
+    }
+    return [configuredRemote, DEFAULT_REMOTE_NAME];
+  }
+
+  private async resolveSourceBaseRef(sourceBranch: string): Promise<string> {
+    const localRef = `refs/heads/${sourceBranch}`;
+    try {
+      await this.exec('git', ['rev-parse', '--verify', localRef], { cwd: this.repoPath });
+      return localRef;
+    } catch {}
+
+    const remoteCandidates = await this.getRemoteCandidates();
+    for (const remoteName of remoteCandidates) {
+      await this.exec('git', ['fetch', remoteName], { cwd: this.repoPath }).catch(() => {});
+      const remoteRef = `refs/remotes/${remoteName}/${sourceBranch}`;
+      try {
+        await this.exec('git', ['rev-parse', '--verify', remoteRef], { cwd: this.repoPath });
+        return remoteRef;
+      } catch {}
+    }
+
+    return localRef;
   }
 
   async getWorktree(branchName: string): Promise<string | undefined> {
@@ -225,7 +255,7 @@ export class WorktreeService {
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
     const targetPath = path.join(this.worktreePoolPath, branchName);
-    const remoteName = (await this.projectSettings.getRemote()).trim() || 'origin';
+    const remoteCandidates = await this.getRemoteCandidates();
 
     if (await this.rootFs.exists(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
@@ -235,7 +265,9 @@ export class WorktreeService {
 
     try {
       await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
-      await this.exec('git', ['fetch', remoteName], { cwd: this.repoPath }).catch(() => {});
+      for (const remoteName of remoteCandidates) {
+        await this.exec('git', ['fetch', remoteName], { cwd: this.repoPath }).catch(() => {});
+      }
 
       // Check if a local branch ref exists; if not, try to create one from the remote.
       let localExists = false;
@@ -247,21 +279,31 @@ export class WorktreeService {
       } catch {}
 
       if (!localExists) {
+        let trackingRemote: string | undefined;
         // Verify the remote-tracking ref exists before attempting to create a local branch.
-        try {
-          await this.exec(
-            'git',
-            ['rev-parse', '--verify', `refs/remotes/${remoteName}/${branchName}`],
-            {
-              cwd: this.repoPath,
-            }
-          );
-        } catch {
+        for (const remoteName of remoteCandidates) {
+          try {
+            await this.exec(
+              'git',
+              ['rev-parse', '--verify', `refs/remotes/${remoteName}/${branchName}`],
+              {
+                cwd: this.repoPath,
+              }
+            );
+            trackingRemote = remoteName;
+            break;
+          } catch {}
+        }
+        if (!trackingRemote) {
           return err({ type: 'branch-not-found', branch: branchName });
         }
-        await this.exec('git', ['branch', '--track', branchName, `${remoteName}/${branchName}`], {
-          cwd: this.repoPath,
-        });
+        await this.exec(
+          'git',
+          ['branch', '--track', branchName, `${trackingRemote}/${branchName}`],
+          {
+            cwd: this.repoPath,
+          }
+        );
       }
 
       await this.exec('git', ['worktree', 'add', targetPath, branchName], {

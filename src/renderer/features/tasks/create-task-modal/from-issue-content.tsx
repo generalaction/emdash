@@ -9,6 +9,7 @@ import { FromIssueModeState } from './use-from-issue-mode';
 interface FromIssueContentProps {
   state: FromIssueModeState;
   branches: Branch[];
+  projectId?: string;
   nameWithOwner?: string;
   projectPath?: string;
   disabled?: boolean;
@@ -18,6 +19,7 @@ interface FromIssueContentProps {
 export function FromIssueContent({
   state,
   branches,
+  projectId,
   nameWithOwner = '',
   projectPath = '',
   disabled,
@@ -36,6 +38,7 @@ export function FromIssueContent({
         <InlineIssueSelector
           value={state.linkedIssue}
           onValueChange={handleValueChange}
+          projectId={projectId}
           nameWithOwner={nameWithOwner}
           projectPath={projectPath}
           disabled={disabled}

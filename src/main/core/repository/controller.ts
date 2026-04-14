@@ -1,4 +1,5 @@
 import { createRPCController } from '@shared/ipc/rpc';
+import { selectPreferredRemote } from '../git/remote-preference';
 import { projectManager } from '../projects/project-manager';
 
 export const repositoryController = createRPCController({
@@ -21,11 +22,13 @@ export const repositoryController = createRPCController({
     if (!project) {
       throw new Error('Project not found');
     }
-    const [name, remote, branches] = await Promise.all([
+    const [name, configuredRemote, branches, remotes] = await Promise.all([
       project.settings.getDefaultBranch(),
       project.settings.getRemote(),
       project.git.getBranches(),
+      project.git.getRemotes(),
     ]);
+    const remote = selectPreferredRemote(configuredRemote, remotes);
     const existsLocally = branches.some(
       (branch) => branch.type === 'local' && branch.branch === name
     );

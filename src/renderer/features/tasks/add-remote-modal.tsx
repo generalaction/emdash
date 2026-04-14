@@ -52,10 +52,16 @@ export function AddRemoteModal({
   const [url, setUrl] = useState('');
 
   const queryClient = useQueryClient();
+  const { data: projectSettings } = useQuery({
+    queryKey: ['project', 'settings', projectId],
+    queryFn: () => rpc.projects.getProjectSettings(projectId),
+    enabled: !!projectId,
+  });
   const { data } = useQuery({
     queryKey: ['owners'],
     queryFn: () => rpc.github.getOwners(),
   });
+  const selectedRemote = projectSettings?.remote?.trim() || 'origin';
 
   const owners = data?.owners?.map((o) => ({ value: o.login, label: o.login })) ?? [];
   const owner = selectedOwner ?? owners[0] ?? null;
@@ -86,7 +92,12 @@ export function AddRemoteModal({
         }
 
         const cloneUrl = `https://github.com/${result.nameWithOwner}.git`;
-        const addRemoteResult = await rpc.git.addRemote(projectId, workspaceId, 'origin', cloneUrl);
+        const addRemoteResult = await rpc.git.addRemote(
+          projectId,
+          workspaceId,
+          selectedRemote,
+          cloneUrl
+        );
 
         if (!addRemoteResult.success) {
           setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
@@ -96,7 +107,7 @@ export function AddRemoteModal({
         const addRemoteResult = await rpc.git.addRemote(
           projectId,
           workspaceId,
-          'origin',
+          selectedRemote,
           url.trim()
         );
 

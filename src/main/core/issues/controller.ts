@@ -4,6 +4,8 @@ import type {
   ConnectionStatusMap,
   IssueProviderType,
 } from '@shared/issue-providers';
+import { selectPreferredRemote } from '@main/core/git/remote-preference';
+import { projectManager } from '@main/core/projects/project-manager';
 import type { IssueProvider, IssueQueryOpts, IssueSearchOpts } from './issue-provider';
 import { getAllIssueProviders, getIssueProvider } from './registry';
 
@@ -51,6 +53,19 @@ async function checkProviderConnection(provider: IssueProvider): Promise<Connect
   }
 }
 
+async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T> {
+  if (!opts.projectId) return opts;
+  const project = projectManager.getProject(opts.projectId);
+  if (!project) return opts;
+
+  const [configuredRemote, remotes] = await Promise.all([
+    project.settings.getRemote().catch(() => undefined),
+    project.git.getRemotes().catch(() => []),
+  ]);
+  const remote = selectPreferredRemote(configuredRemote, remotes);
+  return { ...opts, remote };
+}
+
 export const issueController = createRPCController({
   checkConnection: async (provider: IssueProviderType) => {
     const issueProvider = getIssueProvider(provider);
@@ -84,7 +99,7 @@ export const issueController = createRPCController({
       return { success: false, error: `Unknown provider: ${provider}` } as const;
     }
 
-    return issueProvider.listIssues(opts);
+    return issueProvider.listIssues(await withResolvedRemote(opts));
   },
 
   searchIssues: async (provider: IssueProviderType, opts: IssueSearchOpts) => {
@@ -93,6 +108,6 @@ export const issueController = createRPCController({
       return { success: false, error: `Unknown provider: ${provider}` } as const;
     }
 
-    return issueProvider.searchIssues(opts);
+    return issueProvider.searchIssues(await withResolvedRemote(opts));
   },
 });

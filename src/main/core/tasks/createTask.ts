@@ -1,6 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { err, ok, Result } from '@shared/result';
 import type { CreateTaskError, CreateTaskParams, Task } from '@shared/tasks';
+import { selectPreferredRemote } from '@main/core/git/remote-preference';
 import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { findPrForBranch, resolveInitialStatus } from '@main/core/task-status/pr-task-bridge';
@@ -37,8 +38,8 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
   }
   const projectSettings = await project.settings.get();
   const sourceBranchRemote = params.sourceBranch.remote?.trim();
-  const remote = projectSettings.remote?.trim() || sourceBranchRemote || 'origin';
   const remotes = await project.git.getRemotes();
+  const remote = selectPreferredRemote(projectSettings.remote, remotes);
   const canUseRemote = remotes.some((candidate) => candidate.name === remote);
   const canUseRemoteBase = canUseRemote && !!sourceBranchRemote;
 

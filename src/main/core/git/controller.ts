@@ -1,8 +1,20 @@
 import type { DiffBase } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
+import { selectPreferredRemote } from '@main/core/git/remote-preference';
+import type { GitProvider } from '@main/core/git/types';
+import { projectManager } from '@main/core/projects/project-manager';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
+
+async function resolveSelectedRemote(projectId: string, git: GitProvider): Promise<string> {
+  const project = projectManager.getProject(projectId);
+  const configuredRemote = project
+    ? await project.settings.getRemote().catch(() => undefined)
+    : undefined;
+  const remotes = await git.getRemotes().catch(() => []);
+  return selectPreferredRemote(configuredRemote, remotes);
+}
 
 export const gitController = createRPCController({
   getStatus: async (projectId: string, workspaceId: string) => {
@@ -209,7 +221,8 @@ export const gitController = createRPCController({
   push: async (projectId: string, workspaceId: string) => {
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.push();
+    const remote = await resolveSelectedRemote(projectId, env.git);
+    const result = await env.git.push(remote);
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
   },
@@ -228,7 +241,8 @@ export const gitController = createRPCController({
   publishBranch: async (projectId: string, workspaceId: string, branchName: string) => {
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.publishBranch(branchName);
+    const remote = await resolveSelectedRemote(projectId, env.git);
+    const result = await env.git.publishBranch(branchName, remote);
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
   },
@@ -259,7 +273,13 @@ export const gitController = createRPCController({
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
-      const result = await env.git.getLog({ maxCount, skip, knownAheadCount });
+      const remote = await resolveSelectedRemote(projectId, env.git);
+      const result = await env.git.getLog({
+        maxCount,
+        skip,
+        knownAheadCount,
+        preferredRemote: remote,
+      });
       return ok({ commits: result.commits, aheadCount: result.aheadCount });
     } catch (e) {
       log.error('gitCtrl.getLog failed', { projectId, workspaceId, error: e });
@@ -342,7 +362,8 @@ export const gitController = createRPCController({
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
-      const defaultBranch = await env.git.getDefaultBranch();
+      const remote = await resolveSelectedRemote(projectId, env.git);
+      const defaultBranch = await env.git.getDefaultBranch(remote);
       return ok(defaultBranch);
     } catch (e) {
       log.error('gitCtrl.getDefaultBranch failed', { projectId, workspaceId, error: e });

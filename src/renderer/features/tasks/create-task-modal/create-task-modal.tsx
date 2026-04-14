@@ -220,6 +220,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             <FromIssueContent
               state={fromIssue}
               branches={branchOptions}
+              projectId={selectedProjectId}
               nameWithOwner={nameWithOwner}
               projectPath={projectData?.path}
               disabled={isTransitioning}

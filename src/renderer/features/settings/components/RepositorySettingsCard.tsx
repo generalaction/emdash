@@ -53,8 +53,8 @@ const RepositorySettingsCard: React.FC = () => {
         </div>
       </div>
       <SettingRow
-        title="Auto-push to origin"
-        description="Push the new branch to origin and set upstream after creation."
+        title="Auto-push on create"
+        description="Push the new branch to the selected project remote and set upstream after creation."
         control={
           <>
             {isFieldOverridden('pushOnCreate') && (

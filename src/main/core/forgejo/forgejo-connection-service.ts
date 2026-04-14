@@ -3,7 +3,7 @@ import { createClient, type Client } from '@llamaduck/forgejo-ts/client';
 import { AxiosError } from 'axios';
 import keytar from 'keytar';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
-import { resolveOriginRemote } from '@main/core/issues/git-remote-resolver';
+import { resolvePreferredRemote } from '@main/core/issues/git-remote-resolver';
 import {
   assertRemoteHostMatchesInstance,
   hasKnownNetworkErrorCode,
@@ -154,10 +154,11 @@ export class ForgejoConnectionService {
   }
 
   async resolveRepo(
-    projectPath: string
+    projectPath: string,
+    remoteName?: string
   ): Promise<{ client: Client; owner: string; repo: string; repoName: string }> {
     const { instanceUrl, client } = await this.requireAuth();
-    const remote = await resolveOriginRemote(projectPath);
+    const remote = await resolvePreferredRemote(projectPath, remoteName);
 
     assertRemoteHostMatchesInstance(remote.host, instanceUrl, 'Forgejo');
 

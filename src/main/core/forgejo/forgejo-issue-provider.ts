@@ -28,12 +28,18 @@ function toIssue(issue: ForgejoIssue, repoName: string): Issue {
   };
 }
 
-async function listIssues(projectPath: string, limit: number): Promise<IssueListResult> {
+async function listIssues(
+  projectPath: string,
+  remoteName: string | undefined,
+  limit: number
+): Promise<IssueListResult> {
   const perPage = clampIssueLimit(limit, 50, 100);
 
   try {
-    const { client, owner, repo, repoName } =
-      await forgejoConnectionService.resolveRepo(projectPath);
+    const { client, owner, repo, repoName } = await forgejoConnectionService.resolveRepo(
+      projectPath,
+      remoteName
+    );
 
     const { data: issues } = await issueListIssues({
       client,
@@ -56,6 +62,7 @@ async function listIssues(projectPath: string, limit: number): Promise<IssueList
 
 async function searchIssues(
   projectPath: string,
+  remoteName: string | undefined,
   searchTerm: string,
   limit: number
 ): Promise<IssueListResult> {
@@ -67,8 +74,10 @@ async function searchIssues(
   const perPage = clampIssueLimit(limit, 20, 100);
 
   try {
-    const { client, owner, repo, repoName } =
-      await forgejoConnectionService.resolveRepo(projectPath);
+    const { client, owner, repo, repoName } = await forgejoConnectionService.resolveRepo(
+      projectPath,
+      remoteName
+    );
 
     const { data: issues } = await issueListIssues({
       client,
@@ -107,7 +116,7 @@ export const forgejoIssueProvider: IssueProvider = {
       return { success: false, error: 'Project path is required.' };
     }
 
-    return listIssues(projectPath, opts.limit ?? 50);
+    return listIssues(projectPath, opts.remote, opts.limit ?? 50);
   },
 
   searchIssues: async (opts) => {
@@ -116,6 +125,6 @@ export const forgejoIssueProvider: IssueProvider = {
       return { success: false, error: 'Project path is required.' };
     }
 
-    return searchIssues(projectPath, opts.searchTerm, opts.limit ?? 20);
+    return searchIssues(projectPath, opts.remote, opts.searchTerm, opts.limit ?? 20);
   },
 };
