@@ -177,7 +177,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 </details>
 
 <details>
-<summary><b>I hit a native‑module crash (sqlite3 / node‑pty / keytar). What’s the fast fix?</b></summary>
+<summary><b>I hit a native‑module crash (sqlite3 / node‑pty ). What’s the fast fix?</b></summary>
 
 > This usually happens after switching Node/Electron versions.
 >

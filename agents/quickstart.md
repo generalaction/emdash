@@ -37,5 +37,5 @@ pnpm run docs:build
 ## Important Notes
 
 - The docs app and the Electron renderer both default to port `3000`.
-- After native dependency changes (`sqlite3`, `node-pty`, `keytar`), run `pnpm run rebuild`.
+- After native dependency changes (`sqlite3`, `node-pty`), run `pnpm run rebuild`.
 - Husky and lint-staged run formatting and linting on staged files during commit.
