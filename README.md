@@ -225,6 +225,17 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions and [docs/ssh-architecture.md](./docs/ssh-architecture.md) for technical details.
 </details>
 
+---
+
+```
+In parallel paths the agents roam,
+Each worktree branch a world its own.
+A dash of code, a prompt, a plan—
+The future built by human hand.
+```
+
+---
+
 [![Follow @emdashsh](https://img.shields.io/twitter/follow/emdashsh?style=social&label=Follow%20%40emdashsh)](https://x.com/emdashsh)
 [![Follow @rabanspiegel](https://img.shields.io/twitter/follow/rabanspiegel?style=social&label=Follow%20%40rabanspiegel)](https://x.com/rabanspiegel)
 [![Follow @arnestrickmann](https://img.shields.io/twitter/follow/arnestrickmann?style=social&label=Follow%20%40arnestrickmann)](https://x.com/arnestrickmann)
