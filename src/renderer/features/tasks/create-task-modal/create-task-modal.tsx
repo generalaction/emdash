@@ -1,6 +1,7 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import type { Branch } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 import { useRepository } from '@renderer/features/projects/repository/use-repository';
 import {
@@ -59,8 +60,14 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   });
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const { branches, defaultBranch } = useRepository(selectedProjectId);
+  const { branches, defaultBranch, headState } = useRepository(selectedProjectId);
   const { navigate } = useNavigate();
+  const isUnborn = headState?.isUnborn ?? false;
+  const branchOptions: Branch[] = useMemo(() => {
+    if (branches.length > 0) return branches;
+    if (!headState?.headName) return branches;
+    return [{ type: 'local', branch: headState.headName }];
+  }, [branches, headState?.headName]);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
@@ -68,9 +75,15 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const { data: remoteState } = useNameWithOwner(selectedProjectId);
   const nameWithOwner = remoteState?.status === 'ready' ? remoteState.nameWithOwner : undefined;
 
-  const fromBranch = useFromBranchMode(selectedProjectId, branches, defaultBranch);
-  const fromIssue = useFromIssueMode(selectedProjectId, branches, defaultBranch);
-  const fromPR = useFromPullRequestMode(selectedProjectId, branches, defaultBranch, initialPR);
+  const fromBranch = useFromBranchMode(selectedProjectId, branches, defaultBranch, headState);
+  const fromIssue = useFromIssueMode(selectedProjectId, branches, defaultBranch, headState);
+  const fromPR = useFromPullRequestMode(
+    selectedProjectId,
+    branches,
+    defaultBranch,
+    headState,
+    initialPR
+  );
   const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !nameWithOwner;
 
   const activeMode = {
@@ -87,8 +100,17 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     if (projectStore?.state !== 'mounted') return;
 
     switch (selectedStrategy) {
-      case 'from-branch':
+      case 'from-branch': {
         if (!fromBranch.selectedBranch) return;
+        const taskStrategy = isUnborn
+          ? { kind: 'no-worktree' as const }
+          : fromBranch.createBranchAndWorktree
+            ? {
+                kind: 'new-branch' as const,
+                taskBranch: fromBranch.taskName,
+                pushBranch: fromBranch.pushBranch,
+              }
+            : { kind: 'no-worktree' as const };
         void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
@@ -97,15 +119,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             branch: fromBranch.selectedBranch.branch,
             remote: fromBranch.selectedBranch.remote,
           },
-          strategy: fromBranch.createBranchAndWorktree
-            ? {
-                kind: 'new-branch',
-                taskBranch: fromBranch.taskName,
-                pushBranch: fromBranch.pushBranch,
-              }
-            : { kind: 'no-worktree' },
+          strategy: taskStrategy,
         });
         break;
+      }
       case 'from-issue':
         if (!fromIssue.selectedBranch) return;
         void projectStore.mountedProject!.taskManager.createTask({
@@ -148,7 +165,16 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
     navigate('task', { projectId: selectedProjectId, taskId: id });
     onClose();
-  }, [selectedProjectId, selectedStrategy, fromBranch, fromIssue, fromPR, navigate, onClose]);
+  }, [
+    selectedProjectId,
+    selectedStrategy,
+    fromBranch,
+    fromIssue,
+    fromPR,
+    isUnborn,
+    navigate,
+    onClose,
+  ]);
 
   return (
     <>
@@ -188,15 +214,16 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         </ToggleGroup>
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
           {selectedStrategy === 'from-branch' && (
-            <FromBranchContent state={fromBranch} branches={branches} />
+            <FromBranchContent state={fromBranch} branches={branchOptions} isUnborn={isUnborn} />
           )}
           {selectedStrategy === 'from-issue' && (
             <FromIssueContent
               state={fromIssue}
-              branches={branches}
+              branches={branchOptions}
               nameWithOwner={nameWithOwner}
               projectPath={projectData?.path}
               disabled={isTransitioning}
+              isUnborn={isUnborn}
             />
           )}
           {selectedStrategy === 'from-pull-request' && (
