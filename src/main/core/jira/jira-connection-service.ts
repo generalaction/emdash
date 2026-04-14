@@ -1,7 +1,7 @@
 import { request } from 'node:https';
 import { URL } from 'node:url';
-import keytar from 'keytar';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
+import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { KV } from '@main/db/kv';
 import { capture } from '@main/lib/telemetry';
 
@@ -25,8 +25,7 @@ function encodeBasic(email: string, token: string): string {
 }
 
 export class JiraConnectionService {
-  private readonly SERVICE = 'emdash-jira';
-  private readonly ACCOUNT = 'api-token';
+  private readonly JIRA_TOKEN_SECRET_KEY = 'emdash-jira-token';
 
   async saveCredentials(
     siteUrl: string,
@@ -35,7 +34,7 @@ export class JiraConnectionService {
   ): Promise<{ success: boolean; displayName?: string; error?: string }> {
     try {
       const me = await this.getMyself(siteUrl, email, token);
-      await keytar.setPassword(this.SERVICE, this.ACCOUNT, token);
+      await encryptedAppSecretsStore.setSecret(this.JIRA_TOKEN_SECRET_KEY, token);
       await this.writeCreds({ siteUrl, email });
       capture('integration_connected', { provider: 'jira' });
       return { success: true, displayName: me?.displayName };
@@ -47,7 +46,7 @@ export class JiraConnectionService {
   async clearCredentials(): Promise<{ success: boolean; error?: string }> {
     try {
       try {
-        await keytar.deletePassword(this.SERVICE, this.ACCOUNT);
+        await encryptedAppSecretsStore.deleteSecret(this.JIRA_TOKEN_SECRET_KEY);
       } catch {}
       try {
         await jiraKV.del('creds');
@@ -69,7 +68,7 @@ export class JiraConnectionService {
         };
       }
 
-      const token = await keytar.getPassword(this.SERVICE, this.ACCOUNT);
+      const token = await encryptedAppSecretsStore.getSecret(this.JIRA_TOKEN_SECRET_KEY);
       if (!token) {
         return {
           connected: false,
@@ -96,7 +95,7 @@ export class JiraConnectionService {
     const creds = await this.readCreds();
     if (!creds) throw new Error('Jira credentials not set.');
 
-    const token = await keytar.getPassword(this.SERVICE, this.ACCOUNT);
+    const token = await encryptedAppSecretsStore.getSecret(this.JIRA_TOKEN_SECRET_KEY);
     if (!token) throw new Error('Jira token not found.');
 
     return { ...creds, token };

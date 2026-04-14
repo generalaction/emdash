@@ -5,8 +5,8 @@ import {
   PlainError,
   RateLimitError,
 } from '@team-plain/graphql';
-import keytar from 'keytar';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
+import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 
 const NOT_CONFIGURED_ERROR = 'Plain is not configured. Connect Plain in settings.';
@@ -38,8 +38,7 @@ function isNotConfigured(error: unknown): boolean {
 }
 
 export class PlainConnectionService {
-  private readonly SERVICE_NAME = 'emdash-plain';
-  private readonly ACCOUNT_NAME = 'api-token';
+  private readonly PLAIN_TOKEN_SECRET_KEY = 'emdash-plain-token';
 
   private cachedToken: string | null | undefined = undefined;
   private client: PlainClient | null = null;
@@ -66,7 +65,7 @@ export class PlainConnectionService {
 
   async clearToken(): Promise<{ success: boolean; error?: string }> {
     try {
-      await keytar.deletePassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      await encryptedAppSecretsStore.deleteSecret(this.PLAIN_TOKEN_SECRET_KEY);
       this.cachedToken = null;
       this.client = null;
       this.clientToken = null;
@@ -130,7 +129,7 @@ export class PlainConnectionService {
   }
 
   private async storeToken(token: string): Promise<void> {
-    await keytar.setPassword(this.SERVICE_NAME, this.ACCOUNT_NAME, token);
+    await encryptedAppSecretsStore.setSecret(this.PLAIN_TOKEN_SECRET_KEY, token);
     this.cachedToken = token;
   }
 
@@ -140,10 +139,10 @@ export class PlainConnectionService {
     }
 
     try {
-      this.cachedToken = await keytar.getPassword(this.SERVICE_NAME, this.ACCOUNT_NAME);
+      this.cachedToken = await encryptedAppSecretsStore.getSecret(this.PLAIN_TOKEN_SECRET_KEY);
       return this.cachedToken;
     } catch (error) {
-      log.error('Failed to read Plain token from keychain:', error);
+      log.error('Failed to read Plain token from secure storage:', error);
       return null;
     }
   }

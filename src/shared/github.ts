@@ -6,7 +6,7 @@ export interface GitHubUser {
   avatar_url: string;
 }
 
-export type GitHubTokenSource = 'keytar' | 'cli' | null;
+export type GitHubTokenSource = 'secure_storage' | 'cli' | null;
 
 export interface GitHubStatusResponse {
   authenticated: boolean;

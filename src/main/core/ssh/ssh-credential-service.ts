@@ -1,11 +1,17 @@
-import keytar from 'keytar';
-
-const SERVICE_NAME = 'emdash-ssh';
+import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 
 export class SshCredentialService {
+  private passwordSecretKey(connectionId: string): string {
+    return `ssh:${connectionId}:password`;
+  }
+
+  private passphraseSecretKey(connectionId: string): string {
+    return `ssh:${connectionId}:passphrase`;
+  }
+
   async storePassword(connectionId: string, password: string): Promise<void> {
     try {
-      await keytar.setPassword(SERVICE_NAME, `${connectionId}:password`, password);
+      await encryptedAppSecretsStore.setSecret(this.passwordSecretKey(connectionId), password);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to store password for connection ${connectionId}: ${message}`);
@@ -14,7 +20,7 @@ export class SshCredentialService {
 
   async getPassword(connectionId: string): Promise<string | null> {
     try {
-      return await keytar.getPassword(SERVICE_NAME, `${connectionId}:password`);
+      return await encryptedAppSecretsStore.getSecret(this.passwordSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to retrieve password for connection ${connectionId}: ${message}`);
@@ -23,7 +29,7 @@ export class SshCredentialService {
 
   async deletePassword(connectionId: string): Promise<void> {
     try {
-      await keytar.deletePassword(SERVICE_NAME, `${connectionId}:password`);
+      await encryptedAppSecretsStore.deleteSecret(this.passwordSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to delete password for connection ${connectionId}: ${message}`);
@@ -32,7 +38,9 @@ export class SshCredentialService {
 
   async hasPassword(connectionId: string): Promise<boolean> {
     try {
-      const credential = await keytar.getPassword(SERVICE_NAME, `${connectionId}:password`);
+      const credential = await encryptedAppSecretsStore.getSecret(
+        this.passwordSecretKey(connectionId)
+      );
       return credential !== null;
     } catch {
       return false;
@@ -41,7 +49,7 @@ export class SshCredentialService {
 
   async storePassphrase(connectionId: string, passphrase: string): Promise<void> {
     try {
-      await keytar.setPassword(SERVICE_NAME, `${connectionId}:passphrase`, passphrase);
+      await encryptedAppSecretsStore.setSecret(this.passphraseSecretKey(connectionId), passphrase);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to store passphrase for connection ${connectionId}: ${message}`);
@@ -50,7 +58,7 @@ export class SshCredentialService {
 
   async getPassphrase(connectionId: string): Promise<string | null> {
     try {
-      return await keytar.getPassword(SERVICE_NAME, `${connectionId}:passphrase`);
+      return await encryptedAppSecretsStore.getSecret(this.passphraseSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to retrieve passphrase for connection ${connectionId}: ${message}`);
@@ -59,7 +67,7 @@ export class SshCredentialService {
 
   async deletePassphrase(connectionId: string): Promise<void> {
     try {
-      await keytar.deletePassword(SERVICE_NAME, `${connectionId}:passphrase`);
+      await encryptedAppSecretsStore.deleteSecret(this.passphraseSecretKey(connectionId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to delete passphrase for connection ${connectionId}: ${message}`);
@@ -68,7 +76,9 @@ export class SshCredentialService {
 
   async hasPassphrase(connectionId: string): Promise<boolean> {
     try {
-      const credential = await keytar.getPassword(SERVICE_NAME, `${connectionId}:passphrase`);
+      const credential = await encryptedAppSecretsStore.getSecret(
+        this.passphraseSecretKey(connectionId)
+      );
       return credential !== null;
     } catch {
       return false;

@@ -30,7 +30,7 @@ export const sshController = createRPCController({
     }));
   },
 
-  /** Create or update an SSH connection, storing secrets in the OS keychain. */
+  /** Create or update an SSH connection, storing secrets in local secure storage. */
   saveConnection: async (
     config: Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }
   ): Promise<SshConfig> => {

@@ -1,13 +1,12 @@
-import keytar from 'keytar';
+import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 
-const SERVICE_NAME = 'emdash-account';
-const SESSION_ACCOUNT = 'session-token';
+const ACCOUNT_SESSION_SECRET_KEY = 'emdash-account-token';
 
 export class AccountCredentialStore {
   async get(): Promise<string | null> {
     try {
-      return await keytar.getPassword(SERVICE_NAME, SESSION_ACCOUNT);
+      return await encryptedAppSecretsStore.getSecret(ACCOUNT_SESSION_SECRET_KEY);
     } catch (error) {
       log.error('Failed to retrieve session token:', error);
       return null;
@@ -16,7 +15,7 @@ export class AccountCredentialStore {
 
   async set(token: string): Promise<void> {
     try {
-      await keytar.setPassword(SERVICE_NAME, SESSION_ACCOUNT, token);
+      await encryptedAppSecretsStore.setSecret(ACCOUNT_SESSION_SECRET_KEY, token);
     } catch (error) {
       log.error('Failed to store session token:', error);
       throw error;
@@ -25,7 +24,7 @@ export class AccountCredentialStore {
 
   async clear(): Promise<void> {
     try {
-      await keytar.deletePassword(SERVICE_NAME, SESSION_ACCOUNT);
+      await encryptedAppSecretsStore.deleteSecret(ACCOUNT_SESSION_SECRET_KEY);
     } catch (error) {
       log.error('Failed to clear session token:', error);
     }
