@@ -1,6 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { AgentProviderId, isValidProviderId } from '@shared/agent-provider-registry';
+import {
+  AGENT_PROVIDER_IDS,
+  AgentProviderId,
+  isValidProviderId,
+} from '@shared/agent-provider-registry';
 import { getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
@@ -8,6 +12,7 @@ import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-sel
 import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { getPaneContainer } from '@renderer/lib/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/lib/pty/pty-dimensions';
+import { appState } from '@renderer/lib/stores/app-state';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -18,6 +23,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
+import { resolveConversationProviderSelection } from './provider-selection';
 
 function getConversationsPaneSize() {
   const container = getPaneContainer('conversations');
@@ -37,10 +43,22 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const defaultProviderId: AgentProviderId = isValidProviderId(defaultAgentValue)
     ? defaultAgentValue
     : 'claude';
-  const providerId = providerOverride ?? defaultProviderId;
 
   const projectData = getProjectStore(projectId)?.data;
   const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
+  const dependencyResource = connectionId
+    ? appState.dependencies.getRemote(connectionId)
+    : appState.dependencies.local;
+  const availabilityKnown = dependencyResource.data !== null;
+  const installedProviderIds = AGENT_PROVIDER_IDS.filter(
+    (id) => dependencyResource.data?.[id]?.status === 'available'
+  );
+  const { providerId, createDisabled } = resolveConversationProviderSelection({
+    defaultProviderId,
+    providerOverride,
+    installedProviderIds,
+    availabilityKnown,
+  });
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
   const { value: taskSettings } = useAppSettingsKey('tasks');
   const defaultSkipPermissions = taskSettings?.autoApproveByDefault ?? false;
@@ -48,14 +66,16 @@ export const CreateConversationModal = observer(function CreateConversationModal
     undefined
   );
   const skipPermissions = skipPermissionsOverride ?? defaultSkipPermissions;
+  const titleProviderId = providerId ?? defaultProviderId;
   const title = nextDefaultConversationTitle(
-    providerId,
+    titleProviderId,
     Array.from(conversationMgr?.conversations.values() ?? [], (conversation) => conversation.data)
   );
 
   const handleCreateConversation = useCallback(() => {
+    if (createDisabled || !conversationMgr || !providerId) return;
     const id = crypto.randomUUID();
-    conversationMgr?.createConversation({
+    conversationMgr.createConversation({
       projectId,
       taskId,
       id,
@@ -65,7 +85,16 @@ export const CreateConversationModal = observer(function CreateConversationModal
       initialSize: getConversationsPaneSize(),
     });
     onSuccess({ conversationId: id });
-  }, [conversationMgr, providerId, title, onSuccess, projectId, taskId, skipPermissions]);
+  }, [
+    conversationMgr,
+    createDisabled,
+    providerId,
+    title,
+    onSuccess,
+    projectId,
+    taskId,
+    skipPermissions,
+  ]);
 
   return (
     <>
@@ -91,7 +120,9 @@ export const CreateConversationModal = observer(function CreateConversationModal
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>
-        <ConfirmButton onClick={handleCreateConversation}>Create</ConfirmButton>
+        <ConfirmButton onClick={handleCreateConversation} disabled={createDisabled}>
+          Create
+        </ConfirmButton>
       </DialogFooter>
     </>
   );
