@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
+import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
 
 export const UpdateSection = observer(function UpdateSection() {
@@ -9,19 +10,9 @@ export const UpdateSection = observer(function UpdateSection() {
 
   if (update.hasUpdate) {
     return (
-      <button
-        type="button"
-        onClick={() => navigate('settings')}
-        className="group flex items-center"
-      >
-        <MicroLabel className="lowercase text-foreground-passive group-hover:text-foreground cursor-pointer flex items-center gap-1">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-          </span>
-          {update.availableVersion ? `v${update.availableVersion}` : 'Update'}
-        </MicroLabel>
-      </button>
+      <Button variant="outline" size="sm" onClick={() => navigate('settings')}>
+        Upgrade
+      </Button>
     );
   }
 
