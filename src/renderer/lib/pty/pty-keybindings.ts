@@ -24,6 +24,16 @@ export function shouldMapShiftEnterToCtrlJ(event: KeyEventLike): boolean {
   );
 }
 
+export function shouldHandleInterruptFromTerminal(event: KeyEventLike): boolean {
+  return (
+    event.type === 'keydown' &&
+    event.key === 'Escape' &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey
+  );
+}
+
 export function shouldCopySelectionFromTerminal(
   event: KeyEventLike,
   isMacPlatform: boolean,

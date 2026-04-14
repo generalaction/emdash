@@ -20,7 +20,8 @@ type Props = {
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
-  onEnterPress?: () => void;
+  onEnterPress?: (message: string) => void;
+  onInterruptPress?: () => void;
 };
 
 const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
@@ -37,6 +38,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
       onExit,
       onFirstMessage,
       onEnterPress,
+      onInterruptPress,
     },
     ref
   ) => {
@@ -44,7 +46,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
 
     const theme: SessionTheme = { override: themeOverride };
 
-    const { focus } = usePty(
+    const { focus, sendInput } = usePty(
       {
         sessionId,
         pty,
@@ -54,6 +56,7 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         onExit,
         onFirstMessage,
         onEnterPress,
+        onInterruptPress,
       },
       containerRef
     );
@@ -84,14 +87,14 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
               const escaped = result.data.remotePaths
                 .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
                 .join(' ');
-              await rpc.pty.sendInput(sessionId, `${escaped} `);
+              sendInput(`${escaped} `);
             }
           } catch (error) {
             log.warn('SSH file transfer failed', { error });
           }
         } else {
           const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
-          await rpc.pty.sendInput(sessionId, `${escaped} `);
+          sendInput(`${escaped} `);
         }
         focus();
       } catch (error) {

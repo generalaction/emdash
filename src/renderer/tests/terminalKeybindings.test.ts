@@ -3,6 +3,7 @@ import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
   shouldCopySelectionFromTerminal,
+  shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
@@ -194,5 +195,21 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
         isMac
       )
     ).toBe(false);
+  });
+
+  it('detects plain Escape as interrupt intent', () => {
+    expect(shouldHandleInterruptFromTerminal(makeEvent({ key: 'Escape' }))).toBe(true);
+    expect(shouldHandleInterruptFromTerminal(makeEvent({ key: 'Escape', ctrlKey: true }))).toBe(
+      false
+    );
+    expect(shouldHandleInterruptFromTerminal(makeEvent({ key: 'Escape', metaKey: true }))).toBe(
+      false
+    );
+    expect(shouldHandleInterruptFromTerminal(makeEvent({ key: 'Escape', altKey: true }))).toBe(
+      false
+    );
+    expect(shouldHandleInterruptFromTerminal(makeEvent({ type: 'keyup', key: 'Escape' }))).toBe(
+      false
+    );
   });
 });
