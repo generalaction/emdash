@@ -3,7 +3,7 @@ import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { Snapshottable } from '@renderer/lib/stores/snapshottable';
-import { GitStore } from './git';
+import { GitStore } from './git-store';
 
 /**
  * Maximum number of files that the stacked diff view can handle.
@@ -47,7 +47,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     });
 
     // Sync activeFile when staged/unstaged lists change (replaces ActiveFileSync component).
-    // Files with type='git' are not in working-tree lists and are left unchanged.
+    // Files with group='git' are not in working-tree lists and are left unchanged.
     this._disposeReactions.push(
       reaction(
         () => ({
@@ -56,9 +56,9 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
         }),
         ({ staged, unstaged }) => {
           const current = this.activeFile;
-          if (!current || current.type === 'git') return;
+          if (!current || current.group === 'git') return;
 
-          const isStaged = current.type === 'staged';
+          const isStaged = current.group === 'staged';
           const inCurrentList = (isStaged ? staged : unstaged).some((f) => f.path === current.path);
           if (inCurrentList) return;
 
@@ -69,7 +69,8 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
             if (movedToStaged) {
               this.activeFile = {
                 ...current,
-                type: 'staged',
+                type: 'git',
+                group: 'staged',
                 originalRef: 'HEAD',
                 scrollBehavior: 'auto',
               };
@@ -77,6 +78,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
               this.activeFile = {
                 ...current,
                 type: 'disk',
+                group: 'disk',
                 originalRef: 'HEAD',
                 scrollBehavior: 'auto',
               };
@@ -93,8 +95,8 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       reaction(
         () => this.activeFile,
         (file) => {
-          if (!file || file.type === 'git') return;
-          this.changesView.expandForActiveFileType(file.type);
+          if (!file || file.group === 'git' || file.group === 'pr') return;
+          this.changesView.expandForActiveFileType(file.group);
         }
       )
     );
@@ -169,10 +171,12 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   private _currentFileCount(): number {
     const file = this.activeFile;
     if (!file) return 0;
-    if (file.type === 'staged') return this.git.stagedFileChanges.length;
-    if (file.type === 'disk') return this.git.unstagedFileChanges.length;
-    // 'git' type — look up PR files by the base ref from PrStore.
-    const activePr = this.pr.pullRequests.find((p) => p.metadata.baseRefName === file.originalRef);
+    if (file.group === 'staged') return this.git.stagedFileChanges.length;
+    if (file.group === 'disk') return this.git.unstagedFileChanges.length;
+    if (file.group !== 'pr') return 0;
+    const activePr = this.pr.pullRequests.find(
+      (p) => file.prNumber != null && p.metadata.number === file.prNumber
+    );
     return activePr ? (this.pr.getFiles(activePr).data?.length ?? 0) : 0;
   }
 

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { useState } from 'react';
+import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -52,16 +53,11 @@ export function AddRemoteModal({
   const [url, setUrl] = useState('');
 
   const queryClient = useQueryClient();
-  const { data: projectSettings } = useQuery({
-    queryKey: ['project', 'settings', projectId],
-    queryFn: () => rpc.projects.getProjectSettings(projectId),
-    enabled: !!projectId,
-  });
   const { data } = useQuery({
     queryKey: ['owners'],
     queryFn: () => rpc.github.getOwners(),
   });
-  const selectedRemote = projectSettings?.remote?.trim() || 'origin';
+  const selectedRemote = getRepositoryStore(projectId)?.configuredRemote ?? 'origin';
 
   const owners = data?.owners?.map((o) => ({ value: o.login, label: o.login })) ?? [];
   const owner = selectedOwner ?? owners[0] ?? null;
@@ -92,21 +88,15 @@ export function AddRemoteModal({
         }
 
         const cloneUrl = `https://github.com/${result.nameWithOwner}.git`;
-        const addRemoteResult = await rpc.git.addRemote(
-          projectId,
-          workspaceId,
-          selectedRemote,
-          cloneUrl
-        );
+        const addRemoteResult = await rpc.repository.addRemote(projectId, selectedRemote, cloneUrl);
 
         if (!addRemoteResult.success) {
           setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
           return;
         }
       } else {
-        const addRemoteResult = await rpc.git.addRemote(
+        const addRemoteResult = await rpc.repository.addRemote(
           projectId,
-          workspaceId,
           selectedRemote,
           url.trim()
         );
@@ -117,7 +107,12 @@ export function AddRemoteModal({
         }
       }
 
-      const publishResult = await rpc.git.publishBranch(projectId, workspaceId, branchName);
+      const publishResult = await rpc.git.publishBranch(
+        projectId,
+        workspaceId,
+        branchName,
+        selectedRemote
+      );
       if (!publishResult.success) {
         setError(toErrorMessage(publishResult.error, 'Failed to publish branch'));
         return;

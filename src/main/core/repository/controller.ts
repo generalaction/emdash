@@ -1,44 +1,53 @@
+import type { BranchesPayload, LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
-import { selectPreferredRemote } from '../git/remote-preference';
+import { err, ok } from '@shared/result';
 import { projectManager } from '../projects/project-manager';
 
 export const repositoryController = createRPCController({
-  getBranches: async (projectId: string) => {
+  getBranches: async (projectId: string): Promise<BranchesPayload> => {
     const project = projectManager.getProject(projectId);
     if (!project) {
       throw new Error('Project not found');
     }
-    return project.git.getBranches();
+    return project.repository.getBranchesPayload();
   },
-  getHeadState: async (projectId: string) => {
+
+  getLocalBranches: async (projectId: string): Promise<LocalBranchesPayload> => {
     const project = projectManager.getProject(projectId);
-    if (!project) {
-      throw new Error('Project not found');
-    }
-    return project.git.getHeadState();
+    if (!project) throw new Error('Project not found');
+    return project.repository.getLocalBranchesPayload();
   },
-  getDefaultBranch: async (projectId: string) => {
+
+  getRemoteBranches: async (projectId: string): Promise<RemoteBranchesPayload> => {
     const project = projectManager.getProject(projectId);
-    if (!project) {
-      throw new Error('Project not found');
-    }
-    const [name, configuredRemote, branches, remotes] = await Promise.all([
-      project.settings.getDefaultBranch(),
-      project.settings.getRemote(),
-      project.git.getBranches(),
-      project.git.getRemotes(),
-    ]);
-    const remote = selectPreferredRemote(configuredRemote, remotes);
-    const existsLocally = branches.some(
-      (branch) => branch.type === 'local' && branch.branch === name
-    );
-    return { name, remote, existsLocally };
+    if (!project) throw new Error('Project not found');
+    return project.repository.getRemoteBranchesPayload();
   },
+
   getRemotes: async (projectId: string) => {
     const project = projectManager.getProject(projectId);
     if (!project) {
       throw new Error('Project not found');
     }
-    return project.git.getRemotes();
+    return project.repository.getRemotes();
+  },
+
+  addRemote: async (projectId: string, name: string, url: string) => {
+    const project = projectManager.getProject(projectId);
+    if (!project) return err({ type: 'not_found' as const });
+    try {
+      await project.repository.addRemote(name, url);
+      return ok();
+    } catch (e) {
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  renameBranch: async (projectId: string, oldBranch: string, newBranch: string) => {
+    const project = projectManager.getProject(projectId);
+    if (!project) return err({ type: 'not_found' as const });
+    const result = await project.repository.renameBranch(oldBranch, newBranch);
+    if (!result.success) return err(result.error);
+    return ok({ remotePushed: result.data.remotePushed });
   },
 });

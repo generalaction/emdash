@@ -3,7 +3,7 @@ import type { TaskViewSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { ConversationTabViewStore } from '@renderer/features/tasks/conversations/conversation-tab-view-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
-import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git';
+import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git-store';
 import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';

@@ -182,78 +182,34 @@ describe('GitService.getBranches', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getBranchStatus()
-// ---------------------------------------------------------------------------
-
-describe('GitService.getBranchStatus', () => {
-  it('returns branch name with ahead/behind when upstream is configured', async () => {
-    const svc = makeService(
-      makeExec({
-        'branch --show-current': 'main',
-        'rev-parse --abbrev-ref --symbolic-full-name @{upstream}': 'refs/remotes/origin/main',
-        'rev-list --left-right --count @{upstream}...HEAD': '2\t3',
-      })
-    );
-    const status = await svc.getBranchStatus();
-    expect(status).toEqual({
-      branch: 'main',
-      upstream: 'refs/remotes/origin/main',
-      ahead: 3,
-      behind: 2,
-    });
-  });
-
-  it('returns zeros when no upstream is configured', async () => {
-    // Both upstream calls throw — the service should swallow them and default to 0.
-    const exec: ExecFn = async (_cmd, args = []) => {
-      const key = args.join(' ');
-      if (key === 'branch --show-current') return { stdout: 'local-only', stderr: '' };
-      throw Object.assign(new Error('no upstream'), { code: 128 });
-    };
-    const svc = makeService(exec);
-    const status = await svc.getBranchStatus();
-    expect(status).toEqual({ branch: 'local-only', upstream: undefined, ahead: 0, behind: 0 });
-  });
-});
-
-// ---------------------------------------------------------------------------
 // getDefaultBranch()
 // ---------------------------------------------------------------------------
 
 describe('GitService.getDefaultBranch', () => {
-  it('resolves from symbolic-ref cache (heuristic 1) when branch exists locally', async () => {
+  it('resolves from symbolic-ref cache (heuristic 1)', async () => {
     const svc = makeService(
       makePermissiveExec({
         'symbolic-ref refs/remotes/origin/HEAD --short': 'origin/main',
-        'rev-parse --verify refs/heads/main': 'abc123',
       })
     );
-    const result = await svc.getDefaultBranch();
-    expect(result).toEqual({ name: 'main', remote: 'origin', existsLocally: true });
+    expect(await svc.getDefaultBranch()).toBe('main');
   });
 
-  it('resolves from symbolic-ref cache when branch does NOT exist locally', async () => {
-    const exec: ExecFn = async (_cmd, args = []) => {
-      const key = args.join(' ');
-      if (key === 'symbolic-ref refs/remotes/origin/HEAD --short') {
-        return { stdout: 'origin/main', stderr: '' };
-      }
-      // rev-parse for refs/heads/main throws → existsLocally = false
-      throw Object.assign(new Error('no branch'), { code: 128 });
-    };
-    const svc = makeService(exec);
-    const result = await svc.getDefaultBranch();
-    expect(result).toEqual({ name: 'main', remote: 'origin', existsLocally: false });
+  it('resolves from symbolic-ref cache when ref has no slash', async () => {
+    const svc = makeService(
+      makePermissiveExec({
+        'symbolic-ref refs/remotes/origin/HEAD --short': 'main',
+      })
+    );
+    expect(await svc.getDefaultBranch()).toBe('main');
   });
 
   it('falls back to local branch candidate "main" when symbolic-ref fails', async () => {
     const exec: ExecFn = async (_cmd, args = []) => {
       const key = args.join(' ');
-      // heuristic 1 fails
       if (key === 'symbolic-ref refs/remotes/origin/HEAD --short') {
         throw Object.assign(new Error('no HEAD'), { code: 128 });
       }
-      // heuristic 2 fails
       if (key === 'remote show origin') {
         throw Object.assign(new Error('no remote'), { code: 128 });
       }
@@ -263,18 +219,14 @@ describe('GitService.getDefaultBranch', () => {
       }
       throw Object.assign(new Error('unexpected'), { code: 128 });
     };
-    const svc = makeService(exec);
-    const result = await svc.getDefaultBranch();
-    expect(result).toEqual({ name: 'main', remote: undefined, existsLocally: true });
+    expect(await makeService(exec).getDefaultBranch()).toBe('main');
   });
 
   it('falls back to "main" convention when no heuristic resolves', async () => {
     const exec: ExecFn = async () => {
       throw Object.assign(new Error('nothing works'), { code: 128 });
     };
-    const svc = makeService(exec);
-    const result = await svc.getDefaultBranch();
-    expect(result).toEqual({ name: 'main', remote: undefined, existsLocally: false });
+    expect(await makeService(exec).getDefaultBranch()).toBe('main');
   });
 });
 

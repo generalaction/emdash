@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
 import { Conversation } from '@shared/conversations';
+import { bareRefName } from '@shared/git-utils';
 import type { SshProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
@@ -13,9 +14,7 @@ import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conve
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from '@main/core/git/impl/git-service';
-import { bareRefName } from '@main/core/git/impl/git-utils';
-import { selectPreferredRemote } from '@main/core/git/remote-preference';
-import type { GitProvider } from '@main/core/git/types';
+import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
@@ -76,7 +75,7 @@ export async function createSshProvider(
 export class SshProjectProvider implements ProjectProvider {
   readonly type = 'ssh';
   readonly settings: ProjectSettingsProvider;
-  readonly git: GitProvider;
+  readonly repository: GitRepositoryService;
   readonly fs: SshFileSystem;
 
   private tasks = new Map<string, TaskProvider>();
@@ -100,7 +99,8 @@ export class SshProjectProvider implements ProjectProvider {
     this.fs = new SshFileSystem(this.proxy, project.path);
     this.settings = new SshProjectSettingsProvider(this.fs, bareRefName(project.baseRef));
     const gitExec = getGitSshExec(this.proxy, () => githubConnectionService.getToken());
-    this.git = new GitService(project.path, gitExec, this.fs);
+    const repoGit = new GitService(project.path, gitExec, this.fs);
+    this.repository = new GitRepositoryService(repoGit, this.settings);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
       repoPath: project.path,
@@ -509,9 +509,8 @@ export class SshProjectProvider implements ProjectProvider {
 
   async getRemoteState(): Promise<ProjectRemoteState> {
     try {
-      const configuredRemote = await this.settings.getRemote();
-      const remotes = await this.git.getRemotes();
-      const remoteName = selectPreferredRemote(configuredRemote, remotes);
+      const remotes = await this.repository.getRemotes();
+      const remoteName = await this.repository.getConfiguredRemote();
       const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
       return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
     } catch {

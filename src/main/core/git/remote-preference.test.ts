@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_REMOTE_NAME, selectPreferredRemote } from './remote-preference';
+import { DEFAULT_REMOTE_NAME, selectPreferredRemote } from '@shared/git-utils';
 
 describe('selectPreferredRemote', () => {
   it('uses origin when setting is empty', () => {

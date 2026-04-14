@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Conversation } from '@shared/conversations';
+import { bareRefName } from '@shared/git-utils';
 import { LocalProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
@@ -12,10 +13,9 @@ import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import { GitWatcherService } from '@main/core/git/git-watcher-service';
 import { GitService } from '@main/core/git/impl/git-service';
-import { bareRefName } from '@main/core/git/impl/git-utils';
-import { selectPreferredRemote } from '@main/core/git/remote-preference';
-import type { GitProvider } from '@main/core/git/types';
+import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -68,7 +68,7 @@ export async function createLocalProvider(
 export class LocalProjectProvider implements ProjectProvider {
   readonly type = 'local';
   readonly settings: ProjectSettingsProvider;
-  readonly git: GitProvider;
+  readonly repository: GitRepositoryService;
   readonly fs: FileSystemProvider;
 
   private tasks = new Map<string, TaskProvider>();
@@ -78,6 +78,7 @@ export class LocalProjectProvider implements ProjectProvider {
   private worktreeService: WorktreeService;
   private workspaceRegistry = new WorkspaceRegistry();
   private readonly localExec = getLocalExec();
+  private readonly _gitWatcher: GitWatcherService;
 
   constructor(
     private readonly project: LocalProject,
@@ -89,7 +90,8 @@ export class LocalProjectProvider implements ProjectProvider {
     this.settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
     this.fs = new LocalFileSystem(project.path);
     const gitExec = getGitLocalExec(() => githubConnectionService.getToken());
-    this.git = new GitService(project.path, gitExec, this.fs);
+    const repoGit = new GitService(project.path, gitExec, this.fs);
+    this.repository = new GitRepositoryService(repoGit, this.settings);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
       repoPath: project.path,
@@ -97,6 +99,8 @@ export class LocalProjectProvider implements ProjectProvider {
       exec: gitExec,
       rootFs: rootFs,
     });
+    this._gitWatcher = new GitWatcherService(project.id, project.path);
+    void this._gitWatcher.start();
   }
 
   async provisionTask(
@@ -214,6 +218,12 @@ export class LocalProjectProvider implements ProjectProvider {
 
       return createdWorkspace;
     });
+
+    // Register the workspace with the git watcher so that index/HEAD changes
+    // in its worktree git dir are emitted as granular workspace events.
+    const relativeGitDir =
+      workspace.path === this.project.path ? '' : `worktrees/${path.basename(workspace.path)}`;
+    this._gitWatcher.registerWorktree(workspaceId, relativeGitDir);
 
     let provisionSucceeded = false;
     try {
@@ -384,6 +394,9 @@ export class LocalProjectProvider implements ProjectProvider {
 
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
+    if (this.workspaceRegistry.refCount(wsId) <= 1) {
+      this._gitWatcher.unregisterWorktree(wsId);
+    }
     await this.workspaceRegistry.release(wsId);
   }
 
@@ -405,6 +418,8 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   async cleanup(): Promise<void> {
+    await this._gitWatcher.stop();
+
     const settings = await this.settings.get();
 
     if (settings.tmux) {
@@ -469,9 +484,8 @@ export class LocalProjectProvider implements ProjectProvider {
 
   async getRemoteState(): Promise<ProjectRemoteState> {
     try {
-      const configuredRemote = await this.settings.getRemote();
-      const remotes = await this.git.getRemotes();
-      const remoteName = selectPreferredRemote(configuredRemote, remotes);
+      const remotes = await this.repository.getRemotes();
+      const remoteName = await this.repository.getConfiguredRemote();
       const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
       return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
     } catch {

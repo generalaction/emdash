@@ -1,8 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { createContext, ReactNode, useContext } from 'react';
-import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { ProjectViewWrapper } from '@renderer/features/projects/components/project-view-wrapper';
-import { useProjectSettings } from '@renderer/features/projects/use-project-settings';
 import { type ProvisionedTask } from '@renderer/features/tasks/stores/task';
 import {
   asProvisioned,
@@ -46,7 +44,6 @@ export function useProvisionedTask(): ProvisionedTask {
 interface TaskViewContext {
   projectId: string;
   taskId: string;
-  projectSettings?: ProjectSettings;
 }
 
 const TaskViewContext = createContext<TaskViewContext | null>(null);
@@ -60,7 +57,6 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
   projectId: string;
   taskId: string;
 }) {
-  const { settings: projectSettings } = useProjectSettings(projectId);
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
   const hideRightPanel = kind !== 'ready';
@@ -68,7 +64,7 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
   return (
     <ViewLayoutOverrideContext.Provider value={{ hideRightPanel }}>
       <ProjectViewWrapper projectId={projectId}>
-        <TaskViewContext.Provider value={{ projectId, taskId, projectSettings }}>
+        <TaskViewContext.Provider value={{ projectId, taskId }}>
           {children}
         </TaskViewContext.Provider>
       </ProjectViewWrapper>

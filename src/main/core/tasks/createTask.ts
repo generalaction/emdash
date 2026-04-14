@@ -1,7 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { err, ok, Result } from '@shared/result';
 import type { CreateTaskError, CreateTaskParams, Task } from '@shared/tasks';
-import { selectPreferredRemote } from '@main/core/git/remote-preference';
 import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { findPrForBranch, resolveInitialStatus } from '@main/core/task-status/pr-task-bridge';
@@ -36,10 +35,11 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
   if (!project) {
     return err({ type: 'project-not-found' });
   }
-  const projectSettings = await project.settings.get();
   const sourceBranchRemote = params.sourceBranch.remote?.trim();
-  const remotes = await project.git.getRemotes();
-  const remote = selectPreferredRemote(projectSettings.remote, remotes);
+  const [remotes, remote] = await Promise.all([
+    project.repository.getRemotes(),
+    project.repository.getConfiguredRemote(),
+  ]);
   const canUseRemote = remotes.some((candidate) => candidate.name === remote);
   const canUseRemoteBase = canUseRemote && !!sourceBranchRemote;
 
@@ -54,14 +54,14 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       taskBranch = branchPrefix
         ? `${branchPrefix}/${rawBranch}-${suffix}`
         : `${rawBranch}-${suffix}`;
-      const headState = await project.git.getHeadState();
-      if (headState.isUnborn) {
+      const repoInfo = await project.repository.getRepositoryInfo();
+      if (repoInfo.isUnborn) {
         return err({
           type: 'initial-commit-required',
-          branch: headState.headName ?? params.sourceBranch.branch,
+          branch: repoInfo.currentBranch ?? params.sourceBranch.branch,
         });
       }
-      const createResult = await project.git.createBranch(
+      const createResult = await project.repository.createBranch(
         taskBranch,
         params.sourceBranch.branch,
         canUseRemoteBase,
@@ -81,7 +81,7 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
         }
       }
       if (strategy.pushBranch) {
-        await project.git.publishBranch(taskBranch, remote);
+        await project.repository.publishBranch(taskBranch, remote);
       }
       break;
     }
@@ -94,7 +94,7 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
 
     case 'from-pull-request': {
       // Fetch via GitHub's PR ref — works for fork PRs and same-repo PRs alike.
-      const fetchResult = await project.git.fetchPrRef(
+      const fetchResult = await project.repository.fetchPrRef(
         strategy.prNumber,
         strategy.headBranch,
         remote
@@ -115,7 +115,11 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
         taskBranch = branchPrefix
           ? `${branchPrefix}/${rawBranch}-${suffix}`
           : `${rawBranch}-${suffix}`;
-        const createResult = await project.git.createBranch(taskBranch, strategy.headBranch, false);
+        const createResult = await project.repository.createBranch(
+          taskBranch,
+          strategy.headBranch,
+          false
+        );
         if (!createResult.success) {
           switch (createResult.error.type) {
             case 'already_exists':
@@ -130,7 +134,7 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
           }
         }
         if (strategy.pushBranch) {
-          await project.git.publishBranch(taskBranch, remote);
+          await project.repository.publishBranch(taskBranch, remote);
         }
       } else {
         // Check out the PR head branch directly — taskBranch === sourceBranch signals

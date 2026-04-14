@@ -17,7 +17,7 @@ interface PrefetchEntry {
 export function usePrefetchDiffModels(
   projectId: string,
   workspaceId: string,
-  type: 'disk' | 'staged' | 'git',
+  group: 'disk' | 'staged' | 'git' | 'pr',
   originalRef: string
 ) {
   const prefetchedRef = useRef(new Map<string, PrefetchEntry>());
@@ -41,7 +41,7 @@ export function usePrefetchDiffModels(
       const uri = buildMonacoModelPath(root, filePath);
       const entry: PrefetchEntry = { gitUris: [] };
 
-      if (type === 'disk') {
+      if (group === 'disk') {
         void modelRegistry
           .registerModel(projectId, workspaceId, root, filePath, language, 'disk')
           .catch(() => {});
@@ -50,7 +50,7 @@ export function usePrefetchDiffModels(
           .catch(() => {});
         entry.diskUri = modelRegistry.toDiskUri(uri);
         entry.gitUris = [modelRegistry.toGitUri(uri, originalRef)];
-      } else if (type === 'staged') {
+      } else if (group === 'staged') {
         void modelRegistry
           .registerModel(projectId, workspaceId, root, filePath, language, 'git', 'HEAD')
           .catch(() => {});
@@ -76,6 +76,6 @@ export function usePrefetchDiffModels(
 
       prefetchedRef.current.set(filePath, entry);
     },
-    [projectId, workspaceId, type, originalRef]
+    [projectId, workspaceId, group, originalRef]
   );
 }

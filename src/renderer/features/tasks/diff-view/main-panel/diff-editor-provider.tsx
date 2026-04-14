@@ -99,7 +99,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
           if (!activeFile || isBinaryForDiff(activeFile.path)) return;
           const root = `workspace:${workspaceId}`;
           const language = getLanguageFromPath(activeFile.path);
-          if (activeFile.type === 'disk') {
+          if (activeFile.group === 'disk') {
             void modelRegistry.registerModel(
               projectId,
               workspaceId,
@@ -117,7 +117,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
               'git',
               activeFile.originalRef
             );
-          } else if (activeFile.type === 'staged') {
+          } else if (activeFile.group === 'staged') {
             void modelRegistry.registerModel(
               projectId,
               workspaceId,
@@ -136,7 +136,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
               'git',
               'staged'
             );
-          } else {
+          } else if (activeFile.group === 'pr' || activeFile.group === 'git') {
             void modelRegistry.registerModel(
               projectId,
               workspaceId,
@@ -187,12 +187,12 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
 
         const originalUri = modelRegistry.toGitUri(
           uri,
-          activeFile.type === 'staged' ? 'HEAD' : activeFile.originalRef
+          activeFile.group === 'staged' ? 'HEAD' : activeFile.originalRef
         );
         const modifiedUri =
-          activeFile.type === 'disk'
+          activeFile.group === 'disk'
             ? modelRegistry.toDiskUri(uri)
-            : modelRegistry.toGitUri(uri, activeFile.type === 'staged' ? 'staged' : 'HEAD');
+            : modelRegistry.toGitUri(uri, activeFile.group === 'staged' ? 'staged' : 'HEAD');
 
         // Reactive reads — autorun re-evaluates when statuses change to 'ready'.
         const origStatus = modelRegistry.modelStatus.get(originalUri); // reactive

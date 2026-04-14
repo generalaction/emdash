@@ -4,7 +4,6 @@ import type {
   CommitError,
   CommitFile,
   CreateBranchError,
-  DefaultBranch,
   DeleteBranchError,
   DiffBase,
   DiffLine,
@@ -21,10 +20,10 @@ import type {
   RenameBranchError,
   SoftResetError,
 } from '@shared/git';
+import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { ExecFn } from '@main/core/utils/exec';
-import { DEFAULT_REMOTE_NAME } from '../remote-preference';
 import { GitProvider } from '../types';
 import {
   computeBaseRef,
@@ -42,24 +41,19 @@ export class GitService implements GitProvider {
     private readonly fs: FileSystemProvider
   ) {}
 
-  // ---------------------------------------------------------------------------
-  // Status & staging
-  // ---------------------------------------------------------------------------
-
-  async getStatus(): Promise<GitChange[]> {
+  async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
     try {
       await this.exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd: this.path });
     } catch {
-      return [];
+      return { changes: [], currentBranch: null };
     }
 
-    const { stdout: statusOutput } = await this.exec(
-      'git',
-      ['status', '--porcelain', '--untracked-files=all'],
-      { cwd: this.path }
-    );
+    const [{ stdout: statusOutput }, currentBranch] = await Promise.all([
+      this.exec('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: this.path }),
+      this.getCurrentBranch(),
+    ]);
 
-    if (!statusOutput.trim()) return [];
+    if (!statusOutput.trim()) return { changes: [], currentBranch };
 
     const statusLines = statusOutput
       .split('\n')
@@ -127,7 +121,7 @@ export class GitService implements GitProvider {
       changes.push({ path: filePath, status, additions, deletions, isStaged });
     }
 
-    return changes;
+    return { changes, currentBranch };
   }
 
   async stageFiles(filePaths: string[]): Promise<void> {
@@ -914,48 +908,16 @@ export class GitService implements GitProvider {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Branch info
-  // ---------------------------------------------------------------------------
-
-  async getBranchStatus(): Promise<{
-    branch: string;
-    upstream?: string;
-    ahead: number;
-    behind: number;
-  }> {
-    const { stdout: branchOut } = await this.exec('git', ['branch', '--show-current'], {
-      cwd: this.path,
-    });
-    const branch = branchOut.trim();
-
-    let upstream: string | undefined;
-    let ahead = 0;
-    let behind = 0;
-
+  async getCurrentBranch(): Promise<string | null> {
     try {
-      const { stdout } = await this.exec(
-        'git',
-        ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'],
-        { cwd: this.path }
-      );
-      upstream = stdout.trim() || undefined;
-    } catch {}
-
-    try {
-      const { stdout } = await this.exec(
-        'git',
-        ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
-        { cwd: this.path }
-      );
-      const parts = stdout.trim().split(/\s+/);
-      if (parts.length >= 2) {
-        behind = Number.parseInt(parts[0] || '0', 10) || 0;
-        ahead = Number.parseInt(parts[1] || '0', 10) || 0;
-      }
-    } catch {}
-
-    return { branch, upstream, ahead, behind };
+      const { stdout } = await this.exec('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: this.path,
+      });
+      const branch = stdout.trim();
+      return branch === 'HEAD' || !branch ? null : branch;
+    } catch {
+      return null;
+    }
   }
 
   async getBranches(): Promise<Branch[]> {
@@ -999,7 +961,7 @@ export class GitService implements GitProvider {
     return branches;
   }
 
-  async getDefaultBranch(remote = 'origin'): Promise<DefaultBranch> {
+  async getDefaultBranch(remote = 'origin'): Promise<string> {
     // Heuristic 1: ask the remote what its HEAD points to (fast, no network call needed
     // because git caches this in refs/remotes/<remote>/HEAD after a fetch/clone).
     try {
@@ -1011,10 +973,7 @@ export class GitService implements GitProvider {
       const ref = stdout.trim();
       if (ref) {
         const slashIdx = ref.indexOf('/');
-        const resolvedRemote = slashIdx === -1 ? remote : ref.slice(0, slashIdx);
-        const name = slashIdx === -1 ? ref : ref.slice(slashIdx + 1);
-        const existsLocally = await this._branchExistsLocally(name);
-        return { name, remote: resolvedRemote, existsLocally };
+        return slashIdx === -1 ? ref : ref.slice(slashIdx + 1);
       }
     } catch {}
 
@@ -1022,22 +981,16 @@ export class GitService implements GitProvider {
     try {
       const { stdout } = await this.exec('git', ['remote', 'show', remote], { cwd: this.path });
       const match = /HEAD branch:\s*(\S+)/.exec(stdout);
-      if (match?.[1]) {
-        const name = match[1];
-        const existsLocally = await this._branchExistsLocally(name);
-        return { name, remote, existsLocally };
-      }
+      if (match?.[1]) return match[1];
     } catch {}
 
     // Heuristic 3: fall back to well-known default branch names in preference order.
     for (const candidate of ['main', 'master', 'develop', 'trunk']) {
-      if (await this._branchExistsLocally(candidate)) {
-        return { name: candidate, remote: undefined, existsLocally: true };
-      }
+      if (await this._branchExistsLocally(candidate)) return candidate;
     }
 
     // Last resort: return "main" as a convention.
-    return { name: 'main', remote: undefined, existsLocally: false };
+    return 'main';
   }
 
   private async _branchExistsLocally(branch: string): Promise<boolean> {

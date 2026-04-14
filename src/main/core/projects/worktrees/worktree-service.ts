@@ -1,7 +1,7 @@
 import path from 'node:path';
+import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
 import { err, ok, Result } from '@shared/result';
 import { FileSystemProvider } from '@main/core/fs/types';
-import { DEFAULT_REMOTE_NAME } from '@main/core/git/remote-preference';
 import { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { ProjectSettingsProvider } from '../settings/schema';

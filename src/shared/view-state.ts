@@ -18,8 +18,20 @@ export type DiffViewSnapshot = {
 
 export interface ActiveFile {
   path: string;
-  type: 'disk' | 'staged' | 'git';
+  /** Storage layer: how content is fetched.
+   *  'disk' = working-tree read (disk://)
+   *  'git'  = git-object read (git://) */
+  type: 'disk' | 'git';
+  /** Semantic context: which diff panel/group this file belongs to.
+   *  Determines which side is original/modified and which events make it stale.
+   *  'disk'   = working tree vs HEAD
+   *  'staged' = index vs HEAD
+   *  'git'    = arbitrary ref-to-ref comparison
+   *  'pr'     = PR diff (originalRef is remote-tracking base) */
+  group: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: string;
+  /** Set only when group === 'pr'. Identifies the PR for store lookups. */
+  prNumber?: number;
   scrollBehavior?: 'smooth' | 'auto';
 }
 

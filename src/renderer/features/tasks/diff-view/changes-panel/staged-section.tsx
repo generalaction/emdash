@@ -23,14 +23,14 @@ export const StagedSection = observer(function StagedSection() {
   const hasPRs = changesView.expandedSections.pullRequests;
 
   const activePath =
-    provisioned.taskView.view === 'diff' && diffView.activeFile?.type === 'staged'
+    provisioned.taskView.view === 'diff' && diffView.activeFile?.group === 'staged'
       ? diffView.activeFile.path
       : undefined;
 
   const prefetch = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'staged', 'HEAD');
 
   const handleSelectChange = (path: string) => {
-    diffView.setActiveFile({ path, type: 'staged', originalRef: 'HEAD' });
+    diffView.setActiveFile({ path, type: 'git', group: 'staged', originalRef: 'HEAD' });
     provisioned.taskView.setView('diff');
   };
 

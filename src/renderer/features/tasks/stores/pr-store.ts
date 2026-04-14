@@ -1,7 +1,8 @@
 import { reaction } from 'mobx';
 import type { Commit, GitChange } from '@shared/git';
 import { selectCurrentPr, type PrCheckRun, type PullRequest } from '@shared/pull-requests';
-import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git';
+import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
+import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git-store';
 import { rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import type { PrComment } from '@renderer/utils/github/types';
@@ -19,6 +20,7 @@ export class PrStore {
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
+    private readonly repositoryStore: RepositoryStore,
     private readonly git: GitStore,
     private readonly getPrs: () => PullRequest[]
   ) {
@@ -34,7 +36,7 @@ export class PrStore {
   }
 
   getFiles(pr: PullRequest): Resource<GitChange[]> {
-    const key = pr.metadata.baseRefName;
+    const key = String(pr.metadata.number);
     if (!this._prFiles.has(key)) {
       const resource = new Resource<GitChange[]>(
         () => this._fetchPrFiles(pr.metadata.baseRefName, pr.metadata.changedFiles),
@@ -127,8 +129,8 @@ export class PrStore {
     baseRefName: string,
     expectedChangedFiles: number
   ): Promise<GitChange[]> {
-    const remote = this.git.branchStatus.data?.upstream?.split('/')[0];
-    const ref = remote ? `${remote}/${baseRefName}...HEAD` : `${baseRefName}...HEAD`;
+    const remote = this.repositoryStore.configuredRemote;
+    const ref = `${remote}/${baseRefName}...HEAD`;
 
     const tryRef = async (r: string): Promise<GitChange[] | null> => {
       const result = await rpc.git.getChangedFiles(this.projectId, this.workspaceId, r);
@@ -140,7 +142,7 @@ export class PrStore {
     const first = await tryRef(ref);
     if (first) return first;
 
-    await rpc.git.fetch(this.projectId, this.workspaceId);
+    await rpc.git.fetch(this.projectId, this.workspaceId, remote);
 
     return (await tryRef(ref)) ?? [];
   }
@@ -163,7 +165,15 @@ export class PrStore {
     commits: Commit[];
     aheadCount: number;
   }> {
-    const result = await rpc.git.getLog(this.projectId, this.workspaceId);
+    const remote = this.repositoryStore.configuredRemote;
+    const result = await rpc.git.getLog(
+      this.projectId,
+      this.workspaceId,
+      undefined,
+      undefined,
+      undefined,
+      remote
+    );
     if (!result.success) return { commits: [], aheadCount: 0 };
     return result.data;
   }

@@ -4,7 +4,6 @@ import type {
   ConnectionStatusMap,
   IssueProviderType,
 } from '@shared/issue-providers';
-import { selectPreferredRemote } from '@main/core/git/remote-preference';
 import { projectManager } from '@main/core/projects/project-manager';
 import type { IssueProvider, IssueQueryOpts, IssueSearchOpts } from './issue-provider';
 import { getAllIssueProviders, getIssueProvider } from './registry';
@@ -58,11 +57,7 @@ async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T>
   const project = projectManager.getProject(opts.projectId);
   if (!project) return opts;
 
-  const [configuredRemote, remotes] = await Promise.all([
-    project.settings.getRemote().catch(() => undefined),
-    project.git.getRemotes().catch(() => []),
-  ]);
-  const remote = selectPreferredRemote(configuredRemote, remotes);
+  const remote = await project.repository.getConfiguredRemote().catch(() => undefined);
   return { ...opts, remote };
 }
 

@@ -9,7 +9,7 @@ interface ActionCardProps {
 export function ActionCard({ selectedCount, selectionActions, generalActions }: ActionCardProps) {
   const hasSelection = selectedCount > 0;
   return (
-    <div className="shrink-0 mx-2 mb-2 flex items-center justify-between rounded-lg border border-border bg-background-1 px-2.5 py-1.5">
+    <div className="shrink-0 mx-2 mb-2 flex items-center justify-between rounded-lg border border-border bg-background-1 pl-2.5 pr-1.5 py-1.5">
       <span className="text-xs text-foreground-muted">
         {hasSelection
           ? `${selectedCount} file${selectedCount !== 1 ? 's' : ''} selected`

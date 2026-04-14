@@ -1,11 +1,10 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useMemo, useState } from 'react';
-import type { Branch } from '@shared/git';
+import { useCallback, useState } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
-import { useRepository } from '@renderer/features/projects/repository/use-repository';
 import {
   getProjectManagerStore,
+  getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
@@ -60,14 +59,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   });
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const { branches, defaultBranch, headState } = useRepository(selectedProjectId);
+  const repo = selectedProjectId ? getRepositoryStore(selectedProjectId) : undefined;
+  const branches = repo?.branches ?? [];
+  const defaultBranch = repo?.defaultBranchName ?? undefined;
+  const isUnborn = repo?.isUnborn ?? false;
   const { navigate } = useNavigate();
-  const isUnborn = headState?.isUnborn ?? false;
-  const branchOptions: Branch[] = useMemo(() => {
-    if (branches.length > 0) return branches;
-    if (!headState?.headName) return branches;
-    return [{ type: 'local', branch: headState.headName }];
-  }, [branches, headState?.headName]);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
@@ -75,13 +71,13 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const { data: remoteState } = useNameWithOwner(selectedProjectId);
   const nameWithOwner = remoteState?.status === 'ready' ? remoteState.nameWithOwner : undefined;
 
-  const fromBranch = useFromBranchMode(selectedProjectId, branches, defaultBranch, headState);
-  const fromIssue = useFromIssueMode(selectedProjectId, branches, defaultBranch, headState);
+  const fromBranch = useFromBranchMode(selectedProjectId, branches, defaultBranch, isUnborn);
+  const fromIssue = useFromIssueMode(selectedProjectId, branches, defaultBranch, isUnborn);
   const fromPR = useFromPullRequestMode(
     selectedProjectId,
     branches,
     defaultBranch,
-    headState,
+    isUnborn,
     initialPR
   );
   const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !nameWithOwner;
@@ -214,12 +210,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         </ToggleGroup>
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
           {selectedStrategy === 'from-branch' && (
-            <FromBranchContent state={fromBranch} branches={branchOptions} isUnborn={isUnborn} />
+            <FromBranchContent state={fromBranch} branches={branches} isUnborn={isUnborn} />
           )}
           {selectedStrategy === 'from-issue' && (
             <FromIssueContent
               state={fromIssue}
-              branches={branchOptions}
+              branches={branches}
               projectId={selectedProjectId}
               nameWithOwner={nameWithOwner}
               projectPath={projectData?.path}

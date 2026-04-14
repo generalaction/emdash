@@ -18,11 +18,12 @@ export const DiffToolbar = observer(function DiffToolbar() {
   const { filename, directory } = filePath ? splitPath(filePath) : { filename: '', directory: '' };
 
   const diffSourceLabel = useMemo(() => {
-    if (activeFile?.type === 'staged') return 'Staged';
-    if (activeFile?.type === 'disk') return 'Changed';
-    if (activeFile?.type === 'git') return 'Git';
+    if (activeFile?.group === 'staged') return 'Staged';
+    if (activeFile?.group === 'disk') return 'Changed';
+    if (activeFile?.group === 'pr') return 'PR';
+    if (activeFile?.group === 'git') return 'Git';
     return undefined;
-  }, [activeFile?.type]);
+  }, [activeFile?.group]);
 
   return (
     <div className="flex h-[41px] items-center gap-2 border-b border-border px-2 justify-between">

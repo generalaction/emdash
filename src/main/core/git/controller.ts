@@ -1,28 +1,16 @@
 import type { DiffBase } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
-import { selectPreferredRemote } from '@main/core/git/remote-preference';
-import type { GitProvider } from '@main/core/git/types';
-import { projectManager } from '@main/core/projects/project-manager';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
-
-async function resolveSelectedRemote(projectId: string, git: GitProvider): Promise<string> {
-  const project = projectManager.getProject(projectId);
-  const configuredRemote = project
-    ? await project.settings.getRemote().catch(() => undefined)
-    : undefined;
-  const remotes = await git.getRemotes().catch(() => []);
-  return selectPreferredRemote(configuredRemote, remotes);
-}
 
 export const gitController = createRPCController({
   getStatus: async (projectId: string, workspaceId: string) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
-      const changes = await env.git.getStatus();
-      return ok({ changes });
+      const { changes, currentBranch } = await env.git.getStatus();
+      return ok({ changes, currentBranch });
     } catch (e) {
       log.error('gitCtrl.getStatus failed', { projectId, workspaceId, error: e });
       return err({ type: 'git_error' as const, message: String(e) });
@@ -210,38 +198,30 @@ export const gitController = createRPCController({
     return ok({ hash: result.data.hash });
   },
 
-  fetch: async (projectId: string, workspaceId: string) => {
+  fetch: async (projectId: string, workspaceId: string, remote?: string) => {
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.fetch();
+    const result = await env.git.fetch(remote);
     if (!result.success) return err(result.error);
     return ok();
   },
 
-  push: async (projectId: string, workspaceId: string) => {
+  push: async (projectId: string, workspaceId: string, remote: string) => {
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
-    const remote = await resolveSelectedRemote(projectId, env.git);
     const result = await env.git.push(remote);
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
   },
 
-  addRemote: async (projectId: string, workspaceId: string, name: string, url: string) => {
+  publishBranch: async (
+    projectId: string,
+    workspaceId: string,
+    branchName: string,
+    remote: string
+  ) => {
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
-    try {
-      await env.git.addRemote(name, url);
-      return ok();
-    } catch (e) {
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
-  },
-
-  publishBranch: async (projectId: string, workspaceId: string, branchName: string) => {
-    const env = resolveWorkspace(projectId, workspaceId);
-    if (!env) return err({ type: 'not_found' as const });
-    const remote = await resolveSelectedRemote(projectId, env.git);
     const result = await env.git.publishBranch(branchName, remote);
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
@@ -268,12 +248,12 @@ export const gitController = createRPCController({
     workspaceId: string,
     maxCount?: number,
     skip?: number,
-    knownAheadCount?: number
+    knownAheadCount?: number,
+    remote?: string
   ) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
-      const remote = await resolveSelectedRemote(projectId, env.git);
       const result = await env.git.getLog({
         maxCount,
         skip,
@@ -332,55 +312,5 @@ export const gitController = createRPCController({
       });
       return err({ type: 'git_error' as const, message: String(e) });
     }
-  },
-
-  getBranchStatus: async (projectId: string, workspaceId: string) => {
-    try {
-      const env = resolveWorkspace(projectId, workspaceId);
-      if (!env) return err({ type: 'not_found' as const });
-      const status = await env.git.getBranchStatus();
-      return ok(status);
-    } catch (e) {
-      log.error('gitCtrl.getBranchStatus failed', { projectId, workspaceId, error: e });
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
-  },
-
-  getBranches: async (projectId: string, workspaceId: string) => {
-    try {
-      const env = resolveWorkspace(projectId, workspaceId);
-      if (!env) return err({ type: 'not_found' as const });
-      const branches = await env.git.getBranches();
-      return ok({ branches });
-    } catch (e) {
-      log.error('gitCtrl.getBranches failed', { projectId, workspaceId, error: e });
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
-  },
-
-  getDefaultBranch: async (projectId: string, workspaceId: string) => {
-    try {
-      const env = resolveWorkspace(projectId, workspaceId);
-      if (!env) return err({ type: 'not_found' as const });
-      const remote = await resolveSelectedRemote(projectId, env.git);
-      const defaultBranch = await env.git.getDefaultBranch(remote);
-      return ok(defaultBranch);
-    } catch (e) {
-      log.error('gitCtrl.getDefaultBranch failed', { projectId, workspaceId, error: e });
-      return err({ type: 'git_error' as const, message: String(e) });
-    }
-  },
-
-  renameBranch: async (
-    projectId: string,
-    workspaceId: string,
-    oldBranch: string,
-    newBranch: string
-  ) => {
-    const env = resolveWorkspace(projectId, workspaceId);
-    if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.renameBranch(oldBranch, newBranch);
-    if (!result.success) return err(result.error);
-    return ok({ remotePushed: result.data.remotePushed });
   },
 });

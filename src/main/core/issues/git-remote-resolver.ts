@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { DEFAULT_REMOTE_NAME } from '@main/core/git/remote-preference';
+import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
 
 const execFileAsync = promisify(execFile);
 

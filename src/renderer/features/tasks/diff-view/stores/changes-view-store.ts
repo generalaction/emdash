@@ -1,6 +1,6 @@
 import { computed, makeObservable, observable, reaction, runInAction, when } from 'mobx';
 import { PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { GitStore } from './git';
+import { GitStore } from './git-store';
 
 export type SelectionState = 'all' | 'none' | 'partial';
 
@@ -145,8 +145,8 @@ export class ChangesViewStore {
     });
   }
 
-  expandForActiveFileType(type: 'disk' | 'staged' | 'git'): void {
-    const section = type === 'disk' ? 'unstaged' : type === 'staged' ? 'staged' : 'pullRequests';
+  expandForActiveFileType(group: 'disk' | 'staged' | 'git' | 'pr'): void {
+    const section = group === 'disk' ? 'unstaged' : group === 'staged' ? 'staged' : 'pullRequests';
     if (!this.expandedSections[section]) {
       runInAction(() => {
         this.expandedSections = { ...this.expandedSections, [section]: true };

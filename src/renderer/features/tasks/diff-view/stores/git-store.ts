@@ -3,29 +3,24 @@ import { toast } from 'sonner';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { GitChange } from '@shared/git';
 import { err, ok } from '@shared/result';
+import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 
-export interface BranchStatus {
-  branch: string;
-  upstream?: string;
-  ahead: number;
-  behind: number;
-}
-
 interface GitStatusData {
   changes: GitChange[];
+  currentBranch: string | null;
   totalLinesAdded: number;
   totalLinesDeleted: number;
 }
 
 export class GitStore {
   readonly status: Resource<GitStatusData>;
-  readonly branchStatus: Resource<BranchStatus>;
 
   constructor(
     private readonly projectId: string,
-    private readonly workspaceId: string
+    private readonly workspaceId: string,
+    private readonly repositoryStore: RepositoryStore
   ) {
     this.status = new Resource<GitStatusData>(
       () => this._fetchStatus(),
@@ -46,11 +41,6 @@ export class GitStore {
       ]
     );
 
-    this.branchStatus = new Resource<BranchStatus>(
-      () => this._fetchBranchStatus(),
-      [{ kind: 'poll', intervalMs: 10_000, pauseWhenHidden: true, demandGated: true }]
-    );
-
     makeObservable(this, {
       fileChanges: computed,
       stagedFileChanges: computed,
@@ -62,6 +52,7 @@ export class GitStore {
       isBranchPublished: computed,
       aheadCount: computed,
       behindCount: computed,
+      branchName: computed,
     });
   }
 
@@ -97,16 +88,27 @@ export class GitStore {
     return this.status.error;
   }
 
+  /** Current branch checked out in this workspace (worktree). Null for detached HEAD. */
+  get branchName(): string | null {
+    return this.status.data?.currentBranch ?? null;
+  }
+
+  /** True when this workspace's branch has a remote tracking ref. */
   get isBranchPublished(): boolean {
-    return this.branchStatus.data?.upstream !== undefined;
+    const name = this.branchName;
+    return name ? this.repositoryStore.isBranchOnRemote(name) : false;
   }
 
+  /** Commits this workspace's branch is ahead of its upstream. */
   get aheadCount(): number {
-    return this.branchStatus.data?.ahead ?? 0;
+    const name = this.branchName;
+    return name ? (this.repositoryStore.getBranchDivergence(name)?.ahead ?? 0) : 0;
   }
 
+  /** Commits this workspace's branch is behind its upstream. */
   get behindCount(): number {
-    return this.branchStatus.data?.behind ?? 0;
+    const name = this.branchName;
+    return name ? (this.repositoryStore.getBranchDivergence(name)?.behind ?? 0) : 0;
   }
 
   // ---------------------------------------------------------------------------
@@ -123,7 +125,6 @@ export class GitStore {
 
   dispose(): void {
     this.status.dispose();
-    this.branchStatus.dispose();
   }
 
   // ---------------------------------------------------------------------------
@@ -164,7 +165,7 @@ export class GitStore {
     const result = await rpc.git.commit(this.projectId, this.workspaceId, message);
     if (result.success) {
       this.status.invalidate();
-      this.branchStatus.invalidate();
+      this.repositoryStore.refreshLocal(); // new commit → local branch ahead count changes
       return ok();
     } else {
       toast.error(`Failed to commit changes: ${result.error.type} `);
@@ -175,7 +176,7 @@ export class GitStore {
   async fetchRemote() {
     const result = await rpc.git.fetch(this.projectId, this.workspaceId);
     if (result.success) {
-      this.branchStatus.invalidate();
+      this.repositoryStore.refreshRemote(); // fetch updates remote-tracking refs
       return ok();
     } else {
       toast.error(`Failed to fetch remote changes: ${result.error.type} `);
@@ -184,9 +185,11 @@ export class GitStore {
   }
 
   async push() {
-    const result = await rpc.git.push(this.projectId, this.workspaceId);
+    const remote = this.repositoryStore.configuredRemote;
+    const result = await rpc.git.push(this.projectId, this.workspaceId, remote);
     if (result.success) {
-      this.branchStatus.invalidate();
+      this.repositoryStore.refreshLocal(); // divergence resets to 0
+      this.repositoryStore.refreshRemote(); // remote now has the commits
       return ok();
     } else {
       const detail =
@@ -197,11 +200,17 @@ export class GitStore {
   }
 
   async publishBranch() {
-    const branchName = this.branchStatus.data?.branch;
+    const branchName = this.branchName;
     if (!branchName) return err({ type: 'git_error' as const, message: 'No branch checked out' });
-    const result = await rpc.git.publishBranch(this.projectId, this.workspaceId, branchName);
+    const remote = this.repositoryStore.configuredRemote;
+    const result = await rpc.git.publishBranch(
+      this.projectId,
+      this.workspaceId,
+      branchName,
+      remote
+    );
     if (result.success) {
-      this.branchStatus.invalidate();
+      this.repositoryStore.refreshRemote(); // branch now exists on remote
       return ok();
     } else {
       const detail =
@@ -215,7 +224,7 @@ export class GitStore {
     const result = await rpc.git.pull(this.projectId, this.workspaceId);
     if (result.success) {
       this.status.invalidate();
-      this.branchStatus.invalidate();
+      this.repositoryStore.refreshLocal(); // local branch updated with pulled commits
       return ok();
     } else {
       toast.error(`Failed to pull changes: ${result.error.type} `);
@@ -230,18 +239,13 @@ export class GitStore {
   private async _fetchStatus(): Promise<GitStatusData> {
     const result = await rpc.git.getStatus(this.projectId, this.workspaceId);
     if (!result.success) throw new Error(result.error.type);
-    const changes = result.data.changes;
+    const { changes, currentBranch } = result.data;
     return {
       changes,
+      currentBranch,
       totalLinesAdded: changes.reduce((sum, c) => sum + c.additions, 0),
       totalLinesDeleted: changes.reduce((sum, c) => sum + c.deletions, 0),
     };
-  }
-
-  private async _fetchBranchStatus(): Promise<BranchStatus> {
-    const result = await rpc.git.getBranchStatus(this.projectId, this.workspaceId);
-    if (!result.success) throw new Error(result.error.type);
-    return result.data;
   }
 }
 

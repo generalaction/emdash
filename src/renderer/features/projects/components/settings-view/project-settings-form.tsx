@@ -1,9 +1,9 @@
 import { Check, GitBranch, Loader2, Undo2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import type { Branch } from '@shared/git';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
-import { useBranches } from '@renderer/features/projects/repository/use-branches';
-import { useRemotes } from '@renderer/features/projects/repository/use-remotes';
+import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { BranchSelector } from '@renderer/lib/components/branch-selector';
 import { Button } from '@renderer/lib/ui/button';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -80,14 +80,15 @@ export interface ProjectSettingsFormProps {
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
-export function ProjectSettingsForm({
+export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
   initial,
   onSuccess,
   save,
 }: ProjectSettingsFormProps) {
-  const { branches } = useBranches(projectId);
-  const { remotes } = useRemotes(projectId);
+  const repo = getRepositoryStore(projectId);
+  const branches = repo?.branches ?? [];
+  const remotes = repo?.remotes ?? [];
 
   const baseline = useMemo(() => settingsToForm(initial), [initial]);
   const [form, setForm] = useState<FormState>(baseline);
@@ -299,4 +300,4 @@ export function ProjectSettingsForm({
       </div>
     </div>
   );
-}
+});

@@ -15,7 +15,6 @@ import type {
   User,
 } from '@shared/pull-requests';
 import { err, ok } from '@shared/result';
-import { selectPreferredRemote } from '@main/core/git/remote-preference';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
 import {
   GET_PR_CHECK_RUNS_QUERY,
@@ -272,9 +271,10 @@ export class PrService {
       }
 
       const taskBranch = env.taskBranch;
-      const configuredRemote = await project.settings.getRemote();
-      const remotes = await project.git.getRemotes();
-      const remoteName = selectPreferredRemote(configuredRemote, remotes);
+      const [remoteName, remotes] = await Promise.all([
+        project.repository.getConfiguredRemote(),
+        project.repository.getRemotes(),
+      ]);
       const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
       const nameWithOwner = remoteUrl ? parseNameWithOwner(remoteUrl) : null;
 

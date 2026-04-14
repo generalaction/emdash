@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Branch, DefaultBranch } from '@shared/git';
+import { Branch } from '@shared/git';
 import { resolveDefaultSelectedBranch } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
 
 vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
@@ -12,9 +12,8 @@ describe('resolveDefaultSelectedBranch', () => {
       { type: 'remote', branch: 'main', remote: 'origin' },
       { type: 'local', branch: 'main' },
     ];
-    const defaultBranch: DefaultBranch = { name: 'main', remote: 'origin', existsLocally: true };
 
-    expect(resolveDefaultSelectedBranch(branches, defaultBranch)).toEqual({
+    expect(resolveDefaultSelectedBranch(branches, 'main')).toEqual({
       type: 'local',
       branch: 'main',
     });
@@ -22,9 +21,8 @@ describe('resolveDefaultSelectedBranch', () => {
 
   it('falls back to matching remote branch when local does not exist', () => {
     const branches: Branch[] = [{ type: 'remote', branch: 'main', remote: 'origin' }];
-    const defaultBranch: DefaultBranch = { name: 'main', remote: 'origin', existsLocally: false };
 
-    expect(resolveDefaultSelectedBranch(branches, defaultBranch)).toEqual({
+    expect(resolveDefaultSelectedBranch(branches, 'main')).toEqual({
       type: 'remote',
       branch: 'main',
       remote: 'origin',
@@ -33,8 +31,7 @@ describe('resolveDefaultSelectedBranch', () => {
 
   it('returns undefined when the default branch does not exist locally or remotely', () => {
     const branches: Branch[] = [];
-    const defaultBranch: DefaultBranch = { name: 'main', remote: 'origin', existsLocally: false };
 
-    expect(resolveDefaultSelectedBranch(branches, defaultBranch)).toBeUndefined();
+    expect(resolveDefaultSelectedBranch(branches, 'main')).toBeUndefined();
   });
 });

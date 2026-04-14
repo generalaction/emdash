@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Branch, DefaultBranch } from '@shared/git';
+import type { Branch } from '@shared/git';
 import { resolveInitialBaseBranch, toShortBranchName } from './base-branch';
 
 describe('toShortBranchName', () => {
@@ -26,9 +26,8 @@ describe('resolveInitialBaseBranch', () => {
       { type: 'local', branch: 'release/v2' },
       { type: 'local', branch: 'main' },
     ];
-    const defaultBranch: DefaultBranch = { name: 'main', remote: 'origin', existsLocally: true };
 
-    expect(resolveInitialBaseBranch(branches, 'release/v2', defaultBranch)).toEqual({
+    expect(resolveInitialBaseBranch(branches, 'release/v2', 'main')).toEqual({
       type: 'local',
       branch: 'release/v2',
     });
@@ -36,9 +35,8 @@ describe('resolveInitialBaseBranch', () => {
 
   it('falls back to repository default branch when preferred branch is unavailable', () => {
     const branches: Branch[] = [{ type: 'remote', remote: 'origin', branch: 'main' }];
-    const defaultBranch: DefaultBranch = { name: 'main', remote: 'origin', existsLocally: false };
 
-    expect(resolveInitialBaseBranch(branches, 'release/v2', defaultBranch)).toEqual({
+    expect(resolveInitialBaseBranch(branches, 'release/v2', 'main')).toEqual({
       type: 'remote',
       remote: 'origin',
       branch: 'main',

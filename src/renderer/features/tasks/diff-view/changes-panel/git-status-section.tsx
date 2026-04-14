@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
   const workspaceId = asProvisioned(getTaskStore(projectId, taskId))?.workspaceId;
-  const branchName = getTaskGitStore(projectId, taskId)?.branchStatus.data?.branch;
+  const branchName = getTaskGitStore(projectId, taskId)?.branchName;
   const projectName = projectDisplayName(getProjectStore(projectId)) ?? 'repository';
   const { data: remoteState } = useNameWithOwner(projectId);
   const showAddRemoteModal = useShowModal('addRemoteModal');

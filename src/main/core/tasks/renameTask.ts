@@ -31,7 +31,7 @@ export async function renameTask(
         const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
         newBranch = branchPrefix ? `${branchPrefix}/${newName}-${suffix}` : `${newName}-${suffix}`;
 
-        await project.git.renameBranch(oldBranch, newBranch);
+        await project.repository.renameBranch(oldBranch, newBranch);
       }
     }
   }

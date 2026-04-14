@@ -1,13 +1,13 @@
 import { ChevronRight, FolderClosed, Loader2, Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useEffect } from 'react';
-import { usePrefetchRepository } from '@renderer/features/projects/repository/use-repository';
+import React, { useCallback, useEffect } from 'react';
 import {
   isUnregisteredProject,
   UnregisteredProject,
 } from '@renderer/features/projects/stores/project';
 import {
   getProjectStore,
+  getRepositoryStore,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
 import {
@@ -41,7 +41,11 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   const project = getProjectStore(projectId);
 
-  const { prefetch: prefetchRepository } = usePrefetchRepository(projectId);
+  const prefetchRepository = useCallback(() => {
+    const repo = getRepositoryStore(projectId);
+    void repo?.localData.load();
+    void repo?.remoteData.load();
+  }, [projectId]);
 
   const currentProjectId =
     currentView === 'task'

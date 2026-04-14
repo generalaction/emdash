@@ -138,7 +138,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <div className="flex flex-col gap-1 border border-border rounded-md p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
-                  <span>{provisionedTask.workspace.git.branchStatus.data?.branch}</span>
+                  <span>{provisionedTask.workspace.git.branchName}</span>
                 </span>
                 <span className="flex items-center gap-2 text-foreground-passive">
                   Created from

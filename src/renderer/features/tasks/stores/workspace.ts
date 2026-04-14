@@ -1,7 +1,8 @@
 import type { PullRequest } from '@shared/pull-requests';
+import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { GitStore } from '../diff-view/stores/git';
+import { GitStore } from '../diff-view/stores/git-store';
 import { FilesStore } from '../editor/stores/files-store';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
 import { PrStore } from './pr-store';
@@ -13,11 +14,16 @@ export class WorkspaceStore {
   pr: PrStore;
   readonly nameWithOwner: Resource<string | null>;
 
-  constructor(projectId: string, workspaceId: string, getPrs: () => PullRequest[]) {
-    this.git = new GitStore(projectId, workspaceId);
+  constructor(
+    projectId: string,
+    workspaceId: string,
+    repositoryStore: RepositoryStore,
+    getPrs: () => PullRequest[]
+  ) {
+    this.git = new GitStore(projectId, workspaceId, repositoryStore);
     this.files = new FilesStore(projectId, workspaceId);
     this.lifecycleScripts = new LifecycleScriptsStore(projectId, workspaceId);
-    this.pr = new PrStore(projectId, workspaceId, this.git, getPrs);
+    this.pr = new PrStore(projectId, workspaceId, repositoryStore, this.git, getPrs);
     this.nameWithOwner = new Resource<string | null>(async () => {
       const result = await rpc.pullRequests.getNameWithOwner(projectId);
       return result.status === 'ready' ? result.nameWithOwner : null;

@@ -1,8 +1,6 @@
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import type { FileWatchEvent } from '@shared/fs';
-import { events, rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/lib/ipc';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -63,14 +61,14 @@ export type ModelStatus = 'loading' | 'ready' | 'error';
  * for 60 s after the last `unregisterModel` call, then evicted. Re-registering before the timer
  * fires cancels the eviction.
  *
- * **FS watching**: the registry self-manages `fsWatchEventChannel` subscriptions per workspace.
- * When the first disk or git model for a workspace is registered it auto-subscribes; when the
- * last model for that workspace is evicted it auto-unsubscribes. Callers do not need to wire
- * any FS event handling.
+ * **Invalidation**: the registry is a pure SWR cache — it does not subscribe to any events.
+ * Callers must wire external invalidation bridges (see `invalidation-bridges.ts`) that translate
+ * FS/git events into `invalidateModel(uri)` calls. Use `findGitUris` / `findDiskUris` to query
+ * which URIs are affected by a given event.
  *
  * Binary files must be filtered by callers before registering (use `getFileKind` from fileKind.ts).
  */
-class MonacoModelRegistry {
+export class MonacoModelRegistry {
   /**
    * Unified model map. Key is the Monaco URI string (scheme encodes entry type).
    *   file://  → BufferModelEntry
@@ -163,35 +161,6 @@ class MonacoModelRegistry {
 
   /** model.onDidChangeContent disposables for each registered buffer, keyed by buffer URI. */
   private bufferContentDisposables = new Map<string, { dispose(): void }>();
-
-  // ---------------------------------------------------------------------------
-  // FS event subscription management — one subscription per workspaceId
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Active fsWatchEventChannel unsubscribe functions, keyed by workspaceId.
-   * Auto-subscribed when the first disk/git model for a workspace is created;
-   * auto-unsubscribed when the last model for that workspace is evicted.
-   */
-  private workspaceSubscriptions = new Map<string, () => void>();
-
-  private _ensureWorkspaceSubscription(workspaceId: string): void {
-    if (this.workspaceSubscriptions.has(workspaceId)) return;
-    const unsub = events.on(
-      fsWatchEventChannel,
-      (data) => void this._handleFsEvents(workspaceId, data.events),
-      workspaceId
-    );
-    this.workspaceSubscriptions.set(workspaceId, unsub);
-  }
-
-  private _maybeReleaseWorkspaceSubscription(workspaceId: string): void {
-    const hasModels = [...this.modelMap.values()].some((e) => e.workspaceId === workspaceId);
-    if (!hasModels) {
-      this.workspaceSubscriptions.get(workspaceId)?.();
-      this.workspaceSubscriptions.delete(workspaceId);
-    }
-  }
 
   // ---------------------------------------------------------------------------
   // URI helpers (public)
@@ -321,7 +290,6 @@ class MonacoModelRegistry {
       language,
     };
     this.modelMap.set(diskUri, entry);
-    this._ensureWorkspaceSubscription(workspaceId);
 
     this.modelStatus.set(diskUri, 'ready');
 
@@ -379,7 +347,6 @@ class MonacoModelRegistry {
       ref,
     };
     this.modelMap.set(gitUri, entry);
-    this._ensureWorkspaceSubscription(workspaceId);
 
     this.modelStatus.set(gitUri, 'ready');
 
@@ -526,8 +493,6 @@ class MonacoModelRegistry {
     entry.refs -= 1;
     if (entry.refs > 0) return;
 
-    const workspaceId = entry.workspaceId;
-
     // refs === 0 — start 60 s cleanup timer. If the model is re-registered before
     // the timer fires, the timer is cancelled in the register* methods above.
     const t = setTimeout(() => {
@@ -552,8 +517,6 @@ class MonacoModelRegistry {
           this.bufferVersions.delete(uri);
         });
       }
-      // Release workspace subscription if this was the last model for the workspace.
-      this._maybeReleaseWorkspaceSubscription(workspaceId);
     }, 60_000);
     this.evictionTimers.set(uri, t);
 
@@ -766,29 +729,43 @@ class MonacoModelRegistry {
   }
 
   // ---------------------------------------------------------------------------
-  // Git model refresh (triggered by .git dir watcher)
+  // Query methods — used by invalidation bridges to find affected URIs
   // ---------------------------------------------------------------------------
 
-  private async refreshGitModelsForWorkspace(
-    projectId: string,
-    workspaceId: string
-  ): Promise<void> {
-    const gitEntries = [...this.modelMap.entries()].filter(
-      ([uri, e]) => e.type === 'git' && e.workspaceId === workspaceId && uri.startsWith('git://')
-    ) as [string, GitModelEntry][];
-
-    for (const [_gitUri, entry] of gitEntries) {
-      if (entry.ref !== 'HEAD') continue;
-      const result = await rpc.git.getFileAtRef(projectId, workspaceId, entry.filePath, 'HEAD');
-      if (!result.success || result.data.content === null) continue;
-      if (entry.model.getValue() !== result.data.content) {
-        entry.model.setValue(result.data.content);
-      }
+  /**
+   * Return all registered git:// URIs matching the given filter.
+   * Used by invalidation bridges to find which models to invalidate after an event.
+   * Any filter field left undefined is treated as a wildcard.
+   */
+  findGitUris(filter: { workspaceId?: string; projectId?: string; ref?: string }): string[] {
+    const result: string[] = [];
+    for (const [uri, entry] of this.modelMap) {
+      if (entry.type !== 'git') continue;
+      if (filter.workspaceId !== undefined && entry.workspaceId !== filter.workspaceId) continue;
+      if (filter.projectId !== undefined && entry.projectId !== filter.projectId) continue;
+      if (filter.ref !== undefined && entry.ref !== filter.ref) continue;
+      result.push(uri);
     }
+    return result;
+  }
+
+  /**
+   * Return all registered disk:// URIs for the given workspace and file path.
+   * Used by the FS-event invalidation bridge.
+   */
+  findDiskUris(filter: { workspaceId: string; filePath: string }): string[] {
+    const result: string[] = [];
+    for (const [uri, entry] of this.modelMap) {
+      if (entry.type !== 'disk') continue;
+      if (entry.workspaceId !== filter.workspaceId) continue;
+      if (entry.filePath !== filter.filePath) continue;
+      result.push(uri);
+    }
+    return result;
   }
 
   // ---------------------------------------------------------------------------
-  // Disk update helper (shared by _handleFsEvents and invalidateModel)
+  // Disk update helper (used by invalidateModel)
   // ---------------------------------------------------------------------------
 
   private applyDiskUpdate(diskUri: string, entry: DiskModelEntry, newContent: string): void {
@@ -815,43 +792,6 @@ class MonacoModelRegistry {
     } else {
       this.pendingConflicts.add(bufferUri);
     }
-  }
-
-  private async _handleFsEvents(workspaceId: string, fsEvents: FileWatchEvent[]): Promise<void> {
-    // Route .git dir events → git model refresh.
-    const hasGitEvent = fsEvents.some((e) => e.path.startsWith('.git'));
-    if (hasGitEvent) {
-      const gitEntry = [...this.modelMap.values()].find(
-        (e): e is GitModelEntry => e.type === 'git' && e.workspaceId === workspaceId
-      );
-      if (gitEntry) void this.refreshGitModelsForWorkspace(gitEntry.projectId, workspaceId);
-    }
-
-    // Process disk file modification events (skip .git paths).
-    for (const event of fsEvents.filter((e) => e.type === 'modify' && !e.path.startsWith('.git'))) {
-      const diskEntry = this._findDiskEntryByWorkspaceAndPath(workspaceId, event.path);
-      if (!diskEntry) continue;
-      const { diskUri, entry } = diskEntry;
-      const result = await rpc.fs.readFile(entry.projectId, workspaceId, event.path);
-      if (!result.success) continue;
-      this.applyDiskUpdate(diskUri, entry, result.data.content);
-    }
-  }
-
-  private _findDiskEntryByWorkspaceAndPath(
-    workspaceId: string,
-    filePath: string
-  ): { diskUri: string; entry: DiskModelEntry } | undefined {
-    for (const [diskUri, entry] of this.modelMap) {
-      if (
-        entry.type === 'disk' &&
-        entry.workspaceId === workspaceId &&
-        entry.filePath === filePath
-      ) {
-        return { diskUri, entry };
-      }
-    }
-    return undefined;
   }
 }
 

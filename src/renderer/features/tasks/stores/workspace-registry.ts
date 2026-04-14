@@ -1,4 +1,5 @@
 import type { PullRequest } from '@shared/pull-requests';
+import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { WorkspaceStore } from './workspace';
 
 type WorkspaceRegistryEntry = {
@@ -14,7 +15,12 @@ function makeKey(projectId: string, workspaceId: string): string {
 export class WorkspaceRegistryStore {
   private readonly entries = new Map<string, WorkspaceRegistryEntry>();
 
-  acquire(projectId: string, workspaceId: string, getPrs: () => PullRequest[]): WorkspaceStore {
+  acquire(
+    projectId: string,
+    workspaceId: string,
+    repositoryStore: RepositoryStore,
+    getPrs: () => PullRequest[]
+  ): WorkspaceStore {
     const key = makeKey(projectId, workspaceId);
     const existing = this.entries.get(key);
     if (existing) {
@@ -22,7 +28,7 @@ export class WorkspaceRegistryStore {
       return existing.store;
     }
 
-    const store = new WorkspaceStore(projectId, workspaceId, getPrs);
+    const store = new WorkspaceStore(projectId, workspaceId, repositoryStore, getPrs);
     this.entries.set(key, { store, refCount: 1, activated: false });
     return store;
   }

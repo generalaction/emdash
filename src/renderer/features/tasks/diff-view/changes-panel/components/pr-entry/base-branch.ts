@@ -1,4 +1,4 @@
-import type { Branch, DefaultBranch } from '@shared/git';
+import type { Branch } from '@shared/git';
 
 export function toShortBranchName(
   baseRef: string | undefined,
@@ -34,7 +34,7 @@ export function toShortBranchName(
 export function resolveInitialBaseBranch(
   branches: Branch[],
   preferredBaseRef: string | undefined,
-  defaultBranch: DefaultBranch | undefined
+  defaultBranchName: string | undefined
 ): Branch | undefined {
   const preferredName = toShortBranchName(preferredBaseRef, branches);
   if (preferredName) {
@@ -49,23 +49,15 @@ export function resolveInitialBaseBranch(
     if (preferredRemote) return preferredRemote;
   }
 
-  if (!defaultBranch) return undefined;
+  if (!defaultBranchName) return undefined;
 
   const local = branches.find(
-    (branch) => branch.type === 'local' && branch.branch === defaultBranch.name
+    (branch) => branch.type === 'local' && branch.branch === defaultBranchName
   );
   if (local) return local;
 
-  const remoteExact = branches.find(
-    (branch) =>
-      branch.type === 'remote' &&
-      branch.branch === defaultBranch.name &&
-      branch.remote === defaultBranch.remote
-  );
-  if (remoteExact) return remoteExact;
-
   const remoteAny = branches.find(
-    (branch) => branch.type === 'remote' && branch.branch === defaultBranch.name
+    (branch) => branch.type === 'remote' && branch.branch === defaultBranchName
   );
   return remoteAny;
 }

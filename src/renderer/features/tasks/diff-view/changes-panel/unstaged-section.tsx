@@ -22,7 +22,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const selectionState = changesView.unstagedSelectionState;
 
   const activePath =
-    provisioned.taskView.view === 'diff' && diffView.activeFile?.type === 'disk'
+    provisioned.taskView.view === 'diff' && diffView.activeFile?.group === 'disk'
       ? diffView.activeFile.path
       : undefined;
 
@@ -31,7 +31,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const showConfirmActionModal = useShowModal('confirmActionModal');
 
   const handleSelectChange = (path: string) => {
-    diffView.setActiveFile({ path, type: 'disk', originalRef: 'HEAD' });
+    diffView.setActiveFile({ path, type: 'disk', group: 'disk', originalRef: 'HEAD' });
     provisioned.taskView.setView('diff');
   };
 

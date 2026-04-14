@@ -25,12 +25,13 @@ export interface GitInfo {
   rootPath: string;
 }
 
+/** @internal Use BranchesPayload.isUnborn / BranchesPayload.currentBranch in the renderer */
 export type GitHeadState = {
   headName?: string;
   isUnborn: boolean;
 };
 
-type GitRef = string & NonNullable<unknown>;
+type GitRef = string;
 
 export type DiffBase = 'HEAD' | 'staged' | GitRef;
 
@@ -64,18 +65,37 @@ export type LocalBranch = {
 export type RemoteBranch = {
   type: 'remote';
   branch: string;
-  remote?: string;
+  remote: string;
 };
 
 export type Branch = LocalBranch | RemoteBranch;
 
-export type DefaultBranch = {
-  /** Short branch name, e.g. "main" */
-  name: string;
-  /** Remote it was resolved from, e.g. "origin". undefined when determined via local fallback. */
-  remote: string | undefined;
-  /** Whether a local tracking branch for this name exists in the repo */
-  existsLocally: boolean;
+export type LocalBranchesPayload = {
+  localBranches: LocalBranch[];
+  currentBranch: string | null;
+  isUnborn: boolean;
+};
+
+export type RemoteBranchesPayload = {
+  remoteBranches: RemoteBranch[];
+  remotes: { name: string; url: string }[];
+  gitDefaultBranch: string;
+};
+
+/** @deprecated Use LocalBranchesPayload and RemoteBranchesPayload */
+export type BranchesPayload = {
+  branches: Branch[];
+  currentBranch: string | null;
+  isUnborn: boolean;
+  gitDefaultBranch: string;
+  remotes: { name: string; url: string }[];
+};
+
+export type BranchStatus = {
+  branch: string;
+  upstream?: string;
+  ahead: number;
+  behind: number;
 };
 
 export type FetchError =

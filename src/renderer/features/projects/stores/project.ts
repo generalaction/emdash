@@ -3,7 +3,9 @@ import type { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { TaskManagerStore } from '@renderer/features/tasks/stores/task-manager';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
+import { ProjectSettingsStore } from './project-settings-store';
 import { ProjectViewStore } from './project-view';
+import { RepositoryStore } from './repository-store';
 
 export type UnregisteredProjectPhase =
   | 'creating-repo' // gh api — new mode only
@@ -22,6 +24,8 @@ export type ProjectMode = 'pick' | 'clone' | 'new';
 export class MountedProject {
   readonly taskManager: TaskManagerStore;
   readonly view: ProjectViewStore;
+  readonly settings: ProjectSettingsStore;
+  readonly repository: RepositoryStore;
   readonly data: LocalProject | SshProject;
 
   private _snapshotDisposer: (() => void) | null = null;
@@ -35,20 +39,26 @@ export class MountedProject {
 
   constructor(data: LocalProject | SshProject, savedSnapshot?: ProjectViewSnapshot) {
     this.data = data;
-    this.taskManager = new TaskManagerStore(data.id);
     this.view = new ProjectViewStore();
+    this.settings = new ProjectSettingsStore(data.id);
+    this.repository = new RepositoryStore(data.id, this.settings, data.baseRef);
+    this.taskManager = new TaskManagerStore(data.id, this.repository);
 
     if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
 
     makeAutoObservable(this, {
       taskManager: false,
       view: false,
+      settings: false,
+      repository: false,
     });
 
     this._snapshotDisposer = snapshotRegistry.register(`project:${data.id}`, () => this.snapshot);
   }
 
   dispose(): void {
+    this.repository.dispose();
+    this.settings.dispose();
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
   }

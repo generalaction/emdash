@@ -4,7 +4,7 @@ import { Task, TaskBootstrapStatus } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { ConversationProvider } from '../conversations/types';
-import type { GitProvider } from '../git/types';
+import type { GitRepositoryService } from '../git/repository-service';
 import { TerminalProvider } from '../terminals/terminal-provider';
 import type { Workspace } from '../workspaces/workspace';
 import { ProjectSettingsProvider } from './settings/schema';
@@ -40,7 +40,7 @@ export interface TaskProvider {
 export interface ProjectProvider {
   readonly type: string;
   readonly settings: ProjectSettingsProvider;
-  readonly git: GitProvider;
+  readonly repository: GitRepositoryService;
   readonly fs: FileSystemProvider;
   getRemoteState(): Promise<ProjectRemoteState>;
   getWorkspace(workspaceId: string): Workspace | undefined;

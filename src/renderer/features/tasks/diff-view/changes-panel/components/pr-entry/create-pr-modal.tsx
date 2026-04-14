@@ -1,7 +1,8 @@
 import { ChevronDown, GitBranch, X } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Branch } from '@shared/git';
-import { useRepository } from '@renderer/features/projects/repository/use-repository';
+import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { BranchSelector } from '@renderer/lib/components/branch-selector';
@@ -25,7 +26,7 @@ export type CreatePrModalArgs = {
 
 type Props = BaseModalProps<void> & CreatePrModalArgs;
 
-export function CreatePrModal({
+export const CreatePrModal = observer(function CreatePrModal({
   nameWithOwner,
   branchName,
   draft,
@@ -39,7 +40,9 @@ export function CreatePrModal({
   const [description, setDescription] = useState('');
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<Branch | undefined>();
   const [isCreating, setIsCreating] = useState(false);
-  const { branches, defaultBranch } = useRepository(projectId);
+  const repo = getRepositoryStore(projectId);
+  const branches = repo?.branches ?? [];
+  const defaultBranch = repo?.defaultBranchName ?? undefined;
   const taskPayload = getRegisteredTaskData(projectId, taskId);
 
   const hasGitHubRemote = Boolean(nameWithOwner);
@@ -55,7 +58,11 @@ export function CreatePrModal({
   ) => {
     setIsCreating(true);
     try {
-      const pushResult = await rpc.git.push(projectId, workspaceId);
+      const pushResult = await rpc.git.push(
+        projectId,
+        workspaceId,
+        repo?.configuredRemote ?? 'origin'
+      );
       if (!pushResult.success) {
         log.error('Failed to push branch:', pushResult.error);
         return;
@@ -85,8 +92,7 @@ export function CreatePrModal({
     const capturedDescription = description.trim();
     const capturedBase = selectedBase.branch;
 
-    const statusResult = await rpc.git.getBranchStatus(projectId, workspaceId);
-    const isPushed = statusResult.success && Boolean(statusResult.data.upstream);
+    const isPushed = repo?.isBranchOnRemote(branchName) ?? false;
 
     if (!isPushed) {
       showConfirm({
@@ -171,4 +177,4 @@ export function CreatePrModal({
       </div>
     </>
   );
-}
+});

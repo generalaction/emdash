@@ -25,14 +25,15 @@ export const StackedDiffView = observer(function StackedDiffView() {
   const stagedFileChanges = git.stagedFileChanges;
   const unstagedFileChanges = git.unstagedFileChanges;
 
-  if (activeFile?.type === 'git') {
-    const originalRef = activeFile.originalRef;
-    const activePr = pr.pullRequests.find((p) => p.metadata.baseRefName === originalRef);
+  if (activeFile?.group === 'pr') {
+    const activePr = pr.pullRequests.find(
+      (p) => activeFile.prNumber != null && p.metadata.number === activeFile.prNumber
+    );
     const files = activePr ? (pr.getFiles(activePr).data ?? []) : [];
-    return <StackedDiffPanel files={files} diffType="git" originalRef={originalRef} />;
+    return <StackedDiffPanel files={files} diffType="pr" originalRef={activeFile.originalRef} />;
   }
 
-  const isStaged = activeFile?.type === 'staged';
+  const isStaged = activeFile?.group === 'staged';
   const files = isStaged ? stagedFileChanges : unstagedFileChanges;
   const diffType = isStaged ? ('staged' as const) : ('disk' as const);
 
@@ -41,7 +42,7 @@ export const StackedDiffView = observer(function StackedDiffView() {
 
 interface StackedDiffPanelProps {
   files: GitChange[];
-  diffType: 'disk' | 'staged' | 'git';
+  diffType: 'disk' | 'staged' | 'git' | 'pr';
   /** Git ref for the left (original/before) side. Ignored for 'staged'. */
   originalRef: string;
 }
@@ -103,7 +104,13 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
         const startIndex = instance.range?.startIndex;
         if (startIndex != null) {
           const file = f[startIndex];
-          if (file) dv.setActiveFile({ path: file.path, type: dt, originalRef: ref });
+          if (file)
+            dv.setActiveFile({
+              path: file.path,
+              type: dt === 'disk' ? 'disk' : 'git',
+              group: dt,
+              originalRef: ref,
+            });
         }
       }
     },
@@ -224,7 +231,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
   // Click → scroll: when activeFile changes or mode switches back to stacked
   useEffect(() => {
     if (viewMode !== 'stacked') return;
-    if (activeFile?.type !== diffType) return;
+    if (activeFile?.group !== diffType) return;
     const index = files.findIndex((f) => f.path === activeFile?.path);
     if (index < 0) return;
 
@@ -242,7 +249,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
     return () => clearTimeout(timer);
     // scrollBehavior is intentionally omitted — see comment in original
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFile?.path, activeFile?.type, viewMode, files, diffType, virtualizer]);
+  }, [activeFile?.path, activeFile?.group, viewMode, files, diffType, virtualizer]);
 
   if (files.length === 0) {
     return (
@@ -296,8 +303,8 @@ interface StackedFileSectionProps {
   file: GitChange;
   workspaceId: string;
   diffStyle: 'unified' | 'split';
-  diffType: 'disk' | 'staged' | 'git';
-  /** Git ref for the left (original/before) side. Used when diffType is 'disk' or 'git'. */
+  diffType: 'disk' | 'staged' | 'git' | 'pr';
+  /** Git ref for the left (original/before) side. Used when diffType is 'disk', 'git', or 'pr'. */
   originalRef: string;
 }
 
@@ -321,14 +328,15 @@ const StackedFileSection = observer(function StackedFileSection({
   // 'disk':   original = git://HEAD,        modified = disk://
   // 'staged': original = git://HEAD,        modified = git://staged
   // 'git':    original = git://originalRef, modified = git://HEAD
+  // 'pr':     original = git://originalRef, modified = git://HEAD
   const originalUri =
-    diffType === 'git'
+    diffType === 'git' || diffType === 'pr'
       ? modelRegistry.toGitUri(uri, originalRef)
       : modelRegistry.toGitUri(uri, 'HEAD');
   const modifiedUri =
     diffType === 'staged'
       ? modelRegistry.toGitUri(uri, 'staged')
-      : diffType === 'git'
+      : diffType === 'git' || diffType === 'pr'
         ? modelRegistry.toGitUri(uri, 'HEAD')
         : modelRegistry.toDiskUri(uri);
 

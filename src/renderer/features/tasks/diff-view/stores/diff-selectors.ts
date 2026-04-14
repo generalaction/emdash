@@ -1,5 +1,5 @@
 import type { ChangesViewStore, SelectionState } from './changes-view-store';
-import type { GitStore } from './git';
+import type { GitStore } from './git-store';
 
 export function selectUnstagedSelectionState(store: ChangesViewStore): SelectionState {
   return store.unstagedSelectionState;

@@ -4,8 +4,10 @@ import './index.css';
 import 'devicon/devicon.min.css';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { rpc } from '@renderer/lib/ipc';
+import { wireModelRegistryInvalidation } from '@renderer/lib/monaco/invalidation-bridges';
 import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
 import { diffEditorPool } from '@renderer/lib/monaco/monaco-diff-pool';
+import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { appState } from './lib/stores/app-state';
@@ -18,6 +20,9 @@ async function bootstrap() {
   diffEditorPool.init(4).catch((error: unknown) => {
     log.warn('[monaco-diff-pool] init failed:', error);
   });
+
+  // Wire invalidation bridges so FS and git events flow into the model registry.
+  wireModelRegistryInvalidation(modelRegistry);
 
   appState.update.start();
   initSoundPlayer();
