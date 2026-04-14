@@ -21,7 +21,7 @@
     "package:linux": "pnpm run build && electron-builder --linux --publish never --config electron-builder.config.ts",
     "package:win": "pnpm run build && electron-builder --win --publish never --config electron-builder.config.ts",
     "postinstall": "node --experimental-strip-types scripts/postinstall.ts",
-    "rebuild": "electron-rebuild -f -v 40.7.0 --only=better-sqlite3,node-pty,keytar",
+    "rebuild": "electron-rebuild -f -v 40.7.0 --only=better-sqlite3,node-pty",
     "run:docker-ssh": "docker compose up --build -d",
     "clean": "rm -rf node_modules dist",
     "reset": "pnpm run clean && pnpm install",
@@ -144,7 +144,6 @@
     "human-id": "^4.1.2",
     "ignore": "^5.3.1",
     "jsonc-parser": "^3.3.1",
-    "keytar": "^7.9.0",
     "lucide-react": "^0.564.0",
     "minimatch": "^10.1.1",
     "mobx": "^6.15.0",
@@ -177,7 +176,6 @@
     "onlyBuiltDependencies": [
       "better-sqlite3",
       "node-pty",
-      "keytar",
       "electron"
     ],
     "ignoredBuiltDependencies": [

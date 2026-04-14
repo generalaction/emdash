@@ -79,7 +79,7 @@ jobs:
         run: |
           set -euo pipefail
           ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty,keytar
+          npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty
 
       - name: Package Windows (NSIS + MSI) (no publish)
         shell: bash
