@@ -1,6 +1,6 @@
 import { ipcMain, app } from 'electron';
 import { log } from '../lib/logger';
-import { GitHubService } from '../services/GitHubService';
+import { githubService } from '../services/GitHubService';
 import { worktreeService } from '../services/WorktreeService';
 import { githubCLIInstaller } from '../services/GitHubCLIInstaller';
 import { databaseService } from '../services/DatabaseService';
@@ -14,7 +14,6 @@ import { quoteShellArg } from '../utils/shellEscape';
 import { getAppSettings } from '../settings';
 
 const execAsync = promisify(exec);
-const githubService = new GitHubService();
 
 const slugify = (name: string) =>
   name
