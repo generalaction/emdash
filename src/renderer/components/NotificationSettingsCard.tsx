@@ -119,6 +119,19 @@ const NotificationSettingsCard: React.FC = () => {
           </Select>
         </div>
 
+        {/* App badge toggle */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-1 flex-col gap-0.5">
+            <p className="text-sm font-medium text-foreground">App badge</p>
+            <p className="text-sm text-muted-foreground">Show unread count on the app icon.</p>
+          </div>
+          <Switch
+            checked={notifications?.appBadge ?? false}
+            disabled={loading}
+            onCheckedChange={(next) => updateSettings({ notifications: { appBadge: next } })}
+          />
+        </div>
+
         {/* OS notifications toggle */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-1 flex-col gap-0.5">

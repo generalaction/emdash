@@ -190,6 +190,77 @@ describe('AgentStatusStore', () => {
 
     expect(store.getUnread('task-1')).toBe(false);
   });
+
+  it('tracks unread count across multiple tasks', () => {
+    const store = new AgentStatusStore();
+    expect(store.getUnreadCount()).toBe(0);
+
+    store.handleAgentEvent(
+      makeEvent(makePtyId('claude', 'main', 'task-1'), {
+        taskId: 'task-1',
+        payload: { notificationType: 'idle_prompt' },
+      })
+    );
+    expect(store.getUnreadCount()).toBe(1);
+
+    store.handleAgentEvent(
+      makeEvent(makePtyId('claude', 'main', 'task-2'), {
+        type: 'stop',
+        taskId: 'task-2',
+      })
+    );
+    expect(store.getUnreadCount()).toBe(2);
+
+    store.markSeen('task-1');
+    expect(store.getUnreadCount()).toBe(1);
+
+    store.markSeen('task-2');
+    expect(store.getUnreadCount()).toBe(0);
+  });
+
+  it('fires global unread listeners only when count changes', () => {
+    const store = new AgentStatusStore();
+    const calls: number[] = [];
+    store.onUnreadCountChange(() => calls.push(store.getUnreadCount()));
+
+    const ptyId = makePtyId('claude', 'main', 'task-1');
+    store.handleAgentEvent(
+      makeEvent(ptyId, {
+        taskId: 'task-1',
+        payload: { notificationType: 'idle_prompt' },
+      })
+    );
+    // Duplicate event should not fire again (setUnread early-returns)
+    store.handleAgentEvent(
+      makeEvent(ptyId, {
+        taskId: 'task-1',
+        payload: { notificationType: 'idle_prompt' },
+      })
+    );
+
+    store.markSeen('task-1');
+
+    expect(calls).toEqual([1, 0]);
+  });
+
+  it('cleans up global unread listener on unsubscribe', () => {
+    const store = new AgentStatusStore();
+    const calls: number[] = [];
+    const unsub = store.onUnreadCountChange(() => calls.push(store.getUnreadCount()));
+
+    store.handleAgentEvent(
+      makeEvent(makePtyId('claude', 'main', 'task-1'), {
+        taskId: 'task-1',
+        payload: { notificationType: 'idle_prompt' },
+      })
+    );
+    expect(calls).toEqual([1]);
+
+    unsub();
+
+    store.markSeen('task-1');
+    expect(calls).toEqual([1]); // no further calls after unsubscribe
+  });
 });
 
 describe('deriveTaskStatus', () => {

@@ -199,6 +199,17 @@ const getCachedAppVersion = (): Promise<string> => {
 export function registerAppIpc() {
   void getCachedAppVersion();
 
+  let lastBadgeCount = 0;
+  ipcMain.on('app:set-badge-count', (_event, count: number) => {
+    if (count === lastBadgeCount) return;
+    lastBadgeCount = count;
+    try {
+      app.setBadgeCount(count);
+    } catch {
+      // setBadgeCount is unsupported on some Linux desktop environments
+    }
+  });
+
   ipcMain.handle('app:undo', async (event) => {
     try {
       event.sender.undo();

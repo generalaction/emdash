@@ -21,6 +21,7 @@ vi.mock('electron', () => ({
     handle: vi.fn((channel: string, cb: IpcHandler) => {
       ipcHandleHandlers.set(channel, cb);
     }),
+    on: vi.fn(),
   },
   shell: {
     openExternal: (url: string) => shellOpenExternalMock(url),

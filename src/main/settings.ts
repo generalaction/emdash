@@ -102,6 +102,7 @@ export interface AppSettings {
     enabled: boolean;
     sound: boolean;
     osNotifications: boolean;
+    appBadge: boolean;
     soundFocusMode: 'always' | 'unfocused';
     soundProfile: NotificationSoundProfile;
   };
@@ -166,6 +167,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     enabled: true,
     sound: true,
     osNotifications: true,
+    appBadge: false,
     soundFocusMode: 'always',
     soundProfile: 'default',
   },
@@ -385,6 +387,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       enabled: DEFAULT_SETTINGS.notifications!.enabled,
       sound: DEFAULT_SETTINGS.notifications!.sound,
       osNotifications: DEFAULT_SETTINGS.notifications!.osNotifications,
+      appBadge: DEFAULT_SETTINGS.notifications!.appBadge,
       soundFocusMode: DEFAULT_SETTINGS.notifications!.soundFocusMode,
       soundProfile: DEFAULT_SETTINGS.notifications!.soundProfile,
     },
@@ -425,6 +428,7 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     osNotifications: Boolean(
       notif?.osNotifications ?? DEFAULT_SETTINGS.notifications!.osNotifications
     ),
+    appBadge: Boolean(notif?.appBadge ?? DEFAULT_SETTINGS.notifications!.appBadge),
     soundFocusMode:
       rawFocusMode === 'always' || rawFocusMode === 'unfocused'
         ? rawFocusMode

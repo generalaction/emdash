@@ -100,6 +100,15 @@ export function Workspace() {
     soundPlayer.setProfile(notif?.soundProfile ?? 'default');
   }, [settings?.notifications]);
 
+  useEffect(() => {
+    const enabled =
+      (settings?.notifications?.enabled ?? true) && (settings?.notifications?.appBadge ?? false);
+    const sync = () =>
+      window.electronAPI.setBadgeCount(enabled ? agentStatusStore.getUnreadCount() : 0);
+    sync();
+    return agentStatusStore.onUnreadCountChange(sync);
+  }, [settings?.notifications?.enabled, settings?.notifications?.appBadge]);
+
   // --- View-mode / UI visibility state (inlined from former useModalState) ---
   const [showSettingsPage, setShowSettingsPage] = useState(false);
   const [settingsPageInitialTab, setSettingsPageInitialTab] = useState<SettingsPageTab>('general');
