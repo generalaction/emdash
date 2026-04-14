@@ -2,8 +2,6 @@ import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { PRODUCT_NAME } from '@shared/app-identity';
-import { EMDASH_RELEASES_URL } from '@shared/urls';
-import { rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
@@ -128,13 +126,6 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
             <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-500" />
             You're up to date.{' '}
-            <button
-              type="button"
-              onClick={() => rpc.app.openExternal(EMDASH_RELEASES_URL)}
-              className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground"
-            >
-              View changelog ↗
-            </button>
           </p>
         );
     }

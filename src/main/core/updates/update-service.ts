@@ -67,11 +67,9 @@ class UpdateService {
 
     this.updateState.currentVersion = await resolveAppVersion();
 
-    if (import.meta.env.DEV && !import.meta.env.MAIN_VITE_APP_VERSION) return;
+    if (import.meta.env.DEV) return;
 
     this.setupAutoUpdater();
-    (autoUpdater as unknown as { currentVersion: string }).currentVersion =
-      this.updateState.currentVersion;
     this.setupEventListeners();
     this.active = true;
 
@@ -98,10 +96,6 @@ class UpdateService {
       error: (...args: unknown[]) => log.error('[autoUpdater]', ...sanitizeUpdaterLogArgs(args)),
     };
     autoUpdater.logger = updaterLogger;
-
-    if (import.meta.env.DEV) {
-      autoUpdater.forceDevUpdateConfig = true;
-    }
   }
 
   private setupEventListeners(): void {
