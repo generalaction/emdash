@@ -32,7 +32,7 @@ interface AgentGroup {
 }
 
 interface AgentSelectorProps {
-  value: AgentProviderId;
+  value: AgentProviderId | null;
   onChange: (agent: AgentProviderId) => void;
   disabled?: boolean;
   className?: string;
@@ -64,8 +64,8 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
 
     const allOptions = [...installedOptions, ...notInstalledOptions];
 
-    const selectedConfig = agentConfig[value];
-    const selectedOption = allOptions.find((o) => o.value === value);
+    const selectedConfig = value ? agentConfig[value] : null;
+    const selectedOption = value ? allOptions.find((o) => o.value === value) : null;
 
     function handleValueChange(item: AgentOption | null) {
       if (!item || disabled || item.disabled) return;
@@ -106,7 +106,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                 <span className="flex-1 truncate text-left">{selectedConfig.name}</span>
               </>
             ) : (
-              <span className="flex-1 truncate text-muted-foreground">Select agent</span>
+              <span className="flex-1 truncate text-foreground-muted">No agent installed</span>
             )}
           </ComboboxTrigger>
           <ComboboxContent className="min-w-(--anchor-width)">
