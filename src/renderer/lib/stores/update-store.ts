@@ -11,8 +11,7 @@ import {
   updateNotAvailableEvent,
   updateProgressEvent,
 } from '@shared/events/updateEvents';
-import { EMDASH_RELEASES_URL } from '@shared/urls';
-import { events, rpc } from '../../lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 
 const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified';
 const SNOOZE_HOURS = 6;
@@ -222,11 +221,7 @@ export class UpdateStore {
   private _maybeToastAvailable(version: string): void {
     if (!this._shouldNotify(version)) return;
     toast('Update Available', {
-      description: `Version ${version} is ready. View the changelog for details.`,
-      action: {
-        label: 'View Changelog',
-        onClick: () => rpc.app.openExternal(EMDASH_RELEASES_URL).catch(() => {}),
-      },
+      description: `Version ${version} is ready. Go to Settings to upgrade.`,
     });
     this._rememberNotified(version);
   }
