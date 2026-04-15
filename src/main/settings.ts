@@ -132,6 +132,7 @@ export interface AppSettings {
   changelog?: {
     dismissedVersions: string[];
   };
+  pinnedAgents?: ProviderId[];
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -220,6 +221,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   changelog: {
     dismissedVersions: [],
   },
+  pinnedAgents: [],
 };
 
 function getSettingsPath(): string {
@@ -619,19 +621,31 @@ export function normalizeSettings(input: AppSettings): AppSettings {
     out.hiddenOpenInApps = [];
   }
 
-  const rawDismissedVersions = (input as any)?.changelog?.dismissedVersions;
+  // Changelog
+  const rawDismissed = (input as any)?.changelog?.dismissedVersions;
   out.changelog = {
-    dismissedVersions: Array.isArray(rawDismissedVersions)
+    dismissedVersions: Array.isArray(rawDismissed)
       ? [
           ...new Set(
-            rawDismissedVersions
-              .filter((value: unknown): value is string => typeof value === 'string')
-              .map((value) => value.trim().replace(/^v/i, ''))
+            rawDismissed
+              .filter((v): v is string => typeof v === 'string')
+              .map((v) => v.trim().replace(/^v/i, ''))
               .filter(Boolean)
           ),
         ]
       : [],
   };
+
+  // Pinned Agents
+  const rawPinned = (input as any)?.pinnedAgents;
+  if (Array.isArray(rawPinned)) {
+    const validated = rawPinned.filter(
+      (item): item is ProviderId => typeof item === 'string' && isValidProviderId(item)
+    );
+    out.pinnedAgents = [...new Set(validated)];
+  } else {
+    out.pinnedAgents = [];
+  }
 
   return out;
 }
