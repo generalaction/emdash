@@ -17,6 +17,7 @@ import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import type { ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -39,7 +40,7 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly exec: ExecFn;
   private readonly taskEnvVars: Record<string, string>;
   private readonly hookConfigWriter: HookConfigWriter;
-  private readonly preparedHookProviders = new Set<string>();
+  private readonly preparedHookProviders = new Map<string, boolean>();
 
   constructor({
     projectId,
@@ -195,11 +196,19 @@ export class LocalConversationProvider implements ConversationProvider {
   }
 
   private async prepareHookConfig(providerId: Conversation['providerId']): Promise<void> {
-    if (this.preparedHookProviders.has(providerId)) return;
-
     try {
-      await this.hookConfigWriter.writeForProvider(providerId);
-      this.preparedHookProviders.add(providerId);
+      const localProjectSettings = await appSettingsService.get('localProject');
+      const writeGitIgnoreEntries = localProjectSettings.writeAgentConfigToGitIgnore ?? true;
+      const previousWriteGitIgnoreEntries = this.preparedHookProviders.get(providerId);
+      const shouldPrepareHookConfig =
+        previousWriteGitIgnoreEntries === undefined ||
+        (!previousWriteGitIgnoreEntries && writeGitIgnoreEntries);
+      if (!shouldPrepareHookConfig) return;
+
+      await this.hookConfigWriter.writeForProvider(providerId, {
+        writeGitIgnoreEntries,
+      });
+      this.preparedHookProviders.set(providerId, writeGitIgnoreEntries);
     } catch (error) {
       log.warn('LocalConversationProvider: failed to prepare hook config', {
         providerId,

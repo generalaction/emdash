@@ -10,6 +10,7 @@ const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const GITIGNORE_PATH = '.gitignore';
+type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
@@ -81,23 +82,32 @@ export class HookConfigWriter {
     return true;
   }
 
-  async writeForProvider(providerId: AgentProviderId): Promise<void> {
+  async writeForProvider(
+    providerId: AgentProviderId,
+    options: HookConfigWriteOptions = {}
+  ): Promise<void> {
+    const writeGitIgnoreEntries = options.writeGitIgnoreEntries ?? true;
+
     if (providerId === 'claude') {
       const wroteConfig = await this.writeClaudeHooks();
-      if (wroteConfig) await this.ensureGitIgnoreEntries([CLAUDE_SETTINGS_PATH]);
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([CLAUDE_SETTINGS_PATH]);
+      }
       return;
     }
 
     if (providerId === 'codex') {
       const wroteConfig = await this.writeCodexNotify();
-      if (wroteConfig) await this.ensureGitIgnoreEntries([CODEX_CONFIG_PATH]);
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([CODEX_CONFIG_PATH]);
+      }
     }
   }
 
-  async writeAll(): Promise<void> {
+  async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
       (['claude', 'codex'] as const).map((providerId) =>
-        this.writeForProvider(providerId).catch((err: Error) => {
+        this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })
       )
