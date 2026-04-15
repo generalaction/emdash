@@ -136,6 +136,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     clickTime?: number;
     env?: Record<string, string>;
     resume?: boolean;
+    model?: string;
+    effort?: string;
+    fastMode?: boolean;
   }) => ipcRenderer.invoke('pty:startDirect', opts),
 
   ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) =>
@@ -638,6 +641,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAllProviderCustomConfigs: () => ipcRenderer.invoke('providers:getAllCustomConfigs'),
   updateProviderCustomConfig: (providerId: string, config: any) =>
     ipcRenderer.invoke('providers:updateCustomConfig', providerId, config),
+  listProviderModels: (providerId: string) =>
+    ipcRenderer.invoke('providers:listModels', providerId),
 
   // Debug helpers
   debugAppendLog: (filePath: string, content: string, options?: { reset?: boolean }) =>

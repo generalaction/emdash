@@ -55,6 +55,12 @@ Not all providers support the same features. Here's what varies:
 
 **Initial prompt**: Pass instructions when starting the agent. Most providers support this.
 
+**Model selection** _(Claude Code only)_: Choose the Claude model to use per task. The list is fetched live from the Anthropic API.
+
+**Effort level** _(Claude Code only)_: Set reasoning depth at startup — low, medium, high, or max.
+
+**Fast mode** _(Claude Code, Opus models only)_: Enable fast streaming output.
+
 ## Adding a Provider
 
 Providers are detected automatically when you install them. Open Emdash, go to Settings, and click "Refresh" to scan for newly installed CLIs.

@@ -10,6 +10,12 @@ import { type ForgejoIssueSummary } from './forgejo';
 export interface AgentRun {
   agent: ProviderId;
   runs: number;
+  /** Optional model override (e.g. 'claude-opus-4-6'). Only used for providers that support --model. */
+  model?: string;
+  /** Effort level for the session (low, medium, high, max). */
+  effort?: string;
+  /** When true, inject /fast into the session after it starts (Opus 4.6 only). */
+  fastMode?: boolean;
 }
 
 export interface GitHubIssueLink {
@@ -36,6 +42,12 @@ export interface TaskMetadata {
     provisionCommand: string;
     terminateCommand: string;
   } | null;
+  /** Model override used when launching the agent (e.g. 'claude-opus-4-6'). null means use provider default. */
+  agentModel?: string | null;
+  /** Effort level passed as --effort <level> (low, medium, high, max). null means default. */
+  agentEffort?: string | null;
+  /** When true, fast mode is enabled via --settings {"fastMode":true} (Opus 4.6 only). */
+  agentFastMode?: boolean | null;
   /** Whether this task is pinned to the top of the sidebar */
   isPinned?: boolean | null;
   /** The automation that created this task (if any) */

@@ -11,6 +11,7 @@ import { providerStatusCache } from './providerStatusCache';
 import { errorTracking } from '../errorTracking';
 import { LOCALE_ENV_VARS, DEFAULT_UTF8_LOCALE, isUtf8Locale } from '../utils/locale';
 import { normalizeClaudeConfigDir } from '../utils/shellEnv';
+import { quoteShellArg } from '../utils/shellEscape';
 
 /**
  * Suppress EPIPE/EIO errors on a PTY's underlying socket.
@@ -838,6 +839,30 @@ export function resolveProviderCommandConfig(
   };
 }
 
+const ALLOWED_CLAUDE_EFFORTS = new Set(['low', 'medium', 'high', 'max']);
+
+/**
+ * Builds and validates Claude Code-specific runtime args.
+ * - Only appends --effort for known valid levels.
+ * - Only appends --settings fastMode when the model is Opus (or unspecified).
+ */
+export function buildClaudeRuntimeArgs(options: {
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
+}): string[] {
+  const args: string[] = [];
+  const model = options.model?.trim();
+  const effort = options.effort?.trim();
+  const modelSupportsFast = !model || model.toLowerCase().includes('opus');
+
+  if (model) args.push('--model', model);
+  if (effort && ALLOWED_CLAUDE_EFFORTS.has(effort)) args.push('--effort', effort);
+  if (options.fastMode && modelSupportsFast) args.push('--settings', '{"fastMode":true}');
+
+  return args;
+}
+
 export function buildProviderCliArgs(options: ProviderCliArgsOptions): string[] {
   const args: string[] = [];
 
@@ -1181,6 +1206,9 @@ export function startDirectPty(options: {
   env?: Record<string, string>;
   resume?: boolean;
   tmux?: boolean;
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
 }): IPty | null {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
@@ -1204,6 +1232,9 @@ export function startDirectPty(options: {
     initialPrompt,
     env,
     resume,
+    model,
+    effort,
+    fastMode,
   } = options;
 
   const resolvedConfig = resolveProviderCommandConfig(providerId);
@@ -1261,13 +1292,15 @@ export function startDirectPty(options: {
     const usedSessionIsolation = applySessionIsolation(cliArgs, provider, id, cwd, !!resume);
 
     cliArgs.push(...exactResumeArgs);
+    const claudeRuntimeArgs =
+      providerId === 'claude' ? buildClaudeRuntimeArgs({ model, effort, fastMode }) : [];
     cliArgs.push(
       ...buildProviderCliArgs({
         resume: exactResumeArgs.length === 0 && !usedSessionIsolation && !!resume,
         resumeFlag: resolvedConfig.resumeFlag,
         defaultArgs: resolvedConfig.defaultArgs,
         extraArgs: resolvedConfig.extraArgs,
-        runtimeArgs: getProviderRuntimeCliArgs({ providerId }),
+        runtimeArgs: [...getProviderRuntimeCliArgs({ providerId }), ...claudeRuntimeArgs],
         autoApprove,
         autoApproveFlag: resolvedConfig.autoApproveFlag,
         initialPrompt,
@@ -1379,6 +1412,9 @@ export async function startPty(options: {
   skipResume?: boolean;
   shellSetup?: string;
   tmux?: boolean;
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
 }): Promise<IPty> {
   if (process.env.EMDASH_DISABLE_PTY === '1') {
     throw new Error('PTY disabled via EMDASH_DISABLE_PTY=1');
@@ -1395,6 +1431,9 @@ export async function startPty(options: {
     skipResume,
     shellSetup,
     tmux,
+    model,
+    effort,
+    fastMode,
   } = options;
 
   const defaultShell = getDefaultShell();
@@ -1515,13 +1554,18 @@ export async function startPty(options: {
         );
 
         cliArgs.push(...exactResumeArgs);
+        const shellClaudeArgs =
+          provider.id === 'claude' ? buildClaudeRuntimeArgs({ model, effort, fastMode }) : [];
         cliArgs.push(
           ...buildProviderCliArgs({
             resume: exactResumeArgs.length === 0 && !usedSessionIsolation && !skipResume,
             resumeFlag: resolvedConfig?.resumeFlag,
             defaultArgs: resolvedConfig?.defaultArgs,
             extraArgs: resolvedConfig?.extraArgs,
-            runtimeArgs: getProviderRuntimeCliArgs({ providerId: provider.id }),
+            runtimeArgs: [
+              ...getProviderRuntimeCliArgs({ providerId: provider.id }),
+              ...shellClaudeArgs,
+            ],
             autoApprove,
             autoApproveFlag: resolvedConfig?.autoApproveFlag,
             initialPrompt,
@@ -1541,12 +1585,8 @@ export async function startPty(options: {
         const cliCommand = resolvedCli;
         const commandString =
           cliArgs.length > 0
-            ? `${cliCommand} ${cliArgs
-                .map((arg) =>
-                  /[\s'"\\$`\n\r\t]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg
-                )
-                .join(' ')}`
-            : cliCommand;
+            ? `${quoteShellArg(cliCommand)} ${cliArgs.map(quoteShellArg).join(' ')}`
+            : quoteShellArg(cliCommand);
 
         const shellBase = (defaultShell.split('/').pop() || '').toLowerCase();
 

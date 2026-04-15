@@ -36,6 +36,9 @@ type Props = {
   keepAlive?: boolean;
   autoApprove?: boolean;
   initialPrompt?: string;
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
   mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean; // If true, don't save/restore terminal snapshots (for non-main chats)
   onActivity?: () => void;
@@ -63,6 +66,9 @@ const TerminalPaneComponent = forwardRef<TerminalPaneHandle, Props>(
       keepAlive = true,
       autoApprove,
       initialPrompt,
+      model,
+      effort,
+      fastMode,
       mapShiftEnterToCtrlJ,
       disableSnapshots = false,
       onActivity,
@@ -98,6 +104,12 @@ const TerminalPaneComponent = forwardRef<TerminalPaneHandle, Props>(
     autoApproveRef.current = autoApprove;
     const initialPromptRef = useRef(initialPrompt);
     initialPromptRef.current = initialPrompt;
+    const modelRef = useRef(model);
+    modelRef.current = model;
+    const effortRef = useRef(effort);
+    effortRef.current = effort;
+    const fastModeRef = useRef(fastMode);
+    fastModeRef.current = fastMode;
     const mapShiftEnterToCtrlJRef = useRef(mapShiftEnterToCtrlJ);
     mapShiftEnterToCtrlJRef.current = mapShiftEnterToCtrlJ;
     const disableSnapshotsRef = useRef(disableSnapshots);
@@ -157,6 +169,9 @@ const TerminalPaneComponent = forwardRef<TerminalPaneHandle, Props>(
         theme: themeRef.current,
         autoApprove: autoApproveRef.current,
         initialPrompt: initialPromptRef.current,
+        model: modelRef.current,
+        effort: effortRef.current,
+        fastMode: fastModeRef.current,
         mapShiftEnterToCtrlJ: mapShiftEnterToCtrlJRef.current,
         disableSnapshots: disableSnapshotsRef.current,
         onLinkClick: handleLinkClick,

@@ -20,6 +20,9 @@ interface AttachOptions {
   theme: SessionTheme;
   autoApprove?: boolean;
   initialPrompt?: string;
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
   mapShiftEnterToCtrlJ?: boolean;
   disableSnapshots?: boolean;
   onLinkClick?: (url: string) => void;
@@ -91,6 +94,9 @@ class SessionRegistry {
       telemetry: null,
       autoApprove: options.autoApprove,
       initialPrompt: options.initialPrompt,
+      model: options.model,
+      effort: options.effort,
+      fastMode: options.fastMode,
       mapShiftEnterToCtrlJ: options.mapShiftEnterToCtrlJ,
       disableSnapshots: options.disableSnapshots,
       onLinkClick: options.onLinkClick,

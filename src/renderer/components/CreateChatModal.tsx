@@ -11,6 +11,7 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
 import { AgentDropdown } from './AgentDropdown';
+import { ClaudeOptionsSection } from './ClaudeOptionsSection';
 import { CreateChatReviewSection } from './CreateChatReviewSection';
 import { agentConfig } from '../lib/agentConfig';
 import { isValidProviderId } from '@shared/providers/registry';
@@ -44,6 +45,9 @@ export function CreateChatModal({
 }: CreateChatModalProps) {
   const { settings } = useAppSettings();
   const [selectedAgent, setSelectedAgent] = useState<Agent>(DEFAULT_AGENT);
+  const [claudeModel, setClaudeModel] = useState('');
+  const [claudeEffort, setClaudeEffort] = useState('');
+  const [claudeFastMode, setClaudeFastMode] = useState(false);
   const [reviewEnabled, setReviewEnabled] = useState(false);
   const [reviewAgent, setReviewAgent] = useState<Agent>(DEFAULT_AGENT);
   const [reviewPrompt, setReviewPrompt] = useState('');
@@ -63,6 +67,9 @@ export function CreateChatModal({
   useEffect(() => {
     if (isOpen) {
       setError(null);
+      setClaudeModel('');
+      setClaudeEffort('');
+      setClaudeFastMode(false);
       setReviewEnabled(false);
       setReviewAgent(reviewSettings.agent as Agent);
       setReviewPrompt(reviewSettings.prompt);
@@ -135,9 +142,19 @@ export function CreateChatModal({
           metadata: buildReviewConversationMetadata(reviewPrompt.trim()),
         });
       } else {
+        const hasClaudeOpts =
+          selectedAgent === 'claude' && (claudeModel || claudeEffort || claudeFastMode);
+        const claudeMetadata = hasClaudeOpts
+          ? JSON.stringify({
+              ...(claudeModel ? { model: claudeModel } : {}),
+              ...(claudeEffort ? { effort: claudeEffort } : {}),
+              ...(claudeFastMode ? { fastMode: true } : {}),
+            })
+          : null;
         onCreateChat({
           title: `Chat ${Date.now()}`,
           agent: selectedAgent,
+          metadata: claudeMetadata,
         });
       }
       onClose();
@@ -165,14 +182,26 @@ export function CreateChatModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!reviewEnabled ? (
-            <div className="flex items-center gap-4">
-              <Label className="shrink-0">Agent</Label>
-              <AgentDropdown
-                value={selectedAgent}
-                onChange={setSelectedAgent}
-                installedAgents={installedAgents}
-              />
-            </div>
+            <>
+              <div className="flex items-center gap-4">
+                <Label className="shrink-0">Agent</Label>
+                <AgentDropdown
+                  value={selectedAgent}
+                  onChange={setSelectedAgent}
+                  installedAgents={installedAgents}
+                />
+              </div>
+              {selectedAgent === 'claude' && (
+                <ClaudeOptionsSection
+                  model={claudeModel}
+                  onModelChange={setClaudeModel}
+                  effort={claudeEffort}
+                  onEffortChange={setClaudeEffort}
+                  fastMode={claudeFastMode}
+                  onFastModeChange={setClaudeFastMode}
+                />
+              )}
+            </>
           ) : null}
 
           {reviewSettings.enabled ? (

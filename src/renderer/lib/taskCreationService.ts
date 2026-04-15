@@ -367,6 +367,13 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     preparedPrompt = parts.join('\n');
   }
 
+  const totalRuns = agentRuns.reduce((sum, ar) => sum + ar.runs, 0);
+  const isMultiAgent = totalRuns > 1;
+  const primaryAgent = agentRuns[0]?.agent || 'claude';
+  const primaryModel = agentRuns[0]?.model || undefined;
+  const primaryEffort = agentRuns[0]?.effort || undefined;
+  const primaryFastMode = agentRuns[0]?.fastMode || undefined;
+
   const taskMetadata: TaskMetadata | null =
     linkedLinearIssue ||
     linkedJiraIssue ||
@@ -376,7 +383,10 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
     linkedForgejoIssue ||
     preparedPrompt ||
     autoApprove ||
-    nameGenerated
+    nameGenerated ||
+    primaryModel ||
+    primaryEffort ||
+    primaryFastMode
       ? {
           linearIssue: linkedLinearIssue ?? null,
           jiraIssue: linkedJiraIssue ?? null,
@@ -387,12 +397,11 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
           initialPrompt: preparedPrompt ?? null,
           autoApprove: autoApprove ?? null,
           nameGenerated: nameGenerated ?? null,
+          agentModel: primaryModel ?? null,
+          agentEffort: primaryEffort ?? null,
+          agentFastMode: primaryFastMode ?? null,
         }
       : null;
-
-  const totalRuns = agentRuns.reduce((sum, ar) => sum + ar.runs, 0);
-  const isMultiAgent = totalRuns > 1;
-  const primaryAgent = agentRuns[0]?.agent || 'claude';
 
   // ---------------------------------------------------------------------------
   // Multi-agent path

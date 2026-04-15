@@ -46,6 +46,16 @@ Each agent gets its own worktree. Compare approaches and pick the best result. S
 
 If tasks start local servers, use `EMDASH_PORT` in your Project config script fields to avoid port collisions between parallel tasks. See [Project Configuration](/project-config).
 
+## Claude Options
+
+When Claude Code is selected, a **Claude options** section appears. Expand it to configure:
+
+- **Model**: Choose a specific Claude model (e.g. `claude-opus-4-6`, `claude-sonnet-4-6[1m]`). Models are fetched from the Anthropic API when an `ANTHROPIC_API_KEY` is set, with a hardcoded fallback list otherwise. Defaults to whatever Claude Code uses by default.
+- **Effort**: Control reasoning depth — `low`, `medium`, `high`, or `max`. Leave at Default to let Claude decide.
+- **Fast mode**: Enable Claude's fast streaming mode. Only shown when an Opus model is selected, as fast mode is currently supported for Opus models only.
+
+These options are also available in the **Add Agent to Task** dialog.
+
 ## Advanced Options
 
 Click **Advanced Options** when creating a task to access:

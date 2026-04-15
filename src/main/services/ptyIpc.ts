@@ -495,8 +495,11 @@ function buildRemoteProviderInvocation(args: {
   autoApprove?: boolean;
   initialPrompt?: string;
   resume?: boolean;
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
 }): { cli: string; cmd: string; installCommand?: string } {
-  const { providerId, autoApprove, initialPrompt, resume } = args;
+  const { providerId, autoApprove, initialPrompt, resume, model, effort, fastMode } = args;
   const fallbackProvider = getProvider(providerId as ProviderId);
   const resolvedConfig = resolveProviderCommandConfig(providerId);
   const provider = resolvedConfig?.provider ?? fallbackProvider;
@@ -522,6 +525,15 @@ function buildRemoteProviderInvocation(args: {
     useKeystrokeInjection: provider?.useKeystrokeInjection,
   });
   cliArgs.push(...getProviderRuntimeCliArgs({ providerId, target: 'remote' }));
+  if (model && providerId === 'claude') {
+    cliArgs.push('--model', model);
+  }
+  if (effort && providerId === 'claude') {
+    cliArgs.push('--effort', effort);
+  }
+  if (fastMode && providerId === 'claude') {
+    cliArgs.push('--settings', '{"fastMode":true}');
+  }
 
   const cmdParts = [...cliCommandParts, ...cliArgs];
   const cmd = cmdParts.map(quoteShellArg).join(' ');
@@ -1172,6 +1184,9 @@ export function registerPtyIpc(): void {
         initialPrompt?: string;
         env?: Record<string, string>;
         resume?: boolean;
+        model?: string;
+        effort?: string;
+        fastMode?: boolean;
       }
     ) => {
       if (process.env.EMDASH_DISABLE_PTY === '1') {
@@ -1179,8 +1194,21 @@ export function registerPtyIpc(): void {
       }
 
       try {
-        const { id, providerId, cwd, remote, cols, rows, autoApprove, initialPrompt, env, resume } =
-          args;
+        const {
+          id,
+          providerId,
+          cwd,
+          remote,
+          cols,
+          rows,
+          autoApprove,
+          initialPrompt,
+          env,
+          resume,
+          model,
+          effort,
+          fastMode,
+        } = args;
         const existing = getPty(id);
 
         if (remote?.connectionId) {
@@ -1204,6 +1232,9 @@ export function registerPtyIpc(): void {
             autoApprove,
             initialPrompt,
             resume,
+            model,
+            effort,
+            fastMode,
           });
 
           const resolvedConfig = resolveProviderCommandConfig(providerId);
@@ -1373,6 +1404,9 @@ export function registerPtyIpc(): void {
                 env,
                 resume: effectiveResume,
                 tmux,
+                model,
+                effort,
+                fastMode,
               });
 
         // Fall back to shell-based spawn when direct spawn is unavailable or shellSetup/tmux is set
@@ -1399,6 +1433,9 @@ export function registerPtyIpc(): void {
             skipResume: !resume,
             shellSetup,
             tmux,
+            model,
+            effort,
+            fastMode,
           });
           usedFallback = true;
         }

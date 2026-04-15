@@ -42,6 +42,9 @@ declare global {
         initialPrompt?: string;
         env?: Record<string, string>;
         resume?: boolean;
+        model?: string;
+        effort?: string;
+        fastMode?: boolean;
       }) => Promise<{ ok: boolean; reused?: boolean; error?: string }>;
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows: number }) => void;

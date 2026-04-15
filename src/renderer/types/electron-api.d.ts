@@ -94,6 +94,9 @@ declare global {
         initialPrompt?: string;
         env?: Record<string, string>;
         resume?: boolean;
+        model?: string;
+        effort?: string;
+        fastMode?: boolean;
       }) => Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }>;
       ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) => Promise<{
         success: boolean;
@@ -1141,6 +1144,11 @@ declare global {
         success: boolean;
         error?: string;
       }>;
+      listProviderModels?: (providerId: string) => Promise<{
+        success: boolean;
+        models?: Array<{ id: string; name: string; supportsFast: boolean }>;
+        error?: string;
+      }>;
 
       // Debug helpers
       debugAppendLog: (
@@ -1507,9 +1515,12 @@ export interface ElectronAPI {
     cols?: number;
     rows?: number;
     autoApprove?: boolean;
+    fastMode?: boolean;
+    effort?: string;
     initialPrompt?: string;
     env?: Record<string, string>;
     resume?: boolean;
+    model?: string;
   }) => Promise<{ ok: boolean; reused?: boolean; tmux?: boolean; error?: string }>;
   ptyScpToRemote: (args: { connectionId: string; localPaths: string[] }) => Promise<{
     success: boolean;
@@ -1782,6 +1793,11 @@ export interface ElectronAPI {
   onProviderStatusUpdated?: (
     listener: (data: { providerId: string; status: any }) => void
   ) => () => void;
+  listProviderModels?: (providerId: string) => Promise<{
+    success: boolean;
+    models?: Array<{ id: string; name: string; supportsFast: boolean }>;
+    error?: string;
+  }>;
   // Telemetry
   captureTelemetry: (
     event: string,
