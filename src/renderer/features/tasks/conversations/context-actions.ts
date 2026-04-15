@@ -5,7 +5,7 @@ const MAX_LABEL_TITLE_LENGTH = 24;
 
 export type ContextActionBehavior = 'inject' | 'send';
 
-export type ContextActionKind = 'linked-issue' | 'prompt-preset';
+export type ContextActionKind = 'linked-issue' | 'review-prompt';
 
 export interface ContextAction {
   id: string;
@@ -69,8 +69,26 @@ export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | nu
   };
 }
 
-export function buildTaskContextActions(linkedIssue?: Issue): ContextAction[] {
+export function buildReviewPromptContextAction(reviewPrompt?: string): ContextAction | null {
+  const text = (reviewPrompt ?? '').trim();
+  if (!text) return null;
+  return {
+    id: 'review-prompt',
+    kind: 'review-prompt',
+    behavior: 'send',
+    label: 'Review prompt',
+    text,
+  };
+}
+
+export function buildTaskContextActions(
+  linkedIssue?: Issue,
+  reviewPrompt?: string
+): ContextAction[] {
   const linkedIssueAction = buildLinkedIssueContextAction(linkedIssue);
-  if (!linkedIssueAction) return [];
-  return [linkedIssueAction];
+  const reviewPromptAction = buildReviewPromptContextAction(reviewPrompt);
+  const actions: ContextAction[] = [];
+  if (linkedIssueAction) actions.push(linkedIssueAction);
+  if (reviewPromptAction) actions.push(reviewPromptAction);
+  return actions;
 }
