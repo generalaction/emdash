@@ -57,6 +57,7 @@ export type TelemetryEventProperties = {
     has_issue: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'none';
     provider: AgentProviderId | null;
   };
+  task_provisioned: EmptyProps;
   task_archived: EmptyProps;
   task_status_changed: { from_status: TaskLifecycleStatus; to_status: TaskLifecycleStatus };
   task_deleted: EmptyProps;

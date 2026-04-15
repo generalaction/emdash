@@ -203,6 +203,10 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
   if (!provisionResult.success) {
     return err(mapProvisionError(provisionResult.error));
   }
+  capture('task_provisioned', {
+    project_id: params.projectId,
+    task_id: params.id,
+  });
 
   if (params.initialConversation) {
     await createConversation({
