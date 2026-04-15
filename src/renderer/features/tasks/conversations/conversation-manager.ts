@@ -4,6 +4,7 @@ import {
   agentEventChannel,
   agentSessionExitedChannel,
   isAttentionNotification,
+  type NotificationType,
 } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -42,7 +43,7 @@ export class ConversationManagerStore {
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
-        conversationStore.setStatus('awaiting-input');
+        conversationStore.setAwaitingInput(nt);
         soundPlayer.play('needs_attention', appFocused);
         return;
       }
@@ -163,6 +164,7 @@ export class ConversationStore {
   session: PtySession;
   status: AgentStatus = 'idle';
   seen = true;
+  lastNotificationType: NotificationType | null = null;
 
   constructor(conversation: Conversation) {
     this.data = conversation;
@@ -174,7 +176,9 @@ export class ConversationStore {
       session: observable,
       status: observable,
       seen: observable,
+      lastNotificationType: observable,
       setStatus: action,
+      setAwaitingInput: action,
       setWorking: action,
       clearWorking: action,
       markSeen: action,
@@ -194,9 +198,21 @@ export class ConversationStore {
   setStatus(status: AgentStatus) {
     this.status = status;
     this.seen = status === 'idle' || status === 'working';
+    if (status !== 'awaiting-input') {
+      this.lastNotificationType = null;
+    }
+  }
+
+  setAwaitingInput(notificationType: NotificationType) {
+    this.lastNotificationType = notificationType;
+    this.setStatus('awaiting-input');
   }
 
   setWorking() {
+    if (this.status === 'awaiting-input' && this.lastNotificationType === 'permission_prompt') {
+      return;
+    }
+    this.lastNotificationType = null;
     this.setStatus('working');
   }
 

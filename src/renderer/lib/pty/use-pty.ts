@@ -9,11 +9,12 @@ import { log } from '@renderer/utils/logger';
 import { usePaneSizingContext } from './pane-sizing-context';
 import { buildTheme, type FrontendPty, type SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
-import { isRealTaskInput } from './pty-input-buffer';
+import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
   shouldCopySelectionFromTerminal,
+  shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
@@ -65,12 +66,14 @@ export interface UsePtyOptions {
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
-  onEnterPress?: () => void;
+  onEnterPress?: (message: string) => void;
+  onInterruptPress?: () => void;
 }
 
 export interface UseTerminalReturn {
   focus: () => void;
   setTheme: (theme: SessionTheme) => void;
+  sendInput: (data: string, options?: { track?: boolean }) => void;
 }
 
 /**
@@ -104,6 +107,7 @@ export function usePty(
     onExit,
     onFirstMessage,
     onEnterPress,
+    onInterruptPress,
   } = options;
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
@@ -115,6 +119,8 @@ export function usePty(
   onFirstMessageRef.current = onFirstMessage;
   const onEnterPressRef = useRef(onEnterPress);
   onEnterPressRef.current = onEnterPress;
+  const onInterruptPressRef = useRef(onInterruptPress);
+  onInterruptPressRef.current = onInterruptPress;
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -148,8 +154,8 @@ export function usePty(
   const firstMessageSentRef = useRef(false);
   const inputBufferRef = useRef('');
 
-  // Keystroke buffer for filtering slash-command enter presses.
-  const keystrokeBufferRef = useRef('');
+  // Tracks submitted user input while filtering terminal control traffic.
+  const submittedInputBufferRef = useRef(new SubmittedInputBuffer());
 
   // Track whether the PTY has started (to filter focus reporting escape sequences).
   const ptyStartedRef = useRef(false);
@@ -262,14 +268,30 @@ export function usePty(
     }
   }, []);
 
+  const sendInput = useCallback(
+    (data: string, options?: { track?: boolean }) => {
+      const shouldTrack = options?.track ?? true;
+      if (shouldTrack) {
+        const submittedMessages = submittedInputBufferRef.current.feed(data);
+        for (const message of submittedMessages) {
+          if (isRealTaskInput(message)) {
+            onEnterPressRef.current?.(message);
+          }
+        }
+      }
+      void rpc.pty.sendInput(sessionId, data);
+    },
+    [sessionId]
+  );
+
   const pasteFromClipboard = useCallback(() => {
     navigator.clipboard
       .readText()
       .then((text) => {
-        if (text) rpc.pty.sendInput(sessionId, text);
+        if (text) sendInput(text);
       })
       .catch(() => {});
-  }, [sessionId]);
+  }, [sendInput]);
 
   // ─── Main effect: mount terminal once per sessionId ────────────────────────
 
@@ -344,7 +366,7 @@ export function usePty(
             { intermediates: '$', final: 'p' },
             (params: (number | number[])[]) => {
               const mode = (params[0] as number) ?? 0;
-              rpc.pty.sendInput(sessionId, `\x1b[${mode};0$y`);
+              sendInput(`\x1b[${mode};0$y`, { track: false });
               return true;
             }
           );
@@ -352,7 +374,7 @@ export function usePty(
             { prefix: '?', intermediates: '$', final: 'p' },
             (params: (number | number[])[]) => {
               const mode = (params[0] as number) ?? 0;
-              rpc.pty.sendInput(sessionId, `\x1b[?${mode};0$y`);
+              sendInput(`\x1b[?${mode};0$y`, { track: false });
               return true;
             }
           );
@@ -389,7 +411,7 @@ export function usePty(
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
-          rpc.pty.sendInput(sessionId, CTRL_J_ASCII);
+          sendInput(CTRL_J_ASCII);
           return false;
         }
 
@@ -397,8 +419,13 @@ export function usePty(
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
-          rpc.pty.sendInput(sessionId, CTRL_U_ASCII);
+          sendInput(CTRL_U_ASCII);
           return false;
+        }
+
+        if (shouldHandleInterruptFromTerminal(event)) {
+          onInterruptPressRef.current?.();
+          return true;
         }
 
         if (
@@ -412,14 +439,14 @@ export function usePty(
             event.preventDefault();
             event.stopImmediatePropagation();
             event.stopPropagation();
-            rpc.pty.sendInput(sessionId, '\x01');
+            sendInput('\x01');
             return false;
           }
           if (event.key === 'ArrowRight') {
             event.preventDefault();
             event.stopImmediatePropagation();
             event.stopPropagation();
-            rpc.pty.sendInput(sessionId, '\x05');
+            sendInput('\x05');
             return false;
           }
         }
@@ -448,23 +475,7 @@ export function usePty(
           }
         }
 
-        const isEnterPress = filtered.includes('\r') || filtered.includes('\n');
-        if (isEnterPress) {
-          if (isRealTaskInput(keystrokeBufferRef.current)) {
-            onEnterPressRef.current?.();
-          }
-          keystrokeBufferRef.current = '';
-        } else {
-          for (const ch of filtered) {
-            if (ch === '\x7f' || ch === '\b') {
-              keystrokeBufferRef.current = keystrokeBufferRef.current.slice(0, -1);
-            } else if (ch.charCodeAt(0) >= 32) {
-              keystrokeBufferRef.current += ch;
-            }
-          }
-        }
-
-        rpc.pty.sendInput(sessionId, filtered);
+        sendInput(filtered);
       };
 
       const inputDisposable = terminal.onData((data) => handleTerminalInput(data));
@@ -565,7 +576,7 @@ export function usePty(
       ptyStartedRef.current = false;
       firstMessageSentRef.current = false;
       inputBufferRef.current = '';
-      keystrokeBufferRef.current = '';
+      submittedInputBufferRef.current = new SubmittedInputBuffer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, pty]); // Re-run only when the session changes
@@ -587,5 +598,5 @@ export function usePty(
     }
   }, [isPanelDragging, measureAndResize]);
 
-  return { focus, setTheme };
+  return { focus, setTheme, sendInput };
 }

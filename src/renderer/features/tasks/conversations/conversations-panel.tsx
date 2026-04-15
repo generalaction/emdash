@@ -70,6 +70,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
       getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}
       onEnterPress={shouldSetWorkingOnEnter ? (s) => s.setWorking() : undefined}
+      onInterruptPress={(s) => s.clearWorking()}
       mapShiftEnterToCtrlJ
       remoteConnectionId={remoteConnectionId}
       tabBar={<ConversationsTabs projectId={projectId} taskId={taskId} />}
