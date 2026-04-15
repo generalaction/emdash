@@ -8,6 +8,7 @@ export const localProjectSettingsSchema = z.object({
   defaultWorktreeDirectory: z.string(),
   branchPrefix: z.string(),
   pushOnCreate: z.boolean(),
+  writeAgentConfigToGitIgnore: z.boolean(),
 });
 
 export const notificationSettingsSchema = z.object({

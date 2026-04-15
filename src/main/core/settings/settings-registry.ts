@@ -15,6 +15,7 @@ export const SETTINGS_DEFAULTS = {
     defaultWorktreeDirectory: join(homedir(), 'emdash', 'worktrees'),
     branchPrefix: 'emdash',
     pushOnCreate: true,
+    writeAgentConfigToGitIgnore: true,
   }),
   tasks: {
     autoGenerateName: true,

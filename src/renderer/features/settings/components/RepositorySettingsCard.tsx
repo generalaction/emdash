@@ -17,6 +17,7 @@ const RepositorySettingsCard: React.FC = () => {
 
   const branchPrefix = localProject?.branchPrefix ?? '';
   const pushOnCreate = localProject?.pushOnCreate ?? true;
+  const writeAgentConfigToGitIgnore = localProject?.writeAgentConfigToGitIgnore ?? true;
 
   const example = useMemo(() => {
     return `${branchPrefix}/my-feature-a3f`;
@@ -69,6 +70,27 @@ const RepositorySettingsCard: React.FC = () => {
               onCheckedChange={(checked) => update({ pushOnCreate: checked })}
               disabled={loading || saving}
               aria-label="Enable automatic push on create"
+            />
+          </>
+        }
+      />
+      <SettingRow
+        title="Auto-update .gitignore"
+        description="When Emdash writes CLI hook configs, also add their paths to .gitignore."
+        control={
+          <>
+            {isFieldOverridden('writeAgentConfigToGitIgnore') && (
+              <ResetToDefaultButton
+                defaultLabel="on"
+                onReset={() => resetField('writeAgentConfigToGitIgnore')}
+                disabled={loading || saving}
+              />
+            )}
+            <Switch
+              checked={writeAgentConfigToGitIgnore}
+              onCheckedChange={(checked) => update({ writeAgentConfigToGitIgnore: checked })}
+              disabled={loading || saving}
+              aria-label="Enable .gitignore updates for CLI hook configs"
             />
           </>
         }
