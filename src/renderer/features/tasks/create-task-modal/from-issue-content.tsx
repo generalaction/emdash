@@ -14,6 +14,8 @@ interface FromIssueContentProps {
   projectPath?: string;
   disabled?: boolean;
   isUnborn?: boolean;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function FromIssueContent({
@@ -24,6 +26,8 @@ export function FromIssueContent({
   projectPath = '',
   disabled,
   isUnborn,
+  onRefresh,
+  isRefreshing,
 }: FromIssueContentProps) {
   const [isSelecting, setIsSelecting] = useState(!state.linkedIssue);
 
@@ -59,7 +63,13 @@ export function FromIssueContent({
         </div>
       )}
 
-      <BranchPickerField state={state} branches={branches} isUnborn={isUnborn} />
+      <BranchPickerField
+        state={state}
+        branches={branches}
+        isUnborn={isUnborn}
+        onRefresh={onRefresh}
+        isRefreshing={isRefreshing}
+      />
       <TaskNameField state={state} />
     </div>
   );

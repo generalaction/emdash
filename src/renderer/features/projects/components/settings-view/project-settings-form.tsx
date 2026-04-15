@@ -168,6 +168,8 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
               branches={branches}
               value={form.defaultBranch ? { type: 'local', branch: form.defaultBranch } : undefined}
               onValueChange={(branch: Branch) => update('defaultBranch', branch.branch)}
+              onRefresh={() => repo?.refresh()}
+              isRefreshing={repo?.loading ?? false}
               trigger={
                 <ComboboxTrigger className="border flex border-border h-9 hover:bg-muted/30 rounded-md px-2.5 py-1 text-left text-sm outline-none items-center justify-between w-full">
                   <div className="flex items-center gap-2 text-muted-foreground">
@@ -291,7 +293,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
           <Undo2 />
         </Button>
         <ConfirmButton onClick={() => void handleSave()} disabled={saveDisabled}>
-          <span className="inline-flex min-w-[5.5rem] items-center justify-center gap-1.5">
+          <span className="inline-flex min-w-22 items-center justify-center gap-1.5">
             {saving && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             {!saving && saved && <Check className="size-4" aria-hidden="true" />}
             {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}

@@ -131,6 +131,8 @@ export const CreatePrModal = observer(function CreatePrModal({
           branches={branches}
           value={selectedBase}
           onValueChange={setSelectedBaseOverride}
+          onRefresh={() => repo?.refresh()}
+          isRefreshing={repo?.loading ?? false}
           remoteOnly
           trigger={
             <ComboboxTrigger className="flex w-full items-center gap-2 justify-between border border-border rounded-md p-2 text-left outline-none">

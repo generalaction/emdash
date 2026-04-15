@@ -210,7 +210,13 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         </ToggleGroup>
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
           {selectedStrategy === 'from-branch' && (
-            <FromBranchContent state={fromBranch} branches={branches} isUnborn={isUnborn} />
+            <FromBranchContent
+              state={fromBranch}
+              branches={branches}
+              isUnborn={isUnborn}
+              onRefresh={() => repo?.refresh()}
+              isRefreshing={repo?.loading ?? false}
+            />
           )}
           {selectedStrategy === 'from-issue' && (
             <FromIssueContent
@@ -221,6 +227,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               projectPath={projectData?.path}
               disabled={isTransitioning}
               isUnborn={isUnborn}
+              onRefresh={() => repo?.refresh()}
+              isRefreshing={repo?.loading ?? false}
             />
           )}
           {selectedStrategy === 'from-pull-request' && (

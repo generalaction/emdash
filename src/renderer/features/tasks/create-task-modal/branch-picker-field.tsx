@@ -14,6 +14,8 @@ interface BranchPickerFieldProps {
   label?: string;
   className?: string;
   isUnborn?: boolean;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function BranchPickerField({
@@ -22,6 +24,8 @@ export function BranchPickerField({
   label = 'From Branch',
   className,
   isUnborn = false,
+  onRefresh,
+  isRefreshing,
 }: BranchPickerFieldProps) {
   const { createBranchAndWorktree, setCreateBranchAndWorktree, pushBranch, setPushBranch } = state;
 
@@ -31,6 +35,8 @@ export function BranchPickerField({
         branches={branches}
         value={state.selectedBranch}
         onValueChange={state.setSelectedBranch}
+        onRefresh={onRefresh}
+        isRefreshing={isRefreshing}
         trigger={
           <ComboboxTrigger className="flex w-full items-center gap-2 justify-between hover:bg-background-1 data-popup-open:bg-background-1 p-2 outline-none">
             <div className="flex flex-col text-left text-sm gap-0.5">

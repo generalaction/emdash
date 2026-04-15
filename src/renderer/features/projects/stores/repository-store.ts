@@ -74,7 +74,12 @@ export class RepositoryStore {
       configuredRemote: computed,
       defaultBranchName: computed,
       remotes: computed,
+      loading: computed,
     });
+  }
+
+  get loading(): boolean {
+    return this.localData.loading || this.remoteData.loading;
   }
 
   get isUnborn(): boolean {

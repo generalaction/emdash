@@ -48,12 +48,14 @@ function ComboboxInput({
   showTrigger = true,
   showClear = false,
   leftAddon,
+  rightAddon,
   inputRef,
   ...props
 }: ComboboxPrimitive.Input.Props & {
   showTrigger?: boolean;
   showClear?: boolean;
   leftAddon?: React.ReactNode;
+  rightAddon?: React.ReactNode;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
@@ -69,6 +71,7 @@ function ComboboxInput({
         {...props}
       />
       <InputGroupAddon align="inline-end">
+        {rightAddon}
         {showTrigger && (
           <InputGroupButton
             size="icon-xs"

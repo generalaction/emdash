@@ -7,12 +7,26 @@ interface FromBranchContentProps {
   state: FromBranchModeState;
   branches: Branch[];
   isUnborn?: boolean;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
-export function FromBranchContent({ state, branches, isUnborn }: FromBranchContentProps) {
+export function FromBranchContent({
+  state,
+  branches,
+  isUnborn,
+  onRefresh,
+  isRefreshing,
+}: FromBranchContentProps) {
   return (
     <div className="flex flex-col gap-4">
-      <BranchPickerField state={state} branches={branches} isUnborn={isUnborn} />
+      <BranchPickerField
+        state={state}
+        branches={branches}
+        isUnborn={isUnborn}
+        onRefresh={onRefresh}
+        isRefreshing={isRefreshing}
+      />
       <TaskNameField state={state} />
     </div>
   );

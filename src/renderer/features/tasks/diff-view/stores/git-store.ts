@@ -1,6 +1,7 @@
 import { computed, makeObservable, reaction } from 'mobx';
 import { toast } from 'sonner';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import { gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
 import { GitChange } from '@shared/git';
 import { err, ok } from '@shared/result';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
@@ -38,6 +39,15 @@ export class GitStore {
           onEvent: 'reload',
           debounceMs: 500,
         },
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitWorkspaceChangedChannel, (payload) => {
+              if (payload.workspaceId === workspaceId && payload.kind === 'index') handler();
+            }),
+          onEvent: 'reload',
+          debounceMs: 500,
+        },
       ]
     );
 
@@ -55,10 +65,6 @@ export class GitStore {
       branchName: computed,
     });
   }
-
-  // ---------------------------------------------------------------------------
-  // Forwarded computed getters — all existing consumer sites unchanged
-  // ---------------------------------------------------------------------------
 
   get fileChanges(): GitChange[] {
     return this.status.data?.changes ?? [];
@@ -88,7 +94,6 @@ export class GitStore {
     return this.status.error;
   }
 
-  /** Current branch checked out in this workspace (worktree). Null for detached HEAD. */
   get branchName(): string | null {
     return this.status.data?.currentBranch ?? null;
   }
@@ -231,10 +236,6 @@ export class GitStore {
       return err(result.error);
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Private fetch helpers
-  // ---------------------------------------------------------------------------
 
   private async _fetchStatus(): Promise<GitStatusData> {
     const result = await rpc.git.getStatus(this.projectId, this.workspaceId);

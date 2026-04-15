@@ -1,4 +1,4 @@
-import { GitBranch } from 'lucide-react';
+import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { Branch } from '@shared/git';
 import { Badge } from '@renderer/lib/ui/badge';
@@ -12,7 +12,10 @@ import {
   ComboboxTrigger,
   ComboboxValue,
 } from '@renderer/lib/ui/combobox';
+import { InputGroupButton } from '@renderer/lib/ui/input-group';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { cn } from '@renderer/utils/utils';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 interface BranchSelectorProps {
   branches: Branch[];
@@ -20,6 +23,8 @@ interface BranchSelectorProps {
   onValueChange: (value: Branch) => void;
   remoteOnly?: boolean;
   trigger?: React.ReactNode;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function BranchSelector({
@@ -28,6 +33,8 @@ export function BranchSelector({
   onValueChange,
   remoteOnly = false,
   trigger,
+  onRefresh,
+  isRefreshing = false,
 }: BranchSelectorProps) {
   const [tab, setTab] = useState<'local' | 'remote'>(remoteOnly ? 'remote' : 'local');
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -100,7 +107,29 @@ export function BranchSelector({
             </ToggleGroupItem>
           </ToggleGroup>
         )}
-        <ComboboxInput showTrigger={false} placeholder="Search branches" inputRef={inputRef} />
+        <ComboboxInput
+          showTrigger={false}
+          placeholder="Search branches"
+          inputRef={inputRef}
+          rightAddon={
+            onRefresh && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <InputGroupButton
+                    size="icon-xs"
+                    className="text-foreground-muted hover:text-foreground"
+                    onClick={onRefresh}
+                    disabled={isRefreshing}
+                    aria-label="Refresh branches"
+                  >
+                    <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
+                  </InputGroupButton>
+                </TooltipTrigger>
+                <TooltipContent>Refresh branches</TooltipContent>
+              </Tooltip>
+            )
+          }
+        />
         <ComboboxList>
           {(item) => (
             <ComboboxItem value={item} disabled={item.label.startsWith('_reserve')}>
