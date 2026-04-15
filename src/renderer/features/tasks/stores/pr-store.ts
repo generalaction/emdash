@@ -1,9 +1,8 @@
-import { reaction } from 'mobx';
-import type { Commit, GitChange } from '@shared/git';
+import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
+import { refsEqual, remoteRef, toRefString, type Commit, type GitChange } from '@shared/git';
 import { selectCurrentPr, type PrCheckRun, type PullRequest } from '@shared/pull-requests';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
-import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git-store';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import type { PrComment } from '@renderer/utils/github/types';
 
@@ -21,10 +20,33 @@ export class PrStore {
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly repositoryStore: RepositoryStore,
-    private readonly git: GitStore,
     private readonly getPrs: () => PullRequest[]
   ) {
-    this.commitHistory = new Resource(() => this._fetchCommitHistory(), [{ kind: 'demand' }]);
+    this.commitHistory = new Resource(
+      () => this._fetchCommitHistory(),
+      [
+        { kind: 'demand' },
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitWorkspaceChangedChannel, (p) => {
+              if (p.workspaceId === workspaceId && p.kind === 'head') handler();
+            }),
+          onEvent: 'reload',
+          debounceMs: 300,
+        },
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitRefChangedChannel, (p) => {
+              if (p.projectId === projectId && p.kind === 'remote-refs') handler();
+            }),
+          onEvent: 'reload',
+          debounceMs: 500,
+        },
+      ]
+    );
+    this.commitHistory.start();
   }
 
   get pullRequests(): PullRequest[] {
@@ -44,8 +66,26 @@ export class PrStore {
           { kind: 'poll', intervalMs: 60_000, pauseWhenHidden: true, demandGated: true },
           {
             kind: 'event',
-            subscribe: (h) => reaction(() => this.git.status.data, h),
+            subscribe: (handler) => {
+              const unsubHead = events.on(gitWorkspaceChangedChannel, (p) => {
+                if (p.workspaceId === this.workspaceId && p.kind === 'head') handler();
+              });
+              const unsubRemote = events.on(gitRefChangedChannel, (p) => {
+                if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
+                const baseRef = remoteRef(
+                  this.repositoryStore.configuredRemote,
+                  pr.metadata.baseRefName
+                );
+                const relevant = !p.changedRefs || p.changedRefs.some((r) => refsEqual(r, baseRef));
+                if (relevant) handler();
+              });
+              return () => {
+                unsubHead();
+                unsubRemote();
+              };
+            },
             onEvent: 'reload',
+            debounceMs: 500,
           },
         ]
       );
@@ -130,7 +170,7 @@ export class PrStore {
     expectedChangedFiles: number
   ): Promise<GitChange[]> {
     const remote = this.repositoryStore.configuredRemote;
-    const ref = `${remote}/${baseRefName}...HEAD`;
+    const ref = `${toRefString(remoteRef(remote, baseRefName))}...HEAD`;
 
     const tryRef = async (r: string): Promise<GitChange[] | null> => {
       const result = await rpc.git.getChangedFiles(this.projectId, this.workspaceId, r);

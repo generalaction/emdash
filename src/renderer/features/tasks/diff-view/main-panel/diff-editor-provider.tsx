@@ -1,6 +1,7 @@
 import { autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef } from 'react';
+import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
@@ -125,7 +126,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
               activeFile.path,
               language,
               'git',
-              'HEAD'
+              HEAD_REF
             );
             void modelRegistry.registerModel(
               projectId,
@@ -134,7 +135,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
               activeFile.path,
               language,
               'git',
-              'staged'
+              STAGED_REF
             );
           } else if (activeFile.group === 'pr' || activeFile.group === 'git') {
             void modelRegistry.registerModel(
@@ -153,7 +154,7 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
               activeFile.path,
               language,
               'git',
-              'HEAD'
+              HEAD_REF
             );
           }
         }
@@ -187,12 +188,12 @@ export const DiffEditorProvider = observer(function DiffEditorProvider({
 
         const originalUri = modelRegistry.toGitUri(
           uri,
-          activeFile.group === 'staged' ? 'HEAD' : activeFile.originalRef
+          activeFile.group === 'staged' ? HEAD_REF : activeFile.originalRef
         );
         const modifiedUri =
           activeFile.group === 'disk'
             ? modelRegistry.toDiskUri(uri)
-            : modelRegistry.toGitUri(uri, activeFile.group === 'staged' ? 'staged' : 'HEAD');
+            : modelRegistry.toGitUri(uri, activeFile.group === 'staged' ? STAGED_REF : HEAD_REF);
 
         // Reactive reads — autorun re-evaluates when statuses change to 'ready'.
         const origStatus = modelRegistry.modelStatus.get(originalUri); // reactive

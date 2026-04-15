@@ -1,22 +1,8 @@
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
+import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { events } from '@renderer/lib/ipc';
 import type { MonacoModelRegistry } from './monaco-model-registry';
-
-/**
- * Heuristic: a git:// URI contains a remote-tracking ref if the ref segment
- * contains a slash (e.g. origin/main). Commit hashes and local refs like HEAD
- * or 'staged' do not contain slashes.
- *
- * URI format: git://<root>/<encodedRef>/<filePath>
- * The ref is percent-encoded, so slashes in remote refs become %2F.
- */
-function isRemoteTrackingUri(uri: string): boolean {
-  const match = /^git:\/\/[^/]+\/([^/]+)\//.exec(uri);
-  if (!match) return false;
-  const encodedRef = match[1]!;
-  return encodedRef.includes('%2F');
-}
 
 /**
  * Wire all three invalidation bridges for the given registry. Returns a
@@ -37,17 +23,26 @@ export function wireModelRegistryInvalidation(registry: MonacoModelRegistry): ()
 
   // Workspace index/HEAD changes → invalidate staged or HEAD git:// models.
   const unsubWorkspace = events.on(gitWorkspaceChangedChannel, ({ workspaceId, kind }) => {
-    const ref = kind === 'index' ? 'staged' : 'HEAD';
+    const ref = kind === 'index' ? STAGED_REF : HEAD_REF;
     for (const uri of registry.findGitUris({ workspaceId, ref })) {
       void registry.invalidateModel(uri);
     }
   });
 
-  // Remote-ref changes → invalidate remote-tracking git:// models for the project.
-  const unsubRefs = events.on(gitRefChangedChannel, ({ projectId, kind }) => {
-    if (kind !== 'remote-refs') return;
-    for (const uri of registry.findGitUris({ projectId }).filter(isRemoteTrackingUri)) {
-      void registry.invalidateModel(uri);
+  // Local/remote ref changes → invalidate matching git:// models (exact ref when known).
+  const unsubRefs = events.on(gitRefChangedChannel, ({ projectId, kind, changedRefs }) => {
+    if (kind === 'config') return;
+    if (changedRefs) {
+      for (const ref of changedRefs) {
+        for (const uri of registry.findGitUris({ projectId, ref })) {
+          void registry.invalidateModel(uri);
+        }
+      }
+    } else {
+      const refKind = kind === 'remote-refs' ? 'remote' : 'local';
+      for (const uri of registry.findGitUris({ projectId, refKind })) {
+        void registry.invalidateModel(uri);
+      }
     }
   });
 

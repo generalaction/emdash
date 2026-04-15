@@ -20,6 +20,12 @@ export function useFromPullRequestMode(
 ) {
   const [linkedPR, setLinkedPR] = useState<PullRequest | null>(initialPR ?? null);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
+  const [prevProjectId, setPrevProjectId] = useState(selectedProjectId);
+  if (selectedProjectId !== prevProjectId) {
+    setPrevProjectId(selectedProjectId);
+    setLinkedPR(null);
+    setCheckoutMode('checkout');
+  }
   const branchSelection = useBranchSelection(
     selectedProjectId,
     branches,
@@ -44,6 +50,7 @@ export function useFromPullRequestMode(
   const taskName = useTaskName({
     generatedName: shouldGenerate ? generatedName : undefined,
     isPending: shouldGenerate && isGenerating,
+    resetKey: selectedProjectId,
   });
 
   const isValid = taskName.taskName.trim().length > 0 && linkedPR !== null && !taskName.isPending;

@@ -1,4 +1,4 @@
-import type { DiffBase } from '@shared/git';
+import type { GitRef } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
 import { resolveWorkspace } from '@main/core/projects/utils';
@@ -17,7 +17,43 @@ export const gitController = createRPCController({
     }
   },
 
-  getChangedFiles: async (projectId: string, workspaceId: string, base: DiffBase) => {
+  getStagedChanges: async (projectId: string, workspaceId: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const data = await env.git.getStagedChanges();
+      return ok(data);
+    } catch (e) {
+      log.error('gitCtrl.getStagedChanges failed', { projectId, workspaceId, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  getUnstagedChanges: async (projectId: string, workspaceId: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const data = await env.git.getUnstagedChanges();
+      return ok(data);
+    } catch (e) {
+      log.error('gitCtrl.getUnstagedChanges failed', { projectId, workspaceId, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  getCurrentBranch: async (projectId: string, workspaceId: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const currentBranch = await env.git.getCurrentBranch();
+      return ok({ currentBranch });
+    } catch (e) {
+      log.error('gitCtrl.getCurrentBranch failed', { projectId, workspaceId, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  getChangedFiles: async (projectId: string, workspaceId: string, base: GitRef | string) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
@@ -65,12 +101,7 @@ export const gitController = createRPCController({
     }
   },
 
-  getFileDiff: async (
-    projectId: string,
-    workspaceId: string,
-    filePath: string,
-    base?: DiffBase
-  ) => {
+  getFileDiff: async (projectId: string, workspaceId: string, filePath: string, base?: GitRef) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });

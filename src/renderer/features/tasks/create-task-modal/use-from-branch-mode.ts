@@ -34,6 +34,7 @@ export function useFromBranchMode(
   const taskName = useTaskName({
     generatedName: autoGenerateName ? generatedName : undefined,
     isPending: autoGenerateName && isGenerating,
+    resetKey: selectedProjectId,
   });
 
   const isValid =

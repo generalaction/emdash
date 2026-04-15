@@ -1,5 +1,6 @@
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { HEAD_REF } from '@shared/git';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
@@ -27,10 +28,10 @@ export const StagedSection = observer(function StagedSection() {
       ? diffView.activeFile.path
       : undefined;
 
-  const prefetch = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'staged', 'HEAD');
+  const prefetch = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'staged', HEAD_REF);
 
   const handleSelectChange = (path: string) => {
-    diffView.setActiveFile({ path, type: 'git', group: 'staged', originalRef: 'HEAD' });
+    diffView.setActiveFile({ path, type: 'git', group: 'staged', originalRef: HEAD_REF });
     provisioned.taskView.setView('diff');
   };
 

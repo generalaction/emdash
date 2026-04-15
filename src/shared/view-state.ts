@@ -1,3 +1,5 @@
+import type { GitRef } from '@shared/git';
+
 export type TabViewSnapshot = {
   tabOrder: string[];
   activeTabId: string | undefined;
@@ -29,7 +31,7 @@ export interface ActiveFile {
    *  'git'    = arbitrary ref-to-ref comparison
    *  'pr'     = PR diff (originalRef is remote-tracking base) */
   group: 'disk' | 'staged' | 'git' | 'pr';
-  originalRef: string;
+  originalRef: GitRef;
   /** Set only when group === 'pr'. Identifies the PR for store lookups. */
   prNumber?: number;
   scrollBehavior?: 'smooth' | 'auto';

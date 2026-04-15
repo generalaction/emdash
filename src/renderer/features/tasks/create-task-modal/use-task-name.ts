@@ -8,13 +8,23 @@ export type TaskNameState = {
   isPending: boolean;
 };
 
-export function useTaskName(opts?: { generatedName?: string; isPending?: boolean }): TaskNameState {
-  const { generatedName, isPending = false } = opts ?? {};
+export function useTaskName(opts?: {
+  generatedName?: string;
+  isPending?: boolean;
+  resetKey?: unknown;
+}): TaskNameState {
+  const { generatedName, isPending = false, resetKey } = opts ?? {};
   const [taskName, setTaskName] = useState(generatedName ?? '');
   const [showSlugHint, setShowSlugHint] = useState(false);
   const [prevGeneratedName, setPrevGeneratedName] = useState(generatedName);
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
 
-  if (generatedName !== prevGeneratedName) {
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey);
+    setPrevGeneratedName(generatedName);
+    setTaskName(generatedName ?? '');
+    setShowSlugHint(false);
+  } else if (generatedName !== prevGeneratedName) {
     setPrevGeneratedName(generatedName);
     if (generatedName !== undefined) {
       setTaskName(generatedName);

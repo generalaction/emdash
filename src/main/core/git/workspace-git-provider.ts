@@ -2,10 +2,10 @@ import type {
   Commit,
   CommitError,
   CommitFile,
-  DiffBase,
   DiffResult,
   FetchError,
   GitChange,
+  GitRef,
   PullError,
   PushError,
   SoftResetError,
@@ -14,9 +14,16 @@ import type { Result } from '@shared/result';
 
 export interface WorkspaceGitProvider {
   getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }>;
-  getChangedFiles(base: DiffBase): Promise<GitChange[]>;
+  getStagedChanges(): Promise<{
+    changes: GitChange[];
+    totalAdded: number;
+    totalDeleted: number;
+  }>;
+  getUnstagedChanges(): Promise<{ changes: GitChange[] }>;
+  getCurrentBranch(): Promise<string | null>;
+  getChangedFiles(base: GitRef | string): Promise<GitChange[]>;
 
-  getFileDiff(filePath: string, base?: DiffBase): Promise<DiffResult>;
+  getFileDiff(filePath: string, base?: GitRef): Promise<DiffResult>;
   getFileAtHead(filePath: string): Promise<string | null>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;

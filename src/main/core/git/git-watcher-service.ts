@@ -1,6 +1,7 @@
 import path from 'node:path';
 import parcelWatcher from '@parcel/watcher';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
+import { localRef, remoteRef, toRefString, type GitRef } from '@shared/git';
 import { events } from '@main/lib/events';
 
 export class GitWatcherService {
@@ -43,12 +44,29 @@ export class GitWatcherService {
         let emitLocal = false;
         let emitRemote = false;
         let emitConfig = false;
+        const changedLocalByKey = new Map<string, GitRef>();
+        const changedRemoteByKey = new Map<string, GitRef>();
         for (const e of rawEvents) {
           const rel = path.relative(gitDir, e.path).replace(/\\/g, '/');
 
           // Project-level ref changes
-          if (rel.startsWith('refs/heads/') || rel === 'HEAD') emitLocal = true;
-          if (rel.startsWith('refs/remotes/')) emitRemote = true;
+          if (rel.startsWith('refs/heads/')) {
+            const branch = rel.slice('refs/heads/'.length);
+            const r = localRef(branch);
+            changedLocalByKey.set(toRefString(r), r);
+            emitLocal = true;
+          } else if (rel === 'HEAD') {
+            emitLocal = true;
+          }
+          if (rel.startsWith('refs/remotes/')) {
+            const full = rel.slice('refs/remotes/'.length);
+            const idx = full.indexOf('/');
+            if (idx > 0) {
+              const r = remoteRef(full.slice(0, idx), full.slice(idx + 1));
+              changedRemoteByKey.set(toRefString(r), r);
+            }
+            emitRemote = true;
+          }
           if (rel === 'packed-refs') {
             emitLocal = true;
             emitRemote = true;
@@ -76,10 +94,22 @@ export class GitWatcherService {
           }
         }
         if (emitLocal) {
-          events.emit(gitRefChangedChannel, { projectId: this.projectId, kind: 'local-refs' });
+          const changedRefs =
+            changedLocalByKey.size > 0 ? [...changedLocalByKey.values()] : undefined;
+          events.emit(gitRefChangedChannel, {
+            projectId: this.projectId,
+            kind: 'local-refs',
+            changedRefs,
+          });
         }
         if (emitRemote) {
-          events.emit(gitRefChangedChannel, { projectId: this.projectId, kind: 'remote-refs' });
+          const changedRefs =
+            changedRemoteByKey.size > 0 ? [...changedRemoteByKey.values()] : undefined;
+          events.emit(gitRefChangedChannel, {
+            projectId: this.projectId,
+            kind: 'remote-refs',
+            changedRefs,
+          });
         }
         if (emitConfig) {
           events.emit(gitRefChangedChannel, { projectId: this.projectId, kind: 'config' });

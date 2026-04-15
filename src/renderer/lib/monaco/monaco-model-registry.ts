@@ -1,5 +1,6 @@
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
+import { HEAD_REF, refsEqual, toRefString, type GitRef } from '@shared/git';
 import { rpc } from '@renderer/lib/ipc';
 import { buildMonacoModelPath } from './monacoModelPath';
 
@@ -39,8 +40,8 @@ interface GitModelEntry {
   workspaceId: string;
   filePath: string;
   language: string;
-  /** The git ref — 'HEAD' for the current commit; any ref string for PR/merge-target diffs. */
-  ref: string;
+  /** The git ref — HEAD for the current commit; structured ref for PR/merge-target diffs. */
+  ref: GitRef;
 }
 
 type ModelEntry = BufferModelEntry | DiskModelEntry | GitModelEntry;
@@ -173,15 +174,16 @@ export class MonacoModelRegistry {
   /**
    * Convert a buffer URI (file://) to a git:// URI for the given ref.
    * Ref is percent-encoded so slashes in branch names (e.g. origin/main) are safe.
-   * Example: file://workspace:abc/src/index.ts + ref='HEAD' → git://workspace:abc/HEAD/src/index.ts
+   * Example: file://workspace:abc/src/index.ts + HEAD_REF → git://workspace:abc/HEAD/src/index.ts
    */
-  toGitUri(bufferUri: string, ref: string): string {
+  toGitUri(bufferUri: string, ref: GitRef): string {
+    const refStr = toRefString(ref);
     const withoutScheme = bufferUri.replace(/^file:\/\//, '');
     const slashIdx = withoutScheme.indexOf('/');
     if (slashIdx < 0) return bufferUri;
     const root = withoutScheme.slice(0, slashIdx);
     const filePath = withoutScheme.slice(slashIdx + 1);
-    return `git://${root}/${encodeURIComponent(ref)}/${filePath}`;
+    return `git://${root}/${encodeURIComponent(refStr)}/${filePath}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -219,7 +221,7 @@ export class MonacoModelRegistry {
     filePath: string,
     language: string,
     type: ModelType,
-    ref = 'HEAD'
+    ref: GitRef = HEAD_REF
   ): Promise<string> {
     const uri = buildMonacoModelPath(modelRootPath, filePath);
 
@@ -302,7 +304,7 @@ export class MonacoModelRegistry {
     uri: string,
     filePath: string,
     language: string,
-    ref: string
+    ref: GitRef
   ): Promise<string> {
     const gitUri = this.toGitUri(uri, ref);
     const existing = this.modelMap.get(gitUri);
@@ -320,14 +322,14 @@ export class MonacoModelRegistry {
     this.modelStatus.set(gitUri, 'loading');
 
     // Run the RPC fetch and Monaco initialization in parallel.
-    const fetchKey = `${projectId}:${workspaceId}:${filePath}:git:${ref}`;
+    const fetchKey = `${projectId}:${workspaceId}:${filePath}:git:${toRefString(ref)}`;
     const [content, m] = await Promise.all([
       this.dedupFetch(fetchKey, async () => {
-        if (ref === 'staged') {
+        if (ref.kind === 'staged') {
           const res = await rpc.git.getFileAtIndex(projectId, workspaceId, filePath);
           return res.success ? res.data.content : null;
         }
-        const res = await rpc.git.getFileAtRef(projectId, workspaceId, filePath, ref);
+        const res = await rpc.git.getFileAtRef(projectId, workspaceId, filePath, toRefString(ref));
         return res.success ? res.data.content : null;
       }),
       this.monacoReadyPromise,
@@ -714,13 +716,13 @@ export class MonacoModelRegistry {
       if (res.success) this.applyDiskUpdate(uri, entry, res.data.content);
     } else if (entry.type === 'git') {
       const res =
-        entry.ref === 'staged'
+        entry.ref.kind === 'staged'
           ? await rpc.git.getFileAtIndex(entry.projectId, entry.workspaceId, entry.filePath)
           : await rpc.git.getFileAtRef(
               entry.projectId,
               entry.workspaceId,
               entry.filePath,
-              entry.ref
+              toRefString(entry.ref)
             );
       if (res.success && res.data.content !== null) {
         entry.model.setValue(res.data.content);
@@ -737,13 +739,19 @@ export class MonacoModelRegistry {
    * Used by invalidation bridges to find which models to invalidate after an event.
    * Any filter field left undefined is treated as a wildcard.
    */
-  findGitUris(filter: { workspaceId?: string; projectId?: string; ref?: string }): string[] {
+  findGitUris(filter: {
+    workspaceId?: string;
+    projectId?: string;
+    ref?: GitRef;
+    refKind?: GitRef['kind'];
+  }): string[] {
     const result: string[] = [];
     for (const [uri, entry] of this.modelMap) {
       if (entry.type !== 'git') continue;
       if (filter.workspaceId !== undefined && entry.workspaceId !== filter.workspaceId) continue;
       if (filter.projectId !== undefined && entry.projectId !== filter.projectId) continue;
-      if (filter.ref !== undefined && entry.ref !== filter.ref) continue;
+      if (filter.refKind !== undefined && entry.ref.kind !== filter.refKind) continue;
+      if (filter.ref !== undefined && !refsEqual(filter.ref, entry.ref)) continue;
       result.push(uri);
     }
     return result;

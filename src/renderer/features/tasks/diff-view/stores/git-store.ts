@@ -1,39 +1,78 @@
-import { computed, makeObservable, reaction } from 'mobx';
+import { computed, makeObservable } from 'mobx';
 import { toast } from 'sonner';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import { GitChange } from '@shared/git';
+import type { GitChange } from '@shared/git';
 import { err, ok } from '@shared/result';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 
-interface GitStatusData {
+interface StagedChangesData {
   changes: GitChange[];
+  totalAdded: number;
+  totalDeleted: number;
+}
+
+interface UnstagedChangesData {
+  changes: GitChange[];
+}
+
+interface BranchInfoData {
   currentBranch: string | null;
-  totalLinesAdded: number;
-  totalLinesDeleted: number;
 }
 
 export class GitStore {
-  readonly status: Resource<GitStatusData>;
+  readonly stagedChanges: Resource<StagedChangesData>;
+  readonly unstagedChanges: Resource<UnstagedChangesData>;
+  readonly branchInfo: Resource<BranchInfoData>;
 
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly repositoryStore: RepositoryStore
   ) {
-    this.status = new Resource<GitStatusData>(
-      () => this._fetchStatus(),
+    this.stagedChanges = new Resource<StagedChangesData>(
+      () => this._fetchStagedChanges(),
+      [
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitWorkspaceChangedChannel, (payload) => {
+              if (
+                payload.workspaceId === workspaceId &&
+                (payload.kind === 'index' || payload.kind === 'head')
+              ) {
+                handler();
+              }
+            }),
+          onEvent: 'reload',
+          debounceMs: 300,
+        },
+      ]
+    );
+
+    this.unstagedChanges = new Resource<UnstagedChangesData>(
+      () => this._fetchUnstagedChanges(),
       [
         {
           kind: 'event',
           subscribe: (handler) => {
-            rpc.fs.watchSetPaths(projectId, workspaceId, ['.git'], 'git-store').catch(() => {});
-            const unsub = events.on(fsWatchEventChannel, () => handler(), workspaceId);
+            rpc.fs
+              .watchSetPaths(projectId, workspaceId, [''], 'git-store-unstaged')
+              .catch(() => {});
+            const unsub = events.on(fsWatchEventChannel, (payload) => {
+              if (payload.workspaceId !== workspaceId) return;
+              const relevant = payload.events.some((e) => {
+                if (e.path.startsWith('.git')) return false;
+                if (e.oldPath?.startsWith('.git')) return false;
+                return true;
+              });
+              if (relevant) handler();
+            });
             return () => {
               unsub();
-              rpc.fs.watchStop(projectId, workspaceId, 'git-store').catch(() => {});
+              rpc.fs.watchStop(projectId, workspaceId, 'git-store-unstaged').catch(() => {});
             };
           },
           onEvent: 'reload',
@@ -46,7 +85,22 @@ export class GitStore {
               if (payload.workspaceId === workspaceId && payload.kind === 'index') handler();
             }),
           onEvent: 'reload',
-          debounceMs: 500,
+          debounceMs: 300,
+        },
+      ]
+    );
+
+    this.branchInfo = new Resource<BranchInfoData>(
+      () => this._fetchBranchInfo(),
+      [
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitWorkspaceChangedChannel, (payload) => {
+              if (payload.workspaceId === workspaceId && payload.kind === 'head') handler();
+            }),
+          onEvent: 'reload',
+          debounceMs: 100,
         },
       ]
     );
@@ -66,36 +120,68 @@ export class GitStore {
     });
   }
 
+  /**
+   * One entry per path — combines staged + unstaged halves for paths in both (e.g. MM).
+   */
   get fileChanges(): GitChange[] {
-    return this.status.data?.changes ?? [];
+    const m = new Map<string, { staged?: GitChange; unstaged?: GitChange }>();
+    for (const c of this.stagedFileChanges) {
+      m.set(c.path, { ...m.get(c.path), staged: c });
+    }
+    for (const c of this.unstagedFileChanges) {
+      m.set(c.path, { ...m.get(c.path), unstaged: c });
+    }
+    const out: GitChange[] = [];
+    for (const { staged, unstaged } of m.values()) {
+      if (staged && unstaged) {
+        out.push({
+          path: staged.path,
+          status: 'modified',
+          additions: staged.additions + unstaged.additions,
+          deletions: staged.deletions + unstaged.deletions,
+          isStaged: true,
+        });
+      } else if (staged) {
+        out.push(staged);
+      } else if (unstaged) {
+        out.push(unstaged);
+      }
+    }
+    return out;
   }
 
   get stagedFileChanges(): GitChange[] {
-    return this.status.data?.changes.filter((c) => c.isStaged) ?? [];
+    return this.stagedChanges.data?.changes ?? [];
   }
 
   get unstagedFileChanges(): GitChange[] {
-    return this.status.data?.changes.filter((c) => !c.isStaged) ?? [];
+    return this.unstagedChanges.data?.changes ?? [];
   }
 
   get totalLinesAdded(): number {
-    return this.status.data?.totalLinesAdded ?? 0;
+    const staged = this.stagedChanges.data;
+    const unstaged = this.unstagedChanges.data;
+    const u = unstaged?.changes.reduce((s, c) => s + c.additions, 0) ?? 0;
+    return (staged?.totalAdded ?? 0) + u;
   }
 
   get totalLinesDeleted(): number {
-    return this.status.data?.totalLinesDeleted ?? 0;
+    const staged = this.stagedChanges.data;
+    const unstaged = this.unstagedChanges.data;
+    const u = unstaged?.changes.reduce((s, c) => s + c.deletions, 0) ?? 0;
+    return (staged?.totalDeleted ?? 0) + u;
   }
 
   get isLoading(): boolean {
-    return this.status.loading;
+    return this.stagedChanges.loading || this.unstagedChanges.loading || this.branchInfo.loading;
   }
 
   get error(): string | undefined {
-    return this.status.error;
+    return this.stagedChanges.error ?? this.unstagedChanges.error ?? this.branchInfo.error;
   }
 
   get branchName(): string | null {
-    return this.status.data?.currentBranch ?? null;
+    return this.branchInfo.data?.currentBranch ?? null;
   }
 
   /** True when this workspace's branch has a remote tracking ref. */
@@ -121,15 +207,19 @@ export class GitStore {
   // ---------------------------------------------------------------------------
 
   /**
-   * Start watching — triggers initial load and activates the FS-event strategy.
+   * Start watching — triggers initial load and activates event strategies.
    * Called from WorkspaceStore.activate().
    */
   startWatching(): void {
-    this.status.start();
+    this.stagedChanges.start();
+    this.unstagedChanges.start();
+    this.branchInfo.start();
   }
 
   dispose(): void {
-    this.status.dispose();
+    this.stagedChanges.dispose();
+    this.unstagedChanges.dispose();
+    this.branchInfo.dispose();
   }
 
   // ---------------------------------------------------------------------------
@@ -138,38 +228,44 @@ export class GitStore {
 
   async stageFiles(paths: string[]): Promise<void> {
     await rpc.git.stageFiles(this.projectId, this.workspaceId, paths);
-    this.status.invalidate();
+    this.stagedChanges.invalidate();
+    this.unstagedChanges.invalidate();
   }
 
   async stageAllFiles(): Promise<void> {
     await rpc.git.stageAllFiles(this.projectId, this.workspaceId);
-    this.status.invalidate();
+    this.stagedChanges.invalidate();
+    this.unstagedChanges.invalidate();
   }
 
   async unstageFiles(paths: string[]): Promise<void> {
     await rpc.git.unstageFiles(this.projectId, this.workspaceId, paths);
-    this.status.invalidate();
+    this.stagedChanges.invalidate();
+    this.unstagedChanges.invalidate();
   }
 
   async unstageAllFiles(): Promise<void> {
     await rpc.git.unstageAllFiles(this.projectId, this.workspaceId);
-    this.status.invalidate();
+    this.stagedChanges.invalidate();
+    this.unstagedChanges.invalidate();
   }
 
   async discardFiles(paths: string[]): Promise<void> {
     await rpc.git.revertFiles(this.projectId, this.workspaceId, paths);
-    this.status.invalidate();
+    this.unstagedChanges.invalidate();
   }
 
   async discardAllFiles(): Promise<void> {
     await rpc.git.revertAllFiles(this.projectId, this.workspaceId);
-    this.status.invalidate();
+    this.stagedChanges.invalidate();
+    this.unstagedChanges.invalidate();
   }
 
   async commit(message: string) {
     const result = await rpc.git.commit(this.projectId, this.workspaceId, message);
     if (result.success) {
-      this.status.invalidate();
+      this.stagedChanges.invalidate();
+      this.branchInfo.invalidate();
       this.repositoryStore.refreshLocal(); // new commit → local branch ahead count changes
       return ok();
     } else {
@@ -228,7 +324,9 @@ export class GitStore {
   async pull() {
     const result = await rpc.git.pull(this.projectId, this.workspaceId);
     if (result.success) {
-      this.status.invalidate();
+      this.stagedChanges.invalidate();
+      this.unstagedChanges.invalidate();
+      this.branchInfo.invalidate();
       this.repositoryStore.refreshLocal(); // local branch updated with pulled commits
       return ok();
     } else {
@@ -237,23 +335,21 @@ export class GitStore {
     }
   }
 
-  private async _fetchStatus(): Promise<GitStatusData> {
-    const result = await rpc.git.getStatus(this.projectId, this.workspaceId);
+  private async _fetchStagedChanges(): Promise<StagedChangesData> {
+    const result = await rpc.git.getStagedChanges(this.projectId, this.workspaceId);
     if (!result.success) throw new Error(result.error.type);
-    const { changes, currentBranch } = result.data;
-    return {
-      changes,
-      currentBranch,
-      totalLinesAdded: changes.reduce((sum, c) => sum + c.additions, 0),
-      totalLinesDeleted: changes.reduce((sum, c) => sum + c.deletions, 0),
-    };
+    return result.data;
   }
-}
 
-// ---------------------------------------------------------------------------
-// Keep reaction helper for PrStore and DiffViewStore that need to react to
-// git file changes (replaces the old direct observable reference).
-// ---------------------------------------------------------------------------
-export function subscribeToGitFileChanges(git: GitStore, handler: () => void): () => void {
-  return reaction(() => git.status.data, handler);
+  private async _fetchUnstagedChanges(): Promise<UnstagedChangesData> {
+    const result = await rpc.git.getUnstagedChanges(this.projectId, this.workspaceId);
+    if (!result.success) throw new Error(result.error.type);
+    return result.data;
+  }
+
+  private async _fetchBranchInfo(): Promise<BranchInfoData> {
+    const result = await rpc.git.getCurrentBranch(this.projectId, this.workspaceId);
+    if (!result.success) throw new Error(result.error.type);
+    return { currentBranch: result.data.currentBranch };
+  }
 }

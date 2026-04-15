@@ -1,4 +1,5 @@
 import { action, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { HEAD_REF, localRef, remoteRef, STAGED_REF, type GitRef } from '@shared/git';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
@@ -11,6 +12,17 @@ import { GitStore } from './git-store';
  * switches to file mode and disables the stacked toggle.
  */
 export const MAX_STACKED_FILES = 75;
+
+/** Migrate persisted snapshots where `originalRef` was a plain string. */
+function migrateLegacyOriginalRef(legacy: string): GitRef {
+  if (legacy === 'HEAD') return HEAD_REF;
+  if (legacy === 'staged') return STAGED_REF;
+  if (legacy.includes('/')) {
+    const idx = legacy.indexOf('/');
+    return remoteRef(legacy.slice(0, idx), legacy.slice(idx + 1));
+  }
+  return localRef(legacy);
+}
 
 export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   activeFile: ActiveFile | null = null;
@@ -71,7 +83,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
                 ...current,
                 type: 'git',
                 group: 'staged',
-                originalRef: 'HEAD',
+                originalRef: HEAD_REF,
                 scrollBehavior: 'auto',
               };
             } else if (movedToUnstaged) {
@@ -79,7 +91,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
                 ...current,
                 type: 'disk',
                 group: 'disk',
-                originalRef: 'HEAD',
+                originalRef: HEAD_REF,
                 scrollBehavior: 'auto',
               };
             } else {
@@ -133,7 +145,13 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   restoreSnapshot(snapshot: Partial<DiffViewSnapshot>): void {
     if (snapshot.diffStyle) this.diffStyle = snapshot.diffStyle;
     if (snapshot.viewMode) this.viewMode = snapshot.viewMode;
-    if (snapshot.activeFile) this.activeFile = snapshot.activeFile;
+    if (snapshot.activeFile) {
+      const af = { ...snapshot.activeFile };
+      if (typeof (af.originalRef as unknown) === 'string') {
+        af.originalRef = migrateLegacyOriginalRef(af.originalRef as unknown as string);
+      }
+      this.activeFile = af;
+    }
     if (snapshot.commitAction) this.commitAction = snapshot.commitAction;
     // Apply limit in case the persisted viewMode is 'stacked' but the file
     // count already exceeds the threshold.

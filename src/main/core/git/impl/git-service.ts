@@ -1,24 +1,26 @@
-import type {
-  Branch,
-  Commit,
-  CommitError,
-  CommitFile,
-  CreateBranchError,
-  DeleteBranchError,
-  DiffBase,
-  DiffLine,
-  DiffResult,
-  FetchError,
-  FetchPrRefError,
-  GitChange,
-  GitHeadState,
-  GitInfo,
-  LocalBranch,
-  PullError,
-  PushError,
-  RemoteBranch,
-  RenameBranchError,
-  SoftResetError,
+import {
+  HEAD_REF,
+  toRefString,
+  type Branch,
+  type Commit,
+  type CommitError,
+  type CommitFile,
+  type CreateBranchError,
+  type DeleteBranchError,
+  type DiffLine,
+  type DiffResult,
+  type FetchError,
+  type FetchPrRefError,
+  type GitChange,
+  type GitHeadState,
+  type GitInfo,
+  type GitRef,
+  type LocalBranch,
+  type PullError,
+  type PushError,
+  type RemoteBranch,
+  type RenameBranchError,
+  type SoftResetError,
 } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
 import { err, ok, type Result } from '@shared/result';
@@ -41,6 +43,23 @@ export class GitService implements GitProvider {
     private readonly fs: FileSystemProvider
   ) {}
 
+  private parseNumstat(stdout: string): Map<string, { additions: number; deletions: number }> {
+    const map = new Map<string, { additions: number; deletions: number }>();
+    for (const l of stdout
+      .trim()
+      .split('\n')
+      .filter((s) => s.trim())) {
+      const [addStr, delStr, ...pathParts] = l.split('\t');
+      const filePath = pathParts.join('\t');
+      if (!filePath) continue;
+      const existing = map.get(filePath) ?? { additions: 0, deletions: 0 };
+      existing.additions += addStr === '-' ? 0 : Number.parseInt(addStr ?? '0', 10) || 0;
+      existing.deletions += delStr === '-' ? 0 : Number.parseInt(delStr ?? '0', 10) || 0;
+      map.set(filePath, existing);
+    }
+    return map;
+  }
+
   async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
     try {
       await this.exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd: this.path });
@@ -60,33 +79,12 @@ export class GitService implements GitProvider {
       .map((l) => l.replace(/\r$/, ''))
       .filter((l) => l.length > 0);
 
-    // Fetch all staged and unstaged numstat counts in two parallel commands
-    // instead of N×2 sequential per-file invocations.
-    const parseNumstat = (
-      stdout: string
-    ): Map<string, { additions: number; deletions: number }> => {
-      const map = new Map<string, { additions: number; deletions: number }>();
-      for (const l of stdout
-        .trim()
-        .split('\n')
-        .filter((s) => s.trim())) {
-        const [addStr, delStr, ...pathParts] = l.split('\t');
-        const filePath = pathParts.join('\t');
-        if (!filePath) continue;
-        const existing = map.get(filePath) ?? { additions: 0, deletions: 0 };
-        existing.additions += addStr === '-' ? 0 : Number.parseInt(addStr ?? '0', 10) || 0;
-        existing.deletions += delStr === '-' ? 0 : Number.parseInt(delStr ?? '0', 10) || 0;
-        map.set(filePath, existing);
-      }
-      return map;
-    };
-
     const [stagedNumstat, unstagedNumstat] = await Promise.all([
       this.exec('git', ['diff', '--numstat', '--cached'], { cwd: this.path })
-        .then((r) => parseNumstat(r.stdout))
+        .then((r) => this.parseNumstat(r.stdout))
         .catch(() => new Map<string, { additions: number; deletions: number }>()),
       this.exec('git', ['diff', '--numstat'], { cwd: this.path })
-        .then((r) => parseNumstat(r.stdout))
+        .then((r) => this.parseNumstat(r.stdout))
         .catch(() => new Map<string, { additions: number; deletions: number }>()),
     ]);
 
@@ -122,6 +120,129 @@ export class GitService implements GitProvider {
     }
 
     return { changes, currentBranch };
+  }
+
+  /**
+   * Staged changes only — index vs HEAD. Used by GitStore staged list refresh.
+   */
+  async getStagedChanges(): Promise<{
+    changes: GitChange[];
+    totalAdded: number;
+    totalDeleted: number;
+  }> {
+    try {
+      await this.exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd: this.path });
+    } catch {
+      return { changes: [], totalAdded: 0, totalDeleted: 0 };
+    }
+
+    const { stdout: statusOutput } = await this.exec(
+      'git',
+      ['status', '--porcelain', '--untracked-files=all'],
+      { cwd: this.path }
+    );
+
+    if (!statusOutput.trim()) {
+      return { changes: [], totalAdded: 0, totalDeleted: 0 };
+    }
+
+    const statusLines = statusOutput
+      .split('\n')
+      .map((l) => l.replace(/\r$/, ''))
+      .filter((l) => l.length > 0);
+
+    const stagedNumstat = await this.exec('git', ['diff', '--numstat', '--cached'], {
+      cwd: this.path,
+    })
+      .then((r) => this.parseNumstat(r.stdout))
+      .catch(() => new Map<string, { additions: number; deletions: number }>());
+
+    const changes: GitChange[] = [];
+
+    for (const line of statusLines) {
+      const statusCode = line.substring(0, 2);
+      let filePath = line.substring(3);
+      if (statusCode.includes('R') && filePath.includes('->')) {
+        const parts = filePath.split('->');
+        filePath = (parts[parts.length - 1] ?? '').trim();
+      }
+
+      const staged = statusCode[0] !== ' ' && statusCode[0] !== '?';
+      if (!staged) continue;
+
+      const status = mapStatus(statusCode);
+      const ns = stagedNumstat.get(filePath);
+      const additions = ns?.additions ?? 0;
+      const deletions = ns?.deletions ?? 0;
+
+      changes.push({ path: filePath, status, additions, deletions, isStaged: true });
+    }
+
+    const totalAdded = changes.reduce((s, c) => s + c.additions, 0);
+    const totalDeleted = changes.reduce((s, c) => s + c.deletions, 0);
+    return { changes, totalAdded, totalDeleted };
+  }
+
+  /**
+   * Unstaged changes only — working tree vs index (plus untracked).
+   */
+  async getUnstagedChanges(): Promise<{ changes: GitChange[] }> {
+    try {
+      await this.exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd: this.path });
+    } catch {
+      return { changes: [] };
+    }
+
+    const { stdout: statusOutput } = await this.exec(
+      'git',
+      ['status', '--porcelain', '--untracked-files=all'],
+      { cwd: this.path }
+    );
+
+    if (!statusOutput.trim()) {
+      return { changes: [] };
+    }
+
+    const statusLines = statusOutput
+      .split('\n')
+      .map((l) => l.replace(/\r$/, ''))
+      .filter((l) => l.length > 0);
+
+    const unstagedNumstat = await this.exec('git', ['diff', '--numstat'], { cwd: this.path })
+      .then((r) => this.parseNumstat(r.stdout))
+      .catch(() => new Map<string, { additions: number; deletions: number }>());
+
+    const changes: GitChange[] = [];
+
+    for (const line of statusLines) {
+      const statusCode = line.substring(0, 2);
+      let filePath = line.substring(3);
+      if (statusCode.includes('R') && filePath.includes('->')) {
+        const parts = filePath.split('->');
+        filePath = (parts[parts.length - 1] ?? '').trim();
+      }
+
+      const isUntracked = statusCode === '??';
+      const hasUnstaged = statusCode[1] !== ' ' && statusCode[1] !== '?';
+      if (!isUntracked && !hasUnstaged) continue;
+
+      const status = mapStatus(statusCode);
+      let additions = unstagedNumstat.get(filePath)?.additions ?? 0;
+      const deletions = unstagedNumstat.get(filePath)?.deletions ?? 0;
+
+      if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
+        try {
+          const result = await this.fs.read(filePath, MAX_DIFF_CONTENT_BYTES);
+          if (!result.truncated) {
+            additions = (result.content.match(/\n/g) ?? []).length;
+          }
+        } catch {}
+      }
+
+      changes.push({ path: filePath, status, additions, deletions, isStaged: false });
+    }
+
+    return { changes };
   }
 
   async stageFiles(filePaths: string[]): Promise<void> {
@@ -232,14 +353,26 @@ export class GitService implements GitProvider {
     }
   }
 
-  async getFileDiff(filePath: string, base: DiffBase = 'HEAD'): Promise<DiffResult> {
-    const isBranchDiff = base !== 'HEAD' && base !== 'staged';
-    const diffArgs =
-      base === 'staged'
-        ? ['diff', '--no-color', '--unified=2000', '--cached', '--', filePath]
-        : isBranchDiff
-          ? ['diff', '--no-color', '--unified=2000', `${base}...HEAD`, '--', filePath]
-          : ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath];
+  async getFileDiff(filePath: string, base: GitRef = HEAD_REF): Promise<DiffResult> {
+    const diffArgs = (() => {
+      switch (base.kind) {
+        case 'staged':
+          return ['diff', '--no-color', '--unified=2000', '--cached', '--', filePath];
+        case 'head':
+          return ['diff', '--no-color', '--unified=2000', 'HEAD', '--', filePath];
+        default:
+          return [
+            'diff',
+            '--no-color',
+            '--unified=2000',
+            `${toRefString(base)}...HEAD`,
+            '--',
+            filePath,
+          ];
+      }
+    })();
+
+    const isBranchDiff = base.kind !== 'head' && base.kind !== 'staged';
 
     let diffStdout: string | undefined;
     try {
@@ -250,7 +383,7 @@ export class GitService implements GitProvider {
       diffStdout = stdout;
     } catch {}
 
-    const originalRef = isBranchDiff ? base : 'HEAD';
+    const originalRef = isBranchDiff ? toRefString(base) : 'HEAD';
 
     const getOriginalContent = async (): Promise<string | undefined> => {
       try {
@@ -501,8 +634,9 @@ export class GitService implements GitProvider {
     return commits[0] || null;
   }
 
-  async getChangedFiles(base: DiffBase): Promise<GitChange[]> {
-    const ref = base === 'staged' ? '--cached' : String(base);
+  async getChangedFiles(base: GitRef | string): Promise<GitChange[]> {
+    const isStaged = typeof base === 'object' && base !== null && base.kind === 'staged';
+    const ref = isStaged ? '--cached' : typeof base === 'string' ? base : toRefString(base);
 
     const parseNumstat = (
       stdout: string
@@ -523,10 +657,10 @@ export class GitService implements GitProvider {
       return map;
     };
 
-    const diffArgs =
-      base === 'staged' ? ['diff', '--numstat', '--cached'] : ['diff', '--numstat', ref];
-    const nameArgs =
-      base === 'staged' ? ['diff', '--name-status', '--cached'] : ['diff', '--name-status', ref];
+    const diffArgs = isStaged ? ['diff', '--numstat', '--cached'] : ['diff', '--numstat', ref];
+    const nameArgs = isStaged
+      ? ['diff', '--name-status', '--cached']
+      : ['diff', '--name-status', ref];
 
     const [numstatResult, nameStatusResult] = await Promise.all([
       this.exec('git', diffArgs, { cwd: this.path }).catch(() => ({ stdout: '' })),
@@ -548,7 +682,7 @@ export class GitService implements GitProvider {
         status: mapStatus(code),
         additions: stat?.additions ?? 0,
         deletions: stat?.deletions ?? 0,
-        isStaged: base === 'staged',
+        isStaged,
       });
     }
 

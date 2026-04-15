@@ -31,9 +31,57 @@ export type GitHeadState = {
   isUnborn: boolean;
 };
 
-type GitRef = string;
+export type GitRef =
+  | { kind: 'head' }
+  | { kind: 'staged' }
+  | { kind: 'local'; branch: string }
+  | { kind: 'remote'; remote: string; branch: string }
+  | { kind: 'commit'; sha: string };
 
-export type DiffBase = 'HEAD' | 'staged' | GitRef;
+export function toRefString(ref: GitRef): string {
+  switch (ref.kind) {
+    case 'head':
+      return 'HEAD';
+    case 'staged':
+      return 'staged';
+    case 'local':
+      return ref.branch;
+    case 'remote':
+      return `${ref.remote}/${ref.branch}`;
+    case 'commit':
+      return ref.sha;
+  }
+}
+
+export function refsEqual(a: GitRef, b: GitRef): boolean {
+  if (a.kind !== b.kind) return false;
+  switch (a.kind) {
+    case 'head':
+    case 'staged':
+      return true;
+    case 'local':
+      return a.branch === (b as typeof a).branch;
+    case 'remote':
+      return a.remote === (b as typeof a).remote && a.branch === (b as typeof a).branch;
+    case 'commit':
+      return a.sha === (b as typeof a).sha;
+  }
+}
+
+export const HEAD_REF: GitRef = { kind: 'head' };
+export const STAGED_REF: GitRef = { kind: 'staged' };
+
+export function localRef(branch: string): GitRef {
+  return { kind: 'local', branch };
+}
+
+export function remoteRef(remote: string, branch: string): GitRef {
+  return { kind: 'remote', remote, branch };
+}
+
+export function commitRef(sha: string): GitRef {
+  return { kind: 'commit', sha };
+}
 
 export type Commit = {
   hash: string;

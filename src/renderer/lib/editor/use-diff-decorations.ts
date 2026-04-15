@@ -1,5 +1,6 @@
 import type * as monacoNS from 'monaco-editor';
 import { useEffect, useRef, type RefObject } from 'react';
+import { HEAD_REF } from '@shared/git';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { computeLineDiff } from './utils';
 
@@ -23,7 +24,7 @@ export function useDiffDecorations(
   editorRef: RefObject<monacoNS.editor.IStandaloneCodeEditor | null>,
   bufferUri: string
 ): void {
-  const gitUri = bufferUri ? modelRegistry.toGitUri(bufferUri, 'HEAD') : '';
+  const gitUri = bufferUri ? modelRegistry.toGitUri(bufferUri, HEAD_REF) : '';
 
   const decorationIdsRef = useRef<string[]>([]);
 

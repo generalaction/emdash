@@ -1,4 +1,5 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
+import { HEAD_REF } from '@shared/git';
 import type { EditorViewSnapshot } from '@shared/view-state';
 import { FileRendererData } from '@renderer/features/tasks/types';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
@@ -386,6 +387,6 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
   private _unregisterModels(bufferUri: string): void {
     modelRegistry.unregisterModel(bufferUri);
     modelRegistry.unregisterModel(modelRegistry.toDiskUri(bufferUri));
-    modelRegistry.unregisterModel(modelRegistry.toGitUri(bufferUri, 'HEAD'));
+    modelRegistry.unregisterModel(modelRegistry.toGitUri(bufferUri, HEAD_REF));
   }
 }

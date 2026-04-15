@@ -22,6 +22,11 @@ export function useFromIssueMode(
     isUnborn
   );
   const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
+  const [prevProjectId, setPrevProjectId] = useState(selectedProjectId);
+  if (selectedProjectId !== prevProjectId) {
+    setPrevProjectId(selectedProjectId);
+    setLinkedIssue(null);
+  }
   const { autoGenerateName } = useTaskSettings();
 
   const shouldGenerate = autoGenerateName && linkedIssue !== null;
@@ -40,6 +45,7 @@ export function useFromIssueMode(
   const taskName = useTaskName({
     generatedName: shouldGenerate ? generatedName : undefined,
     isPending: shouldGenerate && isGenerating,
+    resetKey: selectedProjectId,
   });
 
   const isValid =

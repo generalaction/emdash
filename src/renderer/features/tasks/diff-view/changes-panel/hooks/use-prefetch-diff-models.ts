@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { HEAD_REF, STAGED_REF, type GitRef } from '@shared/git';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -18,7 +19,7 @@ export function usePrefetchDiffModels(
   projectId: string,
   workspaceId: string,
   group: 'disk' | 'staged' | 'git' | 'pr',
-  originalRef: string
+  originalRef: GitRef
 ) {
   const prefetchedRef = useRef(new Map<string, PrefetchEntry>());
 
@@ -52,25 +53,25 @@ export function usePrefetchDiffModels(
         entry.gitUris = [modelRegistry.toGitUri(uri, originalRef)];
       } else if (group === 'staged') {
         void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'git', 'HEAD')
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', HEAD_REF)
           .catch(() => {});
         void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'git', 'staged')
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', STAGED_REF)
           .catch(() => {});
         entry.gitUris = [
-          modelRegistry.toGitUri(uri, 'HEAD'),
-          modelRegistry.toGitUri(uri, 'staged'),
+          modelRegistry.toGitUri(uri, HEAD_REF),
+          modelRegistry.toGitUri(uri, STAGED_REF),
         ];
       } else {
         void modelRegistry
           .registerModel(projectId, workspaceId, root, filePath, language, 'git', originalRef)
           .catch(() => {});
         void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'git', 'HEAD')
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', HEAD_REF)
           .catch(() => {});
         entry.gitUris = [
           modelRegistry.toGitUri(uri, originalRef),
-          modelRegistry.toGitUri(uri, 'HEAD'),
+          modelRegistry.toGitUri(uri, HEAD_REF),
         ];
       }
 

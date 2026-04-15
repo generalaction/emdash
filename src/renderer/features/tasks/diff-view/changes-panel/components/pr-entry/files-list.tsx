@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import type { GitChange } from '@shared/git';
+import { remoteRef, type GitChange } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
@@ -13,7 +13,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const diffView = provisioned.taskView.diffView;
 
   const repo = getRepositoryStore(projectId);
-  const baseRef = `${repo?.configuredRemote ?? 'origin'}/${pr.metadata.baseRefName}`;
+  const baseRef = remoteRef(repo?.configuredRemote ?? 'origin', pr.metadata.baseRefName);
   const prFiles = prStore.getFiles(pr).data ?? [];
 
   const prefetchPrDiff = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'pr', baseRef);

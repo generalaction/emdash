@@ -23,7 +23,7 @@ export class WorkspaceStore {
     this.git = new GitStore(projectId, workspaceId, repositoryStore);
     this.files = new FilesStore(projectId, workspaceId);
     this.lifecycleScripts = new LifecycleScriptsStore(projectId, workspaceId);
-    this.pr = new PrStore(projectId, workspaceId, repositoryStore, this.git, getPrs);
+    this.pr = new PrStore(projectId, workspaceId, repositoryStore, getPrs);
     this.nameWithOwner = new Resource<string | null>(async () => {
       const result = await rpc.pullRequests.getNameWithOwner(projectId);
       return result.status === 'ready' ? result.nameWithOwner : null;
