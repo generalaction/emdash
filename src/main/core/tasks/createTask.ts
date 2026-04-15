@@ -215,9 +215,15 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
     has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
     has_issue: params.linkedIssue?.provider ?? 'none',
     provider: params.initialConversation?.provider ?? null,
+    project_id: params.projectId,
+    task_id: params.id,
   });
   if (params.linkedIssue) {
-    capture('issue_linked_to_task', { provider: params.linkedIssue.provider });
+    capture('issue_linked_to_task', {
+      provider: params.linkedIssue.provider,
+      project_id: params.projectId,
+      task_id: params.id,
+    });
   }
 
   return ok(task);

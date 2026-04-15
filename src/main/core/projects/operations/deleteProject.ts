@@ -18,5 +18,5 @@ export async function deleteProject(id: string): Promise<void> {
   await db.delete(projects).where(eq(projects.id, id));
   void viewStateService.del(`project:${id}`);
   await projectManager.closeProject(id);
-  capture('project_deleted');
+  capture('project_deleted', { project_id: id });
 }

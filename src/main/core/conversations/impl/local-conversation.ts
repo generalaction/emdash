@@ -140,15 +140,16 @@ export class LocalConversationProvider implements ConversationProvider {
       });
     }
 
-    const startedAt = Date.now();
     pty.onExit(({ exitCode }) => {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
       capture('agent_run_finished', {
         provider: conversation.providerId,
-        duration_ms: Math.max(0, Date.now() - startedAt),
         exit_code: typeof exitCode === 'number' ? exitCode : -1,
+        project_id: conversation.projectId,
+        task_id: conversation.taskId,
+        conversation_id: conversation.id,
       });
       events.emit(agentSessionExitedChannel, {
         sessionId,
@@ -185,7 +186,12 @@ export class LocalConversationProvider implements ConversationProvider {
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
-    capture('agent_run_started', { provider: conversation.providerId });
+    capture('agent_run_started', {
+      provider: conversation.providerId,
+      project_id: conversation.projectId,
+      task_id: conversation.taskId,
+      conversation_id: conversation.id,
+    });
   }
 
   async stopSession(conversationId: string): Promise<void> {

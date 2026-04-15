@@ -5,6 +5,7 @@ import type { RepositoryStore } from '@renderer/features/projects/stores/reposit
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import type { PrComment } from '@renderer/utils/github/types';
+import { captureTelemetry } from '@renderer/utils/telemetryClient';
 
 type MergeMode = 'merge' | 'squash' | 'rebase';
 export type MergeResult = { success: true } | { success: false; error: string };
@@ -124,15 +125,40 @@ export class PrStore {
     options: { strategy: MergeMode; commitHeadOid?: string }
   ): Promise<MergeResult> {
     const pr = this.getPrs().find((p) => p.id === id);
-    if (!pr) return { success: false, error: 'Pull request not found' };
+    if (!pr) {
+      captureTelemetry('pr_merged', {
+        strategy: options.strategy,
+        success: false,
+        error_type: 'pr_not_found',
+        project_id: this.projectId,
+        task_id: this.workspaceId,
+      });
+      return { success: false, error: 'Pull request not found' };
+    }
+
     const result = await rpc.pullRequests.mergePullRequest(
       pr.nameWithOwner,
       pr.metadata.number,
       options
     );
-    return result.success
-      ? { success: true }
-      : { success: false, error: result.error ?? 'Merge failed' };
+    if (result.success) {
+      captureTelemetry('pr_merged', {
+        strategy: options.strategy,
+        success: true,
+        project_id: this.projectId,
+        task_id: this.workspaceId,
+      });
+      return { success: true };
+    }
+
+    captureTelemetry('pr_merged', {
+      strategy: options.strategy,
+      success: false,
+      error_type: 'merge_failed',
+      project_id: this.projectId,
+      task_id: this.workspaceId,
+    });
+    return { success: false, error: result.error ?? 'Merge failed' };
   }
 
   async markReadyForReview(id: string): Promise<void> {

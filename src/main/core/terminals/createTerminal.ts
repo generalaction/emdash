@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { CreateTerminalParams, Terminal } from '@shared/terminals';
 import { db } from '@main/db/client';
 import { terminals } from '@main/db/schema';
+import { capture } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
 import { mapTerminalRowToTerminal } from './core';
 
@@ -26,6 +27,7 @@ export async function createTerminal(params: CreateTerminalParams): Promise<Term
   }
 
   await task.terminals.spawnTerminal(mapTerminalRowToTerminal(row), initialSize);
+  capture('terminal_created', { project_id: params.projectId, task_id: params.taskId });
 
   return mapTerminalRowToTerminal(row);
 }
