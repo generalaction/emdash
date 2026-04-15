@@ -22,6 +22,10 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import {
+  resolveBranchLikeTaskStrategy,
+  resolvePullRequestTaskStrategy,
+} from './create-task-strategy';
 import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
@@ -98,15 +102,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     switch (selectedStrategy) {
       case 'from-branch': {
         if (!fromBranch.selectedBranch) return;
-        const taskStrategy = isUnborn
-          ? { kind: 'no-worktree' as const }
-          : fromBranch.createBranchAndWorktree
-            ? {
-                kind: 'new-branch' as const,
-                taskBranch: fromBranch.taskName,
-                pushBranch: fromBranch.pushBranch,
-              }
-            : { kind: 'no-worktree' as const };
+        const taskStrategy = resolveBranchLikeTaskStrategy({
+          isUnborn,
+          createBranchAndWorktree: fromBranch.createBranchAndWorktree,
+          taskBranch: fromBranch.taskName,
+          pushBranch: fromBranch.pushBranch,
+        });
         void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
@@ -119,8 +120,14 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         });
         break;
       }
-      case 'from-issue':
+      case 'from-issue': {
         if (!fromIssue.selectedBranch) return;
+        const taskStrategy = resolveBranchLikeTaskStrategy({
+          isUnborn,
+          createBranchAndWorktree: fromIssue.createBranchAndWorktree,
+          taskBranch: fromIssue.taskName,
+          pushBranch: fromIssue.pushBranch,
+        });
         void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
@@ -129,12 +136,20 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             branch: fromIssue.selectedBranch.branch,
             remote: fromIssue.selectedBranch.remote,
           },
-          strategy: { kind: 'no-worktree' },
+          strategy: taskStrategy,
           linkedIssue: fromIssue.linkedIssue ?? undefined,
         });
         break;
-      case 'from-pull-request':
+      }
+      case 'from-pull-request': {
         if (!fromPR.linkedPR) return;
+        const taskStrategy = resolvePullRequestTaskStrategy({
+          checkoutMode: fromPR.checkoutMode,
+          prNumber: fromPR.linkedPR.metadata.number,
+          headBranch: fromPR.linkedPR.metadata.headRefName,
+          taskBranch: fromPR.taskName,
+          pushBranch: fromPR.branchSelection.pushBranch,
+        });
         void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
@@ -142,21 +157,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName },
           initialStatus:
             fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
-          strategy:
-            fromPR.checkoutMode === 'checkout'
-              ? {
-                  kind: 'from-pull-request',
-                  prNumber: fromPR.linkedPR.metadata.number,
-                  headBranch: fromPR.linkedPR.metadata.headRefName,
-                }
-              : {
-                  kind: 'from-pull-request',
-                  prNumber: fromPR.linkedPR.metadata.number,
-                  headBranch: fromPR.linkedPR.metadata.headRefName,
-                  taskBranch: fromPR.taskName,
-                },
+          strategy: taskStrategy,
         });
         break;
+      }
     }
 
     navigate('task', { projectId: selectedProjectId, taskId: id });
