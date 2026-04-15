@@ -214,6 +214,20 @@ rm -f "$HOME/Library/Application Support/Electron/database.sqlite" \
 find "$HOME" -type f -name 'emdash.db*' -print
 ```
 
+## Poem
+
+```
+A dash of code, a dash of light,
+Agents spinning through the night,
+Each worktree a world apart,
+Yet woven close — a single art.
+
+Fan out the tasks, let branches grow,
+Watch the diffs like rivers flow,
+From chaos, order starts to bloom —
+One dashboard lights the working room.
+```
+
 ## What's Next
 - [ ] Pluggable provider system to run other CLI coding agents (e.g., Claude Code, Gemini CLI, aider, Warp) alongside Codex
 - [ ] Workspace lifecycle hooks to run custom scripts on create, run, and archive (e.g., install deps, copy env files, clean up resources)
