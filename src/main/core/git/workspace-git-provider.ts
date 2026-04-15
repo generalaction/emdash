@@ -4,6 +4,7 @@ import type {
   CommitFile,
   DiffResult,
   FetchError,
+  FullGitStatus,
   GitChange,
   GitRef,
   PullError,
@@ -14,6 +15,8 @@ import type { Result } from '@shared/result';
 
 export interface WorkspaceGitProvider {
   getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }>;
+  /** Single coalesced status refresh — preferred over separate staged/unstaged calls. */
+  getFullStatus(): Promise<FullGitStatus>;
   getStagedChanges(): Promise<{
     changes: GitChange[];
     totalAdded: number;
@@ -21,6 +24,8 @@ export interface WorkspaceGitProvider {
   }>;
   getUnstagedChanges(): Promise<{ changes: GitChange[] }>;
   getCurrentBranch(): Promise<string | null>;
+  /** Release persistent git resources (e.g. cat-file --batch). */
+  dispose(): void;
   /**
    * Path of this workspace's git admin dir relative to the main repo's `.git`
    * directory (forward slashes). Main worktree returns `''`.

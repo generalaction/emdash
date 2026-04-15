@@ -10,6 +10,15 @@ export type GitChange = {
   isStaged: boolean;
 };
 
+/** Result of a single coalesced workspace status refresh (staged + unstaged + branch). */
+export interface FullGitStatus {
+  staged: GitChange[];
+  unstaged: GitChange[];
+  currentBranch: string | null;
+  totalAdded: number;
+  totalDeleted: number;
+}
+
 export interface DiffResult {
   lines: DiffLine[];
   isBinary?: boolean;

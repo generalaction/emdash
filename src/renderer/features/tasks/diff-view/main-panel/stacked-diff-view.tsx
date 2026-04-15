@@ -142,10 +142,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
     if (currentTopIndex === index) return;
 
     programmaticScrollTarget.current = activeFile.path;
-    virtualizer.scrollToIndex(index, {
-      align: 'start',
-      behavior: activeFile.scrollBehavior ?? 'smooth',
-    });
+    virtualizer.scrollToIndex(index, { align: 'start', behavior: 'auto' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFile?.path, activeFile?.group, viewMode, files, diffType, virtualizer]);
 

@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import {
   HEAD_REF,
@@ -12,6 +13,7 @@ import {
   type DiffResult,
   type FetchError,
   type FetchPrRefError,
+  type FullGitStatus,
   type GitChange,
   type GitHeadState,
   type GitInfo,
@@ -26,8 +28,9 @@ import {
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { ExecFn } from '@main/core/utils/exec';
+import { GIT_EXECUTABLE, type ExecFn } from '@main/core/utils/exec';
 import { GitProvider } from '../types';
+import { CatFileBatch } from './cat-file-batch';
 import {
   computeBaseRef,
   mapStatus,
@@ -36,13 +39,34 @@ import {
   parseDiffLines,
   stripTrailingNewline,
 } from './git-utils';
+import {
+  MAX_STATUS_FILES,
+  StatusParser,
+  TooManyFilesChangedError,
+  type IFileStatus,
+} from './status-parser';
 
 export class GitService implements GitProvider {
+  private _statusInFlight: Promise<FullGitStatus> | null = null;
+  private _catFile: CatFileBatch | null = null;
+
   constructor(
     private readonly path: string,
     private readonly exec: ExecFn,
-    private readonly fs: FileSystemProvider
+    private readonly fs: FileSystemProvider,
+    private readonly _localWorkspace = true
   ) {}
+
+  dispose(): void {
+    this._catFile?.dispose();
+    this._catFile = null;
+  }
+
+  private _getCatFile(): CatFileBatch | null {
+    if (!this._localWorkspace) return null;
+    this._catFile ??= new CatFileBatch(this.path);
+    return this._catFile;
+  }
 
   private parseNumstat(stdout: string): Map<string, { additions: number; deletions: number }> {
     const map = new Map<string, { additions: number; deletions: number }>();
@@ -61,54 +85,130 @@ export class GitService implements GitProvider {
     return map;
   }
 
-  async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
+  async getFullStatus(): Promise<FullGitStatus> {
+    if (this._statusInFlight) return this._statusInFlight;
+    this._statusInFlight = this._loadFullStatus().finally(() => {
+      this._statusInFlight = null;
+    });
+    return this._statusInFlight;
+  }
+
+  private async _loadFullStatus(): Promise<FullGitStatus> {
     try {
-      await this.exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd: this.path });
-    } catch {
-      return { changes: [], currentBranch: null };
-    }
+      const parser = new StatusParser();
+      const [, stagedRes, unstagedRes, currentBranch] = await Promise.all([
+        this._runStatusZ(parser),
+        this.exec('git', ['diff', '--numstat', '--cached'], { cwd: this.path }).catch(() => ({
+          stdout: '',
+        })),
+        this.exec('git', ['diff', '--numstat'], { cwd: this.path }).catch(() => ({ stdout: '' })),
+        this.getCurrentBranch(),
+      ]);
 
-    const [{ stdout: statusOutput }, currentBranch] = await Promise.all([
-      this.exec('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: this.path }),
-      this.getCurrentBranch(),
-    ]);
+      const stagedNumstat = this.parseNumstat(stagedRes.stdout);
+      const unstagedNumstat = this.parseNumstat(unstagedRes.stdout);
 
-    if (!statusOutput.trim()) return { changes: [], currentBranch };
-
-    const statusLines = statusOutput
-      .split('\n')
-      .map((l) => l.replace(/\r$/, ''))
-      .filter((l) => l.length > 0);
-
-    const [stagedNumstat, unstagedNumstat] = await Promise.all([
-      this.exec('git', ['diff', '--numstat', '--cached'], { cwd: this.path })
-        .then((r) => this.parseNumstat(r.stdout))
-        .catch(() => new Map<string, { additions: number; deletions: number }>()),
-      this.exec('git', ['diff', '--numstat'], { cwd: this.path })
-        .then((r) => this.parseNumstat(r.stdout))
-        .catch(() => new Map<string, { additions: number; deletions: number }>()),
-    ]);
-
-    const changes: GitChange[] = [];
-
-    for (const line of statusLines) {
-      const statusCode = line.substring(0, 2);
-      let filePath = line.substring(3);
-      if (statusCode.includes('R') && filePath.includes('->')) {
-        const parts = filePath.split('->');
-        filePath = (parts[parts.length - 1] ?? '').trim();
+      if (parser.status.length > MAX_STATUS_FILES || parser.tooManyFiles) {
+        throw new TooManyFilesChangedError();
       }
 
-      const status = mapStatus(statusCode);
-      const isStaged = statusCode[0] !== ' ' && statusCode[0] !== '?';
+      return await this._buildFullGitStatus(
+        parser.status,
+        stagedNumstat,
+        unstagedNumstat,
+        currentBranch
+      );
+    } catch (e) {
+      if (e instanceof TooManyFilesChangedError) throw e;
+      return {
+        staged: [],
+        unstaged: [],
+        currentBranch: null,
+        totalAdded: 0,
+        totalDeleted: 0,
+      };
+    }
+  }
 
-      const staged = stagedNumstat.get(filePath);
-      const unstaged = unstagedNumstat.get(filePath);
-      let additions = (staged?.additions ?? 0) + (unstaged?.additions ?? 0);
-      const deletions = (staged?.deletions ?? 0) + (unstaged?.deletions ?? 0);
+  private async _runStatusZ(parser: StatusParser): Promise<void> {
+    if (this._localWorkspace) {
+      await this._runStatusZStreaming(parser);
+    } else {
+      await this._runStatusZBuffered(parser);
+    }
+  }
 
-      // Untracked files don't appear in git diff output; count lines from content.
-      if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
+  private async _runStatusZStreaming(parser: StatusParser): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(GIT_EXECUTABLE, ['--no-optional-locks', 'status', '-z', '-uall'], {
+        cwd: this.path,
+        env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
+      });
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        parser.update(chunk);
+        if (parser.tooManyFiles) {
+          child.kill();
+        }
+      });
+      child.on('error', reject);
+      child.on('close', () => {
+        if (parser.tooManyFiles) {
+          reject(new TooManyFilesChangedError());
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
+  private async _runStatusZBuffered(parser: StatusParser): Promise<void> {
+    try {
+      const { stdout } = await this.exec('git', ['--no-optional-locks', 'status', '-z', '-uall'], {
+        cwd: this.path,
+      });
+      parser.update(stdout);
+      if (parser.tooManyFiles) throw new TooManyFilesChangedError();
+    } catch (e) {
+      if (e instanceof TooManyFilesChangedError) throw e;
+    }
+  }
+
+  private async _buildFullGitStatus(
+    entries: IFileStatus[],
+    stagedNumstat: Map<string, { additions: number; deletions: number }>,
+    unstagedNumstat: Map<string, { additions: number; deletions: number }>,
+    currentBranch: string | null
+  ): Promise<FullGitStatus> {
+    const staged: GitChange[] = [];
+    const unstaged: GitChange[] = [];
+
+    for (const e of entries) {
+      const code = `${e.x}${e.y}`;
+      const filePath = e.path;
+      const status = mapStatus(code);
+
+      if (e.x !== ' ' && e.x !== '?') {
+        const ns = stagedNumstat.get(filePath);
+        staged.push({
+          path: filePath,
+          status,
+          additions: ns?.additions ?? 0,
+          deletions: ns?.deletions ?? 0,
+          isStaged: true,
+        });
+      }
+
+      const isUntracked = code === '??';
+      const hasUnstaged = code[1] !== ' ' && code[1] !== '?';
+      if (!isUntracked && !hasUnstaged) {
+        continue;
+      }
+
+      let additions = unstagedNumstat.get(filePath)?.additions ?? 0;
+      const deletions = unstagedNumstat.get(filePath)?.deletions ?? 0;
+
+      if (additions === 0 && deletions === 0 && code.includes('?')) {
         try {
           const result = await this.fs.read(filePath, MAX_DIFF_CONTENT_BYTES);
           if (!result.truncated) {
@@ -117,133 +217,79 @@ export class GitService implements GitProvider {
         } catch {}
       }
 
-      changes.push({ path: filePath, status, additions, deletions, isStaged });
+      unstaged.push({
+        path: filePath,
+        status,
+        additions,
+        deletions,
+        isStaged: false,
+      });
     }
 
-    return { changes, currentBranch };
+    const totalAdded = staged.reduce((s, c) => s + c.additions, 0);
+    const totalDeleted = staged.reduce((s, c) => s + c.deletions, 0);
+
+    return { staged, unstaged, currentBranch, totalAdded, totalDeleted };
   }
 
-  /**
-   * Staged changes only — index vs HEAD. Used by GitStore staged list refresh.
-   */
+  async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
+    try {
+      const full = await this.getFullStatus();
+      const byPath = new Map<string, GitChange>();
+      for (const c of full.staged) {
+        byPath.set(c.path, { ...c });
+      }
+      for (const c of full.unstaged) {
+        const prev = byPath.get(c.path);
+        if (prev) {
+          byPath.set(c.path, {
+            path: c.path,
+            status: c.status,
+            additions: prev.additions + c.additions,
+            deletions: prev.deletions + c.deletions,
+            isStaged: true,
+          });
+        } else {
+          byPath.set(c.path, c);
+        }
+      }
+      return { changes: [...byPath.values()], currentBranch: full.currentBranch };
+    } catch (e) {
+      if (e instanceof TooManyFilesChangedError) throw e;
+      return { changes: [], currentBranch: null };
+    }
+  }
+
   async getStagedChanges(): Promise<{
     changes: GitChange[];
     totalAdded: number;
     totalDeleted: number;
   }> {
     try {
-      await this.exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd: this.path });
-    } catch {
-      return { changes: [], totalAdded: 0, totalDeleted: 0 };
-    }
-
-    const { stdout: statusOutput } = await this.exec(
-      'git',
-      ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=all'],
-      { cwd: this.path }
-    );
-
-    if (!statusOutput.trim()) {
-      return { changes: [], totalAdded: 0, totalDeleted: 0 };
-    }
-
-    const statusLines = statusOutput
-      .split('\n')
-      .map((l) => l.replace(/\r$/, ''))
-      .filter((l) => l.length > 0);
-
-    const stagedNumstat = await this.exec('git', ['diff', '--numstat', '--cached'], {
-      cwd: this.path,
-    })
-      .then((r) => this.parseNumstat(r.stdout))
-      .catch(() => new Map<string, { additions: number; deletions: number }>());
-
-    const changes: GitChange[] = [];
-
-    for (const line of statusLines) {
-      const statusCode = line.substring(0, 2);
-      let filePath = line.substring(3);
-      if (statusCode.includes('R') && filePath.includes('->')) {
-        const parts = filePath.split('->');
-        filePath = (parts[parts.length - 1] ?? '').trim();
+      const full = await this.getFullStatus();
+      return {
+        changes: full.staged,
+        totalAdded: full.totalAdded,
+        totalDeleted: full.totalDeleted,
+      };
+    } catch (e) {
+      if (e instanceof TooManyFilesChangedError) {
+        return { changes: [], totalAdded: 0, totalDeleted: 0 };
       }
-
-      const staged = statusCode[0] !== ' ' && statusCode[0] !== '?';
-      if (!staged) continue;
-
-      const status = mapStatus(statusCode);
-      const ns = stagedNumstat.get(filePath);
-      const additions = ns?.additions ?? 0;
-      const deletions = ns?.deletions ?? 0;
-
-      changes.push({ path: filePath, status, additions, deletions, isStaged: true });
+      throw e;
     }
-
-    const totalAdded = changes.reduce((s, c) => s + c.additions, 0);
-    const totalDeleted = changes.reduce((s, c) => s + c.deletions, 0);
-    return { changes, totalAdded, totalDeleted };
   }
 
-  /**
-   * Unstaged changes only — working tree vs index (plus untracked).
-   */
   async getUnstagedChanges(): Promise<{ changes: GitChange[] }> {
     try {
-      await this.exec('git', ['rev-parse', '--is-inside-work-tree'], { cwd: this.path });
-    } catch {
-      return { changes: [] };
-    }
-
-    const { stdout: statusOutput } = await this.exec(
-      'git',
-      ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=all'],
-      { cwd: this.path }
-    );
-
-    if (!statusOutput.trim()) {
-      return { changes: [] };
-    }
-
-    const statusLines = statusOutput
-      .split('\n')
-      .map((l) => l.replace(/\r$/, ''))
-      .filter((l) => l.length > 0);
-
-    const unstagedNumstat = await this.exec('git', ['diff', '--numstat'], { cwd: this.path })
-      .then((r) => this.parseNumstat(r.stdout))
-      .catch(() => new Map<string, { additions: number; deletions: number }>());
-
-    const changes: GitChange[] = [];
-
-    for (const line of statusLines) {
-      const statusCode = line.substring(0, 2);
-      let filePath = line.substring(3);
-      if (statusCode.includes('R') && filePath.includes('->')) {
-        const parts = filePath.split('->');
-        filePath = (parts[parts.length - 1] ?? '').trim();
+      const full = await this.getFullStatus();
+      return { changes: full.unstaged };
+    } catch (e) {
+      if (e instanceof TooManyFilesChangedError) {
+        return { changes: [] };
       }
-
-      const isUntracked = statusCode === '??';
-      const hasUnstaged = statusCode[1] !== ' ' && statusCode[1] !== '?';
-      if (!isUntracked && !hasUnstaged) continue;
-
-      const status = mapStatus(statusCode);
-      let additions = unstagedNumstat.get(filePath)?.additions ?? 0;
-      const deletions = unstagedNumstat.get(filePath)?.deletions ?? 0;
-
-      if (additions === 0 && deletions === 0 && statusCode.includes('?')) {
-        try {
-          const result = await this.fs.read(filePath, MAX_DIFF_CONTENT_BYTES);
-          if (!result.truncated) {
-            additions = (result.content.match(/\n/g) ?? []).length;
-          }
-        } catch {}
-      }
-
-      changes.push({ path: filePath, status, additions, deletions, isStaged: false });
+      throw e;
     }
-
-    return { changes };
   }
 
   async stageFiles(filePaths: string[]): Promise<void> {
@@ -331,6 +377,14 @@ export class GitService implements GitProvider {
   }
 
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
+    const cf = this._getCatFile();
+    if (cf) {
+      try {
+        return await cf.read(`${ref}:${filePath}`);
+      } catch {
+        // Batch channel failed — fall back to one-shot git show.
+      }
+    }
     try {
       const { stdout } = await this.exec('git', ['show', `${ref}:${filePath}`], {
         cwd: this.path,
@@ -343,6 +397,14 @@ export class GitService implements GitProvider {
   }
 
   async getFileAtIndex(filePath: string): Promise<string | null> {
+    const cf = this._getCatFile();
+    if (cf) {
+      try {
+        return await cf.read(`:0:${filePath}`);
+      } catch {
+        // Fall back
+      }
+    }
     try {
       const { stdout } = await this.exec('git', ['show', `:0:${filePath}`], {
         cwd: this.path,

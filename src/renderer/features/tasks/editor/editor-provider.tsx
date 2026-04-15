@@ -4,7 +4,6 @@ import type * as monacoNS from 'monaco-editor';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef } from 'react';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
-import { useDiffDecorations } from '@renderer/lib/editor/use-diff-decorations';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
@@ -197,14 +196,6 @@ export const EditorProvider = observer(function EditorProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
-
-  // ---------------------------------------------------------------------------
-  // Diff decorations — driven by active file path.
-  // ---------------------------------------------------------------------------
-  const bufferUri = editorView.activeFilePath
-    ? buildMonacoModelPath(editorView.modelRootPath, editorView.activeFilePath)
-    : '';
-  useDiffDecorations(editorRef, bufferUri);
 
   // ---------------------------------------------------------------------------
   // Focus restore — when this task becomes active and focusedRegion is 'main',

@@ -1,4 +1,4 @@
-import { action, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { HEAD_REF, localRef, remoteRef, STAGED_REF, type GitRef } from '@shared/git';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
@@ -25,7 +25,7 @@ function migrateLegacyOriginalRef(legacy: string): GitRef {
 }
 
 export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
-  activeFile: ActiveFile | null = null;
+  activeFileOverride: ActiveFile | null = null;
   diffStyle: 'unified' | 'split' = 'unified';
   viewMode: 'stacked' | 'file' = 'stacked';
   commitAction: 'commit' | 'commit-push' | null = null;
@@ -39,6 +39,14 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
   readonly changesView: ChangesViewStore;
 
+  /**
+   * Index of the override file within its source list at the time it was set.
+   * Used as a position hint when the file disappears so we can select a neighbor
+   * rather than always falling back to the first file. Not observable — always
+   * updated atomically with activeFileOverride inside setActiveFile.
+   */
+  private _activeFileOverrideIndex = -1;
+
   private _disposeReactions: Array<() => void> = [];
 
   constructor(
@@ -48,7 +56,8 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     this.changesView = new ChangesViewStore(git, pr);
 
     makeObservable(this, {
-      activeFile: observable,
+      activeFileOverride: observable,
+      activeFile: computed,
       diffStyle: observable,
       viewMode: observable,
       stackedDiffDisabled: observable,
@@ -57,50 +66,6 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       setDiffStyle: action,
       setViewMode: action,
     });
-
-    // Sync activeFile when staged/unstaged lists change (replaces ActiveFileSync component).
-    // Files with group='git' are not in working-tree lists and are left unchanged.
-    this._disposeReactions.push(
-      reaction(
-        () => ({
-          staged: this.git.stagedFileChanges,
-          unstaged: this.git.unstagedFileChanges,
-        }),
-        ({ staged, unstaged }) => {
-          const current = this.activeFile;
-          if (!current || current.group === 'git') return;
-
-          const isStaged = current.group === 'staged';
-          const inCurrentList = (isStaged ? staged : unstaged).some((f) => f.path === current.path);
-          if (inCurrentList) return;
-
-          const movedToStaged = staged.some((f) => f.path === current.path);
-          const movedToUnstaged = unstaged.some((f) => f.path === current.path);
-
-          runInAction(() => {
-            if (movedToStaged) {
-              this.activeFile = {
-                ...current,
-                type: 'git',
-                group: 'staged',
-                originalRef: HEAD_REF,
-                scrollBehavior: 'auto',
-              };
-            } else if (movedToUnstaged) {
-              this.activeFile = {
-                ...current,
-                type: 'disk',
-                group: 'disk',
-                originalRef: HEAD_REF,
-                scrollBehavior: 'auto',
-              };
-            } else {
-              this.activeFile = null;
-            }
-          });
-        }
-      )
-    );
 
     // Auto-expand the changes panel section that contains the newly selected file.
     this._disposeReactions.push(
@@ -133,11 +98,60 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     );
   }
 
+  /**
+   * The effective active file. Derived from activeFileOverride by validating it
+   * against the current working-tree lists. Falls back to a neighbor or the
+   * default file when the override is stale. Always consistent with observable
+   * state — no reaction needed.
+   */
+  get activeFile(): ActiveFile | null {
+    const override = this.activeFileOverride;
+    if (!override) return this._defaultActiveFile;
+
+    // git/pr groups cannot be validated against working-tree lists — trust the override
+    if (override.group === 'git' || override.group === 'pr') return override;
+
+    const isStaged = override.group === 'staged';
+    const ownList = isStaged ? this.git.stagedFileChanges : this.git.unstagedFileChanges;
+    const otherList = isStaged ? this.git.unstagedFileChanges : this.git.stagedFileChanges;
+
+    // Override is still valid
+    if (ownList.some((f) => f.path === override.path)) return override;
+
+    // File moved to the other list (staged/unstaged while active)
+    if (otherList.some((f) => f.path === override.path)) {
+      return {
+        ...override,
+        type: isStaged ? 'disk' : 'git',
+        group: isStaged ? 'disk' : 'staged',
+        originalRef: HEAD_REF,
+      };
+    }
+
+    // File completely gone — select position-based neighbor within the same group
+    const idx = Math.max(0, this._activeFileOverrideIndex);
+    const neighbor = ownList[Math.min(idx, ownList.length - 1)];
+    if (neighbor) return { ...override, path: neighbor.path };
+
+    // Same-group list is now empty — fall back to first file in the other group
+    if (otherList.length > 0) {
+      return {
+        ...override,
+        path: otherList[0]!.path,
+        type: isStaged ? 'disk' : 'git',
+        group: isStaged ? 'disk' : 'staged',
+        originalRef: HEAD_REF,
+      };
+    }
+
+    return null;
+  }
+
   get snapshot(): DiffViewSnapshot {
     return {
       diffStyle: this.diffStyle,
       viewMode: this.viewMode,
-      activeFile: this.activeFile ? { ...this.activeFile, scrollBehavior: undefined } : undefined,
+      activeFile: this.activeFileOverride ?? undefined,
       commitAction: this.commitAction,
     };
   }
@@ -150,7 +164,10 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       if (typeof (af.originalRef as unknown) === 'string') {
         af.originalRef = migrateLegacyOriginalRef(af.originalRef as unknown as string);
       }
-      this.activeFile = af;
+      this.activeFileOverride = af;
+      // Index is unknown on restore; 0 means we pick the first file if the
+      // restored path is gone from the list.
+      this._activeFileOverrideIndex = 0;
     }
     if (snapshot.commitAction) this.commitAction = snapshot.commitAction;
     // Apply limit in case the persisted viewMode is 'stacked' but the file
@@ -168,7 +185,14 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   }
 
   setActiveFile(file: ActiveFile | null): void {
-    this.activeFile = file;
+    this.activeFileOverride = file;
+    if (file?.group === 'disk' || file?.group === 'staged') {
+      const list =
+        file.group === 'staged' ? this.git.stagedFileChanges : this.git.unstagedFileChanges;
+      this._activeFileOverrideIndex = list.findIndex((f) => f.path === file.path);
+    } else {
+      this._activeFileOverrideIndex = -1;
+    }
   }
 
   setDiffStyle(style: 'unified' | 'split'): void {
@@ -184,6 +208,18 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     for (const dispose of this._disposeReactions) dispose();
     this._disposeReactions = [];
     this.changesView.dispose();
+  }
+
+  private get _defaultActiveFile(): ActiveFile | null {
+    const first = this.git.unstagedFileChanges[0] ?? this.git.stagedFileChanges[0];
+    if (!first) return null;
+    const isUnstaged = !!this.git.unstagedFileChanges[0];
+    return {
+      path: first.path,
+      type: isUnstaged ? 'disk' : 'git',
+      group: isUnstaged ? 'disk' : 'staged',
+      originalRef: HEAD_REF,
+    };
   }
 
   private _currentFileCount(): number {

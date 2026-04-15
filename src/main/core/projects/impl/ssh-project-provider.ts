@@ -99,7 +99,7 @@ export class SshProjectProvider implements ProjectProvider {
     this.fs = new SshFileSystem(this.proxy, project.path);
     this.settings = new SshProjectSettingsProvider(this.fs, bareRefName(project.baseRef));
     const gitExec = getGitSshExec(this.proxy, () => githubConnectionService.getToken());
-    const repoGit = new GitService(project.path, gitExec, this.fs);
+    const repoGit = new GitService(project.path, gitExec, this.fs, false);
     this.repository = new GitRepositoryService(repoGit, this.settings);
     this.worktreeService = new WorktreeService({
       worktreePoolPath: options.worktreePoolPath,
@@ -222,7 +222,7 @@ export class SshProjectProvider implements ProjectProvider {
         id: workspaceId,
         path: workDir,
         fs: workspaceFs,
-        git: new GitService(workDir, workspaceGitExec, workspaceFs),
+        git: new GitService(workDir, workspaceGitExec, workspaceFs, false),
         settings: this.settings,
         lifecycleService,
       };

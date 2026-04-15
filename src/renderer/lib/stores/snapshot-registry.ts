@@ -23,7 +23,7 @@ export class SnapshotRegistry {
     const disposer = reaction(
       () => getSnapshot(),
       (snapshot) => {
-        rpc.viewState.save(key, snapshot);
+        void rpc.viewState.save(key, snapshot);
       },
       { equals: comparer.structural, delay: 1000, fireImmediately: false }
     );

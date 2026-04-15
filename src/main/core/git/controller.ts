@@ -1,10 +1,26 @@
 import type { GitRef } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
+import { TooManyFilesChangedError } from '@main/core/git/impl/status-parser';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
 
 export const gitController = createRPCController({
+  getFullStatus: async (projectId: string, workspaceId: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const data = await env.git.getFullStatus();
+      return ok(data);
+    } catch (e) {
+      if (e instanceof TooManyFilesChangedError) {
+        return err({ type: 'too_many_files' as const });
+      }
+      log.error('gitCtrl.getFullStatus failed', { projectId, workspaceId, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
   getStatus: async (projectId: string, workspaceId: string) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);
@@ -12,6 +28,9 @@ export const gitController = createRPCController({
       const { changes, currentBranch } = await env.git.getStatus();
       return ok({ changes, currentBranch });
     } catch (e) {
+      if (e instanceof TooManyFilesChangedError) {
+        return err({ type: 'too_many_files' as const });
+      }
       log.error('gitCtrl.getStatus failed', { projectId, workspaceId, error: e });
       return err({ type: 'git_error' as const, message: String(e) });
     }

@@ -93,7 +93,8 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   const git = new GitService(
     params.path,
     getGitSshExec(sshProxy, () => githubConnectionService.getToken()),
-    sshFs
+    sshFs,
+    false
   );
 
   const gitInfo = await git.detectInfo();

@@ -34,7 +34,6 @@ export interface ActiveFile {
   originalRef: GitRef;
   /** Set only when group === 'pr'. Identifies the PR for store lookups. */
   prNumber?: number;
-  scrollBehavior?: 'smooth' | 'auto';
 }
 
 export type TaskViewSnapshot = {

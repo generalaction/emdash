@@ -54,6 +54,7 @@ export class WorkspaceRegistry {
     }
 
     this.entries.delete(key);
+    entry.workspace.git.dispose();
     await entry.workspace.lifecycleService.dispose();
   }
 
@@ -68,6 +69,11 @@ export class WorkspaceRegistry {
   async releaseAll(): Promise<void> {
     const entries = Array.from(this.entries.values());
     this.entries.clear();
-    await Promise.all(entries.map((entry) => entry.workspace.lifecycleService.dispose()));
+    await Promise.all(
+      entries.map(async (entry) => {
+        entry.workspace.git.dispose();
+        await entry.workspace.lifecycleService.dispose();
+      })
+    );
   }
 }

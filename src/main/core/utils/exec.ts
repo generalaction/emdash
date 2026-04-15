@@ -21,7 +21,8 @@ function resolveGitBin(): string {
   return 'git';
 }
 
-const GIT = resolveGitBin();
+/** Resolved path to the `git` binary — use for `spawn` when local exec is bypassed. */
+export const GIT_EXECUTABLE = resolveGitBin();
 
 export type ExecFn = (
   command: string,
@@ -35,7 +36,7 @@ export function getLocalExec(): ExecFn {
     args: string[] = [],
     options: { cwd?: string; timeout?: number; maxBuffer?: number } = {}
   ) => {
-    const bin = command === 'git' ? GIT : command;
+    const bin = command === 'git' ? GIT_EXECUTABLE : command;
     return execFileAsync(bin, args, options);
   };
 }

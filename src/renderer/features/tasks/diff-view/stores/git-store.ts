@@ -2,65 +2,51 @@ import { computed, makeObservable } from 'mobx';
 import { toast } from 'sonner';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import type { GitChange } from '@shared/git';
+import type { FullGitStatus, GitChange } from '@shared/git';
 import { err, ok } from '@shared/result';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 
-interface StagedChangesData {
-  changes: GitChange[];
-  totalAdded: number;
-  totalDeleted: number;
-}
-
-interface UnstagedChangesData {
-  changes: GitChange[];
-}
-
-interface BranchInfoData {
-  currentBranch: string | null;
-}
+const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 
 export class GitStore {
-  readonly stagedChanges: Resource<StagedChangesData>;
-  readonly unstagedChanges: Resource<UnstagedChangesData>;
-  readonly branchInfo: Resource<BranchInfoData>;
+  readonly fullStatus: Resource<FullGitStatus>;
 
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly repositoryStore: RepositoryStore
   ) {
-    this.stagedChanges = new Resource<StagedChangesData>(
-      () => this._fetchStagedChanges(),
+    this.fullStatus = new Resource<FullGitStatus>(
+      () => this._fetchFullStatus(),
       [
         {
           kind: 'event',
           subscribe: (handler) =>
             events.on(gitWorkspaceChangedChannel, (payload) => {
-              if (
-                payload.workspaceId === this.workspaceId &&
-                (payload.kind === 'index' || payload.kind === 'head')
-              ) {
+              if (payload.workspaceId === this.workspaceId && payload.kind === 'head') {
+                handler();
+              }
+            }),
+          onEvent: 'reload',
+          debounceMs: 100,
+        },
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitWorkspaceChangedChannel, (payload) => {
+              if (payload.workspaceId === this.workspaceId && payload.kind === 'index') {
                 handler();
               }
             }),
           onEvent: 'reload',
           debounceMs: 300,
         },
-      ]
-    );
-
-    this.unstagedChanges = new Resource<UnstagedChangesData>(
-      () => this._fetchUnstagedChanges(),
-      [
         {
           kind: 'event',
           subscribe: (handler) => {
-            rpc.fs
-              .watchSetPaths(projectId, workspaceId, [''], 'git-store-unstaged')
-              .catch(() => {});
+            rpc.fs.watchSetPaths(projectId, workspaceId, [''], 'git-store-status').catch(() => {});
             const unsub = events.on(fsWatchEventChannel, (payload) => {
               if (payload.workspaceId !== workspaceId) return;
               const relevant = payload.events.some((e) => {
@@ -72,35 +58,11 @@ export class GitStore {
             });
             return () => {
               unsub();
-              rpc.fs.watchStop(projectId, workspaceId, 'git-store-unstaged').catch(() => {});
+              rpc.fs.watchStop(projectId, workspaceId, 'git-store-status').catch(() => {});
             };
           },
           onEvent: 'reload',
           debounceMs: 500,
-        },
-        {
-          kind: 'event',
-          subscribe: (handler) =>
-            events.on(gitWorkspaceChangedChannel, (payload) => {
-              if (payload.workspaceId === this.workspaceId && payload.kind === 'index') handler();
-            }),
-          onEvent: 'reload',
-          debounceMs: 300,
-        },
-      ]
-    );
-
-    this.branchInfo = new Resource<BranchInfoData>(
-      () => this._fetchBranchInfo(),
-      [
-        {
-          kind: 'event',
-          subscribe: (handler) =>
-            events.on(gitWorkspaceChangedChannel, (payload) => {
-              if (payload.workspaceId === workspaceId && payload.kind === 'head') handler();
-            }),
-          onEvent: 'reload',
-          debounceMs: 100,
         },
       ]
     );
@@ -151,37 +113,37 @@ export class GitStore {
   }
 
   get stagedFileChanges(): GitChange[] {
-    return this.stagedChanges.data?.changes ?? [];
+    return this.fullStatus.data?.staged ?? [];
   }
 
   get unstagedFileChanges(): GitChange[] {
-    return this.unstagedChanges.data?.changes ?? [];
+    return this.fullStatus.data?.unstaged ?? [];
   }
 
   get totalLinesAdded(): number {
-    const staged = this.stagedChanges.data;
-    const unstaged = this.unstagedChanges.data;
-    const u = unstaged?.changes.reduce((s, c) => s + c.additions, 0) ?? 0;
-    return (staged?.totalAdded ?? 0) + u;
+    const full = this.fullStatus.data;
+    if (!full) return 0;
+    const u = full.unstaged.reduce((s, c) => s + c.additions, 0);
+    return full.totalAdded + u;
   }
 
   get totalLinesDeleted(): number {
-    const staged = this.stagedChanges.data;
-    const unstaged = this.unstagedChanges.data;
-    const u = unstaged?.changes.reduce((s, c) => s + c.deletions, 0) ?? 0;
-    return (staged?.totalDeleted ?? 0) + u;
+    const full = this.fullStatus.data;
+    if (!full) return 0;
+    const u = full.unstaged.reduce((s, c) => s + c.deletions, 0);
+    return full.totalDeleted + u;
   }
 
   get isLoading(): boolean {
-    return this.stagedChanges.loading || this.unstagedChanges.loading || this.branchInfo.loading;
+    return this.fullStatus.loading;
   }
 
   get error(): string | undefined {
-    return this.stagedChanges.error ?? this.unstagedChanges.error ?? this.branchInfo.error;
+    return this.fullStatus.error;
   }
 
   get branchName(): string | null {
-    return this.branchInfo.data?.currentBranch ?? null;
+    return this.fullStatus.data?.currentBranch ?? null;
   }
 
   /** True when this workspace's branch has a remote tracking ref. */
@@ -211,61 +173,55 @@ export class GitStore {
    * Called from WorkspaceStore.activate().
    */
   startWatching(): void {
-    this.stagedChanges.start();
-    this.unstagedChanges.start();
-    this.branchInfo.start();
+    this.fullStatus.start();
   }
 
   dispose(): void {
-    this.stagedChanges.dispose();
-    this.unstagedChanges.dispose();
-    this.branchInfo.dispose();
+    this.fullStatus.dispose();
   }
 
   // ---------------------------------------------------------------------------
   // Mutation methods — invalidate relevant resources after each mutation
   // ---------------------------------------------------------------------------
 
+  private _invalidateStatus(): void {
+    this.fullStatus.invalidate();
+  }
+
   async stageFiles(paths: string[]): Promise<void> {
     await rpc.git.stageFiles(this.projectId, this.workspaceId, paths);
-    this.stagedChanges.invalidate();
-    this.unstagedChanges.invalidate();
+    this._invalidateStatus();
   }
 
   async stageAllFiles(): Promise<void> {
     await rpc.git.stageAllFiles(this.projectId, this.workspaceId);
-    this.stagedChanges.invalidate();
-    this.unstagedChanges.invalidate();
+    this._invalidateStatus();
   }
 
   async unstageFiles(paths: string[]): Promise<void> {
     await rpc.git.unstageFiles(this.projectId, this.workspaceId, paths);
-    this.stagedChanges.invalidate();
-    this.unstagedChanges.invalidate();
+    this._invalidateStatus();
   }
 
   async unstageAllFiles(): Promise<void> {
     await rpc.git.unstageAllFiles(this.projectId, this.workspaceId);
-    this.stagedChanges.invalidate();
-    this.unstagedChanges.invalidate();
+    this._invalidateStatus();
   }
 
   async discardFiles(paths: string[]): Promise<void> {
     await rpc.git.revertFiles(this.projectId, this.workspaceId, paths);
-    this.unstagedChanges.invalidate();
+    this._invalidateStatus();
   }
 
   async discardAllFiles(): Promise<void> {
     await rpc.git.revertAllFiles(this.projectId, this.workspaceId);
-    this.stagedChanges.invalidate();
-    this.unstagedChanges.invalidate();
+    this._invalidateStatus();
   }
 
   async commit(message: string) {
     const result = await rpc.git.commit(this.projectId, this.workspaceId, message);
     if (result.success) {
-      this.stagedChanges.invalidate();
-      this.branchInfo.invalidate();
+      this._invalidateStatus();
       this.repositoryStore.refreshLocal(); // new commit → local branch ahead count changes
       return ok();
     } else {
@@ -324,9 +280,7 @@ export class GitStore {
   async pull() {
     const result = await rpc.git.pull(this.projectId, this.workspaceId);
     if (result.success) {
-      this.stagedChanges.invalidate();
-      this.unstagedChanges.invalidate();
-      this.branchInfo.invalidate();
+      this._invalidateStatus();
       this.repositoryStore.refreshLocal(); // local branch updated with pulled commits
       return ok();
     } else {
@@ -335,21 +289,14 @@ export class GitStore {
     }
   }
 
-  private async _fetchStagedChanges(): Promise<StagedChangesData> {
-    const result = await rpc.git.getStagedChanges(this.projectId, this.workspaceId);
-    if (!result.success) throw new Error(result.error.type);
+  private async _fetchFullStatus(): Promise<FullGitStatus> {
+    const result = await rpc.git.getFullStatus(this.projectId, this.workspaceId);
+    if (!result.success) {
+      if (result.error.type === 'too_many_files') {
+        throw new Error(TOO_MANY_FILES_MSG);
+      }
+      throw new Error(result.error.type);
+    }
     return result.data;
-  }
-
-  private async _fetchUnstagedChanges(): Promise<UnstagedChangesData> {
-    const result = await rpc.git.getUnstagedChanges(this.projectId, this.workspaceId);
-    if (!result.success) throw new Error(result.error.type);
-    return result.data;
-  }
-
-  private async _fetchBranchInfo(): Promise<BranchInfoData> {
-    const result = await rpc.git.getCurrentBranch(this.projectId, this.workspaceId);
-    if (!result.success) throw new Error(result.error.type);
-    return { currentBranch: result.data.currentBranch };
   }
 }

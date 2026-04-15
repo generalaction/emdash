@@ -5,21 +5,24 @@ import { WorkspaceRegistry } from './workspace-registry';
 function makeWorkspace(id: string): {
   workspace: Workspace;
   dispose: ReturnType<typeof vi.fn>;
+  gitDispose: ReturnType<typeof vi.fn>;
 } {
   const dispose = vi.fn(async () => {});
+  const gitDispose = vi.fn();
 
   return {
     workspace: {
       id,
       path: `/tmp/${id}`,
       fs: {} as Workspace['fs'],
-      git: {} as Workspace['git'],
+      git: { dispose: gitDispose } as unknown as Workspace['git'],
       settings: {} as Workspace['settings'],
       lifecycleService: {
         dispose,
       } as unknown as Workspace['lifecycleService'],
     },
     dispose,
+    gitDispose,
   };
 }
 
@@ -63,7 +66,7 @@ describe('WorkspaceRegistry', () => {
 
   it('disposes workspace resources when ref count reaches zero', async () => {
     const registry = new WorkspaceRegistry();
-    const { workspace, dispose } = makeWorkspace('branch:main');
+    const { workspace, dispose, gitDispose } = makeWorkspace('branch:main');
     const factory = vi.fn(async () => workspace);
 
     await registry.acquire('branch:main', factory);
@@ -71,9 +74,11 @@ describe('WorkspaceRegistry', () => {
 
     await registry.release('branch:main');
     expect(dispose).not.toHaveBeenCalled();
+    expect(gitDispose).not.toHaveBeenCalled();
     expect(registry.refCount('branch:main')).toBe(1);
 
     await registry.release('branch:main');
+    expect(gitDispose).toHaveBeenCalledTimes(1);
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(registry.get('branch:main')).toBeUndefined();
     expect(registry.refCount('branch:main')).toBe(0);
@@ -90,7 +95,9 @@ describe('WorkspaceRegistry', () => {
 
     await registry.releaseAll();
 
+    expect(first.gitDispose).toHaveBeenCalledTimes(1);
     expect(first.dispose).toHaveBeenCalledTimes(1);
+    expect(second.gitDispose).toHaveBeenCalledTimes(1);
     expect(second.dispose).toHaveBeenCalledTimes(1);
     expect(registry.refCount('branch:main')).toBe(0);
     expect(registry.refCount('root:')).toBe(0);
