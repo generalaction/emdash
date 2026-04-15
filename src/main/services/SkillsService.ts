@@ -129,6 +129,22 @@ export class SkillsService {
       if (anthropicSkills.status === 'fulfilled') {
         allSkills.push(...anthropicSkills.value);
       }
+      allSkills.push({
+        id: 'mmx-cli',
+        displayName: 'MiniMax CLI',
+        description: 'Generate text, images, video, speech, and music via MiniMax AI platform',
+        source: 'skills-sh',
+        iconUrl: 'https://github.com/MiniMax-AI.png?size=80',
+        brandColor: '#171717',
+        defaultPrompt: 'Use MiniMax to generate content (text, image, video, speech, or music).',
+        frontmatter: {
+          name: 'mmx-cli',
+          description: 'Generate text, images, video, speech, and music via MiniMax AI platform',
+        },
+        installed: false,
+        owner: 'MiniMax-AI',
+        repo: 'cli',
+      });
 
       const skills = deduplicateById(allSkills);
 
