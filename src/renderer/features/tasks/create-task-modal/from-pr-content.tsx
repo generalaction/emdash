@@ -19,7 +19,13 @@ export function FromPrContent({ state, projectId, nameWithOwner, disabled }: Fro
         nameWithOwner={nameWithOwner}
         disabled={disabled}
       />
-      <CheckoutModeGroup value={state.checkoutMode} onValueChange={state.setCheckoutMode} />
+      <CheckoutModeGroup
+        value={state.checkoutMode}
+        onValueChange={state.setCheckoutMode}
+        pushBranch={state.branchSelection.pushBranch}
+        onPushBranchChange={state.branchSelection.setPushBranch}
+        disabled={disabled}
+      />
       <TaskNameField state={state} />
     </div>
   );
