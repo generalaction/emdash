@@ -1,7 +1,7 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { openInAppIdSchema } from '@shared/openInApps';
-import { DEFAULT_AGENT_ID } from './settings-registry';
+import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
 
 export const localProjectSettingsSchema = z.object({
   defaultProjectsDirectory: z.string(),
@@ -36,6 +36,8 @@ export const themeSchema = z
   .default('emlight');
 
 export const defaultAgentSchema = z.optional(z.enum(AGENT_PROVIDER_IDS)).default(DEFAULT_AGENT_ID);
+
+export const reviewPromptSchema = z.string().default(DEFAULT_REVIEW_PROMPT);
 
 export const keyboardSettingsSchema = z
   .optional(
@@ -107,6 +109,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   localProject: localProjectSettingsSchema,
   tasks: taskSettingsSchema,
   defaultAgent: defaultAgentSchema,
+  reviewPrompt: reviewPromptSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
@@ -120,6 +123,7 @@ export const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
   tasks: taskSettingsSchema,
   defaultAgent: defaultAgentSchema,
+  reviewPrompt: reviewPromptSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
