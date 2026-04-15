@@ -17,6 +17,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { ContextBar } from './context-bar';
 import { ConversationStore } from './conversation-manager';
 import { ConversationsTabs } from './conversation-tabs';
 
@@ -59,39 +60,44 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   }, [conversationTabs, isActive]);
 
   return (
-    <TabbedPtyPanel<ConversationStore>
-      autoFocus={autoFocus}
-      onFocusChange={(focused) => {
-        setIsPanelFocused(focused);
-        if (focused) provisioned.taskView.setFocusedRegion('main');
-      }}
-      store={conversationTabs}
-      paneId="conversations"
-      getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
-      getSession={(s) => s.session}
-      onEnterPress={shouldSetWorkingOnEnter ? (s) => s.setWorking() : undefined}
-      onInterruptPress={(s) => s.clearWorking()}
-      mapShiftEnterToCtrlJ
-      remoteConnectionId={remoteConnectionId}
-      tabBar={<ConversationsTabs projectId={projectId} taskId={taskId} />}
-      emptyState={
-        <EmptyState
-          icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
-          label="No conversations yet"
-          description="Create one to open a terminal session for this task and work with an agent."
-          action={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCreate}
-              className="flex items-center gap-2"
-            >
-              Create conversation
-              <ShortcutHint settingsKey="newConversation" />
-            </Button>
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1">
+        <TabbedPtyPanel<ConversationStore>
+          autoFocus={autoFocus}
+          onFocusChange={(focused) => {
+            setIsPanelFocused(focused);
+            if (focused) provisioned.taskView.setFocusedRegion('main');
+          }}
+          store={conversationTabs}
+          paneId="conversations"
+          getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
+          getSession={(s) => s.session}
+          onEnterPress={shouldSetWorkingOnEnter ? (s) => s.setWorking() : undefined}
+          onInterruptPress={(s) => s.clearWorking()}
+          mapShiftEnterToCtrlJ
+          remoteConnectionId={remoteConnectionId}
+          tabBar={<ConversationsTabs projectId={projectId} taskId={taskId} />}
+          emptyState={
+            <EmptyState
+              icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
+              label="No conversations yet"
+              description="Create one to open a terminal session for this task and work with an agent."
+              action={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCreate}
+                  className="flex items-center gap-2"
+                >
+                  Create conversation
+                  <ShortcutHint settingsKey="newConversation" />
+                </Button>
+              }
+            />
           }
         />
-      }
-    />
+      </div>
+      <ContextBar />
+    </div>
   );
 });
