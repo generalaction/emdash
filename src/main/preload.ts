@@ -491,6 +491,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   accountCheckServerHealth: () => ipcRenderer.invoke('account:checkServerHealth'),
   accountValidateSession: () => ipcRenderer.invoke('account:validateSession'),
 
+  setBadgeCount: (count: number) => ipcRenderer.send('app:set-badge-count', count),
+
   // GitHub integration
   githubAuth: () => ipcRenderer.invoke('github:auth'),
   githubAuthOAuth: () => ipcRenderer.invoke('github:auth:oauth'),

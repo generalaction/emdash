@@ -642,6 +642,7 @@ declare global {
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       clipboardWriteText: (text: string) => Promise<{ success: boolean; error?: string }>;
       paste: () => Promise<{ success: boolean; error?: string }>;
+      setBadgeCount: (count: number) => void;
       openIn: (args: {
         app: OpenInAppId;
         path: string;

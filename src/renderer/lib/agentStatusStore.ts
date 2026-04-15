@@ -19,6 +19,7 @@ export class AgentStatusStore {
   private readonly unreadListeners = new Map<string, Set<UnreadListener>>();
   private readonly statusById = new Map<string, AgentStatusSnapshot>();
   private readonly unreadById = new Map<string, boolean>();
+  private readonly globalUnreadListeners = new Set<() => void>();
   private activeView: { taskId: string | null; statusId: string | null } = {
     taskId: null,
     statusId: null,
@@ -121,6 +122,21 @@ export class AgentStatusStore {
     this.setUnread(id, false);
   }
 
+  getUnreadCount(): number {
+    let count = 0;
+    for (const unread of this.unreadById.values()) {
+      if (unread) count++;
+    }
+    return count;
+  }
+
+  onUnreadCountChange(listener: () => void): () => void {
+    this.globalUnreadListeners.add(listener);
+    return () => {
+      this.globalUnreadListeners.delete(listener);
+    };
+  }
+
   setActiveView(view: { taskId: string | null; statusId: string | null }): void {
     this.activeView = view;
   }
@@ -167,10 +183,16 @@ export class AgentStatusStore {
     if (current === unread) return;
     this.unreadById.set(id, unread);
     const listeners = this.unreadListeners.get(id);
-    if (!listeners) return;
-    for (const listener of listeners) {
+    if (listeners) {
+      for (const listener of listeners) {
+        try {
+          listener(unread);
+        } catch {}
+      }
+    }
+    for (const listener of this.globalUnreadListeners) {
       try {
-        listener(unread);
+        listener();
       } catch {}
     }
   }
