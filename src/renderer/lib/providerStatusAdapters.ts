@@ -18,7 +18,8 @@ export function mapAgentEventToStatus(event: AgentEvent): AgentStatusKind | null
   if (
     notificationType === 'permission_prompt' ||
     notificationType === 'elicitation_dialog' ||
-    notificationType === 'idle_prompt'
+    notificationType === 'idle_prompt' ||
+    notificationType === 'auth_success'
   ) {
     return 'waiting';
   }

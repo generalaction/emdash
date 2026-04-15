@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowUpRight, AlertCircle, Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
+import { AlertCircle, Archive, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { ChangesBadge } from './TaskChanges';
 import { usePrStatus } from '../hooks/usePrStatus';
@@ -8,6 +8,7 @@ import PrPreviewTooltip from './PrPreviewTooltip';
 import { TaskStatusIndicator } from './TaskStatusIndicator';
 import TaskDeleteButton from './TaskDeleteButton';
 import { useTaskStatus } from '../hooks/useTaskStatus';
+import { useTaskNotificationType } from '../hooks/useTaskNotificationType';
 import { useTaskUnread } from '../hooks/useTaskUnread';
 import { normalizeTaskName, MAX_TASK_NAME_LENGTH } from '../lib/taskNames';
 import { normalizeSqliteTimestamp } from '../lib/utils';
@@ -78,6 +79,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const { pr } = usePrStatus(task.path);
   const isBusy = useTaskBusy(task.id);
   const taskStatus = useTaskStatus(task.id);
+  const taskNotificationType = useTaskNotificationType(task.id);
   const taskUnread = useTaskUnread(task.id);
   const displayStatus = taskStatus === 'unknown' && isBusy ? 'working' : taskStatus;
 
@@ -191,7 +193,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         <div
           className={`absolute inset-0 flex items-center justify-center transition-opacity ${showDelete && (onDelete || onArchive) && !isDeleting ? 'group-hover/task:opacity-0' : ''}`}
         >
-          <TaskStatusIndicator status={displayStatus} unread={taskUnread} />
+          <TaskStatusIndicator
+            status={displayStatus}
+            unread={taskUnread}
+            notificationType={taskNotificationType}
+          />
         </div>
         {showDelete && onDelete && primaryAction === 'delete' ? (
           <div className="absolute inset-0 flex items-center justify-center">

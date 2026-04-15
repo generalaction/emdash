@@ -12,6 +12,7 @@ const UNKNOWN_STATUS: AgentStatusSnapshot = {
   providerId: '',
   kind: 'unknown',
   updatedAt: 0,
+  notificationType: undefined,
 };
 
 export class AgentStatusStore {
@@ -85,6 +86,7 @@ export class AgentStatusStore {
       providerId: event.providerId,
       kind: nextKind,
       message: event.payload.message?.trim() || undefined,
+      notificationType: event.type === 'notification' ? event.payload.notificationType : undefined,
     });
   }
 
@@ -147,6 +149,7 @@ export class AgentStatusStore {
     providerId: string;
     kind: AgentStatusKind;
     message?: string;
+    notificationType?: import('@shared/agentStatus').NotificationType;
   }): void {
     const current = this.statusById.get(args.id);
     const next: AgentStatusSnapshot = {
@@ -156,6 +159,7 @@ export class AgentStatusStore {
       kind: args.kind,
       updatedAt: Date.now(),
       message: args.message,
+      notificationType: args.notificationType,
     };
 
     if (
@@ -163,7 +167,8 @@ export class AgentStatusStore {
       current.kind === next.kind &&
       current.ptyId === next.ptyId &&
       current.providerId === next.providerId &&
-      current.message === next.message
+      current.message === next.message &&
+      current.notificationType === next.notificationType
     ) {
       return;
     }
