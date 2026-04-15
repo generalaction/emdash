@@ -48,11 +48,10 @@ export class FilesStore {
           kind: 'event',
           subscribe: (handler) => {
             rpc.fs.watchSetPaths(projectId, workspaceId, [''], 'filetree').catch(() => {});
-            const unsub = events.on(
-              fsWatchEventChannel,
-              (data) => handler(data.events),
-              workspaceId
-            );
+            const unsub = events.on(fsWatchEventChannel, (data) => {
+              if (data.workspaceId !== workspaceId) return;
+              handler(data.events);
+            });
             return () => {
               unsub();
               rpc.fs.watchStop(projectId, workspaceId, 'filetree').catch(() => {});

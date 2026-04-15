@@ -1,8 +1,32 @@
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
+import type { FileWatchEvent } from '@shared/fs';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { events } from '@renderer/lib/ipc';
 import type { MonacoModelRegistry } from './monaco-model-registry';
+
+/** Disk models for paths affected by a watch event (atomic saves often use create/delete, not modify). */
+function diskUrisForFsWatchEvent(
+  registry: MonacoModelRegistry,
+  workspaceId: string,
+  e: FileWatchEvent
+): string[] {
+  if (e.path.startsWith('.git')) return [];
+  if (e.oldPath?.startsWith('.git')) return [];
+
+  if (e.type === 'rename' && e.oldPath) {
+    return [
+      ...registry.findDiskUris({ workspaceId, filePath: e.path }),
+      ...registry.findDiskUris({ workspaceId, filePath: e.oldPath }),
+    ];
+  }
+
+  if (e.entryType !== 'file') return [];
+  if (e.type === 'modify' || e.type === 'create' || e.type === 'delete') {
+    return registry.findDiskUris({ workspaceId, filePath: e.path });
+  }
+  return [];
+}
 
 /**
  * Wire all three invalidation bridges for the given registry. Returns a
@@ -14,8 +38,10 @@ export function wireModelRegistryInvalidation(registry: MonacoModelRegistry): ()
   // Disk file modifications → invalidate matching disk:// models.
   const unsubFs = events.on(fsWatchEventChannel, ({ workspaceId, events: fsEvents }) => {
     for (const e of fsEvents) {
-      if (e.type !== 'modify' || e.path.startsWith('.git')) continue;
-      for (const uri of registry.findDiskUris({ workspaceId, filePath: e.path })) {
+      const skippedGit = e.path.startsWith('.git') || e.oldPath?.startsWith('.git');
+      const uris = skippedGit ? [] : diskUrisForFsWatchEvent(registry, workspaceId, e);
+      if (skippedGit) continue;
+      for (const uri of uris) {
         void registry.invalidateModel(uri);
       }
     }

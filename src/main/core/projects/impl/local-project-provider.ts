@@ -221,8 +221,8 @@ export class LocalProjectProvider implements ProjectProvider {
 
     // Register the workspace with the git watcher so that index/HEAD changes
     // in its worktree git dir are emitted as granular workspace events.
-    const relativeGitDir =
-      workspace.path === this.project.path ? '' : `worktrees/${path.basename(workspace.path)}`;
+    const mainDotGitAbs = path.resolve(this.project.path, '.git');
+    const relativeGitDir = await workspace.git.getWorktreeGitDir(mainDotGitAbs);
     this._gitWatcher.registerWorktree(workspaceId, relativeGitDir);
 
     let provisionSucceeded = false;

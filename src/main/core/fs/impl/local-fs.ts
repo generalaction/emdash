@@ -83,12 +83,10 @@ const SEARCH_IGNORES = new Set([
   '.parcel-cache',
 ]);
 
-// Directory names to exclude from the filesystem watcher.
-// Note: .git is intentionally omitted so that index/HEAD change events
-// reach monaco-model-registry for git model refreshes.
 const WATCH_IGNORED_NAMES = [
   '.svn',
   '.hg',
+  '.git',
   'node_modules',
   'dist',
   'build',

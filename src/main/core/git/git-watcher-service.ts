@@ -9,9 +9,9 @@ export class GitWatcherService {
 
   /**
    * Registered worktrees. Maps workspaceId → git-dir path relative to the
-   * repo's .git directory.
+   * repo's .git directory (from `GitService.getWorktreeGitDir`).
    *   Main workspace → ''
-   *   Linked worktree → 'worktrees/<basename>'
+   *   Linked worktree → e.g. 'worktrees/<git-admin-id>'
    */
   private readonly _worktrees = new Map<string, string>();
 
@@ -48,7 +48,6 @@ export class GitWatcherService {
         const changedRemoteByKey = new Map<string, GitRef>();
         for (const e of rawEvents) {
           const rel = path.relative(gitDir, e.path).replace(/\\/g, '/');
-
           // Project-level ref changes
           if (rel.startsWith('refs/heads/')) {
             const branch = rel.slice('refs/heads/'.length);

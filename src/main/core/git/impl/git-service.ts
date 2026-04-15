@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   HEAD_REF,
   toRefString,
@@ -138,7 +139,7 @@ export class GitService implements GitProvider {
 
     const { stdout: statusOutput } = await this.exec(
       'git',
-      ['status', '--porcelain', '--untracked-files=all'],
+      ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=all'],
       { cwd: this.path }
     );
 
@@ -195,7 +196,7 @@ export class GitService implements GitProvider {
 
     const { stdout: statusOutput } = await this.exec(
       'git',
-      ['status', '--porcelain', '--untracked-files=all'],
+      ['--no-optional-locks', 'status', '--porcelain', '--untracked-files=all'],
       { cwd: this.path }
     );
 
@@ -1051,6 +1052,20 @@ export class GitService implements GitProvider {
       return branch === 'HEAD' || !branch ? null : branch;
     } catch {
       return null;
+    }
+  }
+
+  async getWorktreeGitDir(mainDotGitAbs: string): Promise<string> {
+    try {
+      const { stdout } = await this.exec('git', ['rev-parse', '--git-dir'], {
+        cwd: this.path,
+      });
+      const raw = stdout.trim();
+      const gitDirAbs = path.isAbsolute(raw) ? raw : path.resolve(this.path, raw);
+      const rel = path.relative(mainDotGitAbs, gitDirAbs).replace(/\\/g, '/');
+      return rel === '.' || rel === '' ? '' : rel;
+    } catch {
+      return `worktrees/${path.basename(this.path)}`;
     }
   }
 

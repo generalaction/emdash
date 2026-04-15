@@ -10,6 +10,7 @@ export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
   wordWrap: 'on',
   lineNumbers: 'on',
   lineNumbersMinChars: 2,
+  readOnly: true,
   renderIndicators: false,
   overviewRulerLanes: 3,
   renderOverviewRuler: true,

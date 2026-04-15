@@ -40,7 +40,7 @@ export class GitStore {
           subscribe: (handler) =>
             events.on(gitWorkspaceChangedChannel, (payload) => {
               if (
-                payload.workspaceId === workspaceId &&
+                payload.workspaceId === this.workspaceId &&
                 (payload.kind === 'index' || payload.kind === 'head')
               ) {
                 handler();
@@ -82,7 +82,7 @@ export class GitStore {
           kind: 'event',
           subscribe: (handler) =>
             events.on(gitWorkspaceChangedChannel, (payload) => {
-              if (payload.workspaceId === workspaceId && payload.kind === 'index') handler();
+              if (payload.workspaceId === this.workspaceId && payload.kind === 'index') handler();
             }),
           onEvent: 'reload',
           debounceMs: 300,

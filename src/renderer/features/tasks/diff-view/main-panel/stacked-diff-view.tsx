@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HEAD_REF, STAGED_REF, type GitChange, type GitRef } from '@shared/git';
-import { MAX_STACKED_FILES } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
+import { StackedDiffViewModel } from '@renderer/features/tasks/diff-view/stores/stacked-diff-view-model';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
@@ -61,21 +61,31 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
   const diffStyle = diffView.diffStyle;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const suppressObserver = useRef(false);
+  const programmaticScrollTarget = useRef<string | null>(null);
+
+  const stackedDiffViewModel = useMemo(() => new StackedDiffViewModel(), []);
+
+  const filePathsKey = useMemo(() => files.map((f) => f.path).join(','), [files]);
+
+  useEffect(() => {
+    stackedDiffViewModel.pruneStale(new Set(files.map((f) => f.path)));
+    // filePathsKey is derived from files; when it changes, `files` in closure is current.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePathsKey, stackedDiffViewModel]);
 
   const scrollSyncRef = useRef({
     files,
     diffType,
     originalRef,
     diffView,
-    suppress: suppressObserver,
+    programmaticScrollTarget,
   });
   scrollSyncRef.current = {
     files,
     diffType,
     originalRef,
     diffView,
-    suppress: suppressObserver,
+    programmaticScrollTarget,
   };
 
   const virtualizer = useVirtualizer({
@@ -98,135 +108,28 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
         diffType: dt,
         originalRef: ref,
         diffView: dv,
-        suppress,
+        programmaticScrollTarget: target,
       } = scrollSyncRef.current;
-      if (!suppress.current) {
-        const startIndex = instance.range?.startIndex;
-        if (startIndex != null) {
-          const file = f[startIndex];
-          if (file)
-            dv.setActiveFile({
-              path: file.path,
-              type: dt === 'disk' ? 'disk' : 'git',
-              group: dt,
-              originalRef: ref,
-            });
+      const startIndex = instance.range?.startIndex;
+      if (startIndex == null) return;
+      const topFile = f[startIndex];
+      if (!topFile) return;
+
+      if (target.current) {
+        if (topFile.path === target.current) {
+          target.current = null;
         }
+        return;
       }
+
+      dv.setActiveFile({
+        path: topFile.path,
+        type: dt === 'disk' ? 'disk' : 'git',
+        group: dt,
+        originalRef: ref,
+      });
     },
   });
-
-  // Stable dep: re-register whenever the file set or the base ref changes.
-  // Using a joined-path key avoids reacting to array reference identity churn
-  // (React Query returns a new array object on every refetch even if data is unchanged).
-  const filePathsKey = useMemo(() => files.map((f) => f.path).join(','), [files]);
-
-  // Bulk register models for all non-binary files whenever the file list or
-  // originalRef changes. FS watching is driven by useModelStatus inside each
-  // StackedFileSection — visible sections subscribe, invoking FS watching;
-  // sections scrolled out of view unsubscribe, pausing watching after 60 s TTL.
-  useEffect(() => {
-    if (files.length > MAX_STACKED_FILES) return;
-
-    // Track registered URIs in a plain object so the async loop and the cleanup
-    // closure share the same reference (a local `const` inside a void IIFE would
-    // be captured by value before any pushes happen if the component unmounts
-    // between iterations).
-    const registered: Array<{ originalUri: string; modifiedUri: string }> = [];
-    const aborted = { value: false };
-
-    void (async () => {
-      for (const file of files) {
-        if (aborted.value) break;
-        if (isBinaryForDiff(file.path)) continue;
-        const language = getLanguageFromPath(file.path);
-        const root = `workspace:${workspaceId}`;
-        try {
-          if (diffType === 'staged') {
-            await modelRegistry.registerModel(
-              projectId,
-              workspaceId,
-              root,
-              file.path,
-              language,
-              'git',
-              HEAD_REF
-            );
-            await modelRegistry.registerModel(
-              projectId,
-              workspaceId,
-              root,
-              file.path,
-              language,
-              'git',
-              STAGED_REF
-            );
-          } else if (diffType === 'git') {
-            await modelRegistry.registerModel(
-              projectId,
-              workspaceId,
-              root,
-              file.path,
-              language,
-              'git',
-              originalRef
-            );
-            await modelRegistry.registerModel(
-              projectId,
-              workspaceId,
-              root,
-              file.path,
-              language,
-              'git',
-              HEAD_REF
-            );
-          } else {
-            await modelRegistry.registerModel(
-              projectId,
-              workspaceId,
-              root,
-              file.path,
-              language,
-              'disk'
-            );
-            await modelRegistry.registerModel(
-              projectId,
-              workspaceId,
-              root,
-              file.path,
-              language,
-              'git',
-              originalRef
-            );
-          }
-          const uri = buildMonacoModelPath(root, file.path);
-          registered.push({
-            originalUri:
-              diffType === 'git'
-                ? modelRegistry.toGitUri(uri, originalRef)
-                : modelRegistry.toGitUri(uri, HEAD_REF),
-            modifiedUri:
-              diffType === 'staged'
-                ? modelRegistry.toGitUri(uri, STAGED_REF)
-                : diffType === 'git'
-                  ? modelRegistry.toGitUri(uri, HEAD_REF)
-                  : modelRegistry.toDiskUri(uri),
-          });
-        } catch {
-          // Ignore individual file registration errors
-        }
-      }
-    })();
-
-    return () => {
-      aborted.value = true;
-      for (const { originalUri, modifiedUri } of registered) {
-        modelRegistry.unregisterModel(originalUri);
-        modelRegistry.unregisterModel(modifiedUri);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, workspaceId, diffType, originalRef, filePathsKey]);
 
   // Click → scroll: when activeFile changes or mode switches back to stacked
   useEffect(() => {
@@ -238,31 +141,17 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
     const currentTopIndex = virtualizer.range?.startIndex;
     if (currentTopIndex === index) return;
 
-    suppressObserver.current = true;
+    programmaticScrollTarget.current = activeFile.path;
     virtualizer.scrollToIndex(index, {
       align: 'start',
       behavior: activeFile.scrollBehavior ?? 'smooth',
     });
-    const timer = setTimeout(() => {
-      suppressObserver.current = false;
-    }, 700);
-    return () => clearTimeout(timer);
-    // scrollBehavior is intentionally omitted — see comment in original
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFile?.path, activeFile?.group, viewMode, files, diffType, virtualizer]);
 
   if (files.length === 0) {
     return (
       <EmptyState label="No changes" description="Select or make changes to files to see diffs." />
-    );
-  }
-
-  if (files.length > MAX_STACKED_FILES) {
-    return (
-      <EmptyState
-        label="Too many changed files"
-        description="Select individual file view mode from the top toolbar to view diffs."
-      />
     );
   }
 
@@ -286,10 +175,12 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
             >
               <StackedFileSection
                 file={file}
+                projectId={projectId}
                 workspaceId={workspaceId}
                 diffStyle={diffStyle}
                 diffType={diffType}
                 originalRef={originalRef}
+                viewModel={stackedDiffViewModel}
               />
             </div>
           );
@@ -301,24 +192,26 @@ const StackedDiffPanel = observer(function StackedDiffPanel({
 
 interface StackedFileSectionProps {
   file: GitChange;
+  projectId: string;
   workspaceId: string;
   diffStyle: 'unified' | 'split';
   diffType: 'disk' | 'staged' | 'git' | 'pr';
   /** Git ref for the left (original/before) side. Used when diffType is 'disk', 'git', or 'pr'. */
   originalRef: GitRef;
+  viewModel: StackedDiffViewModel;
 }
 
 const MIN_EDITOR_HEIGHT = 100;
 
 const StackedFileSection = observer(function StackedFileSection({
   file,
+  projectId,
   workspaceId,
   diffStyle,
   diffType,
   originalRef,
+  viewModel,
 }: StackedFileSectionProps) {
-  const [expanded, setExpanded] = useState(true);
-  const [forceLoad, setForceLoad] = useState(false);
   const [contentHeight, setContentHeight] = useState<number | null>(null);
 
   const uri = buildMonacoModelPath(`workspace:${workspaceId}`, file.path);
@@ -340,6 +233,47 @@ const StackedFileSection = observer(function StackedFileSection({
         ? modelRegistry.toGitUri(uri, HEAD_REF)
         : modelRegistry.toDiskUri(uri);
 
+  useEffect(() => {
+    if (isBinary) return;
+    const root = `workspace:${workspaceId}`;
+    if (diffType === 'staged') {
+      void modelRegistry
+        .registerModel(projectId, workspaceId, root, file.path, language, 'git', HEAD_REF)
+        .catch(() => {});
+      void modelRegistry
+        .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
+        .catch(() => {});
+    } else if (diffType === 'git') {
+      void modelRegistry
+        .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
+        .catch(() => {});
+      void modelRegistry
+        .registerModel(projectId, workspaceId, root, file.path, language, 'git', HEAD_REF)
+        .catch(() => {});
+    } else {
+      void modelRegistry
+        .registerModel(projectId, workspaceId, root, file.path, language, 'disk')
+        .catch(() => {});
+      void modelRegistry
+        .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
+        .catch(() => {});
+    }
+    return () => {
+      modelRegistry.unregisterModel(originalUri);
+      modelRegistry.unregisterModel(modifiedUri);
+    };
+  }, [
+    isBinary,
+    projectId,
+    workspaceId,
+    file.path,
+    language,
+    diffType,
+    originalRef,
+    originalUri,
+    modifiedUri,
+  ]);
+
   // Subscribe to model status — drives FS watching while this section is visible.
   // Mount of this component signals that the section is in the virtualizer viewport.
   // Unmount (scrolled out) stops FS watching via TTL eviction in subscribeToUri.
@@ -354,6 +288,9 @@ const StackedFileSection = observer(function StackedFileSection({
   const totalDiffLines = file.additions + file.deletions;
   const isLarge = totalDiffLines > LARGE_DIFF_LINE_THRESHOLD;
 
+  const expanded = viewModel.isExpanded(file.path);
+  const forceLoad = viewModel.isForceLoaded(file.path);
+
   const editorHeight =
     contentHeight != null ? Math.max(contentHeight, MIN_EDITOR_HEIGHT) : MIN_EDITOR_HEIGHT;
 
@@ -367,7 +304,7 @@ const StackedFileSection = observer(function StackedFileSection({
       >
         <button
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-foreground-muted"
-          onClick={() => setExpanded((prev) => !prev)}
+          onClick={() => viewModel.toggleExpanded(file.path)}
         >
           {expanded ? (
             <ChevronDown className="h-3.5 w-3.5 shrink-0" />
@@ -401,7 +338,7 @@ const StackedFileSection = observer(function StackedFileSection({
               <span>Large diff ({totalDiffLines} lines). Loading may be slow.</span>
               <button
                 className="rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-background-1"
-                onClick={() => setForceLoad(true)}
+                onClick={() => viewModel.setForceLoad(file.path)}
               >
                 Load anyway
               </button>

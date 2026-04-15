@@ -261,7 +261,7 @@ export const filesController = createRPCController({
       existing.update(union);
     } else {
       const watcher = env.fs.watch((evts) => {
-        events.emit(fsWatchEventChannel, { projectId, workspaceId, events: evts }, workspaceId);
+        events.emit(fsWatchEventChannel, { projectId, workspaceId, events: evts });
       });
       watcher.update(union);
       watcherRegistry.set(key, watcher);

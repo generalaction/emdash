@@ -21,6 +21,11 @@ export interface WorkspaceGitProvider {
   }>;
   getUnstagedChanges(): Promise<{ changes: GitChange[] }>;
   getCurrentBranch(): Promise<string | null>;
+  /**
+   * Path of this workspace's git admin dir relative to the main repo's `.git`
+   * directory (forward slashes). Main worktree returns `''`.
+   */
+  getWorktreeGitDir(mainDotGitAbs: string): Promise<string>;
   getChangedFiles(base: GitRef | string): Promise<GitChange[]>;
 
   getFileDiff(filePath: string, base?: GitRef): Promise<DiffResult>;
