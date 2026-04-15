@@ -8,7 +8,7 @@ import {
   setTabActive,
   setTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
-import { focusTracker } from '@renderer/utils/focus-tracker';
+import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
 import type { ConversationManagerStore, ConversationStore } from './conversation-manager';
 
 export class ConversationTabViewStore
@@ -77,6 +77,17 @@ export class ConversationTabViewStore
         }
       })
     );
+
+    this.disposers.push(
+      reaction(
+        () => this.activeTabId,
+        (activeTabId) => {
+          if (this.isVisible) {
+            setTelemetryConversationScope(activeTabId ?? null);
+          }
+        }
+      )
+    );
   }
 
   get tabs(): ConversationStore[] {
@@ -99,12 +110,8 @@ export class ConversationTabViewStore
   }
 
   setActiveTab(id: string): void {
-    const previousTabId = this.activeTabId;
     setTabActive(this, id);
-    if (previousTabId !== this.activeTabId) {
-      const index = this.activeTabId ? this.tabOrder.indexOf(this.activeTabId) : -1;
-      focusTracker.transition({ conversationIndex: index >= 0 ? index : null }, 'tab_switch');
-    }
+    setTelemetryConversationScope(this.activeTabId ?? null);
   }
 
   reorderTabs(fromIndex: number, toIndex: number): void {
@@ -136,6 +143,9 @@ export class ConversationTabViewStore
 
   setVisible(visible: boolean): void {
     this.isVisible = visible;
+    if (visible) {
+      setTelemetryConversationScope(this.activeTabId ?? null);
+    }
   }
 
   dispose(): void {

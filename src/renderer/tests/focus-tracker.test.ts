@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FocusTracker } from '@renderer/utils/focus-tracker';
 
 describe('FocusTracker', () => {
-  it('emits exited focus state with duration on transition', () => {
+  it('emits exited focus state on transition', () => {
     const tracker = new FocusTracker();
     const emit = vi.fn();
     tracker.setTransitionEmitter(emit);
@@ -14,6 +14,18 @@ describe('FocusTracker', () => {
     const payload = emit.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.view).toBe('home');
     expect(payload.trigger).toBe('navigation');
-    expect(typeof payload.duration_ms).toBe('number');
+    expect(payload).not.toHaveProperty('duration_ms');
+  });
+
+  it('does not emit when no tracked focus state changed', () => {
+    const tracker = new FocusTracker();
+    const emit = vi.fn();
+    tracker.setTransitionEmitter(emit);
+
+    tracker.initialize({ view: 'home', mainPanel: null, rightPanel: null, focusedRegion: null });
+    const result = tracker.transition({}, 'navigation');
+
+    expect(result).toBeNull();
+    expect(emit).not.toHaveBeenCalled();
   });
 });
