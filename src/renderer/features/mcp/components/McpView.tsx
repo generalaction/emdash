@@ -23,16 +23,6 @@ export const McpView: React.FC = () => {
   const showConfirm = useShowModal('confirmActionModal');
   const [search, setSearch] = useState('');
 
-  const handleRemoveRequest = (serverName: string) => {
-    closeModal();
-    showConfirm({
-      title: 'Remove MCP server?',
-      description: `This will remove "${serverName}" from all agents. This action cannot be undone.`,
-      confirmLabel: 'Remove',
-      onSuccess: () => void removeServer(serverName),
-    });
-  };
-
   const openModal = (mode: McpModalMode) => {
     const source =
       mode.type === 'add-catalog' ? 'catalog' : mode.type === 'add-custom' ? 'custom' : null;
@@ -40,7 +30,23 @@ export const McpView: React.FC = () => {
       mode,
       providers,
       onSave: (server) => saveServer(server, source),
-      onRemove: handleRemoveRequest,
+      onRemove: (serverName) => handleRemoveRequest(serverName),
+    });
+  };
+
+  const handleRemoveRequest = (serverName: string) => {
+    const server = installed.find((s) => s.name === serverName);
+    closeModal();
+    showConfirm({
+      title: 'Remove MCP server?',
+      description: `This will remove "${serverName}" from all agents. This action cannot be undone.`,
+      confirmLabel: 'Remove',
+      onSuccess: () => void removeServer(serverName),
+      onClose: () => {
+        // User cancelled the confirm — re-open the edit modal so they don't
+        // lose the editing context they were in before clicking Remove.
+        if (server) openModal({ type: 'edit', server });
+      },
     });
   };
 

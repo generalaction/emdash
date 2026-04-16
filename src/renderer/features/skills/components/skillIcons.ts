@@ -1,9 +1,9 @@
-const skillSvgs = import.meta.glob<string>('../../assets/images/skills/*.svg', {
+const skillSvgs = import.meta.glob<string>('../../../../assets/images/skills/*.svg', {
   query: '?raw',
   import: 'default',
   eager: true,
 });
-const mcpSvgs = import.meta.glob<string>('../../assets/images/mcp/*.svg', {
+const mcpSvgs = import.meta.glob<string>('../../../../assets/images/mcp/*.svg', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -107,4 +107,75 @@ export function resolveSkillIcon(skillId: string, source: string): string | unde
   const name =
     skillToIcon[skillId] ?? keywordRules.find((r) => r.test(skillId))?.icon ?? sourceIcons[source];
   return name ? svgByName[name] : undefined;
+}
+
+/**
+ * Remote Simple-Icons CDN fallback.
+ * Maps a skill id to a simple-icons slug (https://simpleicons.org). Returns a
+ * URL rendered in the given hex color (without `#`).
+ *
+ * This is a lighter-touch fallback used before the GitHub-owner avatar so that
+ * known technologies (convex, supabase, tailwind, etc.) get a recognizable
+ * brand mark even if we don't bundle the SVG locally.
+ */
+const remoteIconMap: Array<{ test: (id: string, owner?: string) => boolean; slug: string }> = [
+  // owner-based
+  { test: (_id, o) => o === 'get-convex' || _id.includes('convex'), slug: 'convex' },
+  { test: (_id, o) => o === 'supabase' || _id.includes('supabase'), slug: 'supabase' },
+  { test: (_id, o) => o === 'prisma' || _id.includes('prisma'), slug: 'prisma' },
+  { test: (_id, o) => o === 'clerk' || _id.includes('clerk'), slug: 'clerk' },
+  { test: (_id, o) => o === 'auth0' || _id.includes('auth0'), slug: 'auth0' },
+  { test: (_id, o) => o === 'planetscale' || _id.includes('planetscale'), slug: 'planetscale' },
+  { test: (_id, o) => o === 'sanity-io' || _id.includes('sanity'), slug: 'sanity' },
+  { test: (_id, o) => o === 'posthog' || _id.includes('posthog'), slug: 'posthog' },
+  { test: (_id, o) => o === 'discord' || _id.includes('discord'), slug: 'discord' },
+  // tech keywords
+  { test: (id) => id.includes('tailwind'), slug: 'tailwindcss' },
+  { test: (id) => id.includes('drizzle'), slug: 'drizzle' },
+  { test: (id) => id.includes('svelte'), slug: 'svelte' },
+  { test: (id) => id.includes('vue'), slug: 'vuedotjs' },
+  { test: (id) => id.includes('astro'), slug: 'astro' },
+  { test: (id) => id.includes('remix'), slug: 'remix' },
+  { test: (id) => id.includes('typescript') || id.includes('ts-'), slug: 'typescript' },
+  {
+    test: (id) => id.includes('python') || id.includes('django') || id.includes('flask'),
+    slug: 'python',
+  },
+  { test: (id) => id.includes('rust'), slug: 'rust' },
+  { test: (id) => /(^|[-_])go(lang)?([-_]|$)/.test(id), slug: 'go' },
+  { test: (id) => id.includes('docker'), slug: 'docker' },
+  { test: (id) => id.includes('kubernetes') || id.includes('k8s'), slug: 'kubernetes' },
+  { test: (id) => id.includes('aws') || id.includes('amazon-web'), slug: 'amazonwebservices' },
+  { test: (id) => id.includes('azure'), slug: 'microsoftazure' },
+  { test: (id) => id.includes('gcp') || id.includes('google-cloud'), slug: 'googlecloud' },
+  { test: (id) => id.includes('firebase'), slug: 'firebase' },
+  { test: (id) => id.includes('mongo'), slug: 'mongodb' },
+  { test: (id) => id.includes('redis'), slug: 'redis' },
+  { test: (id) => id.includes('graphql'), slug: 'graphql' },
+  { test: (id) => id.includes('prisma'), slug: 'prisma' },
+  { test: (id) => id.includes('expo') || id.includes('react-native'), slug: 'expo' },
+  { test: (id) => id.includes('nestjs') || id.includes('nest-'), slug: 'nestjs' },
+  { test: (id) => id.includes('fastify'), slug: 'fastify' },
+  { test: (id) => id.includes('hono'), slug: 'hono' },
+  { test: (id) => id.includes('elysia') || id.includes('bun'), slug: 'bun' },
+  { test: (id) => id.includes('gitlab'), slug: 'gitlab' },
+  { test: (id) => id.includes('slack'), slug: 'slack' },
+  { test: (id) => id.includes('discord'), slug: 'discord' },
+  { test: (id) => id.includes('twilio'), slug: 'twilio' },
+  { test: (id) => id.includes('better-auth'), slug: 'auth0' },
+  {
+    test: (id) => id.includes('nextjs') || id.includes('next-js') || id.includes('next-'),
+    slug: 'nextdotjs',
+  },
+];
+
+export function resolveRemoteSkillIcon(
+  skillId: string,
+  color: string,
+  owner?: string
+): string | undefined {
+  const rule = remoteIconMap.find((r) => r.test(skillId, owner));
+  if (!rule) return undefined;
+  const hex = color.replace(/^#/, '');
+  return `https://cdn.simpleicons.org/${rule.slug}/${hex}`;
 }

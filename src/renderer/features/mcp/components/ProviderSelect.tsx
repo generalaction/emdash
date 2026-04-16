@@ -27,23 +27,25 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
           .filter((p) => p.installed)
           .map((p) => {
             const unsupported = transport === 'http' && !p.supportsHttp;
+            const selected = selectedProviders.has(p.id);
             const logo = agentConfig[p.id as AgentProviderId];
             return (
               <Button
                 key={p.id}
                 type="button"
                 variant="outline"
-                size="sm"
+                size="xs"
                 disabled={unsupported}
                 onClick={() => onToggle(p.id)}
+                aria-pressed={selected}
                 title={unsupported ? `${p.name} does not support HTTP servers` : undefined}
                 className={
-                  'gap-1.5 ' +
+                  'gap-1.5 transition-colors ' +
                   (unsupported
-                    ? 'cursor-not-allowed border-border text-muted-foreground/40'
-                    : selectedProviders.has(p.id)
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-primary/50')
+                    ? 'cursor-not-allowed border-border/40 bg-transparent text-muted-foreground/40'
+                    : selected
+                      ? 'border-primary bg-primary/20 text-foreground ring-1 ring-primary/40 hover:bg-primary/25'
+                      : 'border-border/40 bg-transparent text-muted-foreground/70 hover:border-border hover:bg-muted/40 hover:text-foreground')
                 }
               >
                 {logo && (
@@ -52,8 +54,8 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
                     alt={logo.alt}
                     isSvg={logo.isSvg}
                     invertInDark={logo.invertInDark}
-                    className="h-4 w-4 rounded-sm"
-                    grayscale={unsupported}
+                    className="h-3.5 w-3.5 rounded-sm"
+                    grayscale={unsupported || !selected}
                   />
                 )}
                 {p.name}

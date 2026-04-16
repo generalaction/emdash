@@ -14,34 +14,81 @@ const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 
 const MAX_REDIRECTS = 5;
 
-function httpsGet(url: string, redirectCount = 0): Promise<string> {
+const SKILLS_SH_SEARCH_URL = 'https://skills.sh/api/search';
+const SKILLS_SH_BASE_URL = 'https://skills.sh';
+const SKILLS_SH_BROWSE_TTL_MS = 5 * 60 * 1000;
+
+export type SkillsShBrowseKind = 'all-time' | 'trending' | 'hot';
+
+const BROWSE_PATHS: Record<SkillsShBrowseKind, string> = {
+  'all-time': '/',
+  trending: '/trending',
+  hot: '/hot',
+};
+
+/** Convert a kebab-case name to Title Case (e.g. "code-review" → "Code Review"). */
+function titleCase(kebab: string): string {
+  return kebab
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+/** Deduplicate skills by id — first occurrence wins. */
+function deduplicateById(skills: CatalogSkill[]): CatalogSkill[] {
+  const seen = new Set<string>();
+  return skills.filter((s) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
+}
+
+interface SkillsShSearchResult {
+  query: string;
+  searchType: string;
+  skills: Array<{
+    id: string;
+    skillId: string;
+    name: string;
+    installs: number;
+    source: string;
+  }>;
+  count: number;
+  duration_ms: number;
+}
+
+function httpsGet(
+  url: string,
+  redirectCount = 0,
+  headers: Record<string, string> = {
+    'User-Agent': 'emdash-skills',
+    Accept: 'application/vnd.github.v3+json',
+  }
+): Promise<string> {
   return new Promise((resolve, reject) => {
     if (redirectCount >= MAX_REDIRECTS) {
       reject(new Error(`Too many redirects (>${MAX_REDIRECTS}) for ${url}`));
       return;
     }
-    const req = https.get(
-      url,
-      { headers: { 'User-Agent': 'emdash-skills', Accept: 'application/vnd.github.v3+json' } },
-      (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          const location = res.headers.location;
-          if (location) {
-            const resolved = new URL(location, url).href;
-            httpsGet(resolved, redirectCount + 1).then(resolve, reject);
-            return;
-          }
-        }
-        if (res.statusCode && res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+    const req = https.get(url, { headers }, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        const location = res.headers.location;
+        if (location) {
+          const resolved = new URL(location, url).href;
+          httpsGet(resolved, redirectCount + 1, headers).then(resolve, reject);
           return;
         }
-        let data = '';
-        res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => resolve(data));
-        res.on('error', reject);
       }
-    );
+      if (res.statusCode && res.statusCode >= 400) {
+        reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        return;
+      }
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => resolve(data));
+      res.on('error', reject);
+    });
     req.on('error', reject);
     req.setTimeout(15000, () => {
       req.destroy(new Error('Request timed out'));
@@ -50,11 +97,11 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
 }
 
 export class SkillsService {
-  private static readonly CATALOG_VERSION = 2;
+  private static readonly CATALOG_VERSION = 3;
   private catalogCache: CatalogIndex | null = null;
+  private browseCache: Map<SkillsShBrowseKind, { at: number; skills: CatalogSkill[] }> = new Map();
 
   async initialize(): Promise<void> {
-    await fs.promises.mkdir(SKILLS_ROOT, { recursive: true });
     await fs.promises.mkdir(EMDASH_META, { recursive: true });
   }
 
@@ -95,14 +142,24 @@ export class SkillsService {
       if (anthropicSkills.status === 'fulfilled') {
         allSkills.push(...anthropicSkills.value);
       }
-
-      // Deduplicate by id — first occurrence wins
-      const seen = new Set<string>();
-      const skills = allSkills.filter((s) => {
-        if (seen.has(s.id)) return false;
-        seen.add(s.id);
-        return true;
+      allSkills.push({
+        id: 'mmx-cli',
+        displayName: 'MiniMax CLI',
+        description: 'Generate text, images, video, speech, and music via MiniMax AI platform',
+        source: 'skills-sh',
+        iconUrl: 'https://github.com/MiniMax-AI.png?size=80',
+        brandColor: '#171717',
+        defaultPrompt: 'Use MiniMax to generate content (text, image, video, speech, or music).',
+        frontmatter: {
+          name: 'mmx-cli',
+          description: 'Generate text, images, video, speech, and music via MiniMax AI platform',
+        },
+        installed: false,
+        owner: 'MiniMax-AI',
+        repo: 'cli',
       });
+
+      const skills = deduplicateById(allSkills);
 
       // If both failed, fall back to bundled
       if (skills.length === 0) {
@@ -183,12 +240,29 @@ export class SkillsService {
     return skills;
   }
 
-  async getSkillDetail(skillId: string): Promise<CatalogSkill | null> {
+  async getSkillDetail(
+    skillId: string,
+    source?: { owner: string; repo: string }
+  ): Promise<CatalogSkill | null> {
     const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    let skill = catalog.skills.find((s) => s.id === skillId) ?? null;
+
+    if (!skill && source) {
+      skill = {
+        id: skillId,
+        displayName: titleCase(skillId),
+        description: '',
+        source: 'skills-sh',
+        iconUrl: source.owner ? `https://github.com/${source.owner}.png?size=80` : undefined,
+        frontmatter: { name: skillId, description: '' },
+        installed: false,
+        owner: source.owner,
+        repo: source.repo,
+      };
+    }
+
     if (!skill) return null;
 
-    // If installed, load the full SKILL.md from disk
     if (skill.installed && skill.localPath) {
       try {
         const content = await fs.promises.readFile(path.join(skill.localPath, 'SKILL.md'), 'utf-8');
@@ -198,14 +272,16 @@ export class SkillsService {
       }
     }
 
-    // For uninstalled catalog skills, fetch SKILL.md from GitHub
     if (!skill.installed && !skill.skillMdContent) {
       try {
-        const mdUrl = this.getSkillMdUrl(skill);
-        if (mdUrl) {
-          const content = await httpsGet(mdUrl);
-          return { ...skill, skillMdContent: content };
-        }
+        const content = await this.fetchSkillMd(skill);
+        const { frontmatter: fm } = parseFrontmatter(content);
+        return {
+          ...skill,
+          skillMdContent: content,
+          description: skill.description || fm.description || '',
+          displayName: skill.displayName || fm.name || titleCase(skill.id),
+        };
       } catch {
         // Return what we have
       }
@@ -214,16 +290,13 @@ export class SkillsService {
     return skill;
   }
 
-  private getSkillMdUrl(skill: CatalogSkill): string | null {
-    if (skill.source === 'openai' && skill.sourceUrl) {
-      // e.g. https://github.com/openai/skills/tree/main/skills/.curated/linear
-      // → https://raw.githubusercontent.com/openai/skills/main/skills/.curated/linear/SKILL.md
-      const match = skill.sourceUrl.match(/github\.com\/([^/]+\/[^/]+)\/tree\/main\/(.+)/);
-      if (match) {
-        return `https://raw.githubusercontent.com/${match[1]}/main/${match[2]}/SKILL.md`;
-      }
-    }
-    if (skill.source === 'anthropic' && skill.sourceUrl) {
+  /**
+   * Resolve a deterministic raw-GitHub URL for OpenAI/Anthropic skills whose
+   * `sourceUrl` already encodes the exact path. Returns null for skills-sh
+   * skills (those need the multi-path fallback in `fetchSkillMd`).
+   */
+  private getKnownSkillMdUrl(skill: CatalogSkill): string | null {
+    if (skill.sourceUrl) {
       const match = skill.sourceUrl.match(/github\.com\/([^/]+\/[^/]+)\/tree\/main\/(.+)/);
       if (match) {
         return `https://raw.githubusercontent.com/${match[1]}/main/${match[2]}/SKILL.md`;
@@ -232,10 +305,101 @@ export class SkillsService {
     return null;
   }
 
-  async installSkill(skillId: string): Promise<CatalogSkill> {
+  /**
+   * Fetch SKILL.md content for any skill. Uses the GitHub Trees API for
+   * skills-sh skills since file locations vary across repos.
+   */
+  private async fetchSkillMd(skill: CatalogSkill): Promise<string> {
+    const knownUrl = this.getKnownSkillMdUrl(skill);
+    if (knownUrl) return httpsGet(knownUrl);
+
+    if (!skill.owner || !skill.repo) {
+      throw new Error(`No source info for skill "${skill.id}"`);
+    }
+
+    const raw = (p: string) =>
+      `https://raw.githubusercontent.com/${skill.owner}/${skill.repo}/main/${p}`;
+
+    const treeUrl = `https://api.github.com/repos/${skill.owner}/${skill.repo}/git/trees/main?recursive=1`;
+    let skillMdPaths: string[];
+    try {
+      const treeData = await httpsGet(treeUrl);
+      const tree = JSON.parse(treeData) as {
+        tree: Array<{ path: string; type: string }>;
+      };
+      skillMdPaths = tree.tree
+        .filter((f) => f.type === 'blob' && f.path.endsWith('SKILL.md'))
+        .map((f) => f.path);
+    } catch {
+      const guesses = [
+        `skills/${skill.id}/SKILL.md`,
+        'SKILL.md',
+        `${skill.id}/SKILL.md`,
+        `.claude/skills/${skill.id}/SKILL.md`,
+      ];
+      for (const p of guesses) {
+        try {
+          return await httpsGet(raw(p));
+        } catch {
+          // try next
+        }
+      }
+      throw new Error(`SKILL.md not found for skill "${skill.id}"`);
+    }
+
+    if (skillMdPaths.length === 0) {
+      throw new Error(`No SKILL.md in repo ${skill.owner}/${skill.repo}`);
+    }
+
+    if (skillMdPaths.length === 1) {
+      return httpsGet(raw(skillMdPaths[0]));
+    }
+
+    const byDir = skillMdPaths.find((p) => {
+      const parts = p.split('/');
+      return parts.length >= 2 && parts[parts.length - 2] === skill.id;
+    });
+    if (byDir) return httpsGet(raw(byDir));
+
+    for (const p of skillMdPaths) {
+      try {
+        const content = await httpsGet(raw(p));
+        const { frontmatter: fm } = parseFrontmatter(content);
+        if (fm.name === skill.id) return content;
+      } catch {
+        // try next
+      }
+    }
+
+    return httpsGet(raw(skillMdPaths[0]));
+  }
+
+  async installSkill(
+    skillId: string,
+    source?: { owner: string; repo: string }
+  ): Promise<CatalogSkill> {
+    if (!isValidSkillName(skillId)) {
+      throw new Error(`Invalid skill ID "${skillId}"`);
+    }
+
     await this.initialize();
     const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    let skill = catalog.skills.find((s) => s.id === skillId) ?? null;
+
+    if (!skill && source) {
+      skill = {
+        id: skillId,
+        displayName: titleCase(skillId),
+        description: '',
+        source: 'skills-sh',
+        iconUrl: source.owner ? `https://github.com/${source.owner}.png?size=80` : undefined,
+        frontmatter: { name: skillId, description: '' },
+        installed: false,
+        owner: source.owner,
+        repo: source.repo,
+      };
+    }
+
     if (!skill) throw new Error(`Skill "${skillId}" not found in catalog`);
     if (skill.installed) throw new Error(`Skill "${skillId}" is already installed`);
 
@@ -247,12 +411,7 @@ export class SkillsService {
       // Try to download the real SKILL.md from GitHub; fall back to generated stub
       let content: string;
       try {
-        const mdUrl = this.getSkillMdUrl(skill);
-        if (mdUrl) {
-          content = await httpsGet(mdUrl);
-        } else {
-          content = generateSkillMd(skill.displayName, skill.description);
-        }
+        content = await this.fetchSkillMd(skill);
       } catch {
         content = generateSkillMd(skill.displayName, skill.description);
       }
@@ -264,20 +423,20 @@ export class SkillsService {
       // Atomic move: rename tmp dir to final location
       await fs.promises.rename(tmpDir, skillDir);
 
-      // Sync to agents
       await this.syncToAgents(skillId);
 
-      // Invalidate cache
       this.catalogCache = null;
 
+      const { frontmatter: fm } = parseFrontmatter(content);
       return {
         ...skill,
         installed: true,
         localPath: skillDir,
         skillMdContent: content,
+        description: skill.description || fm.description || '',
+        displayName: skill.displayName || fm.name || titleCase(skill.id),
       };
     } catch (error) {
-      // Clean up partial install
       await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
       await fs.promises.rm(skillDir, { recursive: true, force: true }).catch(() => {});
       throw error;
@@ -285,6 +444,9 @@ export class SkillsService {
   }
 
   async uninstallSkill(skillId: string): Promise<void> {
+    if (!isValidSkillName(skillId)) {
+      throw new Error(`Invalid skill ID "${skillId}"`);
+    }
     const skillDir = path.join(SKILLS_ROOT, skillId);
 
     // Remove agent symlinks first
@@ -425,13 +587,7 @@ export class SkillsService {
     const installed = await this.getInstalledSkills();
     const installedMap = new Map(installed.map((s) => [s.id, s]));
 
-    // Deduplicate catalog skills by id (first occurrence wins)
-    const seen = new Set<string>();
-    const dedupedSkills = catalog.skills.filter((s) => {
-      if (seen.has(s.id)) return false;
-      seen.add(s.id);
-      return true;
-    });
+    const dedupedSkills = deduplicateById(catalog.skills);
 
     const mergedSkills = dedupedSkills.map((skill) => {
       const local = installedMap.get(skill.id);
@@ -594,15 +750,186 @@ export class SkillsService {
     return skills;
   }
 
-  /** Minimal YAML parser for openai.yaml interface block */
-  private parseSimpleYaml(content: string): Record<string, string> {
-    const result: Record<string, string> = {};
-    for (const line of content.split('\n')) {
-      const match = line.match(/^\s+(\w+):\s*"?([^"]*)"?\s*$/);
-      if (match) {
-        result[match[1]] = match[2].trim();
+  /**
+   * Search the skills.sh ecosystem via their public API.
+   * Returns up to 100 matching skills sorted by relevance/installs.
+   */
+  async searchSkillsSh(query: string): Promise<CatalogSkill[]> {
+    if (query.length < 2) return [];
+
+    const url = `${SKILLS_SH_SEARCH_URL}?q=${encodeURIComponent(query)}`;
+    const data = await httpsGet(url);
+    const result = JSON.parse(data) as SkillsShSearchResult;
+
+    if (!result.skills || !Array.isArray(result.skills)) return [];
+
+    const installed = await this.getInstalledSkills();
+    const installedIds = new Set(installed.map((s) => s.id));
+
+    return result.skills
+      .filter((s) => s.skillId && s.source)
+      .map((s) => {
+        const slashIdx = s.source.indexOf('/');
+        const owner = slashIdx > 0 ? s.source.slice(0, slashIdx) : s.source;
+        const repo = slashIdx > 0 ? s.source.slice(slashIdx + 1) : '';
+
+        const isInstalled = installedIds.has(s.skillId);
+        const localSkill = isInstalled ? installed.find((i) => i.id === s.skillId) : undefined;
+
+        return {
+          id: s.skillId,
+          displayName: titleCase(s.skillId),
+          description: '',
+          source: 'skills-sh' as const,
+          brandColor: '#171717',
+          iconUrl: owner ? `https://github.com/${owner}.png?size=80` : undefined,
+          frontmatter: { name: s.skillId, description: '' },
+          installed: isInstalled,
+          localPath: localSkill?.localPath,
+          owner,
+          repo,
+          installs: s.installs,
+        };
+      });
+  }
+
+  /**
+   * Fetch a browse listing (all-time, trending, or hot) from skills.sh.
+   * skills.sh has no public JSON endpoint for these views, so we read the
+   * server-rendered page and extract the `initialSkills` payload embedded
+   * in the Next.js RSC stream. Cached in memory for 5 minutes per kind.
+   */
+  async browseSkillsSh(kind: SkillsShBrowseKind): Promise<CatalogSkill[]> {
+    const cached = this.browseCache.get(kind);
+    if (cached && Date.now() - cached.at < SKILLS_SH_BROWSE_TTL_MS) {
+      return this.mergeInstalledStateForSkillsShList(cached.skills);
+    }
+
+    const html = await httpsGet(`${SKILLS_SH_BASE_URL}${BROWSE_PATHS[kind]}`, 0, {
+      'User-Agent': 'Mozilla/5.0 emdash-skills',
+      Accept: 'text/html',
+    });
+
+    const entries = this.extractInitialSkills(html);
+    const skills = entries.map((e) => this.skillsShEntryToCatalogSkill(e));
+
+    this.browseCache.set(kind, { at: Date.now(), skills });
+    return this.mergeInstalledStateForSkillsShList(skills);
+  }
+
+  private extractInitialSkills(
+    html: string
+  ): Array<{ skillId: string; name: string; installs: number; source: string }> {
+    const marker = '\\"initialSkills\\":[';
+    const markerIdx = html.indexOf(marker);
+    if (markerIdx === -1) return [];
+    const start = html.indexOf('[', markerIdx);
+    if (start === -1) return [];
+
+    let depth = 0;
+    let end = -1;
+    for (let i = start; i < html.length; i++) {
+      const c = html[i];
+      if (c === '[') depth++;
+      else if (c === ']') {
+        depth--;
+        if (depth === 0) {
+          end = i + 1;
+          break;
+        }
       }
     }
+    if (end === -1) return [];
+
+    const raw = html.slice(start, end);
+    const unescaped = raw.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    try {
+      const parsed = JSON.parse(unescaped) as Array<{
+        skillId?: string;
+        name?: string;
+        installs?: number;
+        source?: string;
+      }>;
+      return parsed.filter(
+        (s): s is { skillId: string; name: string; installs: number; source: string } =>
+          typeof s.skillId === 'string' &&
+          typeof s.source === 'string' &&
+          typeof s.installs === 'number'
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private skillsShEntryToCatalogSkill(entry: {
+    skillId: string;
+    name: string;
+    installs: number;
+    source: string;
+  }): CatalogSkill {
+    const slashIdx = entry.source.indexOf('/');
+    const owner = slashIdx > 0 ? entry.source.slice(0, slashIdx) : entry.source;
+    const repo = slashIdx > 0 ? entry.source.slice(slashIdx + 1) : '';
+    return {
+      id: entry.skillId,
+      displayName: titleCase(entry.skillId),
+      description: '',
+      source: 'skills-sh' as const,
+      brandColor: '#171717',
+      iconUrl: owner ? `https://github.com/${owner}.png?size=80` : undefined,
+      frontmatter: { name: entry.skillId, description: '' },
+      installed: false,
+      owner,
+      repo,
+      installs: entry.installs,
+    };
+  }
+
+  private async mergeInstalledStateForSkillsShList(
+    skills: CatalogSkill[]
+  ): Promise<CatalogSkill[]> {
+    const installed = await this.getInstalledSkills();
+    const byId = new Map(installed.map((s) => [s.id, s]));
+    return skills.map((s) => {
+      const local = byId.get(s.id);
+      return local ? { ...s, installed: true, localPath: local.localPath } : s;
+    });
+  }
+
+  /** Minimal scalar YAML parser used for openai.yaml metadata fields. */
+  private parseSimpleYaml(content: string): Record<string, string> {
+    const result: Record<string, string> = {};
+
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed === '---' || trimmed === '...') {
+        continue;
+      }
+
+      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)$/);
+      if (!match) continue;
+
+      const key = match[1];
+      let value = match[2].trim();
+
+      // Skip parent/object keys and block scalars.
+      if (!value || value === '|' || value === '>') continue;
+
+      // Remove inline comments for unquoted scalars.
+      if (!value.startsWith('"') && !value.startsWith("'")) {
+        value = value.replace(/\s+#.*$/, '').trim();
+      }
+
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+
+      result[key] = value;
+    }
+
     return result;
   }
 }

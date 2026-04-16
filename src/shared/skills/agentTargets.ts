@@ -59,6 +59,18 @@ export const agentTargets: AgentSyncTarget[] = [
     configDir: path.join(home, '.vibe'),
     getSkillDir: (skillId: string) => path.join(home, '.vibe', 'skills', skillId),
   },
+  {
+    id: 'pi',
+    name: 'Pi',
+    configDir: path.join(home, '.pi', 'agent'),
+    getSkillDir: (skillId: string) => path.join(home, '.pi', 'agent', 'skills', skillId),
+  },
+  {
+    id: 'amp',
+    name: 'Amp',
+    configDir: path.join(home, '.amp'),
+    getSkillDir: (skillId: string) => path.join(home, '.amp', 'skills', skillId),
+  },
 ];
 
 /**
