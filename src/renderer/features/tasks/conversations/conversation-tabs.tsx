@@ -9,6 +9,7 @@ import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { TabBar } from '@renderer/lib/ui/tab-bar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import { formatConversationTitleForDisplay } from './conversation-title-utils';
 
 export const ConversationsTabs = observer(function ConversationsTabs({
   projectId,
@@ -27,7 +28,7 @@ export const ConversationsTabs = observer(function ConversationsTabs({
       tabs={conversationTabs.tabs}
       activeTabId={conversationTabs.activeTabId}
       getId={(s) => s.data.id}
-      getLabel={(s) => s.data.title}
+      getLabel={(s) => formatConversationTitleForDisplay(s.data.providerId, s.data.title)}
       onSelect={(id) => conversationTabs.setActiveTab(id)}
       onRemove={(id) => {
         conversationTabs.removeTab(id);
