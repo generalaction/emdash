@@ -15,6 +15,16 @@ const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 const MAX_REDIRECTS = 5;
 
 const SKILLS_SH_SEARCH_URL = 'https://skills.sh/api/search';
+const SKILLS_SH_BASE_URL = 'https://skills.sh';
+const SKILLS_SH_BROWSE_TTL_MS = 5 * 60 * 1000;
+
+export type SkillsShBrowseKind = 'all-time' | 'trending' | 'hot';
+
+const BROWSE_PATHS: Record<SkillsShBrowseKind, string> = {
+  'all-time': '/',
+  trending: '/trending',
+  hot: '/hot',
+};
 
 /** Convert a kebab-case name to Title Case (e.g. "code-review" → "Code Review"). */
 function titleCase(kebab: string): string {
@@ -48,34 +58,37 @@ interface SkillsShSearchResult {
   duration_ms: number;
 }
 
-function httpsGet(url: string, redirectCount = 0): Promise<string> {
+function httpsGet(
+  url: string,
+  redirectCount = 0,
+  headers: Record<string, string> = {
+    'User-Agent': 'emdash-skills',
+    Accept: 'application/vnd.github.v3+json',
+  }
+): Promise<string> {
   return new Promise((resolve, reject) => {
     if (redirectCount >= MAX_REDIRECTS) {
       reject(new Error(`Too many redirects (>${MAX_REDIRECTS}) for ${url}`));
       return;
     }
-    const req = https.get(
-      url,
-      { headers: { 'User-Agent': 'emdash-skills', Accept: 'application/vnd.github.v3+json' } },
-      (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          const location = res.headers.location;
-          if (location) {
-            const resolved = new URL(location, url).href;
-            httpsGet(resolved, redirectCount + 1).then(resolve, reject);
-            return;
-          }
-        }
-        if (res.statusCode && res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+    const req = https.get(url, { headers }, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        const location = res.headers.location;
+        if (location) {
+          const resolved = new URL(location, url).href;
+          httpsGet(resolved, redirectCount + 1, headers).then(resolve, reject);
           return;
         }
-        let data = '';
-        res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => resolve(data));
-        res.on('error', reject);
       }
-    );
+      if (res.statusCode && res.statusCode >= 400) {
+        reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        return;
+      }
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => resolve(data));
+      res.on('error', reject);
+    });
     req.on('error', reject);
     req.setTimeout(15000, () => {
       req.destroy(new Error('Request timed out'));
@@ -86,6 +99,7 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
 export class SkillsService {
   private static readonly CATALOG_VERSION = 3;
   private catalogCache: CatalogIndex | null = null;
+  private browseCache: Map<SkillsShBrowseKind, { at: number; skills: CatalogSkill[] }> = new Map();
 
   async initialize(): Promise<void> {
     await fs.promises.mkdir(EMDASH_META, { recursive: true });
@@ -777,6 +791,109 @@ export class SkillsService {
           installs: s.installs,
         };
       });
+  }
+
+  /**
+   * Fetch a browse listing (all-time, trending, or hot) from skills.sh.
+   * skills.sh has no public JSON endpoint for these views, so we read the
+   * server-rendered page and extract the `initialSkills` payload embedded
+   * in the Next.js RSC stream. Cached in memory for 5 minutes per kind.
+   */
+  async browseSkillsSh(kind: SkillsShBrowseKind): Promise<CatalogSkill[]> {
+    const cached = this.browseCache.get(kind);
+    if (cached && Date.now() - cached.at < SKILLS_SH_BROWSE_TTL_MS) {
+      return this.mergeInstalledStateForSkillsShList(cached.skills);
+    }
+
+    const html = await httpsGet(`${SKILLS_SH_BASE_URL}${BROWSE_PATHS[kind]}`, 0, {
+      'User-Agent': 'Mozilla/5.0 emdash-skills',
+      Accept: 'text/html',
+    });
+
+    const entries = this.extractInitialSkills(html);
+    const skills = entries.map((e) => this.skillsShEntryToCatalogSkill(e));
+
+    this.browseCache.set(kind, { at: Date.now(), skills });
+    return this.mergeInstalledStateForSkillsShList(skills);
+  }
+
+  private extractInitialSkills(
+    html: string
+  ): Array<{ skillId: string; name: string; installs: number; source: string }> {
+    const marker = '\\"initialSkills\\":[';
+    const markerIdx = html.indexOf(marker);
+    if (markerIdx === -1) return [];
+    const start = html.indexOf('[', markerIdx);
+    if (start === -1) return [];
+
+    let depth = 0;
+    let end = -1;
+    for (let i = start; i < html.length; i++) {
+      const c = html[i];
+      if (c === '[') depth++;
+      else if (c === ']') {
+        depth--;
+        if (depth === 0) {
+          end = i + 1;
+          break;
+        }
+      }
+    }
+    if (end === -1) return [];
+
+    const raw = html.slice(start, end);
+    const unescaped = raw.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    try {
+      const parsed = JSON.parse(unescaped) as Array<{
+        skillId?: string;
+        name?: string;
+        installs?: number;
+        source?: string;
+      }>;
+      return parsed.filter(
+        (s): s is { skillId: string; name: string; installs: number; source: string } =>
+          typeof s.skillId === 'string' &&
+          typeof s.source === 'string' &&
+          typeof s.installs === 'number'
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private skillsShEntryToCatalogSkill(entry: {
+    skillId: string;
+    name: string;
+    installs: number;
+    source: string;
+  }): CatalogSkill {
+    const slashIdx = entry.source.indexOf('/');
+    const owner = slashIdx > 0 ? entry.source.slice(0, slashIdx) : entry.source;
+    const repo = slashIdx > 0 ? entry.source.slice(slashIdx + 1) : '';
+    return {
+      id: entry.skillId,
+      displayName: titleCase(entry.skillId),
+      description: '',
+      source: 'skills-sh' as const,
+      brandColor: '#171717',
+      iconUrl: owner ? `https://github.com/${owner}.png?size=80` : undefined,
+      frontmatter: { name: entry.skillId, description: '' },
+      installed: false,
+      owner,
+      repo,
+      installs: entry.installs,
+    };
+  }
+
+  private async mergeInstalledStateForSkillsShList(
+    skills: CatalogSkill[]
+  ): Promise<CatalogSkill[]> {
+    const installed = await this.getInstalledSkills();
+    const byId = new Map(installed.map((s) => [s.id, s]));
+    return skills.map((s) => {
+      const local = byId.get(s.id);
+      return local ? { ...s, installed: true, localPath: local.localPath } : s;
+    });
   }
 
   /** Minimal YAML parser for openai.yaml interface block */

@@ -8,10 +8,13 @@ import { captureTelemetry } from '@renderer/utils/telemetryClient';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
+export type SkillsTab = 'recommended' | 'all-time' | 'trending' | 'hot';
+
 export function useSkills() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<SkillsTab>('recommended');
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [selectedSkillSource, setSelectedSkillSource] = useState<
     { owner: string; repo: string } | undefined
@@ -170,8 +173,10 @@ export function useSkills() {
       selectedSkillSource?.repo,
     ],
     queryFn: async () => {
+      if (!selectedSkillId) throw new Error('No skill selected');
+
       const result = await rpc.skills.getDetail({
-        skillId: selectedSkillId!,
+        skillId: selectedSkillId,
         source: selectedSkillSource,
       });
       if (result.success && result.data) return result.data;
@@ -235,6 +240,25 @@ export function useSkills() {
 
   const isSearchActive = searchQuery.trim().length >= 2;
 
+  const browseKind = activeTab === 'recommended' ? null : activeTab;
+  const { data: browseData, isPending: isBrowsePending } = useQuery({
+    queryKey: ['skills', 'browse', browseKind] as const,
+    queryFn: async () => {
+      const result = await rpc.skills.browse({ kind: browseKind! });
+      if (result.success && result.data) return result.data;
+      throw new Error(result.error ?? 'Failed to load browse listing');
+    },
+    enabled: browseKind !== null && !isSearchActive,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const installedIds = useMemo(() => new Set(installedSkills.map((s) => s.id)), [installedSkills]);
+  const browseResults = useMemo(() => {
+    if (!browseData) return [];
+    return browseData.map((s) => (installedIds.has(s.id) ? { ...s, installed: true } : s));
+  }, [browseData, installedIds]);
+  const isBrowseLoading = browseKind !== null && isBrowsePending;
+
   return {
     catalog,
     isLoading,
@@ -249,6 +273,10 @@ export function useSkills() {
     skillsShResults,
     isSearching,
     isSearchActive,
+    activeTab,
+    setActiveTab,
+    browseResults,
+    isBrowseLoading,
     refresh,
     install,
     uninstall,

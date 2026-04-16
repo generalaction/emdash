@@ -1,5 +1,5 @@
 import { createRPCController } from '@/shared/ipc/rpc';
-import { skillsService } from '@main/core/skills/SkillsService';
+import { skillsService, type SkillsShBrowseKind } from '@main/core/skills/SkillsService';
 import { log } from '@main/lib/logger';
 
 export const skillsController = createRPCController({
@@ -59,6 +59,16 @@ export const skillsController = createRPCController({
       return { success: true, data: results };
     } catch (error) {
       log.error('Failed to search skills:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
+  browse: async (args: { kind: SkillsShBrowseKind }) => {
+    try {
+      const results = await skillsService.browseSkillsSh(args.kind);
+      return { success: true, data: results };
+    } catch (error) {
+      log.error('Failed to browse skills.sh:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
