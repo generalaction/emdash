@@ -20,6 +20,7 @@ interface BaseModeData {
 
 export interface PickModeData extends BaseModeData {
   mode: 'pick';
+  initGitRepository?: boolean;
 }
 
 export interface CloneModeData extends BaseModeData {
@@ -105,11 +106,13 @@ export class ProjectManagerStore {
                 path: data.path,
                 name: data.name,
                 connectionId: projectType.connectionId,
+                initGitRepository: data.initGitRepository,
               })
             : await rpc.projects.createLocalProject({
                 id: projectId,
                 path: data.path,
                 name: data.name,
+                initGitRepository: data.initGitRepository,
               });
           this._setAndOpenProject(projectId, project);
           captureTelemetry('project_added', { source, success: true });
