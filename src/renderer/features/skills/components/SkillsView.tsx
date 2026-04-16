@@ -18,6 +18,9 @@ const SkillsView: React.FC = () => {
     showDetailModal,
     installedSkills,
     recommendedSkills,
+    skillsShResults,
+    isSearching,
+    isSearchActive,
     refresh,
     install,
     uninstall,
@@ -54,7 +57,7 @@ const SkillsView: React.FC = () => {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search skills..."
+              placeholder="Search skills in the ecosystem..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -138,13 +141,37 @@ const SkillsView: React.FC = () => {
           </div>
         )}
 
-        {installedSkills.length === 0 && recommendedSkills.length === 0 && (
-          <div className="py-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              {searchQuery ? 'No skills match your search.' : 'No skills available.'}
-            </p>
+        {isSearchActive && (skillsShResults.length > 0 || isSearching) && (
+          <div className="mb-6">
+            <h2 className="mb-3 flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground">
+              From skills.sh
+              {isSearching && <Loader2 className="h-3 w-3 animate-spin" />}
+            </h2>
+            {skillsShResults.length > 0 && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {skillsShResults.map((skill) => (
+                  <SkillCard
+                    key={skill.id}
+                    skill={skill}
+                    onSelect={openDetail}
+                    onInstall={install}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
+
+        {installedSkills.length === 0 &&
+          recommendedSkills.length === 0 &&
+          skillsShResults.length === 0 &&
+          !isSearching && (
+            <div className="py-12 text-center">
+              <p className="text-sm text-muted-foreground">
+                {searchQuery ? 'No skills match your search.' : 'No skills available.'}
+              </p>
+            </div>
+          )}
       </div>
 
       <SkillDetailModal

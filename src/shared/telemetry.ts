@@ -99,6 +99,7 @@ export type TelemetryEventProperties = {
   skill_installed: { source?: string };
   skill_uninstalled: EmptyProps;
   skill_created: EmptyProps;
+  skill_detail_viewed: { source?: string };
 
   setting_changed: { setting: SettingName };
   sidebar_toggled: { side: 'left' | 'right'; state: 'open' | 'closed' };

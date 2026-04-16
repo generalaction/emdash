@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "lastUpdated": "2026-02-07T00:00:00Z",
+  "version": 3,
+  "lastUpdated": "2026-03-18T00:00:00Z",
   "skills": [
     {
       "id": "cloudflare-deploy",
@@ -626,6 +626,21 @@
         "name": "internal-comms",
         "description": "Draft internal communications and announcements"
       }
+    },
+    {
+      "id": "mmx-cli",
+      "displayName": "MiniMax CLI",
+      "description": "Generate text, images, video, speech, and music via MiniMax AI platform",
+      "source": "skills-sh",
+      "iconUrl": "https://github.com/MiniMax-AI.png?size=80",
+      "brandColor": "#171717",
+      "defaultPrompt": "Use MiniMax to generate content (text, image, video, speech, or music).",
+      "frontmatter": {
+        "name": "mmx-cli",
+        "description": "Generate text, images, video, speech, and music via MiniMax AI platform"
+      },
+      "owner": "MiniMax-AI",
+      "repo": "cli"
     }
   ]
 }

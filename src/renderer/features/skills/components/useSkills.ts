@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CatalogIndex, CatalogSkill } from '@shared/skills/types';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
@@ -13,7 +13,15 @@ export function useSkills() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  const [selectedSkillSource, setSelectedSkillSource] = useState<
+    { owner: string; repo: string } | undefined
+  >(undefined);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // skills.sh search state
+  const [searchResults, setSearchResults] = useState<CatalogSkill[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchAbortRef = useRef(0);
 
   const { data: catalog = null, isPending: isLoading } = useQuery({
     queryKey: CATALOG_QUERY_KEY,
@@ -40,11 +48,46 @@ export function useSkills() {
 
   const refresh = useCallback(() => refreshMutation.mutate(), [refreshMutation]);
 
+  // Debounced skills.sh search — fires when query is >= 2 chars
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      ++searchAbortRef.current;
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const id = ++searchAbortRef.current;
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await rpc.skills.search({ query: trimmed });
+        if (id !== searchAbortRef.current) return;
+        if (result.success && result.data) {
+          setSearchResults(result.data);
+        } else {
+          setSearchResults([]);
+        }
+      } catch {
+        if (id === searchAbortRef.current) setSearchResults([]);
+      } finally {
+        if (id === searchAbortRef.current) setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const installMutation = useMutation({
-    mutationFn: async (skillId: string) => {
-      const result = await rpc.skills.install({ skillId });
+    mutationFn: async (payload: { skillId: string; source?: { owner: string; repo: string } }) => {
+      const result = await rpc.skills.install({
+        skillId: payload.skillId,
+        source: payload.source,
+      });
       if (!result.success) throw new Error(result.error ?? 'Could not install skill');
-      return skillId;
+      return payload.skillId;
     },
     onError: (error) => {
       toast({
@@ -54,23 +97,27 @@ export function useSkills() {
       });
     },
     onSuccess: (skillId) => {
-      const skill = queryClient
-        .getQueryData<CatalogIndex>(CATALOG_QUERY_KEY)
-        ?.skills.find((s) => s.id === skillId);
+      const skill =
+        queryClient
+          .getQueryData<CatalogIndex>(CATALOG_QUERY_KEY)
+          ?.skills.find((s) => s.id === skillId) ?? searchResults.find((s) => s.id === skillId);
 
-      captureTelemetry('skill_installed', { source: skill?.source });
+      captureTelemetry('skill_installed', { source: skill?.source ?? 'skills-sh' });
       toast({
         title: 'Skill installed',
         description: `${skillId} is now available across your agents`,
       });
+      setSearchResults((prev) =>
+        prev.map((s) => (s.id === skillId ? { ...s, installed: true } : s))
+      );
       queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
     },
   });
 
   const install = useCallback(
-    async (skillId: string): Promise<boolean> => {
+    async (skillId: string, source?: { owner: string; repo: string }): Promise<boolean> => {
       try {
-        await installMutation.mutateAsync(skillId);
+        await installMutation.mutateAsync({ skillId, source });
         return true;
       } catch {
         return false;
@@ -92,10 +139,12 @@ export function useSkills() {
         variant: 'destructive',
       });
     },
-    onSuccess: () => {
+    onSuccess: (skillId) => {
       captureTelemetry('skill_uninstalled');
-
       toast({ title: 'Skill removed', description: 'Skill has been uninstalled' });
+      setSearchResults((prev) =>
+        prev.map((s) => (s.id === skillId ? { ...s, installed: false, localPath: undefined } : s))
+      );
       queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
     },
   });
@@ -113,9 +162,18 @@ export function useSkills() {
   );
 
   const { data: detailData } = useQuery({
-    queryKey: ['skills', 'detail', selectedSkillId],
+    queryKey: [
+      'skills',
+      'detail',
+      selectedSkillId,
+      selectedSkillSource?.owner,
+      selectedSkillSource?.repo,
+    ],
     queryFn: async () => {
-      const result = await rpc.skills.getDetail({ skillId: selectedSkillId! });
+      const result = await rpc.skills.getDetail({
+        skillId: selectedSkillId!,
+        source: selectedSkillSource,
+      });
       if (result.success && result.data) return result.data;
       throw new Error('Failed to load skill detail');
     },
@@ -124,17 +182,27 @@ export function useSkills() {
 
   const selectedSkill = useMemo<CatalogSkill | null>(() => {
     if (!selectedSkillId || !showDetailModal) return null;
-    return detailData ?? catalog?.skills.find((s) => s.id === selectedSkillId) ?? null;
-  }, [selectedSkillId, showDetailModal, detailData, catalog]);
+    if (detailData) return detailData;
+    const fromCatalog = catalog?.skills.find((s) => s.id === selectedSkillId);
+    if (fromCatalog) return fromCatalog;
+    return searchResults.find((s) => s.id === selectedSkillId) ?? null;
+  }, [selectedSkillId, showDetailModal, detailData, catalog, searchResults]);
 
   const openDetail = useCallback((skill: CatalogSkill) => {
+    captureTelemetry('skill_detail_viewed', { source: skill.source });
     setSelectedSkillId(skill.id);
+    setSelectedSkillSource(
+      skill.source === 'skills-sh' && skill.owner && skill.repo
+        ? { owner: skill.owner, repo: skill.repo }
+        : undefined
+    );
     setShowDetailModal(true);
   }, []);
 
   const closeDetail = useCallback(() => {
     setShowDetailModal(false);
     setSelectedSkillId(null);
+    setSelectedSkillSource(undefined);
   }, []);
 
   const filteredSkills = useMemo(() => {
@@ -159,6 +227,14 @@ export function useSkills() {
     [filteredSkills]
   );
 
+  const catalogIds = useMemo(() => new Set(filteredSkills.map((s) => s.id)), [filteredSkills]);
+  const skillsShResults = useMemo(
+    () => searchResults.filter((s) => !catalogIds.has(s.id)),
+    [searchResults, catalogIds]
+  );
+
+  const isSearchActive = searchQuery.trim().length >= 2;
+
   return {
     catalog,
     isLoading,
@@ -170,6 +246,9 @@ export function useSkills() {
     filteredSkills,
     installedSkills,
     recommendedSkills,
+    skillsShResults,
+    isSearching,
+    isSearchActive,
     refresh,
     install,
     uninstall,

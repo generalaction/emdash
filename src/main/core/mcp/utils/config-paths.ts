@@ -7,6 +7,7 @@ interface AgentConfigDef {
   serversPath: string[];
   template: Record<string, unknown>;
   isToml: boolean;
+  isJsonc?: boolean;
   adapter: AdapterType;
   supportsHttp: boolean;
 }
@@ -97,6 +98,7 @@ export function getAgentMcpMeta(agentId: string): AgentMcpMeta | undefined {
     serversPath: def.serversPath,
     template: def.template,
     isToml: def.isToml,
+    isJsonc: def.isJsonc,
     adapter: def.adapter,
   };
 }

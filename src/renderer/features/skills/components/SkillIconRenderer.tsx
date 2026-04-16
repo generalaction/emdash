@@ -21,8 +21,13 @@ interface SkillIconRendererProps {
   size?: SkillIconSize;
 }
 
+function isGithubAvatar(url: string): boolean {
+  return /^https?:\/\/(www\.)?github\.com\/[^/]+\.png/.test(url);
+}
+
 const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm' }) => {
-  const [imgError, setImgError] = useState(false);
+  const [iconUrlError, setIconUrlError] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
 
@@ -41,9 +46,10 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
     );
   }
 
-  // 2. Remote iconUrl
-  if (skill.iconUrl && !imgError) {
-    const filter = isDark ? 'brightness(0) invert(1)' : 'brightness(0)';
+  // 2. Remote iconUrl. Preserve colors for GitHub avatars (skills.sh owner pics).
+  if (skill.iconUrl && !iconUrlError) {
+    const isAvatar = isGithubAvatar(skill.iconUrl);
+    const filter = isAvatar ? undefined : isDark ? 'brightness(0) invert(1)' : 'brightness(0)';
     return (
       <div
         className={`flex ${container} shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-1.5`}
@@ -52,15 +58,35 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
           src={skill.iconUrl}
           alt=""
           className="h-full w-full rounded-lg object-contain"
-          style={{ filter }}
-          onError={() => setImgError(true)}
+          style={filter ? { filter } : undefined}
+          onError={() => setIconUrlError(true)}
           loading="lazy"
         />
       </div>
     );
   }
 
-  // 3. Letter fallback
+  // 3. Owner GitHub avatar fallback for skills-sh
+  if (skill.source === 'skills-sh' && skill.owner && !avatarError) {
+    const avatarUrl = `https://github.com/${skill.owner}.png?size=80`;
+    if (skill.iconUrl !== avatarUrl) {
+      return (
+        <div
+          className={`flex ${container} shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-1.5`}
+        >
+          <img
+            src={avatarUrl}
+            alt=""
+            className="h-full w-full rounded-lg object-cover"
+            onError={() => setAvatarError(true)}
+            loading="lazy"
+          />
+        </div>
+      );
+    }
+  }
+
+  // 4. Letter fallback
   return (
     <div
       className={`flex ${container} shrink-0 items-center justify-center rounded-xl bg-muted/40 ${text} font-semibold text-foreground/60`}

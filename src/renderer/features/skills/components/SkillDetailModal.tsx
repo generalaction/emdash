@@ -19,9 +19,31 @@ interface SkillDetailModalProps {
   skill: CatalogSkill | null;
   isOpen: boolean;
   onClose: () => void;
-  onInstall: (skillId: string) => Promise<boolean>;
+  onInstall: (skillId: string, source?: { owner: string; repo: string }) => Promise<boolean>;
   onUninstall: (skillId: string) => Promise<boolean>;
   onOpenTerminal?: (skillPath: string) => void;
+}
+
+function sourceLabel(source: CatalogSkill['source']): string {
+  switch (source) {
+    case 'openai':
+      return 'OpenAI';
+    case 'anthropic':
+      return 'Anthropic';
+    case 'skills-sh':
+      return 'skills.sh';
+    default:
+      return '';
+  }
+}
+
+function sourceAvatar(skill: CatalogSkill): string | null {
+  if (skill.source === 'openai') return 'https://github.com/openai.png';
+  if (skill.source === 'anthropic') return 'https://github.com/anthropics.png';
+  if (skill.source === 'skills-sh' && skill.owner) {
+    return `https://github.com/${skill.owner}.png?size=40`;
+  }
+  return null;
 }
 
 const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
@@ -36,9 +58,13 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
 
   const handleInstall = useCallback(async () => {
     if (!skill) return;
+    const source =
+      skill.source === 'skills-sh' && skill.owner && skill.repo
+        ? { owner: skill.owner, repo: skill.repo }
+        : undefined;
     setIsProcessing(true);
     try {
-      const success = await onInstall(skill.id);
+      const success = await onInstall(skill.id, source);
       if (success) onClose();
     } finally {
       setIsProcessing(false);
@@ -76,22 +102,21 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
               <DialogTitle className="text-base font-sans normal-case tracking-normal text-foreground">
                 {skill.displayName}
               </DialogTitle>
-              {skill.source !== 'local' && (
-                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <img
-                    src={
-                      skill.source === 'openai'
-                        ? 'https://github.com/openai.png'
-                        : 'https://github.com/anthropics.png'
-                    }
-                    alt=""
-                    className="h-4 w-4 rounded-sm"
-                  />
-                  <span>
-                    From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library
-                  </span>
-                </div>
-              )}
+              {skill.source !== 'local' &&
+                (() => {
+                  const avatar = sourceAvatar(skill);
+                  const label = sourceLabel(skill.source);
+                  return (
+                    <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {avatar && <img src={avatar} alt="" className="h-4 w-4 rounded-sm" />}
+                      <span>
+                        {skill.source === 'skills-sh' && skill.owner
+                          ? `From ${skill.owner}/${skill.repo ?? ''} via ${label}`
+                          : `From ${label} skill library`}
+                      </span>
+                    </div>
+                  );
+                })()}
             </div>
           </div>
         </DialogHeader>

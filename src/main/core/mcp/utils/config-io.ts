@@ -18,10 +18,12 @@ export async function readServers(meta: AgentMcpMeta): Promise<ServerMap> {
 
   if (!content.trim()) return {};
 
+  const isJsoncConfig = meta.isJsonc === true || meta.configPath.endsWith('.jsonc');
+
   let parsed: Record<string, unknown>;
   if (meta.isToml) {
     parsed = toml.parse(content) as Record<string, unknown>;
-  } else if (meta.configPath.endsWith('.jsonc')) {
+  } else if (isJsoncConfig) {
     const errors: jsoncParser.ParseError[] = [];
     parsed = (jsoncParser.parse(content, errors) ?? {}) as Record<string, unknown>;
     if (errors.length) {
@@ -80,7 +82,8 @@ export async function writeServers(meta: AgentMcpMeta, servers: ServerMap): Prom
     return;
   }
 
-  if (meta.configPath.endsWith('.jsonc') && existingRaw) {
+  const isJsoncConfig = meta.isJsonc === true || meta.configPath.endsWith('.jsonc');
+  if (isJsoncConfig && existingRaw) {
     let modified = existingRaw;
     const edits = jsoncParser.modify(modified, meta.serversPath, servers, {});
     modified = jsoncParser.applyEdits(modified, edits);
