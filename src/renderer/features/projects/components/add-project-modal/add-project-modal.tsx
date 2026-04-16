@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { Home, Server } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
@@ -29,6 +30,7 @@ export type Mode = 'pick' | 'new' | 'clone';
 export interface BaseModeData {
   name: string;
   path: string;
+  initGitRepository?: boolean;
 }
 
 export interface NewModeData extends BaseModeData {
@@ -97,7 +99,29 @@ export function AddProjectModal({
   const cloneState = useCloneMode(defaultPath);
 
   const activeMode = { pick: pickState, new: newState, clone: cloneState }[mode];
-  const canCreate = activeMode.isValid && (strategy === 'local' || !!selectedConnectionId);
+  const shouldCheckPickPathStatus =
+    mode === 'pick' &&
+    pickState.path.trim().length > 0 &&
+    (strategy === 'local' || !!selectedConnectionId);
+  const pickPathStatusQuery = useQuery({
+    queryKey: ['projectPathStatus', strategy, selectedConnectionId, pickState.path],
+    queryFn: () =>
+      strategy === 'ssh'
+        ? rpc.projects.getSshProjectPathStatus(pickState.path, selectedConnectionId!)
+        : rpc.projects.getLocalProjectPathStatus(pickState.path),
+    enabled: shouldCheckPickPathStatus,
+  });
+  const requiresGitInitialization =
+    mode === 'pick' &&
+    pickPathStatusQuery.data?.isDirectory === true &&
+    pickPathStatusQuery.data.isGitRepo === false;
+  const isCheckingPickPathStatus = shouldCheckPickPathStatus && pickPathStatusQuery.isPending;
+
+  const canCreate =
+    activeMode.isValid &&
+    (strategy === 'local' || !!selectedConnectionId) &&
+    !isCheckingPickPathStatus &&
+    (!requiresGitInitialization || pickState.initGitRepository);
 
   const handleSubmit = async () => {
     try {
@@ -134,7 +158,12 @@ export function AddProjectModal({
       case 'pick':
         void getProjectManagerStore().createProject(
           projectType,
-          { mode: 'pick', name: pickState.name, path: pickState.path },
+          {
+            mode: 'pick',
+            name: pickState.name,
+            path: pickState.path,
+            initGitRepository: pickState.initGitRepository,
+          },
           id
         );
         break;
@@ -243,6 +272,7 @@ export function AddProjectModal({
             strategy={strategy}
             connectionId={selectedConnectionId}
             state={pickState}
+            showInitializeGitPrompt={requiresGitInitialization}
           />
         )}
         {mode === 'new' && (

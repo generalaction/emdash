@@ -4,6 +4,11 @@ export type ProjectBootstrapStatus =
   | { status: 'error'; message: string }
   | { status: 'not-started' };
 
+export type ProjectPathStatus = {
+  isDirectory: boolean;
+  isGitRepo: boolean;
+};
+
 export type LocalProject = {
   type: 'local';
   id: string;

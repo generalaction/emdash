@@ -15,6 +15,7 @@ import { useNameWithOwner } from '@renderer/lib/hooks/useNameWithOwner';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { getBranchTooltipText, getPublishTooltipText } from './git-status-tooltips';
 
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
@@ -62,7 +63,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
               <GitBranch className="size-3 shrink-0" />
               <span className="truncate text-xs">{branchName}</span>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{branchName}</TooltipContent>
+            <TooltipContent side="bottom">{getBranchTooltipText(branchName)}</TooltipContent>
           </Tooltip>
           <div className="flex items-center gap-1">
             {hasUpstream ? (
@@ -137,13 +138,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isPublishing
-                    ? 'Publishing...'
-                    : !branchName
-                      ? 'No branch checked out'
-                      : shouldOfferAddRemote
-                        ? 'Create or link a remote, then publish this branch'
-                        : 'Publish branch'}
+                  {getPublishTooltipText({ isPublishing, branchName, shouldOfferAddRemote })}
                 </TooltipContent>
               </Tooltip>
             )}

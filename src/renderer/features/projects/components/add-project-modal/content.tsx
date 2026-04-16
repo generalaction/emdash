@@ -6,6 +6,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 import { Separator } from '@renderer/lib/ui/separator';
+import { Switch } from '@renderer/lib/ui/switch';
 import { Strategy } from './add-project-modal';
 import { LocalDirectorySelector } from './local-directory-selector';
 import { CloneModeState, NewModeState, PickModeState } from './modes';
@@ -15,10 +16,12 @@ export function PickExistingPanel({
   strategy,
   connectionId,
   state,
+  showInitializeGitPrompt,
 }: {
   strategy: Strategy;
   connectionId?: string;
   state: PickModeState;
+  showInitializeGitPrompt: boolean;
 }) {
   return (
     <FieldGroup>
@@ -47,6 +50,22 @@ export function PickExistingPanel({
           onChange={(e) => state.handleNameChange(e.target.value)}
         />
       </Field>
+      {showInitializeGitPrompt && (
+        <div className="overflow-hidden rounded-md border border-border">
+          <p className="border-b border-border bg-background-1 px-2 py-1 text-xs text-foreground-muted">
+            This directory is not a git repository.
+          </p>
+          <div className="p-2">
+            <Field orientation="horizontal">
+              <Switch
+                checked={state.initGitRepository}
+                onCheckedChange={state.setinitGitRepository}
+              />
+              <FieldLabel>Initialize git repository</FieldLabel>
+            </Field>
+          </div>
+        </div>
+      )}
     </FieldGroup>
   );
 }

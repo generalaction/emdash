@@ -915,7 +915,11 @@ export class GitService implements GitProvider {
         }
       }
 
-      if (stderr.includes('[rejected]') || stderr.includes('Updates were rejected')) {
+      if (
+        stderr.includes('[rejected]') ||
+        stderr.includes('Updates were rejected') ||
+        stderr.includes('non-fast-forward')
+      ) {
         return err({ type: 'rejected', message });
       }
 
@@ -971,7 +975,18 @@ export class GitService implements GitProvider {
         return ok({ output: 'Everything up-to-date' });
       }
 
-      if (stderr.includes('[rejected]') || stderr.includes('Updates were rejected')) {
+      if (
+        stderr.includes('[rejected]') ||
+        stderr.includes('Updates were rejected') ||
+        stderr.includes('non-fast-forward')
+      ) {
+        try {
+          await this.exec(
+            'git',
+            ['branch', '--set-upstream-to', `${remote}/${branchName}`, branchName],
+            { cwd: this.path }
+          );
+        } catch {}
         return err({ type: 'rejected', message });
       }
 
@@ -1432,5 +1447,9 @@ export class GitService implements GitProvider {
       baseRef: computeBaseRef(undefined, remoteName, branch),
       rootPath,
     };
+  }
+
+  async initRepository(): Promise<void> {
+    await this.exec('git', ['init'], { cwd: this.path });
   }
 }
