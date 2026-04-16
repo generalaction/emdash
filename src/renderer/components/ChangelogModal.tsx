@@ -4,7 +4,8 @@ import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { DialogContent } from '@/components/ui/dialog';
 import { formatChangelogPublishedAt } from '@/lib/changelogDate';
 import { EMDASH_CHANGELOG_URL, type ChangelogEntry } from '@shared/changelog';
-import { ExternalLink } from 'lucide-react';
+import { EMDASH_WEBSITE_URL } from '@shared/urls';
+import { ArrowRight, ExternalLink } from 'lucide-react';
 
 interface ChangelogModalProps {
   entry: ChangelogEntry;
@@ -90,8 +91,19 @@ function ChangelogModal({ entry }: ChangelogModalProps): JSX.Element {
 
       <div className="max-h-[min(75vh,44rem)] overflow-y-auto">
         <div className="px-6 py-5">
+          <button
+            type="button"
+            onClick={() => window.electronAPI.openExternal(EMDASH_WEBSITE_URL)}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/35 px-4 py-3 text-left transition-colors hover:bg-accent/40"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Emdash v1 is in public beta</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">Download the beta</p>
+            </div>
+            <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          </button>
           {publishedAt && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
               <Badge variant="outline" className="h-5 px-2 text-[11px] font-medium">
                 {publishedAt}
               </Badge>
