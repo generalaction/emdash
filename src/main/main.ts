@@ -128,6 +128,8 @@ import { workspaceProviderService } from './services/WorkspaceProviderService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
+import { mcpTaskServer } from './services/McpTaskServer';
+import { getAppSettings } from './settings';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
@@ -312,6 +314,15 @@ app.whenReady().then(async () => {
     console.warn('Failed to start agent event service:', error);
   }
 
+  // Start MCP task server only when enabled in settings
+  if (getAppSettings().mcp?.enabled) {
+    try {
+      await mcpTaskServer.start(getAppSettings().mcp?.port);
+    } catch (error) {
+      console.warn('Failed to start MCP task server:', error);
+    }
+  }
+
   // Register IPC handlers
   registerAllIpc();
 
@@ -368,6 +379,8 @@ app.on('before-quit', () => {
   autoUpdateService.shutdown();
   // Stop agent event HTTP server
   agentEventService.stop();
+  // Stop MCP task server
+  mcpTaskServer.stop();
   // Stop any lifecycle run scripts so they do not outlive the app process.
   taskLifecycleService.shutdown();
 

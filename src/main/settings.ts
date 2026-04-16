@@ -132,6 +132,10 @@ export interface AppSettings {
   changelog?: {
     dismissedVersions: string[];
   };
+  mcp?: {
+    enabled: boolean;
+    port?: number;
+  };
 }
 
 function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: ShortcutBinding } {
@@ -219,6 +223,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   hiddenOpenInApps: [],
   changelog: {
     dismissedVersions: [],
+  },
+  mcp: {
+    enabled: false,
   },
 };
 
@@ -631,6 +638,23 @@ export function normalizeSettings(input: AppSettings): AppSettings {
           ),
         ]
       : [],
+  };
+
+  // MCP
+  const mcp = (input as any)?.mcp || {};
+  const rawMcpPort = mcp?.port;
+  let mcpPort: number | undefined;
+  if (
+    typeof rawMcpPort === 'number' &&
+    Number.isInteger(rawMcpPort) &&
+    rawMcpPort >= 1024 &&
+    rawMcpPort <= 65535
+  ) {
+    mcpPort = rawMcpPort;
+  }
+  out.mcp = {
+    enabled: Boolean(mcp?.enabled ?? DEFAULT_SETTINGS.mcp!.enabled),
+    ...(mcpPort !== undefined ? { port: mcpPort } : {}),
   };
 
   return out;
