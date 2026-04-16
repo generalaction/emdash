@@ -151,6 +151,12 @@ export const sshController = createRPCController({
     await sshConnectionManager.disconnect(connectionId);
   },
 
+  /** Ensure a connection is established (no-op if already connected). */
+  connect: async (connectionId: string): Promise<ConnectionState> => {
+    await sshConnectionManager.connect(connectionId);
+    return sshConnectionManager.getConnectionState(connectionId);
+  },
+
   /** Returns whether the connection is currently live. */
   getState: async (connectionId: string): Promise<'connected' | 'disconnected'> => {
     return sshConnectionManager.isConnected(connectionId) ? 'connected' : 'disconnected';

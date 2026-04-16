@@ -94,6 +94,14 @@ export class SshConnectionStore {
     return this.connectionStates[connectionId] ?? 'disconnected';
   }
 
+  async connect(connectionId: string): Promise<void> {
+    const state = this.stateFor(connectionId);
+    if (state === 'connected' || state === 'connecting' || state === 'reconnecting') {
+      return;
+    }
+    await rpc.ssh.connect(connectionId);
+  }
+
   async saveConnection(config: SaveConnectionInput): Promise<SshConfig> {
     return await this.withMutation(async () => {
       const savedConnection = await rpc.ssh.saveConnection(config);
