@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { resolveRemoteSkillIcon, resolveSkillIcon } from './skillIcons';
@@ -30,6 +30,13 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
   const [iconUrlError, setIconUrlError] = useState(false);
   const [remoteIconError, setRemoteIconError] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setIconUrlError(false);
+    setRemoteIconError(false);
+    setAvatarError(false);
+  }, [skill.id, skill.iconUrl]);
+
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
 

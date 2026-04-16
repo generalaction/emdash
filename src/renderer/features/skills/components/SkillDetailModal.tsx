@@ -97,7 +97,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <SkillIconRenderer skill={skill} size="md" />
+            <SkillIconRenderer key={skill.id} skill={skill} size="md" />
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-base font-sans normal-case tracking-normal text-foreground">
                 {skill.displayName}
@@ -133,8 +133,8 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
           {body && (
             <MarkdownRenderer
               content={body}
-              variant="compact"
-              className="max-h-60 overflow-y-auto rounded-md bg-muted/20  py-2 text-xs text-muted-foreground"
+              variant="full"
+              className="max-h-80 overflow-y-auto rounded-md bg-muted/20 px-3 py-2"
             />
           )}
         </DialogContentArea>

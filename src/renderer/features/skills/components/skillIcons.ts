@@ -1,9 +1,9 @@
-const skillSvgs = import.meta.glob<string>('../../assets/images/skills/*.svg', {
+const skillSvgs = import.meta.glob<string>('../../../../assets/images/skills/*.svg', {
   query: '?raw',
   import: 'default',
   eager: true,
 });
-const mcpSvgs = import.meta.glob<string>('../../assets/images/mcp/*.svg', {
+const mcpSvgs = import.meta.glob<string>('../../../../assets/images/mcp/*.svg', {
   query: '?raw',
   import: 'default',
   eager: true,
