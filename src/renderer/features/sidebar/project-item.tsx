@@ -1,4 +1,4 @@
-import { ChevronRight, FolderClosed, Loader2, Plus } from 'lucide-react';
+import { ChevronRight, FolderClosed, FolderInput, Loader2, Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
 import {
@@ -16,7 +16,7 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { sidebarStore } from '@renderer/lib/stores/app-state';
+import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { SidebarItemMiniButton, SidebarMenuButton, SidebarMenuRow } from './sidebar-primitives';
@@ -65,6 +65,21 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   if (!project) return null;
 
+  const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
+  const isSshProject = sshConnectionId !== null;
+  const sshConnectionState = sshConnectionId
+    ? appState.sshConnections.stateFor(sshConnectionId)
+    : null;
+  const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
+  const isReconnecting =
+    sshConnectionState === 'connecting' || sshConnectionState === 'reconnecting';
+  const sshStateDotClass =
+    sshConnectionState === 'connected'
+      ? 'bg-emerald-500'
+      : isReconnecting
+        ? 'bg-foreground-muted/50'
+        : 'bg-red-500';
+
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
     const label = UNREGISTERED_PHASE_LABEL[project.phase] ?? 'Loading…';
@@ -100,7 +115,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               sidebarStore.toggleProjectExpanded(projectId);
             }}
           >
-            <FolderClosed className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
+            <ProjectIcon className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
             <ChevronRight
               className={cn(
                 'absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100',
@@ -116,7 +131,22 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               'text-foreground-tertiary-passive'
           )}
         >
-          {project.name}
+          {isSshProject ? (
+            <span className="min-w-0 flex items-center gap-2">
+              <span className="truncate">{project.name}</span>
+              <span
+                className={cn(
+                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  sshStateDotClass,
+                  isReconnecting && 'animate-pulse'
+                )}
+                aria-label={`SSH connection ${sshConnectionState ?? 'disconnected'}`}
+                title={`SSH connection ${sshConnectionState ?? 'disconnected'}`}
+              />
+            </span>
+          ) : (
+            project.name
+          )}
         </span>
       </div>
       <SidebarItemMiniButton
