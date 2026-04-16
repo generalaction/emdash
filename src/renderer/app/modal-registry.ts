@@ -32,7 +32,11 @@ export const modalRegistry = {
     component: GithubDeviceFlowModalOverlay,
     popupClassName: 'max-w-[480px] p-0',
   },
-  commandPaletteModal: { component: CommandPaletteModal, usesOwnShell: true },
+  commandPaletteModal: {
+    component: CommandPaletteModal,
+    popupClassName:
+      'max-w-[calc(100%-2rem)] sm:max-w-[640px] top-[14vh] translate-y-0 shadow-2xl bg-background-quaternary',
+  },
   confirmActionModal: { component: ConfirmActionDialog, popupClassName: 'sm:max-w-xs' },
   createConversationModal: { component: CreateConversationModal },
   feedbackModal: { component: FeedbackModal },
