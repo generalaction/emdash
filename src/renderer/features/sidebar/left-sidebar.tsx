@@ -93,7 +93,8 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
         </SidebarFooter>
         <div className="flex items-center gap-2 justify-between px-3 py-2 border-t border-border">
           <button
-            className="flex items-center min-w-0 w-full gap-2 text-sm text-foreground-muted hover:text-foreground px-3 py-1.5 rounded-md hover:bg-background-tertiary-1"
+            type="button"
+            className="flex h-6 items-center min-w-0 w-full cursor-pointer gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"
             onClick={() => showFeedbackModal({})}
           >
             <MessageSquareShare className="size-4 shrink-0" />
