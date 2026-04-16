@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Home, Server } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
@@ -7,7 +8,7 @@ import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { useSshConnectionContext } from '@renderer/lib/providers/ssh-connection-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -51,7 +52,7 @@ export interface AddProjectModalProps extends BaseModalProps<void> {
   connectionId?: string;
 }
 
-export function AddProjectModal({
+export const AddProjectModal = observer(function AddProjectModal({
   strategy: strategyProp,
   mode: modeProp,
   onClose,
@@ -60,7 +61,7 @@ export function AddProjectModal({
   const [strategy, setStrategy] = useState<Strategy>(strategyProp ?? 'local');
   const [mode, setMode] = useState<Mode>(modeProp ?? 'pick');
   const [connectionId, setConnectionId] = useState<string | undefined>(connectionIdProp);
-  const { connections } = useSshConnectionContext();
+  const { connections } = appState.sshConnections;
   const availableConnectionIds = useMemo(
     () =>
       connections.map((connection) => connection.id).filter((id): id is string => id !== undefined),
@@ -288,4 +289,4 @@ export function AddProjectModal({
       </DialogContentArea>
     </ModalLayout>
   );
-}
+});

@@ -1,5 +1,6 @@
 import { ChevronsUpDownIcon, PlusIcon } from 'lucide-react';
-import { useSshConnectionContext } from '@renderer/lib/providers/ssh-connection-provider';
+import { observer } from 'mobx-react-lite';
+import { appState } from '@renderer/lib/stores/app-state';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ComboboxPopover } from '@renderer/lib/ui/combobox-popover';
 
@@ -9,12 +10,12 @@ interface SshConnectionSelectorProps {
   onAddConnection: () => void;
 }
 
-export function SshConnectionSelector({
+export const SshConnectionSelector = observer(function SshConnectionSelector({
   connectionId,
   onConnectionIdChange,
   onAddConnection,
 }: SshConnectionSelectorProps) {
-  const { connections } = useSshConnectionContext();
+  const { connections } = appState.sshConnections;
 
   const options = connections
     .filter((c): c is typeof c & { id: string } => c.id !== undefined)
@@ -54,4 +55,4 @@ export function SshConnectionSelector({
       }
     />
   );
-}
+});

@@ -1,6 +1,7 @@
 import { defineEvent } from '@shared/ipc/events';
 
 export type SshConnectionEvent =
+  | { type: 'connecting'; connectionId: string }
   | { type: 'connected'; connectionId: string }
   | { type: 'disconnected'; connectionId: string }
   | { type: 'reconnecting'; connectionId: string; attempt: number; delayMs: number }
