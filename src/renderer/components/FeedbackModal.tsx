@@ -7,6 +7,7 @@ import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
 import { useToast } from '../hooks/use-toast';
+import { useAppContext } from '../contexts/AppContextProvider';
 
 const DISCORD_WEBHOOK_URL =
   'https://discord.com/api/webhooks/1473390363388416230/eRIo1UhylapH94KpqUUp5PDzkLhjBvcnjjyE_JezfHiAyfN3QEbRyEIJaSl8QQUz7Mak';
@@ -25,6 +26,7 @@ interface FeedbackModalProps {
 
 const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUser, blurb }) => {
   const shouldReduceMotion = useReducedMotion();
+  const { appVersion } = useAppContext();
   const submitButtonRef = useRef<HTMLButtonElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [feedbackDetails, setFeedbackDetails] = useState('');
@@ -99,6 +101,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
       }
       metadataLines.push(`GitHub: ${summaryParts.join(' ')}`);
     }
+    metadataLines.push(`Emdash Version: ${appVersion?.trim() || 'unknown'}`);
 
     const content = [trimmedFeedback, metadataLines.join('\n')].filter(Boolean).join('\n\n');
 
@@ -145,7 +148,7 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, githubUs
     } finally {
       setSubmitting(false);
     }
-  }, [attachments, contactEmail, feedbackDetails, githubUser, onClose, submitting]);
+  }, [appVersion, attachments, contactEmail, feedbackDetails, githubUser, onClose, submitting]);
 
   const handleFormSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
