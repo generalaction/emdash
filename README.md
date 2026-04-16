@@ -18,13 +18,13 @@
 <br />
 
   <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/public/media/downloadforwindows.png" alt="Download for Windows" height="40">
+    <img src="https://emdash.sh/media/readme/downloadforwindows.png" alt="Download for Windows" height="40">
   </a>
   <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/public/media/downloadformacos.png" alt="Download for macOS" height="40">
+    <img src="https://emdash.sh/media/readme/downloadformacos.png" alt="Download for macOS" height="40">
   </a>
   <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/public/media/downloadforlinux.png" alt="Download for Linux" height="40">
+    <img src="https://emdash.sh/media/readme/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
 
 </div>
@@ -45,7 +45,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 </div>
 
-<img alt="Emdash product" src="./docs/public/media/product.jpeg" />
+<img alt="Emdash product" src="https://emdash.sh/media/readme/product.jpeg" />
 
 # Installation
 
@@ -133,7 +133,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > TELEMETRY_ENABLED=false
 > ```
 >
-> Full details: see `docs/telemetry.md`.
+> Full details: see [Telemetry](https://emdash.sh/docs/telemetry).
 </details>
 
 <details>
@@ -223,7 +223,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > - Git installed on the remote server
 > - For agent auth: SSH agent running with your key loaded (`ssh-add -l`)
 >
-> See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions and [docs/ssh-architecture.md](./docs/ssh-architecture.md) for technical details.
+> See [Remote Projects](https://emdash.sh/docs/remote-projects) for detailed setup instructions and [Bring Your Own Infrastructure](https://emdash.sh/docs/bring-your-own-infrastructure) for technical details.
 </details>
 
 [![Follow @emdashsh](https://img.shields.io/twitter/follow/emdashsh?style=social&label=Follow%20%40emdashsh)](https://x.com/emdashsh)
