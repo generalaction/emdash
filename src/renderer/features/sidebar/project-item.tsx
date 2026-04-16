@@ -95,7 +95,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     sshConnectionState === 'connected'
       ? 'bg-emerald-500'
       : isReconnecting
-        ? 'bg-foreground-muted/50'
+        ? 'bg-blue-500'
         : 'bg-red-500';
 
   const renderSpinnerWithTooltip = () => {
@@ -155,11 +155,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                 <span className="min-w-0 flex items-center gap-2">
                   <span className="truncate">{project.name}</span>
                   <span
-                    className={cn(
-                      'h-1.5 w-1.5 shrink-0 rounded-full',
-                      sshStateDotClass,
-                      isReconnecting && 'animate-pulse'
-                    )}
+                    className={cn('h-1.5 w-1.5 shrink-0 rounded-full', sshStateDotClass)}
                     aria-label={`SSH connection ${sshConnectionState ?? 'disconnected'}`}
                     title={`SSH connection ${sshConnectionState ?? 'disconnected'}`}
                   />
