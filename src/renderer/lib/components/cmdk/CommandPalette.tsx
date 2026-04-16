@@ -271,24 +271,24 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       }}
       className={cn(
         'flex h-full w-full flex-col',
-        '[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1',
+        '[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5',
         '[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em]',
         '[&_[cmdk-group-heading]]:text-foreground-tertiary-muted',
-        '[&_[cmdk-group]]:px-1.5 [&_[cmdk-group]]:pb-1'
+        '[&_[cmdk-group]]:px-2 [&_[cmdk-group]]:pb-1'
       )}
     >
-      <div className="flex items-center gap-3 border-b border-border/60 px-4">
-        <Search className="h-4 w-4 shrink-0 text-foreground-tertiary-muted" />
+      <div className="flex items-center gap-2.5 border-b border-border px-3.5">
+        <Search className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary-muted" />
         <Command.Input
           value={search}
           onValueChange={setSearch}
           placeholder="Search projects, tasks, commands…"
-          className="flex h-12 w-full rounded-md bg-transparent text-sm text-foreground outline-none placeholder:text-foreground-tertiary-muted disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-11 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-foreground-tertiary-muted disabled:cursor-not-allowed disabled:opacity-50"
           autoFocus
         />
       </div>
 
-      <Command.List className="max-h-[55vh] min-h-[120px] overflow-x-hidden overflow-y-auto p-1">
+      <Command.List className="max-h-[55vh] min-h-[120px] overflow-x-hidden overflow-y-auto py-1">
         <Command.Empty className="py-10 text-center text-sm text-foreground-tertiary-muted">
           No results found.
         </Command.Empty>
@@ -305,28 +305,25 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                   value={`${item.label} ${item.description || ''} ${item.keywords?.join(' ') || ''}`}
                   onSelect={() => item.onSelect()}
                   className={cn(
-                    'relative flex cursor-pointer select-none items-center gap-3 rounded-md px-2.5 py-2 text-sm outline-none',
-                    'text-foreground',
-                    'data-[selected=true]:bg-background-2 data-[selected=true]:text-foreground'
+                    'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none transition-colors',
+                    'font-normal text-foreground-tertiary-muted',
+                    'hover:bg-background-tertiary-1 hover:text-foreground-tertiary',
+                    'data-[selected=true]:bg-background-tertiary-2 data-[selected=true]:text-foreground-tertiary'
                   )}
                 >
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background-2 text-foreground-muted">
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center [&_svg]:h-3.5 [&_svg]:w-3.5">
                     {item.icon}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-normal leading-tight">
-                      {item.label}
-                    </div>
-                    {item.description && (
-                      <div className="mt-0.5 truncate text-[11px] text-foreground-tertiary-muted">
-                        {item.description}
-                      </div>
-                    )}
-                  </div>
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {item.description && (
+                    <span className="hidden min-w-0 truncate text-xs text-foreground-tertiary-muted sm:block sm:max-w-[45%]">
+                      {item.description}
+                    </span>
+                  )}
                   {item.shortcut && (
-                    <div className="ml-auto rounded border border-border/60 bg-background-1 px-1.5 py-0.5 font-mono text-[10px] text-foreground-tertiary-muted">
+                    <kbd className="ml-1 rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-foreground-tertiary-muted">
                       {item.shortcut}
-                    </div>
+                    </kbd>
                   )}
                 </Command.Item>
               ))}
@@ -335,7 +332,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         })}
       </Command.List>
 
-      <div className="flex items-center justify-between gap-4 border-t border-border/60 bg-background-1 px-3 py-2 text-[11px] text-foreground-tertiary-muted">
+      <div className="flex items-center justify-between gap-4 border-t border-border px-3 py-2 text-[11px] text-foreground-tertiary-muted">
         <div className="flex items-center gap-3">
           <Hint label="Open">
             <CornerDownLeft className="h-3 w-3" />
@@ -357,7 +354,7 @@ function Hint({ label, children }: { label: string; children: React.ReactNode })
   return (
     <div className="flex items-center gap-1.5">
       <span>{label}</span>
-      <div className="flex items-center gap-1 rounded border border-border/60 bg-background-quaternary px-1.5 py-0.5">
+      <div className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5">
         {children}
       </div>
     </div>
