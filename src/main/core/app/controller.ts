@@ -40,7 +40,7 @@ export const appController = createRPCController({
     const { fonts, cached, error } = await appService.listInstalledFonts(args?.refresh);
     return { success: !error, fonts, cached, ...(error ? { error } : {}) };
   },
-  openSelectDirectoryDialog: (args: { title: string; message: string }) =>
+  openSelectDirectoryDialog: (args: { title: string; message: string; defaultPath?: string }) =>
     appService.openSelectDirectoryDialog(args),
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
