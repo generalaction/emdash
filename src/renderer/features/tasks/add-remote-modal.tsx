@@ -107,6 +107,12 @@ export function AddRemoteModal({
         }
       }
 
+      const fetchResult = await rpc.git.fetch(projectId, workspaceId, selectedRemote);
+      if (!fetchResult.success) {
+        setError(toErrorMessage(fetchResult.error, 'Failed to fetch remote'));
+        return;
+      }
+
       const publishResult = await rpc.git.publishBranch(
         projectId,
         workspaceId,
@@ -114,10 +120,23 @@ export function AddRemoteModal({
         selectedRemote
       );
       if (!publishResult.success) {
+        if (publishResult.error.type === 'rejected') {
+          const repositoryStore = getRepositoryStore(projectId);
+          repositoryStore?.refreshLocal();
+          repositoryStore?.refreshRemote();
+          void queryClient.invalidateQueries({ queryKey: ['nameWithOwner', projectId] });
+          setError(
+            'Remote already has commits. Linking succeeded, but integrating histories must be resolved manually.'
+          );
+          return;
+        }
         setError(toErrorMessage(publishResult.error, 'Failed to publish branch'));
         return;
       }
 
+      const repositoryStore = getRepositoryStore(projectId);
+      repositoryStore?.refreshLocal();
+      repositoryStore?.refreshRemote();
       void queryClient.invalidateQueries({ queryKey: ['nameWithOwner', projectId] });
       onSuccess();
     } catch (e) {
