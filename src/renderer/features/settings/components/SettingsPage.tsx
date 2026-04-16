@@ -10,6 +10,7 @@ import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
+import ProjectPathsSettingsCard from './ProjectPathsSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
 import {
@@ -123,7 +124,10 @@ export function SettingsPage({
     repository: {
       title: 'Repository',
       description: 'Configure repository and branch settings.',
-      sections: [{ title: 'Branch prefix', component: <RepositorySettingsCard /> }],
+      sections: [
+        { title: 'Project locations', component: <ProjectPathsSettingsCard /> },
+        { title: 'Branch prefix', component: <RepositorySettingsCard /> },
+      ],
     },
     interface: {
       title: 'Interface',
