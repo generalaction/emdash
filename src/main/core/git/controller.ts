@@ -4,6 +4,7 @@ import { err, ok } from '@shared/result';
 import { TooManyFilesChangedError } from '@main/core/git/impl/status-parser';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
+import { capture } from '@main/lib/telemetry';
 
 export const gitController = createRPCController({
   getFullStatus: async (projectId: string, workspaceId: string) => {
@@ -137,6 +138,12 @@ export const gitController = createRPCController({
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
       await env.git.stageFiles([filePath]);
+      capture('vcs_files_staged', {
+        count: 1,
+        scope: 'single',
+        project_id: projectId,
+        task_id: workspaceId,
+      });
       return ok();
     } catch (e) {
       log.error('gitCtrl.stageFile failed', { projectId, workspaceId, filePath, error: e });
@@ -149,6 +156,12 @@ export const gitController = createRPCController({
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
       await env.git.stageFiles(filePaths);
+      capture('vcs_files_staged', {
+        count: filePaths.length,
+        scope: filePaths.length === 1 ? 'single' : 'multiple',
+        project_id: projectId,
+        task_id: workspaceId,
+      });
       return ok();
     } catch (e) {
       log.error('gitCtrl.stageFiles failed', { projectId, workspaceId, filePaths, error: e });
@@ -160,7 +173,14 @@ export const gitController = createRPCController({
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
+      const unstaged = await env.git.getUnstagedChanges();
       await env.git.stageAllFiles();
+      capture('vcs_files_staged', {
+        count: unstaged.changes.length,
+        scope: 'all',
+        project_id: projectId,
+        task_id: workspaceId,
+      });
       return ok();
     } catch (e) {
       log.error('gitCtrl.stageAllFiles failed', { projectId, workspaceId, error: e });
@@ -173,6 +193,12 @@ export const gitController = createRPCController({
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
       await env.git.unstageFiles([filePath]);
+      capture('vcs_files_unstaged', {
+        count: 1,
+        scope: 'single',
+        project_id: projectId,
+        task_id: workspaceId,
+      });
       return ok();
     } catch (e) {
       log.error('gitCtrl.unstageFile failed', { projectId, workspaceId, filePath, error: e });
@@ -185,6 +211,12 @@ export const gitController = createRPCController({
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
       await env.git.unstageFiles(filePaths);
+      capture('vcs_files_unstaged', {
+        count: filePaths.length,
+        scope: filePaths.length === 1 ? 'single' : 'multiple',
+        project_id: projectId,
+        task_id: workspaceId,
+      });
       return ok();
     } catch (e) {
       log.error('gitCtrl.unstageFiles failed', { projectId, workspaceId, filePaths, error: e });
@@ -196,7 +228,14 @@ export const gitController = createRPCController({
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
+      const staged = await env.git.getStagedChanges();
       await env.git.unstageAllFiles();
+      capture('vcs_files_unstaged', {
+        count: staged.changes.length,
+        scope: 'all',
+        project_id: projectId,
+        task_id: workspaceId,
+      });
       return ok();
     } catch (e) {
       log.error('gitCtrl.unstageAllFiles failed', { projectId, workspaceId, error: e });
@@ -209,6 +248,12 @@ export const gitController = createRPCController({
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
       await env.git.revertFiles([filePath]);
+      capture('vcs_files_discarded', {
+        count: 1,
+        scope: 'single',
+        project_id: projectId,
+        task_id: workspaceId,
+      });
       return ok();
     } catch (e) {
       log.error('gitCtrl.revertFile failed', { projectId, workspaceId, filePath, error: e });
@@ -221,6 +266,12 @@ export const gitController = createRPCController({
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
       await env.git.revertFiles(filePaths);
+      capture('vcs_files_discarded', {
+        count: filePaths.length,
+        scope: filePaths.length === 1 ? 'single' : 'multiple',
+        project_id: projectId,
+        task_id: workspaceId,
+      });
       return ok();
     } catch (e) {
       log.error('gitCtrl.revertFiles failed', { projectId, workspaceId, filePaths, error: e });
@@ -232,7 +283,15 @@ export const gitController = createRPCController({
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
+      const status = await env.git.getStatus();
+      const changedCount = new Set(status.changes.map((change) => change.path)).size;
       await env.git.revertAllFiles();
+      capture('vcs_files_discarded', {
+        count: changedCount,
+        scope: 'all',
+        project_id: projectId,
+        task_id: workspaceId,
+      });
       return ok();
     } catch (e) {
       log.error('gitCtrl.revertAllFiles failed', { projectId, workspaceId, error: e });
@@ -252,6 +311,12 @@ export const gitController = createRPCController({
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
     const result = await env.git.fetch(remote);
+    capture('vcs_fetch', {
+      success: result.success,
+      project_id: projectId,
+      task_id: workspaceId,
+      ...(result.success ? {} : { error_type: result.error.type }),
+    });
     if (!result.success) return err(result.error);
     return ok();
   },
@@ -260,6 +325,12 @@ export const gitController = createRPCController({
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
     const result = await env.git.push(remote);
+    capture('vcs_push', {
+      success: result.success,
+      project_id: projectId,
+      task_id: workspaceId,
+      ...(result.success ? {} : { error_type: result.error.type }),
+    });
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
   },
@@ -273,6 +344,12 @@ export const gitController = createRPCController({
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
     const result = await env.git.publishBranch(branchName, remote);
+    capture('vcs_branch_published', {
+      success: result.success,
+      project_id: projectId,
+      task_id: workspaceId,
+      ...(result.success ? {} : { error_type: result.error.type }),
+    });
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
   },
@@ -281,6 +358,17 @@ export const gitController = createRPCController({
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
     const result = await env.git.pull();
+    capture('vcs_pull', {
+      success: result.success,
+      project_id: projectId,
+      task_id: workspaceId,
+      ...(result.success
+        ? {}
+        : {
+            error_type: result.error.type,
+            conflicts: result.error.type === 'conflict',
+          }),
+    });
     if (!result.success) return err(result.error);
     return ok({ output: result.data.output });
   },

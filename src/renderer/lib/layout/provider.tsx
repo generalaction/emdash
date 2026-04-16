@@ -18,6 +18,7 @@ import {
 import { useModalContext } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
+import { clearTelemetryTaskScope, setTelemetryTaskScope } from '@renderer/utils/telemetry-scope';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import {
   WorkspaceNavigateContext,
@@ -32,6 +33,25 @@ import {
 } from './navigation-provider';
 
 type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
+
+function syncTelemetryScope(currentViewId: ViewId, viewParamsStore: ViewParamsStore): void {
+  if (currentViewId !== 'task') {
+    clearTelemetryTaskScope();
+    return;
+  }
+
+  const taskParams = viewParamsStore.task;
+  if (
+    taskParams &&
+    typeof taskParams.projectId === 'string' &&
+    typeof taskParams.taskId === 'string'
+  ) {
+    setTelemetryTaskScope({ projectId: taskParams.projectId, taskId: taskParams.taskId });
+    return;
+  }
+
+  clearTelemetryTaskScope();
+}
 
 const viewEvents: Record<
   ViewId,
@@ -70,23 +90,13 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initialViewId = appState.navigation.currentViewId;
     focusTracker.initialize({ view: initialViewId });
-    captureTelemetry(viewEvents[initialViewId], { from_view: null, dwell_ms: 0 });
-
-    const onBlur = () => {
-      focusTracker.transition({}, 'window_blur');
-    };
-    const onFocus = () => {
-      focusTracker.transition({}, 'window_focus');
-    };
-
-    window.addEventListener('blur', onBlur);
-    window.addEventListener('focus', onFocus);
-
-    return () => {
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('focus', onFocus);
-    };
+    syncTelemetryScope(initialViewId, appState.navigation.viewParamsStore as ViewParamsStore);
+    captureTelemetry(viewEvents[initialViewId], { from_view: null });
   }, []);
+
+  useEffect(() => {
+    syncTelemetryScope(currentViewId, viewParamsStore);
+  }, [currentViewId, viewParamsStore]);
 
   const navigate = useCallback(
     (...args: unknown[]) => {
@@ -100,14 +110,12 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
                 mainPanel: null,
                 rightPanel: null,
                 focusedRegion: null,
-                conversationIndex: null,
               },
           'navigation'
         );
 
         captureTelemetry(viewEvents[viewId], {
           from_view: transition?.previous.view ?? null,
-          dwell_ms: transition?.durationMs ?? 0,
         });
       }
 

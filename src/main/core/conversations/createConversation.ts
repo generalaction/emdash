@@ -50,6 +50,9 @@ export async function createConversation(params: CreateConversationParams): Prom
   capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,
+    project_id: params.projectId,
+    task_id: params.taskId,
+    conversation_id: id,
   });
 
   return mapConversationRowToConversation(row);

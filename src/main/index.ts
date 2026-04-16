@@ -122,7 +122,6 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
-  telemetry.capture('app_session');
   telemetry.capture('app_closed');
   telemetry.shutdown();
 

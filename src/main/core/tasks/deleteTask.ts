@@ -25,7 +25,7 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
 
   await db.delete(tasks).where(eq(tasks.id, taskId));
   void viewStateService.del(`task:${taskId}`);
-  capture('task_deleted');
+  capture('task_deleted', { project_id: projectId, task_id: taskId });
 
   if (project) {
     if (task.taskBranch) {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
-import type { TelemetryEvent, TelemetryEventProperties } from '@shared/telemetry';
+import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 import rawAppConfig from '@main/appConfig.json';
 import { KV } from '@main/db/kv';
 
@@ -22,7 +22,7 @@ let instanceId: string | undefined;
 let installSource: string | undefined;
 let userOptOut: boolean | undefined;
 let onboardingSeen = false;
-let sessionStartMs: number = Date.now();
+let sessionId: string | undefined;
 let lastActiveDate: string | undefined;
 let cachedGithubUsername: string | null = null;
 
@@ -83,19 +83,17 @@ function sanitizeEventAndProps(_event: TelemetryEvent, props: Record<string, unk
     'active_main_panel',
     'active_right_panel',
     'focused_region',
-    'conversation_index',
-    'time_in_view_ms',
-    'session_duration_ms',
     'view',
     'from_view',
     'to_view',
     'main_panel',
     'right_panel',
-    'dwell_ms',
-    'duration_ms',
     'trigger',
-    'modal_id',
-    'outcome',
+    'event_ts_ms',
+    'session_id',
+    'project_id',
+    'task_id',
+    'conversation_id',
     'side',
     'region',
     'panel',
@@ -126,11 +124,12 @@ function sanitizeEventAndProps(_event: TelemetryEvent, props: Record<string, unk
     'app',
     'applied_migrations_bucket',
     'recovered',
-    'task_count_bucket',
-    'project_count_bucket',
     'date',
     'timezone',
     'scope',
+    'strategy',
+    'conflicts',
+    'count',
   ]);
   const passthroughProps = new Set([
     '$exception_message',
@@ -147,7 +146,11 @@ function sanitizeEventAndProps(_event: TelemetryEvent, props: Record<string, unk
         const maxLength = passthroughProps.has(key) ? 2_000 : 100;
         sanitized[key] = value.trim().slice(0, maxLength);
       } else if (typeof value === 'number') {
-        sanitized[key] = Math.max(-1_000_000, Math.min(value, 1_000_000));
+        if (key === 'event_ts_ms') {
+          sanitized[key] = Math.max(0, Math.min(Math.trunc(value), 9_999_999_999_999));
+        } else {
+          sanitized[key] = Math.max(-1_000_000, Math.min(value, 1_000_000));
+        }
       } else if (typeof value === 'boolean') {
         sanitized[key] = value;
       } else if (value === null) {
@@ -263,7 +266,7 @@ export async function init(options?: InitOptions): Promise<void> {
     env.POSTHOG_HOST || (appConfig?.posthogHost as string | undefined) || undefined
   );
   installSource = options?.installSource || env.INSTALL_SOURCE || undefined;
-  sessionStartMs = Date.now();
+  sessionId = randomUUID();
 
   // Load persisted state from SQLite KV (all reads are non-blocking best-effort)
   let storedInstanceId: string | null = null;
@@ -315,14 +318,18 @@ export function identify(username: string): void {
 
 export function capture<E extends TelemetryEvent>(
   event: E,
-  properties?: TelemetryEventProperties[E] | Record<string, unknown>
+  properties?: TelemetryProperties<E> | Record<string, unknown>
 ): void {
-  if (event === 'app_session') {
-    const dur = Math.max(0, Date.now() - (sessionStartMs || Date.now()));
-    void posthogCapture(event, { session_duration_ms: dur });
-    return;
-  }
-  void posthogCapture(event, properties as Record<string, unknown> | undefined);
+  const captureSessionId = sessionId ?? randomUUID();
+  sessionId = captureSessionId;
+  const envelope: TelemetryEnvelope = {
+    event_ts_ms: Date.now(),
+    session_id: captureSessionId,
+  };
+  void posthogCapture(event, {
+    ...(properties as Record<string, unknown> | undefined),
+    ...envelope,
+  });
 }
 
 /**
@@ -359,6 +366,7 @@ export function getTelemetryStatus() {
     userOptOut: userOptOut === true,
     hasKeyAndHost: !!apiKey && !!host,
     onboardingSeen,
+    session_id: sessionId ?? null,
   };
 }
 

@@ -9,25 +9,21 @@ export type FocusMainPanel = 'agents' | 'editor' | 'diff';
 export type FocusRightPanel = 'changes' | 'terminals' | 'files';
 export type FocusedRegion = 'main' | 'right';
 
-export type FocusTrigger =
-  | 'navigation'
-  | 'panel_switch'
-  | 'region_switch'
-  | 'tab_switch'
-  | 'window_blur'
-  | 'window_focus'
-  | 'modal_open'
-  | 'modal_close'
-  | 'app_quit';
+export type FocusTrigger = 'navigation' | 'panel_switch' | 'region_switch';
+
+export interface TelemetryEnvelope {
+  event_ts_ms?: number;
+  session_id?: string;
+  project_id?: string;
+  task_id?: string;
+  conversation_id?: string;
+}
 
 export interface FocusContext {
   active_view: FocusView | null;
   active_main_panel: FocusMainPanel | null;
   active_right_panel: FocusRightPanel | null;
   focused_region: FocusedRegion | null;
-  conversation_index: number | null;
-  time_in_view_ms: number;
-  session_duration_ms: number;
 }
 
 export type SettingName = 'theme' | 'default_provider' | 'telemetry' | 'notifications';
@@ -36,7 +32,6 @@ export type TelemetryEventProperties = {
   app_started: EmptyProps;
   app_closed: EmptyProps;
   app_window_focused: EmptyProps;
-  app_session: { session_duration_ms?: number };
   daily_active_user: { date: string; timezone: string };
 
   focus_changed: {
@@ -44,20 +39,15 @@ export type TelemetryEventProperties = {
     main_panel: FocusMainPanel | null;
     right_panel: FocusRightPanel | null;
     focused_region: FocusedRegion | null;
-    conversation_index: number | null;
-    duration_ms: number;
     trigger: FocusTrigger;
   };
 
-  home_viewed: { from_view: FocusView | null; dwell_ms: number };
-  project_viewed: { from_view: FocusView | null; dwell_ms: number };
-  task_viewed: { from_view: FocusView | null; dwell_ms: number };
-  settings_viewed: { from_view: FocusView | null; dwell_ms: number };
-  skills_viewed: { from_view: FocusView | null; dwell_ms: number };
-  mcp_viewed: { from_view: FocusView | null; dwell_ms: number };
-
-  modal_opened: { modal_id: string };
-  modal_closed: { modal_id: string; outcome: 'completed' | 'dismissed'; duration_ms: number };
+  home_viewed: { from_view: FocusView | null };
+  project_viewed: { from_view: FocusView | null };
+  task_viewed: { from_view: FocusView | null };
+  settings_viewed: { from_view: FocusView | null };
+  skills_viewed: { from_view: FocusView | null };
+  mcp_viewed: { from_view: FocusView | null };
 
   project_added: { source: 'open' | 'create' | 'clone' | 'ssh'; success: boolean };
   project_deleted: EmptyProps;
@@ -67,15 +57,34 @@ export type TelemetryEventProperties = {
     has_issue: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'none';
     provider: AgentProviderId | null;
   };
+  task_provisioned: EmptyProps;
+  task_archived: EmptyProps;
   task_status_changed: { from_status: TaskLifecycleStatus; to_status: TaskLifecycleStatus };
   task_deleted: EmptyProps;
 
   conversation_created: { provider: AgentProviderId; is_first_in_task: boolean };
+  conversation_deleted: EmptyProps;
   agent_run_started: { provider: AgentProviderId };
-  agent_run_finished: { provider: AgentProviderId; duration_ms: number; exit_code: number };
+  agent_run_finished: { provider: AgentProviderId; exit_code: number };
+
+  terminal_created: EmptyProps;
+  terminal_deleted: EmptyProps;
 
   pr_created: { is_draft: boolean };
   pr_creation_failed: { error_type: string };
+  pr_merged: {
+    strategy: 'merge' | 'squash' | 'rebase';
+    success: boolean;
+    error_type?: string;
+  };
+
+  vcs_branch_published: { success: boolean; error_type?: string };
+  vcs_fetch: { success: boolean; error_type?: string };
+  vcs_push: { success: boolean; error_type?: string };
+  vcs_pull: { success: boolean; strategy?: string; conflicts?: boolean; error_type?: string };
+  vcs_files_staged: { count: number; scope: 'single' | 'multiple' | 'all' };
+  vcs_files_unstaged: { count: number; scope: 'single' | 'multiple' | 'all' };
+  vcs_files_discarded: { count: number; scope: 'single' | 'multiple' | 'all' };
 
   integration_connected: { provider: 'github' | 'linear' | 'jira' };
   integration_disconnected: { provider: 'github' | 'linear' | 'jira' };
@@ -110,9 +119,8 @@ export type TelemetryEventProperties = {
     error_type?: string;
   };
   error: { error_type: string; scope: string };
-
-  task_snapshot: { task_count_bucket: string; project_count_bucket: string };
-  db_setup: { applied_migrations_bucket: string; recovered: boolean };
 };
 
 export type TelemetryEvent = keyof TelemetryEventProperties;
+export type TelemetryProperties<E extends TelemetryEvent> = TelemetryEventProperties[E] &
+  TelemetryEnvelope;

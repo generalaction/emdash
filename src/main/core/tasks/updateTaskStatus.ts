@@ -21,5 +21,7 @@ export async function updateTaskStatus(taskId: string, status: TaskLifecycleStat
   capture('task_status_changed', {
     from_status: row.status as TaskLifecycleStatus,
     to_status: status,
+    project_id: row.projectId,
+    task_id: row.id,
   });
 }

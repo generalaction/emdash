@@ -13,12 +13,10 @@ interface FocusState {
   mainPanel: FocusMainPanel | null;
   rightPanel: FocusRightPanel | null;
   focusedRegion: FocusedRegion | null;
-  conversationIndex: number | null;
 }
 
 export interface FocusTransitionResult {
   previous: FocusState;
-  durationMs: number;
   changed: boolean;
 }
 
@@ -26,25 +24,14 @@ type FocusChangedPayload = TelemetryEventProperties['focus_changed'];
 
 type TransitionEmitter = (payload: FocusChangedPayload) => void;
 
-const FORCE_TRANSITION_TRIGGERS = new Set<FocusTrigger>([
-  'window_blur',
-  'window_focus',
-  'modal_open',
-  'modal_close',
-  'app_quit',
-]);
-
 export class FocusTracker {
   private state: FocusState = {
     view: null,
     mainPanel: null,
     rightPanel: null,
     focusedRegion: null,
-    conversationIndex: null,
   };
 
-  private enteredAt = Date.now();
-  private sessionStart = Date.now();
   private initialized = false;
   private transitionEmitter?: TransitionEmitter;
 
@@ -54,8 +41,6 @@ export class FocusTracker {
       ...this.state,
       ...initial,
     };
-    this.enteredAt = Date.now();
-    this.sessionStart = Date.now();
     this.initialized = true;
   }
 
@@ -75,20 +60,13 @@ export class FocusTracker {
       if (value === undefined) return false;
       return this.state[key] !== value;
     });
-    if (!changed && !FORCE_TRANSITION_TRIGGERS.has(trigger)) {
-      return null;
-    }
-
-    const now = Date.now();
-    const durationMs = Math.max(0, now - this.enteredAt);
+    if (!changed) return null;
 
     this.transitionEmitter?.({
       view: previous.view,
       main_panel: previous.mainPanel,
       right_panel: previous.rightPanel,
       focused_region: previous.focusedRegion,
-      conversation_index: previous.conversationIndex,
-      duration_ms: durationMs,
       trigger,
     });
 
@@ -96,11 +74,9 @@ export class FocusTracker {
       ...this.state,
       ...partial,
     };
-    this.enteredAt = now;
 
     return {
       previous,
-      durationMs,
       changed,
     };
   }
@@ -111,9 +87,6 @@ export class FocusTracker {
       active_main_panel: this.state.mainPanel,
       active_right_panel: this.state.rightPanel,
       focused_region: this.state.focusedRegion,
-      conversation_index: this.state.conversationIndex,
-      time_in_view_ms: Math.max(0, Date.now() - this.enteredAt),
-      session_duration_ms: Math.max(0, Date.now() - this.sessionStart),
     };
   }
 }
