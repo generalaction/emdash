@@ -42,13 +42,6 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
 
   return (
     <div className="relative h-full overflow-y-auto bg-background-secondary-1">
-      <MarkdownRenderer
-        content={content}
-        variant="full"
-        className="w-full max-w-3xl px-8 py-8"
-        resolveImage={resolveImage}
-      />
-
       <ToggleGroup
         value={['markdown']}
         onValueChange={(value) => {
@@ -57,7 +50,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
           }
         }}
         size="sm"
-        className="absolute right-3 top-3 z-10"
+        className="sticky top-3 z-10 float-right mr-3"
       >
         <ToggleGroupItem value="markdown" aria-label="Preview">
           <Eye className="h-3.5 w-3.5" />
@@ -66,6 +59,12 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
           <Pencil className="h-3.5 w-3.5" />
         </ToggleGroupItem>
       </ToggleGroup>
+      <MarkdownRenderer
+        content={content}
+        variant="full"
+        className="w-full max-w-3xl px-8 py-8"
+        resolveImage={resolveImage}
+      />
     </div>
   );
 });

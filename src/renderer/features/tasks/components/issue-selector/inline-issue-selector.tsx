@@ -163,8 +163,8 @@ export function InlineIssueSelector({
       {/* Issue list */}
       <div ref={listRef} className="overflow-y-auto overflow-x-hidden h-52 p-1">
         {issues.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">
-            {query ? 'No issues found' : `No ${issueProvider ?? 'issues'} to show`}
+          <div className="text-center text-sm text-foreground-passive flex items-center justify-center h-full">
+            {query ? 'No issues found' : `No ${issueProvider} issues to show`}
           </div>
         ) : (
           issues.map((issue, index) => {

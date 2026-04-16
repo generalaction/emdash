@@ -25,7 +25,7 @@ function InlineEditInput({
   return (
     <input
       ref={ref}
-      className="max-w-16 bg-transparent outline-none text-sm border border-border p-1 rounded-md"
+      className="max-w-16 bg-transparent outline-none text-sm border border-border p-1 rounded-md text-foreground"
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={() => onConfirm(value)}
