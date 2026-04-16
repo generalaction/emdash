@@ -9,6 +9,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
+import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -71,6 +72,7 @@ export const AddProjectModal = observer(function AddProjectModal({
     strategy === 'ssh' ? (connectionId ?? availableConnectionIds[0]) : connectionId;
 
   const { navigate } = useNavigate();
+  const { isInitialized, needsGhAuth } = useGithubContext();
 
   const showSshConnModal = useShowModal('addSshConnModal');
   const showAddProjectModal = useShowModal('addProjectModal');
@@ -98,6 +100,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const pickState = usePickMode();
   const newState = useNewMode(defaultPath);
   const cloneState = useCloneMode(defaultPath);
+  const showGithubAuthDisclaimer = mode === 'new' && isInitialized && needsGhAuth;
 
   const activeMode = { pick: pickState, new: newState, clone: cloneState }[mode];
   const shouldCheckPickPathStatus =
@@ -258,7 +261,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             </Tooltip>
           </ToggleGroup>
         </div>
-        {strategy === 'ssh' && (
+        {strategy === 'ssh' && !showGithubAuthDisclaimer && (
           <Field>
             <FieldLabel>SSH Connection</FieldLabel>
             <SshConnectionSelector
@@ -281,6 +284,8 @@ export const AddProjectModal = observer(function AddProjectModal({
             strategy={strategy}
             connectionId={selectedConnectionId}
             state={newState}
+            showGithubAuthDisclaimer={showGithubAuthDisclaimer}
+            onOpenAccountSettings={() => navigate('settings', { tab: 'account' })}
           />
         )}
         {mode === 'clone' && (
