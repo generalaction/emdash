@@ -234,7 +234,7 @@ export class SshProjectProvider implements ProjectProvider {
         });
       }
       if (scripts?.run) {
-        void lifecycleService.prepareAndRunLifecycleScript({
+        void lifecycleService.prepareLifecycleScript({
           type: 'run',
           script: scripts.run,
         });

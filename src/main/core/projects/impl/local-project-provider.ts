@@ -201,7 +201,7 @@ export class LocalProjectProvider implements ProjectProvider {
       }
 
       if (scripts?.run) {
-        void lifecycleService.prepareAndRunLifecycleScript({
+        void lifecycleService.prepareLifecycleScript({
           type: 'run',
           script: scripts.run,
         });
