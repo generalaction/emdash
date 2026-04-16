@@ -8,7 +8,6 @@ import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
 import { ModalProvider } from './lib/modal/modal-provider';
 import { GithubContextProvider } from './lib/providers/github-context-provider';
-import { SshConnectionProvider } from './lib/providers/ssh-connection-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
 import { TerminalPoolProvider } from './lib/pty/pty-pool-provider';
 import { queryClient } from './lib/query-client';
@@ -33,19 +32,17 @@ export function App() {
         <ModalProvider>
           <WorkspaceLayoutContextProvider>
             <TerminalPoolProvider>
-              <SshConnectionProvider>
-                <GithubContextProvider>
-                  <IntegrationsProvider>
-                    <WorkspaceViewProvider>
-                      <RightSidebarProvider>
-                        <ThemeProvider>
-                          <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                        </ThemeProvider>
-                      </RightSidebarProvider>
-                    </WorkspaceViewProvider>
-                  </IntegrationsProvider>
-                </GithubContextProvider>
-              </SshConnectionProvider>
+              <GithubContextProvider>
+                <IntegrationsProvider>
+                  <WorkspaceViewProvider>
+                    <RightSidebarProvider>
+                      <ThemeProvider>
+                        <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                      </ThemeProvider>
+                    </RightSidebarProvider>
+                  </WorkspaceViewProvider>
+                </IntegrationsProvider>
+              </GithubContextProvider>
             </TerminalPoolProvider>
           </WorkspaceLayoutContextProvider>
         </ModalProvider>

@@ -11,7 +11,7 @@ import { useState } from 'react';
 import * as z from 'zod';
 import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { useSshConnectionContext } from '@renderer/lib/providers/ssh-connection-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -72,7 +72,7 @@ type AuthType = 'password' | 'key' | 'agent';
 type TestState = 'idle' | 'testing' | 'success' | 'error';
 
 export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connectionId: string }>) {
-  const { saveConnection, testConnection } = useSshConnectionContext();
+  const sshConnections = appState.sshConnections;
 
   const [testState, setTestState] = useState<TestState>('idle');
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
@@ -107,7 +107,7 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
           password: value.authType === 'password' ? value.password : undefined,
           passphrase: value.authType === 'key' ? value.passphrase : undefined,
         };
-        const saved = await saveConnection(config);
+        const saved = await sshConnections.saveConnection(config);
         onSuccess({ connectionId: saved.id });
       } finally {
         setIsSubmitting(false);
@@ -136,7 +136,7 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
     setTestResult(null);
     setShowDebugLogs(false);
     try {
-      const result = await testConnection(buildTestConfig());
+      const result = await sshConnections.testConnection(buildTestConfig());
       setTestResult(result);
       setTestState(result.success ? 'success' : 'error');
     } catch (err) {

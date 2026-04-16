@@ -37,6 +37,7 @@ export class SshConnectionError extends Error {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type SshConnectionEvent =
+  | { type: 'connecting'; connectionId: string }
   | { type: 'connected'; connectionId: string; proxy: SshClientProxy }
   | { type: 'disconnected'; connectionId: string }
   | { type: 'reconnecting'; connectionId: string; attempt: number; delayMs: number }
@@ -201,6 +202,16 @@ export class SshConnectionManager extends EventEmitter {
     const client = new Client();
 
     return new Promise((resolve, reject) => {
+      this.emit('connection-event', {
+        type: 'connecting',
+        connectionId: id,
+      } satisfies SshConnectionEvent);
+
+      events.emit(sshConnectionEventChannel, {
+        type: 'connecting',
+        connectionId: id,
+      });
+
       let resolved = false;
       const resolveOnce = (p: SshClientProxy) => {
         if (!resolved) {
@@ -220,6 +231,12 @@ export class SshConnectionManager extends EventEmitter {
           connectionId: id,
           error,
         } satisfies SshConnectionEvent);
+
+        events.emit(sshConnectionEventChannel, {
+          type: 'error',
+          connectionId: id,
+          errorMessage: error.message,
+        });
 
         reject(classifyError(error));
       });
