@@ -5,7 +5,6 @@
 - `src/main/`: Electron main process, IPC, services, database, PTY orchestration, updater, SSH, integrations
 - `src/renderer/`: React UI, task views, terminals, diff review, settings, skills, MCP, kanban
 - `src/shared/`: provider registry, IPC helpers, shared MCP/diff/SSH/task utilities
-- `docs/`: separate Next.js and Fumadocs site
 
 ## Boot Sequence
 

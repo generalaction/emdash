@@ -34,6 +34,7 @@ import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import { AccountTab } from './settings/AccountTab';
 import { WorkspaceProviderInfoCard } from './WorkspaceProviderInfoCard';
 import { useTaskSettings } from '../hooks/useTaskSettings';
+import { EMDASH_DOCS_URL } from '@shared/urls';
 
 export type SettingsPageTab =
   | 'general'
@@ -201,7 +202,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
   }, [onClose]);
 
   const handleDocsClick = useCallback(() => {
-    window.electronAPI.openExternal('https://docs.emdash.sh');
+    window.electronAPI.openExternal(EMDASH_DOCS_URL);
   }, []);
 
   const tabs: Array<{

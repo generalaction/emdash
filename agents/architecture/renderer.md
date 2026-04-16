@@ -35,4 +35,4 @@
 ## When Editing Here
 
 - Keep renderer IPC usage in sync with `src/renderer/types/electron-api.d.ts`.
-- If you change user-visible workflows, update the matching page in `docs/` when appropriate.
+- If you change user-visible workflows, update the public docs site when appropriate.
