@@ -3,7 +3,8 @@ import { formatChangelogPublishedAt } from '@/lib/changelogDate';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import type { ChangelogEntry } from '@shared/changelog';
-import { ArrowRight, X } from 'lucide-react';
+import { EMDASH_WEBSITE_URL } from '@shared/urls';
+import { ArrowRight, ExternalLink, X } from 'lucide-react';
 import { useEmdashAccount } from '@/contexts/EmdashAccountProvider';
 import { Button } from '@/components/ui/button';
 
@@ -72,6 +73,26 @@ export function ChangelogNotificationCard({
           </Button>
         </div>
       )}
+
+      <div className="border-t border-border/60 p-3">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            window.electronAPI.openExternal(EMDASH_WEBSITE_URL);
+          }}
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 text-left transition-colors hover:bg-accent/40"
+        >
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-foreground">Test the v1 Beta</p>
+            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <span>emdash.sh</span>
+              <ExternalLink className="h-3 w-3" />
+            </p>
+          </div>
+          <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+        </button>
+      </div>
 
       <button
         type="button"
