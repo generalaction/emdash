@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Branch } from '@shared/git';
 import { InlineIssueSelector } from '../components/issue-selector/inline-issue-selector';
 import { SelectedIssueValue } from '../components/issue-selector/issue-selector';
 import { BranchPickerField } from './branch-picker-field';
@@ -8,26 +7,22 @@ import { FromIssueModeState } from './use-from-issue-mode';
 
 interface FromIssueContentProps {
   state: FromIssueModeState;
-  branches: Branch[];
   projectId?: string;
+  currentBranch?: string | null;
   nameWithOwner?: string;
   projectPath?: string;
   disabled?: boolean;
   isUnborn?: boolean;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
 }
 
 export function FromIssueContent({
   state,
-  branches,
   projectId,
+  currentBranch,
   nameWithOwner = '',
   projectPath = '',
   disabled,
   isUnborn,
-  onRefresh,
-  isRefreshing,
 }: FromIssueContentProps) {
   const [isSelecting, setIsSelecting] = useState(!state.linkedIssue);
 
@@ -65,10 +60,9 @@ export function FromIssueContent({
 
       <BranchPickerField
         state={state}
-        branches={branches}
+        projectId={projectId}
+        currentBranch={currentBranch}
         isUnborn={isUnborn}
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
       />
       <TaskNameField state={state} />
     </div>

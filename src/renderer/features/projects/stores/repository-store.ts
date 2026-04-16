@@ -73,6 +73,7 @@ export class RepositoryStore {
       remoteBranches: computed,
       configuredRemote: computed,
       defaultBranchName: computed,
+      defaultBranch: computed,
       remotes: computed,
       loading: computed,
     });
@@ -119,13 +120,31 @@ export class RepositoryStore {
   get defaultBranchName(): string {
     const d = this.remoteData.data;
     if (!d) return 'main';
-    const configured = this.settingsStore.settings?.defaultBranch ?? bareRefName(this.baseRef);
+    const raw = this.settingsStore.settings?.defaultBranch;
+    const configured =
+      raw === undefined ? bareRefName(this.baseRef) : typeof raw === 'string' ? raw : raw.name;
     return computeDefaultBranch(
       configured,
-      this.localData.data?.localBranches ?? [],
+      this.branches,
       this.configuredRemote,
       d.gitDefaultBranch
     );
+  }
+
+  get defaultBranch(): LocalBranch | RemoteBranch | undefined {
+    const name = this.defaultBranchName;
+    const raw = this.settingsStore.settings?.defaultBranch;
+    const isRemotePref = typeof raw === 'object' && raw.remote === true;
+
+    if (isRemotePref) {
+      const remote = this.remoteBranches.find(
+        (b) => b.branch === name && b.remote === this.configuredRemote
+      );
+      if (remote) return remote;
+    }
+    const local = this.localBranches.find((b) => b.branch === name);
+    if (local) return local;
+    return this.remoteBranches.find((b) => b.branch === name);
   }
 
   isDefault(branch: LocalBranch | RemoteBranch): boolean {

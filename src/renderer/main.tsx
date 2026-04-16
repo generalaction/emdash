@@ -13,20 +13,22 @@ import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { appState } from './lib/stores/app-state';
 
 async function bootstrap() {
-  // Pre-warm Monaco immediately — runs in parallel with data loading.
-  codeEditorPool.init(0).catch((error: unknown) => {
-    log.warn('[monaco-code-pool] init failed:', error);
-  });
-  diffEditorPool.init(4).catch((error: unknown) => {
-    log.warn('[monaco-diff-pool] init failed:', error);
-  });
-
   // Wire invalidation bridges so FS and git events flow into the model registry.
   wireModelRegistryInvalidation(modelRegistry);
 
   appState.update.start();
   initSoundPlayer();
-  const [navResult, sidebarResult] = await Promise.all([
+
+  // Initialize Monaco and load app data in parallel. Awaiting Monaco here
+  // guarantees __monaco is set before React renders, so StickyDiffEditor can
+  // create editors synchronously on mount without any async coordination.
+  const [, , navResult, sidebarResult] = await Promise.all([
+    codeEditorPool.init(0).catch((error: unknown) => {
+      log.warn('[monaco-code-pool] init failed:', error);
+    }),
+    diffEditorPool.init(0).catch((error: unknown) => {
+      log.warn('[monaco-diff-pool] init failed:', error);
+    }),
     rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
     rpc.viewState.get('sidebar'),
     appState.projects.load(),

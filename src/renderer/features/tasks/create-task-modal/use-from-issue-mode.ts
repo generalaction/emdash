@@ -11,15 +11,15 @@ export type FromIssueModeState = ReturnType<typeof useFromIssueMode>;
 
 export function useFromIssueMode(
   selectedProjectId: string | undefined,
-  branches: Branch[],
-  defaultBranchName: string | undefined,
-  isUnborn: boolean
+  defaultBranch: Branch | undefined,
+  isUnborn: boolean,
+  currentBranchName?: string | null
 ) {
   const branchSelection = useBranchSelection(
     selectedProjectId,
-    branches,
-    defaultBranchName,
-    isUnborn
+    defaultBranch,
+    isUnborn,
+    currentBranchName
   );
   const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
   const [prevProjectId, setPrevProjectId] = useState(selectedProjectId);

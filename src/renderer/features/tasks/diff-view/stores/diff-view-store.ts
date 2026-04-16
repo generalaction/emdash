@@ -11,7 +11,7 @@ import { GitStore } from './git-store';
  * When the current diff context exceeds this limit the store automatically
  * switches to file mode and disables the stacked toggle.
  */
-export const MAX_STACKED_FILES = 75;
+export const MAX_STACKED_FILES = 50;
 
 /** Migrate persisted snapshots where `originalRef` was a plain string. */
 function migrateLegacyOriginalRef(legacy: string): GitRef {

@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { Activity } from 'react';
 import {
   getTaskStore,
   taskErrorMessage,
@@ -95,12 +96,17 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   const { taskView } = useProvisionedTask();
 
-  switch (taskView.view) {
-    case 'agents':
-      return <ConversationsPanel />;
-    case 'editor':
-      return <EditorMainPanel />;
-    case 'diff':
-      return <DiffView />;
-  }
+  return (
+    <>
+      <Activity mode={taskView.view === 'agents' ? 'visible' : 'hidden'}>
+        <ConversationsPanel />
+      </Activity>
+      <Activity mode={taskView.view === 'editor' ? 'visible' : 'hidden'}>
+        <EditorMainPanel />
+      </Activity>
+      <Activity mode={taskView.view === 'diff' ? 'visible' : 'hidden'}>
+        <DiffView />
+      </Activity>
+    </>
+  );
 });

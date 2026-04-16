@@ -64,9 +64,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const repo = selectedProjectId ? getRepositoryStore(selectedProjectId) : undefined;
-  const branches = repo?.branches ?? [];
-  const defaultBranch = repo?.defaultBranchName ?? undefined;
+  const defaultBranch = repo?.defaultBranch;
   const isUnborn = repo?.isUnborn ?? false;
+  const currentBranch = repo?.currentBranch ?? null;
   const { navigate } = useNavigate();
 
   const projectData = selectedProjectId
@@ -75,15 +75,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const { data: remoteState } = useNameWithOwner(selectedProjectId);
   const nameWithOwner = remoteState?.status === 'ready' ? remoteState.nameWithOwner : undefined;
 
-  const fromBranch = useFromBranchMode(selectedProjectId, branches, defaultBranch, isUnborn);
-  const fromIssue = useFromIssueMode(selectedProjectId, branches, defaultBranch, isUnborn);
-  const fromPR = useFromPullRequestMode(
-    selectedProjectId,
-    branches,
-    defaultBranch,
-    isUnborn,
-    initialPR
-  );
+  const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
+  const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
+  const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, isUnborn, initialPR);
   const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !nameWithOwner;
 
   const activeMode = {
@@ -216,23 +210,20 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           {selectedStrategy === 'from-branch' && (
             <FromBranchContent
               state={fromBranch}
-              branches={branches}
+              projectId={selectedProjectId}
+              currentBranch={currentBranch}
               isUnborn={isUnborn}
-              onRefresh={() => repo?.refresh()}
-              isRefreshing={repo?.loading ?? false}
             />
           )}
           {selectedStrategy === 'from-issue' && (
             <FromIssueContent
               state={fromIssue}
-              branches={branches}
               projectId={selectedProjectId}
+              currentBranch={currentBranch}
               nameWithOwner={nameWithOwner}
               projectPath={projectData?.path}
               disabled={isTransitioning}
               isUnborn={isUnborn}
-              onRefresh={() => repo?.refresh()}
-              isRefreshing={repo?.loading ?? false}
             />
           )}
           {selectedStrategy === 'from-pull-request' && (

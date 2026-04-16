@@ -38,6 +38,11 @@ export const diffEditorPool = {
     return diffPool.init(reserveTarget);
   },
 
+  /** Resolves with the Monaco namespace once init has completed. */
+  async whenReady(): Promise<typeof monaco> {
+    return diffPool.init(0).then(() => diffPool.getMonaco()!);
+  },
+
   lease(): Promise<DiffPoolEntry> {
     return diffPool.lease();
   },

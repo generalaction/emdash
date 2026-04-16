@@ -34,7 +34,7 @@ export function toShortBranchName(
 export function resolveInitialBaseBranch(
   branches: Branch[],
   preferredBaseRef: string | undefined,
-  defaultBranchName: string | undefined
+  defaultBranch: Branch | undefined
 ): Branch | undefined {
   const preferredName = toShortBranchName(preferredBaseRef, branches);
   if (preferredName) {
@@ -49,15 +49,5 @@ export function resolveInitialBaseBranch(
     if (preferredRemote) return preferredRemote;
   }
 
-  if (!defaultBranchName) return undefined;
-
-  const local = branches.find(
-    (branch) => branch.type === 'local' && branch.branch === defaultBranchName
-  );
-  if (local) return local;
-
-  const remoteAny = branches.find(
-    (branch) => branch.type === 'remote' && branch.branch === defaultBranchName
-  );
-  return remoteAny;
+  return defaultBranch;
 }

@@ -98,7 +98,7 @@ export const StagedSection = observer(function StagedSection() {
             }
           />
         )}
-        <div className="min-h-0 flex-1 p-1">
+        <div className="min-h-0 flex-1 px-1">
           <VirtualizedChangesList
             changes={changes}
             isSelected={(path) => selectedPaths.has(path)}

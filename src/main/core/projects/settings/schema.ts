@@ -1,5 +1,12 @@
 import z from 'zod';
 
+export const defaultBranchSettingSchema = z.union([
+  z.string(),
+  z.object({ name: z.string(), remote: z.literal(true) }),
+]);
+
+export type DefaultBranchSetting = z.infer<typeof defaultBranchSettingSchema>;
+
 export const projectSettingsSchema = z.object({
   preservePatterns: z
     .array(z.string())
@@ -23,7 +30,7 @@ export const projectSettingsSchema = z.object({
     })
     .optional(),
   worktreeDirectory: z.string().optional(),
-  defaultBranch: z.string().optional(),
+  defaultBranch: defaultBranchSettingSchema.optional(),
   remote: z.string().optional(),
 });
 

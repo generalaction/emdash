@@ -5,7 +5,7 @@ import type { Branch } from '@shared/git';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import { BranchSelector } from '@renderer/lib/components/branch-selector';
+import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -41,15 +41,13 @@ export const CreatePrModal = observer(function CreatePrModal({
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<Branch | undefined>();
   const [isCreating, setIsCreating] = useState(false);
   const repo = getRepositoryStore(projectId);
-  const branches = repo?.branches ?? [];
-  const defaultBranch = repo?.defaultBranchName ?? undefined;
+  const defaultBranch = repo?.defaultBranch;
   const taskPayload = getRegisteredTaskData(projectId, taskId);
 
   const hasGitHubRemote = Boolean(nameWithOwner);
-  const remoteBranches = branches.filter((b) => b.type === 'remote');
   const selectedBase =
     selectedBaseOverride ??
-    resolveInitialBaseBranch(remoteBranches, taskPayload?.sourceBranch, defaultBranch);
+    resolveInitialBaseBranch(repo?.remoteBranches ?? [], taskPayload?.sourceBranch, defaultBranch);
 
   const doPushAndCreate = async (
     capturedTitle: string,
@@ -127,12 +125,10 @@ export const CreatePrModal = observer(function CreatePrModal({
             No GitHub remote detected. Configure a GitHub remote to create pull requests.
           </p>
         )}
-        <BranchSelector
-          branches={branches}
+        <ProjectBranchSelector
+          projectId={projectId}
           value={selectedBase}
           onValueChange={setSelectedBaseOverride}
-          onRefresh={() => repo?.refresh()}
-          isRefreshing={repo?.loading ?? false}
           remoteOnly
           trigger={
             <ComboboxTrigger className="flex w-full items-center gap-2 justify-between border border-border rounded-md p-2 text-left outline-none">

@@ -26,8 +26,9 @@ describe('resolveInitialBaseBranch', () => {
       { type: 'local', branch: 'release/v2' },
       { type: 'local', branch: 'main' },
     ];
+    const defaultBranch: Branch = { type: 'local', branch: 'main' };
 
-    expect(resolveInitialBaseBranch(branches, 'release/v2', 'main')).toEqual({
+    expect(resolveInitialBaseBranch(branches, 'release/v2', defaultBranch)).toEqual({
       type: 'local',
       branch: 'release/v2',
     });
@@ -35,11 +36,18 @@ describe('resolveInitialBaseBranch', () => {
 
   it('falls back to repository default branch when preferred branch is unavailable', () => {
     const branches: Branch[] = [{ type: 'remote', remote: 'origin', branch: 'main' }];
+    const defaultBranch: Branch = { type: 'remote', remote: 'origin', branch: 'main' };
 
-    expect(resolveInitialBaseBranch(branches, 'release/v2', 'main')).toEqual({
+    expect(resolveInitialBaseBranch(branches, 'release/v2', defaultBranch)).toEqual({
       type: 'remote',
       remote: 'origin',
       branch: 'main',
     });
+  });
+
+  it('returns undefined when no preferred branch and no default branch', () => {
+    const branches: Branch[] = [{ type: 'remote', remote: 'origin', branch: 'main' }];
+
+    expect(resolveInitialBaseBranch(branches, undefined, undefined)).toBeUndefined();
   });
 });

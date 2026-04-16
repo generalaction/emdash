@@ -181,47 +181,136 @@ export class GitStore {
   }
 
   // ---------------------------------------------------------------------------
-  // Mutation methods — invalidate relevant resources after each mutation
+  // Mutation methods — optimistic update then authoritative reload
   // ---------------------------------------------------------------------------
 
-  private _invalidateStatus(): void {
-    this.fullStatus.invalidate();
+  /**
+   * Apply an optimistic transformation to fullStatus immediately, returning the
+   * previous value so callers can roll back on error.
+   */
+  private _applyOptimistic(fn: (prev: FullGitStatus) => FullGitStatus): FullGitStatus | null {
+    const prev = this.fullStatus.data;
+    if (prev) this.fullStatus.setValue(fn(prev));
+    return prev;
   }
 
   async stageFiles(paths: string[]): Promise<void> {
-    await rpc.git.stageFiles(this.projectId, this.workspaceId, paths);
-    this._invalidateStatus();
+    const pathSet = new Set(paths);
+    const previous = this._applyOptimistic((prev) => {
+      const moving = prev.unstaged.filter((c) => pathSet.has(c.path));
+      return {
+        ...prev,
+        staged: [...prev.staged, ...moving.map((c) => ({ ...c, isStaged: true }))],
+        unstaged: prev.unstaged.filter((c) => !pathSet.has(c.path)),
+        totalAdded: prev.totalAdded + moving.reduce((s, c) => s + c.additions, 0),
+        totalDeleted: prev.totalDeleted + moving.reduce((s, c) => s + c.deletions, 0),
+      };
+    });
+    try {
+      await rpc.git.stageFiles(this.projectId, this.workspaceId, paths);
+      this.fullStatus.invalidate();
+    } catch (e) {
+      if (previous) this.fullStatus.setValue(previous);
+      throw e;
+    }
   }
 
   async stageAllFiles(): Promise<void> {
-    await rpc.git.stageAllFiles(this.projectId, this.workspaceId);
-    this._invalidateStatus();
+    const previous = this._applyOptimistic((prev) => {
+      const allStaged = [...prev.staged, ...prev.unstaged.map((c) => ({ ...c, isStaged: true }))];
+      return {
+        ...prev,
+        staged: allStaged,
+        unstaged: [],
+        totalAdded: allStaged.reduce((s, c) => s + c.additions, 0),
+        totalDeleted: allStaged.reduce((s, c) => s + c.deletions, 0),
+      };
+    });
+    try {
+      await rpc.git.stageAllFiles(this.projectId, this.workspaceId);
+      this.fullStatus.invalidate();
+    } catch (e) {
+      if (previous) this.fullStatus.setValue(previous);
+      throw e;
+    }
   }
 
   async unstageFiles(paths: string[]): Promise<void> {
-    await rpc.git.unstageFiles(this.projectId, this.workspaceId, paths);
-    this._invalidateStatus();
+    const pathSet = new Set(paths);
+    const previous = this._applyOptimistic((prev) => {
+      const moving = prev.staged.filter((c) => pathSet.has(c.path));
+      return {
+        ...prev,
+        staged: prev.staged.filter((c) => !pathSet.has(c.path)),
+        unstaged: [...prev.unstaged, ...moving.map((c) => ({ ...c, isStaged: false }))],
+        totalAdded: prev.totalAdded - moving.reduce((s, c) => s + c.additions, 0),
+        totalDeleted: prev.totalDeleted - moving.reduce((s, c) => s + c.deletions, 0),
+      };
+    });
+    try {
+      await rpc.git.unstageFiles(this.projectId, this.workspaceId, paths);
+      this.fullStatus.invalidate();
+    } catch (e) {
+      if (previous) this.fullStatus.setValue(previous);
+      throw e;
+    }
   }
 
   async unstageAllFiles(): Promise<void> {
-    await rpc.git.unstageAllFiles(this.projectId, this.workspaceId);
-    this._invalidateStatus();
+    const previous = this._applyOptimistic((prev) => ({
+      ...prev,
+      staged: [],
+      unstaged: [...prev.unstaged, ...prev.staged.map((c) => ({ ...c, isStaged: false }))],
+      totalAdded: 0,
+      totalDeleted: 0,
+    }));
+    try {
+      await rpc.git.unstageAllFiles(this.projectId, this.workspaceId);
+      this.fullStatus.invalidate();
+    } catch (e) {
+      if (previous) this.fullStatus.setValue(previous);
+      throw e;
+    }
   }
 
   async discardFiles(paths: string[]): Promise<void> {
-    await rpc.git.revertFiles(this.projectId, this.workspaceId, paths);
-    this._invalidateStatus();
+    const pathSet = new Set(paths);
+    const previous = this._applyOptimistic((prev) => ({
+      ...prev,
+      unstaged: prev.unstaged.filter((c) => !pathSet.has(c.path)),
+    }));
+    try {
+      await rpc.git.revertFiles(this.projectId, this.workspaceId, paths);
+      this.fullStatus.invalidate();
+    } catch (e) {
+      if (previous) this.fullStatus.setValue(previous);
+      throw e;
+    }
   }
 
   async discardAllFiles(): Promise<void> {
-    await rpc.git.revertAllFiles(this.projectId, this.workspaceId);
-    this._invalidateStatus();
+    const previous = this._applyOptimistic((prev) => ({ ...prev, unstaged: [] }));
+    try {
+      await rpc.git.revertAllFiles(this.projectId, this.workspaceId);
+      this.fullStatus.invalidate();
+    } catch (e) {
+      if (previous) this.fullStatus.setValue(previous);
+      throw e;
+    }
   }
 
   async commit(message: string) {
     const result = await rpc.git.commit(this.projectId, this.workspaceId, message);
     if (result.success) {
-      this._invalidateStatus();
+      // Clear staged list immediately so the UI doesn't flash stale state
+      // while the authoritative reload is in flight.
+      this._applyOptimistic((prev) => ({
+        ...prev,
+        staged: [],
+        totalAdded: 0,
+        totalDeleted: 0,
+      }));
+      this.fullStatus.invalidate();
       this.repositoryStore.refreshLocal(); // new commit → local branch ahead count changes
       return ok();
     } else {
@@ -280,7 +369,7 @@ export class GitStore {
   async pull() {
     const result = await rpc.git.pull(this.projectId, this.workspaceId);
     if (result.success) {
-      this._invalidateStatus();
+      this.fullStatus.invalidate();
       this.repositoryStore.refreshLocal(); // local branch updated with pulled commits
       return ok();
     } else {

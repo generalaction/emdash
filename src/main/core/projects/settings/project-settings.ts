@@ -44,7 +44,9 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
 
   async getDefaultBranch(): Promise<string> {
     const settings = await this.get();
-    return settings.defaultBranch ?? this.defaultBranchFallback;
+    const branch = settings.defaultBranch;
+    if (!branch) return this.defaultBranchFallback;
+    return typeof branch === 'string' ? branch : branch.name;
   }
 
   async getRemote(): Promise<string> {
@@ -92,7 +94,9 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
 
   async getDefaultBranch(): Promise<string> {
     const settings = await this.get();
-    return settings.defaultBranch ?? this.defaultBranchFallback;
+    const branch = settings.defaultBranch;
+    if (!branch) return this.defaultBranchFallback;
+    return typeof branch === 'string' ? branch : branch.name;
   }
 
   async getRemote(): Promise<string> {

@@ -10,15 +10,15 @@ export type FromBranchModeState = ReturnType<typeof useFromBranchMode>;
 
 export function useFromBranchMode(
   selectedProjectId: string | undefined,
-  branches: Branch[],
-  defaultBranchName: string | undefined,
-  isUnborn: boolean
+  defaultBranch: Branch | undefined,
+  isUnborn: boolean,
+  currentBranchName?: string | null
 ) {
   const branchSelection = useBranchSelection(
     selectedProjectId,
-    branches,
-    defaultBranchName,
-    isUnborn
+    defaultBranch,
+    isUnborn,
+    currentBranchName
   );
   const { autoGenerateName } = useTaskSettings();
 

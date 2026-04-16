@@ -13,8 +13,7 @@ export type FromPullRequestModeState = ReturnType<typeof useFromPullRequestMode>
 
 export function useFromPullRequestMode(
   selectedProjectId: string | undefined,
-  branches: Branch[],
-  defaultBranchName: string | undefined,
+  defaultBranch: Branch | undefined,
   isUnborn: boolean,
   initialPR?: PullRequest
 ) {
@@ -26,12 +25,7 @@ export function useFromPullRequestMode(
     setLinkedPR(null);
     setCheckoutMode('checkout');
   }
-  const branchSelection = useBranchSelection(
-    selectedProjectId,
-    branches,
-    defaultBranchName,
-    isUnborn
-  );
+  const branchSelection = useBranchSelection(selectedProjectId, defaultBranch, isUnborn);
   const { autoGenerateName } = useTaskSettings();
 
   const shouldGenerate = autoGenerateName && linkedPR !== null;

@@ -1,12 +1,11 @@
-import { Check, GitBranch, Loader2, Undo2 } from 'lucide-react';
+import { Check, Loader2, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import type { Branch } from '@shared/git';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import { BranchSelector } from '@renderer/lib/components/branch-selector';
+import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { Button } from '@renderer/lib/ui/button';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Field, FieldDescription, FieldGroup, FieldTitle } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
@@ -29,7 +28,7 @@ type FormState = {
   scriptRun: string;
   scriptTeardown: string;
   worktreeDirectory: string;
-  defaultBranch: string;
+  defaultBranch: Branch | null;
   remote: string;
 };
 
@@ -38,7 +37,15 @@ function normalizeScript(val: string | string[] | undefined): string {
   return val ?? '';
 }
 
-export function settingsToForm(s: ProjectSettings): FormState {
+export function settingsToForm(s: ProjectSettings, configuredRemote: string): FormState {
+  let defaultBranch: Branch | null = null;
+  if (s.defaultBranch) {
+    if (typeof s.defaultBranch === 'string') {
+      defaultBranch = { type: 'local', branch: s.defaultBranch };
+    } else {
+      defaultBranch = { type: 'remote', branch: s.defaultBranch.name, remote: configuredRemote };
+    }
+  }
   return {
     preservePatterns: (s.preservePatterns ?? []).join('\n'),
     shellSetup: s.shellSetup ?? '',
@@ -47,12 +54,19 @@ export function settingsToForm(s: ProjectSettings): FormState {
     scriptRun: normalizeScript(s.scripts?.run),
     scriptTeardown: normalizeScript(s.scripts?.teardown),
     worktreeDirectory: s.worktreeDirectory ?? '',
-    defaultBranch: s.defaultBranch ?? '',
+    defaultBranch,
     remote: s.remote ?? '',
   };
 }
 
 export function formToSettings(f: FormState): ProjectSettings {
+  let defaultBranch: ProjectSettings['defaultBranch'];
+  if (f.defaultBranch) {
+    defaultBranch =
+      f.defaultBranch.type === 'remote'
+        ? { name: f.defaultBranch.branch, remote: true }
+        : f.defaultBranch.branch;
+  }
   return {
     preservePatterns: f.preservePatterns
       .split('\n')
@@ -66,7 +80,7 @@ export function formToSettings(f: FormState): ProjectSettings {
       teardown: f.scriptTeardown,
     },
     worktreeDirectory: f.worktreeDirectory || undefined,
-    defaultBranch: f.defaultBranch || undefined,
+    defaultBranch,
     remote: f.remote || undefined,
   };
 }
@@ -87,10 +101,14 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   save,
 }: ProjectSettingsFormProps) {
   const repo = getRepositoryStore(projectId);
-  const branches = repo?.branches ?? [];
   const remotes = repo?.remotes ?? [];
+  const configuredRemote = repo?.configuredRemote ?? 'origin';
 
-  const baseline = useMemo(() => settingsToForm(initial), [initial]);
+  const baseline = useMemo(
+    () => settingsToForm(initial, configuredRemote),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [initial]
+  );
   const [form, setForm] = useState<FormState>(baseline);
   const [savedForm, setSavedForm] = useState<FormState>(baseline);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -164,20 +182,10 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
               The branch new tasks are created from by default. Overrides the branch detected at
               project creation time.
             </FieldDescription>
-            <BranchSelector
-              branches={branches}
-              value={form.defaultBranch ? { type: 'local', branch: form.defaultBranch } : undefined}
-              onValueChange={(branch: Branch) => update('defaultBranch', branch.branch)}
-              onRefresh={() => repo?.refresh()}
-              isRefreshing={repo?.loading ?? false}
-              trigger={
-                <ComboboxTrigger className="border flex border-border h-9 hover:bg-muted/30 rounded-md px-2.5 py-1 text-left text-sm outline-none items-center justify-between w-full">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <GitBranch className="size-4 shrink-0" />
-                    <ComboboxValue placeholder="Select a branch" />
-                  </div>
-                </ComboboxTrigger>
-              }
+            <ProjectBranchSelector
+              projectId={projectId}
+              value={form.defaultBranch ?? undefined}
+              onValueChange={(branch: Branch) => update('defaultBranch', branch)}
             />
           </Field>
 

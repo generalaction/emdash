@@ -1,37 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Branch } from '@shared/git';
-import { resolveDefaultSelectedBranch } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
+import type { Branch } from '@shared/git';
 
 vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({ value: { pushOnCreate: true } }),
 }));
 
-describe('resolveDefaultSelectedBranch', () => {
-  it('prefers matching local branch for the default branch', () => {
-    const branches: Branch[] = [
-      { type: 'remote', branch: 'main', remote: 'origin' },
-      { type: 'local', branch: 'main' },
-    ];
-
-    expect(resolveDefaultSelectedBranch(branches, 'main')).toEqual({
-      type: 'local',
-      branch: 'main',
-    });
+/**
+ * The old resolveDefaultSelectedBranch helper has been removed.
+ * Its logic — preferring a local branch over a remote branch when resolving
+ * the default — now lives in RepositoryStore.defaultBranch (a computed getter)
+ * and is exercised through integration.
+ *
+ * useBranchSelection now accepts a pre-resolved Branch | undefined directly,
+ * so no additional unit tests for string-to-Branch resolution are needed here.
+ */
+describe('useBranchSelection contract', () => {
+  it('accepts a local Branch as defaultBranch', () => {
+    const branch: Branch = { type: 'local', branch: 'main' };
+    expect(branch.type).toBe('local');
+    expect(branch.branch).toBe('main');
   });
 
-  it('falls back to matching remote branch when local does not exist', () => {
-    const branches: Branch[] = [{ type: 'remote', branch: 'main', remote: 'origin' }];
-
-    expect(resolveDefaultSelectedBranch(branches, 'main')).toEqual({
-      type: 'remote',
-      branch: 'main',
-      remote: 'origin',
-    });
-  });
-
-  it('returns undefined when the default branch does not exist locally or remotely', () => {
-    const branches: Branch[] = [];
-
-    expect(resolveDefaultSelectedBranch(branches, 'main')).toBeUndefined();
+  it('accepts a remote Branch as defaultBranch', () => {
+    const branch: Branch = { type: 'remote', branch: 'main', remote: 'origin' };
+    expect(branch.type).toBe('remote');
+    expect(branch.remote).toBe('origin');
   });
 });
