@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import {
+  formatConversationTitleForDisplay,
+  nextDefaultConversationTitle,
+} from '@renderer/features/tasks/conversations/conversation-title-utils';
 
 describe('nextDefaultConversationTitle', () => {
   it('fills the smallest missing index for a provider', () => {
@@ -8,7 +11,7 @@ describe('nextDefaultConversationTitle', () => {
       { providerId: 'codex', title: 'codex (3)' },
     ]);
 
-    expect(title).toBe('codex (2)');
+    expect(title).toBe('Codex (2)');
   });
 
   it('appends when there are no gaps', () => {
@@ -18,7 +21,7 @@ describe('nextDefaultConversationTitle', () => {
       { providerId: 'codex', title: 'codex (3)' },
     ]);
 
-    expect(title).toBe('codex (4)');
+    expect(title).toBe('Codex (4)');
   });
 
   it('ignores other providers and non-default titles', () => {
@@ -28,6 +31,15 @@ describe('nextDefaultConversationTitle', () => {
       { providerId: 'codex', title: 'codex (2)' },
     ]);
 
-    expect(title).toBe('codex (1)');
+    expect(title).toBe('Codex (1)');
+  });
+
+  it('formats existing lowercase default titles for display', () => {
+    expect(formatConversationTitleForDisplay('codex', 'codex (2)')).toBe('Codex (2)');
+    expect(formatConversationTitleForDisplay('gemini', 'gemini (1)')).toBe('Gemini (1)');
+  });
+
+  it('leaves custom conversation titles unchanged', () => {
+    expect(formatConversationTitleForDisplay('codex', 'release-triage')).toBe('release-triage');
   });
 });
