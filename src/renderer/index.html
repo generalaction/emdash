@@ -8,9 +8,14 @@
       (function () {
         try {
           var raw = localStorage.getItem('emdash-theme');
-          var theme = raw ? JSON.parse(raw) : 'emlight';
-          var root = document.documentElement;
-          if (theme === 'emlight') root.classList.add('emlight');
+          var pref = raw ? JSON.parse(raw) : null;
+          var effective =
+            pref === 'emlight' || pref === 'emdark'
+              ? pref
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'emdark'
+                : 'emlight';
+          document.documentElement.classList.add(effective);
         } catch (_) {}
       })();
     </script>

@@ -35,7 +35,7 @@ export const CommitCard = observer(function CommitCard() {
   ];
   const diffView = provisioned.taskView.diffView;
   return (
-    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-lg border border-border bg-background-1 p-2">
+    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-xl border border-border bg-background-1 p-2">
       <Input
         placeholder="Commit message"
         autoFocus

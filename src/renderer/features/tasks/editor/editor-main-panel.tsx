@@ -1,4 +1,4 @@
-import { FileCode, Pencil } from 'lucide-react';
+import { Eye, FileCode, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { FileTabs } from '@renderer/features/tasks/editor/file-tabs';
 import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
@@ -10,6 +10,7 @@ import { SvgRenderer } from '@renderer/lib/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
 import type { ManagedFile } from '@renderer/lib/editor/types';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { useEditorContext } from './editor-provider';
 
 export const EditorMainPanel = observer(function EditorMainPanel() {
@@ -83,17 +84,25 @@ interface SourceToggleOverlayProps {
 }
 
 function SourceToggleOverlay({ filePath, kind, editorView }: SourceToggleOverlayProps) {
-  const label = kind === 'markdown' ? 'View preview' : 'View rendered';
-  const targetKind = kind === 'markdown' ? 'markdown' : 'svg';
+  const sourceKind = `${kind}-source` as 'markdown-source' | 'svg-source';
   return (
-    <button
-      className="absolute right-3 top-3 z-10 rounded p-1 bg-background/80 hover:bg-accent text-muted-foreground hover:text-foreground"
-      onClick={() => editorView.updateRenderer(filePath, () => ({ kind: targetKind }))}
-      title={label}
-      aria-label={label}
+    <ToggleGroup
+      value={[sourceKind]}
+      onValueChange={(value) => {
+        if (value.includes(kind)) {
+          editorView.updateRenderer(filePath, () => ({ kind }));
+        }
+      }}
+      size="sm"
+      className="absolute right-3 top-3 z-10"
     >
-      <Pencil className="h-3.5 w-3.5" />
-    </button>
+      <ToggleGroupItem value={kind} aria-label={kind === 'markdown' ? 'Preview' : 'View rendered'}>
+        <Eye className="h-3.5 w-3.5" />
+      </ToggleGroupItem>
+      <ToggleGroupItem value={sourceKind} aria-label="Edit source">
+        <Pencil className="h-3.5 w-3.5" />
+      </ToggleGroupItem>
+    </ToggleGroup>
   );
 }
 

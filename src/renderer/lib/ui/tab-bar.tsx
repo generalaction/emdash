@@ -82,8 +82,9 @@ export const TabBar = observer(function TabBar<TEntity>({
           onClick={() => onSelect(id)}
           onDoubleClick={() => onRename && setEditingId(id)}
           className={cn(
-            'group relative bg-background-1 flex flex-col h-full text-sm hover:bg-muted',
-            isActive && 'bg-background opacity-100 [box-shadow:inset_0_1px_0_var(--primary)]'
+            'group relative bg-background-secondary flex flex-col h-full text-sm text-foreground-muted hover:bg-background-secondary-1/40',
+            isActive &&
+              'bg-background-secondary-1 opacity-100 text-foreground hover:bg-background-secondary-1 '
           )}
         >
           <div className={cn('flex items-center pl-3 pr-1 h-full', !onRemove && 'pr-3')}>
@@ -142,7 +143,7 @@ export const TabBar = observer(function TabBar<TEntity>({
   };
 
   return (
-    <div className="flex items-center justify-between h-[41px] border-b border-border bg-background-1">
+    <div className="flex items-center justify-between h-[41px] border-b border-border bg-background-secondary">
       {onReorder ? (
         <ReorderList
           items={tabs}

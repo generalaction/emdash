@@ -29,9 +29,11 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
       )}
       aria-label={`${linesAdded} lines added, ${linesDeleted} lines removed`}
     >
-      {linesAdded > 0 ? <span className="text-green-600">+{linesAdded}</span> : null}
+      {linesAdded > 0 ? <span className="text-foreground-diff-added">+{linesAdded}</span> : null}
       {linesAdded > 0 && linesDeleted > 0 ? ' ' : null}
-      {linesDeleted > 0 ? <span className="text-red-600">-{linesDeleted}</span> : null}
+      {linesDeleted > 0 ? (
+        <span className="text-foreground-diff-deleted">-{linesDeleted}</span>
+      ) : null}
     </span>
   );
 });

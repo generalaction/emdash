@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
-import { TerminalPane } from '@renderer/lib/pty/pty-pane';
+import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import { cn } from '@renderer/utils/utils';
@@ -99,7 +99,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
         ) : (
           <div className={cn('flex min-h-0 flex-1 flex-col')}>
             {activeSessionId && activeSession?.status === 'ready' && activeSession.pty && (
-              <TerminalPane
+              <PtyPane
                 ref={terminalRef}
                 sessionId={activeSessionId}
                 pty={activeSession.pty}

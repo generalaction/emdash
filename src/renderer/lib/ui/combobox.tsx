@@ -120,7 +120,7 @@ function ComboboxContent({
           data-chips={!!anchor}
           finalFocus={finalFocus}
           className={cn(
-            'group/combobox-content relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[var(--anchor-width)] origin-(--transform-origin) overflow-hidden rounded-md bg-background text-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[chips=true]:min-w-(--anchor-width) data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 *:data-[slot=input-group]:m-0 *:data-[slot=input-group]:h-9 *:data-[slot=input-group]:border-t-0 *:data-[slot=input-group]:border-x-0 *:data-[slot=input-group]:border-b *:data-[slot=input-group]:border-border *:data-[slot=input-group]:rounded-none *:data-[slot=input-group]:bg-transparent *:data-[slot=input-group]:shadow-none *:data-[slot=input-group]:focus-within:ring-0 *:data-[slot=input-group]:focus-within:border-inherit data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+            'group/combobox-content relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[var(--anchor-width)] origin-(--transform-origin) overflow-hidden rounded-md bg-background-quaternary text-foreground shadow-sm ring-1 ring-foreground/10 duration-100 data-[chips=true]:min-w-(--anchor-width) data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 *:data-[slot=input-group]:m-0 *:data-[slot=input-group]:h-9 *:data-[slot=input-group]:border-t-0 *:data-[slot=input-group]:border-x-0 *:data-[slot=input-group]:border-b *:data-[slot=input-group]:border-border *:data-[slot=input-group]:rounded-none *:data-[slot=input-group]:bg-transparent *:data-[slot=input-group]:shadow-none *:data-[slot=input-group]:focus-within:ring-0 *:data-[slot=input-group]:focus-within:border-inherit data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
             className
           )}
           {...props}
@@ -148,7 +148,7 @@ function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
       className={cn(
-        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none not-data-selected:data-highlighted:bg-background-1 data-selected:bg-background-2 data-highlighted:text-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none not-data-selected:data-highlighted:bg-background-quaternary-1 data-selected:bg-background-quaternary-2 data-highlighted:text-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -175,7 +175,7 @@ function ComboboxLabel({ className, ...props }: ComboboxPrimitive.GroupLabel.Pro
   return (
     <ComboboxPrimitive.GroupLabel
       data-slot="combobox-label"
-      className={cn('px-2 py-1.5 text-xs text-muted-foreground', className)}
+      className={cn('px-2 py-1.5 text-xs text-foreground-muted', className)}
       {...props}
     />
   );

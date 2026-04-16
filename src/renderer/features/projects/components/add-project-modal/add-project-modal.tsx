@@ -16,14 +16,8 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { ModalLayout } from '@renderer/lib/ui/modal-layout';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { useCloneMode, useNewMode, usePickMode } from './modes';
@@ -209,27 +203,30 @@ export function AddProjectModal({
               Clone
             </ToggleGroupItem>
           </ToggleGroup>
-          <Select
-            value={strategy}
-            onValueChange={(value) => {
+          <ToggleGroup
+            value={[strategy]}
+            onValueChange={([value]) => {
               if (value) setStrategy(value as Strategy);
             }}
+            size="sm"
           >
-            <SelectTrigger>
-              <span className="flex items-center gap-2">
-                {strategy === 'local' ? (
-                  <Home className="size-3.5 shrink-0 text-foreground-muted" />
-                ) : (
-                  <Server className="size-3.5 shrink-0 text-foreground-muted" />
-                )}
-                <SelectValue placeholder="Select a strategy" />
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="local">Local</SelectItem>
-              <SelectItem value="ssh">SSH</SelectItem>
-            </SelectContent>
-          </Select>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem value="local" aria-label="Local" className="rounded-l-md">
+                  <Home className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>Local</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem value="ssh" aria-label="SSH" className="rounded-r-md">
+                  <Server className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>SSH</TooltipContent>
+            </Tooltip>
+          </ToggleGroup>
         </div>
         {strategy === 'ssh' && (
           <Field>

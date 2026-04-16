@@ -24,7 +24,7 @@ type Props = {
   onInterruptPress?: () => void;
 };
 
-const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
+const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
   (
     {
       sessionId,
@@ -118,9 +118,11 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
         <div
           ref={containerRef}
           data-terminal-container
+          className="p-2 bg-background-secondary-1"
           style={{
             width: '100%',
             height: '100%',
+
             minHeight: 0,
             overflow: 'hidden',
             filter: contentFilter || undefined,
@@ -135,6 +137,6 @@ const TerminalPaneComponent = forwardRef<{ focus: () => void }, Props>(
   }
 );
 
-TerminalPaneComponent.displayName = 'TerminalPane';
+PtyPaneComponent.displayName = 'TerminalPane';
 
-export const TerminalPane = React.memo(TerminalPaneComponent);
+export const PtyPane = React.memo(PtyPaneComponent);

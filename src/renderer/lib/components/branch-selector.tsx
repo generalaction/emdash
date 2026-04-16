@@ -67,7 +67,7 @@ export function BranchSelector({
           </div>
         </ComboboxTrigger>
       )}
-      <ComboboxContent className="min-w-(--anchor-width) pb-1">
+      <ComboboxContent className="min-w-(--anchor-width) pb-1 border">
         {!remoteOnly && (
           <ToggleGroup
             value={[tab]}
@@ -77,31 +77,28 @@ export function BranchSelector({
                 inputRef.current?.focus();
               }
             }}
-            className="w-full border-0 border-b border-border rounded-b-none"
+            className="w-full border-0 border-b border-border rounded-b-none bg-transparent"
           >
             <ToggleGroupItem
               value="local"
-              className="group flex-1 flex items-center gap-1"
+              className="group flex-1 flex items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
               disabled={localCount === 0}
             >
               Local
               <Badge
                 variant="secondary"
-                className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3"
+                className="shrink-0 bg-background-2 transition-colors hover:bg-background-quaternary-1 group-data-pressed:bg-background-quaternary-3"
               >
                 {localCount}
               </Badge>
             </ToggleGroupItem>
             <ToggleGroupItem
               value="remote"
-              className="group flex-1 flex items-center gap-1"
+              className="group flex-1 flex items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
               disabled={remoteCount === 0}
             >
               Remote
-              <Badge
-                variant="secondary"
-                className="shrink-0 bg-background-2 transition-colors group-data-pressed:bg-background-3"
-              >
+              <Badge variant="secondary" className="shrink-0 bg-background-2 transition-colors">
                 {remoteCount}
               </Badge>
             </ToggleGroupItem>

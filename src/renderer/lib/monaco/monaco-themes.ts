@@ -12,6 +12,15 @@ export function defineMonacoThemes(monaco: Monaco): void {
       'editor.lineHighlightBackground': cssVar('--monaco-line-highlight'),
       'editorLineNumber.foreground': cssVar('--monaco-line-number'),
       'editorGutter.background': cssVar('--monaco-gutter'),
+      'diffEditor.insertedTextBackground': cssVar('--monaco-inserted-text-bg'),
+      'diffEditor.insertedLineBackground': cssVar('--monaco-inserted-line-bg'),
+      'diffEditor.insertedTextBorder': cssVar('--monaco-inserted-text-border'),
+      'diffEditor.removedTextBackground': cssVar('--monaco-removed-text-bg'),
+      'diffEditor.removedLineBackground': cssVar('--monaco-removed-line-bg'),
+      'diffEditor.removedTextBorder': cssVar('--monaco-removed-text-border'),
+      'diffEditor.unchangedRegionBackground': cssVar('--monaco-unchanged-region-bg'),
+      'diffEditor.border': cssVar('--monaco-diff-border'),
+      'diffEditor.diagonalFill': cssVar('--monaco-diff-diagonal-fill'),
     },
   });
 
@@ -25,6 +34,15 @@ export function defineMonacoThemes(monaco: Monaco): void {
       'editor.lineHighlightBackground': cssVar('--monaco-line-highlight'),
       'editorLineNumber.foreground': cssVar('--monaco-line-number'),
       'editorGutter.background': cssVar('--monaco-gutter'),
+      'diffEditor.insertedTextBackground': cssVar('--monaco-inserted-text-bg'),
+      'diffEditor.insertedLineBackground': cssVar('--monaco-inserted-line-bg'),
+      'diffEditor.insertedTextBorder': cssVar('--monaco-inserted-text-border'),
+      'diffEditor.removedTextBackground': cssVar('--monaco-removed-text-bg'),
+      'diffEditor.removedTextBorder': cssVar('--monaco-removed-text-border'),
+      'diffEditor.removedLineBackground': cssVar('--monaco-removed-line-bg'),
+      'diffEditor.unchangedRegionBackground': cssVar('--monaco-unchanged-region-bg'),
+      'diffEditor.border': cssVar('--monaco-diff-border'),
+      'diffEditor.diagonalFill': cssVar('--monaco-diff-diagonal-fill'),
     },
   });
 
@@ -38,6 +56,15 @@ export function defineMonacoThemes(monaco: Monaco): void {
       'editor.lineHighlightBackground': cssVar('--monaco-line-highlight'),
       'editorLineNumber.foreground': cssVar('--monaco-line-number'),
       'editorGutter.background': cssVar('--monaco-gutter'),
+      'diffEditor.insertedTextBackground': cssVar('--monaco-inserted-text-bg'),
+      'diffEditor.insertedLineBackground': cssVar('--monaco-inserted-line-bg'),
+      'diffEditor.insertedTextBorder': cssVar('--monaco-inserted-text-border'),
+      'diffEditor.removedTextBackground': cssVar('--monaco-removed-text-bg'),
+      'diffEditor.removedLineBackground': cssVar('--monaco-removed-line-bg'),
+      'diffEditor.removedTextBorder': cssVar('--monaco-removed-text-border'),
+      'diffEditor.unchangedRegionBackground': cssVar('--monaco-unchanged-region-bg'),
+      'diffEditor.border': cssVar('--monaco-diff-border'),
+      'diffEditor.diagonalFill': cssVar('--monaco-diff-diagonal-fill'),
     },
   });
 }
@@ -47,12 +74,10 @@ export function getMonacoTheme(effectiveTheme: string): string {
     case 'dark-black':
       return 'custom-black';
     case 'dark':
+    case 'emdark':
       return 'custom-dark';
     case 'light':
     case 'emlight':
-      return 'custom-light';
-    case 'emdark':
-      return 'custom-dark';
     default:
       return 'custom-light';
   }

@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react';
+import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
@@ -6,6 +6,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
 interface MarkdownEditorRendererProps {
   filePath: string;
@@ -40,7 +41,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   );
 
   return (
-    <div className="relative h-full overflow-y-auto">
+    <div className="relative h-full overflow-y-auto bg-background-secondary-1">
       <MarkdownRenderer
         content={content}
         variant="full"
@@ -48,14 +49,23 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
         resolveImage={resolveImage}
       />
 
-      <button
-        className="absolute right-3 top-3 z-10 rounded p-1 bg-background/80 hover:bg-accent text-muted-foreground hover:text-foreground"
-        onClick={() => editorView.updateRenderer(filePath, () => ({ kind: 'markdown-source' }))}
-        title="Edit source"
-        aria-label="Edit source"
+      <ToggleGroup
+        value={['markdown']}
+        onValueChange={(value) => {
+          if (value.includes('markdown-source')) {
+            editorView.updateRenderer(filePath, () => ({ kind: 'markdown-source' }));
+          }
+        }}
+        size="sm"
+        className="absolute right-3 top-3 z-10"
       >
-        <Pencil className="h-3.5 w-3.5" />
-      </button>
+        <ToggleGroupItem value="markdown" aria-label="Preview">
+          <Eye className="h-3.5 w-3.5" />
+        </ToggleGroupItem>
+        <ToggleGroupItem value="markdown-source" aria-label="Edit source">
+          <Pencil className="h-3.5 w-3.5" />
+        </ToggleGroupItem>
+      </ToggleGroup>
     </div>
   );
 });

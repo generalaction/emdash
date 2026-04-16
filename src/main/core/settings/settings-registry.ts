@@ -31,7 +31,7 @@ export const SETTINGS_DEFAULTS = {
   terminal: {
     autoCopyOnSelection: false,
   },
-  theme: 'emlight' as const,
+  theme: null,
   defaultAgent: DEFAULT_AGENT_ID,
   keyboard: {},
   openIn: {

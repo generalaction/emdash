@@ -52,13 +52,27 @@
   --color-background-destructive: var(--background-destructive);
   --color-foreground-destructive: var(--foreground-destructive);
 
+  --color-background-quaternary: var(--background-quaternary);
+  --color-background-quaternary-1: var(--background-quaternary-1);
+  --color-background-quaternary-2: var(--background-quaternary-2);
+
+  --color-background-neutral: var(--background-neutral);
+  --color-foreground-neutral: var(--foreground-neutral);
+
+  --color-primary-button-background: var(--primary-button-background);
+  --color-primary-button-background-hover: var(--primary-button-background-hover);
+  --color-primary-button-foreground: var(--primary-button-foreground);
+  --color-primary-button-border: var(--primary-button-border);
+
+  --color-foreground-diff-added: var(--foreground-diff-added);
+  --color-foreground-diff-modified: var(--foreground-diff-modified);
+  --color-foreground-diff-deleted: var(--foreground-diff-deleted);
+
   --color-border: var(--border);
   --color-border-1: var(--border-1);
   --color-border-2: var(--border-2);
   --color-border-destructive: var(--border-destructive);
   --color-border-primary: var(--border-primary);
-
-  --color-primary: var(--primary);
 
   --color-status-in-progress: var(--status-in-progress);
   --color-status-in-review: var(--status-in-review);
@@ -115,8 +129,8 @@
     --foreground-muted: color(display-p3 0.392 0.392 0.392);
     --foreground-passive: color(display-p3 0.732 0.732 0.732);
 
-    --background-secondary: color(display-p3 0.939 0.939 0.939);
-    --background-secondary-1: color(display-p3 0.908 0.908 0.908);
+    --background-secondary: var(--background-1);
+    --background-secondary-1: var(--background);
     --background-secondary-2: color(display-p3 0.88 0.88 0.88);
     --background-secondary-3: color(display-p3 0.849 0.849 0.849);
 
@@ -133,10 +147,20 @@
     --foreground-tertiary-muted: color(display-p3 0.392 0.392 0.392);
     --foreground-tertiary-passive: color(display-p3 0.732 0.732 0.732);
 
+    --background-quaternary: var(--background);
+    --background-quaternary-1: var(--background-1);
+    --background-quaternary-2: var(--background-2);
+
     --background-destructive: color(display-p3 0.995 0.971 0.971);
     --foreground-destructive: color(display-p3 0.744 0.234 0.222);
 
-    --primary: color(display-p3 0.125 0.125 0.125);
+    --background-neutral: color(display-p3 0.933 0.933 0.933);
+    --foreground-neutral: color(display-p3 0.067 0.067 0.067);
+
+    --primary-button-background: color(display-p3 0.142 0.229 0.194);
+    --primary-button-background-hover: color(display-p3 0.15 0.5 0.37);
+    --primary-button-foreground: color(display-p3 0.962 0.983 0.969);
+    --primary-button-border: transparent;
 
     --border: color(display-p3 0.88 0.88 0.88);
     --border-1: color(display-p3 0.732 0.732 0.732);
@@ -155,6 +179,7 @@
     --status-done: color(display-p3 0.553 0.553 0.553);
     --status-todo: color(display-p3 0.553 0.553 0.553);
     --status-cancelled: color(display-p3 0.553 0.553 0.553);
+
     /* Monaco editor */
     --monaco-bg: #f8fafc;
     --monaco-fg: #1e293b;
@@ -176,13 +201,107 @@
     --xterm-selection-fg: #0f172a;
     --xterm-bg-mistral: #ffffff;
 
-    /* Diff decorations */
-    --diff-added: #10b981;
-    --diff-modified: #3b82f6;
-    --diff-deleted: #ef4444;
-    --diff-added-bg: rgba(16, 185, 129, 0.04);
-    --diff-modified-bg: rgba(59, 130, 246, 0.04);
-    --diff-deleted-bg: rgba(239, 68, 68, 0.04);
+    --foreground-diff-added: color(display-p3 0.426 0.694 0.426);
+    --foreground-diff-modified: color(display-p3 1 0.77 0.26);
+    --foreground-diff-deleted: color(display-p3 0.83 0.329 0.324);
+  }
+
+  .emdark {
+    --background: color(display-p3 0.067 0.067 0.067);
+    --background-1: color(display-p3 0.098 0.098 0.098);
+    --background-2: color(display-p3 0.135 0.135 0.135);
+    --background-3: color(display-p3 0.163 0.163 0.163);
+
+    --foreground: color(display-p3 0.933 0.933 0.933);
+    --foreground-inverse: color(display-p3 0.067 0.067 0.067);
+    --foreground-muted: color(display-p3 0.706 0.706 0.706);
+    --foreground-passive: color(display-p3 0.431 0.431 0.431);
+
+    --background-secondary: var(--background);
+    --background-secondary-1: var(--background-1);
+    --background-secondary-2: var(--background-2);
+    --background-secondary-3: var(--background-3);
+
+    --foreground-secondary: var(--foreground);
+    --foreground-secondary-muted: var(--foreground-muted);
+    --foreground-secondary-passive: var(--foreground-passive);
+
+    --background-tertiary: var(--background);
+    --background-tertiary-1: var(--background-1);
+    --background-tertiary-2: var(--background-2);
+    --background-tertiary-3: var(--background-3);
+
+    --foreground-tertiary: var(--foreground);
+    --foreground-tertiary-muted: var(--foreground-muted);
+    --foreground-tertiary-passive: var(--foreground-passive);
+
+    --background-quaternary: var(--background-1);
+    --background-quaternary-1: var(--background-2);
+    --background-quaternary-2: var(--background-3);
+
+    --background-destructive: color(display-p3 0.211 0.081 0.099);
+    --background-destructive-1: color(display-p3 0.25 0.102 0.122);
+    --foreground-destructive: color(display-p3 0.83 0.329 0.324);
+    --foreground-destructive-muted: color(display-p3 0.661 0.263 0.26);
+
+    --background-neutral: color(display-p3 0.933 0.933 0.933);
+    --foreground-neutral: color(display-p3 0.067 0.067 0.067);
+
+    --primary-button-background: color(display-p3 0.102 0.228 0.177);
+    --primary-button-background-hover: color(display-p3 0.133 0.279 0.221);
+    --primary-button-foreground: color(display-p3 0.734 0.934 0.838);
+    --primary-button-border: color(display-p3 0.219 0.402 0.335);
+
+    --border: color(display-p3 0.228 0.228 0.228);
+    --border-1: color(display-p3 0.283 0.283 0.283);
+    --border-2: color(display-p3 0.375 0.375 0.375);
+    --border-destructive: color(display-p3 0.659 0.298 0.297);
+    --border-primary: color(display-p3 0.553 0.553 0.553);
+
+    --ring: hsl(0 0% 3.9%);
+    --radius: 0.5rem;
+
+    --selection: color(display-p3 0.709 0.843 0.976);
+    --selection-foreground: color(display-p3 0.102 0.193 0.379);
+
+    --status-in-progress: color(display-p3 0.64 0.4 0);
+    --status-in-review: color(display-p3 0.344 0.598 0.342);
+    --status-done: color(display-p3 0.553 0.553 0.553);
+    --status-todo: color(display-p3 0.553 0.553 0.553);
+    --status-cancelled: color(display-p3 0.553 0.553 0.553);
+
+    /* Monaco editor */
+    --monaco-bg: #191919;
+    --monaco-fg: #b4b4b4;
+    --monaco-error-fg: #ff977d;
+
+    --monaco-line-highlight: #313131;
+    --monaco-line-number: #3a3a3a;
+    --monaco-gutter: #f8fafc;
+    --monaco-inserted-text-bg: #25482d;
+    --monaco-inserted-line-bg: #1b2a1e;
+    --monaco-inserted-text-border: #25482d;
+    --monaco-removed-text-bg: #611623;
+    --monaco-removed-line-bg: #3b1219;
+    --monaco-removed-text-border: #611623;
+    --monaco-unchanged-region-bg: #2a2a2a;
+    --monaco-diff-border: #3a3a3a;
+    --monaco-diff-diagonal-fill: #2a2a2a;
+    --monaco-selection-bg: #003362;
+    --monaco-selection-fg: #70b8ff;
+    --monaco-inactive-selection-bg: #ffffff22;
+
+    /* xterm terminals */
+    --xterm-bg: var(--background-1);
+    --xterm-fg: var(--foreground) --xterm-cursor: #1e293b;
+    --xterm-cursor-accent: color(display-p3 0.484 0.484 0.484);
+    --xterm-selection-bg: color(display-p3 0.033 0.197 0.37);
+    --xterm-selection-fg: color(display-p3 0.49 0.72 1);
+    --xterm-bg-mistral: #ffffff;
+
+    --foreground-diff-added: color(display-p3 0.426 0.694 0.426);
+    --foreground-diff-modified: color(display-p3 1 0.77 0.26);
+    --foreground-diff-deleted: color(display-p3 0.83 0.329 0.324);
   }
 
   .dark {

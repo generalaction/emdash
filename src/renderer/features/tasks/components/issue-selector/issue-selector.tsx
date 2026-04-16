@@ -276,18 +276,19 @@ export function ConnectIssueIntegrationPlaceholder() {
 
   return (
     <div className="flex flex-col gap-5 w-full border border-border border-dashed items-center justify-center rounded-md p-8">
-      <div className="flex items-center justify-center [&>span]:ring-2 [&>span]:ring-background [&>span:not(:first-child)]:-ml-1.5">
+      <div className="flex items-center justify-center [&>span]:ring-2 [&>span]:ring-background-quaternary [&>span:not(:first-child)]:-ml-1.5">
         {ISSUE_PROVIDER_ORDER.map((provider) => (
           <span
             key={provider}
-            className="relative flex items-center justify-center size-8 rounded-full bg-background-2 overflow-hidden"
+            className="relative flex items-center justify-center size-8 rounded-full bg-background-quaternary-2 overflow-hidden"
           >
             <ProviderLogo provider={provider} className="size-4" />
           </span>
         ))}
       </div>
       <p className="text-foreground-muted font-nomral text-sm text-center">
-        Connect with one of our issue integrations to link your issues to your tasks.
+        Connect with one of our issue integrations to link your issues to your tasks and use them as
+        context in your conversations.
       </p>
       <Button
         variant="outline"

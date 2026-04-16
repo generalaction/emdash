@@ -10,7 +10,15 @@ export const UpdateSection = observer(function UpdateSection() {
 
   if (update.hasUpdate) {
     return (
-      <Button variant="outline" size="sm" onClick={() => navigate('settings')}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          navigate('settings', {
+            tab: 'general',
+          })
+        }
+      >
         Upgrade
       </Button>
     );

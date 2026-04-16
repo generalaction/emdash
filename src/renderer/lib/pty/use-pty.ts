@@ -50,7 +50,7 @@ function getCellMetrics(terminal: Terminal): { width: number; height: number } |
   return null;
 }
 
-const PTY_RESIZE_DEBOUNCE_MS = 60;
+const PTY_RESIZE_DEBOUNCE_MS = 120;
 const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 1;
 const IS_MAC_PLATFORM =

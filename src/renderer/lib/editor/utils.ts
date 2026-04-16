@@ -17,6 +17,7 @@ export const isMarkdownFile = isMarkdownPath;
 export const DEFAULT_EDITOR_OPTIONS = {
   minimap: { enabled: true },
   fontSize: 13,
+  padding: { top: 12, bottom: 12 },
   lineNumbers: 'on' as const,
   rulers: [],
   wordWrap: 'on' as const,

@@ -34,7 +34,7 @@ export function LocalDirectorySelector({
 
   return (
     <button
-      className="h-9 border border-border rounded-md p-2 w-full flex items-center gap-2 hover:bg-background-1 transition-colors"
+      className="h-9 border border-border rounded-md p-2 w-full flex items-center gap-2 hover:bg-background-quaternary-1 pr-1.5 transition-colors"
       onClick={handleOpenFileDialog}
     >
       <Folder className="size-4 text-foreground-muted" />

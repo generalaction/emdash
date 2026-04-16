@@ -57,7 +57,7 @@ export const FileTabs: React.FC<FileTabsProps> = ({
   );
 
   return (
-    <div className="flex h-[41px] shrink-0 border-b border-border bg-background-1">
+    <div className="flex h-[41px] shrink-0 border-b border-border bg-background-secondary">
       {onReorder ? (
         <ReorderList
           items={tabs}
@@ -100,8 +100,9 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
     <>
       <button
         className={cn(
-          'group relative bg-background-1 flex flex-col h-full text-sm hover:bg-muted',
-          isActive && 'bg-background opacity-100 [box-shadow:inset_0_1px_0_var(--primary)]'
+          'group relative flex flex-col h-full text-sm hover:bg-muted',
+          isActive &&
+            'bg-background-secondary-1 opacity-100 [box-shadow:inset_0_1px_0_var(--primary)]'
         )}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
