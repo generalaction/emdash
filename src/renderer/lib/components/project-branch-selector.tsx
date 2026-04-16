@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { Branch } from '@shared/git';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { BranchSelector } from './branch-selector';
@@ -20,9 +20,17 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
   trigger,
 }: ProjectBranchSelectorProps) {
   const repo = getRepositoryStore(projectId);
+  const configuredRemote = repo?.configuredRemote ?? 'origin';
+
+  const branches = useMemo<Branch[]>(
+    () =>
+      repo ? repo.branches.filter((b) => b.type === 'local' || b.remote === configuredRemote) : [],
+    [repo, configuredRemote]
+  );
+
   return (
     <BranchSelector
-      branches={repo?.branches ?? []}
+      branches={branches}
       value={value}
       onValueChange={onValueChange}
       remoteOnly={remoteOnly}
