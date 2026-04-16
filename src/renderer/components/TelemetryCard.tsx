@@ -2,6 +2,9 @@ import React from 'react';
 import { Switch } from './ui/switch';
 import { Button } from './ui/button';
 import { useTelemetryConsent } from '../hooks/useTelemetryConsent';
+import { EMDASH_DOCS_URL } from '@shared/urls';
+
+const TELEMETRY_DOCS_URL = `${EMDASH_DOCS_URL}/telemetry`;
 
 const TelemetryCard: React.FC = () => {
   const { prefEnabled, envDisabled, hasKeyAndHost, loading, setTelemetryEnabled } =
@@ -20,7 +23,7 @@ const TelemetryCard: React.FC = () => {
               variant="link"
               size="sm"
               className="group inline-flex h-auto items-center gap-1 px-0 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline focus-visible:outline-none focus-visible:ring-0"
-              onClick={() => window.electronAPI.openExternal('https://docs.emdash.sh/telemetry')}
+              onClick={() => window.electronAPI.openExternal(TELEMETRY_DOCS_URL)}
             >
               <span className="transition-colors group-hover:text-foreground">
                 Telemetry information

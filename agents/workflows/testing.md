@@ -37,4 +37,3 @@ pnpm exec vitest run
 
 - after IPC changes: rerun the affected Vitest file and confirm `electron-api.d.ts`
 - after worktree or PTY changes: rerun the closest main-process service tests
-- after docs changes: run `pnpm --dir docs run types:check`

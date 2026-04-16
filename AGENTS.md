@@ -64,4 +64,3 @@ Start here. Load only the linked `agents/` docs that are relevant to the task.
 - Add renderer typings in `src/renderer/types/electron-api.d.ts` for any new IPC method.
 - Treat `src/main/services/ptyManager.ts`, `src/main/services/ssh/**`, `src/main/db/**`, and updater code as high risk.
 - Avoid editing `dist/`, `release/`, and `build/` unless the task is explicitly about packaging or updater/signing behavior.
-- The docs app in `docs/` is separate from the Electron renderer and also defaults to port `3000`.

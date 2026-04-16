@@ -7,6 +7,7 @@ import { Spinner } from './ui/spinner';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
 import { useFeatureFlag } from '../hooks/useFeatureFlag';
+import { EMDASH_DOCS_URL } from '@shared/urls';
 
 type LifecycleScripts = {
   setup: string;
@@ -43,7 +44,8 @@ const EMPTY_SCRIPTS: LifecycleScripts = {
   stop: '',
   teardown: '',
 };
-const PROJECT_CONFIG_DOCS_URL = 'https://docs.emdash.sh/project-config';
+const PROJECT_CONFIG_DOCS_URL = `${EMDASH_DOCS_URL}/project-config`;
+const WORKSPACE_PROVIDER_DOCS_URL = `${EMDASH_DOCS_URL}/bring-your-own-infrastructure`;
 
 function ensureConfigObject(raw: unknown): ConfigShape {
   return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as ConfigShape) : {};
@@ -469,7 +471,7 @@ export const ConfigEditorModal: React.FC<ConfigEditorModalProps> = ({
                     Shell commands to provision and tear down remote workspaces. When configured,
                     tasks can choose between a local worktree and a remote workspace.{' '}
                     <a
-                      href="https://docs.emdash.sh/bring-your-own-infrastructure"
+                      href={WORKSPACE_PROVIDER_DOCS_URL}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="underline hover:text-foreground"
