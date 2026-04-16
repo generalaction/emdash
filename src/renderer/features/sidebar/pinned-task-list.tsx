@@ -9,7 +9,7 @@ export const SidebarPinnedTaskList = observer(function SidebarPinnedTaskList() {
   if (entries.length === 0) return null;
 
   return (
-    <SidebarGroup className="shrink-0">
+    <SidebarGroup className="shrink-0 flex flex-col">
       <div className="flex items-center justify-between pl-5 pr-2.5 h-[40px]">
         <MicroLabel className="text-foreground-tertiary-passive">Pinned</MicroLabel>
       </div>

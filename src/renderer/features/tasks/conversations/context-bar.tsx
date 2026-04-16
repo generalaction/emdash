@@ -53,7 +53,7 @@ export const ContextBar = observer(function ContextBar() {
 
   return (
     <TooltipProvider>
-      <div className="border-t border-border p-2 flex items-center gap-2">
+      <div className="border-t border-border px-2 flex items-center gap-2 h-[41px]">
         {issueAction ? (
           <Tooltip>
             <TooltipTrigger>

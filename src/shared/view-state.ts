@@ -13,7 +13,7 @@ export type EditorViewSnapshot = {
 
 export type DiffViewSnapshot = {
   diffStyle: 'unified' | 'split';
-  viewMode: 'stacked' | 'file';
+  viewMode: 'file';
   activeFile?: ActiveFile;
   commitAction: 'commit' | 'commit-push' | null;
 };

@@ -1,4 +1,4 @@
-import { AlignJustify, Columns2, FileText, Layers } from 'lucide-react';
+import { AlignJustify, Columns2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
@@ -9,12 +9,10 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
 export const DiffToolbar = observer(function DiffToolbar() {
   const diffView = useProvisionedTask().taskView.diffView;
-  const viewMode = diffView.viewMode;
   const diffStyle = diffView.diffStyle;
   const activeFile = diffView.activeFile;
-  const stackedDiffDisabled = diffView.stackedDiffDisabled;
 
-  const filePath = viewMode === 'file' ? (activeFile?.path ?? undefined) : undefined;
+  const filePath = activeFile?.path ?? undefined;
   const { filename, directory } = filePath ? splitPath(filePath) : { filename: '', directory: '' };
 
   const diffSourceLabel = useMemo(() => {
@@ -28,7 +26,7 @@ export const DiffToolbar = observer(function DiffToolbar() {
   return (
     <div className="flex h-[41px] items-center gap-2 border-b border-border px-2 justify-between">
       <div className="flex items-center gap-3">
-        {viewMode === 'file' && filePath && (
+        {filePath && (
           <div className="text-sm flex items-center gap-2">
             <span className="flex items-center gap-1">
               <FileIcon filename={filename} size={12} />
@@ -40,23 +38,6 @@ export const DiffToolbar = observer(function DiffToolbar() {
         {diffSourceLabel && <Badge variant="outline">{diffSourceLabel}</Badge>}
       </div>
       <div className="flex items-center gap-2">
-        <ToggleGroup
-          size="sm"
-          multiple={false}
-          value={[viewMode]}
-          onValueChange={([value]) => {
-            if (value) {
-              diffView.setViewMode(value as 'stacked' | 'file');
-            }
-          }}
-        >
-          <ToggleGroupItem value="stacked" disabled={stackedDiffDisabled}>
-            <Layers className="h-3.5 w-3.5" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="file">
-            <FileText className="h-3.5 w-3.5" />
-          </ToggleGroupItem>
-        </ToggleGroup>
         <ToggleGroup
           size="sm"
           multiple={false}

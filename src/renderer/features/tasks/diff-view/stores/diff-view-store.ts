@@ -1,17 +1,10 @@
-import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { HEAD_REF, localRef, remoteRef, STAGED_REF, type GitRef } from '@shared/git';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { GitStore } from './git-store';
-
-/**
- * Maximum number of files that the stacked diff view can handle.
- * When the current diff context exceeds this limit the store automatically
- * switches to file mode and disables the stacked toggle.
- */
-export const MAX_STACKED_FILES = 50;
 
 /** Migrate persisted snapshots where `originalRef` was a plain string. */
 function migrateLegacyOriginalRef(legacy: string): GitRef {
@@ -27,15 +20,8 @@ function migrateLegacyOriginalRef(legacy: string): GitRef {
 export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   activeFileOverride: ActiveFile | null = null;
   diffStyle: 'unified' | 'split' = 'unified';
-  viewMode: 'stacked' | 'file' = 'stacked';
+  readonly viewMode = 'file' as const;
   commitAction: 'commit' | 'commit-push' | null = null;
-  /**
-   * True when the current diff context has more files than MAX_STACKED_FILES.
-   * The stacked view toggle is disabled in the UI while this is true.
-   * Auto-set to 'file' viewMode when it becomes true; does NOT reset viewMode
-   * when it becomes false again (user must switch back manually).
-   */
-  stackedDiffDisabled = false;
 
   readonly changesView: ChangesViewStore;
 
@@ -59,12 +45,9 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       activeFileOverride: observable,
       activeFile: computed,
       diffStyle: observable,
-      viewMode: observable,
-      stackedDiffDisabled: observable,
       commitAction: observable,
       setActiveFile: action,
       setDiffStyle: action,
-      setViewMode: action,
     });
 
     // Auto-expand the changes panel section that contains the newly selected file.
@@ -74,25 +57,6 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
         (file) => {
           if (!file || file.group === 'git' || file.group === 'pr') return;
           this.changesView.expandForActiveFileType(file.group);
-        }
-      )
-    );
-
-    // Enforce MAX_STACKED_FILES: when the current diff context has too many
-    // files, force file mode and mark stacked as disabled.
-    this._disposeReactions.push(
-      reaction(
-        () => this._currentFileCount(),
-        (count) => {
-          runInAction(() => {
-            if (count > MAX_STACKED_FILES) {
-              this.stackedDiffDisabled = true;
-              this.viewMode = 'file';
-            } else {
-              this.stackedDiffDisabled = false;
-              // Do not auto-switch back to stacked — user stays in file view.
-            }
-          });
         }
       )
     );
@@ -150,7 +114,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   get snapshot(): DiffViewSnapshot {
     return {
       diffStyle: this.diffStyle,
-      viewMode: this.viewMode,
+      viewMode: 'file',
       activeFile: this.activeFileOverride ?? undefined,
       commitAction: this.commitAction,
     };
@@ -158,7 +122,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
   restoreSnapshot(snapshot: Partial<DiffViewSnapshot>): void {
     if (snapshot.diffStyle) this.diffStyle = snapshot.diffStyle;
-    if (snapshot.viewMode) this.viewMode = snapshot.viewMode;
+    // viewMode is always 'file' — ignore any persisted value
     if (snapshot.activeFile) {
       const af = { ...snapshot.activeFile };
       if (typeof (af.originalRef as unknown) === 'string') {
@@ -170,9 +134,6 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       this._activeFileOverrideIndex = 0;
     }
     if (snapshot.commitAction) this.commitAction = snapshot.commitAction;
-    // Apply limit in case the persisted viewMode is 'stacked' but the file
-    // count already exceeds the threshold.
-    this._applyStackedLimit();
   }
 
   get effectiveCommitAction(): 'commit' | 'commit-push' {
@@ -199,11 +160,6 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     this.diffStyle = style;
   }
 
-  setViewMode(mode: 'stacked' | 'file'): void {
-    if (mode === 'stacked' && this.stackedDiffDisabled) return;
-    this.viewMode = mode;
-  }
-
   dispose(): void {
     for (const dispose of this._disposeReactions) dispose();
     this._disposeReactions = [];
@@ -220,24 +176,5 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       group: isUnstaged ? 'disk' : 'staged',
       originalRef: HEAD_REF,
     };
-  }
-
-  private _currentFileCount(): number {
-    const file = this.activeFile;
-    if (!file) return 0;
-    if (file.group === 'staged') return this.git.stagedFileChanges.length;
-    if (file.group === 'disk') return this.git.unstagedFileChanges.length;
-    if (file.group !== 'pr') return 0;
-    const activePr = this.pr.pullRequests.find(
-      (p) => file.prNumber != null && p.metadata.number === file.prNumber
-    );
-    return activePr ? (this.pr.getFiles(activePr).data?.length ?? 0) : 0;
-  }
-
-  private _applyStackedLimit(): void {
-    if (this._currentFileCount() > MAX_STACKED_FILES) {
-      this.stackedDiffDisabled = true;
-      this.viewMode = 'file';
-    }
   }
 }

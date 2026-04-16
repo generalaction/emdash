@@ -72,11 +72,11 @@ function GitChangeStatusIcon({
 }) {
   switch (status) {
     case 'added':
-      return <SquarePlus className={cn('size-4 text-green-500', className)} />;
+      return <SquarePlus className={cn('size-4 text-foreground-diff-added', className)} />;
     case 'modified':
-      return <SquareDot className={cn('size-4 text-yellow-500', className)} />;
+      return <SquareDot className={cn('size-4 text-foreground-diff-modified', className)} />;
     case 'deleted':
-      return <SquareMinus className={cn('size-4 text-red-500', className)} />;
+      return <SquareMinus className={cn('size-4 text-foreground-diff-deleted', className)} />;
     case 'renamed':
       return <SquareArrowRight className={cn('size-4 text-gray-500', className)} />;
     case 'conflicted':
