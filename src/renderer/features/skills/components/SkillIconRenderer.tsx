@@ -11,10 +11,34 @@ const sizeClasses: Record<SkillIconSize, { container: string; padding: string; t
   lg: { container: 'h-14 w-14', padding: 'p-3', text: 'text-lg' },
 };
 
-function processSvg(raw: string, fillColor: string): string {
-  let svg = raw.replace(/\bwidth="[^"]*"/g, '').replace(/\bheight="[^"]*"/g, '');
-  svg = svg.replace('<svg ', `<svg fill="${fillColor}" `);
-  return svg.replace('<svg ', '<svg class="h-full w-full" ');
+function processSvg(raw: string, fillColor: string): string | null {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(raw, 'image/svg+xml');
+  const root = doc.documentElement;
+
+  if (!root || root.tagName.toLowerCase() !== 'svg') {
+    return null;
+  }
+
+  if (doc.querySelector('parsererror')) {
+    return null;
+  }
+
+  // Remove risky elements/handlers before serializing.
+  doc.querySelectorAll('script, foreignObject').forEach((el) => el.remove());
+  doc.querySelectorAll('*').forEach((el) => {
+    for (const attr of [...el.attributes]) {
+      if (attr.name.toLowerCase().startsWith('on')) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+
+  root.removeAttribute('width');
+  root.removeAttribute('height');
+  root.setAttribute('fill', fillColor);
+
+  return new XMLSerializer().serializeToString(root);
 }
 
 interface SkillIconRendererProps {
@@ -46,13 +70,17 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
   // 1. Bundled SVG
   const svg = resolveSkillIcon(skill.id, skill.source);
   if (svg) {
-    const html = processSvg(svg, isDark ? '#ffffff' : '#000000');
-    return (
-      <div
-        className={`flex ${container} shrink-0 items-center justify-center rounded-xl bg-muted/40 ${padding}`}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    );
+    const processedSvg = processSvg(svg, isDark ? '#ffffff' : '#000000');
+    if (processedSvg) {
+      const dataUri = `data:image/svg+xml;utf8,${encodeURIComponent(processedSvg)}`;
+      return (
+        <div
+          className={`flex ${container} shrink-0 items-center justify-center rounded-xl bg-muted/40 ${padding}`}
+        >
+          <img src={dataUri} alt="" className="h-full w-full object-contain" loading="lazy" />
+        </div>
+      );
+    }
   }
 
   // 2. Simple-Icons CDN for known technologies (skills.sh-style brand mark)

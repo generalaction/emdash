@@ -75,8 +75,8 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     if (!skill) return;
     setIsProcessing(true);
     try {
-      await onUninstall(skill.id);
-      onClose();
+      const success = await onUninstall(skill.id);
+      if (success) onClose();
     } finally {
       setIsProcessing(false);
     }

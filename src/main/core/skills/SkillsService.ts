@@ -896,15 +896,40 @@ export class SkillsService {
     });
   }
 
-  /** Minimal YAML parser for openai.yaml interface block */
+  /** Minimal scalar YAML parser used for openai.yaml metadata fields. */
   private parseSimpleYaml(content: string): Record<string, string> {
     const result: Record<string, string> = {};
+
     for (const line of content.split('\n')) {
-      const match = line.match(/^\s+(\w+):\s*"?([^"]*)"?\s*$/);
-      if (match) {
-        result[match[1]] = match[2].trim();
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed === '---' || trimmed === '...') {
+        continue;
       }
+
+      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)$/);
+      if (!match) continue;
+
+      const key = match[1];
+      let value = match[2].trim();
+
+      // Skip parent/object keys and block scalars.
+      if (!value || value === '|' || value === '>') continue;
+
+      // Remove inline comments for unquoted scalars.
+      if (!value.startsWith('"') && !value.startsWith("'")) {
+        value = value.replace(/\s+#.*$/, '').trim();
+      }
+
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+
+      result[key] = value;
     }
+
     return result;
   }
 }

@@ -244,7 +244,9 @@ export function useSkills() {
   const { data: browseData, isPending: isBrowsePending } = useQuery({
     queryKey: ['skills', 'browse', browseKind] as const,
     queryFn: async () => {
-      const result = await rpc.skills.browse({ kind: browseKind! });
+      if (!browseKind) throw new Error('No browse kind selected');
+
+      const result = await rpc.skills.browse({ kind: browseKind });
       if (result.success && result.data) return result.data;
       throw new Error(result.error ?? 'Failed to load browse listing');
     },
