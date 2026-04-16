@@ -10,10 +10,11 @@ import { Input } from './ui/input';
 import { Spinner } from './ui/spinner';
 import { Textarea } from './ui/textarea';
 import { useToast } from '../hooks/use-toast';
+import { EMDASH_DOCS_URL } from '@shared/urls';
 const DISCORD_WEBHOOK_URL =
   'https://discord.com/api/webhooks/1473390363388416230/eRIo1UhylapH94KpqUUp5PDzkLhjBvcnjjyE_JezfHiAyfN3QEbRyEIJaSl8QQUz7Mak';
 
-const DOCS_URL = 'https://docs.emdash.sh/bring-your-own-infrastructure';
+const DOCS_URL = `${EMDASH_DOCS_URL}/bring-your-own-infrastructure`;
 
 interface AccessRequestModalProps {
   isOpen: boolean;

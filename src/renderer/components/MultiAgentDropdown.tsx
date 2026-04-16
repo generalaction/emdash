@@ -8,8 +8,10 @@ import { agentConfig } from '../lib/agentConfig';
 import AgentLogo from './AgentLogo';
 import type { UiAgent } from '@/providers/meta';
 import AgentTooltipRow from './AgentTooltipRow';
+import { EMDASH_DOCS_URL } from '@shared/urls';
 
 const MAX_RUNS = 4;
+const BEST_OF_N_DOCS_URL = `${EMDASH_DOCS_URL}/best-of-n`;
 
 interface MultiAgentDropdownProps {
   agentRuns: AgentRun[];
@@ -193,7 +195,7 @@ export const MultiAgentDropdown: React.FC<MultiAgentDropdownProps> = ({
                               Run up to {MAX_RUNS} instances of this agent to compare different
                               solutions.{' '}
                               <a
-                                href="https://docs.emdash.sh/best-of-n"
+                                href={BEST_OF_N_DOCS_URL}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-0.5 underline hover:opacity-70"
