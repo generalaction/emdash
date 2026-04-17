@@ -368,7 +368,9 @@ export class SshService extends EventEmitter {
     // Build the command with optional cwd, wrapped in a login shell so that
     // ~/.ssh/config, ~/.gitconfig, and other user-level configuration files
     // are available (ssh2's client.exec() uses a non-login shell by default).
-    const innerCommand = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
+    const safeCwd = cwd ? cwd.replace(/\\/g, '/') : undefined;
+    const innerCommand = safeCwd ? `cd ${quoteShellArg(safeCwd)} && ${command}` : command;
+
     const fullCommand = `bash -l -c ${quoteShellArg(innerCommand)}`;
 
     return new Promise((resolve, reject) => {
@@ -446,7 +448,10 @@ export class SshService extends EventEmitter {
     }
 
     const target = row.username ? `${row.username}@${row.host}` : row.host;
-    const innerCommand = cwd ? `cd ${quoteShellArg(cwd)} && ${command}` : command;
+
+    const safeCwd = cwd ? cwd.replace(/\\/g, '/') : undefined;
+    const innerCommand = safeCwd ? `cd ${quoteShellArg(safeCwd)} && ${command}` : command;
+
     const fullCommand = `bash -l -c ${quoteShellArg(innerCommand)}`;
 
     try {
