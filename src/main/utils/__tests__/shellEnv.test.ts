@@ -330,6 +330,68 @@ describe('shellEnv', () => {
       expect(process.env.LC_ALL).toBeUndefined();
     });
 
+    it('should strip AppImage env leakage from the probed shell', () => {
+      // Regression test: shellEnv.ts used to hand `...process.env` wholesale
+      // to the login shell it spawns for env probing. On Linux AppImage
+      // installs this meant the child shell saw APPIMAGE, APPDIR, and the
+      // `/tmp/.mount_*` entries on PATH. If any shell-init plugin (starship,
+      // mise, oh-my-zsh plugins) exec'd a binary by name through PATH, the
+      // exec could resolve back into the AppImage mount and re-enter Emdash's
+      // main process, which would run this probe again — a fork bomb.
+      //
+      // The fix routes the probe's env through buildExternalToolEnv() from
+      // ./childProcessEnv. These assertions lock the behavior in.
+      const appDir = '/tmp/.mount_emdashAbCd';
+      process.env.APPIMAGE = '/home/user/emdash.AppImage';
+      process.env.APPDIR = appDir;
+      process.env.ARGV0 = 'AppRun';
+      process.env.OWD = '/tmp';
+      process.env.PATH = `/usr/local/bin:${appDir}/usr/bin:/usr/bin`;
+      process.env.LD_LIBRARY_PATH = `${appDir}/usr/lib:/usr/local/cuda/lib64`;
+      delete process.env.LANG;
+      delete process.env.LC_CTYPE;
+      delete process.env.LC_ALL;
+
+      mockedExecSync.mockImplementation(
+        shellLookup({
+          SSH_AUTH_SOCK: '/detected/socket',
+          LANG: 'C.UTF-8',
+          LC_CTYPE: 'C.UTF-8',
+          LC_ALL: 'C.UTF-8',
+        })
+      );
+
+      initializeShellEnvironment();
+
+      // Every probe invocation should have been handed a scrubbed env — no
+      // AppImage keys, no mount paths in PATH-like vars. Filter to the shell
+      // probe calls specifically: on macOS, detectSshAuthSock() also calls
+      // `launchctl getenv SSH_AUTH_SOCK` with no `env` option, and we don't
+      // want that call to trip the `env` assertion below. The probe call
+      // sites in getShellEnvVar / getShellLocaleVars both use `-ilc`, which
+      // is a clean discriminator.
+      const probeCalls = mockedExecSync.mock.calls.filter(
+        (call) => typeof call[0] === 'string' && call[0].includes('-ilc')
+      );
+      expect(probeCalls.length).toBeGreaterThan(0);
+      for (const call of probeCalls) {
+        const options = call[1] as { env?: NodeJS.ProcessEnv } | undefined;
+        const env = options?.env;
+        expect(env).toBeDefined();
+        if (!env) continue;
+        expect(env.APPIMAGE).toBeUndefined();
+        expect(env.APPDIR).toBeUndefined();
+        expect(env.ARGV0).toBeUndefined();
+        expect(env.OWD).toBeUndefined();
+        expect(env.PATH).toBeDefined();
+        expect(env.PATH).not.toContain(appDir);
+        expect(env.PATH).not.toContain('/tmp/.mount_');
+        expect(env.LD_LIBRARY_PATH).toBeDefined();
+        expect(env.LD_LIBRARY_PATH).not.toContain(appDir);
+        expect(env.LD_LIBRARY_PATH).not.toContain('/tmp/.mount_');
+      }
+    });
+
     it('should drop non-UTF-8 overrides when LANG is already UTF-8', () => {
       process.env.LANG = 'en_US.UTF-8';
       process.env.LC_CTYPE = 'C';
