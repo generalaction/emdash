@@ -11,6 +11,7 @@ type LinearIssueNode = {
   title: string;
   description: string | null;
   url: string;
+  branchName: string | null;
   state: { name: string; type: string; color: string } | null;
   team: { name: string; key: string } | null;
   project: { name: string } | null;
@@ -31,6 +32,7 @@ const ISSUES_QUERY = `
         title
         description
         url
+        branchName
         state { name type color }
         team { name key }
         project { name }
@@ -50,6 +52,7 @@ const SEARCH_QUERY = `
         title
         description
         url
+        branchName
         state { name type color }
         team { name key }
         project { name }
@@ -67,6 +70,7 @@ function toIssue(raw: LinearIssueNode): Issue {
     title: raw.title,
     url: raw.url ?? '',
     description: raw.description ?? undefined,
+    branchName: raw.branchName ?? undefined,
     status: raw.state?.name ?? undefined,
     assignees: raw.assignee
       ? [raw.assignee.name ?? raw.assignee.displayName].filter(Boolean)

@@ -12,6 +12,7 @@ import type { ProvisionTaskError } from '../projects/project-provider';
 import { prRowToPullRequest } from '../pull-requests/pr-utils';
 import { appSettingsService } from '../settings/settings-service';
 import { mapTaskRowToTask } from './core';
+import { resolveTaskBranchName } from './resolveTaskBranchName';
 
 function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
   const msg = error.message;
@@ -51,9 +52,12 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
   switch (strategy.kind) {
     case 'new-branch': {
       const rawBranch = strategy.taskBranch;
-      taskBranch = branchPrefix
-        ? `${branchPrefix}/${rawBranch}-${suffix}`
-        : `${rawBranch}-${suffix}`;
+      taskBranch = resolveTaskBranchName({
+        rawBranch,
+        branchPrefix,
+        suffix,
+        linkedIssue: params.linkedIssue,
+      });
       const repoInfo = await project.repository.getRepositoryInfo();
       if (repoInfo.isUnborn) {
         return err({
@@ -112,9 +116,11 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       if (strategy.taskBranch) {
         // Create a new task branch on top of the just-fetched local head branch.
         const rawBranch = strategy.taskBranch;
-        taskBranch = branchPrefix
-          ? `${branchPrefix}/${rawBranch}-${suffix}`
-          : `${rawBranch}-${suffix}`;
+        taskBranch = resolveTaskBranchName({
+          rawBranch,
+          branchPrefix,
+          suffix,
+        });
         const createResult = await project.repository.createBranch(
           taskBranch,
           strategy.headBranch,
