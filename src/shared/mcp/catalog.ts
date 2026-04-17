@@ -450,4 +450,44 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     docsUrl: 'https://cognition.ai/blog/deepwiki-mcp-server',
     credentialKeys: [],
   },
+  excalidraw: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.excalidraw.com',
+    },
+    name: 'Excalidraw',
+    description: 'Stream hand-drawn Excalidraw diagrams with interactive fullscreen editing',
+    docsUrl: 'https://github.com/excalidraw/excalidraw-mcp',
+    credentialKeys: [],
+  },
+  github: {
+    config: {
+      type: 'http',
+      url: 'https://api.githubcopilot.com/mcp/',
+    },
+    name: 'Github',
+    description: 'Connect to GitHub for issues, PRs, repos, and Copilot tools',
+    docsUrl: 'https://github.com/github/mcp-server',
+    credentialKeys: [],
+  },
+  stitch: {
+    config: {
+      command: 'npx',
+      args: ['-y', 'davideast-stitch-mcp'],
+    },
+    name: 'Stitch',
+    description: 'AI-powered UI design tool - generate designs from prompts',
+    docsUrl: 'https://stitch.withgoogle.com/docs/mcp',
+    credentialKeys: [],
+  },
+  paper: {
+    config: {
+      type: 'http',
+      url: 'http://127.0.0.1:29979/mcp',
+    },
+    name: 'Paper',
+    description: 'Design tool - read/write design files, sync tokens, build websites',
+    docsUrl: 'https://paper.design/docs/mcp',
+    credentialKeys: [],
+  },
 };
