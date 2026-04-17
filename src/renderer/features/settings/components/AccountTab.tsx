@@ -1,5 +1,6 @@
 import { LogIn, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
   useAccountHealth,
   useAccountSession,
@@ -14,6 +15,7 @@ export function AccountTab() {
   const { data: serverAvailable } = useAccountHealth();
   const signInMutation = useAccountSignIn();
   const signOutMutation = useAccountSignOut();
+  const { toast } = useToast();
 
   const [error, setError] = useState<string | null>(null);
 
@@ -26,10 +28,27 @@ export function AccountTab() {
     try {
       const result = await signInMutation.mutateAsync(undefined);
       if (!result.success) {
-        setError(result.error || 'Sign in failed');
+        const message = result.error || 'Sign in failed';
+        setError(message);
+        toast({
+          title: 'Sign in failed',
+          description: message,
+          variant: 'destructive',
+        });
+        return;
       }
+      toast({
+        title: 'Signed in to Emdash',
+        description: `Connected as @${result.user.username}`,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed');
+      const message = err instanceof Error ? err.message : 'Sign in failed';
+      setError(message);
+      toast({
+        title: 'Sign in failed',
+        description: message,
+        variant: 'destructive',
+      });
     }
   };
 
