@@ -278,13 +278,14 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [runStatus, selection.onChange]);
 
   const totalTerminals = visibleTaskTerminals.length + visibleGlobalTerminals.length;
-  // Ignore the immediate Select onValueChange emitted from the same pointer interaction
-  // used to click the inline pin button inside an item.
-  const suppressSelectionUntilRef = useRef(0);
+  // Ignore the next Select onValueChange emitted from the same interaction
+  // used to click a row-level pin button.
+  const pinButtonClickedRef = useRef(false);
 
   const handleSelectionChange = useCallback(
     (value: string) => {
-      if (Date.now() < suppressSelectionUntilRef.current) {
+      if (pinButtonClickedRef.current) {
+        pinButtonClickedRef.current = false;
         return;
       }
       const parsed = parseTerminalValue(value);
@@ -639,7 +640,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                         onPointerDown={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          suppressSelectionUntilRef.current = Date.now() + 250;
+                          pinButtonClickedRef.current = true;
                           handleTogglePinned('task', terminal.id);
                         }}
                         onClick={(e) => {
@@ -704,7 +705,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                         onPointerDown={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          suppressSelectionUntilRef.current = Date.now() + 250;
+                          pinButtonClickedRef.current = true;
                           handleTogglePinned('global', terminal.id);
                         }}
                         onClick={(e) => {
