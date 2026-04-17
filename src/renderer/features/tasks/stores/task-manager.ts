@@ -1,6 +1,13 @@
 import { makeObservable, observable, runInAction, toJS } from 'mobx';
+import { toast } from 'sonner';
 import { taskPrUpdatedChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
-import type { CreateTaskError, CreateTaskParams, Task, TaskLifecycleStatus } from '@shared/tasks';
+import type {
+  CreateTaskError,
+  CreateTaskParams,
+  CreateTaskWarning,
+  Task,
+  TaskLifecycleStatus,
+} from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
@@ -19,20 +26,44 @@ function formatCreateTaskError(error: CreateTaskError): string {
   switch (error.type) {
     case 'project-not-found':
       return 'Project not found.';
-    case 'branch-not-found':
-      return `Branch "${error.branch}" was not found locally or on the remote. Make sure the PR branch exists.`;
-    case 'branch-already-exists':
-      return `Branch "${error.branch}" already exists. Try a different task name.`;
-    case 'invalid-base-branch':
-      return `Source branch "${error.branch}" is not a valid base. Check that it exists locally or on the selected remote.`;
     case 'initial-commit-required':
       return 'Create an initial commit to enable branch-based tasks.';
-    case 'worktree-setup-failed':
-      return `Could not set up the worktree: ${error.message}`;
+    case 'branch-create-failed': {
+      switch (error.error.type) {
+        case 'already_exists':
+          return `Branch "${error.error.name}" already exists. Try a different task name.`;
+        case 'invalid_base':
+          return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
+        case 'invalid_name':
+          return `Branch "${error.error.name}" is not a valid branch name.`;
+        case 'error':
+          return `Could not create branch "${error.branch}": ${error.error.message}`;
+      }
+    }
     case 'pr-fetch-failed':
-      return `Could not fetch the pull request branch: ${error.message}`;
+      return error.error.type === 'not_found'
+        ? `PR #${error.error.prNumber} was not found on remote "${error.remote}".`
+        : `Could not fetch the pull request branch: ${error.error.message}`;
+    case 'branch-not-found':
+      return `Branch "${error.branch}" was not found locally or on the remote. Make sure the PR branch exists.`;
+    case 'worktree-setup-failed':
+      return error.message
+        ? `Could not set up the worktree for branch "${error.branch}": ${error.message}`
+        : `Could not set up the worktree for branch "${error.branch}".`;
     case 'provision-failed':
       return `Task could not be provisioned: ${error.message}`;
+  }
+}
+
+function formatCreateTaskWarning(warning: CreateTaskWarning): string {
+  switch (warning.type) {
+    case 'branch-publish-failed': {
+      const detail =
+        'message' in warning.error
+          ? (warning.error.message ?? warning.error.type)
+          : warning.error.type;
+      return `Failed to publish branch "${warning.branch}" to "${warning.remote}": ${detail}`;
+    }
   }
 }
 
@@ -130,9 +161,13 @@ export class TaskManagerStore {
     runInAction(() => {
       const current = this.tasks.get(params.id);
       if (current && isUnregistered(current)) {
-        current.transitionToUnprovisioned(result.data, 'provision');
+        current.transitionToUnprovisioned(result.data.task, 'provision');
       }
     });
+
+    if (result.data.warning) {
+      toast.error(formatCreateTaskWarning(result.data.warning));
+    }
 
     await this.provisionTask(params.id);
   }
