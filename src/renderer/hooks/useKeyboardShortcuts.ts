@@ -508,6 +508,19 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
           target?.tagName === 'TEXTAREA' ||
           target?.isContentEditable);
 
+      // If the focused terminal belongs to a provider that has reserved this
+      // key (e.g. readline end-of-line, Copilot plan view), let it pass
+      // through to the CLI instead of firing an app shortcut.
+      if (isXtermTextarea) {
+        const hasPlatformMod = isMacPlatform
+          ? event.metaKey && !event.ctrlKey
+          : event.ctrlKey && !event.metaKey;
+        if (hasPlatformMod) {
+          const reservedShortcuts = target.dataset.reservedShortcuts?.split(',') ?? [];
+          if (reservedShortcuts.includes(key)) return;
+        }
+      }
+
       for (const shortcut of shortcuts) {
         const shortcutKey = normalizeShortcutKey(shortcut.config.key);
         const keyMatches = key === shortcutKey;

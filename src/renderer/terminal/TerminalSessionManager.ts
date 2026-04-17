@@ -427,14 +427,20 @@ export class TerminalSessionManager {
         }
       }
 
-      // Let registered app shortcuts propagate to the global handler.
+      // Let registered app shortcuts propagate to the global handler,
+      // unless the active provider has reserved the key for its own TUI use
+      // (e.g. readline end-of-line, plan view, etc.).
       const hasPlatformMod = IS_MAC_PLATFORM
         ? event.metaKey && !event.ctrlKey
         : event.ctrlKey && !event.metaKey;
       if (hasPlatformMod) {
         const key = normalizeShortcutKey(event.key);
-        if (!event.shiftKey && APP_CMD_KEYS.has(key)) return false;
-        if (event.shiftKey && APP_CMD_SHIFT_KEYS.has(key)) return false;
+        const provider = this.options.providerId
+          ? getProvider(this.options.providerId as ProviderId)
+          : undefined;
+        const isProviderReserved = provider?.reservedShortcuts?.includes(key) ?? false;
+        if (!event.shiftKey && APP_CMD_KEYS.has(key) && !isProviderReserved) return false;
+        if (event.shiftKey && APP_CMD_SHIFT_KEYS.has(key) && !isProviderReserved) return false;
       }
 
       return true; // Let xterm handle all other keys normally
@@ -481,6 +487,19 @@ export class TerminalSessionManager {
     if (!this.opened) {
       this.terminal.open(this.container);
       this.opened = true;
+
+      // Stamp provider reserved shortcuts onto the xterm textarea so the
+      // window-level shortcut handler (useKeyboardShortcuts) can skip them
+      // before the app shortcut fires.
+      if (this.options.providerId) {
+        const provider = getProvider(this.options.providerId as ProviderId);
+        const reserved = provider?.reservedShortcuts;
+        if (reserved?.length) {
+          const textarea = this.container.querySelector<HTMLElement>('.xterm-helper-textarea');
+          if (textarea) textarea.dataset.reservedShortcuts = reserved.join(',');
+        }
+      }
+
       const element = (this.terminal as any).element as HTMLElement | null;
       if (element) {
         element.style.width = '100%';
