@@ -12,7 +12,7 @@ export const UpdateSection = observer(function UpdateSection() {
     return (
       <Button
         variant="outline"
-        size="sm"
+        size="xs"
         onClick={() =>
           navigate('settings', {
             tab: 'general',
@@ -25,6 +25,8 @@ export const UpdateSection = observer(function UpdateSection() {
   }
 
   return (
-    <MicroLabel className="lowercase text-foreground-passive">v{update.currentVersion}</MicroLabel>
+    <MicroLabel className="inline-flex h-6 items-center lowercase text-foreground-passive">
+      v{update.currentVersion}
+    </MicroLabel>
   );
 });
