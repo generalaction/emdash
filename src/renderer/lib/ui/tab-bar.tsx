@@ -68,6 +68,17 @@ export const TabBar = observer(function TabBar<TEntity>({
   actions,
 }: TabBarProps<TEntity>) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [orderedTabs, setOrderedTabs] = useState(tabs);
+  const [isDragging, setIsDragging] = useState(false);
+  const orderedTabsRef = useRef(orderedTabs);
+
+  orderedTabsRef.current = orderedTabs;
+
+  useEffect(() => {
+    if (!isDragging) {
+      setOrderedTabs(tabs);
+    }
+  }, [isDragging, tabs]);
 
   const renderTab = (entity: TEntity) => {
     const id = getId(entity);
@@ -132,7 +143,7 @@ export const TabBar = observer(function TabBar<TEntity>({
     );
   };
 
-  const handleReorder = (newTabs: TEntity[]) => {
+  const commitReorder = (newTabs: TEntity[]) => {
     for (let toIdx = 0; toIdx < newTabs.length; toIdx++) {
       const fromIdx = tabs.findIndex((t) => getId(t) === getId(newTabs[toIdx]));
       if (fromIdx !== toIdx) {
@@ -146,8 +157,13 @@ export const TabBar = observer(function TabBar<TEntity>({
     <div className="flex items-center justify-between h-[41px] border-b border-border bg-background-secondary">
       {onReorder ? (
         <ReorderList
-          items={tabs}
-          onReorder={handleReorder}
+          items={orderedTabs}
+          onReorder={setOrderedTabs}
+          onDragStart={() => setIsDragging(true)}
+          onDragEnd={() => {
+            setIsDragging(false);
+            commitReorder(orderedTabsRef.current);
+          }}
           axis="x"
           className="flex overflow-x-auto w-full h-full"
           itemClassName="list-none flex h-full"

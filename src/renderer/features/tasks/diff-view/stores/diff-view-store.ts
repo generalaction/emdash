@@ -6,6 +6,8 @@ import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { GitStore } from './git-store';
 
+export const MAX_STACKED_FILES = 75;
+
 /** Migrate persisted snapshots where `originalRef` was a plain string. */
 function migrateLegacyOriginalRef(legacy: string): GitRef {
   if (legacy === 'HEAD') return HEAD_REF;
