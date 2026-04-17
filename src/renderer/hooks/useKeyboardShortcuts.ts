@@ -22,7 +22,8 @@ export type ShortcutSettingsKey =
   | 'newTask'
   | 'nextAgent'
   | 'prevAgent'
-  | 'openInEditor';
+  | 'openInEditor'
+  | 'fileSearch';
 
 export interface AppShortcut {
   key: string;
@@ -105,6 +106,14 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
     description: 'Open the command palette to quickly search and navigate',
     category: 'Navigation',
     settingsKey: 'commandPalette',
+  },
+  FILE_SEARCH: {
+    key: 'p',
+    modifier: 'cmd+shift',
+    label: 'File Search',
+    description: 'Search files in the current project',
+    category: 'Navigation',
+    settingsKey: 'fileSearch',
   },
 
   SETTINGS: {
@@ -377,6 +386,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
     const custom = handlers.customKeyboardSettings;
     return {
       commandPalette: getEffectiveConfig(APP_SHORTCUTS.COMMAND_PALETTE, custom),
+      fileSearch: getEffectiveConfig(APP_SHORTCUTS.FILE_SEARCH, custom),
       settings: getEffectiveConfig(APP_SHORTCUTS.SETTINGS, custom),
       toggleLeftSidebar: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_LEFT_SIDEBAR, custom),
       toggleRightSidebar: getEffectiveConfig(APP_SHORTCUTS.TOGGLE_RIGHT_SIDEBAR, custom),
@@ -482,6 +492,14 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onOpenInEditor?.(),
         priority: 'global',
         requiresClosed: true,
+      },
+      {
+        config: effectiveShortcuts.fileSearch,
+        handler: () => {
+          window.dispatchEvent(new CustomEvent('emdash:openFileSearch'));
+        },
+        priority: 'global',
+        isCommandPalette: true,
       },
     ];
     const shortcuts: ShortcutMapping[] = maybeShortcuts.filter(

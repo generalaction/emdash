@@ -7,6 +7,8 @@ import { SearchInput } from './SearchInput';
 import { ContentSearchResults } from './ContentSearchResults';
 import { getEditorState, saveEditorState } from '@/lib/editorStateStorage';
 import type { FileChange } from '@/hooks/useFileChanges';
+import { FileExplorerToolbar } from './FileExplorerToolbar';
+import { FileSearchModal } from './FileSearchModal';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -71,6 +73,7 @@ function findNode(nodes: FileNode[], path: string): FileNode | null {
 interface FileTreeProps {
   taskId: string;
   rootPath: string;
+  projectName?: string;
   selectedFile?: string | null;
   onSelectFile: (path: string) => void;
   onOpenFile?: (path: string) => void;
@@ -87,6 +90,7 @@ const TreeNode: React.FC<{
   node: FileNode;
   level: number;
   selectedPath?: string | null;
+  onSelectNode?: (node: FileNode) => void;
   expandedPaths: Set<string>;
   onToggleExpand: (path: string) => void;
   onSelect: (path: string) => void;
@@ -112,6 +116,7 @@ const TreeNode: React.FC<{
   onOpen,
   onLoadChildren,
   fileChanges,
+  onSelectNode,
   onContextMenuNewFile,
   onContextMenuNewFolder,
   onContextMenuRename,
@@ -134,6 +139,10 @@ const TreeNode: React.FC<{
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
+
+    if (onSelectNode) {
+      onSelectNode(node);
+    }
     if (node.type === 'directory') {
       // If not expanded and not loaded, load children
       if (!isExpanded && !node.isLoaded) {
@@ -220,6 +229,7 @@ const TreeNode: React.FC<{
                     onContextMenuCopyRelPath={onContextMenuCopyRelPath}
                     onContextMenuOpenTerminal={onContextMenuOpenTerminal}
                     onContextMenuReveal={onContextMenuReveal}
+                    onSelectNode={onSelectNode}
                   />
                 ))}
             </div>
@@ -260,6 +270,7 @@ const TreeNode: React.FC<{
 export const FileTree: React.FC<FileTreeProps> = ({
   taskId,
   rootPath,
+  projectName,
   selectedFile,
   onSelectFile,
   onOpenFile,
@@ -280,6 +291,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
   const [allFiles, setAllFiles] = useState<any[]>([]);
   const restoringRef = useRef(true);
   const loadingPathsRef = useRef(new Set<string>());
+  const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
 
   // Context menu state
   const [selectedNode, setSelectedNode] = useState<FileNode | null>(null);
@@ -508,6 +520,28 @@ export const FileTree: React.FC<FileTreeProps> = ({
       // Store all files for later use (filter out null/undefined items)
       const validItems = result.items.filter((item: any) => item && item.path && item.type);
       setAllFiles(validItems);
+
+      // After files are loaded, reload children for all expanded folders
+      const reloadExpandedFolders = async () => {
+        const expandedArray = Array.from(expandedPaths);
+
+        for (const path of expandedArray) {
+          // Find the node in the new file list
+          const item = validItems.find((f: any) => f.path === path);
+          if (item) {
+            // Construct a proper FileNode with required properties
+            const node: FileNode = {
+              id: item.path,
+              name: item.path.split('/').pop() || item.path,
+              path: item.path,
+              type: item.type === 'dir' ? 'directory' : item.type,
+            };
+            await loadChildren(node);
+          }
+        }
+      };
+      // Trigger reload of expanded folders
+      setTimeout(reloadExpandedFolders, 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load files');
     } finally {
@@ -518,6 +552,16 @@ export const FileTree: React.FC<FileTreeProps> = ({
   useEffect(() => {
     void loadAllFiles();
   }, [loadAllFiles]);
+
+  // Listen for file search shortcut event
+  useEffect(() => {
+    const handleOpenFileSearch = () => {
+      setIsFileSearchOpen(true);
+    };
+
+    window.addEventListener('emdash:openFileSearch', handleOpenFileSearch);
+    return () => window.removeEventListener('emdash:openFileSearch', handleOpenFileSearch);
+  }, []);
 
   // Build tree when files or filters change
   useEffect(() => {
@@ -611,6 +655,35 @@ export const FileTree: React.FC<FileTreeProps> = ({
     setIsNewFolderDialogOpen(true);
   };
 
+  // file collapable
+  const handleCollapseAll = () => {
+    setExpandedPaths(new Set());
+  };
+
+  const handleFileSearch = useCallback(() => {
+    setIsFileSearchOpen(true);
+  }, []);
+  const handleToolbarSearch = () => {
+    // Focus the search input
+    const handleToolbarSearch = () => {
+      // Detect platform
+      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
+      // Create keyboard event for Shift+Cmd+P (Mac) or Ctrl+Shift+P (Windows)
+      const key = isMac ? 'p' : 'p';
+      const event = new KeyboardEvent('keydown', {
+        key: key,
+        metaKey: isMac,
+        ctrlKey: !isMac,
+        shiftKey: true,
+        bubbles: true,
+      });
+
+      // Dispatch the event to trigger CommandPalette
+      document.dispatchEvent(event);
+    };
+  };
+
   const confirmRename = async () => {
     if (!renamingNode || !renameValue.trim() || renameValue === renamingNode.name) {
       setIsRenameDialogOpen(false);
@@ -650,11 +723,11 @@ export const FileTree: React.FC<FileTreeProps> = ({
   };
 
   const confirmNewFile = async () => {
-    if (!selectedNode || !newItemValue.trim()) {
+    if (!newItemValue.trim()) {
       setIsNewFileDialogOpen(false);
       return;
     }
-    const parentPath = getTargetDirectoryPath(selectedNode);
+    const parentPath = selectedNode ? getTargetDirectoryPath(selectedNode) : '';
     const relPath = parentPath ? `${parentPath}/${newItemValue.trim()}` : newItemValue.trim();
     const result = await window.electronAPI.fsWriteFile(rootPath, relPath, '', true, remoteArgs);
     if (!result.success) {
@@ -667,11 +740,11 @@ export const FileTree: React.FC<FileTreeProps> = ({
   };
 
   const confirmNewFolder = async () => {
-    if (!selectedNode || !newItemValue.trim()) {
+    if (!newItemValue.trim()) {
       setIsNewFolderDialogOpen(false);
       return;
     }
-    const parentPath = getTargetDirectoryPath(selectedNode);
+    const parentPath = selectedNode ? getTargetDirectoryPath(selectedNode) : '';
     const relPath = parentPath ? `${parentPath}/${newItemValue.trim()}` : newItemValue.trim();
     const result = await window.electronAPI.fsMkdir(rootPath, relPath, remoteArgs);
     if (!result.success) {
@@ -823,14 +896,19 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <div>
-        <SearchInput
-          value={searchQuery}
-          onChange={handleSearchChange}
-          onClear={clearSearch}
-          placeholder="Search..."
-        />
-      </div>
+      <FileExplorerToolbar
+        projectName={projectName || 'Files'}
+        onSearch={handleFileSearch}
+        onNewFile={() => {
+          setNewItemValue('');
+          setIsNewFileDialogOpen(true);
+        }}
+        onNewFolder={() => {
+          setNewItemValue('');
+          setIsNewFolderDialogOpen(true);
+        }}
+        onCollapse={handleCollapseAll}
+      />
 
       <div className="flex-1 overflow-auto">
         {searchQuery ? (
@@ -860,6 +938,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
                   onOpen={onOpenFile}
                   onLoadChildren={loadChildren}
                   fileChanges={fileChanges}
+                  onSelectNode={(node) => setSelectedNode(node)}
                   onContextMenuNewFile={handleNewFileClick}
                   onContextMenuNewFolder={handleNewFolderClick}
                   onContextMenuRename={handleRenameClick}
@@ -967,6 +1046,19 @@ export const FileTree: React.FC<FileTreeProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* File Search Modal */}
+      <FileSearchModal
+        isOpen={isFileSearchOpen}
+        onClose={() => setIsFileSearchOpen(false)}
+        onSelectFile={(filePath) => {
+          onSelectFile(filePath);
+          if (onOpenFile) onOpenFile(filePath);
+        }}
+        rootPath={rootPath}
+        connectionId={connectionId}
+        remotePath={remotePath}
+      />
     </div>
   );
 };

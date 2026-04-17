@@ -19,6 +19,7 @@ import {
   VscSymbolMisc,
   VscError,
 } from 'react-icons/vsc';
+import { Folder } from 'lucide-react';
 import {
   SiTypescript,
   SiJavascript,
@@ -383,15 +384,9 @@ export const FileIcon = memo<FileIconProps>(
     // Handle directories
     if (isDirectory) {
       const label = isExpanded ? 'Expanded folder' : 'Folder';
-      const Icon = isExpanded ? VscFolderOpened : VscFolder;
       return (
         <IconErrorBoundary>
-          <Icon
-            {...iconProps}
-            className={`${className} text-blue-500/80`}
-            aria-label={label}
-            title={label}
-          />
+          <Folder {...iconProps} className={`${className} text-blue-500/80`} aria-label={label} />
         </IconErrorBoundary>
       );
     }
