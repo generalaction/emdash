@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { InlineIssueSelector } from '../components/issue-selector/inline-issue-selector';
 import { SelectedIssueValue } from '../components/issue-selector/issue-selector';
 import { BranchPickerField } from './branch-picker-field';
@@ -26,8 +25,6 @@ export function FromIssueContent({
   isUnborn,
 }: FromIssueContentProps) {
   const [isSelecting, setIsSelecting] = useState(!state.linkedIssue);
-  const taskBranchPreview =
-    state.linkedIssue?.provider === 'linear' ? state.linkedIssue.branchName?.trim() : null;
 
   const handleValueChange = (issue: Parameters<typeof state.setLinkedIssue>[0]) => {
     state.setLinkedIssue(issue);
@@ -68,12 +65,6 @@ export function FromIssueContent({
         isUnborn={isUnborn}
       />
       <TaskNameField state={state} />
-      {taskBranchPreview ? (
-        <Field>
-          <FieldLabel>Task branch</FieldLabel>
-          <p className="text-sm text-foreground-muted font-mono break-all">{taskBranchPreview}</p>
-        </Field>
-      ) : null}
     </div>
   );
 }
