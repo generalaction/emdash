@@ -1,4 +1,4 @@
-import { makeObservable, observable, runInAction } from 'mobx';
+import { makeObservable, observable, runInAction, toJS } from 'mobx';
 import { taskPrUpdatedChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type { CreateTaskError, CreateTaskParams, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
@@ -100,10 +100,7 @@ export class TaskManagerStore {
       );
     });
 
-    const sourceBranch =
-      params.sourceBranch.type === 'remote'
-        ? { ...params.sourceBranch, remote: { ...params.sourceBranch.remote } }
-        : { ...params.sourceBranch };
+    const sourceBranch = structuredClone(toJS(params.sourceBranch));
 
     const result = await rpc.tasks.createTask({ ...params, sourceBranch }).catch((e: unknown) => {
       // Network/IPC-level failure — surface as a generic error.
