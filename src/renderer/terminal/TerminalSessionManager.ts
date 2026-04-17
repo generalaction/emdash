@@ -48,6 +48,7 @@ const SLOW_INPUT_HANDLER_MS = 16;
 const SLOW_INPUT_LOG_THROTTLE_MS = 2_000;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform);
 
 // Keys registered as global app shortcuts (Cmd on macOS, Ctrl on Linux/Windows).
 // Used to let these combos pass through xterm to the window-level shortcut handler
@@ -381,8 +382,7 @@ export class TerminalSessionManager {
         return false; // Prevent xterm from processing the copy shortcut
       }
 
-      // Handle Ctrl+Shift+V paste on Linux
-      if (shouldPasteToTerminal(event, IS_MAC_PLATFORM)) {
+      if (shouldPasteToTerminal(event, IS_MAC_PLATFORM, IS_WINDOWS_PLATFORM)) {
         event.preventDefault();
         event.stopImmediatePropagation();
         event.stopPropagation();
