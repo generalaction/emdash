@@ -664,6 +664,33 @@ export const useProjectManagement = () => {
     prewarmReserveForBaseRef,
   ]);
 
+  // Deep link event listeners
+  useEffect(() => {
+    const unsubscribeClone = window.electronAPI.onDeepLinkClone((data) => {
+      showModal('quickLinkModal', {
+        owner: data.owner,
+        repo: data.repo,
+        repoUrl: data.repoUrl,
+        onSuccess: (projectPath) => {
+          void handleCloneSuccess(projectPath);
+        },
+        onClose: () => {},
+      });
+    });
+
+    const unsubscribeOpenProject = window.electronAPI.onDeepLinkOpenProject((data) => {
+      const project = projects.find((p) => p.path === data.projectPath);
+      if (project) {
+        activateProjectView(project);
+      }
+    });
+
+    return () => {
+      unsubscribeClone();
+      unsubscribeOpenProject();
+    };
+  }, [projects, activateProjectView, showModal, handleCloneSuccess]);
+
   return {
     projects,
     selectedProject,

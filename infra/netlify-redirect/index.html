@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Redirecting...</title>
+    <script>
+      const path = window.location.pathname.replace(/^\//, '').split('/').filter(Boolean);
+      if (path.length >= 2) {
+        window.location.href = `emdash-github://${path[0]}/${path[1]}`;
+      } else {
+        document.body.innerHTML = '<h1>Emdash GitHub</h1><p>Use: /owner/repo</p>';
+      }
+    </script>
+  </head>
+  <body></body>
+</html>

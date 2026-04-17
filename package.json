@@ -259,6 +259,14 @@
       "allowToChangeInstallationDirectory": true,
       "perMachine": false
     },
+    "protocols": [
+      {
+        "name": "Emdash Github",
+        "schemes": [
+          "emdash-github"
+        ]
+      }
+    ],
     "npmRebuild": false
   },
   "pnpm": {

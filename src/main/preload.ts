@@ -542,12 +542,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('github:auth:user-updated', listener);
   },
 
+  // GitHub Quick Link
+  onDeepLinkClone: (listener: (data: { owner: string; repo: string; repoUrl: string }) => void) => {
+    const channel = 'deep-link:clone';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onDeepLinkOpenProject: (listener: (data: { projectPath: string }) => void) => {
+    const channel = 'deep-link:open-project';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onDeepLinkProjectCloned: (listener: (data: { projectPath: string }) => void) => {
+    const channel = 'deep-link:project-cloned';
+    const wrapped = (_: Electron.IpcRendererEvent, data: any) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
   githubIsAuthenticated: () => ipcRenderer.invoke('github:isAuthenticated'),
   githubGetStatus: () => ipcRenderer.invoke('github:getStatus'),
   githubGetUser: () => ipcRenderer.invoke('github:getUser'),
   githubGetRepositories: () => ipcRenderer.invoke('github:getRepositories'),
   githubCloneRepository: (repoUrl: string, localPath: string) =>
     ipcRenderer.invoke('github:cloneRepository', repoUrl, localPath),
+  githubQuickLinkClone: (params: { owner: string; repo: string; repoUrl: string }) =>
+    ipcRenderer.invoke('github:quickLinkClone', params),
   githubGetOwners: () => ipcRenderer.invoke('github:getOwners'),
   githubValidateRepoName: (name: string, owner: string) =>
     ipcRenderer.invoke('github:validateRepoName', name, owner),

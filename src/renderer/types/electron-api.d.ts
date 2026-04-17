@@ -876,6 +876,17 @@ declare global {
       ) => () => void;
       onGithubAuthCancelled: (callback: () => void) => () => void;
       onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;
+      // GitHub Quick Link
+      onDeepLinkClone: (
+        listener: (data: { owner: string; repo: string; repoUrl: string }) => void
+      ) => () => void;
+      onDeepLinkOpenProject: (listener: (data: { projectPath: string }) => void) => () => void;
+      onDeepLinkProjectCloned: (listener: (data: { projectPath: string }) => void) => () => void;
+      githubQuickLinkClone: (params: { owner: string; repo: string; repoUrl: string }) => Promise<{
+        success: boolean;
+        projectPath?: string;
+        error?: string;
+      }>;
       githubIsAuthenticated: () => Promise<boolean>;
       githubGetStatus: () => Promise<{
         installed: boolean;
@@ -1892,6 +1903,17 @@ export interface ElectronAPI {
   onGithubAuthError: (callback: (data: { error: string; message: string }) => void) => () => void;
   onGithubAuthCancelled: (callback: () => void) => () => void;
   onGithubAuthUserUpdated: (callback: (data: { user: any }) => void) => () => void;
+  // GitHub Quick Link
+  onDeepLinkClone: (
+    listener: (data: { owner: string; repo: string; repoUrl: string }) => void
+  ) => () => void;
+  onDeepLinkOpenProject: (listener: (data: { projectPath: string }) => void) => () => void;
+  onDeepLinkProjectCloned: (listener: (data: { projectPath: string }) => void) => () => void;
+  githubQuickLinkClone: (params: { owner: string; repo: string; repoUrl: string }) => Promise<{
+    success: boolean;
+    projectPath?: string;
+    error?: string;
+  }>;
   githubIsAuthenticated: () => Promise<boolean>;
   githubGetUser: () => Promise<any>;
   githubGetRepositories: () => Promise<any[]>;

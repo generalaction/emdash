@@ -495,6 +495,28 @@ export function registerGithubIpc() {
     }
   );
 
+  ipcMain.handle(
+    'github:quickLinkClone',
+    async (_, args: { owner: string; repo: string; repoUrl: string }) => {
+      const { owner, repo, repoUrl } = args;
+      const settings = getAppSettings();
+      const projectDir =
+        settings.projects?.defaultDirectory || path.join(homedir(), 'emdash-projects');
+      const localPath = path.join(projectDir, repo);
+
+      const cloneResult = await githubService.cloneRepository(repoUrl, localPath);
+      if (!cloneResult.success) {
+        return {
+          success: false,
+          error: cloneResult.error || 'Clone failed',
+          projectPath: undefined,
+        };
+      }
+
+      return { success: true, projectPath: localPath };
+    }
+  );
+
   ipcMain.handle('github:checkCLIInstalled', async () => {
     try {
       return await githubCLIInstaller.isInstalled();

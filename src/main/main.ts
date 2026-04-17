@@ -149,7 +149,9 @@ if (!isDev) {
   }
 }
 
-app.on('second-instance', () => {
+app.on('second-instance', (_event, commandLine) => {
+  const url = commandLine.find((arg) => arg.startsWith(`${PROTOCOL}://`));
+  if (url) handleDeepLinkUrl(url);
   const win = BrowserWindow.getAllWindows()[0];
   if (win) {
     if (win.isMinimized()) win.restore();
@@ -174,6 +176,26 @@ if (process.platform === 'darwin' && !app.isPackaged) {
     app.dock.setIcon(iconPath);
   } catch (err) {
     console.warn('Failed to set dock icon:', err);
+  }
+}
+
+// register protocol + handle deep links
+const PROTOCOL = 'emdash-github';
+
+function registerDeepLinkProtocol() {
+  if (process.platform === 'darwin' || process.platform === 'win32') {
+    app.setAsDefaultProtocolClient(PROTOCOL);
+  }
+}
+function handleDeepLinkUrl(url: string | null) {
+  if (!url) return;
+
+  if (url.startsWith(`${PROTOCOL}://`)) {
+    const { DeepLinkService } = require('./services/DeepLinkServices');
+    const deepLinkService = new DeepLinkService();
+    deepLinkService.handleQuickLink(url).catch((err: Error) => {
+      console.log('[DeepLink] failed to handle quick link:', err);
+    });
   }
 }
 
@@ -343,6 +365,32 @@ app.whenReady().then(async () => {
 
   // Create main window
   createMainWindow();
+
+  // register protocol handler
+
+  registerDeepLinkProtocol();
+
+  // handle protocol on macos (opemn url event)
+
+  app.on('open-url', (_envet, url) => {
+    handleDeepLinkUrl(url);
+  });
+
+  // Handle protocol on Windows (passed as command line argument)
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+    process.exit(0);
+  }
+  app.on('second-instance', (_event, commandLine) => {
+    const url = commandLine.find((arg) => arg.startsWith(`${PROTOCOL}://`));
+    if (url) handleDeepLinkUrl(url);
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
 
   // Initialize auto-update service after window is created
   try {
