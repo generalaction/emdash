@@ -18,6 +18,8 @@ export type BaseTaskProvisionArgs = {
 
 export type ProvisionTaskError =
   | { type: 'timeout'; message: string; timeout: number }
+  | { type: 'branch-not-found'; branch: string }
+  | { type: 'worktree-setup-failed'; branch: string; message?: string }
   | { type: 'error'; message: string };
 
 export type TeardownTaskError =
