@@ -353,10 +353,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 function Hint({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span>{label}</span>
       <div className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5">
         {children}
       </div>
+      <span>{label}</span>
     </div>
   );
 }
