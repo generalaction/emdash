@@ -49,7 +49,8 @@ export const projects = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
-    pathIdx: uniqueIndex('idx_projects_path').on(table.path),
+    // Note: path uniqueness is enforced at the application layer in DatabaseService.saveProject
+    // to allow remote projects with the same path but different sshConnectionId.
     sshConnectionIdIdx: index('idx_projects_ssh_connection_id').on(table.sshConnectionId),
     isRemoteIdx: index('idx_projects_is_remote').on(table.isRemote),
   })

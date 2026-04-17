@@ -208,6 +208,8 @@ export class DatabaseService {
         id: projectsTable.id,
         name: projectsTable.name,
         path: projectsTable.path,
+        sshConnectionId: projectsTable.sshConnectionId,
+        isRemote: projectsTable.isRemote,
       })
       .from(projectsTable)
       .where(eq(projectsTable.path, project.path))
@@ -215,11 +217,20 @@ export class DatabaseService {
     const existingByPath = existingByPathRows[0] ?? null;
 
     if (existingByPath && existingByPath.id !== project.id) {
-      throw new ProjectConflictError({
-        existingProjectId: existingByPath.id,
-        existingProjectName: existingByPath.name,
-        projectPath: existingByPath.path,
-      });
+      // For remote projects, allow the same path if sshConnectionId is different
+      const isNewProjectRemote = project.isRemote && project.sshConnectionId;
+      const isExistingProjectRemote =
+        existingByPath.isRemote === 1 && existingByPath.sshConnectionId;
+      const sameSshConnection =
+        project.sshConnectionId && existingByPath.sshConnectionId === project.sshConnectionId;
+
+      if (!isNewProjectRemote || !isExistingProjectRemote || sameSshConnection) {
+        throw new ProjectConflictError({
+          existingProjectId: existingByPath.id,
+          existingProjectName: existingByPath.name,
+          projectPath: existingByPath.path,
+        });
+      }
     }
 
     const values = {

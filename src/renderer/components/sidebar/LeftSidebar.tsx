@@ -84,9 +84,18 @@ interface ProjectItemProps {
 const ProjectItem = React.memo<ProjectItemProps>(({ project }) => {
   const remote = useRemoteProject(project);
   const connectionId = getConnectionId(project);
+  const isRemote = isRemoteProject(project);
 
-  if (!connectionId && !isRemoteProject(project)) {
-    return <span className="flex-1 truncate">{project.name}</span>;
+  const displayName = useMemo(() => {
+    if (isRemote) {
+      const host = remote.host ?? connectionId ?? '';
+      return `${project.name} (${host}:${project.path})`;
+    }
+    return `${project.name} (${project.path})`;
+  }, [project, isRemote, remote.host, connectionId]);
+
+  if (!connectionId && !isRemote) {
+    return <span className="flex-1 truncate">{displayName}</span>;
   }
 
   return (
@@ -100,7 +109,7 @@ const ProjectItem = React.memo<ProjectItemProps>(({ project }) => {
           disabled={remote.isLoading}
         />
       )}
-      <span className="flex-1 truncate">{project.name}</span>
+      <span className="flex-1 truncate">{displayName}</span>
     </div>
   );
 });
