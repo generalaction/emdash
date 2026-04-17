@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
+import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
 
 export function usePickMode() {
@@ -41,6 +42,7 @@ export type NewModeState = ReturnType<typeof useNewMode>;
 export type CloneModeState = ReturnType<typeof useCloneMode>;
 
 export function useNewMode(defaultPath: string) {
+  const { authenticated } = useGithubContext();
   const [name, setName] = useState('');
   const [_, setNameIsTouched] = useState<boolean>(false);
   const [repositoryName, setRepositoryName] = useState('');
@@ -70,11 +72,15 @@ export function useNewMode(defaultPath: string) {
   const { data } = useQuery({
     queryKey: ['owners'],
     queryFn: () => rpc.github.getOwners(),
+    enabled: authenticated,
   });
 
   const owners = useMemo(
-    () => data?.owners?.map((owner) => ({ value: owner.login, label: owner.login })) ?? [],
-    [data]
+    () =>
+      authenticated
+        ? (data?.owners?.map((owner) => ({ value: owner.login, label: owner.login })) ?? [])
+        : [],
+    [authenticated, data]
   );
 
   const repositoryOwner = useMemo(

@@ -1,4 +1,5 @@
 import { ChevronsUpDownIcon } from 'lucide-react';
+import { GithubAuthDisclaimer } from '@renderer/features/integrations/components/github-auth-disclaimer';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ComboboxPopover } from '@renderer/lib/ui/combobox-popover';
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
@@ -74,11 +75,19 @@ export function CreateNewPanel({
   strategy,
   connectionId,
   state,
+  showGithubAuthDisclaimer,
+  onOpenAccountSettings,
 }: {
   strategy: Strategy;
   connectionId?: string;
   state: NewModeState;
+  showGithubAuthDisclaimer: boolean;
+  onOpenAccountSettings: () => void;
 }) {
+  if (showGithubAuthDisclaimer) {
+    return <GithubAuthDisclaimer onOpenAccountSettings={onOpenAccountSettings} />;
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup>
