@@ -232,6 +232,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
 
+  // Deep link handling
+  onDeepLink: (
+    listener: (data: { type: string; project?: any; taskId?: string; projectId?: string }) => void
+  ) => {
+    const channel = 'deep-link';
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      data: { type: string; project?: any; taskId?: string; projectId?: string }
+    ) => listener(data);
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
   // Worktree management
   worktreeCreate: (args: {
     projectPath: string;

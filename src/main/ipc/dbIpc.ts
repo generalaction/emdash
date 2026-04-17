@@ -11,6 +11,9 @@ export const databaseController = createRPCController({
   saveProject: (project: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<void> =>
     databaseService.saveProject(project),
 
+  getProjectByPath: (path: string): Promise<Project | null> =>
+    databaseService.getProjectByPath(path),
+
   getTasks: (projectId?: string): Promise<Task[]> => databaseService.getTasks(projectId),
 
   saveTask: (task: Omit<Task, 'createdAt' | 'updatedAt'>): Promise<void> =>

@@ -243,6 +243,54 @@ export function Workspace() {
     return cleanup;
   }, [projectMgmt.activateProjectView, handleCloseSettingsPage]);
 
+  // Handle deep links from Raycast extension
+  useEffect(() => {
+    const cleanup = window.electronAPI.onDeepLink((data) => {
+      if (data.type === 'open-project' && data.project) {
+        projectMgmt.activateProjectView(data.project);
+        setShowKanban(false);
+        setShowEditorMode(false);
+        handleCloseSettingsPage();
+      } else if (data.type === 'open-task' && data.taskId) {
+        // If we have project data, use it directly
+        if (data.project) {
+          projectMgmt.activateProjectView(data.project);
+          setShowKanban(false);
+          setShowEditorMode(false);
+          handleCloseSettingsPage();
+          // Find and select the task
+          setTimeout(() => {
+            const entry = taskMgmt.allTasks.find((t) => t.task.id === data.taskId);
+            if (entry) {
+              taskMgmt.handleSelectTask(entry.task);
+            }
+          }, 100);
+        } else {
+          // Fallback: try to find in existing tasks
+          const entry = taskMgmt.allTasks.find((t) => t.task.id === data.taskId);
+          if (entry) {
+            if (
+              !projectMgmt.selectedProject ||
+              projectMgmt.selectedProject.id !== entry.project.id
+            ) {
+              projectMgmt.activateProjectView(entry.project);
+            }
+            setShowKanban(false);
+            setShowEditorMode(false);
+            handleCloseSettingsPage();
+            taskMgmt.handleSelectTask(entry.task);
+          }
+        }
+      }
+    });
+    return cleanup;
+  }, [
+    projectMgmt.activateProjectView,
+    taskMgmt.handleSelectTask,
+    handleCloseSettingsPage,
+    taskMgmt.allTasks,
+  ]);
+
   // --- Panel layout ---
   const {
     defaultPanelLayout,

@@ -70,6 +70,16 @@ declare global {
       onMenuRedo: (listener: () => void) => () => void;
       onMenuCloseTab: (listener: () => void) => () => void;
 
+      // Deep link events
+      onDeepLink: (
+        listener: (data: {
+          type: string;
+          project?: any;
+          taskId?: string;
+          projectId?: string;
+        }) => void
+      ) => () => void;
+
       // PTY
       ptyStart: (opts: {
         id: string;

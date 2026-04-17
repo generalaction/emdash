@@ -1,0 +1,57 @@
+{
+  "$schema": "https://raw.githubusercontent.com/raycast/extensions-schema/main/extension.json",
+  "name": "emdash",
+  "title": "Emdash",
+  "description": "Quick access to Emdash projects, tasks, and SSH connections",
+  "icon": "icon.png",
+  "author": "yash_dewasthale",
+  "license": "MIT",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npx ray dev",
+    "build": "npx ray build",
+    "lint": "npx ray lint"
+  },
+  "dependencies": {
+    "@raycast/api": "^1.80.0",
+    "@raycast/utils": "^1.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "platforms": [
+    "macOS"
+  ],
+  "categories": [
+    "Developer Tools",
+    "Productivity"
+  ],
+  "commands": [
+    {
+      "name": "search-projects",
+      "title": "Search Projects",
+      "description": "Search and open Emdash projects",
+      "mode": "view"
+    },
+    {
+      "name": "recent-projects",
+      "title": "Recent Projects",
+      "description": "Quick access to recent projects",
+      "mode": "view"
+    },
+    {
+      "name": "tasks",
+      "title": "Tasks",
+      "description": "View and manage tasks",
+      "mode": "view"
+    },
+    {
+      "name": "ssh-connections",
+      "title": "SSH Connections",
+      "description": "List saved SSH connections",
+      "mode": "view"
+    }
+  ]
+}

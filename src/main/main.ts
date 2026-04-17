@@ -128,6 +128,8 @@ import { workspaceProviderService } from './services/WorkspaceProviderService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
+import { localApiService } from './services/LocalApiService';
+import { dataExportService } from './services/DataExportService';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
@@ -312,6 +314,91 @@ app.whenReady().then(async () => {
     console.warn('Failed to start agent event service:', error);
   }
 
+  // Start local API server (for Raycast extension)
+  try {
+    await localApiService.start();
+  } catch (error) {
+    console.warn('Failed to start local API service:', error);
+  }
+
+  // Start data export service (for Raycast extension)
+  try {
+    await dataExportService.start();
+  } catch (error) {
+    console.warn('Failed to start data export service:', error);
+  }
+
+  // Register deep link handler (emdash://)
+  app.setAsDefaultProtocolClient('emdash');
+  app.on('open-url', async (event, url) => {
+    event.preventDefault();
+    console.log('Deep link received:', url);
+
+    // Parse the URL: emdash://open?project=<path>
+    try {
+      const parsedUrl = new URL(url);
+      const projectPath = parsedUrl.searchParams.get('project');
+      const taskId = parsedUrl.searchParams.get('task');
+
+      let win = BrowserWindow.getAllWindows()[0];
+
+      // If no window exists, create one
+      if (!win) {
+        const { createMainWindow } = await import('./app/window');
+        win = createMainWindow();
+        // Wait for window to be ready
+        await new Promise((resolve) => {
+          win?.once('ready-to-show', resolve);
+          // Fallback timeout
+          setTimeout(resolve, 1000);
+        });
+      }
+
+      if (win) {
+        // Show and focus window
+        win.show();
+        win.focus();
+
+        if (projectPath) {
+          // Open project by path
+          const project = await databaseService.getProjectByPath(projectPath);
+          if (project) {
+            win.webContents.send('deep-link', { type: 'open-project', project });
+          } else {
+            // Project not in DB, save it first
+            const projectName = projectPath.split('/').pop() || 'Unknown';
+            await databaseService.saveProject({
+              id: `dl-${Date.now()}`,
+              name: projectName,
+              path: projectPath,
+              gitInfo: { isGitRepo: false },
+            });
+            const newProject = await databaseService.getProjectByPath(projectPath);
+            if (newProject) {
+              win.webContents.send('deep-link', { type: 'open-project', project: newProject });
+            }
+          }
+        } else if (taskId) {
+          // Fetch task and its project
+          const task = await databaseService.getTaskById(taskId);
+          if (task) {
+            const project = await databaseService.getProjectById(task.projectId);
+            win.webContents.send('deep-link', {
+              type: 'open-task',
+              taskId,
+              projectId: task.projectId,
+              project: project || undefined,
+            });
+          } else {
+            win.webContents.send('deep-link', { type: 'open-task', taskId });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to process deep link:', error);
+    }
+  });
+
   // Register IPC handlers
   registerAllIpc();
 
@@ -368,6 +455,10 @@ app.on('before-quit', () => {
   autoUpdateService.shutdown();
   // Stop agent event HTTP server
   agentEventService.stop();
+  // Stop local API server
+  localApiService.stop();
+  // Stop data export service
+  dataExportService.stop();
   // Stop any lifecycle run scripts so they do not outlive the app process.
   taskLifecycleService.shutdown();
 
@@ -376,4 +467,8 @@ app.on('before-quit', () => {
 
   // Disconnect all SSH connections to avoid orphaned sessions on remote hosts
   sshService.disconnectAll().catch(() => {});
+
+  // Cleanup tray
+  const { destroyTray } = require('./app/tray');
+  destroyTray();
 });
