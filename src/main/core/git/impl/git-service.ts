@@ -1134,11 +1134,14 @@ export class GitService implements GitProvider {
 
   async getCurrentBranch(): Promise<string | null> {
     try {
-      const { stdout } = await this.exec('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      const { stdout } = await this.exec('git', ['rev-parse', '--symbolic-full-name', 'HEAD'], {
         cwd: this.path,
       });
-      const branch = stdout.trim();
-      return branch === 'HEAD' || !branch ? null : branch;
+      const ref = stdout.trim();
+      if (ref === 'HEAD' || !ref) return null;
+      if (ref.startsWith('refs/heads/')) return ref.slice('refs/heads/'.length);
+      if (ref.startsWith('heads/')) return ref.slice('heads/'.length);
+      return ref;
     } catch {
       return null;
     }
@@ -1188,7 +1191,10 @@ export class GitService implements GitProvider {
         };
         branches.push(entry);
       } else {
-        const entry: LocalBranch = { type: 'local', branch: refname };
+        const localBranchName = fullRef?.startsWith('refs/heads/')
+          ? fullRef.slice('refs/heads/'.length)
+          : refname;
+        const entry: LocalBranch = { type: 'local', branch: localBranchName };
         if (upstreamRef) {
           const slashIdx = upstreamRef.indexOf('/');
           const remoteName = slashIdx === -1 ? upstreamRef : upstreamRef.slice(0, slashIdx);
