@@ -215,7 +215,15 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
     });
   }
 
+  const taskCreatedStrategy = (() => {
+    if (strategy.kind === 'from-pull-request') return 'pr';
+    if (params.linkedIssue) return 'issue';
+    if (strategy.kind === 'no-worktree') return 'blank';
+    return 'branch';
+  })();
+
   capture('task_created', {
+    strategy: taskCreatedStrategy,
     has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
     has_issue: params.linkedIssue?.provider ?? 'none',
     provider: params.initialConversation?.provider ?? null,

@@ -83,13 +83,9 @@ export class ProjectManagerStore {
 
     const projectId = id ?? crypto.randomUUID();
     const isSsh = projectType.type === 'ssh';
-    const source: 'open' | 'create' | 'clone' | 'ssh' = isSsh
-      ? 'ssh'
-      : data.mode === 'pick'
-        ? 'open'
-        : data.mode === 'clone'
-          ? 'clone'
-          : 'create';
+    const projectTelemetryType: 'local' | 'ssh' = isSsh ? 'ssh' : 'local';
+    const projectTelemetryStrategy: 'open' | 'create' | 'clone' =
+      data.mode === 'clone' ? 'clone' : data.mode === 'new' ? 'create' : 'open';
 
     switch (data.mode) {
       case 'pick': {
@@ -115,10 +111,18 @@ export class ProjectManagerStore {
                 initGitRepository: data.initGitRepository,
               });
           this._setAndOpenProject(projectId, project);
-          captureTelemetry('project_added', { source, success: true });
+          captureTelemetry('project_added', {
+            type: projectTelemetryType,
+            strategy: projectTelemetryStrategy,
+            success: true,
+          });
         } catch (err) {
           this._markError(projectId, err);
-          captureTelemetry('project_added', { source, success: false });
+          captureTelemetry('project_added', {
+            type: projectTelemetryType,
+            strategy: projectTelemetryStrategy,
+            success: false,
+          });
           throw err;
         }
         break;
@@ -154,10 +158,18 @@ export class ProjectManagerStore {
                 name: data.name,
               });
           this._setAndOpenProject(projectId, project);
-          captureTelemetry('project_added', { source, success: true });
+          captureTelemetry('project_added', {
+            type: projectTelemetryType,
+            strategy: projectTelemetryStrategy,
+            success: true,
+          });
         } catch (err) {
           this._markError(projectId, err);
-          captureTelemetry('project_added', { source, success: false });
+          captureTelemetry('project_added', {
+            type: projectTelemetryType,
+            strategy: projectTelemetryStrategy,
+            success: false,
+          });
           throw err;
         }
         break;
@@ -206,10 +218,18 @@ export class ProjectManagerStore {
                 name: data.name,
               });
           this._setAndOpenProject(projectId, project);
-          captureTelemetry('project_added', { source, success: true });
+          captureTelemetry('project_added', {
+            type: projectTelemetryType,
+            strategy: projectTelemetryStrategy,
+            success: true,
+          });
         } catch (err) {
           this._markError(projectId, err);
-          captureTelemetry('project_added', { source, success: false });
+          captureTelemetry('project_added', {
+            type: projectTelemetryType,
+            strategy: projectTelemetryStrategy,
+            success: false,
+          });
           throw err;
         }
         break;

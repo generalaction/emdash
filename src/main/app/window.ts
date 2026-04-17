@@ -55,6 +55,10 @@ export function createMainWindow(): BrowserWindow {
     checkAndReportDailyActiveUser();
   });
 
+  mainWindow.on('blur', () => {
+    capture('app_window_unfocused');
+  });
+
   // Cleanup reference on close
   mainWindow.on('closed', () => {
     mainWindow = null;

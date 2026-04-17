@@ -9,7 +9,6 @@ import { CreatePrModal } from '@renderer/features/tasks/diff-view/changes-panel/
 import { ConflictDialog } from '@renderer/features/tasks/editor/conflict-dialog';
 import { RenameTaskModal } from '@renderer/features/tasks/rename-task-modal';
 import { AddSshConnModal } from '@renderer/lib/components/add-ssh-conn-modal';
-import { CommandPaletteModal } from '@renderer/lib/components/cmdk/CommandPaletteModal';
 import { ConfirmActionDialog } from '@renderer/lib/components/confirm-action-dialog';
 import { FeedbackModal } from '@renderer/lib/components/feedback-modal/feedback-modal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-device-flow-modal';
@@ -32,7 +31,6 @@ export const modalRegistry = {
     component: GithubDeviceFlowModalOverlay,
     popupClassName: 'max-w-[480px] p-0',
   },
-  commandPaletteModal: { component: CommandPaletteModal, usesOwnShell: true },
   confirmActionModal: { component: ConfirmActionDialog, popupClassName: 'sm:max-w-xs' },
   createConversationModal: { component: CreateConversationModal },
   feedbackModal: { component: FeedbackModal },

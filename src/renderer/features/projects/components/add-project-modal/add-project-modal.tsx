@@ -8,8 +8,8 @@ import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { appState } from '@renderer/lib/stores/app-state';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,

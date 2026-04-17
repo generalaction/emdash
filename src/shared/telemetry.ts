@@ -30,8 +30,9 @@ export type SettingName = 'theme' | 'default_provider' | 'telemetry' | 'notifica
 
 export type TelemetryEventProperties = {
   app_started: EmptyProps;
-  app_closed: EmptyProps;
+  app_closed: { was_crash?: boolean };
   app_window_focused: EmptyProps;
+  app_window_unfocused: EmptyProps;
   daily_active_user: { date: string; timezone: string };
 
   focus_changed: {
@@ -49,10 +50,11 @@ export type TelemetryEventProperties = {
   skills_viewed: { from_view: FocusView | null };
   mcp_viewed: { from_view: FocusView | null };
 
-  project_added: { source: 'open' | 'create' | 'clone' | 'ssh'; success: boolean };
+  project_added: { type: 'local' | 'ssh'; strategy: 'open' | 'create' | 'clone'; success: boolean };
   project_deleted: EmptyProps;
 
   task_created: {
+    strategy: 'blank' | 'branch' | 'issue' | 'pr';
     has_initial_prompt: boolean;
     has_issue: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'none';
     provider: AgentProviderId | null;
@@ -67,8 +69,8 @@ export type TelemetryEventProperties = {
   agent_run_started: { provider: AgentProviderId };
   agent_run_finished: { provider: AgentProviderId; exit_code: number };
 
-  terminal_created: EmptyProps;
-  terminal_deleted: EmptyProps;
+  terminal_created: { terminal_id: string };
+  terminal_deleted: { terminal_id: string };
 
   pr_created: { is_draft: boolean };
   pr_creation_failed: { error_type: string };
@@ -85,6 +87,9 @@ export type TelemetryEventProperties = {
   vcs_files_staged: { count: number; scope: 'single' | 'multiple' | 'all' };
   vcs_files_unstaged: { count: number; scope: 'single' | 'multiple' | 'all' };
   vcs_files_discarded: { count: number; scope: 'single' | 'multiple' | 'all' };
+
+  user_signed_in: EmptyProps;
+  user_signed_out: EmptyProps;
 
   integration_connected: { provider: 'github' | 'linear' | 'jira' };
   integration_disconnected: { provider: 'github' | 'linear' | 'jira' };

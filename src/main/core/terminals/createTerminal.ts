@@ -27,7 +27,11 @@ export async function createTerminal(params: CreateTerminalParams): Promise<Term
   }
 
   await task.terminals.spawnTerminal(mapTerminalRowToTerminal(row), initialSize);
-  capture('terminal_created', { project_id: params.projectId, task_id: params.taskId });
+  capture('terminal_created', {
+    terminal_id: terminalId,
+    project_id: params.projectId,
+    task_id: params.taskId,
+  });
 
   return mapTerminalRowToTerminal(row);
 }
