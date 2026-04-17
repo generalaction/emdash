@@ -6,6 +6,8 @@ import { CommitFileList } from './CommitFileList';
 import { CommitFileDiffView } from './CommitFileDiffView';
 import { DiffToolbar } from './DiffToolbar';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../ui/resizable';
+import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { cn } from '@/lib/utils';
 
 interface HistoryTabProps {
   taskPath?: string;
@@ -27,6 +29,8 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>(
     () => (localStorage.getItem('diffViewer:diffStyle') as 'unified' | 'split') || 'unified'
   );
+  const { settings } = useAppSettings();
+  const expandByDefault = settings?.interface?.expandCommitDetail ?? false;
   const [detailExpanded, setDetailExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -39,7 +43,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
     if (commit.hash === selectedCommit?.hash) return;
     setSelectedCommit(commit);
     setSelectedFile(null);
-    setDetailExpanded(false);
+    setDetailExpanded(expandByDefault);
     setCopied(false);
   };
 
@@ -99,7 +103,12 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({
               {/* Commit message detail */}
               <div className="border-b border-border px-3 py-2">
                 <div className="flex items-center gap-1">
-                  <div className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
+                  <div
+                    className={cn(
+                      'min-w-0 flex-1 text-sm font-medium leading-snug',
+                      !detailExpanded && 'truncate'
+                    )}
+                  >
                     {selectedCommit.subject}
                   </div>
                   {hasExpandableContent && (

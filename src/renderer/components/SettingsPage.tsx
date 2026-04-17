@@ -31,6 +31,7 @@ import TerminalSettingsCard from './TerminalSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import ReviewAgentSettingsCard from './ReviewAgentSettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
+import CommitDetailSettingsCard from './CommitDetailSettingsCard';
 import { AccountTab } from './settings/AccountTab';
 import { WorkspaceProviderInfoCard } from './WorkspaceProviderInfoCard';
 import { useTaskSettings } from '../hooks/useTaskSettings';
@@ -309,6 +310,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
               <RightSidebarSettingsCard />
               <BrowserPreviewSettingsCard />
               <TaskHoverActionCard />
+              <CommitDetailSettingsCard />
             </div>
           ),
         },
