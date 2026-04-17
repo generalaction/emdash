@@ -937,9 +937,15 @@ const ChatInterface: React.FC<Props> = ({
   // 2. The global "auto-approve by default" setting is on
   // In both cases the provider must actually support an auto-approve flag.
   const { settings: autoApproveSettings } = useAppSettings();
+  const [autoApproveOverride, setAutoApproveOverride] = useState<boolean | null>(null);
+  useEffect(() => {
+    setAutoApproveOverride(null);
+  }, [task.id]);
   const autoApproveEnabled =
-    (Boolean(task.metadata?.autoApprove) ||
-      Boolean(autoApproveSettings?.tasks?.autoApproveByDefault)) &&
+    (autoApproveOverride !== null
+      ? autoApproveOverride
+      : Boolean(task.metadata?.autoApprove) ||
+        Boolean(autoApproveSettings?.tasks?.autoApproveByDefault)) &&
     Boolean(agentMeta[agent]?.autoApproveFlag);
 
   const isMainConversation = activeConversationId === mainConversationId;
@@ -1202,14 +1208,53 @@ const ChatInterface: React.FC<Props> = ({
                     githubIssue={task.metadata?.githubIssue || null}
                     jiraIssue={task.metadata?.jiraIssue || null}
                   />
-                  {autoApproveEnabled && (
-                    <span
-                      className="inline-flex h-7 select-none items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-foreground"
-                      title="Auto-approve enabled"
+                  {Boolean(agentMeta[agent]?.autoApproveFlag) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                  void (async () => {
+                    const next = !autoApproveEnabled;
+                    setAutoApproveOverride(next);
+                    try {
+                      await rpc.db.saveTask({
+                        ...task,
+                        metadata: {
+                          ...task.metadata,
+                          autoApprove: next,
+                        },
+                      });
+                      if (next) {
+                        // Kill the running PTY so the session manager restarts it
+                        // with autoApprove: true on next spawn.
+                        window.electronAPI.ptyKill(terminalId);
+                      }
+                      } catch (error) {
+                      console.error('Failed to update auto-approve setting:', error);
+                      setAutoApproveOverride(null);
+                      toast({
+                        title: 'Error',
+                        description: 'Failed to update auto-approve setting.',
+                        variant: 'destructive',
+                      });
+                    }
+                  })();
+                }}
+                      className={`inline-flex h-7 select-none items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors ${
+                        autoApproveEnabled
+                          ? 'border-orange-500/40 bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 dark:text-orange-400'
+                          : 'border-border bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
+                      }`}
+                      title={
+                        autoApproveEnabled
+                          ? 'Auto-approve enabled — click to disable'
+                          : 'Enable auto-approve (skip permissions)'
+                      }
                     >
-                      <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${autoApproveEnabled ? 'bg-orange-500' : 'bg-muted-foreground'}`}
+                      />
                       Auto-approve
-                    </span>
+                    </button>
                   )}
                 </div>
               </div>
