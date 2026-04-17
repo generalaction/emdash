@@ -16,12 +16,24 @@ const SHELL_VALUE_END = '__EMDASH_SHELL_VALUE_END__';
 function getFallbackUtf8Locale(): string | undefined {
   if (process.platform === 'win32') return undefined;
 
-  // `C.UTF-8` is a good generic fallback on Linux, but can crash AppKit on
-  // newer macOS builds when native menus initialize locale-dependent text
-  // direction. Keep macOS on a concrete UTF-8 locale instead.
-  if (process.platform === 'darwin') return 'en_US.UTF-8';
+  // On macOS, all locales use UTF-8 encoding. Use a bare ICU-compatible
+  // locale identifier without a POSIX encoding suffix — suffixes like
+  // `.UTF-8` are not understood by ICU's uloc_getTableStringWithFallback
+  // on macOS 26+ and cause a null-pointer crash during AppKit menu init.
+  if (process.platform === 'darwin') return 'en_US';
 
   return DEFAULT_UTF8_LOCALE;
+}
+
+/**
+ * On macOS, strips POSIX encoding suffixes (e.g. ".UTF-8") from locale strings
+ * so that ICU receives a clean locale identifier it can look up without crashing.
+ * macOS always uses UTF-8, so the suffix carries no information and only causes
+ * problems with newer ICU versions bundled in macOS 26+.
+ */
+function sanitizeLocaleForPlatform(locale: string): string {
+  if (process.platform !== 'darwin') return locale;
+  return locale.replace(/\.[A-Za-z0-9@_-]+$/, '');
 }
 
 /**
@@ -340,4 +352,17 @@ export function initializeShellEnvironment(): void {
   }
 
   initializeLocaleEnvironment();
+
+  // Strip POSIX encoding suffixes (e.g. ".UTF-8") from all locale env vars on
+  // macOS. ICU's uloc_getTableStringWithFallback on macOS 26+ crashes when it
+  // receives locale strings with encoding suffixes — ICU uses its own tag format
+  // (e.g. "en_US") without POSIX encoding markers. macOS always uses UTF-8, so
+  // the suffix carries no useful information and only breaks ICU lookup.
+  if (process.platform === 'darwin') {
+    for (const key of LOCALE_ENV_VARS) {
+      if (process.env[key]) {
+        process.env[key] = sanitizeLocaleForPlatform(process.env[key]!);
+      }
+    }
+  }
 }
