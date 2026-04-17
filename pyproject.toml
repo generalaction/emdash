@@ -1,0 +1,12 @@
+[project]
+name = "emdash-build-deps"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = [
+    "setuptools>=67.0",
+    "wheel",
+]
+
+[build-system]
+requires = ["setuptools>=67.0", "wheel"]
+build-backend = "setuptools.build_meta"
