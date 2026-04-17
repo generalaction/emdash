@@ -401,7 +401,7 @@ describe('ptyManager provider command resolution', () => {
     );
   });
 
-  it('attaches PTY pipe error suppression on Windows only', async () => {
+  it('attaches PTY pipe error suppression on all platforms', async () => {
     const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
     const onWin32 = vi.fn();
     const onDarwin = vi.fn();
@@ -450,7 +450,7 @@ describe('ptyManager provider command resolution', () => {
         shell: '/bin/zsh',
       });
 
-      expect(onDarwin).not.toHaveBeenCalledWith('error', expect.any(Function));
+      expect(onDarwin).toHaveBeenCalledWith('error', expect.any(Function));
     } finally {
       if (originalPlatformDescriptor) {
         Object.defineProperty(process, 'platform', originalPlatformDescriptor);
@@ -605,6 +605,32 @@ describe('ptyManager provider command resolution', () => {
 
     expect(received.join('')).toBe('Marko Ranđ');
     expect(exits).toEqual([[0, null]]);
+  });
+
+  it('ignores EPIPE on stdio streams during lifecycle fallback', async () => {
+    const stdout = new EventEmitter();
+    const stderr = new EventEmitter();
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    child.stdout = stdout;
+    child.stderr = stderr;
+
+    const { attachLifecycleSpawnFallbackHandlers } = await import('../../main/services/ptyManager');
+    const errors: Error[] = [];
+    attachLifecycleSpawnFallbackHandlers(child, {
+      onData: () => {},
+      onExit: () => {},
+      onError: (error) => {
+        errors.push(error);
+      },
+    });
+
+    const epipe = Object.assign(new Error('read EPIPE'), { code: 'EPIPE' as const });
+    stdout.emit('error', epipe);
+    stderr.emit('error', epipe);
+    expect(errors).toEqual([]);
   });
 });
 
