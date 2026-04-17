@@ -309,6 +309,7 @@ const TerminalPaneComponent = forwardRef<TerminalPaneHandle, Props>(
         <div
           ref={containerRef}
           data-terminal-container
+          data-terminal-provider-id={providerId}
           style={{
             width: '100%',
             height: '100%',

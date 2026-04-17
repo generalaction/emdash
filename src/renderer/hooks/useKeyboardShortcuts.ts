@@ -1,4 +1,10 @@
 import { useEffect, useMemo } from 'react';
+import {
+  getProvider,
+  isValidProviderId,
+  type ProviderId,
+  type ProviderReservedShortcut,
+} from '@shared/providers/registry';
 import type {
   ShortcutConfig,
   GlobalShortcutHandlers,
@@ -96,6 +102,27 @@ export function normalizeShortcutKey(value: string): string {
   if (trimmed.length === 1) return trimmed.toLowerCase();
   return trimmed;
 }
+
+type KeyboardShortcutEvent = Pick<
+  KeyboardEvent,
+  'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'
+>;
+
+type ShortcutTarget = {
+  getAttribute?: (name: string) => string | null | undefined;
+  closest?: (selector: string) => ShortcutTarget | null;
+  querySelector?: (selector: string) => ShortcutTarget | null;
+  classList?: {
+    contains?: (value: string) => boolean;
+  };
+  tagName?: string;
+  isContentEditable?: boolean;
+};
+
+const TERMINAL_PROVIDER_ID_ATTRIBUTE = 'data-terminal-provider-id';
+const TERMINAL_PROVIDER_SELECTOR = `[${TERMINAL_PROVIDER_ID_ATTRIBUTE}]`;
+const TERMINAL_HOST_ATTRIBUTE = 'data-terminal-host';
+const XTERM_HELPER_TEXTAREA_SELECTOR = '.xterm-helper-textarea';
 
 export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   COMMAND_PALETTE: {
@@ -281,7 +308,7 @@ export function hasShortcutConflict(shortcut1: ShortcutConfig, shortcut2: Shortc
 }
 
 export function getAgentTabSelectionIndex(
-  event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>,
+  event: KeyboardShortcutEvent,
   isMac = isMacPlatform
 ): number | null {
   const hasCommandModifier =
@@ -298,7 +325,11 @@ export function getAgentTabSelectionIndex(
   return Number(key) - 1;
 }
 
-function matchesModifier(modifier: ShortcutModifier | undefined, event: KeyboardEvent): boolean {
+function matchesModifier(
+  modifier: ShortcutModifier | ProviderReservedShortcut['modifier'] | undefined,
+  event: Pick<KeyboardEvent, 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>,
+  isMac = isMacPlatform
+): boolean {
   if (!modifier) {
     return !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey;
   }
@@ -308,9 +339,7 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
       // On macOS require the Command key; on other platforms allow Ctrl as the Command equivalent
       // Also ensure shift is NOT pressed (to distinguish from cmd+shift)
       return (
-        (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) &&
-        !event.shiftKey &&
-        !event.altKey
+        (isMac ? event.metaKey : event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey
       );
     case 'ctrl':
       // Require the Control key without treating Command as equivalent
@@ -323,15 +352,97 @@ function matchesModifier(modifier: ShortcutModifier | undefined, event: Keyboard
     case 'cmd+shift':
       // Compound modifier: Command + Shift
       return (
-        (isMacPlatform ? event.metaKey : event.metaKey || event.ctrlKey) &&
-        event.shiftKey &&
-        !event.altKey
+        (isMac ? event.metaKey : event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey
       );
     case 'ctrl+shift':
       return event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey;
     default:
       return false;
   }
+}
+
+function getTargetAttribute(
+  target: ShortcutTarget | null | undefined,
+  name: string
+): string | null {
+  return target?.getAttribute?.(name) ?? null;
+}
+
+function readProviderIdFromTarget(target: ShortcutTarget | null | undefined): ProviderId | null {
+  const ownProviderId = getTargetAttribute(target, TERMINAL_PROVIDER_ID_ATTRIBUTE);
+  if (ownProviderId && isValidProviderId(ownProviderId)) {
+    return ownProviderId;
+  }
+
+  const providerTarget = target?.closest?.(TERMINAL_PROVIDER_SELECTOR) ?? null;
+  const closestProviderId = getTargetAttribute(providerTarget, TERMINAL_PROVIDER_ID_ATTRIBUTE);
+  return closestProviderId && isValidProviderId(closestProviderId) ? closestProviderId : null;
+}
+
+function getDefaultActiveElement(): ShortcutTarget | null {
+  return typeof document !== 'undefined'
+    ? ((document.activeElement as ShortcutTarget | null) ?? null)
+    : null;
+}
+
+function isTerminalHostTarget(target: ShortcutTarget | null | undefined): boolean {
+  return getTargetAttribute(target, TERMINAL_HOST_ATTRIBUTE) === 'true';
+}
+
+function matchesReservedShortcut(
+  reservedShortcut: ProviderReservedShortcut,
+  event: KeyboardShortcutEvent,
+  isMac = isMacPlatform
+): boolean {
+  if (reservedShortcut.platform === 'mac' && !isMac) return false;
+  if (reservedShortcut.platform === 'nonMac' && isMac) return false;
+  if (normalizeShortcutKey(event.key) !== normalizeShortcutKey(reservedShortcut.key)) return false;
+  return matchesModifier(reservedShortcut.modifier, event, isMac);
+}
+
+export function getFocusedTerminalProviderId(
+  target: EventTarget | ShortcutTarget | null,
+  activeElement: ShortcutTarget | null = getDefaultActiveElement()
+): ProviderId | null {
+  const targetNode = target as ShortcutTarget | null;
+  const focusedProviderId = readProviderIdFromTarget(targetNode);
+  if (focusedProviderId) {
+    return focusedProviderId;
+  }
+
+  if (!isTerminalHostTarget(targetNode)) {
+    return null;
+  }
+
+  const activeProviderId = readProviderIdFromTarget(activeElement);
+  if (activeProviderId) {
+    return activeProviderId;
+  }
+
+  return readProviderIdFromTarget(
+    targetNode?.querySelector?.(XTERM_HELPER_TEXTAREA_SELECTOR) ?? null
+  );
+}
+
+export function focusedTerminalProviderReservesShortcut(
+  target: EventTarget | ShortcutTarget | null,
+  event: KeyboardShortcutEvent,
+  activeElement: ShortcutTarget | null = getDefaultActiveElement(),
+  isMac = isMacPlatform
+): boolean {
+  const providerId = getFocusedTerminalProviderId(target, activeElement);
+  if (!providerId) {
+    return false;
+  }
+
+  const reservedShortcuts = getProvider(providerId)?.terminalReservedShortcuts;
+  if (!reservedShortcuts?.length) {
+    return false;
+  }
+
+  return reservedShortcuts.some((reservedShortcut) =>
+    matchesReservedShortcut(reservedShortcut, event, isMac)
+  );
 }
 
 /**
@@ -498,15 +609,16 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
       // method reports an unexpected modifier state during normal typing.
       // The command palette toggle is exempt so it remains reachable from
       // any context.
-      const target = event.target as HTMLElement;
+      const target = event.target as ShortcutTarget | null;
       // Exclude xterm's hidden textarea from the editable-target check —
       // it captures keyboard input but is not a user-editable field.
-      const isXtermTextarea = target?.classList?.contains('xterm-helper-textarea');
+      const isXtermTextarea = target?.classList?.contains?.('xterm-helper-textarea');
       const isEditableTarget =
         !isXtermTextarea &&
         (target?.tagName === 'INPUT' ||
           target?.tagName === 'TEXTAREA' ||
           target?.isContentEditable);
+      const shouldBypassTerminalShortcut = focusedTerminalProviderReservesShortcut(target, event);
 
       for (const shortcut of shortcuts) {
         const shortcutKey = normalizeShortcutKey(shortcut.config.key);
@@ -516,6 +628,8 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
 
         // Check modifier requirements precisely (e.g., Cmd ≠ Ctrl on macOS)
         if (!matchesModifier(shortcut.config.modifier, event)) continue;
+
+        if (shouldBypassTerminalShortcut) continue;
 
         // Skip non-command-palette shortcuts when typing in an input
         if (isEditableTarget && !shortcut.isCommandPalette && !shortcut.allowInInput) continue;

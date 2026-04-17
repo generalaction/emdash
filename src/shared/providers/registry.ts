@@ -27,6 +27,21 @@ export const PROVIDER_IDS = [
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
+export type ProviderShortcutModifier =
+  | 'cmd'
+  | 'ctrl'
+  | 'shift'
+  | 'alt'
+  | 'option'
+  | 'cmd+shift'
+  | 'ctrl+shift';
+
+export type ProviderReservedShortcut = {
+  key: string;
+  modifier: ProviderShortcutModifier;
+  platform?: 'mac' | 'nonMac';
+};
+
 export type ProviderDefinition = {
   id: ProviderId;
   name: string;
@@ -57,6 +72,7 @@ export type ProviderDefinition = {
   planActivateCommand?: string;
   autoStartCommand?: string;
   icon?: string;
+  terminalReservedShortcuts?: ProviderReservedShortcut[];
   terminalOnly?: boolean;
 };
 
@@ -198,6 +214,10 @@ export const PROVIDERS: ProviderDefinition[] = [
     autoApproveFlag: '--allow-all-tools',
     initialPromptFlag: '-i',
     icon: 'gh-copilot.svg',
+    terminalReservedShortcuts: [
+      { key: 'e', modifier: 'cmd', platform: 'mac' },
+      { key: 'e', modifier: 'ctrl', platform: 'nonMac' },
+    ],
     terminalOnly: true,
   },
   {
