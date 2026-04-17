@@ -24,7 +24,11 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
 
   const branches = useMemo<Branch[]>(
     () =>
-      repo ? repo.branches.filter((b) => b.type === 'local' || b.remote === configuredRemote) : [],
+      repo
+        ? repo.branches.filter(
+            (b) => b.type === 'local' || (b.type === 'remote' && b.remote.name === configuredRemote)
+          )
+        : [],
     [repo, configuredRemote]
   );
 

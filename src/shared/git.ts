@@ -109,10 +109,15 @@ export type CommitFile = {
   deletions: number;
 };
 
+export type Remote = {
+  name: string;
+  url: string;
+};
+
 export type LocalBranch = {
   type: 'local';
   branch: string;
-  remote?: string;
+  remote?: Remote;
   divergence?: {
     ahead: number;
     behind: number;
@@ -122,7 +127,7 @@ export type LocalBranch = {
 export type RemoteBranch = {
   type: 'remote';
   branch: string;
-  remote: string;
+  remote: Remote;
 };
 
 export type Branch = LocalBranch | RemoteBranch;

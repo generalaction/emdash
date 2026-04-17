@@ -48,7 +48,7 @@ export function computeDefaultBranch(
 ): string {
   const existsLocally = branches.some((b) => b.type === 'local' && b.branch === configured);
   const isOnRemote = branches.some(
-    (b) => b.type === 'remote' && b.branch === configured && b.remote === remote
+    (b) => b.type === 'remote' && b.branch === configured && b.remote.name === remote
   );
   if (existsLocally || isOnRemote) return configured;
   return gitDefaultBranch;

@@ -78,7 +78,11 @@ describe('GitService.getBranches', () => {
     );
     const branches = await svc.getBranches();
     expect(branches).toHaveLength(1);
-    expect(branches[0]).toMatchObject({ type: 'remote', branch: 'main', remote: 'origin' });
+    expect(branches[0]).toMatchObject({
+      type: 'remote',
+      branch: 'main',
+      remote: { name: 'origin' },
+    });
   });
 
   it('skips remotes/origin/HEAD entries', async () => {
@@ -103,7 +107,7 @@ describe('GitService.getBranches', () => {
     expect(branches[0]).toMatchObject({
       type: 'local',
       branch: 'feature',
-      remote: 'origin',
+      remote: { name: 'origin' },
       divergence: { ahead: 1, behind: 2 },
     });
   });

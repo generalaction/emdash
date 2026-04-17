@@ -14,7 +14,7 @@ export function toShortBranchName(
   const knownRemotes = new Set(
     branches
       .filter((branch): branch is Extract<Branch, { type: 'remote' }> => branch.type === 'remote')
-      .map((branch) => branch.remote)
+      .map((branch) => branch.remote.name)
       .filter(Boolean)
   );
 
