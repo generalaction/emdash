@@ -1249,7 +1249,7 @@ const ChatInterface: React.FC<Props> = ({
           >
             <div
               ref={terminalPanelRef}
-              className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
+              className={`relative mx-auto h-full w-full overflow-hidden rounded-md ${
                 agent === 'charm'
                   ? effectiveTheme === 'dark-black'
                     ? 'bg-black'
