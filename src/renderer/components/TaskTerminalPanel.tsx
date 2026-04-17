@@ -632,32 +632,34 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     key={`task::${terminal.id}`}
                     value={`task::${terminal.id}`}
                     className="text-xs"
+                    action={
+                      <button
+                        type="button"
+                        className="flex h-3.5 w-3.5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          suppressSelectionUntilRef.current = Date.now() + 250;
+                          handleTogglePinned('task', terminal.id);
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        title={
+                          terminal.pinned
+                            ? 'Unpin terminal from main panel'
+                            : 'Pin terminal to main panel'
+                        }
+                      >
+                        {terminal.pinned ? (
+                          <PinOff className="h-3 w-3" />
+                        ) : (
+                          <Pin className="h-3 w-3" />
+                        )}
+                      </button>
+                    }
                   >
-                    <button
-                      type="button"
-                      className="absolute right-7 flex h-3.5 w-3.5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        suppressSelectionUntilRef.current = Date.now() + 250;
-                        handleTogglePinned('task', terminal.id);
-                      }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      title={
-                        terminal.pinned
-                          ? 'Unpin terminal from main panel'
-                          : 'Pin terminal to main panel'
-                      }
-                    >
-                      {terminal.pinned ? (
-                        <PinOff className="h-3 w-3" />
-                      ) : (
-                        <Pin className="h-3 w-3" />
-                      )}
-                    </button>
                     {terminal.title}
                   </SelectItem>
                 ))}
@@ -695,32 +697,34 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     key={`global::${terminal.id}`}
                     value={`global::${terminal.id}`}
                     className="text-xs"
+                    action={
+                      <button
+                        type="button"
+                        className="flex h-3.5 w-3.5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          suppressSelectionUntilRef.current = Date.now() + 250;
+                          handleTogglePinned('global', terminal.id);
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        title={
+                          terminal.pinned
+                            ? 'Unpin terminal from main panel'
+                            : 'Pin terminal to main panel'
+                        }
+                      >
+                        {terminal.pinned ? (
+                          <PinOff className="h-3 w-3" />
+                        ) : (
+                          <Pin className="h-3 w-3" />
+                        )}
+                      </button>
+                    }
                   >
-                    <button
-                      type="button"
-                      className="absolute right-7 flex h-3.5 w-3.5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        suppressSelectionUntilRef.current = Date.now() + 250;
-                        handleTogglePinned('global', terminal.id);
-                      }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      title={
-                        terminal.pinned
-                          ? 'Unpin terminal from main panel'
-                          : 'Pin terminal to main panel'
-                      }
-                    >
-                      {terminal.pinned ? (
-                        <PinOff className="h-3 w-3" />
-                      ) : (
-                        <Pin className="h-3 w-3" />
-                      )}
-                    </button>
                     {terminal.title}
                   </SelectItem>
                 ))}
