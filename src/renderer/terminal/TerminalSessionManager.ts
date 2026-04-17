@@ -203,6 +203,7 @@ export class TerminalSessionManager {
     const updateCustomFont = (customFont?: string) => {
       this.customFontFamily = customFont?.trim() ?? '';
       this.applyEffectiveFont();
+      this.scheduleFit();
     };
 
     const updateCustomFontSize = (size: number) => {
@@ -575,6 +576,7 @@ export class TerminalSessionManager {
       this.captureViewportPosition();
       this.cancelScheduledFit();
       this.clearQueuedResize();
+      this.lastSentResize = null;
       this.resizeObserver?.disconnect();
       this.resizeObserver = null;
       ensureTerminalHost().appendChild(this.container);
@@ -590,6 +592,7 @@ export class TerminalSessionManager {
   setTheme(theme: SessionTheme) {
     this.lastTheme = theme;
     this.applyTheme(theme);
+    this.scheduleFit();
   }
 
   dispose() {
