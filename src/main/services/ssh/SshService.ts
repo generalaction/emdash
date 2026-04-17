@@ -212,11 +212,36 @@ export class SshService extends EventEmitter {
       const sock = new Duplex({
         read() {},
         write(chunk, encoding, callback) {
-          return proxyProc.stdin!.write(chunk, encoding, callback);
+          if (!proxyProc.stdin || proxyProc.stdin.destroyed) {
+            callback(new Error('Proxy stdin destroyed'));
+            return false;
+          }
+          try {
+            return proxyProc.stdin.write(chunk, encoding, callback);
+          } catch (err: any) {
+            callback(err);
+            return false;
+          }
         },
         final(callback) {
-          proxyProc.stdin!.end(callback);
+          if (!proxyProc.stdin || proxyProc.stdin.destroyed) {
+            callback();
+            return;
+          }
+          try {
+            proxyProc.stdin.end(callback);
+          } catch (err: any) {
+            callback(err);
+          }
         },
+      });
+
+      proxyProc.stdin!.on('error', (err: any) => {
+        if (err.code !== 'EPIPE') {
+          sock.destroy(err);
+        } else {
+          console.warn('SshService proxy stdin received EPIPE, ignoring to prevent app crash');
+        }
       });
       proxyProc.stdout!.on('data', (data) => sock.push(data));
       proxyProc.stdout!.on('close', () => sock.push(null));

@@ -20,6 +20,7 @@ import {
   clearStoredSession,
   getStoredResumeTarget,
   markCodexSessionBound,
+  normalizeClaudeProjectPath,
 } from './ptyManager';
 import { log } from '../lib/logger';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -803,8 +804,7 @@ export function registerPtyIpc(): void {
                 const claudeHashDir = path.join(os.homedir(), '.claude', 'projects', cwdHash);
 
                 // Also check for path-based directory name (Claude's actual format)
-                // Replace path separators with hyphens for the directory name
-                const pathBasedName = cwd.replace(/\//g, '-');
+                const pathBasedName = normalizeClaudeProjectPath(cwd);
                 const claudePathDir = path.join(os.homedir(), '.claude', 'projects', pathBasedName);
 
                 // Check if any Claude session directory exists for this working directory

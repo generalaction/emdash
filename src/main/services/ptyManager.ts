@@ -501,9 +501,19 @@ export function getStoredResumeTarget(
   return normalized.target;
 }
 
+/**
+ * Encode a project working directory for use in Claude's ~/.claude/projects/ path.
+ *
+ * Claude encodes project paths by replacing path separators with hyphens.
+ * On Windows also strips ':' drive letters, and replaces backslashes.
+ */
+export function normalizeClaudeProjectPath(cwd: string): string {
+  return cwd.replace(/[:\\/]/g, '-');
+}
+
 function claudeSessionFileExists(uuid: string, cwd: string): boolean {
   try {
-    const encoded = cwd.replace(/[:\\/]/g, '-');
+    const encoded = normalizeClaudeProjectPath(cwd);
     const sessionFile = path.join(os.homedir(), '.claude', 'projects', encoded, `${uuid}.jsonl`);
     return fs.existsSync(sessionFile);
   } catch {
@@ -523,8 +533,7 @@ function claudeSessionFileExists(uuid: string, cwd: string): boolean {
  */
 function discoverExistingClaudeSession(cwd: string, excludeUuids: Set<string>): string | null {
   try {
-    // Claude encodes project paths by replacing path separators; on Windows also strip ':'.
-    const encoded = cwd.replace(/[:\\/]/g, '-');
+    const encoded = normalizeClaudeProjectPath(cwd);
     const projectDir = path.join(os.homedir(), '.claude', 'projects', encoded);
 
     if (!fs.existsSync(projectDir)) return null;
@@ -627,9 +636,17 @@ export function applySessionIsolation(
     }
   }
 
+  const pushCreateOrResumeArg = (uuid: string) => {
+    if (provider.id === 'claude' && claudeSessionFileExists(uuid, cwd)) {
+      cliArgs.push('--resume', uuid);
+    } else {
+      cliArgs.push(provider.sessionIdFlag!, uuid);
+    }
+    markClaudeSessionCreated(id, uuid, cwd);
+  };
+
   if (isAdditionalChat) {
-    cliArgs.push(provider.sessionIdFlag, sessionUuid);
-    markClaudeSessionCreated(id, sessionUuid, cwd);
+    pushCreateOrResumeArg(sessionUuid);
     return true;
   }
 
@@ -639,11 +656,9 @@ export function applySessionIsolation(
     const otherUuids = getOtherSessionUuids(id, parsed.providerId, cwd);
     const existingSession = discoverExistingClaudeSession(cwd, otherUuids);
     if (existingSession) {
-      cliArgs.push(provider.sessionIdFlag, existingSession);
-      markClaudeSessionCreated(id, existingSession, cwd);
+      pushCreateOrResumeArg(existingSession);
     } else {
-      cliArgs.push(provider.sessionIdFlag, sessionUuid);
-      markClaudeSessionCreated(id, sessionUuid, cwd);
+      pushCreateOrResumeArg(sessionUuid);
     }
     return true;
   }
@@ -651,8 +666,7 @@ export function applySessionIsolation(
   if (!isResume) {
     // First-time creation — proactively assign a session ID so we can
     // reliably resume later if more chats of this provider are added.
-    cliArgs.push(provider.sessionIdFlag, sessionUuid);
-    markClaudeSessionCreated(id, sessionUuid, cwd);
+    pushCreateOrResumeArg(sessionUuid);
     return true;
   }
 

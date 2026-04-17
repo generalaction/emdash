@@ -18,6 +18,7 @@ export async function ensureCompose(taskPath?: string): Promise<boolean> {
     const candidates = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'];
     for (const file of candidates) {
       const res = await window.electronAPI.fsRead(taskPath, file, 1);
+      // Return early if docker-compose file already exists
       if (res?.success) return true;
     }
   } catch {}

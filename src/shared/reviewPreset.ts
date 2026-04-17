@@ -17,6 +17,96 @@ export interface ReviewConversationMetadata {
   initialPromptSent?: boolean | null;
 }
 
+// AI Review types
+export type ReviewDepth = 'quick' | 'focused' | 'comprehensive';
+
+export const REVIEW_DEPTH_AGENTS: Record<ReviewDepth, number> = {
+  quick: 1,
+  focused: 3,
+  comprehensive: 5,
+};
+
+export type ReviewType = 'file-changes';
+
+// Message type for review conversations (shared between renderer and main)
+export interface ReviewMessage {
+  id: string;
+  conversationId: string;
+  sender: 'user' | 'agent' | 'system';
+  content: string;
+  timestamp: string;
+}
+
+export interface AIReviewConfig {
+  depth: ReviewDepth;
+  reviewType: ReviewType;
+  providerId: ProviderId;
+}
+
+export interface AIReviewIssue {
+  id: string;
+  severity: 'critical' | 'major' | 'minor' | 'info';
+  category: string;
+  title: string;
+  description: string;
+  codeSnapshot?: string;
+  filePath?: string;
+  lineRange?: { start: number; end: number };
+  fixPrompt?: string;
+}
+
+export interface AIReviewResult {
+  reviewId: string;
+  timestamp: string;
+  depth: ReviewDepth;
+  reviewType: ReviewType;
+  issues: AIReviewIssue[];
+  summary: string;
+  durationMs: number;
+  agentIds: string[]; // Conversation IDs of review agents
+}
+
+// Review prompt templates
+// Output format: JSON array of issues with schema:
+// [{ "severity": "critical|major|minor|info", "category": "string", "title": "string", "description": "string", "filePath": "string?", "lineRange": {"start": number, "end": number}?, "codeSnapshot": "string?", "fixPrompt": "string?" }]
+// Return only valid JSON.
+export const REVIEW_PROMPTS = {
+  fileChanges: {
+    quick: `You are a code reviewer. Review the diff between the task's source branch and the current workspace for:
+- Critical bugs and security issues
+- Obvious correctness problems
+- Major performance concerns
+
+Provide your review as a JSON array of issues with this schema:
+[{ "severity": "critical|major|minor|info", "category": "string", "title": "string", "description": "string", "filePath": "string?", "lineRange": {"start": number, "end": number}?, "codeSnapshot": "string?", "fixPrompt": "string?" }]
+Return only valid JSON.`,
+    focused: `You are a thorough code reviewer. Review the diff between the task's source branch and the current workspace for:
+- Correctness, edge cases, and regressions
+- Security vulnerabilities
+- Performance issues
+- Error handling problems
+- Testing gaps
+- Code maintainability
+
+Provide your review as a JSON array of issues with this schema:
+[{ "severity": "critical|major|minor|info", "category": "string", "title": "string", "description": "string", "filePath": "string?", "lineRange": {"start": number, "end": number}?, "codeSnapshot": "string?", "fixPrompt": "string?" }]
+Return only valid JSON.`,
+    comprehensive: `You are an expert code reviewer conducting a comprehensive review. Review diff between the task's source branch and the current workspace for:
+- All correctness issues including edge cases
+- Security (OWASP top 10, injection, auth issues)
+- Performance bottlenecks and algorithmic improvements
+- Error handling and fault tolerance
+- Testing coverage and quality
+- Maintainability and readability
+- Best practices adherence
+- Potential bugs and race conditions
+
+Provide your review as a JSON array of issues with this schema:
+[{ "severity": "critical|major|minor|info", "category": "string", "title": "string", "description": "string", "filePath": "string?", "lineRange": {"start": number, "end": number}?, "codeSnapshot": "string?", "fixPrompt": "string?" }]
+Return only valid JSON.`,
+  },
+};
+
 export function parseConversationMetadata(
   metadata?: string | null
 ): Record<string, unknown> | null {
