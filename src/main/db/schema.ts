@@ -7,6 +7,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import type { StoredBranch } from '@main/core/tasks/stored-branch';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',
@@ -80,7 +81,7 @@ export const tasks = sqliteTable(
       .references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     status: text('status').notNull(),
-    sourceBranch: text('source_branch').notNull(),
+    sourceBranch: text('source_branch', { mode: 'json' }).$type<StoredBranch>().notNull(),
     taskBranch: text('task_branch'),
     linkedIssue: text('linked_issue'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived

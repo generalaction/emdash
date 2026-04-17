@@ -106,10 +106,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromBranch.taskName,
-          sourceBranch: {
-            branch: fromBranch.selectedBranch.branch,
-            remote: fromBranch.selectedBranch.remote,
-          },
+          sourceBranch: fromBranch.selectedBranch,
           strategy: taskStrategy,
         });
         break;
@@ -126,10 +123,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromIssue.taskName,
-          sourceBranch: {
-            branch: fromIssue.selectedBranch.branch,
-            remote: fromIssue.selectedBranch.remote,
-          },
+          sourceBranch: fromIssue.selectedBranch,
           strategy: taskStrategy,
           linkedIssue: fromIssue.linkedIssue ?? undefined,
         });
@@ -148,7 +142,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromPR.taskName,
-          sourceBranch: { branch: fromPR.linkedPR.metadata.headRefName },
+          sourceBranch: { type: 'local', branch: fromPR.linkedPR.metadata.headRefName },
           initialStatus:
             fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
           strategy: taskStrategy,

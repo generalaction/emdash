@@ -100,7 +100,12 @@ export class TaskManagerStore {
       );
     });
 
-    const result = await rpc.tasks.createTask(params).catch((e: unknown) => {
+    const sourceBranch =
+      params.sourceBranch.type === 'remote'
+        ? { ...params.sourceBranch, remote: { ...params.sourceBranch.remote } }
+        : { ...params.sourceBranch };
+
+    const result = await rpc.tasks.createTask({ ...params, sourceBranch }).catch((e: unknown) => {
       // Network/IPC-level failure — surface as a generic error.
       const message = e instanceof Error ? e.message : String(e);
       runInAction(() => {

@@ -1,4 +1,5 @@
 import { CreateConversationParams } from '@shared/conversations';
+import type { Branch } from '@shared/git';
 import { PullRequest } from './pull-requests';
 
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
@@ -21,7 +22,7 @@ export type Task = {
   projectId: string;
   name: string;
   status: TaskLifecycleStatus;
-  sourceBranch: string;
+  sourceBranch: Branch;
   taskBranch?: string;
   createdAt: string;
   updatedAt: string;
@@ -58,7 +59,7 @@ export type CreateTaskParams = {
   projectId: string;
   name: string;
   /** The branch to fork the new worktree from (not used for `from-pull-request` strategy) */
-  sourceBranch: { branch: string; remote?: string };
+  sourceBranch: Branch;
   /** Controls branch creation, worktree setup, and git fetch strategy */
   strategy: CreateTaskStrategy;
   /** The issue to link to the task */
