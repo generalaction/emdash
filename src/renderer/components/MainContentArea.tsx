@@ -10,6 +10,7 @@ import AutomationsView from './automations/AutomationsView';
 import { SettingsPage, type SettingsPageTab } from './SettingsPage';
 import TaskCreationLoading from './TaskCreationLoading';
 import WorkspaceProvisioningOverlay from './WorkspaceProvisioningOverlay';
+import SetupScriptOverlay from './SetupScriptOverlay';
 import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { useTaskManagementContext } from '../contexts/TaskManagementContext';
 import { useProjectRemoteInfo } from '../hooks/useProjectRemoteInfo';
@@ -166,6 +167,8 @@ const MainContentArea: React.FC<MainContentAreaProps> = ({
         {workspaceProviderEnabled && activeTask?.metadata?.workspace && !isCreatingTask && (
           <WorkspaceProvisioningOverlay task={activeTask} project={selectedProject} />
         )}
+
+        {activeTask && !isCreatingTask && <SetupScriptOverlay task={activeTask} />}
       </div>
     );
   }
