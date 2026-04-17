@@ -1,10 +1,10 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { TerminalPane } from './TerminalPane';
 import { LifecycleTerminalView } from './LifecycleTerminalView';
-import { Plus, Play, RotateCw, Square, X, Maximize2 } from 'lucide-react';
+import { Plus, Play, RotateCw, Square, X, Maximize2, Pin, PinOff } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useTaskTerminals } from '@/lib/taskTerminalsStore';
-import { useTerminalSelection } from '../hooks/useTerminalSelection';
+import { parseTerminalValue, useTerminalSelection } from '../hooks/useTerminalSelection';
 import { cn } from '@/lib/utils';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { Button } from './ui/button';
@@ -55,6 +55,8 @@ interface Props {
 }
 
 type LifecyclePhaseStatus = 'idle' | 'running' | 'succeeded' | 'failed';
+// Cross-panel signal used to activate a pinned terminal tab in ChatInterface.
+const FOCUS_PINNED_TERMINAL_EVENT = 'emdash:focus-pinned-terminal';
 
 const TaskTerminalPanelComponent: React.FC<Props> = ({
   task,
@@ -84,6 +86,22 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   const globalTerminals = useTaskTerminals(globalKey, effectiveCwd);
 
   const selection = useTerminalSelection({ task, taskTerminals, globalTerminals });
+  const pinnedTaskTerminalIds = useMemo(
+    () => new Set(taskTerminals.terminals.filter((terminal) => terminal.pinned).map((t) => t.id)),
+    [taskTerminals.terminals]
+  );
+  const pinnedGlobalTerminalIds = useMemo(
+    () => new Set(globalTerminals.terminals.filter((terminal) => terminal.pinned).map((t) => t.id)),
+    [globalTerminals.terminals]
+  );
+  const visibleTaskTerminals = useMemo(
+    () => taskTerminals.terminals.filter((terminal) => !terminal.pinned),
+    [taskTerminals.terminals]
+  );
+  const visibleGlobalTerminals = useMemo(
+    () => globalTerminals.terminals.filter((terminal) => !terminal.pinned),
+    [globalTerminals.terminals]
+  );
 
   const [expandedTerminalId, setExpandedTerminalId] = useState<string | null>(null);
   // Tracks which terminal needs a key bump to force re-attach after modal close
@@ -259,7 +277,73 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
     }
   }, [runStatus, selection.onChange]);
 
-  const totalTerminals = taskTerminals.terminals.length + globalTerminals.terminals.length;
+  const totalTerminals = visibleTaskTerminals.length + visibleGlobalTerminals.length;
+  // Ignore the immediate Select onValueChange emitted from the same pointer interaction
+  // used to click the inline pin button inside an item.
+  const suppressSelectionUntilRef = useRef(0);
+
+  const handleSelectionChange = useCallback(
+    (value: string) => {
+      if (Date.now() < suppressSelectionUntilRef.current) {
+        return;
+      }
+      const parsed = parseTerminalValue(value);
+      if (!parsed) return;
+      if (parsed.mode === 'task' && pinnedTaskTerminalIds.has(parsed.id)) {
+        window.dispatchEvent(
+          new CustomEvent(FOCUS_PINNED_TERMINAL_EVENT, {
+            detail: {
+              taskId: task?.id ?? null,
+              scope: 'task',
+              terminalId: parsed.id,
+            },
+          })
+        );
+        selection.setIsOpen(false);
+        return;
+      }
+      if (parsed.mode === 'global' && pinnedGlobalTerminalIds.has(parsed.id)) {
+        window.dispatchEvent(
+          new CustomEvent(FOCUS_PINNED_TERMINAL_EVENT, {
+            detail: {
+              taskId: task?.id ?? null,
+              scope: 'global',
+              terminalId: parsed.id,
+            },
+          })
+        );
+        selection.setIsOpen(false);
+        return;
+      }
+      selection.onChange(value);
+    },
+    [selection, pinnedTaskTerminalIds, pinnedGlobalTerminalIds, task?.id]
+  );
+
+  const handleTogglePinned = useCallback(
+    (mode: 'task' | 'global', terminalId: string) => {
+      const store = mode === 'task' ? taskTerminals : globalTerminals;
+      store.togglePinned(terminalId);
+
+      const selected = selection.parsed;
+      if (selected?.mode === mode && selected.id === terminalId) {
+        const fallback =
+          mode === 'task'
+            ? visibleTaskTerminals.find((terminal) => terminal.id !== terminalId)
+            : visibleGlobalTerminals.find((terminal) => terminal.id !== terminalId);
+        if (fallback) {
+          selection.onChange(`${mode}::${fallback.id}`);
+          return;
+        }
+        if (mode === 'task' && visibleGlobalTerminals.length > 0) {
+          selection.onChange(`global::${visibleGlobalTerminals[0].id}`);
+        } else if (mode === 'global' && visibleTaskTerminals.length > 0) {
+          selection.onChange(`task::${visibleTaskTerminals[0].id}`);
+        }
+      }
+    },
+    [taskTerminals, globalTerminals, selection, visibleTaskTerminals, visibleGlobalTerminals]
+  );
 
   const lifecycleLogContent = useMemo(() => {
     if (!selection.selectedLifecycle) return '';
@@ -268,6 +352,13 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
   }, [lifecycleLogs, selection.selectedLifecycle]);
 
   const hasActiveTerminal = !selection.selectedLifecycle && !!selection.activeTerminalId;
+  const selectedPinnedTerminal = useMemo(() => {
+    const selected = selection.parsed;
+    if (!selected) return false;
+    if (selected.mode === 'task') return pinnedTaskTerminalIds.has(selected.id);
+    if (selected.mode === 'global') return pinnedGlobalTerminalIds.has(selected.id);
+    return false;
+  }, [selection.parsed, pinnedTaskTerminalIds, pinnedGlobalTerminalIds]);
 
   const canStartRun =
     !!task &&
@@ -501,7 +592,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
       <div className="flex items-center gap-2 border-b border-border bg-muted px-2 py-1.5 dark:bg-background">
         <Select
           value={selection.value}
-          onValueChange={selection.onChange}
+          onValueChange={handleSelectionChange}
           open={selection.isOpen}
           onOpenChange={selection.setIsOpen}
         >
@@ -542,6 +633,31 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     value={`task::${terminal.id}`}
                     className="text-xs"
                   >
+                    <button
+                      type="button"
+                      className="absolute right-7 flex h-3.5 w-3.5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        suppressSelectionUntilRef.current = Date.now() + 250;
+                        handleTogglePinned('task', terminal.id);
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      title={
+                        terminal.pinned
+                          ? 'Unpin terminal from main panel'
+                          : 'Pin terminal to main panel'
+                      }
+                    >
+                      {terminal.pinned ? (
+                        <PinOff className="h-3 w-3" />
+                      ) : (
+                        <Pin className="h-3 w-3" />
+                      )}
+                    </button>
                     {terminal.title}
                   </SelectItem>
                 ))}
@@ -580,6 +696,31 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     value={`global::${terminal.id}`}
                     className="text-xs"
                   >
+                    <button
+                      type="button"
+                      className="absolute right-7 flex h-3.5 w-3.5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        suppressSelectionUntilRef.current = Date.now() + 250;
+                        handleTogglePinned('global', terminal.id);
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      title={
+                        terminal.pinned
+                          ? 'Unpin terminal from main panel'
+                          : 'Pin terminal to main panel'
+                      }
+                    >
+                      {terminal.pinned ? (
+                        <PinOff className="h-3 w-3" />
+                      ) : (
+                        <Pin className="h-3 w-3" />
+                      )}
+                    </button>
                     {terminal.title}
                   </SelectItem>
                 ))}
@@ -688,9 +829,9 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         {(() => {
           const canDelete =
             selection.parsed?.mode === 'task'
-              ? taskTerminals.terminals.length > 1
+              ? visibleTaskTerminals.length > 1
               : selection.parsed?.mode === 'global'
-                ? globalTerminals.terminals.length > 1
+                ? visibleGlobalTerminals.length > 1
                 : false;
           return (
             <TooltipProvider delayDuration={200}>
@@ -777,7 +918,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           ) : (
             <>
               {task &&
-                taskTerminals.terminals.map((terminal) => {
+                visibleTaskTerminals.map((terminal) => {
                   const isActive =
                     selection.parsed?.mode === 'task' && terminal.id === selection.activeTerminalId;
                   return (
@@ -809,7 +950,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                     </div>
                   );
                 })}
-              {globalTerminals.terminals.map((terminal) => {
+              {visibleGlobalTerminals.map((terminal) => {
                 const isActive =
                   selection.parsed?.mode === 'global' && terminal.id === selection.activeTerminalId;
                 return (
@@ -842,7 +983,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
               })}
               {totalTerminals === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-xs text-muted-foreground">
-                  <p>No terminal found.</p>
+                  <p>{selectedPinnedTerminal ? 'Terminal pinned.' : 'No terminal found.'}</p>
                 </div>
               ) : null}
             </>

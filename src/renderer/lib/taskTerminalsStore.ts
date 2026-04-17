@@ -6,6 +6,7 @@ type TaskTerminal = {
   title: string;
   cwd?: string;
   shell?: string;
+  pinned?: boolean;
   createdAt: number;
 };
 
@@ -75,6 +76,7 @@ function loadFromStorage(taskId: string): TaskTerminalsState | null {
               title,
               cwd: typeof item.cwd === 'string' && item.cwd ? item.cwd : undefined,
               shell: typeof item.shell === 'string' && item.shell ? item.shell : undefined,
+              pinned: item.pinned === true,
               createdAt:
                 typeof item.createdAt === 'number' && Number.isFinite(item.createdAt)
                   ? item.createdAt
@@ -296,6 +298,22 @@ function closeTerminal(taskId: string, terminalId: string, taskPath?: string) {
   }
 }
 
+function setPinned(taskId: string, terminalId: string, pinned: boolean, taskPath?: string) {
+  updateTaskState(taskId, taskPath, (draft) => {
+    draft.terminals = draft.terminals.map((terminal) =>
+      terminal.id === terminalId ? { ...terminal, pinned } : terminal
+    );
+  });
+}
+
+function togglePinned(taskId: string, terminalId: string, taskPath?: string) {
+  updateTaskState(taskId, taskPath, (draft) => {
+    draft.terminals = draft.terminals.map((terminal) =>
+      terminal.id === terminalId ? { ...terminal, pinned: !terminal.pinned } : terminal
+    );
+  });
+}
+
 export function disposeTaskTerminals(taskKey: string): void {
   const state = taskStates.get(taskKey) ?? loadFromStorage(taskKey);
   if (state) {
@@ -350,6 +368,9 @@ export function useTaskTerminals(
         createTerminal(resolvedId, options?.cwd || resolvedPath, options),
       setActiveTerminal: (terminalId: string) => setActive(resolvedId, terminalId, resolvedPath),
       closeTerminal: (terminalId: string) => closeTerminal(resolvedId, terminalId, resolvedPath),
+      setPinned: (terminalId: string, pinned: boolean) =>
+        setPinned(resolvedId, terminalId, pinned, resolvedPath),
+      togglePinned: (terminalId: string) => togglePinned(resolvedId, terminalId, resolvedPath),
     };
   }, [resolvedId, resolvedPath]);
 

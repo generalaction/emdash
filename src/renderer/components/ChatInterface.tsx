@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { Plus, X } from 'lucide-react';
+import { PinOff, Plus, X } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useTheme } from '../hooks/useTheme';
 import { TerminalPane, type TerminalPaneHandle } from './TerminalPane';
@@ -61,6 +61,9 @@ interface Props {
   onTaskInterfaceReady?: () => void;
   onRenameTask?: (project: Project, task: Task, newName: string) => Promise<void>;
 }
+
+// Cross-panel signal emitted from TaskTerminalPanel when a pinned terminal is selected.
+const FOCUS_PINNED_TERMINAL_EVENT = 'emdash:focus-pinned-terminal';
 
 function ConversationTabButton({
   conversation,
@@ -142,13 +145,64 @@ function ConversationTabButton({
   );
 }
 
+function PinnedTerminalTabButton({
+  label,
+  isActive,
+  onClick,
+  onUnpin,
+}: {
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+  onUnpin: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-current={isActive ? 'page' : undefined}
+      className={cn(
+        'inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors',
+        'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        isActive
+          ? 'bg-background text-foreground shadow-sm'
+          : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+      )}
+      title={label}
+    >
+      <span className="inline-flex w-3.5 flex-shrink-0 justify-center text-[10px] leading-none text-muted-foreground/90">
+        {'>_'}
+      </span>
+      <span className="max-w-[10rem] truncate">{label}</span>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          e.stopPropagation();
+          onUnpin();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            onUnpin();
+          }
+        }}
+        className="ml-1 rounded hover:bg-background/20"
+        title="Unpin terminal"
+      >
+        <PinOff className="h-3 w-3" />
+      </span>
+    </button>
+  );
+}
+
 const ChatInterface: React.FC<Props> = ({
   task,
   project,
   projectName: _projectName,
   projectPath,
   projectRemoteConnectionId,
-  projectRemotePath: _projectRemotePath,
+  projectRemotePath,
   defaultBranch,
   className,
   initialAgent,
@@ -175,6 +229,7 @@ const ChatInterface: React.FC<Props> = ({
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
+  const [activePinnedTerminalKey, setActivePinnedTerminalKey] = useState<string | null>(null);
   const lockedAgentWriteRef = useRef<string | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
@@ -287,6 +342,51 @@ const ChatInterface: React.FC<Props> = ({
   );
 
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
+  const sidebarTaskKey = `${task.id}::${task.path}`;
+  const sidebarTaskTerminals = useTaskTerminals(sidebarTaskKey, task.path);
+  const sidebarGlobalKey = task.path
+    ? `global::${task.path}`
+    : projectPath
+      ? `global::${projectPath}`
+      : 'global::home';
+  const sidebarGlobalTerminals = useTaskTerminals(sidebarGlobalKey, projectPath || undefined);
+  const pinnedTerminals = useMemo(() => {
+    const taskPins = sidebarTaskTerminals.terminals
+      .filter((terminal) => terminal.pinned)
+      .map((terminal) => ({
+        key: `task::${terminal.id}`,
+        terminalId: terminal.id,
+        tabLabel: `${terminal.title} (worktree)`,
+        cwd: terminal.cwd,
+        scope: 'task' as const,
+      }));
+    const globalPins = sidebarGlobalTerminals.terminals
+      .filter((terminal) => terminal.pinned)
+      .map((terminal) => ({
+        key: `global::${terminal.id}`,
+        terminalId: terminal.id,
+        tabLabel: `${terminal.title} (project)`,
+        cwd: terminal.cwd,
+        scope: 'global' as const,
+      }));
+    return [...taskPins, ...globalPins];
+  }, [sidebarTaskTerminals.terminals, sidebarGlobalTerminals.terminals]);
+  const activePinnedTerminal = useMemo(
+    () => pinnedTerminals.find((terminal) => terminal.key === activePinnedTerminalKey) ?? null,
+    [pinnedTerminals, activePinnedTerminalKey]
+  );
+  const effectiveRemoteProjectPath = useMemo(
+    () => workspaceRemotePath || projectRemotePath || undefined,
+    [workspaceRemotePath, projectRemotePath]
+  );
+  const activeTerminalPaneId = activePinnedTerminal?.terminalId ?? terminalId;
+  const activeTerminalPaneCwd = useMemo(() => {
+    if (!activePinnedTerminal) return effectiveCwd;
+    if (activePinnedTerminal.scope === 'task') {
+      return effectiveRemoteProjectPath || activePinnedTerminal.cwd || task.path;
+    }
+    return activePinnedTerminal.cwd || projectPath || task.path;
+  }, [activePinnedTerminal, effectiveCwd, effectiveRemoteProjectPath, task.path, projectPath]);
 
   // Wire comment injection to pendingInjectionManager
   useCommentInjection(task.id, task.path);
@@ -311,6 +411,12 @@ const ChatInterface: React.FC<Props> = ({
     readySignaledTaskIdRef.current = task.id;
     onTaskInterfaceReady();
   }, [task.id, onTaskInterfaceReady]);
+
+  useEffect(() => {
+    if (!activePinnedTerminalKey) return;
+    if (pinnedTerminals.some((terminal) => terminal.key === activePinnedTerminalKey)) return;
+    setActivePinnedTerminalKey(null);
+  }, [activePinnedTerminalKey, pinnedTerminals]);
 
   const syncConversations = useCallback(async () => {
     setConversationsLoaded(false);
@@ -472,7 +578,7 @@ const ChatInterface: React.FC<Props> = ({
     handleSearchQueryChange,
     stepSearch,
   } = useTerminalSearch({
-    terminalId,
+    terminalId: activeTerminalPaneId,
     containerRef: terminalPanelRef,
     enabled: true,
     onCloseFocus: () => terminalRef.current?.focus(),
@@ -495,13 +601,13 @@ const ChatInterface: React.FC<Props> = ({
     if (!conversationsLoaded) return;
     // Small delay to ensure terminal is mounted and attached
     const timer = setTimeout(() => {
-      const session = terminalSessionRegistry.getSession(terminalId);
+      const session = terminalSessionRegistry.getSession(activeTerminalPaneId);
       if (session) {
         session.focus();
       }
     }, 100);
     return () => clearTimeout(timer);
-  }, [task.id, terminalId, conversationsLoaded]);
+  }, [task.id, activeTerminalPaneId, conversationsLoaded]);
 
   // Focus terminal when this task becomes active (for already-mounted terminals)
   useEffect(() => {
@@ -519,7 +625,7 @@ const ChatInterface: React.FC<Props> = ({
       timer = setTimeout(() => {
         timer = null;
         if (!mounted) return;
-        const session = terminalSessionRegistry.getSession(terminalId);
+        const session = terminalSessionRegistry.getSession(activeTerminalPaneId);
         if (session) session.focus();
       }, 0);
     };
@@ -529,9 +635,10 @@ const ChatInterface: React.FC<Props> = ({
       if (timer !== null) clearTimeout(timer);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [terminalId]);
+  }, [activeTerminalPaneId]);
 
   useEffect(() => {
+    if (activePinnedTerminal) return;
     const meta = agentMeta[agent];
     if (!meta?.terminalOnly || !meta.autoStartCommand) return;
 
@@ -568,7 +675,7 @@ const ChatInterface: React.FC<Props> = ({
       } catch {}
       clearTimeout(t);
     };
-  }, [agent, terminalId]);
+  }, [agent, terminalId, activePinnedTerminal]);
 
   useEffect(() => {
     setCliStartError(null);
@@ -709,6 +816,7 @@ const ChatInterface: React.FC<Props> = ({
         conversationId,
       });
       setActiveConversationId(conversationId);
+      setActivePinnedTerminalKey(null);
 
       // Update provider based on conversation
       const conv = conversations.find((c) => c.id === conversationId);
@@ -718,6 +826,54 @@ const ChatInterface: React.FC<Props> = ({
     },
     [task.id, conversations]
   );
+
+  const handleSelectPinnedTerminal = useCallback(
+    (terminalKey: string) => {
+      const current = pinnedTerminals.find((terminal) => terminal.key === terminalKey);
+      if (!current) return;
+      if (activePinnedTerminalKey === terminalKey) {
+        terminalSessionRegistry.getSession(current.terminalId)?.focus();
+        return;
+      }
+      setActivePinnedTerminalKey(terminalKey);
+    },
+    [activePinnedTerminalKey, pinnedTerminals]
+  );
+
+  const handleUnpinPinnedTerminal = useCallback(
+    (terminalKey: string) => {
+      const terminal = pinnedTerminals.find((item) => item.key === terminalKey);
+      if (!terminal) return;
+      if (terminal.scope === 'task') {
+        sidebarTaskTerminals.setPinned(terminal.terminalId, false);
+      } else {
+        sidebarGlobalTerminals.setPinned(terminal.terminalId, false);
+      }
+      if (activePinnedTerminalKey === terminalKey) {
+        setActivePinnedTerminalKey(null);
+      }
+    },
+    [pinnedTerminals, sidebarTaskTerminals, sidebarGlobalTerminals, activePinnedTerminalKey]
+  );
+
+  useEffect(() => {
+    const onFocusPinned = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          taskId?: string | null;
+          scope?: 'task' | 'global';
+          terminalId?: string;
+        }>
+      ).detail;
+      if (!detail?.terminalId || !detail.scope) return;
+      if (detail.taskId !== task.id) return;
+      handleSelectPinnedTerminal(`${detail.scope}::${detail.terminalId}`);
+    };
+
+    window.addEventListener(FOCUS_PINNED_TERMINAL_EVENT, onFocusPinned as EventListener);
+    return () =>
+      window.removeEventListener(FOCUS_PINNED_TERMINAL_EVENT, onFocusPinned as EventListener);
+  }, [task.id, handleSelectPinnedTerminal]);
 
   const handleCloseChat = useCallback(
     async (conversationId: string) => {
@@ -1178,7 +1334,7 @@ const ChatInterface: React.FC<Props> = ({
                       <ConversationTabButton
                         key={conv.id}
                         conversation={conv}
-                        activeConversationId={activeConversationId}
+                        activeConversationId={activePinnedTerminal ? null : activeConversationId}
                         onSwitchChat={handleSwitchChat}
                         onCloseChat={handleCloseChat}
                         totalConversationCount={conversations.length}
@@ -1187,6 +1343,15 @@ const ChatInterface: React.FC<Props> = ({
                       />
                     );
                   })}
+                  {pinnedTerminals.map((terminal) => (
+                    <PinnedTerminalTabButton
+                      key={terminal.key}
+                      label={terminal.tabLabel}
+                      isActive={activePinnedTerminal?.key === terminal.key}
+                      onClick={() => handleSelectPinnedTerminal(terminal.key)}
+                      onUnpin={() => handleUnpinPinnedTerminal(terminal.key)}
+                    />
+                  ))}
                 </div>
                 <button
                   onClick={handleCreateNewChat}
@@ -1213,34 +1378,35 @@ const ChatInterface: React.FC<Props> = ({
                   )}
                 </div>
               </div>
-              {(() => {
-                if (isAgentInstalled === false) {
-                  return (
-                    <InstallBanner
-                      agent={agent as any}
-                      terminalId={terminalId}
-                      installCommand={getInstallCommandForProvider(agent as any)}
-                      onRunInstall={runInstallCommand}
-                      onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                      mode="missing"
-                    />
-                  );
-                }
-                if (cliStartError) {
-                  return (
-                    <InstallBanner
-                      agent={agent as any}
-                      terminalId={terminalId}
-                      installCommand={null}
-                      onRunInstall={runInstallCommand}
-                      onOpenExternal={(url) => window.electronAPI.openExternal(url)}
-                      mode="start_failed"
-                      details={cliStartError}
-                    />
-                  );
-                }
-                return null;
-              })()}
+              {!activePinnedTerminal &&
+                (() => {
+                  if (isAgentInstalled === false) {
+                    return (
+                      <InstallBanner
+                        agent={agent as any}
+                        terminalId={terminalId}
+                        installCommand={getInstallCommandForProvider(agent as any)}
+                        onRunInstall={runInstallCommand}
+                        onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                        mode="missing"
+                      />
+                    );
+                  }
+                  if (cliStartError) {
+                    return (
+                      <InstallBanner
+                        agent={agent as any}
+                        terminalId={terminalId}
+                        installCommand={null}
+                        onRunInstall={runInstallCommand}
+                        onOpenExternal={(url) => window.electronAPI.openExternal(url)}
+                        mode="start_failed"
+                        details={cliStartError}
+                      />
+                    );
+                  }
+                  return null;
+                })()}
             </div>
           </div>
           <div
@@ -1281,20 +1447,25 @@ const ChatInterface: React.FC<Props> = ({
               {conversationsLoaded && (!isWorkspaceTask || workspaceConnectionId) && (
                 <TerminalPane
                   ref={terminalRef}
-                  id={terminalId}
-                  cwd={effectiveCwd}
+                  id={activeTerminalPaneId}
+                  cwd={activeTerminalPaneCwd}
                   remote={effectiveRemote}
-                  providerId={agent}
-                  autoApprove={autoApproveEnabled}
-                  env={taskEnv}
+                  providerId={activePinnedTerminal ? undefined : agent}
+                  autoApprove={activePinnedTerminal ? undefined : autoApproveEnabled}
+                  env={activePinnedTerminal ? undefined : taskEnv}
                   keepAlive={true}
                   mapShiftEnterToCtrlJ
                   disableSnapshots={false}
-                  onActivity={handleTerminalActivity}
-                  onStartError={(message) => {
-                    setCliStartError(message);
-                  }}
+                  onActivity={activePinnedTerminal ? undefined : handleTerminalActivity}
+                  onStartError={
+                    activePinnedTerminal
+                      ? undefined
+                      : (message) => {
+                          setCliStartError(message);
+                        }
+                  }
                   onStartSuccess={() => {
+                    if (activePinnedTerminal) return;
                     setCliStartError(null);
                     if (
                       isMainConversation &&
@@ -1355,6 +1526,7 @@ const ChatInterface: React.FC<Props> = ({
                       : undefined
                   }
                   initialPrompt={
+                    !activePinnedTerminal &&
                     agentMeta[agent]?.initialPromptFlag !== undefined &&
                     !agentMeta[agent]?.useKeystrokeInjection &&
                     ((isMainConversation && !task.metadata?.initialInjectionSent) ||
@@ -1364,7 +1536,13 @@ const ChatInterface: React.FC<Props> = ({
                         : (reviewPrompt ?? undefined)
                       : undefined
                   }
-                  onFirstMessage={shouldCaptureFirstMessage ? handleFirstMessage : undefined}
+                  onFirstMessage={
+                    activePinnedTerminal
+                      ? undefined
+                      : shouldCaptureFirstMessage
+                        ? handleFirstMessage
+                        : undefined
+                  }
                   className="h-full w-full"
                 />
               )}
