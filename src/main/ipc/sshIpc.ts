@@ -166,6 +166,49 @@ export function registerSshIpc() {
       config: SshConfig & { password?: string; passphrase?: string }
     ): Promise<ConnectionTestResult> => {
       try {
+        // When renderer sends only connection id (e.g. SshConnectionTestButton), resolve from DB and keytar
+        const isIdOnly =
+          config.id &&
+          (typeof config.host !== 'string' || !config.host.trim()) &&
+          (typeof config.username !== 'string' || !config.username.trim());
+
+        let resolvedConfig: SshConfig & { password?: string; passphrase?: string } = config;
+        if (isIdOnly && config.id) {
+          const { db } = await getDrizzleClient();
+          const rows = await db
+            .select({
+              id: sshConnectionsTable.id,
+              name: sshConnectionsTable.name,
+              host: sshConnectionsTable.host,
+              port: sshConnectionsTable.port,
+              username: sshConnectionsTable.username,
+              authType: sshConnectionsTable.authType,
+              privateKeyPath: sshConnectionsTable.privateKeyPath,
+              useAgent: sshConnectionsTable.useAgent,
+            })
+            .from(sshConnectionsTable)
+            .where(eq(sshConnectionsTable.id, config.id))
+            .limit(1);
+
+          const row = rows[0];
+          if (!row) {
+            return { success: false, error: `Connection not found: ${config.id}` };
+          }
+
+          resolvedConfig = mapRowToConfig(row) as SshConfig & {
+            password?: string;
+            passphrase?: string;
+          };
+          if (resolvedConfig.authType === 'password') {
+            resolvedConfig.password =
+              (await credentialService.getPassword(resolvedConfig.id)) ?? undefined;
+          }
+          if (resolvedConfig.authType === 'key') {
+            resolvedConfig.passphrase =
+              (await credentialService.getPassphrase(resolvedConfig.id)) ?? undefined;
+          }
+        }
+
         const { Client } = await import('ssh2');
         const debugLogs: string[] = [];
         const testClient = new Client();
@@ -214,21 +257,21 @@ export function registerSshIpc() {
             agent?: string;
             debug?: (info: string) => void;
           } = {
-            host: config.host,
-            port: config.port,
-            username: config.username,
+            host: resolvedConfig.host,
+            port: resolvedConfig.port,
+            username: resolvedConfig.username,
             readyTimeout: 10000,
             debug: (info: string) => debugLogs.push(info),
           };
 
-          if (config.authType === 'password') {
-            connectConfig.password = config.password;
-          } else if (config.authType === 'key' && config.privateKeyPath) {
+          if (resolvedConfig.authType === 'password') {
+            connectConfig.password = resolvedConfig.password;
+          } else if (resolvedConfig.authType === 'key' && resolvedConfig.privateKeyPath) {
             const fs = require('fs');
             const os = require('os');
             try {
               // Expand ~ to home directory
-              let keyPath = config.privateKeyPath;
+              let keyPath = resolvedConfig.privateKeyPath;
               if (keyPath.startsWith('~/')) {
                 keyPath = keyPath.replace('~', os.homedir());
               } else if (keyPath === '~') {
@@ -236,8 +279,8 @@ export function registerSshIpc() {
               }
 
               connectConfig.privateKey = fs.readFileSync(keyPath);
-              if (config.passphrase) {
-                connectConfig.passphrase = config.passphrase;
+              if (resolvedConfig.passphrase) {
+                connectConfig.passphrase = resolvedConfig.passphrase;
               }
             } catch (err: any) {
               resolve({
@@ -247,8 +290,8 @@ export function registerSshIpc() {
               });
               return;
             }
-          } else if (config.authType === 'agent') {
-            const identityAgent = await resolveIdentityAgent(config.host);
+          } else if (resolvedConfig.authType === 'agent') {
+            const identityAgent = await resolveIdentityAgent(resolvedConfig.host);
             connectConfig.agent = identityAgent || process.env.SSH_AUTH_SOCK;
             debugLogs.push(
               `[emdash] authType=agent, socket=${connectConfig.agent ?? '(not found)'}`

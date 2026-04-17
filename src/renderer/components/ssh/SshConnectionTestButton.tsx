@@ -35,9 +35,7 @@ export const SshConnectionTestButton: React.FC<Props> = ({
     setCopied(false);
 
     try {
-      // For testing, we need the full config - this would need to be fetched or passed in
-      // For now, we'll call the test with just the ID and let the main process handle it
-      // TODO: Fetch connection details or update IPC to accept just ID
+      // Main process accepts ID-only: it loads the saved connection from DB and hydrates credentials from keytar.
       const testResult = await window.electronAPI.sshTestConnection({
         id: connectionId,
         name: '',
