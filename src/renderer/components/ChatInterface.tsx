@@ -41,12 +41,7 @@ import {
   getConversationTabLabel,
   planConversationTitleUpdates,
 } from '../lib/conversationTabTitles';
-
-declare const window: Window & {
-  electronAPI: {
-    saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
-  };
-};
+import { Spinner } from './ui/spinner';
 
 interface Props {
   task: Task;
@@ -178,6 +173,7 @@ const ChatInterface: React.FC<Props> = ({
   const lockedAgentWriteRef = useRef<string | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
+  const [setupRunning, setSetupRunning] = useState(false);
   const fallbackAgentRef = useRef<Agent>(initialAgent || 'claude');
   fallbackAgentRef.current = agent;
 
@@ -311,6 +307,35 @@ const ChatInterface: React.FC<Props> = ({
     readySignaledTaskIdRef.current = task.id;
     onTaskInterfaceReady();
   }, [task.id, onTaskInterfaceReady]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setSetupRunning(false);
+
+    // Add event listener to track setup status changes
+    const off = window.electronAPI.onLifecycleEvent((event) => {
+      if (event.taskId !== task.id || event.phase !== 'setup') return;
+      setSetupRunning(event.status === 'running');
+    });
+
+    // Additionally, in case the event is missed during mount, also fetch the state immediately
+    window.electronAPI
+      .lifecycleGetState({ taskId: task.id })
+      .then((res) => {
+        if (cancelled) return;
+        setSetupRunning(res?.state?.setup?.status === 'running');
+      })
+      .catch((err) => {
+        console.error('Failed to get lifecycle state:', err);
+        if (!cancelled) setSetupRunning(false);
+      });
+
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, [task.id]);
 
   const syncConversations = useCallback(async () => {
     setConversationsLoaded(false);
@@ -1247,23 +1272,33 @@ const ChatInterface: React.FC<Props> = ({
             className="mt-4 min-h-0 flex-1 px-6"
             onWheelCapture={handleTerminalViewportWheelForwarding}
           >
+            {setupRunning && (
+              <div className="flex h-full items-center justify-center gap-2 text-muted-foreground">
+                <Spinner />
+                <span>Running setup script...</span>
+              </div>
+            )}
             <div
               ref={terminalPanelRef}
-              className={`relative mx-auto h-full max-w-4xl overflow-hidden rounded-md ${
-                agent === 'charm'
-                  ? effectiveTheme === 'dark-black'
-                    ? 'bg-black'
-                    : effectiveTheme === 'dark'
-                      ? 'bg-card'
-                      : 'bg-white'
-                  : agent === 'mistral'
-                    ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                      ? effectiveTheme === 'dark-black'
-                        ? 'bg-[#141820]'
-                        : 'bg-[#202938]'
-                      : 'bg-white'
-                    : ''
-              }`}
+              className={cn(
+                'relative mx-auto h-full max-w-4xl overflow-hidden rounded-md',
+                setupRunning && 'hidden',
+                `${
+                  agent === 'charm'
+                    ? effectiveTheme === 'dark-black'
+                      ? 'bg-black'
+                      : effectiveTheme === 'dark'
+                        ? 'bg-card'
+                        : 'bg-white'
+                    : agent === 'mistral'
+                      ? effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+                        ? effectiveTheme === 'dark-black'
+                          ? 'bg-[#141820]'
+                          : 'bg-[#202938]'
+                        : 'bg-white'
+                      : ''
+                }`
+              )}
             >
               <TerminalSearchOverlay
                 isOpen={isSearchOpen}
