@@ -444,7 +444,7 @@ export class LocalProjectProvider implements ProjectProvider {
       return existing;
     }
 
-    if (task.taskBranch === task.sourceBranch) {
+    if (task.taskBranch === task.sourceBranch.branch) {
       const result = await this.worktreeService.checkoutExistingBranch(task.taskBranch);
       if (!result.success) {
         switch (result.error.type) {
@@ -466,11 +466,16 @@ export class LocalProjectProvider implements ProjectProvider {
       return result.data;
     }
 
-    const result = await this.worktreeService.serveWorktree(task.sourceBranch, task.taskBranch);
+    const result = await this.worktreeService.checkoutBranchWorktree(
+      task.sourceBranch,
+      task.taskBranch
+    );
     if (!result.success) {
       switch (result.error.type) {
-        case 'reserve-failed':
-          throw new Error(`Could not prepare worktree for branch "${task.sourceBranch}"`);
+        case 'branch-not-found':
+          throw new Error(
+            `Branch "${task.sourceBranch.branch}" was not found locally or on remote`
+          );
         case 'worktree-setup-failed':
           throw new Error('Failed to set up worktree for task');
         default:

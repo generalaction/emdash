@@ -1,4 +1,5 @@
 import { Conversation } from '@shared/conversations';
+import type { Branch } from '@shared/git';
 import type { Result } from '@shared/result';
 import { Task, TaskBootstrapStatus } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
@@ -31,7 +32,7 @@ export type ProjectRemoteState = {
 export interface TaskProvider {
   readonly taskId: string;
   readonly taskBranch: string | undefined;
-  readonly sourceBranch: string;
+  readonly sourceBranch: Branch;
   readonly taskEnvVars: Record<string, string>;
   readonly conversations: ConversationProvider;
   readonly terminals: TerminalProvider;
