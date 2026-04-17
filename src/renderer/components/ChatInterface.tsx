@@ -340,7 +340,6 @@ const ChatInterface: React.FC<Props> = ({
       }),
     [conversations]
   );
-
   const { activeTerminalId } = useTaskTerminals(task.id, task.path);
   const sidebarTaskKey = `${task.id}::${task.path}`;
   const sidebarTaskTerminals = useTaskTerminals(sidebarTaskKey, task.path);
@@ -374,6 +373,19 @@ const ChatInterface: React.FC<Props> = ({
   const activePinnedTerminal = useMemo(
     () => pinnedTerminals.find((terminal) => terminal.key === activePinnedTerminalKey) ?? null,
     [pinnedTerminals, activePinnedTerminalKey]
+  );
+  const numberedTabs = useMemo(
+    () => [
+      ...sortedConversations.map((conversation) => ({
+        type: 'conversation' as const,
+        conversationId: conversation.id,
+      })),
+      ...pinnedTerminals.map((terminal) => ({
+        type: 'pinned' as const,
+        terminalKey: terminal.key,
+      })),
+    ],
+    [sortedConversations, pinnedTerminals]
   );
   const effectiveRemoteProjectPath = useMemo(
     () => workspaceRemotePath || projectRemotePath || undefined,
@@ -1061,19 +1073,24 @@ const ChatInterface: React.FC<Props> = ({
       const customEvent = event as CustomEvent<{ tabIndex: number }>;
       const tabIndex = customEvent.detail?.tabIndex;
       if (typeof tabIndex !== 'number') return;
-      if (tabIndex < 0 || tabIndex >= sortedConversations.length) return;
+      if (tabIndex < 0 || tabIndex >= numberedTabs.length) return;
 
-      const selectedConversation = sortedConversations[tabIndex];
-      if (selectedConversation) {
-        handleSwitchChat(selectedConversation.id);
+      const selectedTab = numberedTabs[tabIndex];
+      if (!selectedTab) return;
+
+      if (selectedTab.type === 'conversation') {
+        handleSwitchChat(selectedTab.conversationId);
+        return;
       }
+
+      handleSelectPinnedTerminal(selectedTab.terminalKey);
     };
 
     window.addEventListener('emdash:select-agent-tab', handleAgentTabSelection);
     return () => {
       window.removeEventListener('emdash:select-agent-tab', handleAgentTabSelection);
     };
-  }, [sortedConversations, handleSwitchChat]);
+  }, [numberedTabs, handleSwitchChat, handleSelectPinnedTerminal]);
 
   // Close active chat tab on Cmd+W
   useEffect(() => {
