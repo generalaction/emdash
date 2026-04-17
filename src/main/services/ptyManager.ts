@@ -176,16 +176,6 @@ function applyAgentEventHookEnv(env: Record<string, string>, ptyId: string): voi
   env['EMDASH_HOOK_TOKEN'] = agentEventService.getToken();
 }
 
-function applyOpenCodeRuntimeEnv(
-  env: Record<string, string>,
-  ptyId: string,
-  providerId?: string
-): void {
-  if (providerId !== 'opencode') return;
-
-  env['OPENCODE_CONFIG_DIR'] = OpenCodeHookService.writeLocalPlugin(ptyId);
-}
-
 function applyProviderSpecificRuntimeEnv(
   env: Record<string, string>,
   options: {
@@ -193,7 +183,9 @@ function applyProviderSpecificRuntimeEnv(
     providerId?: string;
   }
 ): void {
-  applyOpenCodeRuntimeEnv(env, options.ptyId, options.providerId);
+  if (options.providerId === 'opencode') {
+    OpenCodeHookService.applyLocalRuntimeEnv(env, options.ptyId);
+  }
 }
 
 export function applyProviderRuntimeEnv(
@@ -1499,6 +1491,15 @@ export async function startPty(options: {
       if (provider) {
         const resolvedConfig = resolveProviderCommandConfig(provider.id);
         const resolvedCli = resolvedConfig?.cli || provider.cli || baseLower;
+
+        if (resolvedConfig?.env) {
+          for (const [k, v] of Object.entries(resolvedConfig.env)) {
+            if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) && typeof v === 'string') {
+              useEnv[k] = v;
+            }
+          }
+        }
+
         applyProviderSpecificRuntimeEnv(useEnv, { ptyId: id, providerId: provider.id });
 
         // Build the provider command with flags
@@ -1529,14 +1530,6 @@ export async function startPty(options: {
             useKeystrokeInjection: provider.useKeystrokeInjection,
           })
         );
-
-        if (resolvedConfig?.env) {
-          for (const [k, v] of Object.entries(resolvedConfig.env)) {
-            if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) && typeof v === 'string') {
-              useEnv[k] = v;
-            }
-          }
-        }
 
         const cliCommand = resolvedCli;
         const commandString =

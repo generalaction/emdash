@@ -826,7 +826,7 @@ describe('ptyIpc notification lifecycle', () => {
     expect(written).not.toContain('mock-codex-notify');
   });
 
-  it('writes OpenCode plugin on remote and exports OPENCODE_CONFIG_DIR', async () => {
+  it('writes OpenCode plugin on remote into the Emdash per-pty config dir and exports OPENCODE_CONFIG_DIR', async () => {
     agentEventGetPortMock.mockReturnValue(12345);
 
     const { registerPtyIpc } = await import('../../main/services/ptyIpc');
@@ -849,14 +849,15 @@ describe('ptyIpc notification lifecycle', () => {
     );
 
     expect(result?.ok).toBe(true);
-    expect(openCodeGetRemoteConfigDirMock).toHaveBeenCalledWith(id);
     expect(openCodeGetPluginSourceMock).toHaveBeenCalled();
 
     const pluginWriteCall = execFileMock.mock.calls.find(
       (c: any[]) =>
         c[0] === 'ssh' &&
         typeof c[1]?.[c[1].length - 1] === 'string' &&
-        c[1][c[1].length - 1].includes('emdash-notify.js')
+        c[1][c[1].length - 1].includes(
+          `$HOME/.config/emdash/agent-hooks/opencode/${id}/plugins/emdash-notify.js`
+        )
     );
     expect(pluginWriteCall).toBeDefined();
 
@@ -866,8 +867,108 @@ describe('ptyIpc notification lifecycle', () => {
     proc!.emitData('user@host:~$ ');
 
     const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
-    expect(written).toContain('export OPENCODE_CONFIG_DIR=');
-    expect(written).toContain(`$HOME/.config/emdash/agent-hooks/opencode/${id}`);
+    expect(written).toContain(
+      `export OPENCODE_CONFIG_DIR="$HOME/.config/emdash/agent-hooks/opencode/${id}"`
+    );
+  });
+
+  it('preserves an explicit remote OPENCODE_CONFIG_DIR when provided', async () => {
+    agentEventGetPortMock.mockReturnValue(12345);
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('opencode', 'main', 'task-remote-opencode-explicit');
+    const result = await startDirect!(
+      { sender: createSender() },
+      {
+        id,
+        providerId: 'opencode',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:remote-alias' },
+        env: { OPENCODE_CONFIG_DIR: '/remote/custom-opencode' },
+        cols: 120,
+        rows: 32,
+      }
+    );
+
+    expect(result?.ok).toBe(true);
+
+    const pluginWriteCall = execFileMock.mock.calls.find(
+      (c: any[]) =>
+        c[0] === 'ssh' &&
+        typeof c[1]?.[c[1].length - 1] === 'string' &&
+        c[1][c[1].length - 1].includes('/remote/custom-opencode/plugins/emdash-notify.js')
+    );
+    expect(pluginWriteCall).toBeDefined();
+
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).toContain('export OPENCODE_CONFIG_DIR="/remote/custom-opencode"');
+  });
+
+  it('falls back to the Emdash per-pty config dir on remote when an explicit OPENCODE_CONFIG_DIR write fails', async () => {
+    agentEventGetPortMock.mockReturnValue(12345);
+    execFileMock.mockImplementationOnce(
+      (
+        _cmd: string,
+        _args: string[],
+        _opts: any,
+        cb: (err: any, stdout: string, stderr: string) => void
+      ) => {
+        cb(new Error('EACCES'), '', 'EACCES');
+      }
+    );
+
+    const { registerPtyIpc } = await import('../../main/services/ptyIpc');
+    registerPtyIpc();
+
+    const startDirect = ipcHandleHandlers.get('pty:startDirect');
+    expect(startDirect).toBeTypeOf('function');
+
+    const id = makePtyId('opencode', 'main', 'task-remote-opencode-fallback');
+    const result = await startDirect!(
+      { sender: createSender() },
+      {
+        id,
+        providerId: 'opencode',
+        cwd: '/tmp/task',
+        remote: { connectionId: 'ssh-config:remote-alias' },
+        env: { OPENCODE_CONFIG_DIR: '/remote/custom-opencode' },
+        cols: 120,
+        rows: 32,
+      }
+    );
+
+    expect(result?.ok).toBe(true);
+    expect(openCodeGetRemoteConfigDirMock).toHaveBeenCalledWith(id);
+
+    const fallbackWriteCall = execFileMock.mock.calls.find(
+      (c: any[]) =>
+        c[0] === 'ssh' &&
+        typeof c[1]?.[c[1].length - 1] === 'string' &&
+        c[1][c[1].length - 1].includes(
+          `$HOME/.config/emdash/agent-hooks/opencode/${id}/plugins/emdash-notify.js`
+        )
+    );
+    expect(fallbackWriteCall).toBeDefined();
+
+    const proc = ptys.get(id);
+    expect(proc).toBeDefined();
+
+    proc!.emitData('user@host:~$ ');
+
+    const written = (proc!.write as any).mock.calls.map((c: any[]) => c[0]).join('');
+    expect(written).toContain(
+      `export OPENCODE_CONFIG_DIR="$HOME/.config/emdash/agent-hooks/opencode/${id}"`
+    );
   });
 
   it('writes Claude hook config on remote via ssh exec for claude provider', async () => {
