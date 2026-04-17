@@ -271,7 +271,6 @@
     },
     "onlyBuiltDependencies": [
       "sqlite3",
-      "node-pty",
       "keytar",
       "electron"
     ],
@@ -280,6 +279,7 @@
       "core-js",
       "cpu-features",
       "esbuild",
+      "node-pty",
       "protobufjs",
       "ssh2"
     ],

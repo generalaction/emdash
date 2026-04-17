@@ -983,7 +983,8 @@ function resolveCommandPath(command: string): string | null {
       .split(';')
       .map((ext) => ext.trim())
       .filter(Boolean);
-    return [base, ...exts.map((ext) => `${base}${ext.toLowerCase()}`)];
+    const expanded = exts.map((ext) => `${base}${ext.toLowerCase()}`);
+    return [...expanded, base];
   };
 
   const resolveFromCandidates = (bases: string[], makeAbsolute: boolean): string | null => {

@@ -390,6 +390,12 @@ class ConnectionsService {
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter(Boolean);
+      if (process.platform === 'win32') {
+        const executable = lines.find((line) => /\.(com|exe|bat|cmd|ps1)$/i.test(line));
+        if (executable) {
+          return executable;
+        }
+      }
       return lines[0] ?? null;
     } catch {
       return null;

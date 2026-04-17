@@ -209,4 +209,32 @@ describe('ConnectionsService – resolveStatus', () => {
     expect(statusMap.claude?.installed).toBe(true);
     expect(statusMap.claude?.path).toBeNull();
   });
+
+  it('prefers executable where results on Windows over extensionless shims', async () => {
+    const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', {
+      value: 'win32',
+      configurable: true,
+    });
+
+    execFileSyncMock.mockReturnValue(
+      'C:\\Users\\test\\AppData\\Roaming\\npm\\codex\r\nC:\\Users\\test\\AppData\\Roaming\\npm\\codex.cmd\r\n'
+    );
+    spawnEmits({ stdout: '0.27.0\n', closeCode: 0 });
+
+    try {
+      const { connectionsService } = await import('../../main/services/ConnectionsService');
+      await connectionsService.checkProvider('codex', 'manual');
+    } finally {
+      if (originalPlatformDescriptor) {
+        Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+      }
+    }
+
+    expect(statusMap.codex?.installed).toBe(true);
+    expect(statusMap.codex?.path).toBe('C:\\Users\\test\\AppData\\Roaming\\npm\\codex.cmd');
+    const firstSpawnCall = spawnMock.mock.calls[0];
+    expect(firstSpawnCall?.[0]).toMatch(/cmd\.exe$/i);
+    expect(firstSpawnCall?.[1]).toEqual(expect.arrayContaining(['/d', '/s', '/c']));
+  });
 });
