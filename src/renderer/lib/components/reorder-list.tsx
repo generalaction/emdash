@@ -7,6 +7,8 @@ type ReorderTag = keyof HTMLElements;
 interface ReorderListProps<T> {
   items: T[];
   onReorder: (items: T[]) => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
   axis?: Axis;
   className?: string;
   itemClassName?: string;
@@ -19,6 +21,8 @@ interface ReorderListProps<T> {
 export function ReorderList<T>({
   items,
   onReorder,
+  onDragStart,
+  onDragEnd,
   axis = 'y',
   className,
   itemClassName,
@@ -42,6 +46,8 @@ export function ReorderList<T>({
           value={item}
           className={itemClassName}
           transition={{ layout: { duration: 0 } }}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
         >
           {children(item, index)}
         </Reorder.Item>
