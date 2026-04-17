@@ -3,6 +3,7 @@
  * Shared Monaco Editor diff color constants used by DiffViewer and other diff views
  * Colors are defined here for maintainability and consistency
  */
+import { GREEN_COLORS } from './terminalThemeColors';
 
 export const MONACO_DIFF_COLORS = {
   dark: {
@@ -21,6 +22,14 @@ export const MONACO_DIFF_COLORS = {
     insertedLineBackground: '#064e3b73', // emerald-900 with 45% opacity for lines
     // Rose (red) for deletions with adjusted opacity for black background
     removedTextBackground: '#8813375C', // rose-900 with slightly higher opacity for black bg
+    removedLineBackground: '#88133773', // rose-900 with 45% opacity for lines
+  },
+  green: {
+    editorBackground: GREEN_COLORS.background,
+    // Use blue/teal tint for insertions to avoid green-on-green low contrast
+    insertedTextBackground: '#0369a14D', // blue-700 with 30% opacity
+    insertedLineBackground: '#0369a166', // blue-700 with 40% opacity for lines
+    removedTextBackground: '#8813375C', // rose-900 with higher opacity for green bg
     removedLineBackground: '#88133773', // rose-900 with 45% opacity for lines
   },
   light: {

@@ -28,11 +28,7 @@ const HomeView: React.FC<HomeViewProps> = ({
             <div className="logo-shimmer-container">
               <img
                 key={effectiveTheme}
-                src={
-                  effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                    ? emdashLogoWhite
-                    : emdashLogo
-                }
+                src={effectiveTheme !== 'light' ? emdashLogoWhite : emdashLogo}
                 alt="Emdash"
                 className="logo-shimmer-image"
               />
@@ -40,8 +36,8 @@ const HomeView: React.FC<HomeViewProps> = ({
                 className="logo-shimmer-overlay"
                 aria-hidden="true"
                 style={{
-                  WebkitMaskImage: `url(${effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo})`,
-                  maskImage: `url(${effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? emdashLogoWhite : emdashLogo})`,
+                  WebkitMaskImage: `url(${effectiveTheme !== 'light' ? emdashLogoWhite : emdashLogo})`,
+                  maskImage: `url(${effectiveTheme !== 'light' ? emdashLogoWhite : emdashLogo})`,
                   WebkitMaskRepeat: 'no-repeat',
                   maskRepeat: 'no-repeat',
                   WebkitMaskSize: 'contain',

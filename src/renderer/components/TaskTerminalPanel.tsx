@@ -30,6 +30,13 @@ import {
 } from '@shared/lifecycle';
 import { shouldDisablePlay } from '../lib/lifecycleUi';
 import ExpandedTerminalModal from './ExpandedTerminalModal';
+import {
+  GREEN_COLORS,
+  TERMINAL_BACKGROUNDS,
+  MISTRAL_BACKGROUNDS,
+  TERMINAL_SELECTION,
+  getTerminalContainerClass,
+} from '../lib/terminalThemeColors';
 
 interface Task {
   id: string;
@@ -437,17 +444,16 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
 
   const defaultTheme = useMemo(() => {
     const isMistral = agent === 'mistral';
-    const darkBackground = isMistral ? '#202938' : '#1e1e1e';
-    const blackBackground = isMistral ? '#141820' : '#000000';
+    const backgrounds = isMistral ? MISTRAL_BACKGROUNDS : TERMINAL_BACKGROUNDS;
+    const bg = backgrounds[effectiveTheme] ?? backgrounds.dark;
 
-    return effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
+    return effectiveTheme !== 'light'
       ? {
-          background: effectiveTheme === 'dark-black' ? blackBackground : darkBackground,
-          foreground: '#d4d4d4',
-          cursor: '#aeafad',
-          cursorAccent: effectiveTheme === 'dark-black' ? blackBackground : darkBackground,
-          selectionBackground: 'rgba(96, 165, 250, 0.35)',
-          selectionForeground: '#f9fafb',
+          background: bg,
+          foreground: effectiveTheme === 'green' ? GREEN_COLORS.foreground : '#d4d4d4',
+          cursor: effectiveTheme === 'green' ? GREEN_COLORS.foreground : '#aeafad',
+          cursorAccent: bg,
+          ...TERMINAL_SELECTION.dark,
           black: '#000000',
           red: '#cd3131',
           green: '#0dbc79',
@@ -741,9 +747,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
           <LifecycleTerminalView
             key={`${task?.id ?? 'no-task'}-${selection.selectedLifecycle}`}
             content={lifecycleLogContent}
-            variant={
-              effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'
-            }
+            variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
             themeOverride={themeOverride}
             className="flex-1"
           />
@@ -752,13 +756,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
         <div
           className={cn(
             'bw-terminal relative flex-1 overflow-hidden',
-            effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-              ? agent === 'mistral'
-                ? effectiveTheme === 'dark-black'
-                  ? 'bg-[#141820]'
-                  : 'bg-[#202938]'
-                : 'bg-card'
-              : 'bg-white'
+            getTerminalContainerClass(effectiveTheme, agent)
           )}
         >
           <TerminalSearchOverlay
@@ -797,11 +795,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                           remote?.connectionId ? { connectionId: remote.connectionId } : undefined
                         }
                         env={taskEnv}
-                        variant={
-                          effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                            ? 'dark'
-                            : 'light'
-                        }
+                        variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
                         themeOverride={themeOverride}
                         className="h-full w-full"
                         keepAlive
@@ -828,11 +822,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                       remote={
                         remote?.connectionId ? { connectionId: remote.connectionId } : undefined
                       }
-                      variant={
-                        effectiveTheme === 'dark' || effectiveTheme === 'dark-black'
-                          ? 'dark'
-                          : 'light'
-                      }
+                      variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
                       themeOverride={themeOverride}
                       className="h-full w-full"
                       keepAlive
@@ -861,7 +851,7 @@ const TaskTerminalPanelComponent: React.FC<Props> = ({
                 : 'Terminal'
           }
           onClose={handleCloseExpandedTerminal}
-          variant={effectiveTheme === 'dark' || effectiveTheme === 'dark-black' ? 'dark' : 'light'}
+          variant={effectiveTheme !== 'light' ? 'dark' : 'light'}
         />
       )}
     </div>

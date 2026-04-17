@@ -4,6 +4,7 @@
  */
 
 import type { Monaco } from '@monaco-editor/react';
+import { GREEN_COLORS } from './terminalThemeColors';
 
 // Track registration per Monaco instance. Some views initialize Monaco independently.
 const registeredMonacoInstances = new WeakSet<object>();
@@ -43,6 +44,20 @@ export function defineMonacoThemes(monaco: Monaco): void {
     },
   });
 
+  // Green terminal theme
+  monaco.editor.defineTheme('custom-green', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': GREEN_COLORS.background,
+      'editor.foreground': GREEN_COLORS.foreground,
+      'editor.lineHighlightBackground': GREEN_COLORS.lineHighlight,
+      'editorLineNumber.foreground': GREEN_COLORS.lineNumber,
+      'editorGutter.background': GREEN_COLORS.gutter,
+    },
+  });
+
   // Light theme matching app's light mode
   monaco.editor.defineTheme('custom-light', {
     base: 'vs',
@@ -67,6 +82,8 @@ export function getMonacoTheme(effectiveTheme: string): string {
   switch (effectiveTheme) {
     case 'dark-black':
       return 'custom-black';
+    case 'green':
+      return 'custom-green';
     case 'dark':
       return 'custom-dark';
     case 'light':

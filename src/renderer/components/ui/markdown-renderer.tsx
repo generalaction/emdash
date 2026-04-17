@@ -262,7 +262,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   fileDir,
 }) => {
   const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'dark' || effectiveTheme === 'dark-black';
+  const isDark = effectiveTheme !== 'light';
 
   const fullComponents = useFullComponents(isDark, rootPath, fileDir);
   const compactComponents = useCompactComponents();

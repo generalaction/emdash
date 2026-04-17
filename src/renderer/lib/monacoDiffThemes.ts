@@ -1,5 +1,6 @@
 import { loader } from '@monaco-editor/react';
 import { MONACO_DIFF_COLORS } from './monacoDiffColors';
+import { GREEN_COLORS } from './terminalThemeColors';
 
 let themesRegistered = false;
 
@@ -38,6 +39,21 @@ export async function registerDiffThemes(): Promise<void> {
     },
   });
 
+  monacoInstance.editor.defineTheme('custom-diff-green', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': MONACO_DIFF_COLORS.green.editorBackground,
+      'editorGutter.background': MONACO_DIFF_COLORS.green.editorBackground,
+      'diffEditor.insertedTextBackground': MONACO_DIFF_COLORS.green.insertedTextBackground,
+      'diffEditor.insertedLineBackground': MONACO_DIFF_COLORS.green.insertedLineBackground,
+      'diffEditor.removedTextBackground': MONACO_DIFF_COLORS.green.removedTextBackground,
+      'diffEditor.removedLineBackground': MONACO_DIFF_COLORS.green.removedLineBackground,
+      'diffEditor.unchangedRegionBackground': GREEN_COLORS.unchangedRegion,
+    },
+  });
+
   monacoInstance.editor.defineTheme('custom-diff-light', {
     base: 'vs',
     inherit: true,
@@ -56,6 +72,7 @@ export async function registerDiffThemes(): Promise<void> {
 
 export function getDiffThemeName(effectiveTheme: string): string {
   if (effectiveTheme === 'dark-black') return 'custom-diff-black';
+  if (effectiveTheme === 'green') return 'custom-diff-green';
   if (effectiveTheme === 'light') return 'custom-diff-light';
   return 'custom-diff-dark';
 }
