@@ -44,13 +44,13 @@
             pnpmBase;
 
         # Electron version must match package.json
-        electronVersion = "30.5.1";
+        electronVersion = "41.0.4";
 
         # Pre-fetch Electron binary for Linux x64
         # electron-builder expects zips named: electron-v${version}-linux-x64.zip
         electronLinuxZip = pkgs.fetchurl {
           url = "https://github.com/electron/electron/releases/download/v${electronVersion}/electron-v${electronVersion}-linux-x64.zip";
-          sha256 = "sha256-7EcHeD056GAF9CiZ4wrlnlDdXZx/KFMe1JTrQ/I2FAM=";
+          sha256 = "sha256-dv1fFabJT32P4q+MxZSLokCZcBxt8d+OB+kF3XXVebc=";
         };
 
         # Create a directory with the electron zip for electronDist

@@ -9,6 +9,9 @@ try {
 }
 
 import { app, BrowserWindow, dialog } from 'electron';
+import { initializeShellEnvironment } from './utils/shellEnv';
+import { configureLinuxChromium } from './utils/linuxChromium';
+
 // Ensure PATH matches the user's shell when launched from Finder (macOS)
 // so Homebrew/NPM global binaries like `gh` and `codex` are found.
 try {
@@ -97,12 +100,8 @@ if (process.platform === 'linux') {
   } catch {}
 }
 
-// Enable automatic Wayland/X11 detection on Linux.
-// Uses native Wayland when available, falls back to X11 (XWayland) otherwise.
-// Must be called before app.whenReady().
-if (process.platform === 'linux') {
-  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
-}
+// Linux desktop integration switches must be set before app.whenReady().
+configureLinuxChromium(app.commandLine);
 
 if (process.platform === 'win32') {
   // Ensure npm global binaries are in PATH for Windows
@@ -171,7 +170,7 @@ if (process.platform === 'darwin' && !app.isPackaged) {
     'icon-dock.png'
   );
   try {
-    app.dock.setIcon(iconPath);
+    app.dock?.setIcon(iconPath);
   } catch (err) {
     console.warn('Failed to set dock icon:', err);
   }
