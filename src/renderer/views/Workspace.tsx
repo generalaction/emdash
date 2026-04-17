@@ -23,6 +23,7 @@ import {
   RIGHT_SIDEBAR_MAX_SIZE,
 } from '@/constants/layout';
 import { KeyboardSettingsProvider } from '@/contexts/KeyboardSettingsContext';
+import { useNavigationHistoryContext } from '@/contexts/NavigationHistoryProvider';
 import { useTaskManagementContext } from '@/contexts/TaskManagementContext';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
 import { useAgentEvents } from '@/hooks/useAgentEvents';
@@ -184,6 +185,10 @@ export function Workspace() {
     });
     return () => cleanup?.();
   }, []);
+
+  // --- Navigation history ---
+  const { goBack: handleNavigateBack, goForward: handleNavigateForward } =
+    useNavigationHistoryContext();
 
   // --- Project management (provided by ProjectManagementProvider in App.tsx) ---
   const projectMgmt = useProjectManagementContext();
@@ -378,6 +383,8 @@ export function Workspace() {
                 handleToggleKanban={handleToggleKanban}
                 handleToggleEditor={handleToggleEditor}
                 handleOpenInEditor={handleOpenInEditor}
+                handleNavigateBack={handleNavigateBack}
+                handleNavigateForward={handleNavigateForward}
               />
               <RightSidebarBridge
                 onCollapsedChange={handleRightSidebarCollapsedChange}

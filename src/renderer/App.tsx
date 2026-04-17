@@ -12,6 +12,7 @@ import { EmdashAccountProvider } from './contexts/EmdashAccountProvider';
 import { PostHogFeatureFlagProvider } from './contexts/PostHogFeatureFlagProvider';
 import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
 import { TaskManagementProvider } from './contexts/TaskManagementContext';
+import { NavigationHistoryProvider } from './contexts/NavigationHistoryProvider';
 import { ModalProvider } from './contexts/ModalProvider';
 
 const queryClient = new QueryClient();
@@ -41,11 +42,13 @@ export function App() {
               <GithubContextProvider>
                 <ProjectManagementProvider>
                   <TaskManagementProvider>
-                    <AppSettingsProvider>
-                      <ThemeProvider>
-                        <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                      </ThemeProvider>
-                    </AppSettingsProvider>
+                    <NavigationHistoryProvider>
+                      <AppSettingsProvider>
+                        <ThemeProvider>
+                          <ErrorBoundary>{renderContent()}</ErrorBoundary>
+                        </ThemeProvider>
+                      </AppSettingsProvider>
+                    </NavigationHistoryProvider>
                   </TaskManagementProvider>
                 </ProjectManagementProvider>
               </GithubContextProvider>

@@ -119,6 +119,9 @@ export interface AppSettings {
     defaultDirectory: string;
   };
   keyboard?: KeyboardSettings;
+  navigation?: {
+    trackpadSwipe: boolean;
+  };
   interface?: InterfaceSettings;
   providerConfigs?: ProviderCustomConfigs;
   terminal?: {
@@ -186,6 +189,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   projects: {
     defaultDirectory: join(homedir(), 'emdash-projects'),
+  },
+  navigation: {
+    trackpadSwipe: true,
   },
   keyboard: {
     commandPalette: { key: 'k', modifier: 'cmd' },
@@ -590,6 +596,12 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       }
     }
   }
+
+  // Navigation
+  const nav = (input as any)?.navigation || {};
+  out.navigation = {
+    trackpadSwipe: Boolean(nav?.trackpadSwipe ?? DEFAULT_SETTINGS.navigation!.trackpadSwipe),
+  };
 
   // Terminal
   const term = (input as any)?.terminal || {};

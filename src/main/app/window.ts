@@ -89,6 +89,32 @@ export function createMainWindow(): BrowserWindow {
     });
   }
 
+  // macOS trackpad two-finger swipe navigation (respects setting)
+  if (process.platform === 'darwin') {
+    mainWindow.on('swipe', (_event, direction) => {
+      void import('../settings').then(({ getAppSettings }) => {
+        const settings = getAppSettings();
+        if (!settings.navigation?.trackpadSwipe) return;
+        if (direction === 'left') {
+          mainWindow?.webContents.send('navigate:back');
+        } else if (direction === 'right') {
+          mainWindow?.webContents.send('navigate:forward');
+        }
+      });
+    });
+  }
+
+  // Windows/Linux mouse back/forward buttons via app-command
+  if (process.platform !== 'darwin') {
+    mainWindow.on('app-command', (_event, command) => {
+      if (command === 'browser-backward') {
+        mainWindow?.webContents.send('navigate:back');
+      } else if (command === 'browser-forward') {
+        mainWindow?.webContents.send('navigate:forward');
+      }
+    });
+  }
+
   // Cleanup reference on close
   mainWindow.on('closed', () => {
     mainWindow = null;

@@ -232,6 +232,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
 
+  // Navigation events (main → renderer) — trackpad swipe / mouse back-forward
+  onNavigateBack: (listener: () => void) => {
+    const channel = 'navigate:back';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  onNavigateForward: (listener: () => void) => {
+    const channel = 'navigate:forward';
+    const wrapped = () => listener();
+    ipcRenderer.on(channel, wrapped);
+    return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+
   // Worktree management
   worktreeCreate: (args: {
     projectPath: string;
