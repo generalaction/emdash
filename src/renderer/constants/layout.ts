@@ -1,6 +1,6 @@
 export const TITLEBAR_HEIGHT = '36px';
 export const PANEL_LAYOUT_STORAGE_KEY = 'emdash.layout.left-main-right.v2';
-export const DEFAULT_PANEL_LAYOUT: [number, number, number] = [20, 60, 20];
+export const DEFAULT_PANEL_LAYOUT: [number, number, number] = [18, 57, 25];
 export const LEFT_SIDEBAR_MIN_SIZE = 16;
 export const LEFT_SIDEBAR_MAX_SIZE = 30;
 export const FIRST_LAUNCH_KEY = 'emdash:first-launch:v1';
