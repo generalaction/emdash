@@ -25,7 +25,7 @@ import {
   SiReact,
   SiPython,
   SiHtml5,
-  SiCss3,
+  SiCss,
   SiSass,
   SiNodedotjs,
   SiNpm,
@@ -180,7 +180,7 @@ const EXTENSION_ICONS: Record<string, { icon: React.ElementType; color: string; 
   // Web
   html: { icon: SiHtml5, color: 'text-orange-600', label: 'HTML file' },
   htm: { icon: SiHtml5, color: 'text-orange-600', label: 'HTML file' },
-  css: { icon: SiCss3, color: 'text-blue-600', label: 'CSS file' },
+  css: { icon: SiCss, color: 'text-blue-600', label: 'CSS file' },
   scss: { icon: SiSass, color: 'text-pink-600', label: 'SCSS file' },
   sass: { icon: SiSass, color: 'text-pink-600', label: 'Sass file' },
   less: { icon: VscFileCode, color: 'text-blue-800', label: 'Less file' },
