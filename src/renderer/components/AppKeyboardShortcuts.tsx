@@ -73,6 +73,14 @@ const AppKeyboardShortcuts: React.FC<AppKeyboardShortcutsProps> = ({
     onSelectAgentTab: (tabIndex) =>
       window.dispatchEvent(new CustomEvent('emdash:select-agent-tab', { detail: { tabIndex } })),
     onOpenInEditor: handleOpenInEditor,
+    onNewChat: () => window.dispatchEvent(new CustomEvent('emdash:new-chat')),
+    onCloseChat: () => window.dispatchEvent(new CustomEvent('emdash:close-active-chat')),
+    onNextChat: () =>
+      window.dispatchEvent(new CustomEvent('emdash:cycle-chat', { detail: { direction: 'next' } })),
+    onPrevChat: () =>
+      window.dispatchEvent(new CustomEvent('emdash:cycle-chat', { detail: { direction: 'prev' } })),
+    onReopenClosedChat: () => window.dispatchEvent(new CustomEvent('emdash:reopen-closed-chat')),
+    onCommandPaletteAlt: handleToggleCommandPalette,
     onCloseModal: (
       [
         [showCommandPalette, handleCloseCommandPalette],

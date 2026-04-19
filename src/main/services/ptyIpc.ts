@@ -4,6 +4,7 @@ import {
   writePty,
   resizePty,
   killPty,
+  killPtyGraceful,
   getPty,
   getPtyKind,
   startDirectPty,
@@ -1015,6 +1016,18 @@ export function registerPtyIpc(): void {
       cleanupPtySession(args.id);
     } catch (e) {
       log.error('pty:kill error', { id: args.id, error: e });
+    }
+  });
+
+  ipcMain.handle('pty:killGraceful', async (_event, args: { id: string }) => {
+    try {
+      await killPtyGraceful(args.id);
+      owners.delete(args.id);
+      listeners.delete(args.id);
+      return { ok: true };
+    } catch (e) {
+      log.error('pty:killGraceful error', { id: args.id, error: e });
+      return { ok: false, error: String(e) };
     }
   });
 

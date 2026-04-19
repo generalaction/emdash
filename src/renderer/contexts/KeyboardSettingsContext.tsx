@@ -36,7 +36,7 @@ export const KeyboardSettingsProvider: React.FC<{ children: React.ReactNode }> =
       const defaultShortcut = Object.values(APP_SHORTCUTS).find(
         (s) => s.settingsKey === settingsKey
       );
-      if (defaultShortcut) {
+      if (defaultShortcut && !defaultShortcut.defaultDisabled) {
         return { key: defaultShortcut.key, modifier: defaultShortcut.modifier };
       }
       return null;
@@ -60,7 +60,7 @@ export const useKeyboardSettings = (): KeyboardSettingsContextValue => {
         const defaultShortcut = Object.values(APP_SHORTCUTS).find(
           (s) => s.settingsKey === settingsKey
         );
-        if (defaultShortcut) {
+        if (defaultShortcut && !defaultShortcut.defaultDisabled) {
           return { key: defaultShortcut.key, modifier: defaultShortcut.modifier };
         }
         return null;

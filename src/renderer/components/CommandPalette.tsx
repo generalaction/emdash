@@ -18,6 +18,7 @@ import {
   Command as CommandIcon,
   Option,
   Palette,
+  Kanban,
 } from 'lucide-react';
 import {
   APP_SHORTCUTS,
@@ -47,6 +48,7 @@ interface CommandPaletteProps {
   onToggleLeftSidebar?: () => void;
   onToggleRightSidebar?: () => void;
   onToggleTheme?: () => void;
+  onToggleKanban?: () => void;
   onGoHome?: () => void;
   onOpenProject?: () => void;
 }
@@ -76,6 +78,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onToggleLeftSidebar,
   onToggleRightSidebar,
   onToggleTheme,
+  onToggleKanban,
   onGoHome,
   onOpenProject,
 }) => {
@@ -227,6 +230,19 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       });
     }
 
+    if (onToggleKanban) {
+      items.push({
+        id: 'toggle-kanban',
+        label: 'Toggle Kanban',
+        description: APP_SHORTCUTS.TOGGLE_KANBAN.description,
+        icon: <Kanban className="h-4 w-4" />,
+        group: 'Toggles',
+        keywords: ['kanban', 'board', 'project', 'toggle'],
+        shortcut: getEffectiveShortcut('toggleKanban', APP_SHORTCUTS.TOGGLE_KANBAN),
+        onSelect: () => runCommand(onToggleKanban),
+      });
+    }
+
     // Project commands
     projects.forEach((project) => {
       if (onSelectProject) {
@@ -275,6 +291,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     onToggleLeftSidebar,
     onToggleRightSidebar,
     onToggleTheme,
+    onToggleKanban,
     runCommand,
   ]);
 

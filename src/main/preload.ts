@@ -120,6 +120,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ptyResize: (args: { id: string; cols: number; rows: number }) =>
     ipcRenderer.send('pty:resize', args),
   ptyKill: (id: string) => ipcRenderer.send('pty:kill', { id }),
+  ptyKillGraceful: (id: string) =>
+    ipcRenderer.invoke('pty:killGraceful', { id }) as Promise<{ ok: boolean; error?: string }>,
   ptyKillTmux: (id: string) =>
     ipcRenderer.invoke('pty:killTmux', { id }) as Promise<{ ok: boolean; error?: string }>,
 

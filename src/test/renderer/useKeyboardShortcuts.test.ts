@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getAgentTabSelectionIndex } from '../../renderer/hooks/useKeyboardShortcuts';
 
 describe('getAgentTabSelectionIndex', () => {
-  it('maps Cmd/Ctrl+1 through Cmd/Ctrl+9 to zero-based tab indexes', () => {
+  it('maps Cmd/Ctrl+1 through Cmd/Ctrl+8 to zero-based tab indexes', () => {
     expect(
       getAgentTabSelectionIndex({
         key: '1',
@@ -15,13 +15,25 @@ describe('getAgentTabSelectionIndex', () => {
 
     expect(
       getAgentTabSelectionIndex({
+        key: '8',
+        metaKey: true,
+        ctrlKey: false,
+        altKey: false,
+        shiftKey: false,
+      } as KeyboardEvent)
+    ).toBe(7);
+  });
+
+  it('maps Cmd/Ctrl+9 to -1 (last-tab sentinel)', () => {
+    expect(
+      getAgentTabSelectionIndex({
         key: '9',
         metaKey: true,
         ctrlKey: false,
         altKey: false,
         shiftKey: false,
       } as KeyboardEvent)
-    ).toBe(8);
+    ).toBe(-1);
   });
 
   it('accepts Ctrl+number as the Command equivalent on non-mac platforms', () => {

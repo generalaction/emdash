@@ -41,6 +41,16 @@ import {
   getConversationTabLabel,
   planConversationTitleUpdates,
 } from '../lib/conversationTabTitles';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 
 declare const window: Window & {
   electronAPI: {
@@ -175,6 +185,9 @@ const ChatInterface: React.FC<Props> = ({
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
+  const [pendingCloseConversationId, setPendingCloseConversationId] = useState<string | null>(null);
+  type ClosedConversationEntry = { provider: string; title: string };
+  const closedConversationStackRef = useRef<ClosedConversationEntry[]>([]);
   const lockedAgentWriteRef = useRef<string | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
@@ -719,6 +732,55 @@ const ChatInterface: React.FC<Props> = ({
     [task.id, conversations]
   );
 
+  const doCloseChat = useCallback(
+    async (conversationId: string) => {
+      if (conversations.length <= 1) return;
+
+      const convToDelete = conversations.find((c) => c.id === conversationId);
+      const convAgent = (convToDelete?.provider ?? 'claude') as Agent;
+      const terminalId = makePtyId(convAgent, 'chat', conversationId);
+
+      // Push to closed stack for Cmd+Shift+T reopen (max 10 entries)
+      if (convToDelete) {
+        const stack = closedConversationStackRef.current;
+        stack.push({ provider: convAgent, title: convToDelete.title ?? '' });
+        if (stack.length > 10) stack.shift();
+      }
+
+      // Optimistically remove tab and switch to neighbor before killing PTY
+      const remaining = conversations.filter((c) => c.id !== conversationId);
+      setConversations(remaining);
+      if (conversationId === activeConversationId && remaining.length > 0) {
+        const newActive = remaining[0];
+        setActiveConversationId(newActive.id);
+        await rpc.db.setActiveConversation({ taskId: task.id, conversationId: newActive.id });
+        if (newActive.provider) setAgent(newActive.provider as Agent);
+      }
+
+      // Gracefully kill PTY: SIGINT → wait 1.5 s → hard kill
+      try {
+        await (window.electronAPI as any).ptyKillGraceful(terminalId);
+      } catch {
+        terminalSessionRegistry.dispose(terminalId);
+      }
+
+      await rpc.db.deleteConversation(conversationId);
+
+      // Resync from DB to pick up any server-side changes
+      const updatedConversations = await applyStableConversationTitles(
+        await rpc.db.getConversations(task.id)
+      );
+      setConversations(updatedConversations);
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
+        );
+      } catch {}
+    },
+    [conversations, task.id, activeConversationId, applyStableConversationTitles]
+  );
+
   const handleCloseChat = useCallback(
     async (conversationId: string) => {
       if (conversations.length <= 1) {
@@ -730,40 +792,16 @@ const ChatInterface: React.FC<Props> = ({
         return;
       }
 
-      // Dispose the terminal for this chat
-      const convToDelete = conversations.find((c) => c.id === conversationId);
-      const convAgent = (convToDelete?.provider ?? 'claude') as Agent;
-      const terminalToDispose = makePtyId(convAgent, 'chat', conversationId);
-      terminalSessionRegistry.dispose(terminalToDispose);
-
-      await rpc.db.deleteConversation(conversationId);
-
-      // Reload conversations
-      const updatedConversations = await applyStableConversationTitles(
-        await rpc.db.getConversations(task.id)
-      );
-      setConversations(updatedConversations);
-      // Switch to another chat if we deleted the active one
-      if (conversationId === activeConversationId && updatedConversations.length > 0) {
-        const newActive = updatedConversations[0];
-        await rpc.db.setActiveConversation({
-          taskId: task.id,
-          conversationId: newActive.id,
-        });
-        setActiveConversationId(newActive.id);
-        // Update provider if needed
-        if (newActive.provider) {
-          setAgent(newActive.provider as Agent);
-        }
+      const isBusy = busyByConversationId[conversationId] === true;
+      if (isBusy) {
+        // Show confirmation dialog — actual close proceeds via dialog confirm handler
+        setPendingCloseConversationId(conversationId);
+        return;
       }
 
-      try {
-        window.dispatchEvent(
-          new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
-        );
-      } catch {}
+      await doCloseChat(conversationId);
     },
-    [conversations, task.id, activeConversationId, toast, applyStableConversationTitles]
+    [conversations.length, busyByConversationId, doCloseChat, toast]
   );
 
   // Persist last-selected agent per task (including Droid)
@@ -905,9 +943,12 @@ const ChatInterface: React.FC<Props> = ({
       const customEvent = event as CustomEvent<{ tabIndex: number }>;
       const tabIndex = customEvent.detail?.tabIndex;
       if (typeof tabIndex !== 'number') return;
-      if (tabIndex < 0 || tabIndex >= sortedConversations.length) return;
 
-      const selectedConversation = sortedConversations[tabIndex];
+      // -1 is the sentinel for "last tab" (Cmd+9 convention)
+      const resolvedIndex = tabIndex === -1 ? sortedConversations.length - 1 : tabIndex;
+      if (resolvedIndex < 0 || resolvedIndex >= sortedConversations.length) return;
+
+      const selectedConversation = sortedConversations[resolvedIndex];
       if (selectedConversation) {
         handleSwitchChat(selectedConversation.id);
       }
@@ -929,6 +970,75 @@ const ChatInterface: React.FC<Props> = ({
     window.addEventListener('emdash:close-active-chat', handleCloseActiveChat);
     return () => window.removeEventListener('emdash:close-active-chat', handleCloseActiveChat);
   }, [activeConversationId, handleCloseChat]);
+
+  // Open new conversation tab on Cmd+T
+  useEffect(() => {
+    const handleNewChat = () => {
+      if (task.metadata?.multiAgent) return; // no-op for multi-agent tasks
+      setShowCreateChatModal(true);
+    };
+    window.addEventListener('emdash:new-chat', handleNewChat);
+    return () => window.removeEventListener('emdash:new-chat', handleNewChat);
+  }, [task.metadata?.multiAgent]);
+
+  // Cycle conversations on Ctrl+Tab / Ctrl+Shift+Tab
+  useEffect(() => {
+    const handleCycleChat = (event: Event) => {
+      const customEvent = event as CustomEvent<{ direction: 'next' | 'prev' }>;
+      if (sortedConversations.length <= 1) return;
+      const direction = customEvent.detail?.direction;
+      if (!direction) return;
+
+      const currentIndex = sortedConversations.findIndex((c) => c.id === activeConversationId);
+      if (currentIndex === -1) return;
+
+      let newIndex: number;
+      if (direction === 'prev') {
+        newIndex = currentIndex <= 0 ? sortedConversations.length - 1 : currentIndex - 1;
+      } else {
+        newIndex = (currentIndex + 1) % sortedConversations.length;
+      }
+
+      const newConversation = sortedConversations[newIndex];
+      if (newConversation) handleSwitchChat(newConversation.id);
+    };
+
+    window.addEventListener('emdash:cycle-chat', handleCycleChat);
+    return () => window.removeEventListener('emdash:cycle-chat', handleCycleChat);
+  }, [sortedConversations, activeConversationId, handleSwitchChat]);
+
+  // Reopen last closed conversation on Cmd+Shift+T
+  useEffect(() => {
+    const handleReopenClosedChat = () => {
+      const stack = closedConversationStackRef.current;
+      const entry = stack.pop();
+      if (!entry) return;
+
+      void (async () => {
+        try {
+          const newConv = await rpc.db.createConversation({
+            taskId: task.id,
+            provider: entry.provider,
+            title: entry.title,
+            isMain: false,
+            metadata: null,
+          });
+          if (newConv) {
+            const updated = await applyStableConversationTitles(
+              await rpc.db.getConversations(task.id)
+            );
+            setConversations(updated);
+            await rpc.db.setActiveConversation({ taskId: task.id, conversationId: newConv.id });
+            setActiveConversationId(newConv.id);
+            setAgent(entry.provider as Agent);
+          }
+        } catch {}
+      })();
+    };
+
+    window.addEventListener('emdash:reopen-closed-chat', handleReopenClosedChat);
+    return () => window.removeEventListener('emdash:reopen-closed-chat', handleReopenClosedChat);
+  }, [task.id, applyStableConversationTitles]);
 
   const isTerminal = agentMeta[agent]?.terminalOnly === true;
 
@@ -1158,6 +1268,35 @@ const ChatInterface: React.FC<Props> = ({
           onCreateChat={handleCreateChat}
           installedAgents={installedAgents}
         />
+
+        <AlertDialog
+          open={pendingCloseConversationId !== null}
+          onOpenChange={(open) => {
+            if (!open) setPendingCloseConversationId(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Close conversation?</AlertDialogTitle>
+              <AlertDialogDescription>
+                An agent is currently running. Closing this conversation will send an interrupt
+                signal and stop the agent.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const id = pendingCloseConversationId;
+                  setPendingCloseConversationId(null);
+                  if (id) void doCloseChat(id);
+                }}
+              >
+                Close
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="px-6 pt-4">

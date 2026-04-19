@@ -29,6 +29,12 @@ export interface KeyboardSettings {
   nextAgent?: KeyboardShortcutBinding;
   prevAgent?: KeyboardShortcutBinding;
   openInEditor?: KeyboardShortcutBinding;
+  newChat?: KeyboardShortcutBinding;
+  closeChat?: KeyboardShortcutBinding;
+  nextChat?: KeyboardShortcutBinding;
+  prevChat?: KeyboardShortcutBinding;
+  reopenClosedChat?: KeyboardShortcutBinding;
+  commandPaletteAlt?: KeyboardShortcutBinding;
 }
 
 export interface ShortcutConfig {
@@ -96,6 +102,14 @@ export interface GlobalShortcutHandlers {
 
   // Open in editor
   onOpenInEditor?: () => void;
+
+  // Chat (conversation tab) management
+  onNewChat?: () => void;
+  onCloseChat?: () => void;
+  onNextChat?: () => void;
+  onPrevChat?: () => void;
+  onReopenClosedChat?: () => void;
+  onCommandPaletteAlt?: () => void;
 
   // State checks
   isCommandPaletteOpen?: boolean;

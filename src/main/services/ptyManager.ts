@@ -1714,6 +1714,45 @@ export function killPty(id: string): void {
   }
 }
 
+/**
+ * Gracefully terminate a PTY: send SIGINT first, wait up to sigintTimeoutMs for
+ * the process to exit, then fall back to the default hard kill.
+ * On Windows ConPTY, node-pty translates signals internally; the fallback
+ * `proc.kill()` is always safe.
+ */
+export async function killPtyGraceful(
+  id: string,
+  opts: { sigintTimeoutMs?: number } = {}
+): Promise<void> {
+  const rec = ptys.get(id);
+  if (!rec) return;
+
+  const timeoutMs = opts.sigintTimeoutMs ?? 1500;
+
+  const exitPromise = new Promise<void>((resolve) => {
+    rec.proc.onExit(() => resolve());
+  });
+
+  try {
+    rec.proc.kill('SIGINT');
+  } catch {
+    // SIGINT not supported on this platform — fall through to hard kill
+  }
+
+  const timedOut = await Promise.race([
+    exitPromise.then(() => false),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(true), timeoutMs)),
+  ]);
+
+  if (timedOut) {
+    try {
+      rec.proc.kill();
+    } catch {}
+  }
+
+  ptys.delete(id);
+}
+
 export function removePtyRecord(id: string): void {
   ptys.delete(id);
 }

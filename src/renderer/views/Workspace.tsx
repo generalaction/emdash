@@ -491,6 +491,7 @@ export function Workspace() {
                 }}
                 handleOpenSettings={() => openSettingsPage()}
                 handleOpenKeyboardShortcuts={() => openSettingsPage('interface')}
+                handleToggleKanban={handleToggleKanban}
               />
               {showEditorMode && activeTask && selectedProject && (
                 <CodeEditor

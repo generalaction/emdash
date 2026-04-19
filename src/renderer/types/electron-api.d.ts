@@ -103,6 +103,7 @@ declare global {
       ptyInput: (args: { id: string; data: string }) => void;
       ptyResize: (args: { id: string; cols: number; rows?: number }) => void;
       ptyKill: (id: string) => void;
+      ptyKillGraceful: (id: string) => Promise<{ ok: boolean; error?: string }>;
       ptyKillTmux: (id: string) => Promise<{ ok: boolean; error?: string }>;
       onPtyData: (id: string, listener: (data: string) => void) => () => void;
       ptyGetSnapshot: (args: { id: string }) => Promise<{
