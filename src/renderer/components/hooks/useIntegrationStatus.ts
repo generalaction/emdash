@@ -16,8 +16,9 @@ interface IntegrationStatus {
   isJiraConnected: boolean | null;
   handleJiraConnect: (credentials: {
     siteUrl: string;
-    email: string;
+    email?: string;
     token: string;
+    authType: 'basic' | 'bearer';
   }) => Promise<void>;
 
   // GitLab
@@ -163,7 +164,12 @@ export function useIntegrationStatus(isOpen: boolean): IntegrationStatus {
   }, [githubConnect]);
 
   const handleJiraConnect = useCallback(
-    async (credentials: { siteUrl: string; email: string; token: string }) => {
+    async (credentials: {
+      siteUrl: string;
+      email?: string;
+      token: string;
+      authType: 'basic' | 'bearer';
+    }) => {
       const api = window.electronAPI as any;
       const res = await api?.jiraSaveCredentials?.(credentials);
       if (res?.success) {

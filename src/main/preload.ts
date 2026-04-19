@@ -588,8 +588,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   linearSearchIssues: (searchTerm: string, limit?: number) =>
     ipcRenderer.invoke('linear:searchIssues', searchTerm, limit),
   // Jira integration
-  jiraSaveCredentials: (args: { siteUrl: string; email: string; token: string }) =>
-    ipcRenderer.invoke('jira:saveCredentials', args),
+  jiraSaveCredentials: (args: {
+    siteUrl: string;
+    email?: string;
+    token: string;
+    authType?: 'basic' | 'bearer';
+  }) => ipcRenderer.invoke('jira:saveCredentials', args),
   jiraClearCredentials: () => ipcRenderer.invoke('jira:clearCredentials'),
   jiraCheckConnection: () => ipcRenderer.invoke('jira:checkConnection'),
   jiraInitialFetch: (limit?: number) => ipcRenderer.invoke('jira:initialFetch', limit),

@@ -6,14 +6,22 @@ const jira = new JiraService();
 export function registerJiraIpc() {
   ipcMain.handle(
     'jira:saveCredentials',
-    async (_e, args: { siteUrl: string; email: string; token: string }) => {
+    async (
+      _e,
+      args: { siteUrl: string; email?: string; token: string; authType?: 'basic' | 'bearer' }
+    ) => {
       const siteUrl = String(args?.siteUrl || '').trim();
-      const email = String(args?.email || '').trim();
       const token = String(args?.token || '').trim();
-      if (!siteUrl || !email || !token) {
-        return { success: false, error: 'Site URL, email, and API token are required.' };
+      const authType = args?.authType === 'bearer' ? 'bearer' : 'basic';
+      const email = String(args?.email || '').trim();
+
+      if (!siteUrl || !token) {
+        return { success: false, error: 'Site URL and token are required.' };
       }
-      return jira.saveCredentials(siteUrl, email, token);
+      if (authType === 'basic' && !email) {
+        return { success: false, error: 'Email is required for API token auth.' };
+      }
+      return jira.saveCredentials(siteUrl, token, authType, email || undefined);
     }
   );
 
@@ -33,7 +41,6 @@ export function registerJiraIpc() {
 
   ipcMain.handle('jira:searchIssues', async (_e, searchTerm: string, limit?: number) => {
     try {
-      // Use enhanced search that supports direct key lookups
       const issues = await jira.smartSearchIssues(searchTerm, limit ?? 20);
       return { success: true, issues };
     } catch (e: any) {

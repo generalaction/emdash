@@ -1,20 +1,22 @@
 import React from 'react';
 import { Input } from '../ui/input';
-import { Info } from 'lucide-react';
 import jiraLogo from '../../../assets/images/jira.png';
+
+type AuthType = 'basic' | 'bearer';
 
 interface Props {
   site: string;
   email: string;
   token: string;
-  onChange: (update: Partial<{ site: string; email: string; token: string }>) => void;
+  authType: AuthType;
+  onChange: (
+    update: Partial<{ site: string; email: string; token: string; authType: AuthType }>
+  ) => void;
   onSubmit: () => void | Promise<void>;
   onClose: () => void;
   canSubmit: boolean;
   error?: string | null;
-  /** When true, hides the Jira badge header (useful when rendered inside a Dialog with its own title). */
   hideHeader?: boolean;
-  /** When true, hides the footer buttons (parent e.g. Dialog provides its own DialogFooter). */
   hideFooter?: boolean;
 }
 
@@ -22,6 +24,7 @@ const JiraSetupForm: React.FC<Props> = ({
   site,
   email,
   token,
+  authType,
   onChange,
   onSubmit,
   onClose,
@@ -41,30 +44,67 @@ const JiraSetupForm: React.FC<Props> = ({
         </div>
       )}
       <div className={hideHeader ? 'grid gap-2' : 'mt-2 grid gap-2'}>
+        {/* Auth type toggle */}
+        <div className="flex overflow-hidden rounded-md border border-border/70 text-xs">
+          <button
+            type="button"
+            className={`flex-1 px-3 py-1.5 font-medium transition-colors ${
+              authType === 'basic'
+                ? 'bg-foreground text-background'
+                : 'bg-background text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => onChange({ authType: 'basic' })}
+          >
+            API Token (Cloud)
+          </button>
+          <button
+            type="button"
+            className={`flex-1 border-l border-border/70 px-3 py-1.5 font-medium transition-colors ${
+              authType === 'bearer'
+                ? 'bg-foreground text-background'
+                : 'bg-background text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => onChange({ authType: 'bearer' })}
+          >
+            PAT (Server/DC)
+          </button>
+        </div>
+
         <Input
           placeholder="https://your-domain.atlassian.net"
           value={site}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ site: e.target.value })}
           className="h-9 w-full"
         />
-        <Input
-          placeholder="Email"
-          value={email}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ email: e.target.value })}
-          className="h-9 w-full"
-        />
+        {authType === 'basic' && (
+          <Input
+            placeholder="Email"
+            value={email}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              onChange({ email: e.target.value })
+            }
+            className="h-9 w-full"
+          />
+        )}
         <Input
           type="password"
-          placeholder="API token"
+          placeholder={authType === 'bearer' ? 'Personal Access Token' : 'API token'}
           value={token}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ token: e.target.value })}
           className="h-9 w-full"
         />
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Create an API token at{' '}
-        <span className="font-medium">id.atlassian.com/manage-profile/security/api-tokens</span>
-      </p>
+      {authType === 'basic' ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Create an API token at{' '}
+          <span className="font-medium">id.atlassian.com/manage-profile/security/api-tokens</span>
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Create a PAT in your Jira profile under{' '}
+          <span className="font-medium">Profile → Personal Access Tokens</span>
+        </p>
+      )}
       {error ? (
         <p className="mt-2 text-xs text-destructive" role="alert">
           {error}

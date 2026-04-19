@@ -988,8 +988,9 @@ declare global {
       // Jira integration
       jiraSaveCredentials?: (args: {
         siteUrl: string;
-        email: string;
+        email?: string;
         token: string;
+        authType?: 'basic' | 'bearer';
       }) => Promise<{ success: boolean; displayName?: string; error?: string }>;
       jiraClearCredentials?: () => Promise<{ success: boolean; error?: string }>;
       jiraCheckConnection?: () => Promise<{

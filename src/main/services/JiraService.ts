@@ -5,11 +5,24 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { sortByUpdatedAtDesc } from '../utils/issueSorting';
 
-type JiraCreds = { siteUrl: string; email: string };
+type AuthType = 'basic' | 'bearer';
+type JiraCreds = { siteUrl: string; email?: string; authType: AuthType };
+type Auth =
+  | { authType: 'basic'; email: string; token: string }
+  | { authType: 'bearer'; token: string };
 
 function encodeBasic(email: string, token: string) {
   const raw = `${email}:${token}`;
   return Buffer.from(raw).toString('base64');
+}
+
+function apiBase(authType: AuthType): string {
+  return authType === 'bearer' ? '/rest/api/2' : '/rest/api/3';
+}
+
+function authHeader(auth: Auth): string {
+  if (auth.authType === 'bearer') return `Bearer ${auth.token}`;
+  return `Basic ${encodeBasic(auth.email, auth.token)}`;
 }
 
 export interface JiraConnectionStatus {
@@ -32,35 +45,40 @@ export default class JiraService {
       const raw = readFileSync(this.CONF_FILE, 'utf8');
       const obj = JSON.parse(raw);
       const siteUrl = String(obj?.siteUrl || '').trim();
+      if (!siteUrl) return null;
+      const authType: AuthType = obj?.authType === 'bearer' ? 'bearer' : 'basic';
       const email = String(obj?.email || '').trim();
-      if (!siteUrl || !email) return null;
-      return { siteUrl, email };
+      return { siteUrl, email: email || undefined, authType };
     } catch {
       return null;
     }
   }
 
   private writeCreds(creds: JiraCreds) {
-    const { siteUrl, email } = creds;
-    const obj: any = { siteUrl, email };
+    const obj: Record<string, string> = { siteUrl: creds.siteUrl, authType: creds.authType };
+    if (creds.authType === 'basic' && creds.email) obj.email = creds.email;
     writeFileSync(this.CONF_FILE, JSON.stringify(obj), 'utf8');
   }
 
   async saveCredentials(
     siteUrl: string,
-    email: string,
-    token: string
+    token: string,
+    authType: AuthType,
+    email?: string
   ): Promise<{
     success: boolean;
     displayName?: string;
     error?: string;
   }> {
     try {
-      const me = await this.getMyself(siteUrl, email, token);
+      const auth: Auth =
+        authType === 'bearer'
+          ? { authType: 'bearer', token }
+          : { authType: 'basic', email: email!, token };
+      const me = await this.getMyself(siteUrl, auth);
       const keytar = await import('keytar');
       await keytar.setPassword(this.SERVICE, this.ACCOUNT, token);
-      this.writeCreds({ siteUrl, email });
-      // Track connection
+      this.writeCreds({ siteUrl, email: email || undefined, authType });
       void import('../telemetry').then(({ capture }) => {
         void capture('jira_connected');
       });
@@ -80,7 +98,6 @@ export default class JiraService {
       try {
         if (existsSync(this.CONF_FILE)) unlinkSync(this.CONF_FILE);
       } catch {}
-      // Track disconnection
       void import('../telemetry').then(({ capture }) => {
         void capture('jira_disconnected');
       });
@@ -97,8 +114,12 @@ export default class JiraService {
       const keytar = await import('keytar');
       const token = await keytar.getPassword(this.SERVICE, this.ACCOUNT);
       if (!token) return { connected: false };
-      const me = await this.getMyself(creds.siteUrl, creds.email, token);
-      this.fetchProjectKeys(creds.siteUrl, creds.email, token)
+      const auth: Auth =
+        creds.authType === 'bearer'
+          ? { authType: 'bearer', token }
+          : { authType: 'basic', email: creds.email!, token };
+      const me = await this.getMyself(creds.siteUrl, auth);
+      this.fetchProjectKeys(creds.siteUrl, auth)
         .then((keys) => {
           this.projectKeys = keys;
         })
@@ -115,9 +136,8 @@ export default class JiraService {
   }
 
   async initialFetch(limit = 50): Promise<any[]> {
-    const { siteUrl, email, token } = await this.requireAuth();
+    const { siteUrl, auth } = await this.requireAuth();
     const jqlCandidates: string[] = [];
-    // Pragmatic fallbacks that typically work with limited permissions
     jqlCandidates.push(
       'assignee = currentUser() ORDER BY updated DESC',
       'reporter = currentUser() ORDER BY updated DESC',
@@ -126,20 +146,19 @@ export default class JiraService {
 
     for (const jql of jqlCandidates) {
       try {
-        const issues = await this.searchRaw(siteUrl, email, token, jql, limit);
+        const issues = await this.searchRaw(siteUrl, auth, jql, limit);
         if (issues.length > 0) return sortByUpdatedAtDesc(this.normalizeIssues(siteUrl, issues));
       } catch {
         // Try next candidate if this one is forbidden or failed
       }
     }
-    // Final fallback: use issue picker to get recent/history issues, then hydrate via GET /issue/{key}
     try {
-      const keys = await this.getRecentIssueKeys(siteUrl, email, token, limit);
+      const keys = await this.getRecentIssueKeys(siteUrl, auth, limit);
       if (keys.length > 0) {
         const results: any[] = [];
         for (const key of keys.slice(0, limit)) {
           try {
-            const issue = await this.getIssueByKey(siteUrl, email, token, key);
+            const issue = await this.getIssueByKey(siteUrl, auth, key);
             if (issue) results.push(issue);
           } catch {
             // skip individual failures
@@ -156,26 +175,29 @@ export default class JiraService {
   async searchIssues(searchTerm: string, limit = 20): Promise<any[]> {
     const term = (searchTerm || '').trim();
     if (!term) return [];
-    const { siteUrl, email, token } = await this.requireAuth();
+    const { siteUrl, auth } = await this.requireAuth();
     const sanitized = term.replace(/\"/g, '\\\"');
-    const inner = `text ~ \"${sanitized}\" OR key = ${term}`;
-    const jql = inner;
-    const data = await this.searchRaw(siteUrl, email, token, jql, limit);
+    const jql = `text ~ \"${sanitized}\" OR key = ${term}`;
+    const data = await this.searchRaw(siteUrl, auth, jql, limit);
     return sortByUpdatedAtDesc(this.normalizeIssues(siteUrl, data));
   }
 
-  private async requireAuth(): Promise<{ siteUrl: string; email: string; token: string }> {
+  private async requireAuth(): Promise<{ siteUrl: string; auth: Auth }> {
     const creds = this.readCreds();
     if (!creds) throw new Error('Jira credentials not set.');
     const keytar = await import('keytar');
     const token = await keytar.getPassword(this.SERVICE, this.ACCOUNT);
     if (!token) throw new Error('Jira token not found.');
-    return { ...creds, token };
+    const auth: Auth =
+      creds.authType === 'bearer'
+        ? { authType: 'bearer', token }
+        : { authType: 'basic', email: creds.email!, token };
+    return { siteUrl: creds.siteUrl, auth };
   }
 
-  private async getMyself(siteUrl: string, email: string, token: string): Promise<any> {
-    const url = new URL('/rest/api/3/myself', siteUrl);
-    const body = await this.doGet(url, email, token);
+  private async getMyself(siteUrl: string, auth: Auth): Promise<any> {
+    const url = new URL(`${apiBase(auth.authType)}/myself`, siteUrl);
+    const body = await this.doGet(url, auth);
     const data = JSON.parse(body || '{}');
     if (!data || data.errorMessages) {
       throw new Error('Failed to verify Jira token.');
@@ -183,39 +205,31 @@ export default class JiraService {
     return data;
   }
 
-  private async searchRaw(
-    siteUrl: string,
-    email: string,
-    token: string,
-    jql: string,
-    limit: number
-  ) {
-    const url = new URL('/rest/api/3/search', siteUrl);
+  private async searchRaw(siteUrl: string, auth: Auth, jql: string, limit: number) {
+    const url = new URL(`${apiBase(auth.authType)}/search`, siteUrl);
     const payload = JSON.stringify({
       jql,
       maxResults: Math.min(Math.max(limit, 1), 100),
       fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
     });
-    const body = await this.doRequest(url, email, token, 'POST', payload, {
+    const body = await this.doRequest(url, auth, 'POST', payload, {
       'Content-Type': 'application/json',
     });
     const data = JSON.parse(body || '{}');
     return Array.isArray(data?.issues) ? data.issues : [];
   }
 
-  private async doGet(url: URL, email: string, token: string): Promise<string> {
-    return this.doRequest(url, email, token, 'GET');
+  private async doGet(url: URL, auth: Auth): Promise<string> {
+    return this.doRequest(url, auth, 'GET');
   }
 
   private async doRequest(
     url: URL,
-    email: string,
-    token: string,
+    auth: Auth,
     method: 'GET' | 'POST',
     payload?: string,
     extraHeaders?: Record<string, string>
   ): Promise<string> {
-    const auth = encodeBasic(email, token);
     return await new Promise<string>((resolve, reject) => {
       const req = request(
         {
@@ -224,7 +238,7 @@ export default class JiraService {
           protocol: url.protocol,
           method,
           headers: {
-            Authorization: `Basic ${auth}`,
+            Authorization: authHeader(auth),
             Accept: 'application/json',
             ...(extraHeaders || {}),
           },
@@ -251,24 +265,22 @@ export default class JiraService {
     });
   }
 
-  // Enhanced search that supports direct issue-key lookups and robust quoting
   async smartSearchIssues(searchTerm: string, limit = 20): Promise<any[]> {
     const term = (searchTerm || '').trim();
     if (!term) return [];
-    const { siteUrl, email, token } = await this.requireAuth();
+    const { siteUrl, auth } = await this.requireAuth();
 
     const looksLikeKey = /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(term);
     if (looksLikeKey) {
       const keyUpper = term.toUpperCase();
       try {
-        const issue = await this.getIssueByKey(siteUrl, email, token, keyUpper);
+        const issue = await this.getIssueByKey(siteUrl, auth, keyUpper);
         if (issue) return sortByUpdatedAtDesc(this.normalizeIssues(siteUrl, [issue]));
       } catch {
         // If direct fetch fails (404/403/etc.), falling back to JQL search below
       }
     }
 
-    // Build JQL safely (escape quotes in term)
     const sanitized = term.replace(/"/g, '\\"');
     const extraKey = looksLikeKey ? ` OR issueKey = ${term.toUpperCase()}` : '';
     const isNumeric = /^\d+$/.test(term);
@@ -277,14 +289,14 @@ export default class JiraService {
         ? ` OR key IN (${this.projectKeys.map((p) => `"${p}-${term}"`).join(',')})`
         : '';
     const jql = `text ~ "${sanitized}"${extraKey}${keyClause}`;
-    const data = await this.searchRaw(siteUrl, email, token, jql, limit);
+    const data = await this.searchRaw(siteUrl, auth, jql, limit);
     return sortByUpdatedAtDesc(this.normalizeIssues(siteUrl, data));
   }
 
-  private async fetchProjectKeys(siteUrl: string, email: string, token: string): Promise<string[]> {
+  private async fetchProjectKeys(siteUrl: string, auth: Auth): Promise<string[]> {
     try {
-      const url = new URL('/rest/api/3/project', siteUrl);
-      const body = await this.doGet(url, email, token);
+      const url = new URL(`${apiBase(auth.authType)}/project`, siteUrl);
+      const body = await this.doGet(url, auth);
       const data = JSON.parse(body || '[]');
       if (!Array.isArray(data)) return [];
       return data.map((p: any) => String(p?.key || '')).filter(Boolean);
@@ -293,31 +305,20 @@ export default class JiraService {
     }
   }
 
-  private async getIssueByKey(
-    siteUrl: string,
-    email: string,
-    token: string,
-    key: string
-  ): Promise<any | null> {
-    const url = new URL(`/rest/api/3/issue/${encodeURIComponent(key)}`, siteUrl);
+  private async getIssueByKey(siteUrl: string, auth: Auth, key: string): Promise<any | null> {
+    const url = new URL(`${apiBase(auth.authType)}/issue/${encodeURIComponent(key)}`, siteUrl);
     url.searchParams.set('fields', 'summary,description,updated,project,status,assignee');
-    const body = await this.doGet(url, email, token);
+    const body = await this.doGet(url, auth);
     const data = JSON.parse(body || '{}');
     if (!data || data.errorMessages) return null;
     return data;
   }
 
-  private async getRecentIssueKeys(
-    siteUrl: string,
-    email: string,
-    token: string,
-    limit: number
-  ): Promise<string[]> {
-    // Jira issue picker provides recent/history issue suggestions
-    const url = new URL('/rest/api/3/issue/picker', siteUrl);
+  private async getRecentIssueKeys(siteUrl: string, auth: Auth, limit: number): Promise<string[]> {
+    const url = new URL(`${apiBase(auth.authType)}/issue/picker`, siteUrl);
     url.searchParams.set('query', '');
     url.searchParams.set('currentJQL', '');
-    const body = await this.doGet(url, email, token);
+    const body = await this.doGet(url, auth);
     const data = JSON.parse(body || '{}');
     const keys: string[] = [];
     const sections = Array.isArray(data?.sections) ? data.sections : [];
@@ -339,7 +340,6 @@ export default class JiraService {
     if (node.type === 'text') return node.text || '';
     if (Array.isArray(node.content)) {
       const parts = node.content.map((c: any) => JiraService.flattenAdf(c));
-      // Add newlines between block-level nodes (paragraphs, headings, etc.)
       if (['doc', 'bulletList', 'orderedList'].includes(node.type)) {
         return parts.join('\n');
       }

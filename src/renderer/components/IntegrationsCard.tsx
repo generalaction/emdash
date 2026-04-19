@@ -72,6 +72,7 @@ const IntegrationsCard: React.FC = () => {
   const [jiraSite, setJiraSite] = useState('');
   const [jiraEmail, setJiraEmail] = useState('');
   const [jiraToken, setJiraToken] = useState('');
+  const [jiraAuthType, setJiraAuthType] = useState<'basic' | 'bearer'>('basic');
   const [jiraLoading, setJiraLoading] = useState(false);
 
   // GitLab state
@@ -267,14 +268,16 @@ const IntegrationsCard: React.FC = () => {
       const api: any = window.electronAPI;
       const res = await api?.jiraSaveCredentials?.({
         siteUrl: jiraSite.trim(),
-        email: jiraEmail.trim(),
+        email: jiraAuthType === 'basic' ? jiraEmail.trim() : undefined,
         token: jiraToken.trim(),
+        authType: jiraAuthType,
       });
       if (res?.success) {
         setJiraConnected(true);
         setJiraSite('');
         setJiraEmail('');
         setJiraToken('');
+        setJiraAuthType('basic');
         setIntegrationSetupModal(null);
       } else {
         setJiraError(res?.error || 'Failed to connect.');
@@ -284,7 +287,7 @@ const IntegrationsCard: React.FC = () => {
     } finally {
       setJiraLoading(false);
     }
-  }, [jiraSite, jiraEmail, jiraToken]);
+  }, [jiraSite, jiraEmail, jiraToken, jiraAuthType]);
 
   const handleJiraDisconnect = useCallback(async () => {
     try {
@@ -734,16 +737,23 @@ const IntegrationsCard: React.FC = () => {
                   site={jiraSite}
                   email={jiraEmail}
                   token={jiraToken}
+                  authType={jiraAuthType}
                   onChange={(u) => {
                     if (typeof u.site === 'string') setJiraSite(u.site);
                     if (typeof u.email === 'string') setJiraEmail(u.email);
                     if (typeof u.token === 'string') setJiraToken(u.token);
+                    if (u.authType === 'basic' || u.authType === 'bearer')
+                      setJiraAuthType(u.authType);
                   }}
                   onClose={() => {
                     setIntegrationSetupModal(null);
                     setJiraError(null);
                   }}
-                  canSubmit={!!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())}
+                  canSubmit={
+                    jiraAuthType === 'bearer'
+                      ? !!(jiraSite.trim() && jiraToken.trim())
+                      : !!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())
+                  }
                   error={jiraError}
                   onSubmit={handleJiraSubmit}
                   hideHeader
@@ -767,7 +777,9 @@ const IntegrationsCard: React.FC = () => {
                   size="sm"
                   onClick={() => void handleJiraSubmit()}
                   disabled={
-                    !(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim()) || jiraLoading
+                    !(jiraAuthType === 'bearer'
+                      ? jiraSite.trim() && jiraToken.trim()
+                      : jiraSite.trim() && jiraEmail.trim() && jiraToken.trim()) || jiraLoading
                   }
                 >
                   {jiraLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

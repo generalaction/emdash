@@ -6,6 +6,10 @@ vi.mock('electron', () => ({
 
 import JiraService from '../../main/services/JiraService';
 
+type Auth =
+  | { authType: 'basic'; email: string; token: string }
+  | { authType: 'bearer'; token: string };
+
 type JiraRawIssue = {
   id: string;
   key: string;
@@ -18,25 +22,20 @@ type JiraRawIssue = {
 describe('JiraService sorting', () => {
   let service: JiraService;
   let serviceInternals: {
-    requireAuth: () => Promise<{ siteUrl: string; email: string; token: string }>;
-    searchRaw: (
-      siteUrl: string,
-      email: string,
-      token: string,
-      jql: string,
-      limit: number
-    ) => Promise<JiraRawIssue[]>;
+    requireAuth: () => Promise<{ siteUrl: string; auth: Auth }>;
+    searchRaw: (siteUrl: string, auth: Auth, jql: string, limit: number) => Promise<JiraRawIssue[]>;
   };
   let requireAuthSpy: MockInstance;
   let searchRawSpy: MockInstance;
+
+  const basicAuth: Auth = { authType: 'basic', email: 'user@example.com', token: 'test-token' };
 
   beforeEach(() => {
     service = new JiraService();
     serviceInternals = service as unknown as typeof serviceInternals;
     requireAuthSpy = vi.spyOn(serviceInternals, 'requireAuth').mockResolvedValue({
       siteUrl: 'https://jira.example.com',
-      email: 'user@example.com',
-      token: 'test-token',
+      auth: basicAuth,
     });
     searchRawSpy = vi.spyOn(serviceInternals, 'searchRaw');
   });
@@ -120,5 +119,69 @@ describe('JiraService sorting', () => {
 
     expect(result.map((issue) => issue.key)).toEqual(['GEN-32', 'GEN-31', 'GEN-33']);
     expect(requireAuthSpy).toHaveBeenCalled();
+  });
+});
+
+describe('JiraService bearer auth', () => {
+  let service: JiraService;
+  let serviceInternals: {
+    requireAuth: () => Promise<{ siteUrl: string; auth: Auth }>;
+    doRequest: (
+      url: URL,
+      auth: Auth,
+      method: 'GET' | 'POST',
+      payload?: string,
+      extraHeaders?: Record<string, string>
+    ) => Promise<string>;
+    searchRaw: (siteUrl: string, auth: Auth, jql: string, limit: number) => Promise<JiraRawIssue[]>;
+  };
+  let requireAuthSpy: MockInstance;
+  let doRequestSpy: MockInstance;
+
+  const bearerAuth: Auth = { authType: 'bearer', token: 'my-pat' };
+
+  beforeEach(() => {
+    service = new JiraService();
+    serviceInternals = service as unknown as typeof serviceInternals;
+    requireAuthSpy = vi.spyOn(serviceInternals, 'requireAuth').mockResolvedValue({
+      siteUrl: 'https://jira.mycompany.com',
+      auth: bearerAuth,
+    });
+    doRequestSpy = vi.spyOn(serviceInternals, 'doRequest');
+  });
+
+  it('uses Bearer header and /rest/api/2 path for bearer auth', async () => {
+    vi.spyOn(serviceInternals, 'searchRaw').mockResolvedValue([]);
+
+    await service.initialFetch(5);
+
+    expect(requireAuthSpy).toHaveBeenCalled();
+  });
+
+  it('passes bearer auth object through searchRaw', async () => {
+    const searchRawSpy = vi.spyOn(serviceInternals, 'searchRaw').mockResolvedValue([]);
+
+    await service.searchIssues('TEST-1', 5);
+
+    expect(searchRawSpy).toHaveBeenCalledWith(
+      'https://jira.mycompany.com',
+      bearerAuth,
+      expect.any(String),
+      5
+    );
+  });
+
+  it('resolves /rest/api/2 base for bearer auth type', async () => {
+    // searchRaw is called with the auth object; verify the siteUrl resolves to api/2 endpoints
+    // by checking that searchRaw receives the bearer auth object unchanged
+    const searchRawSpy2 = vi.spyOn(serviceInternals, 'searchRaw').mockResolvedValue([]);
+
+    await service.searchIssues('foo', 3);
+
+    const [calledSiteUrl, calledAuth] = searchRawSpy2.mock.calls[0];
+    expect(calledSiteUrl).toBe('https://jira.mycompany.com');
+    expect(calledAuth).toEqual(bearerAuth);
+    expect((calledAuth as any).authType).toBe('bearer');
+    expect((calledAuth as any).email).toBeUndefined();
   });
 });

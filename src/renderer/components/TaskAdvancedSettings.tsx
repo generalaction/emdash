@@ -69,7 +69,12 @@ interface TaskAdvancedSettingsProps {
   selectedJiraIssue: JiraIssueSummary | null;
   onJiraIssueChange: (issue: JiraIssueSummary | null) => void;
   isJiraConnected: boolean | null;
-  onJiraConnect: (credentials: { siteUrl: string; email: string; token: string }) => Promise<void>;
+  onJiraConnect: (credentials: {
+    siteUrl: string;
+    email?: string;
+    token: string;
+    authType: 'basic' | 'bearer';
+  }) => Promise<void>;
 
   // GitLab
   selectedGitlabIssue: GitLabIssueSummary | null;
@@ -147,6 +152,7 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
   const [jiraSite, setJiraSite] = useState('');
   const [jiraEmail, setJiraEmail] = useState('');
   const [jiraToken, setJiraToken] = useState('');
+  const [jiraAuthType, setJiraAuthType] = useState<'basic' | 'bearer'>('basic');
   const [jiraConnectionError, setJiraConnectionError] = useState<string | null>(null);
 
   // GitLab setup state
@@ -187,17 +193,19 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
     try {
       await onJiraConnect({
         siteUrl: jiraSite.trim(),
-        email: jiraEmail.trim(),
+        email: jiraAuthType === 'basic' ? jiraEmail.trim() : undefined,
         token: jiraToken.trim(),
+        authType: jiraAuthType,
       });
       setJiraSetupOpen(false);
       setJiraSite('');
       setJiraEmail('');
       setJiraToken('');
+      setJiraAuthType('basic');
     } catch (error: any) {
       setJiraConnectionError(error?.message || 'Failed to connect.');
     }
-  }, [jiraSite, jiraEmail, jiraToken, onJiraConnect]);
+  }, [jiraSite, jiraEmail, jiraToken, jiraAuthType, onJiraConnect]);
 
   const handleGitlabConnect = useCallback(async () => {
     setGitlabConnectionError(null);
@@ -826,13 +834,20 @@ export const TaskAdvancedSettings: React.FC<TaskAdvancedSettingsProps> = ({
                 site={jiraSite}
                 email={jiraEmail}
                 token={jiraToken}
+                authType={jiraAuthType}
                 onChange={(u) => {
                   if (typeof u.site === 'string') setJiraSite(u.site);
                   if (typeof u.email === 'string') setJiraEmail(u.email);
                   if (typeof u.token === 'string') setJiraToken(u.token);
+                  if (u.authType === 'basic' || u.authType === 'bearer')
+                    setJiraAuthType(u.authType);
                 }}
                 onClose={() => setJiraSetupOpen(false)}
-                canSubmit={!!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())}
+                canSubmit={
+                  jiraAuthType === 'bearer'
+                    ? !!(jiraSite.trim() && jiraToken.trim())
+                    : !!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())
+                }
                 error={jiraConnectionError}
                 onSubmit={() => void handleJiraConnect()}
               />
