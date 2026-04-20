@@ -11,7 +11,10 @@ describe('worktree-directory', () => {
           pathApi: path,
           homeDirectory: '/Users/test',
         })
-      ).resolves.toBe(path.resolve('/repo', 'worktrees'));
+      ).resolves.toEqual({
+        success: true,
+        data: path.resolve('/repo', 'worktrees'),
+      });
     });
 
     it('expands local tilde paths from home', async () => {
@@ -21,7 +24,10 @@ describe('worktree-directory', () => {
           pathApi: path,
           homeDirectory: '/Users/test',
         })
-      ).resolves.toBe(path.resolve('/Users/test', 'worktrees'));
+      ).resolves.toEqual({
+        success: true,
+        data: path.resolve('/Users/test', 'worktrees'),
+      });
     });
 
     it('resolves ssh relative paths with posix semantics', async () => {
@@ -30,7 +36,10 @@ describe('worktree-directory', () => {
           projectPath: '/remote/repo',
           pathApi: path.posix,
         })
-      ).resolves.toBe('/remote/repo/worktrees');
+      ).resolves.toEqual({
+        success: true,
+        data: '/remote/repo/worktrees',
+      });
     });
 
     it('rejects tilde paths when home cannot be resolved', async () => {
@@ -39,7 +48,10 @@ describe('worktree-directory', () => {
           projectPath: '/remote/repo',
           pathApi: path.posix,
         })
-      ).rejects.toThrow('cannot use "~" without a home directory resolver');
+      ).resolves.toEqual({
+        success: false,
+        error: { type: 'invalid-worktree-directory' },
+      });
     });
 
     it('expands ssh tilde paths with async home resolver', async () => {
@@ -49,7 +61,10 @@ describe('worktree-directory', () => {
           pathApi: path.posix,
           resolveHomeDirectory: async () => '/home/ubuntu',
         })
-      ).resolves.toBe('/home/ubuntu/worktrees');
+      ).resolves.toEqual({
+        success: true,
+        data: '/home/ubuntu/worktrees',
+      });
     });
   });
 
@@ -61,8 +76,10 @@ describe('worktree-directory', () => {
       };
 
       const resolved = await canonicalizeWorktreeDirectory('/input/path', fs);
-
-      expect(resolved).toBe('/canonical/path');
+      expect(resolved).toEqual({
+        success: true,
+        data: '/canonical/path',
+      });
       expect(fs.mkdir).toHaveBeenCalledWith('/input/path', { recursive: true });
       expect(fs.realPath).toHaveBeenCalledWith('/input/path');
     });

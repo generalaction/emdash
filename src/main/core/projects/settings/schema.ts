@@ -1,4 +1,6 @@
 import z from 'zod';
+import type { UpdateProjectSettingsError } from '@shared/projects';
+import type { Result } from '@shared/result';
 
 export const defaultBranchSettingSchema = z.union([
   z.string(),
@@ -41,6 +43,6 @@ export interface ProjectSettingsProvider {
   getRemote(): Promise<string>;
   getWorktreeDirectory(): Promise<string>;
   get(): Promise<ProjectSettings>;
-  update(settings: ProjectSettings): Promise<void>;
+  update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>>;
   ensure(): Promise<void>;
 }

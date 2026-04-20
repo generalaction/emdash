@@ -38,7 +38,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     };
 
     const provider = new LocalProjectSettingsProvider(projectPath, 'main', rootFs);
-    await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
+    const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
+    expect(result.success).toBe(true);
 
     expect(rootFs.mkdir).toHaveBeenCalledWith(path.resolve(projectPath, 'worktrees'), {
       recursive: true,
@@ -58,9 +59,14 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     };
 
     const provider = new LocalProjectSettingsProvider(projectPath, 'main', rootFs);
-    await expect(
-      provider.update({ preservePatterns: [], worktreeDirectory: '/restricted' })
-    ).rejects.toThrow('Invalid worktree directory');
+    const result = await provider.update({
+      preservePatterns: [],
+      worktreeDirectory: '/restricted',
+    });
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'invalid-worktree-directory' },
+    });
   });
 
   it('clears blank local worktreeDirectory values', async () => {
@@ -72,7 +78,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     };
 
     const provider = new LocalProjectSettingsProvider(projectPath, 'main', rootFs);
-    await provider.update({ preservePatterns: [], worktreeDirectory: '   ' });
+    const result = await provider.update({ preservePatterns: [], worktreeDirectory: '   ' });
+    expect(result.success).toBe(true);
 
     expect(rootFs.mkdir).not.toHaveBeenCalled();
     const persisted = JSON.parse(fs.readFileSync(path.join(projectPath, '.emdash.json'), 'utf8'));
@@ -90,7 +97,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     };
 
     const provider = new SshProjectSettingsProvider(projectFs, 'main', rootFs, '/remote/repo');
-    await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
+    const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
+    expect(result.success).toBe(true);
 
     expect(rootFs.mkdir).toHaveBeenCalledWith('/remote/repo/worktrees', { recursive: true });
     expect(rootFs.realPath).toHaveBeenCalledWith('/remote/repo/worktrees');
@@ -120,9 +128,14 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     };
 
     const provider = new SshProjectSettingsProvider(projectFs, 'main', rootFs, '/remote/repo');
-    await expect(
-      provider.update({ preservePatterns: [], worktreeDirectory: '~/worktrees' })
-    ).rejects.toThrow('Unable to resolve remote home directory for SSH project');
+    const result = await provider.update({
+      preservePatterns: [],
+      worktreeDirectory: '~/worktrees',
+    });
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'invalid-worktree-directory' },
+    });
     expect(writeMock).not.toHaveBeenCalled();
   });
 
@@ -156,8 +169,10 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       '/remote/repo',
       exec
     );
-    await provider.update({ preservePatterns: [], worktreeDirectory: '~/worktrees' });
-    await provider.update({ preservePatterns: [], worktreeDirectory: '~' });
+    const first = await provider.update({ preservePatterns: [], worktreeDirectory: '~/worktrees' });
+    const second = await provider.update({ preservePatterns: [], worktreeDirectory: '~' });
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
 
     expect(exec).toHaveBeenCalledTimes(1);
     expect(rootFs.mkdir).toHaveBeenCalledWith('/home/ubuntu/worktrees', { recursive: true });

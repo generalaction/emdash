@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { UpdateProjectSettingsError } from '@shared/projects';
+import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 
 export type WorktreeDirectoryFs = Pick<FileSystemProvider, 'mkdir' | 'realPath'>;
@@ -14,34 +16,42 @@ export async function normalizeWorktreeDirectory(
     homeDirectory?: string;
     resolveHomeDirectory?: () => Promise<string>;
   }
-): Promise<string> {
-  const trimmed = input.trim();
-  let normalized = trimmed;
+): Promise<Result<string, UpdateProjectSettingsError>> {
+  try {
+    const trimmed = input.trim();
+    let normalized = trimmed;
 
-  if (trimmed === '~' || trimmed.startsWith('~/')) {
-    const resolvedHomeDirectory = options.resolveHomeDirectory
-      ? (await options.resolveHomeDirectory()).trim()
-      : undefined;
-    const homeDirectory = options.homeDirectory ?? resolvedHomeDirectory;
-    if (!homeDirectory) {
-      throw new Error('Worktree directory cannot use "~" without a home directory resolver.');
+    if (trimmed === '~' || trimmed.startsWith('~/')) {
+      const resolvedHomeDirectory = options.resolveHomeDirectory
+        ? (await options.resolveHomeDirectory()).trim()
+        : undefined;
+      const homeDirectory = options.homeDirectory ?? resolvedHomeDirectory;
+      if (!homeDirectory) {
+        return err({ type: 'invalid-worktree-directory' });
+      }
+      normalized =
+        trimmed === '~' ? homeDirectory : options.pathApi.join(homeDirectory, trimmed.slice(2));
     }
-    normalized =
-      trimmed === '~' ? homeDirectory : options.pathApi.join(homeDirectory, trimmed.slice(2));
-  }
 
-  if (options.pathApi.isAbsolute(normalized)) {
-    return normalized;
+    if (options.pathApi.isAbsolute(normalized)) {
+      return ok(normalized);
+    }
+    return ok(options.pathApi.resolve(options.projectPath, normalized));
+  } catch {
+    return err({ type: 'invalid-worktree-directory' });
   }
-  return options.pathApi.resolve(options.projectPath, normalized);
 }
 
 export async function canonicalizeWorktreeDirectory(
   directory: string,
   fs: WorktreeDirectoryFs
-): Promise<string> {
-  await fs.mkdir(directory, { recursive: true });
-  return fs.realPath(directory);
+): Promise<Result<string, UpdateProjectSettingsError>> {
+  try {
+    await fs.mkdir(directory, { recursive: true });
+    return ok(await fs.realPath(directory));
+  } catch {
+    return err({ type: 'invalid-worktree-directory' });
+  }
 }
 
 export const defaultLocalWorktreeFs: WorktreeDirectoryFs = {
@@ -60,10 +70,10 @@ export async function resolveAndValidateWorktreeDirectory(
     homeDirectory?: string;
     resolveHomeDirectory?: () => Promise<string>;
   }
-): Promise<string | undefined> {
+): Promise<Result<string | undefined, UpdateProjectSettingsError>> {
   const trimmed = input?.trim();
   if (!trimmed) {
-    return undefined;
+    return ok(undefined);
   }
 
   const normalized = await normalizeWorktreeDirectory(trimmed, {
@@ -72,5 +82,8 @@ export async function resolveAndValidateWorktreeDirectory(
     homeDirectory: options.homeDirectory,
     resolveHomeDirectory: options.resolveHomeDirectory,
   });
-  return canonicalizeWorktreeDirectory(normalized, options.fs);
+  if (!normalized.success) {
+    return normalized;
+  }
+  return canonicalizeWorktreeDirectory(normalized.data, options.fs);
 }

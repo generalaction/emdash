@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { UpdateProjectSettingsError } from '@shared/projects';
+import { err, ok, type Result } from '@shared/result';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -41,25 +43,34 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
     return parseSettingsOrDefault(fs.readFileSync(settingsPath, 'utf8'), settingsPath);
   }
 
-  async update(settings: ProjectSettings): Promise<void> {
-    const nextSettings = projectSettingsSchema.parse(settings);
-    try {
-      nextSettings.worktreeDirectory = await resolveAndValidateWorktreeDirectory(
-        nextSettings.worktreeDirectory,
-        {
-          projectPath: this.projectPath,
-          pathApi: path,
-          fs: this.rootFs ?? defaultLocalWorktreeFs,
-          homeDirectory: os.homedir(),
-        }
-      );
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Invalid worktree directory: ${message}`);
+  async update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>> {
+    const parsed = projectSettingsSchema.safeParse(settings);
+    if (!parsed.success) {
+      return err({ type: 'invalid-settings' });
+    }
+    const nextSettings = parsed.data;
+    const worktreeDirectoryResult = await resolveAndValidateWorktreeDirectory(
+      nextSettings.worktreeDirectory,
+      {
+        projectPath: this.projectPath,
+        pathApi: path,
+        fs: this.rootFs ?? defaultLocalWorktreeFs,
+        homeDirectory: os.homedir(),
+      }
+    );
+    if (!worktreeDirectoryResult.success) {
+      return worktreeDirectoryResult;
     }
 
-    const settingsPath = path.join(this.projectPath, '.emdash.json');
-    fs.writeFileSync(settingsPath, JSON.stringify(nextSettings, null, 2));
+    nextSettings.worktreeDirectory = worktreeDirectoryResult.data;
+
+    try {
+      const settingsPath = path.join(this.projectPath, '.emdash.json');
+      fs.writeFileSync(settingsPath, JSON.stringify(nextSettings, null, 2));
+      return ok();
+    } catch {
+      return err({ type: 'error' });
+    }
   }
 
   async ensure(): Promise<void> {
@@ -86,19 +97,21 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
     const defaultWorktreeDirectory = (await appSettingsService.get('localProject'))
       .defaultWorktreeDirectory;
     if (settings.worktreeDirectory) {
-      try {
-        return await normalizeWorktreeDirectory(settings.worktreeDirectory, {
-          projectPath: this.projectPath,
-          pathApi: path,
-          homeDirectory: os.homedir(),
-        });
-      } catch (error: unknown) {
+      const normalized = await normalizeWorktreeDirectory(settings.worktreeDirectory, {
+        projectPath: this.projectPath,
+        pathApi: path,
+        homeDirectory: os.homedir(),
+      });
+      if (normalized.success) {
+        return normalized.data;
+      }
+      {
         log.warn(
           'LocalProjectSettingsProvider: invalid worktreeDirectory, falling back to default',
           {
             worktreeDirectory: settings.worktreeDirectory,
             defaultWorktreeDirectory,
-            error: String(error),
+            error: normalized.error.type,
           }
         );
       }
@@ -118,12 +131,16 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
 
   private homeDirectory?: Promise<string>;
 
-  private async getHomeDirectory(): Promise<string> {
+  private async getHomeDirectory(): Promise<Result<string, UpdateProjectSettingsError>> {
     if (!this.exec) {
-      throw new Error('Unable to resolve remote home directory for SSH project');
+      return err({ type: 'invalid-worktree-directory' });
     }
-    this.homeDirectory ??= resolveRemoteHome(this.exec);
-    return this.homeDirectory;
+    try {
+      this.homeDirectory ??= resolveRemoteHome(this.exec);
+      return ok(await this.homeDirectory);
+    } catch {
+      return err({ type: 'invalid-worktree-directory' });
+    }
   }
 
   async get(): Promise<ProjectSettings> {
@@ -138,27 +155,38 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
     );
   }
 
-  async update(settings: ProjectSettings): Promise<void> {
-    const nextSettings = projectSettingsSchema.parse(settings);
-    if (!this.rootFs) {
-      throw new Error('Unable to validate worktree directory for SSH project');
+  async update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>> {
+    const parsed = projectSettingsSchema.safeParse(settings);
+    if (!parsed.success) {
+      return err({ type: 'invalid-settings' });
     }
-    try {
-      nextSettings.worktreeDirectory = await resolveAndValidateWorktreeDirectory(
-        nextSettings.worktreeDirectory,
-        {
-          projectPath: this.projectPath,
-          pathApi: path.posix,
-          fs: this.rootFs,
-          resolveHomeDirectory: () => this.getHomeDirectory(),
-        }
-      );
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Invalid worktree directory: ${message}`);
+    const nextSettings = parsed.data;
+    if (!this.rootFs) {
+      return err({ type: 'error' });
+    }
+    const worktreeDirectoryResult = await resolveAndValidateWorktreeDirectory(
+      nextSettings.worktreeDirectory,
+      {
+        projectPath: this.projectPath,
+        pathApi: path.posix,
+        fs: this.rootFs,
+        resolveHomeDirectory: async () => {
+          const homeDirectory = await this.getHomeDirectory();
+          return homeDirectory.success ? homeDirectory.data : '';
+        },
+      }
+    );
+    if (!worktreeDirectoryResult.success) {
+      return worktreeDirectoryResult;
     }
 
-    await this.fs.write('.emdash.json', JSON.stringify(nextSettings, null, 2));
+    nextSettings.worktreeDirectory = worktreeDirectoryResult.data;
+    try {
+      await this.fs.write('.emdash.json', JSON.stringify(nextSettings, null, 2));
+      return ok();
+    } catch {
+      return err({ type: 'error' });
+    }
   }
 
   async ensure(): Promise<void> {
@@ -184,17 +212,22 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
     const settings = await this.get();
     const defaultWorktreeDirectory = getDefaultSshWorktreeDirectory(this.projectPath);
     if (settings.worktreeDirectory) {
-      try {
-        return await normalizeWorktreeDirectory(settings.worktreeDirectory, {
-          projectPath: this.projectPath,
-          pathApi: path.posix,
-          resolveHomeDirectory: () => this.getHomeDirectory(),
-        });
-      } catch (error: unknown) {
+      const normalized = await normalizeWorktreeDirectory(settings.worktreeDirectory, {
+        projectPath: this.projectPath,
+        pathApi: path.posix,
+        resolveHomeDirectory: async () => {
+          const homeDirectory = await this.getHomeDirectory();
+          return homeDirectory.success ? homeDirectory.data : '';
+        },
+      });
+      if (normalized.success) {
+        return normalized.data;
+      }
+      {
         log.warn('SshProjectSettingsProvider: invalid worktreeDirectory, falling back to default', {
           worktreeDirectory: settings.worktreeDirectory,
           defaultWorktreeDirectory,
-          error: String(error),
+          error: normalized.error.type,
         });
       }
     }
