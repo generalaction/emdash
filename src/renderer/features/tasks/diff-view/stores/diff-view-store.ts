@@ -1,5 +1,5 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import { HEAD_REF, localRef, remoteRef, STAGED_REF, type GitRef } from '@shared/git';
+import { commitRef, type GitObjectRef } from '@shared/git';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
@@ -8,15 +8,14 @@ import { GitStore } from './git-store';
 
 export const MAX_STACKED_FILES = 8;
 
-/** Migrate persisted snapshots where `originalRef` was a plain string. */
-function migrateLegacyOriginalRef(legacy: string): GitRef {
-  if (legacy === 'HEAD') return HEAD_REF;
-  if (legacy === 'staged') return STAGED_REF;
-  if (legacy.includes('/')) {
-    const idx = legacy.indexOf('/');
-    return remoteRef(legacy.slice(0, idx), legacy.slice(idx + 1));
-  }
-  return localRef(legacy);
+const VALID_OBJECT_REF_KINDS = new Set(['branch', 'commit', 'tag']);
+
+function isValidGitObjectRef(raw: unknown): raw is GitObjectRef {
+  return (
+    raw !== null &&
+    typeof raw === 'object' &&
+    VALID_OBJECT_REF_KINDS.has((raw as Record<string, unknown>)['kind'] as string)
+  );
 }
 
 export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
@@ -90,7 +89,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
         ...override,
         type: isStaged ? 'disk' : 'git',
         group: isStaged ? 'disk' : 'staged',
-        originalRef: HEAD_REF,
+        originalRef: commitRef('HEAD'),
       };
     }
 
@@ -106,7 +105,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
         path: otherList[0]!.path,
         type: isStaged ? 'disk' : 'git',
         group: isStaged ? 'disk' : 'staged',
-        originalRef: HEAD_REF,
+        originalRef: commitRef('HEAD'),
       };
     }
 
@@ -125,16 +124,14 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   restoreSnapshot(snapshot: Partial<DiffViewSnapshot>): void {
     if (snapshot.diffStyle) this.diffStyle = snapshot.diffStyle;
     // viewMode is always 'file' — ignore any persisted value
-    if (snapshot.activeFile) {
-      const af = { ...snapshot.activeFile };
-      if (typeof (af.originalRef as unknown) === 'string') {
-        af.originalRef = migrateLegacyOriginalRef(af.originalRef as unknown as string);
-      }
-      this.activeFileOverride = af;
+    if (snapshot.activeFile && isValidGitObjectRef(snapshot.activeFile.originalRef)) {
+      this.activeFileOverride = snapshot.activeFile;
       // Index is unknown on restore; 0 means we pick the first file if the
       // restored path is gone from the list.
       this._activeFileOverrideIndex = 0;
     }
+    // Snapshots with an unrecognised originalRef shape are discarded — the
+    // store falls back to _defaultActiveFile automatically.
     if (snapshot.commitAction) this.commitAction = snapshot.commitAction;
   }
 
@@ -176,7 +173,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       path: first.path,
       type: isUnstaged ? 'disk' : 'git',
       group: isUnstaged ? 'disk' : 'staged',
-      originalRef: HEAD_REF,
+      originalRef: commitRef('HEAD'),
     };
   }
 }

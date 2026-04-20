@@ -57,7 +57,7 @@ export function AddRemoteModal({
     queryKey: ['owners'],
     queryFn: () => rpc.github.getOwners(),
   });
-  const selectedRemote = getRepositoryStore(projectId)?.configuredRemote ?? 'origin';
+  const selectedRemote = getRepositoryStore(projectId)?.configuredRemote.name ?? 'origin';
 
   const owners = data?.owners?.map((o) => ({ value: o.login, label: o.login })) ?? [];
   const owner = selectedOwner ?? owners[0] ?? null;
@@ -107,7 +107,7 @@ export function AddRemoteModal({
         }
       }
 
-      const fetchResult = await rpc.git.fetch(projectId, workspaceId, selectedRemote);
+      const fetchResult = await rpc.repository.fetch(projectId);
       if (!fetchResult.success) {
         setError(toErrorMessage(fetchResult.error, 'Failed to fetch remote'));
         return;

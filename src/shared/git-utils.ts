@@ -1,25 +1,18 @@
-import type { Branch } from './git';
+import type { Branch, Remote } from './git';
 
 export const DEFAULT_REMOTE_NAME = 'origin';
 
 export function selectPreferredRemote(
   configuredRemote: string | undefined,
-  remotes: ReadonlyArray<{ name: string }>
-): string {
+  remotes: ReadonlyArray<Remote>
+): Remote {
   const preferred = configuredRemote?.trim();
-  if (!preferred) {
-    return DEFAULT_REMOTE_NAME;
-  }
-
-  if (preferred === DEFAULT_REMOTE_NAME) {
-    return DEFAULT_REMOTE_NAME;
-  }
-
-  if (remotes.some((remote) => remote.name === preferred)) {
-    return preferred;
-  }
-
-  return DEFAULT_REMOTE_NAME;
+  const found = preferred ? remotes.find((r) => r.name === preferred) : undefined;
+  return (
+    found ??
+    remotes.find((r) => r.name === DEFAULT_REMOTE_NAME) ??
+    remotes[0] ?? { name: DEFAULT_REMOTE_NAME, url: '' }
+  );
 }
 
 /**

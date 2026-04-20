@@ -2,11 +2,13 @@ import type {
   Commit,
   CommitError,
   CommitFile,
+  DiffMode,
   DiffResult,
   FetchError,
   FullGitStatus,
   GitChange,
-  GitRef,
+  GitObjectRef,
+  MergeBaseRange,
   PullError,
   PushError,
   SoftResetError,
@@ -31,9 +33,9 @@ export interface WorkspaceGitProvider {
    * directory (forward slashes). Main worktree returns `''`.
    */
   getWorktreeGitDir(mainDotGitAbs: string): Promise<string>;
-  getChangedFiles(base: GitRef | string): Promise<GitChange[]>;
+  getChangedFiles(base: DiffMode | GitObjectRef | MergeBaseRange): Promise<GitChange[]>;
 
-  getFileDiff(filePath: string, base?: GitRef): Promise<DiffResult>;
+  getFileDiff(filePath: string, base?: DiffMode | GitObjectRef): Promise<DiffResult>;
   getFileAtHead(filePath: string): Promise<string | null>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;
@@ -51,6 +53,7 @@ export interface WorkspaceGitProvider {
     skip?: number;
     knownAheadCount?: number;
     preferredRemote?: string;
+    base?: GitObjectRef;
   }): Promise<{ commits: Commit[]; aheadCount: number }>;
   getLatestCommit(): Promise<Commit | null>;
   getCommitFiles(commitHash: string): Promise<CommitFile[]>;

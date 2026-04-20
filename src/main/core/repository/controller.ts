@@ -1,6 +1,7 @@
 import type { BranchesPayload, LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
+import { capture } from '@main/lib/telemetry';
 import { projectManager } from '../projects/project-manager';
 
 export const repositoryController = createRPCController({
@@ -49,5 +50,18 @@ export const repositoryController = createRPCController({
     const result = await project.repository.renameBranch(oldBranch, newBranch);
     if (!result.success) return err(result.error);
     return ok({ remotePushed: result.data.remotePushed });
+  },
+
+  fetch: async (projectId: string) => {
+    const project = projectManager.getProject(projectId);
+    if (!project) return err({ type: 'not_found' as const });
+    const result = await project.fetch();
+    capture('vcs_fetch', {
+      success: result.success,
+      project_id: projectId,
+      ...(result.success ? {} : { error_type: result.error.type }),
+    });
+    if (!result.success) return err(result.error);
+    return ok();
   },
 });

@@ -15,6 +15,13 @@
       "when": 1776180612307,
       "tag": "0001_skinny_robin_chapel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776700840315,
+      "tag": "0002_noisy_maestro",
+      "breakpoints": true
     }
   ]
 }

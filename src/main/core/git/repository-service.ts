@@ -28,7 +28,7 @@ export class GitRepositoryService {
       this.settings.getRemote().catch(() => undefined),
       this.git.getRemotes().catch(() => []),
     ]);
-    return selectPreferredRemote(configured, remotes);
+    return selectPreferredRemote(configured, remotes).name;
   }
 
   async getDefaultBranchName(): Promise<string> {

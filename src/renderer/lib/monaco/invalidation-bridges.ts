@@ -65,7 +65,7 @@ export function wireModelRegistryInvalidation(registry: MonacoModelRegistry): ()
         }
       }
     } else {
-      const refKind = kind === 'remote-refs' ? 'remote' : 'local';
+      const refKind = 'branch'; // Both local and remote branches now share kind:'branch'
       for (const uri of registry.findGitUris({ projectId, refKind })) {
         void registry.invalidateModel(uri);
       }

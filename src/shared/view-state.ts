@@ -1,4 +1,4 @@
-import type { GitRef } from '@shared/git';
+import type { GitObjectRef } from '@shared/git';
 
 export type TabViewSnapshot = {
   tabOrder: string[];
@@ -31,7 +31,7 @@ export interface ActiveFile {
    *  'git'    = arbitrary ref-to-ref comparison
    *  'pr'     = PR diff (originalRef is remote-tracking base) */
   group: 'disk' | 'staged' | 'git' | 'pr';
-  originalRef: GitRef;
+  originalRef: GitObjectRef;
   /** Set only when group === 'pr'. Identifies the PR for store lookups. */
   prNumber?: number;
 }

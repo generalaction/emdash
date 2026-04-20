@@ -1,6 +1,6 @@
 import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { HEAD_REF } from '@shared/git';
+import { commitRef, HEAD_REF } from '@shared/git';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -32,7 +32,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const showConfirmActionModal = useShowModal('confirmActionModal');
 
   const handleSelectChange = (path: string) => {
-    diffView.setActiveFile({ path, type: 'disk', group: 'disk', originalRef: HEAD_REF });
+    diffView.setActiveFile({ path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') });
     provisioned.taskView.setView('diff');
   };
 

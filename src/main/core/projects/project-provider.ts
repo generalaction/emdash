@@ -1,5 +1,5 @@
 import { Conversation } from '@shared/conversations';
-import type { Branch } from '@shared/git';
+import type { Branch, FetchError } from '@shared/git';
 import type { Result } from '@shared/result';
 import { Task, TaskBootstrapStatus } from '@shared/tasks';
 import { Terminal } from '@shared/terminals';
@@ -56,5 +56,6 @@ export interface ProjectProvider {
   getTaskBootstrapStatus(taskId: string): TaskBootstrapStatus;
   teardownTask(taskId: string): Promise<Result<void, TeardownTaskError>>;
   removeTaskWorktree(taskBranch: string): Promise<void>;
+  fetch(): Promise<Result<void, FetchError>>;
   cleanup(): Promise<void>;
 }

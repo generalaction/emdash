@@ -1,6 +1,6 @@
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
-import { HEAD_REF, refsEqual, toRefString, type GitRef } from '@shared/git';
+import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/git';
 import { rpc } from '@renderer/lib/ipc';
 import { buildMonacoModelPath } from './monacoModelPath';
 
@@ -177,7 +177,7 @@ export class MonacoModelRegistry {
    * Example: file://workspace:abc/src/index.ts + HEAD_REF → git://workspace:abc/HEAD/src/index.ts
    */
   toGitUri(bufferUri: string, ref: GitRef): string {
-    const refStr = toRefString(ref);
+    const refStr = gitRefToString(ref);
     const withoutScheme = bufferUri.replace(/^file:\/\//, '');
     const slashIdx = withoutScheme.indexOf('/');
     if (slashIdx < 0) return bufferUri;
@@ -322,14 +322,19 @@ export class MonacoModelRegistry {
     this.modelStatus.set(gitUri, 'loading');
 
     // Run the RPC fetch and Monaco initialization in parallel.
-    const fetchKey = `${projectId}:${workspaceId}:${filePath}:git:${toRefString(ref)}`;
+    const fetchKey = `${projectId}:${workspaceId}:${filePath}:git:${gitRefToString(ref)}`;
     const [content, m] = await Promise.all([
       this.dedupFetch(fetchKey, async () => {
         if (ref.kind === 'staged') {
           const res = await rpc.git.getFileAtIndex(projectId, workspaceId, filePath);
           return res.success ? res.data.content : null;
         }
-        const res = await rpc.git.getFileAtRef(projectId, workspaceId, filePath, toRefString(ref));
+        const res = await rpc.git.getFileAtRef(
+          projectId,
+          workspaceId,
+          filePath,
+          gitRefToString(ref)
+        );
         return res.success ? res.data.content : null;
       }),
       this.monacoReadyPromise,
@@ -722,7 +727,7 @@ export class MonacoModelRegistry {
               entry.projectId,
               entry.workspaceId,
               entry.filePath,
-              toRefString(entry.ref)
+              gitRefToString(entry.ref)
             );
       if (res.success && res.data.content !== null) {
         entry.model.setValue(res.data.content);

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
 import { Conversation } from '@shared/conversations';
+import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { SshProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -13,6 +14,7 @@ import { workspaceKey } from '@shared/workspace-key';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
@@ -93,6 +95,7 @@ export class SshProjectProvider implements ProjectProvider {
   private worktreeService: WorktreeService;
   private workspaceRegistry = new WorkspaceRegistry();
   private cachedSftp: SFTPWrapper | undefined;
+  private readonly _gitFetchService: GitFetchService;
 
   constructor(
     private readonly project: SshProject,
@@ -114,11 +117,15 @@ export class SshProjectProvider implements ProjectProvider {
       exec: gitExec,
       rootFs: rootFs,
     });
+    this._gitFetchService = new GitFetchService(repoGit);
+    this._gitFetchService.start();
     sshConnectionManager.on('connection-event', this.handleConnectionEvent);
   }
 
   private handleConnectionEvent = (evt: SshConnectionEvent): void => {
     if (evt.type === 'reconnected' && evt.connectionId === this.project.connectionId) {
+      // Re-sync remote-tracking refs as soon as the connection is restored.
+      void this._gitFetchService.fetch();
       this.rehydrateTerminals().catch((e: unknown) => {
         log.error('SshProjectProvider: rehydrateTerminals failed after reconnect', {
           projectId: this.project.id,
@@ -184,6 +191,11 @@ export class SshProjectProvider implements ProjectProvider {
     log.debug('SshProjectProvider: doProvisionTask START', {
       taskId: task.id,
     });
+
+    // Refresh remote-tracking refs in the background so they are as fresh as
+    // possible during the lifetime of this task. Non-blocking — provision
+    // continues without waiting for the network round-trip.
+    void this._gitFetchService.fetch();
 
     const workspaceId = workspaceKey(task.taskBranch);
     const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
@@ -453,7 +465,12 @@ export class SshProjectProvider implements ProjectProvider {
     }
   }
 
+  async fetch(): Promise<Result<void, FetchError>> {
+    return this._gitFetchService.fetch();
+  }
+
   async cleanup(): Promise<void> {
+    this._gitFetchService.stop();
     sshConnectionManager.off('connection-event', this.handleConnectionEvent);
 
     const settings = await this.settings.get();
