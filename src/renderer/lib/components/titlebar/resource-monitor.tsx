@@ -1,8 +1,12 @@
-import { Activity } from 'lucide-react';
+import { Activity, Cpu, Folder, GitBranch, MemoryStick, Sparkles } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { ResourcePtyEntry } from '@shared/resource-monitor';
+import AgentLogo from '@renderer/lib/components/agent-logo';
+import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
+import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -11,13 +15,26 @@ function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 MB';
   const mb = bytes / (1024 * 1024);
   if (mb < 1024) return `${mb.toFixed(0)} MB`;
-  return `${(mb / 1024).toFixed(2)} GB`;
+  return `${(mb / 1024).toFixed(1)} GB`;
 }
+
+type Entry = ResourcePtyEntry & {
+  taskName?: string;
+  providerId?: AgentProviderId;
+  conversationTitle?: string;
+};
+
+type TaskBucket = {
+  scopeId: string;
+  taskName: string;
+  entries: Entry[];
+};
 
 type Group = {
   projectId: string;
   projectName: string;
-  entries: Array<ResourcePtyEntry & { taskName?: string }>;
+  tasks: TaskBucket[];
+  entryCount: number;
 };
 
 export const ResourceMonitor = observer(function ResourceMonitor() {
@@ -27,6 +44,7 @@ export const ResourceMonitor = observer(function ResourceMonitor() {
   const memLabel = formatBytes(store.totalMemoryBytes);
 
   const { groups, unknown } = useMemo(() => buildGroups(snapshot?.entries ?? []), [snapshot]);
+  const hasAny = groups.length > 0 || unknown !== null;
 
   return (
     <Popover>
@@ -42,7 +60,7 @@ export const ResourceMonitor = observer(function ResourceMonitor() {
               >
                 <Activity className="size-3.5" />
                 <span>{cpuLabel}</span>
-                <span className="text-muted-foreground/70">·</span>
+                <span className="text-foreground-passive">·</span>
                 <span>{memLabel}</span>
               </Toggle>
             }
@@ -52,136 +70,224 @@ export const ResourceMonitor = observer(function ResourceMonitor() {
           Resource monitor · {store.entryCount} {store.entryCount === 1 ? 'agent' : 'agents'}
         </TooltipContent>
       </Tooltip>
-      <PopoverContent align="end" className="w-96 gap-0 p-0">
-        <div className="border-b border-foreground/10 px-3 py-2">
-          <div className="flex items-center justify-between text-xs font-semibold">
-            <span>Resource monitor</span>
-            <span className="text-muted-foreground">
-              {snapshot ? new Date(snapshot.timestamp).toLocaleTimeString() : '—'}
-            </span>
+      <PopoverContent align="end" className="flex w-[22rem] flex-col gap-3 p-0">
+        <div className="flex flex-col gap-2 border-b border-border p-3">
+          <MicroLabel className="text-foreground-passive">Totals</MicroLabel>
+          <div className="grid grid-cols-3 gap-2">
+            <TotalCard icon={<Cpu className="size-3.5" />} label="CPU" value={cpuLabel} />
+            <TotalCard
+              icon={<MemoryStick className="size-3.5" />}
+              label="Memory"
+              value={memLabel}
+            />
+            <TotalCard
+              icon={<Activity className="size-3.5" />}
+              label="Agents"
+              value={String(store.entryCount)}
+            />
           </div>
-          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-            <Stat label="CPU" value={cpuLabel} />
-            <Stat label="Memory" value={memLabel} />
-            <Stat label="Agents" value={String(store.entryCount)} />
-          </div>
-          {snapshot ? (
-            <div className="mt-1 text-[10px] text-muted-foreground">
-              System: {snapshot.cpuCount} cores ·{' '}
-              {formatBytes(snapshot.totalMemoryBytes - snapshot.freeMemoryBytes)} /{' '}
-              {formatBytes(snapshot.totalMemoryBytes)}
-            </div>
-          ) : null}
         </div>
-        <div className="max-h-80 overflow-y-auto py-1">
-          {groups.length === 0 && unknown.length === 0 ? (
-            <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-              No active agents
+
+        <div className="flex flex-col gap-1 px-3 pb-3">
+          <MicroLabel className="text-foreground-passive">By project</MicroLabel>
+          {hasAny ? (
+            <div className="flex max-h-80 flex-col overflow-y-auto">
+              {groups.map((g) => (
+                <ProjectNode key={g.projectId} group={g} store={store} />
+              ))}
+              {unknown ? <ProjectNode group={unknown} store={store} /> : null}
             </div>
           ) : (
-            <>
-              {groups.map((g) => (
-                <ProjectSection
-                  key={g.projectId}
-                  title={g.projectName}
-                  entries={g.entries}
-                  store={store}
-                />
-              ))}
-              {unknown.length > 0 ? (
-                <ProjectSection title="Other" entries={unknown} store={store} />
-              ) : null}
-            </>
+            <div className="rounded-md border border-border py-6 text-center text-xs text-foreground-passive">
+              No active agents
+            </div>
           )}
-        </div>
-        <div className="border-t border-foreground/10 px-3 py-1.5 text-[10px] text-muted-foreground">
-          Samples every 1.5s · SSH processes not measurable locally
         </div>
       </PopoverContent>
     </Popover>
   );
 });
 
-function Stat({ label, value }: { label: string; value: string }) {
+function TotalCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
-    <div>
-      <div className="text-muted-foreground">{label}</div>
-      <div className="font-medium tabular-nums">{value}</div>
+    <div className="flex flex-col gap-1 rounded-md border border-border p-2">
+      <span className="flex items-center gap-1 text-[10px] text-foreground-passive">
+        {icon}
+        {label}
+      </span>
+      <span className="text-sm font-medium tabular-nums tracking-tight">{value}</span>
     </div>
   );
 }
 
-const ProjectSection = observer(function ProjectSection({
-  title,
-  entries,
+const ProjectNode = observer(function ProjectNode({
+  group,
   store,
 }: {
-  title: string;
-  entries: Array<ResourcePtyEntry & { taskName?: string }>;
+  group: Group;
   store: typeof appState.resourceMonitor;
 }) {
   return (
-    <div className="px-2 py-1.5">
-      <div className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
+    <div className="flex flex-col py-1">
+      <div className="flex items-center gap-1.5 px-1 py-0.5">
+        <Folder className="size-3.5 text-foreground-passive" />
+        <span className="flex-1 truncate text-xs font-medium tracking-tight">
+          {group.projectName}
+        </span>
+        <span className="text-[10px] tabular-nums text-foreground-passive">{group.entryCount}</span>
       </div>
-      <div className="mt-1 space-y-0.5">
-        {entries.map((entry) => {
-          const norm = store.normalizedCpu(entry);
-          const label = entry.taskName ?? entry.scopeId;
-          return (
-            <div
-              key={entry.sessionId}
-              className="flex items-center justify-between gap-2 rounded px-1 py-0.5 text-xs hover:bg-muted"
-              title={entry.sessionId}
-            >
-              <div className="min-w-0 flex-1 truncate">
-                <span className="truncate">{label}</span>
-                {entry.kind === 'ssh' ? (
-                  <span className="ml-1 text-[10px] text-muted-foreground">(ssh)</span>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-2 tabular-nums text-muted-foreground">
-                <span className="w-10 text-right">{norm.toFixed(0)}%</span>
-                <span className="w-14 text-right">{formatBytes(entry.memory)}</span>
-              </div>
-            </div>
-          );
-        })}
+      <div className="ml-[9px] flex flex-col border-l border-border pl-2">
+        {group.tasks.map((task) => (
+          <TaskNode key={task.scopeId} task={task} store={store} />
+        ))}
       </div>
     </div>
   );
 });
 
-function buildGroups(entries: ResourcePtyEntry[]): { groups: Group[]; unknown: Group['entries'] } {
+function TaskNode({ task, store }: { task: TaskBucket; store: typeof appState.resourceMonitor }) {
+  return (
+    <div className="flex flex-col py-0.5">
+      <div className="flex items-center gap-1.5 px-1 py-0.5">
+        <GitBranch className="size-3 text-foreground-passive" />
+        <span className="flex-1 truncate text-xs text-foreground-muted">{task.taskName}</span>
+        <span className="text-[10px] tabular-nums text-foreground-passive">
+          {task.entries.length}
+        </span>
+      </div>
+      <div className="ml-[7px] flex flex-col border-l border-border pl-2">
+        {task.entries.map((entry) => (
+          <AgentRow key={entry.sessionId} entry={entry} store={store} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AgentRow({ entry, store }: { entry: Entry; store: typeof appState.resourceMonitor }) {
+  const norm = store.normalizedCpu(entry);
+  const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
+  const label =
+    entry.conversationTitle || meta?.label || entry.providerId || entry.leafId.slice(0, 8);
+
+  return (
+    <div
+      className="flex items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-muted/40"
+      title={entry.sessionId}
+    >
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        {meta?.icon ? (
+          <AgentLogo
+            logo={meta.icon}
+            alt={meta.label ?? meta.alt ?? ''}
+            isSvg={meta.isSvg}
+            invertInDark={meta.invertInDark}
+            className="h-3.5 w-3.5"
+          />
+        ) : (
+          <Sparkles className="size-3.5 text-foreground-passive" />
+        )}
+      </span>
+      <div className="min-w-0 flex-1 truncate">
+        <span className="truncate text-foreground-muted">{label}</span>
+        {entry.kind === 'ssh' ? (
+          <span className="ml-1 text-[10px] text-foreground-passive">(ssh)</span>
+        ) : null}
+      </div>
+      <span className="tabular-nums text-foreground-passive">
+        {norm.toFixed(0)}% · {formatBytes(entry.memory)}
+      </span>
+    </div>
+  );
+}
+
+function buildGroups(entries: ResourcePtyEntry[]): { groups: Group[]; unknown: Group | null } {
   const projects = appState.projects.projects;
-  const byProject = new Map<string, Group>();
-  const unknown: Group['entries'] = [];
+  const byProject = new Map<string, { projectName: string; tasks: Map<string, TaskBucket> }>();
+  const unknownTasks = new Map<string, TaskBucket>();
 
   for (const entry of entries) {
     const projectStore = projects.get(entry.projectId);
-    if (!projectStore) {
-      unknown.push({ ...entry });
-      continue;
+    let taskName = entry.scopeId;
+    let providerId: AgentProviderId | undefined;
+    let conversationTitle: string | undefined;
+
+    if (projectStore) {
+      const mounted = projectStore.mountedProject;
+      if (mounted) {
+        const task = mounted.taskManager.tasks.get(entry.scopeId);
+        if (task) {
+          taskName = task.displayName;
+          const conv = task.provisionedTask?.conversations.conversations.get(entry.leafId);
+          providerId = conv?.data.providerId;
+          conversationTitle = conv?.data.title;
+        }
+      }
+
+      const projectName =
+        projectStore.name ?? projectStore.data?.name ?? entry.projectId.slice(0, 8);
+      const project = byProject.get(entry.projectId) ?? {
+        projectName,
+        tasks: new Map<string, TaskBucket>(),
+      };
+      const taskBucket = project.tasks.get(entry.scopeId) ?? {
+        scopeId: entry.scopeId,
+        taskName,
+        entries: [],
+      };
+      taskBucket.entries.push({ ...entry, taskName, providerId, conversationTitle });
+      project.tasks.set(entry.scopeId, taskBucket);
+      byProject.set(entry.projectId, project);
+    } else {
+      const taskBucket = unknownTasks.get(entry.scopeId) ?? {
+        scopeId: entry.scopeId,
+        taskName,
+        entries: [],
+      };
+      taskBucket.entries.push({ ...entry, taskName, providerId, conversationTitle });
+      unknownTasks.set(entry.scopeId, taskBucket);
     }
-    const projectName = projectStore.name ?? projectStore.data?.name ?? entry.projectId.slice(0, 8);
-    const bucket = byProject.get(entry.projectId) ?? {
-      projectId: entry.projectId,
-      projectName,
-      entries: [],
-    };
-    let taskName: string | undefined;
-    const mounted = projectStore.mountedProject;
-    if (mounted) {
-      const task = mounted.taskManager.tasks.get(entry.scopeId);
-      if (task) taskName = task.displayName;
-    }
-    bucket.entries.push({ ...entry, taskName });
-    byProject.set(entry.projectId, bucket);
   }
 
-  for (const g of byProject.values()) {
-    g.entries.sort((a, b) => b.cpu - a.cpu);
+  const groups: Group[] = Array.from(byProject.entries()).map(([projectId, p]) => {
+    const tasks = Array.from(p.tasks.values());
+    for (const t of tasks) t.entries.sort((a, b) => b.cpu - a.cpu);
+    tasks.sort(
+      (a, b) => sumCpu(b.entries) - sumCpu(a.entries) || a.taskName.localeCompare(b.taskName)
+    );
+    return {
+      projectId,
+      projectName: p.projectName,
+      tasks,
+      entryCount: tasks.reduce((n, t) => n + t.entries.length, 0),
+    };
+  });
+
+  let unknown: Group | null = null;
+  if (unknownTasks.size > 0) {
+    const tasks = Array.from(unknownTasks.values());
+    for (const t of tasks) t.entries.sort((a, b) => b.cpu - a.cpu);
+    unknown = {
+      projectId: '__unknown__',
+      projectName: 'Other',
+      tasks,
+      entryCount: tasks.reduce((n, t) => n + t.entries.length, 0),
+    };
   }
-  return { groups: Array.from(byProject.values()), unknown };
+
+  return { groups, unknown };
+}
+
+function sumCpu(entries: Entry[]): number {
+  let sum = 0;
+  for (const e of entries) sum += e.cpu;
+  return sum;
 }
