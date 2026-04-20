@@ -1,8 +1,19 @@
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+import type { ClientRequest, IncomingMessage } from 'node:http';
 
 vi.mock('electron', () => ({
   app: { getPath: () => '/tmp/test-emdash' },
 }));
+
+// Shared mocks for node:http / node:https so we can assert wire-level behavior
+// (URLs, headers) for the doRequest path. vi.hoisted is required because
+// vi.mock factories are hoisted above top-level statements.
+const { httpsRequestMock, httpRequestMock } = vi.hoisted(() => ({
+  httpsRequestMock: vi.fn(),
+  httpRequestMock: vi.fn(),
+}));
+vi.mock('node:https', () => ({ request: httpsRequestMock }));
+vi.mock('node:http', () => ({ request: httpRequestMock }));
 
 import JiraService from '../../main/services/JiraService';
 
@@ -18,6 +29,36 @@ type JiraRawIssue = {
     updated?: string | null;
   };
 };
+
+/**
+ * Fake `https.request` / `http.request` implementation that captures the
+ * options passed and immediately resolves the response callback with the
+ * provided body + status. Returns a minimal ClientRequest-like object.
+ */
+function fakeRequest(body = '{}', statusCode = 200) {
+  const captured: { options: any; body: string }[] = [];
+  const impl = (options: any, cb?: (res: IncomingMessage) => void): ClientRequest => {
+    const entry = { options, body: '' };
+    captured.push(entry);
+    const res: any = {
+      statusCode,
+      on: (event: string, handler: (...args: any[]) => void) => {
+        if (event === 'data') setTimeout(() => handler(Buffer.from(body)), 0);
+        if (event === 'end') setTimeout(() => handler(), 1);
+        return res;
+      },
+    };
+    setTimeout(() => cb?.(res as IncomingMessage), 0);
+    return {
+      on: vi.fn(),
+      write: (chunk: string) => {
+        entry.body += chunk;
+      },
+      end: vi.fn(),
+    } as unknown as ClientRequest;
+  };
+  return { impl, captured };
+}
 
 describe('JiraService sorting', () => {
   let service: JiraService;
@@ -42,23 +83,14 @@ describe('JiraService sorting', () => {
 
   it('sorts initial fetch results by updatedAt descending', async () => {
     const issues: JiraRawIssue[] = [
-      {
-        id: '1',
-        key: 'GEN-11',
-        fields: { summary: 'Older', updated: '2026-03-02T10:00:00.000Z' },
-      },
+      { id: '1', key: 'GEN-11', fields: { summary: 'Older', updated: '2026-03-02T10:00:00.000Z' } },
       {
         id: '2',
         key: 'GEN-12',
         fields: { summary: 'Newest', updated: '2026-03-04T10:00:00.000Z' },
       },
-      {
-        id: '3',
-        key: 'GEN-13',
-        fields: { summary: 'Unknown', updated: null },
-      },
+      { id: '3', key: 'GEN-13', fields: { summary: 'Unknown', updated: null } },
     ];
-
     searchRawSpy.mockResolvedValue(issues);
 
     const result = await service.initialFetch(50);
@@ -79,13 +111,8 @@ describe('JiraService sorting', () => {
         key: 'GEN-22',
         fields: { summary: 'Fresh', updated: '2026-03-05T08:00:00.000Z' },
       },
-      {
-        id: '12',
-        key: 'GEN-23',
-        fields: { summary: 'Bad date', updated: 'not-a-date' },
-      },
+      { id: '12', key: 'GEN-23', fields: { summary: 'Bad date', updated: 'not-a-date' } },
     ];
-
     searchRawSpy.mockResolvedValue(issues);
 
     const result = await service.smartSearchIssues('search term', 20);
@@ -106,13 +133,8 @@ describe('JiraService sorting', () => {
         key: 'GEN-32',
         fields: { summary: 'Newest', updated: '2026-03-06T08:00:00.000Z' },
       },
-      {
-        id: '22',
-        key: 'GEN-33',
-        fields: { summary: 'No date', updated: null },
-      },
+      { id: '22', key: 'GEN-33', fields: { summary: 'No date', updated: null } },
     ];
-
     searchRawSpy.mockResolvedValue(issues);
 
     const result = await service.searchIssues('query', 20);
@@ -122,66 +144,81 @@ describe('JiraService sorting', () => {
   });
 });
 
-describe('JiraService bearer auth', () => {
-  let service: JiraService;
-  let serviceInternals: {
-    requireAuth: () => Promise<{ siteUrl: string; auth: Auth }>;
-    doRequest: (
-      url: URL,
-      auth: Auth,
-      method: 'GET' | 'POST',
-      payload?: string,
-      extraHeaders?: Record<string, string>
-    ) => Promise<string>;
-    searchRaw: (siteUrl: string, auth: Auth, jql: string, limit: number) => Promise<JiraRawIssue[]>;
-  };
-  let requireAuthSpy: MockInstance;
-  let doRequestSpy: MockInstance;
-
-  const bearerAuth: Auth = { authType: 'bearer', token: 'my-pat' };
-
+describe('JiraService wire-level auth behavior', () => {
   beforeEach(() => {
-    service = new JiraService();
-    serviceInternals = service as unknown as typeof serviceInternals;
-    requireAuthSpy = vi.spyOn(serviceInternals, 'requireAuth').mockResolvedValue({
-      siteUrl: 'https://jira.mycompany.com',
-      auth: bearerAuth,
+    httpsRequestMock.mockReset();
+    httpRequestMock.mockReset();
+  });
+
+  it('sends Basic header and /rest/api/3 path for Cloud (basic) auth', async () => {
+    const { impl, captured } = fakeRequest('{"displayName":"Me"}');
+    httpsRequestMock.mockImplementation(impl);
+
+    const service = new JiraService() as unknown as {
+      getMyself: (siteUrl: string, auth: Auth) => Promise<any>;
+    };
+    await service.getMyself('https://acme.atlassian.net', {
+      authType: 'basic',
+      email: 'me@acme.com',
+      token: 'abc',
     });
-    doRequestSpy = vi.spyOn(serviceInternals, 'doRequest');
+
+    expect(httpsRequestMock).toHaveBeenCalledTimes(1);
+    expect(captured[0].options.path).toBe('/rest/api/3/myself');
+    const expected = `Basic ${Buffer.from('me@acme.com:abc').toString('base64')}`;
+    expect(captured[0].options.headers.Authorization).toBe(expected);
   });
 
-  it('uses Bearer header and /rest/api/2 path for bearer auth', async () => {
-    vi.spyOn(serviceInternals, 'searchRaw').mockResolvedValue([]);
+  it('sends Bearer header and /rest/api/2 path for Server/DC (bearer) auth', async () => {
+    const { impl, captured } = fakeRequest('{"displayName":"OnPrem"}');
+    httpsRequestMock.mockImplementation(impl);
 
-    await service.initialFetch(5);
+    const service = new JiraService() as unknown as {
+      getMyself: (siteUrl: string, auth: Auth) => Promise<any>;
+    };
+    await service.getMyself('https://jira.mycorp.com', {
+      authType: 'bearer',
+      token: 'my-pat',
+    });
 
-    expect(requireAuthSpy).toHaveBeenCalled();
+    expect(httpsRequestMock).toHaveBeenCalledTimes(1);
+    expect(captured[0].options.headers.Authorization).toBe('Bearer my-pat');
+    expect(captured[0].options.path).toBe('/rest/api/2/myself');
   });
 
-  it('passes bearer auth object through searchRaw', async () => {
-    const searchRawSpy = vi.spyOn(serviceInternals, 'searchRaw').mockResolvedValue([]);
+  it('preserves context path for Server/DC instances mounted under a subdirectory', async () => {
+    const { impl, captured } = fakeRequest('{"displayName":"CtxPath"}');
+    httpsRequestMock.mockImplementation(impl);
 
-    await service.searchIssues('TEST-1', 5);
+    const service = new JiraService() as unknown as {
+      getMyself: (siteUrl: string, auth: Auth) => Promise<any>;
+    };
+    await service.getMyself('https://intranet.corp.com/jira', {
+      authType: 'bearer',
+      token: 't',
+    });
 
-    expect(searchRawSpy).toHaveBeenCalledWith(
-      'https://jira.mycompany.com',
-      bearerAuth,
-      expect.any(String),
-      5
-    );
+    // The old `new URL('/path', base)` form dropped "/jira" — buildUrl must keep it
+    expect(captured[0].options.path).toBe('/jira/rest/api/2/myself');
+    expect(captured[0].options.hostname).toBe('intranet.corp.com');
   });
 
-  it('resolves /rest/api/2 base for bearer auth type', async () => {
-    // searchRaw is called with the auth object; verify the siteUrl resolves to api/2 endpoints
-    // by checking that searchRaw receives the bearer auth object unchanged
-    const searchRawSpy2 = vi.spyOn(serviceInternals, 'searchRaw').mockResolvedValue([]);
+  it('passes explicit port and selects http transport for http:// URLs', async () => {
+    const { impl, captured } = fakeRequest('{"displayName":"Dev"}');
+    httpRequestMock.mockImplementation(impl);
 
-    await service.searchIssues('foo', 3);
+    const service = new JiraService() as unknown as {
+      getMyself: (siteUrl: string, auth: Auth) => Promise<any>;
+    };
+    await service.getMyself('http://jira.internal:8080/jira', {
+      authType: 'bearer',
+      token: 't',
+    });
 
-    const [calledSiteUrl, calledAuth] = searchRawSpy2.mock.calls[0];
-    expect(calledSiteUrl).toBe('https://jira.mycompany.com');
-    expect(calledAuth).toEqual(bearerAuth);
-    expect((calledAuth as any).authType).toBe('bearer');
-    expect((calledAuth as any).email).toBeUndefined();
+    expect(httpRequestMock).toHaveBeenCalledTimes(1);
+    expect(httpsRequestMock).not.toHaveBeenCalled();
+    expect(captured[0].options.port).toBe(8080);
+    expect(captured[0].options.protocol).toBe('http:');
+    expect(captured[0].options.path).toBe('/jira/rest/api/2/myself');
   });
 });

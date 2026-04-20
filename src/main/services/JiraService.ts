@@ -1,4 +1,5 @@
-import { request } from 'node:https';
+import { request as httpsRequest } from 'node:https';
+import { request as httpRequest, type RequestOptions } from 'node:http';
 import { URL } from 'node:url';
 import { app } from 'electron';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
@@ -48,10 +49,27 @@ export default class JiraService {
       if (!siteUrl) return null;
       const authType: AuthType = obj?.authType === 'bearer' ? 'bearer' : 'basic';
       const email = String(obj?.email || '').trim();
+      // Basic auth requires email; treat legacy/corrupt configs without email as invalid
+      if (authType === 'basic' && !email) return null;
       return { siteUrl, email: email || undefined, authType };
     } catch {
       return null;
     }
+  }
+
+  private buildAuth(creds: JiraCreds, token: string): Auth {
+    if (creds.authType === 'bearer') return { authType: 'bearer', token };
+    if (!creds.email) {
+      throw new Error('Jira email missing for Basic auth. Please reconnect Jira.');
+    }
+    return { authType: 'basic', email: creds.email, token };
+  }
+
+  private buildUrl(siteUrl: string, path: string): URL {
+    // Preserve any context path (e.g. https://jira.example.com/jira) — new URL(path, base)
+    // would discard it because absolute paths reset. Concatenate instead.
+    const base = siteUrl.replace(/\/+$/, '');
+    return new URL(`${base}${path.startsWith('/') ? path : `/${path}`}`);
   }
 
   private writeCreds(creds: JiraCreds) {
@@ -71,10 +89,13 @@ export default class JiraService {
     error?: string;
   }> {
     try {
+      if (authType === 'basic' && !email) {
+        return { success: false, error: 'Email is required for Basic auth.' };
+      }
       const auth: Auth =
         authType === 'bearer'
           ? { authType: 'bearer', token }
-          : { authType: 'basic', email: email!, token };
+          : { authType: 'basic', email: email as string, token };
       const me = await this.getMyself(siteUrl, auth);
       const keytar = await import('keytar');
       await keytar.setPassword(this.SERVICE, this.ACCOUNT, token);
@@ -114,10 +135,7 @@ export default class JiraService {
       const keytar = await import('keytar');
       const token = await keytar.getPassword(this.SERVICE, this.ACCOUNT);
       if (!token) return { connected: false };
-      const auth: Auth =
-        creds.authType === 'bearer'
-          ? { authType: 'bearer', token }
-          : { authType: 'basic', email: creds.email!, token };
+      const auth = this.buildAuth(creds, token);
       const me = await this.getMyself(creds.siteUrl, auth);
       this.fetchProjectKeys(creds.siteUrl, auth)
         .then((keys) => {
@@ -188,15 +206,12 @@ export default class JiraService {
     const keytar = await import('keytar');
     const token = await keytar.getPassword(this.SERVICE, this.ACCOUNT);
     if (!token) throw new Error('Jira token not found.');
-    const auth: Auth =
-      creds.authType === 'bearer'
-        ? { authType: 'bearer', token }
-        : { authType: 'basic', email: creds.email!, token };
+    const auth = this.buildAuth(creds, token);
     return { siteUrl: creds.siteUrl, auth };
   }
 
   private async getMyself(siteUrl: string, auth: Auth): Promise<any> {
-    const url = new URL(`${apiBase(auth.authType)}/myself`, siteUrl);
+    const url = this.buildUrl(siteUrl, `${apiBase(auth.authType)}/myself`);
     const body = await this.doGet(url, auth);
     const data = JSON.parse(body || '{}');
     if (!data || data.errorMessages) {
@@ -206,7 +221,7 @@ export default class JiraService {
   }
 
   private async searchRaw(siteUrl: string, auth: Auth, jql: string, limit: number) {
-    const url = new URL(`${apiBase(auth.authType)}/search`, siteUrl);
+    const url = this.buildUrl(siteUrl, `${apiBase(auth.authType)}/search`);
     const payload = JSON.stringify({
       jql,
       maxResults: Math.min(Math.max(limit, 1), 100),
@@ -230,33 +245,33 @@ export default class JiraService {
     payload?: string,
     extraHeaders?: Record<string, string>
   ): Promise<string> {
+    const transport = url.protocol === 'http:' ? httpRequest : httpsRequest;
+    const options: RequestOptions = {
+      hostname: url.hostname,
+      path: url.pathname + url.search,
+      protocol: url.protocol,
+      method,
+      headers: {
+        Authorization: authHeader(auth),
+        Accept: 'application/json',
+        ...(extraHeaders || {}),
+      },
+    };
+    if (url.port) options.port = Number(url.port);
     return await new Promise<string>((resolve, reject) => {
-      const req = request(
-        {
-          hostname: url.hostname,
-          path: url.pathname + url.search,
-          protocol: url.protocol,
-          method,
-          headers: {
-            Authorization: authHeader(auth),
-            Accept: 'application/json',
-            ...(extraHeaders || {}),
-          },
-        },
-        (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => {
-            if (res.statusCode && res.statusCode >= 400) {
-              const snippet = data?.slice(0, 200) || '';
-              return reject(
-                new Error(`Jira API error ${res.statusCode}${snippet ? `: ${snippet}` : ''}`)
-              );
-            }
-            resolve(data);
-          });
-        }
-      );
+      const req = transport(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => (data += chunk));
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 400) {
+            const snippet = data?.slice(0, 200) || '';
+            return reject(
+              new Error(`Jira API error ${res.statusCode}${snippet ? `: ${snippet}` : ''}`)
+            );
+          }
+          resolve(data);
+        });
+      });
       req.on('error', reject);
       if (payload && method === 'POST') {
         req.write(payload);
@@ -295,7 +310,7 @@ export default class JiraService {
 
   private async fetchProjectKeys(siteUrl: string, auth: Auth): Promise<string[]> {
     try {
-      const url = new URL(`${apiBase(auth.authType)}/project`, siteUrl);
+      const url = this.buildUrl(siteUrl, `${apiBase(auth.authType)}/project`);
       const body = await this.doGet(url, auth);
       const data = JSON.parse(body || '[]');
       if (!Array.isArray(data)) return [];
@@ -306,7 +321,10 @@ export default class JiraService {
   }
 
   private async getIssueByKey(siteUrl: string, auth: Auth, key: string): Promise<any | null> {
-    const url = new URL(`${apiBase(auth.authType)}/issue/${encodeURIComponent(key)}`, siteUrl);
+    const url = this.buildUrl(
+      siteUrl,
+      `${apiBase(auth.authType)}/issue/${encodeURIComponent(key)}`
+    );
     url.searchParams.set('fields', 'summary,description,updated,project,status,assignee');
     const body = await this.doGet(url, auth);
     const data = JSON.parse(body || '{}');
@@ -315,7 +333,7 @@ export default class JiraService {
   }
 
   private async getRecentIssueKeys(siteUrl: string, auth: Auth, limit: number): Promise<string[]> {
-    const url = new URL(`${apiBase(auth.authType)}/issue/picker`, siteUrl);
+    const url = this.buildUrl(siteUrl, `${apiBase(auth.authType)}/issue/picker`);
     url.searchParams.set('query', '');
     url.searchParams.set('currentJQL', '');
     const body = await this.doGet(url, auth);
