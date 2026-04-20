@@ -18,7 +18,7 @@ function resolveNextStatus(
   return null;
 }
 
-export async function onPrUpserted(pr: PullRequest, _projectId: string): Promise<void> {
+export async function onPrUpserted(pr: PullRequest, projectId: string): Promise<void> {
   const headBranch = pr.metadata.headRefName;
   if (!headBranch) return;
 
@@ -30,7 +30,7 @@ export async function onPrUpserted(pr: PullRequest, _projectId: string): Promise
       taskBranch: tasks.taskBranch,
     })
     .from(tasks)
-    .where(eq(tasks.taskBranch, headBranch));
+    .where(and(eq(tasks.taskBranch, headBranch), eq(tasks.projectId, projectId)));
 
   if (matchingTasks.length === 0) return;
 
