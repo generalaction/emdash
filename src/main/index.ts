@@ -15,6 +15,7 @@ import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
+import { startResourceSampler } from './core/resource-monitor/resource-sampler';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
 import { initializeDatabase } from './db/initialize';
@@ -103,6 +104,8 @@ app.whenReady().then(async () => {
   providerTokenRegistry.register('github', (token) => githubConnectionService.storeToken(token));
 
   registerRPCRouter(rpcRouter, ipcMain);
+
+  startResourceSampler();
 
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);

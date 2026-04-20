@@ -6,6 +6,7 @@ import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { ResourceMonitor } from './resource-monitor';
 
 export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightSlot?: ReactNode }) {
   const { isRightOpen, setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
@@ -44,6 +45,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
           </div>
           <div className="flex items-center justify-end [-webkit-app-region:no-drag]">
             {rightSlot}
+            <ResourceMonitor />
             <Tooltip>
               <TooltipTrigger>
                 <Toggle
