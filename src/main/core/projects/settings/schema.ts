@@ -29,7 +29,7 @@ export const projectSettingsSchema = z.object({
       teardown: z.string().optional(),
     })
     .optional(),
-  worktreeDirectory: z.string().optional(),
+  worktreeDirectory: z.string().trim().optional(),
   defaultBranch: defaultBranchSettingSchema.optional(),
   remote: z.string().optional(),
 });
