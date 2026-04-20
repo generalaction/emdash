@@ -64,10 +64,23 @@ export async function createSshProvider(
   proxy: SshClientProxy
 ): Promise<SshProjectProvider> {
   try {
-    // hardcoded to next to project path, TODO: let user configure path
-    const worktreePoolPath = path.join(path.dirname(project.path), 'worktrees', project.name);
+    const projectFs = new SshFileSystem(proxy, project.path);
+    const exec = getSshExec(proxy);
+
+    const settings = new SshProjectSettingsProvider(
+      projectFs,
+      bareRefName(project.baseRef),
+      rootFs,
+      project.path,
+      exec
+    );
+    const worktreePoolPath = path.posix.join(await settings.getWorktreeDirectory(), project.name);
+    await rootFs.mkdir(worktreePoolPath, { recursive: true });
+
     return new SshProjectProvider(project, rootFs, proxy, {
-      worktreePoolPath: worktreePoolPath,
+      fs: projectFs,
+      settings,
+      worktreePoolPath,
     });
   } catch (error) {
     log.warn('createSshProvider: SSH connection failed', {
@@ -99,11 +112,13 @@ export class SshProjectProvider implements ProjectProvider {
     rootFs: FileSystemProvider,
     private readonly proxy: SshClientProxy,
     options: {
+      fs: SshFileSystem;
+      settings: ProjectSettingsProvider;
       worktreePoolPath: string;
     }
   ) {
-    this.fs = new SshFileSystem(this.proxy, project.path);
-    this.settings = new SshProjectSettingsProvider(this.fs, bareRefName(project.baseRef));
+    this.fs = options.fs;
+    this.settings = options.settings;
     const gitExec = getGitSshExec(this.proxy, () => githubConnectionService.getToken());
     const repoGit = new GitService(project.path, gitExec, this.fs, false);
     this.repository = new GitRepositoryService(repoGit, this.settings);
