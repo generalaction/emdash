@@ -17,6 +17,10 @@ const assets = [
     src: path.join(repoRoot, 'src', 'main', 'services', 'skills', 'bundled-catalog.json'),
     dest: path.join(repoRoot, 'dist', 'main', 'main', 'services', 'skills', 'bundled-catalog.json'),
   },
+  {
+    src: path.join(repoRoot, 'src', 'mobile', 'index.html'),
+    dest: path.join(repoRoot, 'dist', 'main', 'mobile', 'index.html'),
+  },
 ];
 
 for (const asset of assets) {

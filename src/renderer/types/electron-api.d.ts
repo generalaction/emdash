@@ -1454,6 +1454,14 @@ declare global {
         error?: string;
       }>;
       onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => () => void;
+
+      // Mobile LAN server
+      mobileGetInfo: () => Promise<{
+        enabled: boolean;
+        port: number;
+        pin: string;
+        urls: string[];
+      }>;
     };
   }
 }
@@ -2252,6 +2260,14 @@ export interface ElectronAPI {
     error?: string;
   }>;
   onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => () => void;
+
+  // Mobile LAN server
+  mobileGetInfo: () => Promise<{
+    enabled: boolean;
+    port: number;
+    pin: string;
+    urls: string[];
+  }>;
 }
 import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { OpenInAppId } from '#shared/openInApps';

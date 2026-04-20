@@ -128,6 +128,7 @@ import { workspaceProviderService } from './services/WorkspaceProviderService';
 import { sshService } from './services/ssh/SshService';
 import { taskLifecycleService } from './services/TaskLifecycleService';
 import { agentEventService } from './services/AgentEventService';
+import { mobileServer } from './services/MobileServer';
 import * as telemetry from './telemetry';
 import { errorTracking } from './errorTracking';
 import { join } from 'path';
@@ -312,6 +313,13 @@ app.whenReady().then(async () => {
     console.warn('Failed to start agent event service:', error);
   }
 
+  // Start mobile LAN server (opt-in; silently skip if port is busy)
+  try {
+    await mobileServer.start();
+  } catch (error) {
+    console.warn('Failed to start mobile server:', error);
+  }
+
   // Register IPC handlers
   registerAllIpc();
 
@@ -368,6 +376,8 @@ app.on('before-quit', () => {
   autoUpdateService.shutdown();
   // Stop agent event HTTP server
   agentEventService.stop();
+  // Stop mobile LAN server
+  mobileServer.stop();
   // Stop any lifecycle run scripts so they do not outlive the app process.
   taskLifecycleService.shutdown();
 

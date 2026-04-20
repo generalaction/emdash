@@ -48,6 +48,25 @@ import { waitForShellPrompt, type PromptWaitHandle } from '../utils/waitForShell
 
 const owners = new Map<string, WebContents>();
 const listeners = new Set<string>();
+
+// Mobile broadcast hooks — registered by MobileServer after startup
+let mobileBroadcastFn: ((id: string, data: string) => void) | null = null;
+let mobileExitFn: ((id: string, exitCode: number | null, signal?: number) => void) | null = null;
+let mobileHasSubscribersFn: (id: string) => boolean = () => false;
+
+export function registerMobileHooks(opts: {
+  onData: (id: string, data: string) => void;
+  onExit: (id: string, exitCode: number | null, signal?: number) => void;
+  hasSubscribers: (id: string) => boolean;
+}): void {
+  mobileBroadcastFn = opts.onData;
+  mobileExitFn = opts.onExit;
+  mobileHasSubscribersFn = opts.hasSubscribers;
+}
+
+export function getActivePtyIds(): string[] {
+  return Array.from(listeners);
+}
 const promptHandles = new Map<string, PromptWaitHandle[]>();
 
 function cancelPromptHandles(id: string): void {
@@ -274,6 +293,7 @@ function flushPtyData(id: string): void {
     id,
     chunk: buf.length <= PTY_ACTIVITY_SAMPLE_CHARS ? buf : buf.slice(-PTY_ACTIVITY_SAMPLE_CHARS),
   });
+  mobileBroadcastFn?.(id, buf);
 }
 
 function clearPtyData(id: string): void {
@@ -650,6 +670,7 @@ export function registerPtyIpc(): void {
           flushPtyData(id);
           clearPtyData(id);
           safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+          mobileExitFn?.(id, exitCode ?? null, signal);
           sendPtyExitGlobal(id);
           owners.delete(id);
           listeners.delete(id);
@@ -734,6 +755,7 @@ export function registerPtyIpc(): void {
               flushPtyData(id);
               clearPtyData(id);
               safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+              mobileExitFn?.(id, exitCode ?? null, signal);
               sendPtyExitGlobal(id);
               owners.delete(id);
               listeners.delete(id);
@@ -897,6 +919,7 @@ export function registerPtyIpc(): void {
               return;
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+            mobileExitFn?.(id, exitCode ?? null, signal);
             sendPtyExitGlobal(id);
             maybeMarkProviderFinish(
               id,
@@ -928,7 +951,10 @@ export function registerPtyIpc(): void {
                     undefined,
                     isAppQuitting ? 'app_quit' : 'owner_destroyed'
                   );
-                  killPty(ptyId);
+                  // Keep PTY alive if a mobile client is still watching it
+                  if (!mobileHasSubscribersFn(ptyId)) {
+                    killPty(ptyId);
+                  }
                 } catch {}
                 owners.delete(ptyId);
                 listeners.delete(ptyId);
@@ -1275,6 +1301,7 @@ export function registerPtyIpc(): void {
               flushPtyData(id);
               clearPtyData(id);
               safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+              mobileExitFn?.(id, exitCode ?? null, signal);
               sendPtyExitGlobal(id);
               maybeMarkProviderFinish(id, exitCode, signal, 'process_exit');
               owners.delete(id);
@@ -1427,6 +1454,7 @@ export function registerPtyIpc(): void {
               return;
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
+            mobileExitFn?.(id, exitCode ?? null, signal);
             sendPtyExitGlobal(id);
             // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
             // For fallback: clean up owner since no shell respawn happens
@@ -1454,7 +1482,10 @@ export function registerPtyIpc(): void {
                     undefined,
                     isAppQuitting ? 'app_quit' : 'owner_destroyed'
                   );
-                  killPty(ptyId);
+                  // Keep PTY alive if a mobile client is still watching it
+                  if (!mobileHasSubscribersFn(ptyId)) {
+                    killPty(ptyId);
+                  }
                 } catch {}
                 owners.delete(ptyId);
                 listeners.delete(ptyId);
