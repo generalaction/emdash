@@ -39,7 +39,7 @@ export function AccountTab() {
       }
       toast({
         title: 'Signed in to Emdash',
-        description: `Connected as @${result.user.username}`,
+        description: `Connected as @${result.user?.username}`,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign in failed';
