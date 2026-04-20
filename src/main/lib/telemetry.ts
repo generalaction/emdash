@@ -25,6 +25,8 @@ let onboardingSeen = false;
 let sessionId: string | undefined;
 let lastActiveDate: string | undefined;
 let cachedGithubUsername: string | null = null;
+let cachedAccountId: string | null = null;
+let heartbeatInterval: ReturnType<typeof setInterval> | undefined;
 
 const libName = 'emdash';
 
@@ -34,6 +36,9 @@ type TelemetryKVSchema = {
   onboardingSeen: string;
   lastActiveDate: string;
   githubUsername: string;
+  accountId: string;
+  lastSessionId: string;
+  lastHeartbeatTs: string;
 };
 
 const telemetryKV = new KV<TelemetryKVSchema>('telemetry');
@@ -68,6 +73,7 @@ function getBaseProps() {
     install_source: installSource ?? (app.isPackaged ? 'dmg' : 'dev'),
     $lib: libName,
     ...(cachedGithubUsername ? { github_username: cachedGithubUsername } : {}),
+    ...(cachedAccountId ? { account_id: cachedAccountId } : {}),
   };
 }
 
@@ -120,6 +126,7 @@ function sanitizeEventAndProps(_event: TelemetryEvent, props: Record<string, unk
     'success',
     'error_type',
     'github_username',
+    'account_id',
     'enabled',
     'app',
     'applied_migrations_bucket',
@@ -130,6 +137,9 @@ function sanitizeEventAndProps(_event: TelemetryEvent, props: Record<string, unk
     'strategy',
     'conflicts',
     'count',
+    'terminal_id',
+    'was_crash',
+    'type',
   ]);
   const passthroughProps = new Set([
     '$exception_message',
@@ -203,7 +213,7 @@ async function posthogCapture(
   }
 }
 
-async function posthogIdentify(username: string): Promise<void> {
+async function posthogIdentify(username: string, accountId?: string): Promise<void> {
   if (!isEnabled() || !username) return;
   try {
     const f = (globalThis as { fetch?: typeof fetch }).fetch;
@@ -216,6 +226,7 @@ async function posthogIdentify(username: string): Promise<void> {
         distinct_id: instanceId,
         $set: {
           github_username: username,
+          ...(accountId ? { account_id: accountId } : {}),
           ...getBaseProps(),
         },
       },
@@ -274,15 +285,29 @@ export async function init(options?: InitOptions): Promise<void> {
   let storedOnboarding: string | null = null;
   let storedActiveDate: string | null = null;
   let storedGithubUsername: string | null = null;
+  let storedAccountId: string | null = null;
+  let storedLastSessionId: string | null = null;
+  let storedLastHeartbeatTs: string | null = null;
   try {
-    [storedInstanceId, storedEnabled, storedOnboarding, storedActiveDate, storedGithubUsername] =
-      await Promise.all([
-        telemetryKV.get('instanceId'),
-        telemetryKV.get('enabled'),
-        telemetryKV.get('onboardingSeen'),
-        telemetryKV.get('lastActiveDate'),
-        telemetryKV.get('githubUsername'),
-      ]);
+    [
+      storedInstanceId,
+      storedEnabled,
+      storedOnboarding,
+      storedActiveDate,
+      storedGithubUsername,
+      storedAccountId,
+      storedLastSessionId,
+      storedLastHeartbeatTs,
+    ] = await Promise.all([
+      telemetryKV.get('instanceId'),
+      telemetryKV.get('enabled'),
+      telemetryKV.get('onboardingSeen'),
+      telemetryKV.get('lastActiveDate'),
+      telemetryKV.get('githubUsername'),
+      telemetryKV.get('accountId'),
+      telemetryKV.get('lastSessionId'),
+      telemetryKV.get('lastHeartbeatTs'),
+    ]);
   } catch {
     // KV unavailable during startup (e.g. DB migration not yet applied) — use in-memory defaults
   }
@@ -296,24 +321,52 @@ export async function init(options?: InitOptions): Promise<void> {
   onboardingSeen = storedOnboarding === 'true';
   lastActiveDate = storedActiveDate ?? undefined;
   cachedGithubUsername = storedGithubUsername ?? null;
+  cachedAccountId = storedAccountId ?? null;
   if (cachedGithubUsername) {
-    void posthogIdentify(cachedGithubUsername);
+    void posthogIdentify(cachedGithubUsername, cachedAccountId ?? undefined);
   }
+
+  // Detect unclean exit from the previous session: if we have a recorded session ID
+  // that was never cleared by a clean shutdown, emit a synthetic app_closed so that
+  // session duration queries remain accurate.
+  if (storedLastSessionId && storedLastHeartbeatTs) {
+    const lastHeartbeatMs = Date.parse(storedLastHeartbeatTs);
+    if (!Number.isNaN(lastHeartbeatMs)) {
+      void posthogCapture('app_closed', {
+        was_crash: true,
+        event_ts_ms: lastHeartbeatMs,
+        session_id: storedLastSessionId,
+      });
+    }
+  }
+  // Record the current session ID so the next startup can detect a crash.
+  // sessionId is guaranteed non-undefined at this point (set to randomUUID() above).
+  void telemetryKV.set('lastSessionId', sessionId!);
 
   void posthogCapture('app_started');
   void checkDailyActiveUser();
+
+  // Heartbeat: write lastHeartbeatTs to KV every 60 s so crash recovery can
+  // estimate session duration without firing any PostHog events.
+  heartbeatInterval = setInterval(() => {
+    telemetryKV.set('lastHeartbeatTs', new Date().toISOString());
+  }, 60_000);
 }
 
 /**
- * Associate the current anonymous session with a known identity (e.g. GitHub
- * username). Call this whenever authentication succeeds — no dynamic imports
- * or polling needed.
+ * Associate the current anonymous session with a known identity. Call this
+ * whenever authentication succeeds — pass the GitHub username and, optionally,
+ * the emdash account ID so both are linked in PostHog.
  */
-export function identify(username: string): void {
+export function identify(username: string, accountId?: string): void {
   if (!username) return;
   cachedGithubUsername = username;
   void telemetryKV.set('githubUsername', username);
-  void posthogIdentify(username);
+  if (accountId) {
+    cachedAccountId = accountId;
+    void telemetryKV.set('accountId', accountId);
+  }
+  void posthogIdentify(username, accountId ?? cachedAccountId ?? undefined);
 }
 
 export function capture<E extends TelemetryEvent>(
@@ -352,7 +405,15 @@ export function captureException(
 }
 
 export function shutdown(): void {
-  // No-op — left for future posthog-node batching integration.
+  // Stop the heartbeat interval.
+  if (heartbeatInterval !== undefined) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = undefined;
+  }
+  // Clear the stored session ID so the next startup knows this was a clean exit
+  // and won't emit a synthetic crash app_closed event.
+  void telemetryKV.del('lastSessionId');
+  void telemetryKV.del('lastHeartbeatTs');
 }
 
 export function isTelemetryEnabled(): boolean {

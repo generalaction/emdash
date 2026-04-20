@@ -25,5 +25,5 @@ export async function deleteTerminal({
 
   const task = resolveTask(projectId, taskId);
   await task?.terminals.killTerminal(terminalId);
-  capture('terminal_deleted', { project_id: projectId, task_id: taskId });
+  capture('terminal_deleted', { terminal_id: terminalId, project_id: projectId, task_id: taskId });
 }

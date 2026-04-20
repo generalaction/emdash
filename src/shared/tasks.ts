@@ -10,6 +10,7 @@ export type Issue = {
   title: string;
   identifier: string;
   description?: string;
+  branchName?: string;
   status?: string;
   assignees?: string[];
   project?: string;

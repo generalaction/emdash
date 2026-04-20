@@ -1,5 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -20,7 +21,6 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
  */
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const showCmdPalette = useShowModal('commandPaletteModal');
   const showNewProject = useShowModal('addProjectModal');
   const showCreateTask = useShowModal('taskModal');
   const { toggleLeft, toggleRight } = useWorkspaceLayoutContext();
@@ -45,9 +45,11 @@ export function AppKeyboardShortcuts() {
         ? projectParams.projectId
         : undefined;
 
-  useHotkey(getHotkeyRegistration('commandPalette', keyboard), () => showCmdPalette({}), {
-    enabled: commandPaletteHotkey !== null,
-  });
+  useHotkey(
+    getHotkeyRegistration('commandPalette', keyboard),
+    () => toast({ title: 'CMDK coming soon' }),
+    { enabled: commandPaletteHotkey !== null }
+  );
 
   useHotkey(getHotkeyRegistration('settings', keyboard), () => navigate('settings'), {
     enabled: settingsHotkey !== null,

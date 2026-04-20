@@ -40,6 +40,7 @@ const ICON_PATHS = {
   pycharm: 'pycharm.svg',
   rustrover: 'rustrover.svg',
   kiro: 'kiro.png',
+  antigravity: 'antigravity.png',
 } as const;
 
 const _OPEN_IN_APPS = {
@@ -220,6 +221,30 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['kiro {{path}}'],
         checkCommands: ['kiro'],
+      },
+    },
+  },
+  antigravity: {
+    id: 'antigravity',
+    label: 'Antigravity',
+    iconPath: ICON_PATHS.antigravity,
+    autoInstall: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v antigravity >/dev/null 2>&1 && antigravity {{path}}',
+          'open -a "Antigravity" {{path}}',
+        ],
+        checkCommands: ['antigravity'],
+        appNames: ['Antigravity'],
+      },
+      win32: {
+        openCommands: ['start "" antigravity {{path}}'],
+        checkCommands: ['antigravity'],
+      },
+      linux: {
+        openCommands: ['antigravity {{path}}'],
+        checkCommands: ['antigravity'],
       },
     },
   },

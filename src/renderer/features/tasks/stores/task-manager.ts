@@ -273,20 +273,24 @@ export class TaskManagerStore {
   }
 
   async archiveTask(taskId: string): Promise<void> {
+    const currentTask = this.tasks.get(taskId);
+    if (!currentTask || !isRegistered(currentTask)) return;
+    const previousArchivedAt = currentTask.data.archivedAt;
+
     try {
-      await rpc.tasks.archiveTask(this.projectId, taskId);
       runInAction(() => {
         const task = this.tasks.get(taskId);
         if (task && isRegistered(task)) {
           task.data.archivedAt = new Date().toISOString();
         }
       });
+      await rpc.tasks.archiveTask(this.projectId, taskId);
       void this.teardownTask(taskId).catch(() => {});
     } catch (e) {
       runInAction(() => {
         const task = this.tasks.get(taskId);
         if (task && isRegistered(task)) {
-          task.data.archivedAt = undefined;
+          task.data.archivedAt = previousArchivedAt;
         }
       });
       throw e;

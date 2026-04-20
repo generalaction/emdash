@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
+import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import { cn } from '@renderer/utils/utils';
 
@@ -51,8 +53,23 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
     activeTab && onInterruptPress ? () => onInterruptPress(activeTab) : undefined;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const terminalContainerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<{ focus: () => void }>(null);
   const focusPendingRef = useRef(false);
+  const {
+    isSearchOpen,
+    searchQuery,
+    searchStatus,
+    searchInputRef,
+    closeSearch,
+    handleSearchQueryChange,
+    stepSearch,
+  } = useTerminalSearch({
+    terminal: activeSession?.pty?.terminal,
+    containerRef: terminalContainerRef,
+    enabled: Boolean(activeSession?.pty),
+    onCloseFocus: () => terminalRef.current?.focus(),
+  });
 
   // Fire when autoFocus becomes true (task switch) or the active session changes.
   // If the terminal is already mounted, focus immediately; otherwise hold focus on
@@ -98,18 +115,30 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
           emptyState
         ) : (
           <div className={cn('flex min-h-0 flex-1 flex-col')}>
-            {activeSessionId && activeSession?.status === 'ready' && activeSession.pty && (
-              <PtyPane
-                ref={terminalRef}
-                sessionId={activeSessionId}
-                pty={activeSession.pty}
-                className="h-full w-full"
-                onEnterPress={activeOnEnterPress}
-                onInterruptPress={activeOnInterruptPress}
-                mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
-                remoteConnectionId={remoteConnectionId}
-              />
-            )}
+            {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
+              <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
+                <TerminalSearchOverlay
+                  isOpen={isSearchOpen}
+                  fullWidth
+                  searchQuery={searchQuery}
+                  searchStatus={searchStatus}
+                  searchInputRef={searchInputRef}
+                  onQueryChange={handleSearchQueryChange}
+                  onStep={stepSearch}
+                  onClose={closeSearch}
+                />
+                <PtyPane
+                  ref={terminalRef}
+                  sessionId={activeSessionId}
+                  pty={activeSession.pty}
+                  className="h-full w-full"
+                  onEnterPress={activeOnEnterPress}
+                  onInterruptPress={activeOnInterruptPress}
+                  mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
+                  remoteConnectionId={remoteConnectionId}
+                />
+              </div>
+            ) : null}
           </div>
         )}
       </PaneSizingProvider>

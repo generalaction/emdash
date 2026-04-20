@@ -18,11 +18,8 @@ import type { ProvisionTaskError } from '../projects/project-provider';
 import { prRowToPullRequest } from '../pull-requests/pr-utils';
 import { appSettingsService } from '../settings/settings-service';
 import { mapTaskRowToTask } from './core';
+import { resolveTaskBranchName } from './resolveTaskBranchName';
 import { toStoredBranch } from './stored-branch';
-
-function buildTaskBranchName(rawBranch: string, branchPrefix: string, suffix: string): string {
-  return branchPrefix ? `${branchPrefix}/${rawBranch}-${suffix}` : `${rawBranch}-${suffix}`;
-}
 
 function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
   switch (error.type) {
@@ -64,7 +61,13 @@ export async function createTask(
 
   switch (strategy.kind) {
     case 'new-branch': {
-      taskBranch = buildTaskBranchName(strategy.taskBranch, branchPrefix, suffix);
+      const rawBranch = strategy.taskBranch;
+      taskBranch = resolveTaskBranchName({
+        rawBranch,
+        branchPrefix,
+        suffix,
+        linkedIssue: params.linkedIssue,
+      });
       const repoInfo = await project.repository.getRepositoryInfo();
       if (repoInfo.isUnborn) {
         return err({
@@ -116,7 +119,12 @@ export async function createTask(
 
       if (strategy.taskBranch) {
         // Create a new task branch on top of the just-fetched local head branch.
-        taskBranch = buildTaskBranchName(strategy.taskBranch, branchPrefix, suffix);
+        const rawBranch = strategy.taskBranch;
+        taskBranch = resolveTaskBranchName({
+          rawBranch,
+          branchPrefix,
+          suffix,
+        });
         const createResult = await project.repository.createBranch(
           taskBranch,
           strategy.headBranch,
@@ -222,7 +230,15 @@ export async function createTask(
     });
   }
 
+  const taskCreatedStrategy = (() => {
+    if (strategy.kind === 'from-pull-request') return 'pr';
+    if (params.linkedIssue) return 'issue';
+    if (strategy.kind === 'no-worktree') return 'blank';
+    return 'branch';
+  })();
+
   capture('task_created', {
+    strategy: taskCreatedStrategy,
     has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
     has_issue: params.linkedIssue?.provider ?? 'none',
     provider: params.initialConversation?.provider ?? null,

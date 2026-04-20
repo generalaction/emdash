@@ -4,6 +4,7 @@ import { Branch } from '@shared/git';
 import { Issue } from '@shared/tasks';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
+import { getIssueTaskName } from './issue-task-name';
 import { useBranchSelection } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 
@@ -28,8 +29,10 @@ export function useFromIssueMode(
     setLinkedIssue(null);
   }
   const { autoGenerateName } = useTaskSettings();
+  const generatedTaskNameFromIssue = getIssueTaskName(linkedIssue);
 
-  const shouldGenerate = autoGenerateName && linkedIssue !== null;
+  const shouldGenerate =
+    autoGenerateName && linkedIssue !== null && generatedTaskNameFromIssue === null;
 
   const { data: generatedName, isPending: isGenerating } = useQuery({
     queryKey: ['generateTaskName', linkedIssue?.title ?? null, linkedIssue?.description ?? null],
@@ -43,7 +46,7 @@ export function useFromIssueMode(
   });
 
   const taskName = useTaskName({
-    generatedName: shouldGenerate ? generatedName : undefined,
+    generatedName: generatedTaskNameFromIssue ?? (shouldGenerate ? generatedName : undefined),
     isPending: shouldGenerate && isGenerating,
     resetKey: selectedProjectId,
   });
