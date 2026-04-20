@@ -57,6 +57,12 @@ export const databaseController = createRPCController({
   deleteConversation: (conversationId: string): Promise<void> =>
     databaseService.deleteConversation(conversationId),
 
+  archiveConversation: (conversationId: string): Promise<void> =>
+    databaseService.archiveConversation(conversationId),
+
+  unarchiveConversation: (conversationId: string): Promise<Conversation | null> =>
+    databaseService.unarchiveConversation(conversationId),
+
   setActiveConversation: (args: { taskId: string; conversationId: string }): Promise<void> =>
     databaseService.setActiveConversation(args.taskId, args.conversationId),
 

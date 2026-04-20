@@ -687,3 +687,71 @@ describe('stale Claude session detection', () => {
     expect(fsWriteFileSyncMock).toHaveBeenCalledWith(SESSION_MAP_PATH, JSON.stringify({}));
   });
 });
+
+describe('killPtyGraceful', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    fsMkdirSyncMock.mockImplementation(() => undefined);
+    fsWriteFileSyncMock.mockImplementation(() => undefined);
+    fsReadFileSyncMock.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+    fsExistsSyncMock.mockReturnValue(false);
+    fsStatSyncMock.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+    fsAccessSyncMock.mockImplementation(() => undefined);
+    delete process.env.EMDASH_DISABLE_PTY;
+  });
+
+  it('resolves immediately when PTY is not registered (no 1.5s wait)', async () => {
+    const { killPtyGraceful } = await import('../../main/services/ptyManager');
+
+    const start = performance.now();
+    await killPtyGraceful('nonexistent-id', { sigintTimeoutMs: 1500 });
+    expect(performance.now() - start).toBeLessThan(100);
+  });
+
+  it('calls dispose() on the onExit subscription when process exits before timeout', async () => {
+    const disposeSpy = vi.fn();
+    let killGracefulExitCb: (() => void) | undefined;
+
+    const fakeProc = {
+      pid: 99999,
+      cols: 80,
+      rows: 24,
+      process: 'zsh',
+      handleFlowControl: false,
+      kill: vi.fn(),
+      write: vi.fn(),
+      resize: vi.fn(),
+      pause: vi.fn(),
+      resume: vi.fn(),
+      onData: vi.fn().mockReturnValue({ dispose: vi.fn() }),
+      // startPty does NOT call onExit internally, so the only caller is killPtyGraceful
+      onExit: vi.fn().mockImplementation((cb: () => void) => {
+        killGracefulExitCb = cb;
+        return { dispose: disposeSpy };
+      }),
+    };
+
+    nodePtySpawnMock.mockReturnValue(fakeProc);
+
+    // startPty uses `await import('node-pty')` (ESM), which vitest properly mocks.
+    // startDirectPty uses `require('node-pty')` (CJS) — not intercepted by vi.mock.
+    const { startPty, killPtyGraceful } = await import('../../main/services/ptyManager');
+
+    await startPty({ id: 'zsh-main-test-dispose', cwd: '/tmp/task', shell: '/bin/zsh' });
+
+    // killPtyGraceful calls fakeProc.onExit once — killGracefulExitCb is now the resolve fn
+    const killPromise = killPtyGraceful('zsh-main-test-dispose', { sigintTimeoutMs: 5000 });
+
+    // Simulate the process exiting before the timeout fires
+    killGracefulExitCb?.();
+
+    await killPromise;
+
+    expect(disposeSpy).toHaveBeenCalled();
+  });
+});

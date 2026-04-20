@@ -55,8 +55,11 @@ import {
 declare const window: Window & {
   electronAPI: {
     saveMessage: (message: any) => Promise<{ success: boolean; error?: string }>;
+    ptyKillGraceful: (id: string) => Promise<void>;
   };
 };
+
+type ClosedConversationEntry = { conversationId: string };
 
 interface Props {
   task: Task;
@@ -186,8 +189,8 @@ const ChatInterface: React.FC<Props> = ({
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
   const [pendingCloseConversationId, setPendingCloseConversationId] = useState<string | null>(null);
-  type ClosedConversationEntry = { provider: string; title: string };
   const closedConversationStackRef = useRef<ClosedConversationEntry[]>([]);
+  const closingConversationIdsRef = useRef<Set<string>>(new Set());
   const lockedAgentWriteRef = useRef<string | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [tabsOverflow, setTabsOverflow] = useState(false);
@@ -735,48 +738,56 @@ const ChatInterface: React.FC<Props> = ({
   const doCloseChat = useCallback(
     async (conversationId: string) => {
       if (conversations.length <= 1) return;
-
-      const convToDelete = conversations.find((c) => c.id === conversationId);
-      const convAgent = (convToDelete?.provider ?? 'claude') as Agent;
-      const terminalId = makePtyId(convAgent, 'chat', conversationId);
-
-      // Push to closed stack for Cmd+Shift+T reopen (max 10 entries)
-      if (convToDelete) {
-        const stack = closedConversationStackRef.current;
-        stack.push({ provider: convAgent, title: convToDelete.title ?? '' });
-        if (stack.length > 10) stack.shift();
-      }
-
-      // Optimistically remove tab and switch to neighbor before killing PTY
-      const remaining = conversations.filter((c) => c.id !== conversationId);
-      setConversations(remaining);
-      if (conversationId === activeConversationId && remaining.length > 0) {
-        const newActive = remaining[0];
-        setActiveConversationId(newActive.id);
-        await rpc.db.setActiveConversation({ taskId: task.id, conversationId: newActive.id });
-        if (newActive.provider) setAgent(newActive.provider as Agent);
-      }
-
-      // Gracefully kill PTY: SIGINT → wait 1.5 s → hard kill
-      try {
-        await (window.electronAPI as any).ptyKillGraceful(terminalId);
-      } catch {
-        terminalSessionRegistry.dispose(terminalId);
-      }
-
-      await rpc.db.deleteConversation(conversationId);
-
-      // Resync from DB to pick up any server-side changes
-      const updatedConversations = await applyStableConversationTitles(
-        await rpc.db.getConversations(task.id)
-      );
-      setConversations(updatedConversations);
+      if (closingConversationIdsRef.current.has(conversationId)) return;
+      closingConversationIdsRef.current.add(conversationId);
 
       try {
-        window.dispatchEvent(
-          new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
+        const convToDelete = conversations.find((c) => c.id === conversationId);
+        const convAgent = (convToDelete?.provider ?? 'claude') as Agent;
+        const terminalId = convToDelete?.isMain
+          ? makePtyId(convAgent, 'main', task.id)
+          : makePtyId(convAgent, 'chat', conversationId);
+
+        // Push to closed stack for Cmd+Shift+T reopen (max 10 entries)
+        if (convToDelete) {
+          const stack = closedConversationStackRef.current;
+          stack.push({ conversationId });
+          if (stack.length > 10) stack.shift();
+        }
+
+        // Optimistically remove tab and switch to neighbor before killing PTY
+        const remaining = conversations.filter((c) => c.id !== conversationId);
+        setConversations(remaining);
+        if (conversationId === activeConversationId && remaining.length > 0) {
+          const newActive = remaining[0];
+          setActiveConversationId(newActive.id);
+          await rpc.db.setActiveConversation({ taskId: task.id, conversationId: newActive.id });
+          if (newActive.provider) setAgent(newActive.provider as Agent);
+        }
+
+        // Gracefully kill PTY: SIGINT → wait 1.5 s → hard kill
+        try {
+          await window.electronAPI.ptyKillGraceful(terminalId);
+        } catch {
+          terminalSessionRegistry.dispose(terminalId);
+        }
+
+        await rpc.db.archiveConversation(conversationId);
+
+        // Resync from DB to pick up any server-side changes
+        const updatedConversations = await applyStableConversationTitles(
+          await rpc.db.getConversations(task.id)
         );
-      } catch {}
+        setConversations(updatedConversations);
+
+        try {
+          window.dispatchEvent(
+            new CustomEvent('emdash:conversations-changed', { detail: { taskId: task.id } })
+          );
+        } catch {}
+      } finally {
+        closingConversationIdsRef.current.delete(conversationId);
+      }
     },
     [conversations, task.id, activeConversationId, applyStableConversationTitles]
   );
@@ -974,7 +985,7 @@ const ChatInterface: React.FC<Props> = ({
   // Open new conversation tab on Cmd+T
   useEffect(() => {
     const handleNewChat = () => {
-      if (task.metadata?.multiAgent) return; // no-op for multi-agent tasks
+      if (task.metadata?.multiAgent?.enabled) return; // no-op for multi-agent tasks
       setShowCreateChatModal(true);
     };
     window.addEventListener('emdash:new-chat', handleNewChat);
@@ -1007,31 +1018,33 @@ const ChatInterface: React.FC<Props> = ({
     return () => window.removeEventListener('emdash:cycle-chat', handleCycleChat);
   }, [sortedConversations, activeConversationId, handleSwitchChat]);
 
-  // Reopen last closed conversation on Cmd+Shift+T
+  // Reopen last closed conversation on Cmd+Shift+T (restores DB row + message history)
   useEffect(() => {
     const handleReopenClosedChat = () => {
       const stack = closedConversationStackRef.current;
       const entry = stack.pop();
-      if (!entry) return;
+      if (!entry) {
+        toast({ title: 'No recently closed conversation', variant: 'default' });
+        return;
+      }
 
       void (async () => {
         try {
-          const newConv = await rpc.db.createConversation({
-            taskId: task.id,
-            provider: entry.provider,
-            title: entry.title,
-            isMain: false,
-            metadata: null,
-          });
-          if (newConv) {
-            const updated = await applyStableConversationTitles(
-              await rpc.db.getConversations(task.id)
-            );
-            setConversations(updated);
-            await rpc.db.setActiveConversation({ taskId: task.id, conversationId: newConv.id });
-            setActiveConversationId(newConv.id);
-            setAgent(entry.provider as Agent);
+          const row = await rpc.db.unarchiveConversation(entry.conversationId);
+          if (!row) {
+            toast({ title: 'Conversation no longer available', variant: 'destructive' });
+            return;
           }
+          const updated = await applyStableConversationTitles(
+            await rpc.db.getConversations(task.id)
+          );
+          setConversations(updated);
+          await rpc.db.setActiveConversation({
+            taskId: task.id,
+            conversationId: entry.conversationId,
+          });
+          setActiveConversationId(entry.conversationId);
+          if (row.provider) setAgent(row.provider as Agent);
         } catch {}
       })();
     };

@@ -38,8 +38,6 @@ export interface AppShortcut {
   category: string;
   settingsKey: ShortcutSettingsKey;
   hideFromSettings?: boolean;
-  /** When true, the shortcut has no default binding. Users must explicitly assign one. */
-  defaultDisabled?: boolean;
 }
 
 const isMacPlatform =
@@ -69,15 +67,15 @@ function getPlatformTaskSwitchDefaults(): { next: AppShortcut; prev: AppShortcut
 
   return {
     next: {
-      key: 'Tab',
-      modifier: 'ctrl',
+      key: ']',
+      modifier: 'ctrl+shift',
       label: 'Next Task',
       description: 'Switch to the next task',
       category: 'Navigation',
       settingsKey: 'nextProject',
     },
     prev: {
-      key: 'Tab',
+      key: '[',
       modifier: 'ctrl+shift',
       label: 'Previous Task',
       description: 'Switch to the previous task',
@@ -424,11 +422,6 @@ function getEffectiveConfig(
       description: shortcut.description,
       category: shortcut.category,
     };
-  }
-  // Shortcuts marked defaultDisabled have no active binding unless the user
-  // explicitly assigns one via settings.
-  if (shortcut.defaultDisabled) {
-    return null;
   }
   return {
     key: shortcut.key,

@@ -64,6 +64,7 @@ export interface Conversation {
   isMain?: boolean;
   displayOrder?: number;
   metadata?: string | null;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -482,7 +483,7 @@ export class DatabaseService {
     const rows = await db
       .select()
       .from(conversationsTable)
-      .where(eq(conversationsTable.taskId, taskId))
+      .where(and(eq(conversationsTable.taskId, taskId), isNull(conversationsTable.archivedAt)))
       .orderBy(asc(conversationsTable.displayOrder), desc(conversationsTable.updatedAt));
     return rows.map((row) => this.mapDrizzleConversationRow(row));
   }
@@ -504,7 +505,7 @@ export class DatabaseService {
     const existingRows = await db
       .select()
       .from(conversationsTable)
-      .where(eq(conversationsTable.taskId, taskId))
+      .where(and(eq(conversationsTable.taskId, taskId), isNull(conversationsTable.archivedAt)))
       .orderBy(asc(conversationsTable.createdAt))
       .limit(1);
 
@@ -598,6 +599,30 @@ export class DatabaseService {
     if (this.disabled) return;
     const { db } = await getDrizzleClient();
     await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
+  }
+
+  async archiveConversation(conversationId: string): Promise<void> {
+    if (this.disabled) return;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(conversationsTable)
+      .set({ archivedAt: new Date().toISOString(), updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(conversationsTable.id, conversationId));
+  }
+
+  async unarchiveConversation(conversationId: string): Promise<Conversation | null> {
+    if (this.disabled) return null;
+    const { db } = await getDrizzleClient();
+    await db
+      .update(conversationsTable)
+      .set({ archivedAt: null, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(conversationsTable.id, conversationId));
+    const rows = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, conversationId))
+      .limit(1);
+    return rows.length > 0 ? this.mapDrizzleConversationRow(rows[0]) : null;
   }
 
   // New multi-chat methods
@@ -911,6 +936,7 @@ export class DatabaseService {
       isMain: row.isMain !== undefined ? row.isMain === 1 : true,
       displayOrder: row.displayOrder ?? 0,
       metadata: row.metadata ?? null,
+      archivedAt: row.archivedAt ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

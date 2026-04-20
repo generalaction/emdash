@@ -95,6 +95,7 @@ export const conversations = sqliteTable(
     isMain: integer('is_main').notNull().default(0), // 1 if this is the main/primary chat (gets full persistence)
     displayOrder: integer('display_order').notNull().default(0), // Order in the tab bar
     metadata: text('metadata'), // JSON for additional chat-specific data
+    archivedAt: text('archived_at'), // null = active, timestamp = archived (soft-close for reopen)
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

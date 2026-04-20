@@ -149,8 +149,8 @@ function getPlatformTaskSwitchDefaults(): { next: ShortcutBinding; prev: Shortcu
   }
 
   return {
-    next: { key: 'Tab', modifier: 'ctrl' },
-    prev: { key: 'Tab', modifier: 'ctrl+shift' },
+    next: { key: ']', modifier: 'ctrl+shift' },
+    prev: { key: '[', modifier: 'ctrl+shift' },
   };
 }
 

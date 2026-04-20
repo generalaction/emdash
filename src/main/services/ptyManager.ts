@@ -1729,8 +1729,9 @@ export async function killPtyGraceful(
 
   const timeoutMs = opts.sigintTimeoutMs ?? 1500;
 
+  let exitDisposable: { dispose: () => void } | undefined;
   const exitPromise = new Promise<void>((resolve) => {
-    rec.proc.onExit(() => resolve());
+    exitDisposable = rec.proc.onExit(() => resolve());
   });
 
   try {
@@ -1744,7 +1745,9 @@ export async function killPtyGraceful(
     new Promise<boolean>((resolve) => setTimeout(() => resolve(true), timeoutMs)),
   ]);
 
-  if (timedOut) {
+  exitDisposable?.dispose();
+
+  if (timedOut && ptys.has(id)) {
     try {
       rec.proc.kill();
     } catch {}
