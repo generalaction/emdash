@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { getAgentTabSelectionIndex } from '../../renderer/hooks/useKeyboardShortcuts';
+// @vitest-environment jsdom
+import { renderHook } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  getAgentTabSelectionIndex,
+  useKeyboardShortcuts,
+} from '../../renderer/hooks/useKeyboardShortcuts';
 
 // Non-mac default keyboard shortcuts — derived from DEFAULT_SETTINGS with ctrl+shift
 // project cycling (A2 fix: moved off Ctrl+Tab to avoid collision with chat cycling).
@@ -138,5 +143,49 @@ describe('getAgentTabSelectionIndex', () => {
         shiftKey: false,
       } as KeyboardEvent)
     ).toBeNull();
+  });
+});
+
+// Regression: conversation tab shortcuts must fire even when a textarea is focused.
+// Previously newChat / closeChat / reopenClosedChat lacked allowInInput:true, so
+// they were silently skipped whenever the chat input held focus.
+describe('chat shortcuts fire from inside a textarea', () => {
+  function fireKeyInTextarea(key: string, modifiers: Partial<KeyboardEventInit> = {}) {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    textarea.focus();
+
+    const event = new KeyboardEvent('keydown', {
+      key,
+      bubbles: true,
+      cancelable: true,
+      ...modifiers,
+    });
+    // Override target to the textarea so isEditableTarget fires.
+    Object.defineProperty(event, 'target', { value: textarea, configurable: true });
+    window.dispatchEvent(event);
+
+    document.body.removeChild(textarea);
+  }
+
+  it('Cmd+T (newChat) fires from inside a textarea', () => {
+    const onNewChat = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ onNewChat }));
+    fireKeyInTextarea('t', { metaKey: true });
+    expect(onNewChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('Cmd+W (closeChat) fires from inside a textarea', () => {
+    const onCloseChat = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ onCloseChat }));
+    fireKeyInTextarea('w', { metaKey: true });
+    expect(onCloseChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('Cmd+Shift+T (reopenClosedChat) fires from inside a textarea', () => {
+    const onReopenClosedChat = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ onReopenClosedChat }));
+    fireKeyInTextarea('t', { metaKey: true, shiftKey: true });
+    expect(onReopenClosedChat).toHaveBeenCalledTimes(1);
   });
 });

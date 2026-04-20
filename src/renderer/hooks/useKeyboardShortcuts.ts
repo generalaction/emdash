@@ -558,12 +558,14 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onNewChat?.(),
         priority: 'global',
         requiresClosed: true,
+        allowInInput: true,
       },
       effectiveShortcuts.closeChat && {
         config: effectiveShortcuts.closeChat,
         handler: () => handlers.onCloseChat?.(),
         priority: 'global',
         requiresClosed: true,
+        allowInInput: true,
       },
       effectiveShortcuts.nextChat && {
         config: effectiveShortcuts.nextChat,
@@ -584,6 +586,7 @@ export function useKeyboardShortcuts(handlers: GlobalShortcutHandlers) {
         handler: () => handlers.onReopenClosedChat?.(),
         priority: 'global',
         requiresClosed: true,
+        allowInInput: true,
       },
       effectiveShortcuts.commandPaletteAlt && {
         config: effectiveShortcuts.commandPaletteAlt,
