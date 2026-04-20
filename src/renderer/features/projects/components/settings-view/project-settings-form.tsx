@@ -37,13 +37,25 @@ function normalizeScript(val: string | string[] | undefined): string {
   return val ?? '';
 }
 
-export function settingsToForm(s: ProjectSettings, configuredRemote: string): FormState {
+export function settingsToForm(
+  s: ProjectSettings,
+  configuredRemote: string,
+  remotes: { name: string; url: string }[]
+): FormState {
   let defaultBranch: Branch | null = null;
+  const configuredRemoteMeta = remotes.find((remote) => remote.name === configuredRemote) ?? {
+    name: configuredRemote,
+    url: '',
+  };
   if (s.defaultBranch) {
     if (typeof s.defaultBranch === 'string') {
       defaultBranch = { type: 'local', branch: s.defaultBranch };
     } else {
-      defaultBranch = { type: 'remote', branch: s.defaultBranch.name, remote: configuredRemote };
+      defaultBranch = {
+        type: 'remote',
+        branch: s.defaultBranch.name,
+        remote: configuredRemoteMeta,
+      };
     }
   }
   return {
@@ -93,6 +105,7 @@ export interface ProjectSettingsFormProps {
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+const EMPTY_REMOTES: { name: string; url: string }[] = [];
 
 export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
@@ -101,13 +114,13 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   save,
 }: ProjectSettingsFormProps) {
   const repo = getRepositoryStore(projectId);
-  const remotes = repo?.remotes ?? [];
+  const remotes = repo?.remotes ?? EMPTY_REMOTES;
   const configuredRemote = repo?.configuredRemote ?? 'origin';
 
   const baseline = useMemo(
-    () => settingsToForm(initial, configuredRemote),
+    () => settingsToForm(initial, configuredRemote, remotes),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [initial]
+    [initial, configuredRemote, remotes]
   );
   const [form, setForm] = useState<FormState>(baseline);
   const [savedForm, setSavedForm] = useState<FormState>(baseline);

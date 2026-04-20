@@ -1,6 +1,12 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { err, ok, Result } from '@shared/result';
-import type { CreateTaskError, CreateTaskParams, Task } from '@shared/tasks';
+import type {
+  CreateTaskError,
+  CreateTaskParams,
+  CreateTaskSuccess,
+  CreateTaskWarning,
+  Task,
+} from '@shared/tasks';
 import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { findPrForBranch, resolveInitialStatus } from '@main/core/task-status/pr-task-bridge';
@@ -13,41 +19,45 @@ import { prRowToPullRequest } from '../pull-requests/pr-utils';
 import { appSettingsService } from '../settings/settings-service';
 import { mapTaskRowToTask } from './core';
 import { resolveTaskBranchName } from './resolveTaskBranchName';
+import { toStoredBranch } from './stored-branch';
 
 function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
-  const msg = error.message;
-  const branchNotFoundMatch = /^Branch "(.+)" was not found locally or on remote$/.exec(msg);
-  if (branchNotFoundMatch) {
-    return { type: 'branch-not-found', branch: branchNotFoundMatch[1] };
+  switch (error.type) {
+    case 'branch-not-found':
+      return { type: 'branch-not-found', branch: error.branch };
+    case 'worktree-setup-failed':
+      return {
+        type: 'worktree-setup-failed',
+        branch: error.branch,
+        message: error.message,
+      };
+    default:
+      return { type: 'provision-failed', message: error.message };
   }
-  if (msg.includes('Failed to set up worktree')) {
-    return { type: 'worktree-setup-failed', message: msg };
-  }
-  return { type: 'provision-failed', message: msg };
 }
 
-export async function createTask(params: CreateTaskParams): Promise<Result<Task, CreateTaskError>> {
+export async function createTask(
+  params: CreateTaskParams
+): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
   const { strategy } = params;
   const suffix = Math.random().toString(36).slice(2, 7);
   const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
   const taskSettings = await appSettingsService.get('tasks');
+  let warning: CreateTaskWarning | undefined;
 
   const project = projectManager.getProject(params.projectId);
   if (!project) {
     return err({ type: 'project-not-found' });
   }
-  const sourceBranchRemote = params.sourceBranch.remote?.trim();
-  const [remotes, remote] = await Promise.all([
+  const [remotes, configuredRemote] = await Promise.all([
     project.repository.getRemotes(),
     project.repository.getConfiguredRemote(),
   ]);
-  const canUseRemote = remotes.some((candidate) => candidate.name === remote);
-  const canUseRemoteBase = canUseRemote && !!sourceBranchRemote;
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;
-  // sourceBranch stored in the DB — defaults to params.sourceBranch.branch but overridden for PRs.
-  let dbSourceBranch = params.sourceBranch.branch;
+  // sourceBranch stored in the DB — defaults to params.sourceBranch but overridden for PRs.
+  let dbSourceBranch = params.sourceBranch;
 
   switch (strategy.kind) {
     case 'new-branch': {
@@ -68,24 +78,22 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       const createResult = await project.repository.createBranch(
         taskBranch,
         params.sourceBranch.branch,
-        canUseRemoteBase,
-        remote
+        params.sourceBranch.type === 'remote',
+        params.sourceBranch.type === 'remote' ? params.sourceBranch.remote.name : undefined
       );
       if (!createResult.success) {
-        switch (createResult.error.type) {
-          case 'already_exists':
-            return err({ type: 'branch-already-exists', branch: taskBranch });
-          case 'invalid_base':
-            return err({ type: 'invalid-base-branch', branch: params.sourceBranch.branch });
-          default:
-            return err({
-              type: 'provision-failed',
-              message: `Failed to create branch '${taskBranch}': ${createResult.error.type}`,
-            });
-        }
+        return err({ type: 'branch-create-failed', branch: taskBranch, error: createResult.error });
       }
       if (strategy.pushBranch) {
-        await project.repository.publishBranch(taskBranch, remote);
+        const publishResult = await project.repository.publishBranch(taskBranch, configuredRemote);
+        if (!publishResult.success) {
+          warning = {
+            type: 'branch-publish-failed',
+            branch: taskBranch,
+            remote: configuredRemote,
+            error: publishResult.error,
+          };
+        }
       }
       break;
     }
@@ -101,17 +109,13 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       const fetchResult = await project.repository.fetchPrRef(
         strategy.prNumber,
         strategy.headBranch,
-        remote
+        configuredRemote
       );
       if (!fetchResult.success) {
-        const msg =
-          fetchResult.error.type === 'not_found'
-            ? `PR #${fetchResult.error.prNumber} was not found on remote "${remote}"`
-            : fetchResult.error.message;
-        return err({ type: 'pr-fetch-failed', message: msg });
+        return err({ type: 'pr-fetch-failed', error: fetchResult.error, remote: configuredRemote });
       }
 
-      dbSourceBranch = strategy.headBranch;
+      dbSourceBranch = { type: 'local', branch: strategy.headBranch };
 
       if (strategy.taskBranch) {
         // Create a new task branch on top of the just-fetched local head branch.
@@ -127,20 +131,25 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
           false
         );
         if (!createResult.success) {
-          switch (createResult.error.type) {
-            case 'already_exists':
-              return err({ type: 'branch-already-exists', branch: taskBranch });
-            case 'invalid_base':
-              return err({ type: 'invalid-base-branch', branch: strategy.headBranch });
-            default:
-              return err({
-                type: 'provision-failed',
-                message: `Failed to create branch '${taskBranch}': ${createResult.error.type}`,
-              });
-          }
+          return err({
+            type: 'branch-create-failed',
+            branch: taskBranch,
+            error: createResult.error,
+          });
         }
         if (strategy.pushBranch) {
-          await project.repository.publishBranch(taskBranch, remote);
+          const publishResult = await project.repository.publishBranch(
+            taskBranch,
+            configuredRemote
+          );
+          if (!publishResult.success) {
+            warning = {
+              type: 'branch-publish-failed',
+              branch: taskBranch,
+              remote: configuredRemote,
+              error: publishResult.error,
+            };
+          }
         }
       } else {
         // Check out the PR head branch directly — taskBranch === sourceBranch signals
@@ -158,7 +167,7 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
 
   // If no explicit initialStatus was passed, check whether a PR already exists for
   // this branch in the DB cache and compute the right starting status from it.
-  const remoteUrl = remotes.find((r) => r.name === remote)?.url;
+  const remoteUrl = remotes.find((r) => r.name === configuredRemote)?.url;
   const nameWithOwner = remoteUrl ? parseNameWithOwner(remoteUrl) : null;
 
   let initialStatus = params.initialStatus ?? 'in_progress';
@@ -178,7 +187,7 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
       name: params.name,
       taskBranch,
       status: initialStatus,
-      sourceBranch: dbSourceBranch,
+      sourceBranch: toStoredBranch(dbSourceBranch),
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
@@ -244,5 +253,5 @@ export async function createTask(params: CreateTaskParams): Promise<Result<Task,
     });
   }
 
-  return ok(task);
+  return ok({ task, warning });
 }

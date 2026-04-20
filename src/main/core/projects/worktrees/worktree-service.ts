@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { Branch } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
 import { err, ok, Result } from '@shared/result';
 import { FileSystemProvider } from '@main/core/fs/types';
@@ -7,18 +8,10 @@ import { log } from '@main/lib/logger';
 import { ProjectSettingsProvider } from '../settings/schema';
 
 export type ServeWorktreeError =
-  | { type: 'reserve-failed'; sourceBranch: string; cause: unknown }
   | { type: 'worktree-setup-failed'; cause: unknown }
   | { type: 'branch-not-found'; branch: string };
 
-function createStableWorktreeReserveId(sourceBranch: string) {
-  // Replace slashes with dashes so the reserve always lives as a flat directory
-  // under the pool (e.g. "feature/foo" → "_reserve-feature-foo").
-  return `_reserve-${sourceBranch.replace(/\//g, '-')}`;
-}
-
 export class WorktreeService {
-  private readonly reserveInProgress = new Map<string, Promise<void>>();
   private gitOpQueue: Promise<unknown> = Promise.resolve();
   private readonly worktreePoolPath: string;
   private readonly repoPath: string;
@@ -39,20 +32,7 @@ export class WorktreeService {
     this.exec = args.exec;
     this.rootFs = args.rootFs;
 
-    this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath })
-      .catch(() => {})
-      .then(() => this.projectSettings.getDefaultBranch())
-      .then((branch) => this.ensureReserve(branch))
-      .catch(() => {});
-  }
-
-  private async isValidWorktree(worktreePath: string): Promise<boolean> {
-    try {
-      await this.exec('git', ['rev-parse', '--git-dir'], { cwd: worktreePath });
-      return true;
-    } catch {
-      return false;
-    }
+    this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
   }
 
   private enqueueGitOp<T>(fn: () => Promise<T>): Promise<T> {
@@ -61,77 +41,12 @@ export class WorktreeService {
     return result as Promise<T>;
   }
 
-  async ensureReserve(sourceBranch: string): Promise<void> {
-    const reservePath = path.join(
-      this.worktreePoolPath,
-      createStableWorktreeReserveId(sourceBranch)
-    );
-    if (await this.rootFs.exists(reservePath)) {
-      if (await this.isValidWorktree(reservePath)) return;
-      await this.rootFs.remove(reservePath, { recursive: true });
-      await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
-    }
-    const inProgress = this.reserveInProgress.get(sourceBranch);
-    if (inProgress) return inProgress;
-    const creation = this.enqueueGitOp(() => this.createReserve(sourceBranch)).finally(() => {
-      this.reserveInProgress.delete(sourceBranch);
-    });
-    this.reserveInProgress.set(sourceBranch, creation);
-    return creation;
-  }
-
-  private async doEnsureReserve(sourceBranch: string): Promise<void> {
-    const reservePath = path.join(
-      this.worktreePoolPath,
-      createStableWorktreeReserveId(sourceBranch)
-    );
-    if (await this.rootFs.exists(reservePath)) {
-      if (await this.isValidWorktree(reservePath)) return;
-      await this.rootFs.remove(reservePath, { recursive: true });
-      await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
-    }
-    await this.createReserve(sourceBranch);
-  }
-
-  private async createReserve(sourceBranch: string): Promise<void> {
-    await this.ensureWorktreePoolDirExists();
-    const reserveBranchName = createStableWorktreeReserveId(sourceBranch);
-    const worktreePath = path.join(this.worktreePoolPath, reserveBranchName);
-    // Check whether the reserve branch exists in git at all
-    let branchExists = false;
+  private async isValidWorktree(worktreePath: string): Promise<boolean> {
     try {
-      await this.exec('git', ['rev-parse', '--verify', reserveBranchName], { cwd: this.repoPath });
-      branchExists = true;
-    } catch {}
-    if (!branchExists) {
-      // Case 1: fresh — create the branch and worktree together.
-      // Use refs/heads/ prefix to avoid ambiguity when a tag exists with the same name.
-      const sourceRef = await this.resolveSourceBaseRef(sourceBranch);
-      await this.exec(
-        'git',
-        ['worktree', 'add', '-b', reserveBranchName, worktreePath, sourceRef],
-        { cwd: this.repoPath }
-      );
-      return;
-    }
-    // Case 2 & 3: branch exists — try to re-add the worktree at the expected path.
-    // If the branch is already checked out at a different (stale) path, git will
-    // reject the add and tell us where it lives — move it instead.
-    try {
-      await this.exec('git', ['worktree', 'add', worktreePath, reserveBranchName], {
-        cwd: this.repoPath,
-      });
-    } catch (e: unknown) {
-      const stderr = (e as { stderr?: string })?.stderr ?? '';
-      const match = /already (?:checked out|used by worktree) at '(.+)'/.exec(stderr);
-      if (match?.[1]) {
-        // Case 3: branch is checked out at old/different path — move it to where we expect it
-        await this.exec('git', ['worktree', 'move', match[1], worktreePath], {
-          cwd: this.repoPath,
-        });
-      } else {
-        throw e;
-      }
+      await this.exec('git', ['rev-parse', '--git-dir'], { cwd: worktreePath });
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -147,24 +62,48 @@ export class WorktreeService {
     return [configuredRemote, DEFAULT_REMOTE_NAME];
   }
 
-  private async resolveSourceBaseRef(sourceBranch: string): Promise<string> {
-    const localRef = `refs/heads/${sourceBranch}`;
+  private async findCheckedOutPathForBranch(branchName: string): Promise<string | undefined> {
     try {
-      await this.exec('git', ['rev-parse', '--verify', localRef], { cwd: this.repoPath });
-      return localRef;
+      const { stdout } = await this.exec('git', ['worktree', 'list', '--porcelain'], {
+        cwd: this.repoPath,
+      });
+      const branchLine = `branch refs/heads/${branchName}`;
+      for (const block of stdout.split('\n\n')) {
+        if (!block.split('\n').some((line) => line === branchLine)) {
+          continue;
+        }
+        const match = /^worktree (.+)$/m.exec(block);
+        const candidatePath = match?.[1];
+        if (!candidatePath) continue;
+        if (await this.isValidWorktree(candidatePath)) {
+          return candidatePath;
+        }
+        await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
+      }
     } catch {}
+    return undefined;
+  }
 
-    const remoteCandidates = await this.getRemoteCandidates();
-    for (const remoteName of remoteCandidates) {
-      await this.exec('git', ['fetch', remoteName], { cwd: this.repoPath }).catch(() => {});
-      const remoteRef = `refs/remotes/${remoteName}/${sourceBranch}`;
+  private async resolveSourceBaseRef(sourceBranch: Branch): Promise<string | undefined> {
+    if (sourceBranch.type === 'local') {
+      const localRef = `refs/heads/${sourceBranch.branch}`;
       try {
-        await this.exec('git', ['rev-parse', '--verify', remoteRef], { cwd: this.repoPath });
-        return remoteRef;
-      } catch {}
+        await this.exec('git', ['rev-parse', '--verify', localRef], { cwd: this.repoPath });
+        return localRef;
+      } catch {
+        return undefined;
+      }
     }
 
-    return localRef;
+    const remoteName = sourceBranch.remote.name;
+    await this.exec('git', ['fetch', remoteName], { cwd: this.repoPath }).catch(() => {});
+    const remoteRef = `refs/remotes/${remoteName}/${sourceBranch.branch}`;
+    try {
+      await this.exec('git', ['rev-parse', '--verify', remoteRef], { cwd: this.repoPath });
+      return remoteRef;
+    } catch {
+      return undefined;
+    }
   }
 
   async getWorktree(branchName: string): Promise<string | undefined> {
@@ -190,58 +129,63 @@ export class WorktreeService {
     return undefined;
   }
 
-  async serveWorktree(
-    sourceBranch: string,
+  async checkoutBranchWorktree(
+    sourceBranch: Branch,
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
     await this.ensureWorktreePoolDirExists();
-    return this.enqueueGitOp(() => this.doServeWorktree(sourceBranch, branchName));
+    return this.enqueueGitOp(() => this.doCheckoutBranchWorktree(sourceBranch, branchName));
   }
 
-  private async doServeWorktree(
-    sourceBranch: string,
+  private async doCheckoutBranchWorktree(
+    sourceBranch: Branch,
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
-    const reserveBranchName = createStableWorktreeReserveId(sourceBranch);
-    const reservePath = path.join(this.worktreePoolPath, reserveBranchName);
+    const checkedOutPath = await this.findCheckedOutPathForBranch(branchName);
+    if (checkedOutPath) {
+      return ok(checkedOutPath);
+    }
+
     const targetPath = path.join(this.worktreePoolPath, branchName);
-
-    // Fast path: worktree already exists on disk.
-    if (await this.rootFs.exists(targetPath)) return ok(targetPath);
-
-    // Ensure the reserve worktree is ready. Use doEnsureReserve (not ensureReserve)
-    // because we're already inside enqueueGitOp — calling ensureReserve here would
-    // deadlock by trying to re-enqueue into the same serialised queue.
-    if (!(await this.rootFs.exists(reservePath)) || !(await this.isValidWorktree(reservePath))) {
-      try {
-        await this.doEnsureReserve(sourceBranch);
-      } catch (cause) {
-        return err({ type: 'reserve-failed', sourceBranch, cause });
-      }
+    if (await this.rootFs.exists(targetPath)) {
+      if (await this.isValidWorktree(targetPath)) return ok(targetPath);
+      await this.rootFs.remove(targetPath, { recursive: true }).catch(() => {});
+      await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
     }
 
     try {
+      let localExists = false;
+      try {
+        await this.exec('git', ['rev-parse', '--verify', `refs/heads/${branchName}`], {
+          cwd: this.repoPath,
+        });
+        localExists = true;
+      } catch {}
+
+      if (!localExists) {
+        const sourceRef = await this.resolveSourceBaseRef(sourceBranch);
+        if (!sourceRef) {
+          return err({ type: 'branch-not-found', branch: sourceBranch.branch });
+        }
+        await this.exec('git', ['branch', '--no-track', branchName, sourceRef], {
+          cwd: this.repoPath,
+        });
+      }
+
       await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
-      // Move the reserve worktree directory to the task's permanent path.
-      await this.exec('git', ['worktree', 'move', reservePath, targetPath], {
+      await this.exec('git', ['worktree', 'add', targetPath, branchName], {
         cwd: this.repoPath,
       });
-      // Switch the worktree HEAD to the already-created task branch (fast: same commit).
-      await this.exec('git', ['switch', branchName], { cwd: targetPath });
-      // Clean up the now-unused reserve branch.
-      await this.exec('git', ['branch', '-D', reserveBranchName], { cwd: this.repoPath });
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause });
     }
 
     await this.copyPreservedFiles(targetPath).catch((e) => {
-      log.warn('WorktreeService: failed to copy preserved files', { targetPath, error: String(e) });
+      log.warn('WorktreeService: failed to copy preserved files', {
+        targetPath,
+        error: String(e),
+      });
     });
-
-    const defaultBranch = await this.projectSettings.getDefaultBranch();
-    if (sourceBranch === defaultBranch) {
-      this.ensureReserve(sourceBranch).catch(() => {});
-    }
 
     return ok(targetPath);
   }
@@ -254,6 +198,11 @@ export class WorktreeService {
   private async doCheckoutExistingBranch(
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
+    const checkedOutPath = await this.findCheckedOutPathForBranch(branchName);
+    if (checkedOutPath) {
+      return ok(checkedOutPath);
+    }
+
     const targetPath = path.join(this.worktreePoolPath, branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
@@ -268,8 +217,6 @@ export class WorktreeService {
       for (const remoteName of remoteCandidates) {
         await this.exec('git', ['fetch', remoteName], { cwd: this.repoPath }).catch(() => {});
       }
-
-      // Check if a local branch ref exists; if not, try to create one from the remote.
       let localExists = false;
       try {
         await this.exec('git', ['rev-parse', '--verify', `refs/heads/${branchName}`], {
@@ -280,7 +227,6 @@ export class WorktreeService {
 
       if (!localExists) {
         let trackingRemote: string | undefined;
-        // Verify the remote-tracking ref exists before attempting to create a local branch.
         for (const remoteName of remoteCandidates) {
           try {
             await this.exec(
@@ -343,7 +289,6 @@ export class WorktreeService {
       for (const relPath of matches) {
         const src = path.join(this.repoPath, relPath);
         const stat = await this.rootFs.stat(src).catch(() => null);
-        // Skip directories — glob patterns like `.claude/**` may match the dir itself.
         if (!stat || stat.type !== 'file') continue;
         const dest = path.join(targetPath, relPath);
         await this.rootFs.mkdir(path.dirname(dest), { recursive: true });

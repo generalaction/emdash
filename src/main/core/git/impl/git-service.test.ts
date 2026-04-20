@@ -67,6 +67,16 @@ describe('GitService.getBranches', () => {
     expect(branches[0]).toMatchObject({ type: 'local', branch: 'main' });
   });
 
+  it('normalizes disambiguated local short names like "heads/main" to "main"', async () => {
+    const svc = makeService(
+      makeExec({
+        [BRANCH_FORMAT]: 'heads/main|||refs/heads/main\n',
+      })
+    );
+    const [branch] = await svc.getBranches();
+    expect(branch).toMatchObject({ type: 'local', branch: 'main' });
+  });
+
   it('categorises a remote tracking branch as type=remote (regression: remotes/ prefix bug)', async () => {
     // %(refname:short) gives "origin/main" — not "remotes/origin/main".
     // The old code checked startsWith('remotes/') which never matched, so all
@@ -78,7 +88,11 @@ describe('GitService.getBranches', () => {
     );
     const branches = await svc.getBranches();
     expect(branches).toHaveLength(1);
-    expect(branches[0]).toMatchObject({ type: 'remote', branch: 'main', remote: 'origin' });
+    expect(branches[0]).toMatchObject({
+      type: 'remote',
+      branch: 'main',
+      remote: { name: 'origin' },
+    });
   });
 
   it('skips remotes/origin/HEAD entries', async () => {
@@ -103,7 +117,7 @@ describe('GitService.getBranches', () => {
     expect(branches[0]).toMatchObject({
       type: 'local',
       branch: 'feature',
-      remote: 'origin',
+      remote: { name: 'origin' },
       divergence: { ahead: 1, behind: 2 },
     });
   });
@@ -184,6 +198,26 @@ describe('GitService.getBranches', () => {
 // ---------------------------------------------------------------------------
 // getDefaultBranch()
 // ---------------------------------------------------------------------------
+
+describe('GitService.getCurrentBranch', () => {
+  it('returns canonical local branch name from symbolic full ref', async () => {
+    const svc = makeService(
+      makeExec({
+        'rev-parse --symbolic-full-name HEAD': 'refs/heads/main',
+      })
+    );
+    expect(await svc.getCurrentBranch()).toBe('main');
+  });
+
+  it('returns null when HEAD is detached', async () => {
+    const svc = makeService(
+      makeExec({
+        'rev-parse --symbolic-full-name HEAD': 'HEAD',
+      })
+    );
+    expect(await svc.getCurrentBranch()).toBeNull();
+  });
+});
 
 describe('GitService.getDefaultBranch', () => {
   it('resolves from symbolic-ref cache (heuristic 1)', async () => {

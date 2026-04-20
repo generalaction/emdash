@@ -22,8 +22,12 @@ describe('useBranchSelection contract', () => {
   });
 
   it('accepts a remote Branch as defaultBranch', () => {
-    const branch: Branch = { type: 'remote', branch: 'main', remote: 'origin' };
+    const branch: Branch = {
+      type: 'remote',
+      branch: 'main',
+      remote: { name: 'origin', url: 'git@github.com:owner/repo.git' },
+    };
     expect(branch.type).toBe('remote');
-    expect(branch.remote).toBe('origin');
+    expect(branch.remote.name).toBe('origin');
   });
 });

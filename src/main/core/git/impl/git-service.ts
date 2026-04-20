@@ -830,13 +830,25 @@ export class GitService implements GitProvider {
     }
   }
 
-  async fetch(): Promise<Result<void, FetchError>> {
+  async fetch(remote?: string): Promise<Result<void, FetchError>> {
     try {
       const remotes = await this.exec('git', ['remote'], { cwd: this.path }).catch(() => ({
         stdout: '',
       }));
-      if (!remotes.stdout.trim()) return err({ type: 'no_remote' });
-      await this.exec('git', ['fetch'], { cwd: this.path });
+      const remoteNames = remotes.stdout
+        .split('\n')
+        .map((name) => name.trim())
+        .filter(Boolean);
+      if (remoteNames.length === 0) return err({ type: 'no_remote' });
+
+      const selectedRemote = remote?.trim();
+      if (selectedRemote && !remoteNames.includes(selectedRemote)) {
+        return err({ type: 'remote_not_found', message: `Remote "${selectedRemote}" not found` });
+      }
+
+      await this.exec('git', selectedRemote ? ['fetch', selectedRemote] : ['fetch'], {
+        cwd: this.path,
+      });
       return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
@@ -1122,11 +1134,14 @@ export class GitService implements GitProvider {
 
   async getCurrentBranch(): Promise<string | null> {
     try {
-      const { stdout } = await this.exec('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      const { stdout } = await this.exec('git', ['rev-parse', '--symbolic-full-name', 'HEAD'], {
         cwd: this.path,
       });
-      const branch = stdout.trim();
-      return branch === 'HEAD' || !branch ? null : branch;
+      const ref = stdout.trim();
+      if (ref === 'HEAD' || !ref) return null;
+      if (ref.startsWith('refs/heads/')) return ref.slice('refs/heads/'.length);
+      if (ref.startsWith('heads/')) return ref.slice('heads/'.length);
+      return ref;
     } catch {
       return null;
     }
@@ -1147,6 +1162,8 @@ export class GitService implements GitProvider {
   }
 
   async getBranches(): Promise<Branch[]> {
+    const remotes = await this.getRemotes();
+    const remoteByName = new Map(remotes.map((remote) => [remote.name, remote]));
     const { stdout } = await this.exec(
       'git',
       ['branch', '-a', '--format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(refname)'],
@@ -1165,15 +1182,23 @@ export class GitService implements GitProvider {
         const withoutPrefix = fullRef.slice('refs/remotes/'.length);
         if (withoutPrefix.includes('HEAD')) continue;
         const slashIdx = withoutPrefix.indexOf('/');
-        const remote = slashIdx === -1 ? withoutPrefix : withoutPrefix.slice(0, slashIdx);
+        const remoteName = slashIdx === -1 ? withoutPrefix : withoutPrefix.slice(0, slashIdx);
         const branchName = slashIdx === -1 ? '' : withoutPrefix.slice(slashIdx + 1);
-        const entry: RemoteBranch = { type: 'remote', branch: branchName, remote };
+        const entry: RemoteBranch = {
+          type: 'remote',
+          branch: branchName,
+          remote: remoteByName.get(remoteName) ?? { name: remoteName, url: '' },
+        };
         branches.push(entry);
       } else {
-        const entry: LocalBranch = { type: 'local', branch: refname };
+        const localBranchName = fullRef?.startsWith('refs/heads/')
+          ? fullRef.slice('refs/heads/'.length)
+          : refname;
+        const entry: LocalBranch = { type: 'local', branch: localBranchName };
         if (upstreamRef) {
           const slashIdx = upstreamRef.indexOf('/');
-          entry.remote = slashIdx === -1 ? upstreamRef : upstreamRef.slice(0, slashIdx);
+          const remoteName = slashIdx === -1 ? upstreamRef : upstreamRef.slice(0, slashIdx);
+          entry.remote = remoteByName.get(remoteName) ?? { name: remoteName, url: '' };
           if (track) {
             const ahead = Number.parseInt(/ahead (\d+)/.exec(track)?.[1] ?? '0', 10);
             const behind = Number.parseInt(/behind (\d+)/.exec(track)?.[1] ?? '0', 10);

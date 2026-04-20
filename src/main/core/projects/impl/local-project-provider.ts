@@ -25,13 +25,18 @@ import type { Workspace } from '@main/core/workspaces/workspace';
 import { WorkspaceLifecycleService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { log } from '@main/lib/logger';
-import type {
-  ProjectProvider,
-  ProjectRemoteState,
-  ProvisionTaskError,
-  TaskProvider,
-  TeardownTaskError,
+import {
+  type ProjectProvider,
+  type ProjectRemoteState,
+  type ProvisionTaskError,
+  type TaskProvider,
+  type TeardownTaskError,
 } from '../project-provider';
+import {
+  formatProvisionTaskError,
+  isProvisionTaskError,
+  mapWorktreeErrorToProvisionError,
+} from '../provision-task-error';
 import { LocalProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import { getEffectiveTaskSettings } from '../settings/task-settings';
@@ -42,6 +47,7 @@ const TASK_TIMEOUT_MS = 60_000;
 const TEARDOWN_SCRIPT_WAIT_MS = 10_000;
 
 function toProvisionError(e: unknown): ProvisionTaskError {
+  if (isProvisionTaskError(e)) return e;
   if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
@@ -314,7 +320,8 @@ export class LocalProjectProvider implements ProjectProvider {
     if (this.tasks.has(taskId)) return { status: 'ready' };
     if (this.provisioningTasks.has(taskId)) return { status: 'bootstrapping' };
     const bootstrapError = this.bootstrapErrors.get(taskId);
-    if (bootstrapError) return { status: 'error', message: bootstrapError.message };
+    if (bootstrapError)
+      return { status: 'error', message: formatProvisionTaskError(bootstrapError) };
     return { status: 'not-started' };
   }
 
@@ -444,38 +451,20 @@ export class LocalProjectProvider implements ProjectProvider {
       return existing;
     }
 
-    if (task.taskBranch === task.sourceBranch) {
+    if (task.taskBranch === task.sourceBranch.branch) {
       const result = await this.worktreeService.checkoutExistingBranch(task.taskBranch);
       if (!result.success) {
-        switch (result.error.type) {
-          case 'branch-not-found':
-            throw new Error(`Branch "${task.taskBranch}" was not found locally or on remote`);
-          case 'worktree-setup-failed': {
-            const causeMsg =
-              result.error.cause instanceof Error
-                ? result.error.cause.message
-                : String(result.error.cause);
-            throw new Error(
-              `Failed to set up worktree for branch "${task.taskBranch}": ${causeMsg}`
-            );
-          }
-          default:
-            throw new Error(`Failed to set up worktree for branch "${task.taskBranch}"`);
-        }
+        throw mapWorktreeErrorToProvisionError(task.taskBranch, result.error);
       }
       return result.data;
     }
 
-    const result = await this.worktreeService.serveWorktree(task.sourceBranch, task.taskBranch);
+    const result = await this.worktreeService.checkoutBranchWorktree(
+      task.sourceBranch,
+      task.taskBranch
+    );
     if (!result.success) {
-      switch (result.error.type) {
-        case 'reserve-failed':
-          throw new Error(`Could not prepare worktree for branch "${task.sourceBranch}"`);
-        case 'worktree-setup-failed':
-          throw new Error('Failed to set up worktree for task');
-        default:
-          throw new Error('Failed to set up worktree for task');
-      }
+      throw mapWorktreeErrorToProvisionError(task.taskBranch, result.error);
     }
     return result.data;
   }

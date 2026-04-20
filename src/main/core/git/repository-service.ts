@@ -121,6 +121,7 @@ export class GitRepositoryService {
   }
 
   async getBranches(): Promise<Branch[]> {
+    await this.fetch();
     return this.git.getBranches();
   }
 

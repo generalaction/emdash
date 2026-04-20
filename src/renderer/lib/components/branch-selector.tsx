@@ -55,9 +55,14 @@ export function BranchSelector({
       autoHighlight
       value={value ? { value: value, label: value.branch } : undefined}
       onValueChange={(v) => v !== null && onValueChange(v.value)}
-      isItemEqualToValue={(a, b) =>
-        a.value.type === b.value.type && a.value.branch === b.value.branch
-      }
+      isItemEqualToValue={(a, b) => {
+        if (a.value.type !== b.value.type) return false;
+        if (a.value.branch !== b.value.branch) return false;
+        if (a.value.type === 'remote' && b.value.type === 'remote') {
+          return a.value.remote.name === b.value.remote.name;
+        }
+        return true;
+      }}
     >
       {trigger ?? (
         <ComboboxTrigger className="border flex border-border h-9 hover:bg-muted/30 rounded-md px-2.5 py-1 text-left text-sm outline-none items-center justify-between">

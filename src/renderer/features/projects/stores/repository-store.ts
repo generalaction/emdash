@@ -138,7 +138,7 @@ export class RepositoryStore {
 
     if (isRemotePref) {
       const remote = this.remoteBranches.find(
-        (b) => b.branch === name && b.remote === this.configuredRemote
+        (b) => b.branch === name && b.remote.name === this.configuredRemote
       );
       if (remote) return remote;
     }
@@ -153,7 +153,7 @@ export class RepositoryStore {
 
   isBranchOnRemote(branchName: string): boolean {
     const remote = this.configuredRemote;
-    return this.remoteBranches.some((b) => b.branch === branchName && b.remote === remote);
+    return this.remoteBranches.some((b) => b.branch === branchName && b.remote.name === remote);
   }
 
   getBranchDivergence(branchName: string): { ahead: number; behind: number } | null {

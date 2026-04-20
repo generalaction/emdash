@@ -1,4 +1,5 @@
 import { CreateConversationParams } from '@shared/conversations';
+import type { Branch, CreateBranchError, FetchPrRefError, PushError } from '@shared/git';
 import { PullRequest } from './pull-requests';
 
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
@@ -22,7 +23,7 @@ export type Task = {
   projectId: string;
   name: string;
   status: TaskLifecycleStatus;
-  sourceBranch: string;
+  sourceBranch: Branch;
   taskBranch?: string;
   createdAt: string;
   updatedAt: string;
@@ -59,7 +60,7 @@ export type CreateTaskParams = {
   projectId: string;
   name: string;
   /** The branch to fork the new worktree from (not used for `from-pull-request` strategy) */
-  sourceBranch: { branch: string; remote?: string };
+  sourceBranch: Branch;
   /** Controls branch creation, worktree setup, and git fetch strategy */
   strategy: CreateTaskStrategy;
   /** The issue to link to the task */
@@ -71,13 +72,24 @@ export type CreateTaskParams = {
 
 export type CreateTaskError =
   | { type: 'project-not-found' }
-  | { type: 'branch-not-found'; branch: string }
-  | { type: 'branch-already-exists'; branch: string }
-  | { type: 'invalid-base-branch'; branch: string }
   | { type: 'initial-commit-required'; branch: string }
-  | { type: 'worktree-setup-failed'; message: string }
-  | { type: 'pr-fetch-failed'; message: string }
+  | { type: 'branch-create-failed'; branch: string; error: CreateBranchError }
+  | { type: 'pr-fetch-failed'; error: FetchPrRefError; remote: string }
+  | { type: 'branch-not-found'; branch: string }
+  | { type: 'worktree-setup-failed'; branch: string; message?: string }
   | { type: 'provision-failed'; message: string };
+
+export type CreateTaskWarning = {
+  type: 'branch-publish-failed';
+  branch: string;
+  remote: string;
+  error: PushError;
+};
+
+export type CreateTaskSuccess = {
+  task: Task;
+  warning?: CreateTaskWarning;
+};
 
 export type ProvisionTaskResult = {
   path: string;
