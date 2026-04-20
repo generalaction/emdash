@@ -143,23 +143,21 @@ export const APP_SHORTCUTS: Record<string, AppShortcut> = {
   },
 
   TOGGLE_THEME: {
-    key: 't',
-    modifier: 'cmd',
+    key: 'l',
+    modifier: 'cmd+shift',
     label: 'Toggle Theme',
     description: 'Cycle through light, dark navy, and dark black themes',
     category: 'View',
     settingsKey: 'toggleTheme',
-    defaultDisabled: true,
   },
 
   TOGGLE_KANBAN: {
-    key: 'p',
-    modifier: 'cmd',
+    key: 'k',
+    modifier: 'cmd+shift',
     label: 'Toggle Kanban',
     description: 'Show or hide the Kanban board',
     category: 'Navigation',
     settingsKey: 'toggleKanban',
-    defaultDisabled: true,
   },
 
   TOGGLE_EDITOR: {

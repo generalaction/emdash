@@ -205,6 +205,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     nextAgent: { key: ']', modifier: 'cmd+shift' },
     prevAgent: { key: '[', modifier: 'cmd+shift' },
     openInEditor: { key: 'o', modifier: 'cmd' },
+    toggleTheme: { key: 'l', modifier: 'cmd+shift' },
+    toggleKanban: { key: 'k', modifier: 'cmd+shift' },
     newChat: { key: 't', modifier: 'cmd' },
     closeChat: { key: 'w', modifier: 'cmd' },
     nextChat: { key: 'Tab', modifier: 'ctrl' },
@@ -548,21 +550,14 @@ export function normalizeSettings(input: AppSettings): AppSettings {
       DEFAULT_SETTINGS.keyboard!.commandPaletteAlt!
     ),
   };
-  // Preserve user-customized toggleTheme / toggleKanban bindings if present.
-  // These no longer have a default binding (moved to palette-only) but users
-  // who explicitly set them should keep their custom values.
-  if (keyboard.toggleTheme !== undefined && keyboard.toggleTheme !== null) {
-    out.keyboard.toggleTheme = normalizeBinding(keyboard.toggleTheme, {
-      key: 't',
-      modifier: 'cmd',
-    });
-  }
-  if (keyboard.toggleKanban !== undefined && keyboard.toggleKanban !== null) {
-    out.keyboard.toggleKanban = normalizeBinding(keyboard.toggleKanban, {
-      key: 'p',
-      modifier: 'cmd',
-    });
-  }
+  out.keyboard.toggleTheme = normalizeBinding(
+    keyboard.toggleTheme,
+    DEFAULT_SETTINGS.keyboard!.toggleTheme!
+  );
+  out.keyboard.toggleKanban = normalizeBinding(
+    keyboard.toggleKanban,
+    DEFAULT_SETTINGS.keyboard!.toggleKanban!
+  );
   const platformTaskDefaults = getPlatformTaskSwitchDefaults();
   const isLegacyArrowPair =
     isBinding(out.keyboard.nextProject!, 'cmd', 'ArrowRight') &&
