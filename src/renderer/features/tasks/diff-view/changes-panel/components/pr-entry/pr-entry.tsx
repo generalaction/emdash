@@ -1,6 +1,6 @@
 import { GitMerge, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
-import type { PullRequest } from '@shared/pull-requests';
+import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
@@ -48,7 +48,7 @@ function computeMergeUiState(pr: PullRequest): MergeUiState {
       canMerge: false,
     };
   }
-  switch (pr.metadata.mergeStateStatus) {
+  switch (pr.mergeableStatus) {
     case 'CLEAN':
       return { kind: 'ready', title: 'Ready to merge', canMerge: true };
     case 'DIRTY':
@@ -184,7 +184,7 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
   const doMerge = async (strategy: MergeMode) => {
     setIsMerging(true);
     try {
-      await prStore.mergePr(pr.id, { strategy, commitHeadOid: pr.metadata.headRefOid });
+      await prStore.mergePr(pr.url, { strategy, commitHeadOid: pr.headRefOid });
     } finally {
       setIsMerging(false);
     }
@@ -223,7 +223,7 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
           >
             <StatusIcon className="size-4" status={prStatus} />
             <span className="flex-1 min-w-0 truncate text-sm font-normal">{pr.title}</span>
-            <PrNumberBadge number={pr.metadata.number} />
+            <PrNumberBadge number={getPrNumber(pr) ?? 0} />
           </button>
         </div>
         <PrMergeLine pr={pr} />
@@ -260,9 +260,9 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
           uiState={uiState}
           mergeActions={mergeActions}
           isMerging={isMerging}
-          onRefresh={() => prStore.refresh(pr.id)}
+          onRefresh={() => prStore.refresh(pr.url)}
           onMarkReady={() => {
-            prStore.markReadyForReview(pr.id).catch(() => {});
+            prStore.markReadyForReview(pr.url).catch(() => {});
           }}
         />
       )}

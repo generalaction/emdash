@@ -1,9 +1,7 @@
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
-import type { PullRequest } from '@shared/pull-requests';
 import { Task } from '@shared/tasks';
 import { db } from '@main/db/client';
-import { conversations, pullRequests, tasks, tasksPullRequests } from '@main/db/schema';
-import { prRowToPullRequest } from '../pull-requests/pr-utils';
+import { conversations, tasks } from '@main/db/schema';
 import { mapTaskRowToTask } from './core';
 
 export async function getTasks(projectId?: string): Promise<Task[]> {
@@ -19,12 +17,6 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
 
   const taskIds = rows.map((r) => r.id);
 
-  const prRows = await db
-    .select({ taskId: tasksPullRequests.taskId, pr: pullRequests })
-    .from(tasksPullRequests)
-    .innerJoin(pullRequests, eq(pullRequests.url, tasksPullRequests.pullRequestUrl))
-    .where(inArray(tasksPullRequests.taskId, taskIds));
-
   const convRows = await db
     .select({
       taskId: conversations.taskId,
@@ -35,13 +27,6 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
     .where(inArray(conversations.taskId, taskIds))
     .groupBy(conversations.taskId, conversations.provider);
 
-  const prsByTask = new Map<string, PullRequest[]>();
-  for (const { taskId, pr } of prRows) {
-    const list = prsByTask.get(taskId) ?? [];
-    list.push(prRowToPullRequest(pr));
-    prsByTask.set(taskId, list);
-  }
-
   const convByTask = new Map<string, Record<string, number>>();
   for (const { taskId, provider, count: c } of convRows) {
     const rec = convByTask.get(taskId) ?? {};
@@ -51,7 +36,7 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
 
   return rows.map((row) => ({
     ...mapTaskRowToTask(row),
-    prs: prsByTask.get(row.id) ?? [],
+    prs: [],
     conversations: convByTask.get(row.id) ?? {},
   }));
 }

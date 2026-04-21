@@ -1,51 +1,80 @@
+import { randomUUID } from 'node:crypto';
 import type { Octokit } from '@octokit/rest';
-import { and, asc, desc, eq, inArray, isNotNull, like, or, sql } from 'drizzle-orm';
-import type {
-  CheckRunBucket,
-  GitHubReviewer,
-  ListPrOptions,
-  PrCheckRun,
-  PrCommentsResult,
-  PrFilterOptions,
-  PrFilters,
-  PrSortField,
-  PullRequest,
-  PullRequestFile,
-  PullRequestStatus,
-  User,
-} from '@shared/pull-requests';
-import { err, ok } from '@shared/result';
+import { and, eq } from 'drizzle-orm';
+import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
+import type { PrSyncProgress, PullRequest, PullRequestStatus } from '@shared/pull-requests';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
 import {
-  GET_PR_CHECK_RUNS_QUERY,
-  GET_PR_DETAIL_QUERY,
-  LIST_PRS_QUERY,
-  SEARCH_PRS_QUERY,
+  GET_PR_BY_NUMBER_QUERY,
+  GET_PR_CHECK_RUNS_BY_URL_QUERY,
+  INCREMENTAL_SYNC_PRS_QUERY,
   SYNC_PRS_QUERY,
 } from '@main/core/github/services/pr-queries';
-import { parseNameWithOwner, splitRepo } from '@main/core/github/services/utils';
-import { projectManager } from '@main/core/projects/project-manager';
-import { resolveTask } from '@main/core/projects/utils';
+import {
+  isGitHubUrl,
+  normalizeGitHubUrl,
+  splitNormalizedUrl,
+} from '@main/core/github/services/utils';
 import { db } from '@main/db/client';
 import { KV } from '@main/db/kv';
 import {
-  projectPullRequests,
   pullRequestAssignees,
+  pullRequestChecks,
   pullRequestLabels,
   pullRequests,
+  pullRequestUsers,
 } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { prRowToPullRequest } from './pr-utils';
+import { githubRateLimiter } from '@main/lib/rate-limiter';
+import { withRetry } from '@main/lib/retry';
+import { assemblePullRequest } from './pr-utils';
 
-const PR_SYNC_MAX_AGE_MONTHS = 4;
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
-export type TaskPrsPayload = {
-  prs: PullRequest[];
-  nameWithOwner: string | null;
-  taskBranch: string | null;
+const PR_SYNC_MAX_AGE_MONTHS = 3;
+
+// ---------------------------------------------------------------------------
+// KV cursor types
+// ---------------------------------------------------------------------------
+
+type FullSyncCursor = {
+  /** The `updatedAt` of the last PR we have seen (pagination cursor). */
+  lastUpdatedAt: string;
+  /** Fixed at sync-start; we stop when we reach this age boundary. */
+  updatedAtCutoff: string;
+  /** true once we have reached either the cutoff or the beginning of history. */
+  done: boolean;
+  /** GraphQL page cursor from the last completed page. */
+  pageCursor?: string;
 };
 
-type PrKvSchema = Record<string, string>;
+type IncrementalSyncCursor = {
+  /** We only fetch PRs updated after this timestamp on each incremental sync. */
+  lastUpdatedAt: string;
+  /** GraphQL page cursor for resuming mid-page. */
+  pageCursor?: string;
+  done: boolean;
+};
+
+type PrKvSchema = {
+  [key: string]: FullSyncCursor | IncrementalSyncCursor | string;
+};
+
+// ---------------------------------------------------------------------------
+// GQL node shapes
+// ---------------------------------------------------------------------------
+
+interface GqlUser {
+  databaseId: number;
+  login: string;
+  avatarUrl: string;
+  createdAt?: string;
+  updatedAt?: string;
+  url?: string;
+}
 
 interface GqlPrNode {
   number: number;
@@ -58,19 +87,20 @@ interface GqlPrNode {
   headRefName: string;
   headRefOid: string;
   baseRefName: string;
+  baseRefOid: string;
+  commitCount?: { totalCount: number };
   body: string | null;
   additions: number;
   deletions: number;
   changedFiles: number;
   mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
-  mergeStateStatus: 'CLEAN' | 'DIRTY' | 'BEHIND' | 'BLOCKED' | 'HAS_HOOKS' | 'UNSTABLE' | 'UNKNOWN';
-  author: { login: string; avatarUrl: string } | null;
+  mergeStateStatus: string;
+  author: GqlUser | null;
   headRepository: { nameWithOwner: string; url: string; owner: { login: string } } | null;
+  baseRepository: { url: string } | null;
   labels: { nodes: Array<{ name: string; color: string }> };
-  assignees: { nodes: Array<{ login: string; avatarUrl: string }> };
-  reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
-  latestReviews: { nodes: Array<{ author: { login: string } | null; state: string }> };
-  reviewRequests: { nodes: Array<{ requestedReviewer: { login?: string; name?: string } | null }> };
+  assignees: { nodes: GqlUser[] };
+  reviewDecision: string | null;
 }
 
 interface GqlCheckRunNode {
@@ -95,274 +125,577 @@ interface GqlStatusContextNode {
   createdAt: string;
 }
 
-interface GqlCheckRunsResponse {
-  repository: {
-    pullRequest: {
-      commits: {
-        nodes: Array<{
-          commit: {
-            statusCheckRollup: {
-              contexts: {
-                pageInfo: { hasNextPage: boolean; endCursor: string | null };
-                nodes: Array<GqlCheckRunNode | GqlStatusContextNode>;
-              };
-            } | null;
-          };
-        }>;
-      };
-    } | null;
-  };
-}
-
-function mapCheckRunBucket(status: string, conclusion: string | null): CheckRunBucket {
-  if (
-    status === 'IN_PROGRESS' ||
-    status === 'QUEUED' ||
-    status === 'WAITING' ||
-    status === 'PENDING'
-  )
-    return 'pending';
-  if (!conclusion) return 'pending';
-  switch (conclusion) {
-    case 'SUCCESS':
-      return 'pass';
-    case 'NEUTRAL':
-    case 'SKIPPED':
-    case 'STALE':
-      return 'skipping';
-    case 'FAILURE':
-    case 'TIMED_OUT':
-    case 'ACTION_REQUIRED':
-    case 'STARTUP_FAILURE':
-      return 'fail';
-    case 'CANCELLED':
-      return 'cancel';
-    default:
-      return 'fail';
-  }
-}
-
-function mapStatusContextBucket(state: string): CheckRunBucket {
-  switch (state) {
-    case 'SUCCESS':
-      return 'pass';
-    case 'FAILURE':
-    case 'ERROR':
-      return 'fail';
-    default:
-      return 'pending';
-  }
-}
-
 // ---------------------------------------------------------------------------
-// PrService
+// PrSyncEngine
 // ---------------------------------------------------------------------------
 
-export type PrUpsertedHook = (pr: PullRequest, projectId: string) => Promise<void> | void;
-
-export class PrService {
+export class PrSyncEngine {
   private readonly kv = new KV<PrKvSchema>('pr');
-  private readonly syncInFlight = new Map<string, Promise<void>>();
-  private readonly syncDone = new Set<string>();
-  private readonly upsertHooks: PrUpsertedHook[] = [];
 
   constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
-  registerUpsertHook(hook: PrUpsertedHook): void {
-    this.upsertHooks.push(hook);
-  }
+  // ── Full sync ──────────────────────────────────────────────────────────────
 
-  // ── DB-cached reads ──────────────────────────────────────────────────────
+  /**
+   * Paginate through all PRs for a repository ordered by updatedAt DESC.
+   * Saves a cursor after each page so it can be resumed on restart.
+   * Sets `done: true` once the cutoff is reached or history is exhausted.
+   */
+  async runFullSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
+    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
+    const octokit = await this.getOctokit();
 
-  async listPullRequests(
-    projectId: string,
-    nameWithOwner: string,
-    options: ListPrOptions = {},
-    invalidate = false
-  ): Promise<{ prs: PullRequest[]; syncing: boolean }> {
-    if (invalidate) {
-      const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
-      const searchQuery = options.searchQuery?.trim();
-      const octokit = await this.getOctokit();
-      const { owner, repo } = splitRepo(nameWithOwner);
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - PR_SYNC_MAX_AGE_MONTHS);
+    const updatedAtCutoff = cutoff.toISOString();
 
-      let fresh: PullRequest[];
-      if (searchQuery) {
-        const response = await octokit.graphql<{
-          search: { nodes: GqlPrNode[] };
-        }>(SEARCH_PRS_QUERY, {
-          searchQuery: `${searchQuery} repo:${owner}/${repo} is:pr is:open`,
-          limit,
-        });
-        fresh = response.search.nodes.map((n) => this.gqlToUnified(n, nameWithOwner));
-      } else {
-        const response = await octokit.graphql<{
-          repository: { pullRequests: { nodes: GqlPrNode[] } };
-        }>(LIST_PRS_QUERY, { owner, repo, limit });
-        fresh = response.repository.pullRequests.nodes.map((n) =>
-          this.gqlToUnified(n, nameWithOwner)
-        );
+    // Resume from an existing cursor if available
+    const existing = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
+    let pageCursor: string | undefined = existing?.done ? undefined : existing?.pageCursor;
+    const resuming = !!existing && !existing.done;
+
+    // If resuming, use the same cutoff; otherwise start fresh
+    const effectiveCutoff = resuming
+      ? (existing?.updatedAtCutoff ?? updatedAtCutoff)
+      : updatedAtCutoff;
+
+    let synced = 0;
+
+    for (;;) {
+      if (signal.aborted) return;
+
+      const response = await withRetry(() =>
+        githubRateLimiter.acquire().then(() =>
+          octokit.graphql<{
+            repository: {
+              pullRequests: {
+                totalCount: number;
+                pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                nodes: GqlPrNode[];
+              };
+            };
+          }>(SYNC_PRS_QUERY, { owner, repo, cursor: pageCursor ?? null })
+        )
+      );
+
+      const { nodes, pageInfo, totalCount } = response.repository.pullRequests;
+      let reachedBoundary = false;
+      const batch: GqlPrNode[] = [];
+
+      for (const node of nodes) {
+        if (node.updatedAt < effectiveCutoff) {
+          reachedBoundary = true;
+          break;
+        }
+        batch.push(node);
       }
 
-      return { prs: await this.upsertMany(projectId, fresh), syncing: false };
+      if (batch.length > 0) {
+        await this._upsertBatch(repositoryUrl, batch);
+        synced += batch.length;
+      }
+
+      const lastUpdatedAt =
+        batch[batch.length - 1]?.updatedAt ?? existing?.lastUpdatedAt ?? new Date().toISOString();
+      const done = reachedBoundary || !pageInfo.hasNextPage;
+
+      await this.kv.set(`fullsync:${repositoryUrl}`, {
+        lastUpdatedAt,
+        updatedAtCutoff: effectiveCutoff,
+        done,
+        pageCursor: done ? undefined : (pageInfo.endCursor ?? undefined),
+      } as FullSyncCursor);
+
+      this._emitProgress({
+        remoteUrl: repositoryUrl,
+        kind: 'full',
+        status: 'running',
+        synced,
+        total: totalCount,
+      });
+
+      if (done) break;
+      pageCursor = pageInfo.endCursor ?? undefined;
     }
 
-    const key = `${projectId}:${nameWithOwner}`;
-    if (!this.syncDone.has(key)) {
-      this.deduplicatedSync(projectId, nameWithOwner).catch((e) =>
-        log.error('Background PR sync failed:', e)
+    this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'done', synced });
+  }
+
+  // ── Incremental sync ───────────────────────────────────────────────────────
+
+  /**
+   * Fetch only open PRs updated since the last incremental-sync cursor.
+   * Guard: skips if the full sync for this repository has not completed.
+   * Resumable: saves a page cursor so it can continue where it left off.
+   */
+  async runIncrementalSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
+    const fullCursor = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
+    if (!fullCursor?.done) {
+      log.debug('PrSyncEngine: skipping incremental sync — full sync not done', { repositoryUrl });
+      return;
+    }
+
+    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
+    const octokit = await this.getOctokit();
+
+    const incrementalCursor = (await this.kv.get(
+      `incrementalsync:${repositoryUrl}`
+    )) as IncrementalSyncCursor | null;
+    const sinceUpdatedAt = incrementalCursor?.lastUpdatedAt ?? fullCursor.lastUpdatedAt;
+
+    let pageCursor: string | undefined = incrementalCursor?.done
+      ? undefined
+      : incrementalCursor?.pageCursor;
+    let synced = 0;
+    let lastUpdatedAt = sinceUpdatedAt;
+
+    for (;;) {
+      if (signal.aborted) return;
+
+      const response = await withRetry(() =>
+        githubRateLimiter.acquire().then(() =>
+          octokit.graphql<{
+            repository: {
+              pullRequests: {
+                pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                nodes: GqlPrNode[];
+              };
+            };
+          }>(INCREMENTAL_SYNC_PRS_QUERY, { owner, repo, cursor: pageCursor ?? null })
+        )
+      );
+
+      const { nodes, pageInfo } = response.repository.pullRequests;
+      let reachedBoundary = false;
+      const batch: GqlPrNode[] = [];
+
+      for (const node of nodes) {
+        if (node.updatedAt <= sinceUpdatedAt) {
+          reachedBoundary = true;
+          break;
+        }
+        batch.push(node);
+      }
+
+      if (batch.length > 0) {
+        await this._upsertBatch(repositoryUrl, batch);
+        synced += batch.length;
+        lastUpdatedAt = batch[0].updatedAt; // most recent first
+      }
+
+      const done = reachedBoundary || !pageInfo.hasNextPage;
+
+      await this.kv.set(`incrementalsync:${repositoryUrl}`, {
+        lastUpdatedAt,
+        pageCursor: done ? undefined : (pageInfo.endCursor ?? undefined),
+        done,
+      } as IncrementalSyncCursor);
+
+      this._emitProgress({
+        remoteUrl: repositoryUrl,
+        kind: 'incremental',
+        status: 'running',
+        synced,
+      });
+
+      if (done) break;
+      pageCursor = pageInfo.endCursor ?? undefined;
+    }
+
+    this._emitProgress({ remoteUrl: repositoryUrl, kind: 'incremental', status: 'done', synced });
+  }
+
+  // ── Single PR sync ─────────────────────────────────────────────────────────
+
+  async syncSingle(
+    repositoryUrl: string,
+    prNumber: number,
+    signal: AbortSignal
+  ): Promise<PullRequest | null> {
+    if (signal.aborted) return null;
+
+    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
+    const octokit = await this.getOctokit();
+
+    const response = await withRetry(() =>
+      githubRateLimiter.acquire().then(() =>
+        octokit.graphql<{
+          repository: { pullRequest: GqlPrNode | null };
+        }>(GET_PR_BY_NUMBER_QUERY, { owner, repo, number: prNumber })
+      )
+    );
+
+    const node = response.repository.pullRequest;
+    if (!node) return null;
+
+    const [pr] = await this._upsertBatch(repositoryUrl, [node]);
+    if (pr) {
+      this._notifyPrUpdated(pr);
+    }
+
+    this._emitProgress({ remoteUrl: repositoryUrl, kind: 'single', status: 'done', synced: 1 });
+    return pr ?? null;
+  }
+
+  // ── Check runs sync ────────────────────────────────────────────────────────
+
+  /**
+   * Fetch and store check runs for a PR.
+   * If `headRefOid` differs from what is stored, old checks are deleted first.
+   * Returns true if any check is still running (caller should re-invoke soon).
+   */
+  async syncChecks(
+    pullRequestUrl: string,
+    headRefOid: string,
+    signal: AbortSignal
+  ): Promise<boolean> {
+    if (signal.aborted) return false;
+
+    // Detect stale checks: delete if commitSha changed
+    const existing = await db
+      .select({ commitSha: pullRequestChecks.commitSha })
+      .from(pullRequestChecks)
+      .where(eq(pullRequestChecks.pullRequestUrl, pullRequestUrl))
+      .limit(1);
+
+    if (existing.length > 0 && existing[0].commitSha !== headRefOid) {
+      await db
+        .delete(pullRequestChecks)
+        .where(eq(pullRequestChecks.pullRequestUrl, pullRequestUrl));
+    }
+
+    // Fetch fresh check runs from GitHub
+    const pr = await db
+      .select({ identifier: pullRequests.identifier, repositoryUrl: pullRequests.repositoryUrl })
+      .from(pullRequests)
+      .where(eq(pullRequests.url, pullRequestUrl))
+      .limit(1);
+
+    if (!pr[0]) return false;
+
+    const prNumber = pr[0].identifier ? parseInt(pr[0].identifier.replace('#', ''), 10) : NaN;
+    if (isNaN(prNumber)) return false;
+
+    if (!isGitHubUrl(pr[0].repositoryUrl)) return false;
+    const { owner, repo } = splitNormalizedUrl(normalizeGitHubUrl(pr[0].repositoryUrl));
+    const octokit = await this.getOctokit();
+
+    type CheckNode = GqlCheckRunNode | GqlStatusContextNode;
+    const allNodes: CheckNode[] = [];
+    let cursor: string | undefined;
+
+    for (;;) {
+      if (signal.aborted) return false;
+
+      const response: {
+        repository: {
+          pullRequest: {
+            commits: {
+              nodes: Array<{
+                commit: {
+                  oid: string;
+                  statusCheckRollup: {
+                    contexts: {
+                      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                      nodes: CheckNode[];
+                    };
+                  } | null;
+                };
+              }>;
+            };
+          } | null;
+        };
+      } = await withRetry(() =>
+        githubRateLimiter.acquire().then(() =>
+          octokit.graphql(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
+            owner,
+            repo,
+            number: prNumber,
+            cursor: cursor ?? null,
+          })
+        )
+      );
+
+      const contexts =
+        response.repository.pullRequest?.commits.nodes[0]?.commit?.statusCheckRollup?.contexts;
+      if (!contexts) break;
+
+      allNodes.push(...contexts.nodes);
+      if (!contexts.pageInfo.hasNextPage) break;
+      cursor = contexts.pageInfo.endCursor ?? undefined;
+    }
+
+    // Delete and re-insert
+    await db.delete(pullRequestChecks).where(eq(pullRequestChecks.pullRequestUrl, pullRequestUrl));
+
+    if (allNodes.length > 0) {
+      await db.insert(pullRequestChecks).values(
+        allNodes.map((node) => {
+          if (node.__typename === 'CheckRun') {
+            return {
+              id: randomUUID(),
+              pullRequestUrl,
+              commitSha: headRefOid,
+              name: node.name,
+              status: node.status,
+              conclusion: node.conclusion ?? 'NEUTRAL',
+              detailsUrl: node.detailsUrl ?? null,
+              startedAt: node.startedAt ?? null,
+              completedAt: node.completedAt ?? null,
+              workflowName: node.checkSuite?.workflowRun?.workflow?.name ?? null,
+              appName: node.checkSuite?.app?.name ?? null,
+              appLogoUrl: node.checkSuite?.app?.logoUrl ?? null,
+            };
+          }
+          // StatusContext
+          return {
+            id: randomUUID(),
+            pullRequestUrl,
+            commitSha: headRefOid,
+            name: node.context,
+            status: node.state === 'PENDING' ? 'IN_PROGRESS' : 'COMPLETED',
+            conclusion:
+              node.state === 'SUCCESS'
+                ? 'SUCCESS'
+                : node.state === 'FAILURE' || node.state === 'ERROR'
+                  ? 'FAILURE'
+                  : 'NEUTRAL',
+            detailsUrl: node.targetUrl ?? null,
+            startedAt: node.createdAt,
+            completedAt: node.state !== 'PENDING' ? node.createdAt : null,
+            workflowName: null,
+            appName: null,
+            appLogoUrl: null,
+          };
+        })
       );
     }
 
-    const prs = await this.fromDb(
-      nameWithOwner,
-      options.filters,
-      { limit: options.limit ?? 50, offset: options.offset ?? 0 },
-      options.sort,
-      options.searchQuery
-    );
-    const syncing = this.syncInFlight.has(`${projectId}:${nameWithOwner}`);
-    return { prs, syncing };
-  }
-
-  async getPullRequest(
-    nameWithOwner: string,
-    prNumber: number,
-    invalidate = false
-  ): Promise<PullRequest | null> {
-    if (invalidate) {
-      const { owner, repo } = splitRepo(nameWithOwner);
-      const octokit = await this.getOctokit();
-      const response = await octokit.graphql<{
-        repository: { pullRequest: GqlPrNode | null };
-      }>(GET_PR_DETAIL_QUERY, { owner, repo, number: prNumber });
-      const node = response.repository.pullRequest;
-      if (!node) return null;
-      return this.upsertSingle(this.gqlToUnified(node, nameWithOwner));
-    }
-
-    const rows = await db
-      .select()
-      .from(pullRequests)
-      .where(eq(pullRequests.nameWithOwner, nameWithOwner))
-      .limit(1);
-
-    for (const row of rows) {
-      const pr = this.dbRowToUnified(row);
-      if (pr.metadata.number === prNumber) return pr;
-    }
-    return null;
-  }
-
-  async getPullRequestsForTask(
-    projectId: string,
-    taskId: string,
-    invalidate = false
-  ): Promise<
-    | { success: true; data: TaskPrsPayload }
-    | { success: false; error: { type: 'not_found' } | string }
-  > {
-    try {
-      const project = projectManager.getProject(projectId);
-      const env = resolveTask(projectId, taskId);
-      if (!project || !env) return err({ type: 'not_found' as const });
-      if (!env.taskBranch) {
-        return ok<TaskPrsPayload>({ prs: [], nameWithOwner: null, taskBranch: null });
-      }
-
-      const taskBranch = env.taskBranch;
-      const [remoteName, remotes] = await Promise.all([
-        project.repository.getConfiguredRemote(),
-        project.repository.getRemotes(),
-      ]);
-      const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
-      const nameWithOwner = remoteUrl ? parseNameWithOwner(remoteUrl) : null;
-
-      if (!nameWithOwner) {
-        return ok<TaskPrsPayload>({ prs: [], nameWithOwner: null, taskBranch });
-      }
-
-      if (invalidate) {
-        const octokit = await this.getOctokit();
-        const response = await octokit.graphql<{ search: { nodes: GqlPrNode[] } }>(
-          SEARCH_PRS_QUERY,
-          { searchQuery: `repo:${nameWithOwner} is:pr head:${taskBranch}`, limit: 25 }
+    // Return true if any check is still in-progress
+    const hasRunning = allNodes.some((n) => {
+      if (n.__typename === 'CheckRun') {
+        return (
+          n.status === 'IN_PROGRESS' ||
+          n.status === 'QUEUED' ||
+          n.status === 'WAITING' ||
+          n.status === 'PENDING'
         );
-        const fresh = response.search.nodes.map((n) => this.gqlToUnified(n, nameWithOwner));
-        const prs = await this.upsertMany(projectId, fresh);
-        return ok<TaskPrsPayload>({ prs, nameWithOwner, taskBranch });
       }
+      return n.state === 'PENDING';
+    });
 
-      const prs = await this.fromDb(nameWithOwner);
-      const taskPrs = prs.filter((pr) => pr.metadata.headRefName === taskBranch);
-      return ok<TaskPrsPayload>({ prs: taskPrs, nameWithOwner, taskBranch });
-    } catch (error) {
-      log.error('Failed to get pull requests for task:', error);
-      const env2 = resolveTask(projectId, taskId);
-      return ok<TaskPrsPayload>({
-        prs: [],
-        nameWithOwner: null,
-        taskBranch: env2?.taskBranch ?? null,
+    return hasRunning;
+  }
+
+  // ── Users sync ─────────────────────────────────────────────────────────────
+
+  /** Sync users referenced by PRs in this repository. Runs at most once per day. */
+  async syncUsers(repositoryUrl: string): Promise<void> {
+    const tsKey = `users-synced-at:${repositoryUrl}`;
+    const lastSync = (await this.kv.get(tsKey)) as string | null;
+    if (lastSync) {
+      const age = Date.now() - new Date(lastSync).getTime();
+      if (age < 24 * 60 * 60 * 1000) return;
+    }
+    await this.kv.set(tsKey, new Date().toISOString());
+    // Users are upserted inline during _upsertBatch, so this is a no-op for now.
+    // Reserved for future use (e.g. refreshing user profile pics in bulk).
+  }
+
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  private async _upsertBatch(repositoryUrl: string, nodes: GqlPrNode[]): Promise<PullRequest[]> {
+    const results: PullRequest[] = [];
+
+    for (const node of nodes) {
+      const pr = await this._upsertOne(repositoryUrl, node);
+      if (pr) results.push(pr);
+    }
+
+    return results;
+  }
+
+  private async _upsertOne(repositoryUrl: string, node: GqlPrNode): Promise<PullRequest | null> {
+    const status: PullRequestStatus =
+      node.state === 'MERGED' ? 'merged' : node.state === 'CLOSED' ? 'closed' : 'open';
+
+    // Normalise URLs
+    const headRepositoryUrl = node.headRepository?.url
+      ? normalizeGitHubUrl(node.headRepository.url)
+      : repositoryUrl;
+
+    const baseRepositoryUrl = node.baseRepository?.url
+      ? normalizeGitHubUrl(node.baseRepository.url)
+      : repositoryUrl;
+
+    // Upsert author
+    let authorUserId: string | null = null;
+    if (node.author) {
+      authorUserId = String(node.author.databaseId);
+      await db
+        .insert(pullRequestUsers)
+        .values({
+          userId: authorUserId,
+          userName: node.author.login,
+          displayName: node.author.login,
+          avatarUrl: node.author.avatarUrl || null,
+          url: node.author.url ?? null,
+          userCreatedAt: node.author.createdAt ?? null,
+          userUpdatedAt: node.author.updatedAt ?? null,
+        })
+        .onConflictDoUpdate({
+          target: pullRequestUsers.userId,
+          set: {
+            userName: node.author.login,
+            displayName: node.author.login,
+            avatarUrl: node.author.avatarUrl || null,
+          },
+        });
+    }
+
+    // Upsert PR row
+    const [prRow] = await db
+      .insert(pullRequests)
+      .values({
+        url: node.url,
+        provider: 'github',
+        repositoryUrl: baseRepositoryUrl,
+        baseRefName: node.baseRefName,
+        baseRefOid: node.baseRefOid,
+        headRepositoryUrl,
+        headRefName: node.headRefName,
+        headRefOid: node.headRefOid,
+        identifier: `#${node.number}`,
+        title: node.title,
+        description: node.body ?? null,
+        status,
+        isDraft: node.isDraft ? 1 : 0,
+        authorUserId,
+        additions: node.additions,
+        deletions: node.deletions,
+        changedFiles: node.changedFiles,
+        commitCount: node.commitCount?.totalCount ?? null,
+        mergeableStatus: node.mergeable,
+        reviewDecision: node.reviewDecision ?? null,
+        pullRequestCreatedAt: node.createdAt,
+        pullRequestUpdatedAt: node.updatedAt,
+      })
+      .onConflictDoUpdate({
+        target: pullRequests.url,
+        set: {
+          baseRefName: node.baseRefName,
+          baseRefOid: node.baseRefOid,
+          headRepositoryUrl,
+          headRefName: node.headRefName,
+          headRefOid: node.headRefOid,
+          title: node.title,
+          description: node.body ?? null,
+          status,
+          isDraft: node.isDraft ? 1 : 0,
+          authorUserId,
+          additions: node.additions,
+          deletions: node.deletions,
+          changedFiles: node.changedFiles,
+          commitCount: node.commitCount?.totalCount ?? null,
+          mergeableStatus: node.mergeable,
+          reviewDecision: node.reviewDecision ?? null,
+          pullRequestUpdatedAt: node.updatedAt,
+        },
+      })
+      .returning();
+
+    if (!prRow) return null;
+
+    // Sync labels
+    await db.delete(pullRequestLabels).where(eq(pullRequestLabels.pullRequestId, node.url));
+    if (node.labels.nodes.length > 0) {
+      await db.insert(pullRequestLabels).values(
+        node.labels.nodes.map((l) => ({
+          pullRequestId: node.url,
+          name: l.name,
+          color: l.color ?? null,
+        }))
+      );
+    }
+
+    // Upsert assignee users and links
+    await db.delete(pullRequestAssignees).where(eq(pullRequestAssignees.pullRequestUrl, node.url));
+    const assigneeRows: (typeof pullRequestUsers.$inferSelect)[] = [];
+    for (const a of node.assignees.nodes) {
+      const uid = String(a.databaseId);
+      await db
+        .insert(pullRequestUsers)
+        .values({
+          userId: uid,
+          userName: a.login,
+          displayName: a.login,
+          avatarUrl: a.avatarUrl || null,
+          url: a.url ?? null,
+          userCreatedAt: a.createdAt ?? null,
+          userUpdatedAt: a.updatedAt ?? null,
+        })
+        .onConflictDoUpdate({
+          target: pullRequestUsers.userId,
+          set: { userName: a.login, displayName: a.login, avatarUrl: a.avatarUrl || null },
+        });
+
+      await db
+        .insert(pullRequestAssignees)
+        .values({ pullRequestUrl: node.url, userId: uid })
+        .onConflictDoNothing();
+
+      assigneeRows.push({
+        userId: uid,
+        userName: a.login,
+        displayName: a.login,
+        avatarUrl: a.avatarUrl || null,
+        url: a.url ?? null,
+        userCreatedAt: a.createdAt ?? null,
+        userUpdatedAt: a.updatedAt ?? null,
       });
     }
+
+    const authorRow = node.author
+      ? {
+          userId: String(node.author.databaseId),
+          userName: node.author.login,
+          displayName: node.author.login,
+          avatarUrl: node.author.avatarUrl || null,
+          url: node.author.url ?? null,
+          userCreatedAt: node.author.createdAt ?? null,
+          userUpdatedAt: node.author.updatedAt ?? null,
+        }
+      : null;
+
+    const labelRows = node.labels.nodes.map((l) => ({
+      pullRequestId: node.url,
+      name: l.name,
+      color: l.color ?? null,
+    }));
+
+    return assemblePullRequest(prRow, authorRow, labelRows, assigneeRows);
   }
 
-  async getFilterOptions(nameWithOwner: string): Promise<PrFilterOptions> {
-    const [authorRows, labelRows, assigneeRows] = await Promise.all([
-      db
-        .selectDistinct({
-          authorLogin: pullRequests.authorLogin,
-          authorDisplayName: pullRequests.authorDisplayName,
-          authorAvatarUrl: pullRequests.authorAvatarUrl,
-        })
-        .from(pullRequests)
-        .where(
-          and(eq(pullRequests.nameWithOwner, nameWithOwner), isNotNull(pullRequests.authorLogin))
-        ),
-      db
-        .selectDistinct({ name: pullRequestLabels.name, color: pullRequestLabels.color })
-        .from(pullRequestLabels)
-        .innerJoin(pullRequests, eq(pullRequests.id, pullRequestLabels.pullRequestId))
-        .where(eq(pullRequests.nameWithOwner, nameWithOwner)),
-      db
-        .selectDistinct({
-          login: pullRequestAssignees.login,
-          avatarUrl: pullRequestAssignees.avatarUrl,
-        })
-        .from(pullRequestAssignees)
-        .innerJoin(pullRequests, eq(pullRequests.id, pullRequestAssignees.pullRequestId))
-        .where(eq(pullRequests.nameWithOwner, nameWithOwner)),
-    ]);
-
-    return {
-      authors: authorRows
-        .filter((r) => r.authorLogin != null)
-        .map((r) => ({
-          userName: r.authorLogin!,
-          displayName: r.authorDisplayName ?? r.authorLogin!,
-          avatarUrl: r.authorAvatarUrl ?? undefined,
-        })),
-      labels: labelRows.map((r) => ({ name: r.name, color: r.color ?? undefined })),
-      assignees: assigneeRows.map((r) => ({
-        userName: r.login,
-        displayName: r.login,
-        avatarUrl: r.avatarUrl ?? undefined,
-      })),
-    };
+  private _notifyPrUpdated(pr: PullRequest): void {
+    events.emit(prUpdatedChannel, { prs: [pr] });
   }
 
-  // ── Mutations (always refresh cache after write) ─────────────────────────
+  private _emitProgress(progress: PrSyncProgress): void {
+    events.emit(prSyncProgressChannel, progress);
+  }
+
+  // ── Mutation helpers (for controller use) ──────────────────────────────────
 
   async createPullRequest(params: {
-    nameWithOwner: string;
+    repositoryUrl: string;
     head: string;
     base: string;
     title: string;
     body?: string;
     draft: boolean;
   }): Promise<{ url: string; number: number }> {
+    const { owner, repo } = splitNormalizedUrl(params.repositoryUrl);
     const octokit = await this.getOctokit();
-    const { owner, repo } = splitRepo(params.nameWithOwner);
     const response = await octokit.rest.pulls.create({
       owner,
       repo,
@@ -373,17 +706,16 @@ export class PrService {
       draft: params.draft,
     });
     const { html_url: url, number } = response.data;
-    await this.getPullRequest(params.nameWithOwner, number, true);
     return { url, number };
   }
 
   async mergePullRequest(
-    nameWithOwner: string,
+    repositoryUrl: string,
     prNumber: number,
     options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string }
   ): Promise<{ sha: string | null; merged: boolean }> {
+    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
     const octokit = await this.getOctokit();
-    const { owner, repo } = splitRepo(nameWithOwner);
     const response = await octokit.rest.pulls.merge({
       owner,
       repo,
@@ -391,13 +723,12 @@ export class PrService {
       merge_method: options.strategy,
       sha: options.commitHeadOid,
     });
-    await this.getPullRequest(nameWithOwner, prNumber, true);
     return { sha: response.data.sha ?? null, merged: response.data.merged };
   }
 
-  async markReadyForReview(nameWithOwner: string, prNumber: number): Promise<void> {
+  async markReadyForReview(repositoryUrl: string, prNumber: number): Promise<void> {
+    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
     const octokit = await this.getOctokit();
-    const { owner, repo } = splitRepo(nameWithOwner);
     const { data } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
     await octokit.graphql(
       `mutation MarkReadyForReview($id: ID!) {
@@ -407,58 +738,22 @@ export class PrService {
       }`,
       { id: data.node_id }
     );
-    await this.getPullRequest(nameWithOwner, prNumber, true);
   }
 
-  // ── Pass-through reads (no DB involvement) ───────────────────────────────
-
-  async getCheckRuns(nameWithOwner: string, prNumber: number): Promise<PrCheckRun[]> {
+  async getPullRequestFiles(
+    repositoryUrl: string,
+    prNumber: number
+  ): Promise<
+    {
+      filename: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      patch?: string;
+    }[]
+  > {
+    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
     const octokit = await this.getOctokit();
-    const { owner, repo } = splitRepo(nameWithOwner);
-
-    const allNodes: Array<GqlCheckRunNode | GqlStatusContextNode> = [];
-    let cursor: string | undefined;
-
-    for (;;) {
-      const response: GqlCheckRunsResponse = await octokit.graphql(GET_PR_CHECK_RUNS_QUERY, {
-        owner,
-        repo,
-        number: prNumber,
-        cursor,
-      });
-      const contexts =
-        response.repository.pullRequest?.commits.nodes[0]?.commit?.statusCheckRollup?.contexts;
-      if (!contexts) break;
-      allNodes.push(...contexts.nodes);
-      if (!contexts.pageInfo.hasNextPage) break;
-      cursor = contexts.pageInfo.endCursor ?? undefined;
-    }
-
-    return allNodes.map((node) => {
-      if (node.__typename === 'CheckRun') {
-        return {
-          name: node.name,
-          bucket: mapCheckRunBucket(node.status, node.conclusion),
-          workflowName: node.checkSuite?.workflowRun?.workflow?.name,
-          appName: node.checkSuite?.app?.name,
-          appLogoUrl: node.checkSuite?.app?.logoUrl,
-          detailsUrl: node.detailsUrl ?? undefined,
-          startedAt: node.startedAt ?? undefined,
-          completedAt: node.completedAt ?? undefined,
-        };
-      }
-      return {
-        name: node.context,
-        bucket: mapStatusContextBucket(node.state),
-        detailsUrl: node.targetUrl ?? undefined,
-        startedAt: node.createdAt,
-      };
-    });
-  }
-
-  async getPullRequestFiles(nameWithOwner: string, prNumber: number): Promise<PullRequestFile[]> {
-    const octokit = await this.getOctokit();
-    const { owner, repo } = splitRepo(nameWithOwner);
     const files = await octokit.paginate(octokit.rest.pulls.listFiles, {
       owner,
       repo,
@@ -474,358 +769,10 @@ export class PrService {
     }));
   }
 
-  async getPrComments(nameWithOwner: string, prNumber: number): Promise<PrCommentsResult> {
-    const octokit = await this.getOctokit();
-    const { owner, repo } = splitRepo(nameWithOwner);
-
-    const [commentsData, reviewsData] = await Promise.all([
-      octokit.paginate(octokit.rest.issues.listComments, {
-        owner,
-        repo,
-        issue_number: prNumber,
-        per_page: 100,
-      }),
-      octokit.paginate(octokit.rest.pulls.listReviews, {
-        owner,
-        repo,
-        pull_number: prNumber,
-        per_page: 100,
-      }),
-    ]);
-
-    return {
-      comments: commentsData.map((c) => ({
-        id: c.id,
-        author: { login: c.user?.login ?? 'unknown', avatarUrl: c.user?.avatar_url },
-        body: c.body ?? '',
-        createdAt: c.created_at,
-      })),
-      reviews: reviewsData
-        .filter(
-          (r) =>
-            r.state !== 'PENDING' &&
-            (r.body || r.state === 'APPROVED' || r.state === 'CHANGES_REQUESTED')
-        )
-        .map((r) => {
-          const fallbackSubmittedAt =
-            'updated_at' in r && typeof r.updated_at === 'string' ? r.updated_at : undefined;
-          return {
-            id: r.id,
-            author: { login: r.user?.login ?? 'unknown', avatarUrl: r.user?.avatar_url },
-            body: r.body ?? '',
-            submittedAt: r.submitted_at ?? fallbackSubmittedAt,
-            state: r.state,
-          };
-        }),
-    };
-  }
-
-  async addPrComment(
-    nameWithOwner: string,
-    prNumber: number,
-    body: string
-  ): Promise<{ id: number }> {
-    const octokit = await this.getOctokit();
-    const { owner, repo } = splitRepo(nameWithOwner);
-    const response = await octokit.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body,
-    });
-    return { id: response.data.id };
-  }
-
-  // ── Project bootstrap sync ───────────────────────────────────────────────
-
-  async syncPullRequests(projectId: string, nameWithOwner: string): Promise<void> {
-    const sinceUpdatedAt = await this.getLatestUpdatedAt(nameWithOwner);
-    const { owner, repo } = splitRepo(nameWithOwner);
-    const octokit = await this.getOctokit();
-
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - PR_SYNC_MAX_AGE_MONTHS);
-    const cutoffISO = cutoff.toISOString();
-
-    let cursor: string | undefined;
-
-    for (;;) {
-      const response = await octokit.graphql<{
-        repository: {
-          pullRequests: {
-            pageInfo: { hasNextPage: boolean; endCursor: string | null };
-            nodes: GqlPrNode[];
-          };
-        };
-      }>(SYNC_PRS_QUERY, { owner, repo, cursor });
-
-      const { nodes, pageInfo } = response.repository.pullRequests;
-      const pageBatch: PullRequest[] = [];
-      let reachedCursor = false;
-      for (const node of nodes) {
-        if (node.updatedAt < cutoffISO) {
-          reachedCursor = true;
-          break;
-        }
-        if (sinceUpdatedAt && node.updatedAt <= sinceUpdatedAt) {
-          reachedCursor = true;
-          break;
-        }
-        pageBatch.push(this.gqlToUnified(node, nameWithOwner));
-      }
-
-      if (pageBatch.length > 0) {
-        await this.upsertMany(projectId, pageBatch);
-      }
-
-      if (reachedCursor || !pageInfo.hasNextPage) break;
-      cursor = pageInfo.endCursor ?? undefined;
-    }
-
-    await this.kv.set(`${projectId}:${nameWithOwner}:lastFetchedAt`, new Date().toISOString());
-  }
-
-  // ── Private: dedup sync guard ────────────────────────────────────────────
-
-  private deduplicatedSync(projectId: string, nameWithOwner: string): Promise<void> {
-    const key = `${projectId}:${nameWithOwner}`;
-    const existing = this.syncInFlight.get(key);
-    if (existing) return existing;
-    const promise = this.syncPullRequests(projectId, nameWithOwner).finally(() => {
-      this.syncInFlight.delete(key);
-      this.syncDone.add(key);
-    });
-    this.syncInFlight.set(key, promise);
-    return promise;
-  }
-
-  // ── Private: DB helpers ──────────────────────────────────────────────────
-
-  private async upsertSingle(pr: PullRequest, projectId?: string): Promise<PullRequest> {
-    const serialized = this.serialize(pr);
-
-    const [row] = await db
-      .insert(pullRequests)
-      .values({ id: pr.url, ...serialized, fetchedAt: sql`CURRENT_TIMESTAMP` })
-      .onConflictDoUpdate({
-        target: pullRequests.url,
-        set: { ...serialized, fetchedAt: sql`CURRENT_TIMESTAMP` },
-      })
-      .returning();
-
-    await db.delete(pullRequestLabels).where(eq(pullRequestLabels.pullRequestId, pr.id));
-    if (pr.metadata.labels.length > 0) {
-      await db.insert(pullRequestLabels).values(
-        pr.metadata.labels.map((l) => ({
-          pullRequestId: pr.id,
-          name: l.name,
-          color: l.color ?? null,
-        }))
-      );
-    }
-
-    await db.delete(pullRequestAssignees).where(eq(pullRequestAssignees.pullRequestId, pr.id));
-    if (pr.metadata.assignees.length > 0) {
-      await db.insert(pullRequestAssignees).values(
-        pr.metadata.assignees.map((a) => ({
-          pullRequestId: pr.id,
-          login: a.login,
-          avatarUrl: a.avatarUrl ?? null,
-        }))
-      );
-    }
-
-    if (projectId) {
-      await db
-        .insert(projectPullRequests)
-        .values({ projectId, pullRequestUrl: pr.url })
-        .onConflictDoNothing();
-    }
-
-    const result = this.dbRowToUnified(row);
-
-    for (const hook of this.upsertHooks) {
-      await Promise.resolve(hook(result, projectId ?? '')).catch((e: unknown) =>
-        log.error('PrService upsertHook failed:', e)
-      );
-    }
-
-    return result;
-  }
-
-  private async upsertMany(projectId: string, prs: PullRequest[]): Promise<PullRequest[]> {
-    const CHUNK = 10;
-    const results: PullRequest[] = [];
-    for (let i = 0; i < prs.length; i += CHUNK) {
-      const chunk = await Promise.all(
-        prs.slice(i, i + CHUNK).map((pr) => this.upsertSingle(pr, projectId))
-      );
-      results.push(...chunk);
-    }
-    return results;
-  }
-
-  private async fromDb(
-    nameWithOwner: string,
-    filters?: PrFilters,
-    pagination?: { limit: number; offset: number },
-    sort?: PrSortField,
-    searchQuery?: string
-  ): Promise<PullRequest[]> {
-    const conditions = [eq(pullRequests.nameWithOwner, nameWithOwner)];
-
-    if (filters?.status && filters.status !== 'all') {
-      if (filters.status === 'not-open') {
-        conditions.push(inArray(pullRequests.status, ['closed', 'merged']));
-      } else {
-        conditions.push(eq(pullRequests.status, filters.status));
-      }
-    }
-
-    if (filters?.authorLogins && filters.authorLogins.length > 0) {
-      conditions.push(inArray(pullRequests.authorLogin, filters.authorLogins));
-    }
-
-    if (filters?.labelNames && filters.labelNames.length > 0) {
-      const labelSubquery = db
-        .select({ id: pullRequestLabels.pullRequestId })
-        .from(pullRequestLabels)
-        .where(inArray(pullRequestLabels.name, filters.labelNames));
-      conditions.push(inArray(pullRequests.id, labelSubquery));
-    }
-
-    if (filters?.assigneeLogins && filters.assigneeLogins.length > 0) {
-      const assigneeSubquery = db
-        .select({ id: pullRequestAssignees.pullRequestId })
-        .from(pullRequestAssignees)
-        .where(inArray(pullRequestAssignees.login, filters.assigneeLogins));
-      conditions.push(inArray(pullRequests.id, assigneeSubquery));
-    }
-
-    if (searchQuery?.trim()) {
-      const pattern = `%${searchQuery.trim()}%`;
-      conditions.push(
-        or(like(pullRequests.title, pattern), like(pullRequests.identifier, pattern))!
-      );
-    }
-
-    const orderClause =
-      sort === 'oldest'
-        ? asc(pullRequests.createdAt)
-        : sort === 'recently-updated'
-          ? desc(pullRequests.updatedAt)
-          : desc(pullRequests.createdAt);
-
-    const query = db
-      .select()
-      .from(pullRequests)
-      .where(and(...conditions))
-      .orderBy(orderClause);
-
-    const rows = pagination
-      ? await query.limit(pagination.limit).offset(pagination.offset)
-      : await query;
-
-    return rows.map((r) => this.dbRowToUnified(r));
-  }
-
-  private async getLatestUpdatedAt(nameWithOwner: string): Promise<string | undefined> {
-    const [row] = await db
-      .select({ updatedAt: pullRequests.updatedAt })
-      .from(pullRequests)
-      .where(eq(pullRequests.nameWithOwner, nameWithOwner))
-      .orderBy(desc(pullRequests.updatedAt))
-      .limit(1);
-    return row?.updatedAt;
-  }
-
-  // ── Private: GraphQL → unified model ────────────────────────────────────
-
-  private gqlToUnified(node: GqlPrNode, nameWithOwner: string): PullRequest {
-    const status: PullRequestStatus =
-      node.state === 'MERGED' ? 'merged' : node.state === 'CLOSED' ? 'closed' : 'open';
-
-    const reviewerMap = new Map<string, GitHubReviewer>();
-    for (const req of node.reviewRequests.nodes) {
-      const login = req.requestedReviewer?.login ?? req.requestedReviewer?.name;
-      if (login) reviewerMap.set(login, { login, state: 'PENDING' });
-    }
-    for (const review of node.latestReviews.nodes) {
-      const login = review.author?.login;
-      if (login) reviewerMap.set(login, { login, state: review.state as GitHubReviewer['state'] });
-    }
-
-    const author: User | null = node.author
-      ? {
-          userName: node.author.login,
-          displayName: node.author.login,
-          avatarUrl: node.author.avatarUrl || undefined,
-        }
-      : null;
-
-    return {
-      id: node.url,
-      identifier: `#${node.number}`,
-      nameWithOwner,
-      provider: 'github',
-      url: node.url,
-      title: node.title,
-      status,
-      author,
-      labels: node.labels.nodes.map((l) => ({ name: l.name, color: l.color })),
-      assignees: node.assignees.nodes.map((a) => ({
-        userName: a.login,
-        displayName: a.login,
-        avatarUrl: a.avatarUrl,
-      })),
-      isDraft: node.isDraft,
-      createdAt: node.createdAt,
-      updatedAt: node.updatedAt,
-      metadata: {
-        number: node.number,
-        headRefName: node.headRefName,
-        headRefOid: node.headRefOid,
-        baseRefName: node.baseRefName,
-        headRepository: node.headRepository,
-        labels: node.labels.nodes,
-        assignees: node.assignees.nodes,
-        reviewDecision: node.reviewDecision,
-        reviewers: Array.from(reviewerMap.values()),
-        additions: node.additions,
-        deletions: node.deletions,
-        changedFiles: node.changedFiles,
-        mergeable: node.mergeable,
-        mergeStateStatus: node.mergeStateStatus,
-        body: node.body,
-      },
-    };
-  }
-
-  // ── Private: DB serialize / deserialize ──────────────────────────────────
-
-  private serialize(pr: PullRequest) {
-    return {
-      provider: pr.provider,
-      nameWithOwner: pr.nameWithOwner,
-      url: pr.url,
-      title: pr.title,
-      identifier: pr.identifier,
-      status: pr.status,
-      author: JSON.stringify(pr.author),
-      authorLogin: pr.author?.userName ?? null,
-      authorDisplayName: pr.author?.displayName ?? null,
-      authorAvatarUrl: pr.author?.avatarUrl ?? null,
-      isDraft: Number(pr.isDraft),
-      headRefName: pr.metadata.headRefName ?? null,
-      metadata: JSON.stringify(pr.metadata),
-      createdAt: pr.createdAt,
-      updatedAt: pr.updatedAt,
-    };
-  }
-
-  private dbRowToUnified(row: typeof pullRequests.$inferSelect): PullRequest {
-    return prRowToPullRequest(row);
+  /** Get the full sync cursor for a repository (used by coordinator/scheduler). */
+  async getFullSyncCursor(repositoryUrl: string): Promise<{ done: boolean } | null> {
+    return (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
   }
 }
 
-export const prService = new PrService(getOctokit);
+export const prSyncEngine = new PrSyncEngine(getOctokit);

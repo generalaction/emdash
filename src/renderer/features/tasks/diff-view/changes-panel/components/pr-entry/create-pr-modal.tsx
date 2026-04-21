@@ -18,7 +18,7 @@ import { log } from '@renderer/utils/logger';
 import { resolveInitialBaseBranch } from './base-branch';
 
 export type CreatePrModalArgs = {
-  nameWithOwner: string;
+  nameWithOwner: string; // kept as-is for modal registry compatibility; value is a repositoryUrl
   branchName: string;
   draft: boolean;
   workspaceId: string;
@@ -27,7 +27,7 @@ export type CreatePrModalArgs = {
 type Props = BaseModalProps<void> & CreatePrModalArgs;
 
 export const CreatePrModal = observer(function CreatePrModal({
-  nameWithOwner,
+  nameWithOwner: repositoryUrl,
   branchName,
   draft,
   workspaceId,
@@ -44,7 +44,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   const defaultBranch = repo?.defaultBranch;
   const taskPayload = getRegisteredTaskData(projectId, taskId);
 
-  const hasGitHubRemote = Boolean(nameWithOwner);
+  const hasGitHubRemote = Boolean(repositoryUrl);
   const selectedBase =
     selectedBaseOverride ??
     resolveInitialBaseBranch(
@@ -71,7 +71,7 @@ export const CreatePrModal = observer(function CreatePrModal({
       }
 
       const result = await rpc.pullRequests.createPullRequest({
-        nameWithOwner,
+        repositoryUrl,
         head: branchName,
         base: capturedBase,
         title: capturedTitle,
@@ -88,7 +88,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   };
 
   const handleCreate = async () => {
-    if (!title.trim() || !nameWithOwner || !selectedBase?.branch) return;
+    if (!title.trim() || !repositoryUrl || !selectedBase?.branch) return;
 
     const capturedTitle = title.trim();
     const capturedDescription = description.trim();

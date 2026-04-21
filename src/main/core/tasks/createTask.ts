@@ -1,21 +1,18 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { err, ok, Result } from '@shared/result';
 import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskSuccess,
   CreateTaskWarning,
-  Task,
+  TaskLifecycleStatus,
 } from '@shared/tasks';
-import { parseNameWithOwner } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
-import { findPrForBranch, resolveInitialStatus } from '@main/core/task-status/pr-task-bridge';
 import { db } from '@main/db/client';
-import { pullRequests, tasks, tasksPullRequests } from '@main/db/schema';
+import { tasks } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';
 import { createConversation } from '../conversations/createConversation';
 import type { ProvisionTaskError } from '../projects/project-provider';
-import { prRowToPullRequest } from '../pull-requests/pr-utils';
 import { appSettingsService } from '../settings/settings-service';
 import { mapTaskRowToTask } from './core';
 import { resolveTaskBranchName } from './resolveTaskBranchName';
@@ -49,7 +46,7 @@ export async function createTask(
   if (!project) {
     return err({ type: 'project-not-found' });
   }
-  const [remotes, configuredRemote] = await Promise.all([
+  const [, configuredRemote] = await Promise.all([
     project.repository.getRemotes(),
     project.repository.getConfiguredRemote(),
   ]);
@@ -165,19 +162,7 @@ export async function createTask(
     }
   }
 
-  // If no explicit initialStatus was passed, check whether a PR already exists for
-  // this branch in the DB cache and compute the right starting status from it.
-  const remoteUrl = remotes.find((r) => r.name === configuredRemote)?.url;
-  const nameWithOwner = remoteUrl ? parseNameWithOwner(remoteUrl) : null;
-
-  let initialStatus = params.initialStatus ?? 'in_progress';
-
-  if (!params.initialStatus && taskBranch && nameWithOwner) {
-    const existingPr = await findPrForBranch(taskBranch, nameWithOwner);
-    if (existingPr) {
-      initialStatus = resolveInitialStatus(existingPr);
-    }
-  }
+  const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
 
   const [taskRow] = await db
     .insert(tasks)
@@ -195,24 +180,7 @@ export async function createTask(
     })
     .returning();
 
-  // Look up all PRs in the DB cache that match this task's branch, link them, and
-  // include them in the returned task so the renderer has them from the start.
-  let linkedPrs: Task['prs'] = [];
-  if (taskBranch) {
-    const conditions = nameWithOwner
-      ? and(eq(pullRequests.headRefName, taskBranch), eq(pullRequests.nameWithOwner, nameWithOwner))
-      : eq(pullRequests.headRefName, taskBranch);
-    const prRows = await db.select().from(pullRequests).where(conditions);
-    if (prRows.length > 0) {
-      await db
-        .insert(tasksPullRequests)
-        .values(prRows.map((pr) => ({ taskId: params.id, pullRequestUrl: pr.url })))
-        .onConflictDoNothing();
-      linkedPrs = prRows.map(prRowToPullRequest);
-    }
-  }
-
-  const task = mapTaskRowToTask(taskRow, linkedPrs);
+  const task = mapTaskRowToTask(taskRow);
 
   const provisionResult = await project.provisionTask(task, [], []);
   if (!provisionResult.success) {

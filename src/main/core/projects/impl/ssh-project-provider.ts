@@ -19,6 +19,7 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
@@ -135,6 +136,9 @@ export class SshProjectProvider implements ProjectProvider {
     this._gitFetchService = new GitFetchService(repoGit);
     this._gitFetchService.start();
     sshConnectionManager.on('connection-event', this.handleConnectionEvent);
+
+    // Trigger initial remote sync + PR sync on project mount
+    void prSyncScheduler.onProjectMounted(project.id);
   }
 
   private handleConnectionEvent = (evt: SshConnectionEvent): void => {
@@ -211,6 +215,9 @@ export class SshProjectProvider implements ProjectProvider {
     // possible during the lifetime of this task. Non-blocking — provision
     // continues without waiting for the network round-trip.
     void this._gitFetchService.fetch();
+
+    // Sync PRs for this task's branch in the background.
+    void prSyncScheduler.onTaskProvisioned(this.project.id, task.taskBranch);
 
     const workspaceId = workspaceKey(task.taskBranch);
     const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
@@ -487,6 +494,7 @@ export class SshProjectProvider implements ProjectProvider {
   async cleanup(): Promise<void> {
     this._gitFetchService.stop();
     sshConnectionManager.off('connection-event', this.handleConnectionEvent);
+    prSyncScheduler.onProjectUnmounted(this.project.id);
 
     const settings = await this.settings.get();
 

@@ -10,6 +10,7 @@ import type {
 import { bareRefName, computeDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
+import { isGitHubUrl, normalizeGitHubUrl } from '@renderer/utils/github/utils';
 import type { ProjectSettingsStore } from './project-settings-store';
 
 export class RepositoryStore {
@@ -77,6 +78,8 @@ export class RepositoryStore {
       defaultBranch: computed,
       remotes: computed,
       loading: computed,
+      isGitHubRemote: computed,
+      repositoryUrl: computed,
     });
   }
 
@@ -116,6 +119,22 @@ export class RepositoryStore {
 
   get remotes(): Remote[] {
     return this.remoteData.data?.remotes ?? [];
+  }
+
+  /** True when the configured remote points to a GitHub.com repository. */
+  get isGitHubRemote(): boolean {
+    const url = this.configuredRemote.url;
+    return !!url && isGitHubUrl(url);
+  }
+
+  /**
+   * The normalised HTTPS GitHub URL for the configured remote
+   * (e.g. `https://github.com/owner/repo`), or `null` if not a GitHub remote.
+   */
+  get repositoryUrl(): string | null {
+    const url = this.configuredRemote.url;
+    if (!url || !isGitHubUrl(url)) return null;
+    return normalizeGitHubUrl(url);
   }
 
   get defaultBranchName(): string {

@@ -17,22 +17,22 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced;
 }
 
-export function usePrViewState(projectId: string, nameWithOwner: string | null) {
+export function usePrViewState(projectId: string, repositoryUrl: string | null) {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [sortFilter, setSortFilter] = useState<PrSortField>('newest');
-  const [selectedAuthorLogin, setSelectedAuthorLogin] = useState<string | null>(null);
+  const [selectedAuthorUserId, setSelectedAuthorUserId] = useState<string | null>(null);
   const [selectedLabelNames, setSelectedLabelNames] = useState<string[]>([]);
-  const [selectedAssigneeLogin, setSelectedAssigneeLogin] = useState<string | null>(null);
+  const [selectedAssigneeUserId, setSelectedAssigneeUserId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 200);
   const [syncing, setSyncing] = useState(false);
 
   const filters: PrFilters = {
     status: statusFilter,
-    ...(selectedAuthorLogin ? { authorLogins: [selectedAuthorLogin] } : {}),
+    ...(selectedAuthorUserId ? { authorUserIds: [selectedAuthorUserId] } : {}),
     ...(selectedLabelNames.length > 0 ? { labelNames: selectedLabelNames } : {}),
-    ...(selectedAssigneeLogin ? { assigneeLogins: [selectedAssigneeLogin] } : {}),
+    ...(selectedAssigneeUserId ? { assigneeUserIds: [selectedAssigneeUserId] } : {}),
   };
 
   const {
@@ -44,26 +44,26 @@ export function usePrViewState(projectId: string, nameWithOwner: string | null) 
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = usePullRequests(projectId, nameWithOwner ?? undefined, {
+  } = usePullRequests(projectId, repositoryUrl ?? undefined, {
     filters,
     sort: sortFilter,
     searchQuery: debouncedQuery || undefined,
   });
 
   useEffect(() => {
-    if (dataUpdatedAt > 0 && nameWithOwner) {
-      void queryClient.invalidateQueries({ queryKey: ['pr-filter-options', nameWithOwner] });
+    if (dataUpdatedAt > 0 && repositoryUrl) {
+      void queryClient.invalidateQueries({ queryKey: ['pr-filter-options', repositoryUrl] });
     }
-  }, [dataUpdatedAt, nameWithOwner, queryClient]);
+  }, [dataUpdatedAt, repositoryUrl, queryClient]);
 
-  const { data: filterOptions } = useFilterOptions(projectId, nameWithOwner ?? undefined);
+  const { data: filterOptions } = useFilterOptions(projectId, repositoryUrl ?? undefined);
 
   const authorItems: UserItem[] = useMemo(
     () =>
       (filterOptions?.authors ?? []).map((a) => ({
-        value: a.userName,
-        label: a.displayName,
-        avatarUrl: a.avatarUrl,
+        value: a.userId,
+        label: a.displayName ?? a.userName,
+        avatarUrl: a.avatarUrl ?? undefined,
       })),
     [filterOptions?.authors]
   );
@@ -71,9 +71,9 @@ export function usePrViewState(projectId: string, nameWithOwner: string | null) 
   const assigneeItems: UserItem[] = useMemo(
     () =>
       (filterOptions?.assignees ?? []).map((a) => ({
-        value: a.userName,
+        value: a.userId,
         label: a.displayName ?? a.userName,
-        avatarUrl: a.avatarUrl,
+        avatarUrl: a.avatarUrl ?? undefined,
       })),
     [filterOptions?.assignees]
   );
@@ -83,20 +83,20 @@ export function usePrViewState(projectId: string, nameWithOwner: string | null) 
       (filterOptions?.labels ?? []).map((l) => ({
         value: l.name,
         label: l.name,
-        color: l.color,
+        color: l.color ?? undefined,
       })),
     [filterOptions?.labels]
   );
 
-  const selectedAuthorItem = authorItems.find((a) => a.value === selectedAuthorLogin);
-  const selectedAssigneeItem = assigneeItems.find((a) => a.value === selectedAssigneeLogin);
+  const selectedAuthorItem = authorItems.find((a) => a.value === selectedAuthorUserId);
+  const selectedAssigneeItem = assigneeItems.find((a) => a.value === selectedAssigneeUserId);
   const selectedLabelItems = useMemo(
     () => labelItems.filter((l) => selectedLabelNames.includes(l.value)),
     [labelItems, selectedLabelNames]
   );
 
   const hasPills = Boolean(
-    selectedAuthorLogin || selectedAssigneeLogin || selectedLabelNames.length > 0
+    selectedAuthorUserId || selectedAssigneeUserId || selectedLabelNames.length > 0
   );
 
   const handleStatusChange = (value: StatusFilter) => setStatusFilter(value);
@@ -126,12 +126,12 @@ export function usePrViewState(projectId: string, nameWithOwner: string | null) 
     query,
     setQuery,
     syncing: isSyncing,
-    selectedAuthorLogin,
-    setSelectedAuthorLogin,
+    selectedAuthorLogin: selectedAuthorUserId,
+    setSelectedAuthorLogin: setSelectedAuthorUserId,
     selectedLabelNames,
     setSelectedLabelNames,
-    selectedAssigneeLogin,
-    setSelectedAssigneeLogin,
+    selectedAssigneeLogin: selectedAssigneeUserId,
+    setSelectedAssigneeLogin: setSelectedAssigneeUserId,
     // handlers
     handleStatusChange,
     handleSortChange,

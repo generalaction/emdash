@@ -1,8 +1,6 @@
-import type { PrCheckRun, PrCommentAuthor } from '@shared/pull-requests';
+import type { PullRequestCheck } from '@shared/pull-requests';
 
-// Re-export shared types under renderer-friendly names
-export type CheckRun = PrCheckRun;
-export type { PrCommentAuthor } from '@shared/pull-requests';
+export type CheckRun = PullRequestCheck;
 
 export interface CheckRunsSummary {
   total: number;
@@ -12,14 +10,4 @@ export interface CheckRunsSummary {
   pending: number;
   skipped: number;
   cancelled: number;
-}
-
-// PR Comments
-export interface PrComment {
-  id: string;
-  author: PrCommentAuthor;
-  body: string;
-  createdAt: string;
-  type: 'comment' | 'review';
-  reviewState?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED';
 }

@@ -198,7 +198,6 @@ export class GitService implements GitProvider {
           status,
           additions: ns?.additions ?? 0,
           deletions: ns?.deletions ?? 0,
-          isStaged: true,
         });
       }
 
@@ -225,7 +224,6 @@ export class GitService implements GitProvider {
         status,
         additions,
         deletions,
-        isStaged: false,
       });
     }
 
@@ -250,7 +248,6 @@ export class GitService implements GitProvider {
             status: c.status,
             additions: prev.additions + c.additions,
             deletions: prev.deletions + c.deletions,
-            isStaged: true,
           });
         } else {
           byPath.set(c.path, c);
@@ -773,7 +770,6 @@ export class GitService implements GitProvider {
         status: mapStatus(code),
         additions: stat?.additions ?? 0,
         deletions: stat?.deletions ?? 0,
-        isStaged,
       });
     }
 

@@ -1,9 +1,14 @@
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { CheckRunBucket, PullRequest } from '@shared/pull-requests';
+import type { PullRequest } from '@shared/pull-requests';
+import { useCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
 import { rpc } from '@renderer/lib/ipc';
-import { formatCheckDuration, type CheckRun } from '@renderer/utils/github';
-import { useCheckRuns } from '../../../state/use-check-runs';
+import {
+  computeCheckBucket,
+  formatCheckDuration,
+  type CheckRun,
+  type CheckRunBucket,
+} from '@renderer/utils/github';
 
 const bucketOrder: Record<CheckRunBucket, number> = {
   fail: 0,
@@ -28,11 +33,15 @@ export function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
 }
 
 export function CheckRunItem({ check }: { check: CheckRun }) {
-  const duration = formatCheckDuration(check.startedAt, check.completedAt);
+  const bucket = computeCheckBucket(check);
+  const duration = formatCheckDuration(
+    check.startedAt ?? undefined,
+    check.completedAt ?? undefined
+  );
   const subtitle = check.appName ?? check.workflowName;
   return (
     <div className="flex items-center gap-2 px-3 py-2">
-      <BucketIcon bucket={check.bucket} />
+      <BucketIcon bucket={bucket} />
       {check.appLogoUrl ? (
         <img src={check.appLogoUrl} alt={check.appName ?? ''} className="size-4 shrink-0 rounded" />
       ) : null}
@@ -57,7 +66,9 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
 }
 
 export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoading: boolean }) {
-  const sorted = [...checks].sort((a, b) => bucketOrder[a.bucket] - bucketOrder[b.bucket]);
+  const sorted = [...checks].sort(
+    (a, b) => bucketOrder[computeCheckBucket(a)] - bucketOrder[computeCheckBucket(b)]
+  );
   const hasChecks = checks.length > 0;
   const shouldShowLoading = !hasChecks && isLoading;
 

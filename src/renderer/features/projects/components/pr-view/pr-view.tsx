@@ -9,7 +9,7 @@ import {
   type StatusFilter,
   type UserItem,
 } from '@renderer/features/projects/components/pr-view/usePrViewState';
-import { useNameWithOwner } from '@renderer/lib/hooks/useNameWithOwner';
+import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
@@ -202,8 +202,7 @@ export const PullRequestView = observer(function PullRequestView() {
   const {
     params: { projectId },
   } = useParams('project');
-  const { data: remoteState } = useNameWithOwner(projectId);
-  const nameWithOwner = remoteState?.status === 'ready' ? remoteState.nameWithOwner : null;
+  const repositoryUrl = getRepositoryStore(projectId)?.repositoryUrl ?? null;
 
   const {
     statusFilter,
@@ -233,13 +232,10 @@ export const PullRequestView = observer(function PullRequestView() {
     selectedAssigneeItem,
     selectedLabelItems,
     hasPills,
-  } = usePrViewState(projectId, nameWithOwner);
+  } = usePrViewState(projectId, repositoryUrl);
 
-  if (!nameWithOwner) {
-    const message =
-      remoteState?.status === 'no_remote'
-        ? 'No remote is configured for this project.'
-        : 'Pull requests are currently available only for GitHub remotes.';
+  if (!repositoryUrl) {
+    const message = 'Pull requests are currently available only for configured GitHub remotes.';
 
     return (
       <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">

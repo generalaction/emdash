@@ -20,14 +20,14 @@ export interface UsePullRequestsOptions {
 
 export function usePullRequests(
   projectId?: string,
-  nameWithOwner?: string,
+  repositoryUrl?: string,
   options: UsePullRequestsOptions = {}
 ) {
   const { filters, sort, searchQuery, enabled = true } = options;
   const queryClient = useQueryClient();
 
   const query = useInfiniteQuery({
-    queryKey: ['pull-requests', projectId, nameWithOwner, filters, sort, searchQuery],
+    queryKey: ['pull-requests', projectId, repositoryUrl, filters, sort, searchQuery],
     queryFn: async ({ pageParam }: { pageParam: number }) => {
       const listOptions: ListPrOptions = {
         limit: PAGE_SIZE,
@@ -36,11 +36,7 @@ export function usePullRequests(
         sort,
         searchQuery,
       };
-      const response = await rpc.pullRequests.listPullRequests(
-        projectId!,
-        nameWithOwner!,
-        listOptions
-      );
+      const response = await rpc.pullRequests.listPullRequests(projectId!, listOptions);
       if (!response?.success) {
         throw new Error(response?.error || 'Failed to load pull requests');
       }
@@ -54,7 +50,7 @@ export function usePullRequests(
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage.nextOffset,
-    enabled: !!projectId && !!nameWithOwner && enabled,
+    enabled: !!projectId && !!repositoryUrl && enabled,
     staleTime: 10 * 60_000,
     refetchInterval: (query) => (query.state.data?.pages[0]?.syncing ? 2_000 : false),
   });
@@ -63,11 +59,11 @@ export function usePullRequests(
   const syncing = query.data?.pages[0]?.syncing ?? false;
 
   const refresh = useCallback(async () => {
-    if (!projectId || !nameWithOwner) return;
-    await rpc.pullRequests.syncPullRequests(projectId, nameWithOwner);
-    await queryClient.resetQueries({ queryKey: ['pull-requests', projectId, nameWithOwner] });
-    await queryClient.invalidateQueries({ queryKey: ['pr-filter-options', nameWithOwner] });
-  }, [queryClient, projectId, nameWithOwner]);
+    if (!projectId || !repositoryUrl) return;
+    await rpc.pullRequests.syncPullRequests(projectId);
+    await queryClient.resetQueries({ queryKey: ['pull-requests', projectId, repositoryUrl] });
+    await queryClient.invalidateQueries({ queryKey: ['pr-filter-options', repositoryUrl] });
+  }, [queryClient, projectId, repositoryUrl]);
 
   return {
     prs,
@@ -86,11 +82,11 @@ export function usePullRequests(
   };
 }
 
-export function useFilterOptions(projectId?: string, nameWithOwner?: string) {
+export function useFilterOptions(projectId?: string, repositoryUrl?: string) {
   return useQuery<PrFilterOptions>({
-    queryKey: ['pr-filter-options', nameWithOwner],
+    queryKey: ['pr-filter-options', repositoryUrl],
     queryFn: async () => {
-      const response = await rpc.pullRequests.getFilterOptions(nameWithOwner!);
+      const response = await rpc.pullRequests.getFilterOptions(projectId!);
       if (!response?.success) {
         throw new Error(response?.error || 'Failed to load filter options');
       }
@@ -101,7 +97,7 @@ export function useFilterOptions(projectId?: string, nameWithOwner?: string) {
       };
       return { authors, labels, assignees };
     },
-    enabled: !!nameWithOwner,
+    enabled: !!repositoryUrl,
     staleTime: 60_000,
   });
 }
