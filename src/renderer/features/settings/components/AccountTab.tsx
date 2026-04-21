@@ -39,11 +39,7 @@ export function AccountTab() {
       }
       toast({
         title: 'Signed in to Emdash',
-<<<<<<< refactor-rm-reserves-ry2gn
-        description: `Connected as @${result.user?.username}`,
-=======
         description: result.user ? `Connected as @${result.user.username}` : 'Signed in',
->>>>>>> v1
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign in failed';
