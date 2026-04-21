@@ -19,7 +19,6 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
@@ -63,13 +62,16 @@ export async function createLocalProvider(
   project: LocalProject,
   rootFs: FileSystemProvider
 ): Promise<LocalProjectProvider> {
-  const defaultWorktreeDirectory = (await appSettingsService.get('localProject'))
-    .defaultWorktreeDirectory;
-  const worktreePoolPath = path.join(defaultWorktreeDirectory, project.name);
+  const settings = new LocalProjectSettingsProvider(
+    project.path,
+    bareRefName(project.baseRef),
+    rootFs
+  );
+  const worktreePoolPath = path.join(await settings.getWorktreeDirectory(), project.name);
 
   await fs.promises.mkdir(worktreePoolPath, { recursive: true });
 
-  return new LocalProjectProvider(project, rootFs, { worktreePoolPath });
+  return new LocalProjectProvider(project, rootFs, { settings, worktreePoolPath });
 }
 
 export class LocalProjectProvider implements ProjectProvider {
@@ -92,10 +94,11 @@ export class LocalProjectProvider implements ProjectProvider {
     private readonly project: LocalProject,
     readonly rootFs: FileSystemProvider,
     options: {
+      settings: ProjectSettingsProvider;
       worktreePoolPath: string;
     }
   ) {
-    this.settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
+    this.settings = options.settings;
     this.fs = new LocalFileSystem(project.path);
     const gitExec = getGitLocalExec(() => githubConnectionService.getToken());
     const repoGit = new GitService(project.path, gitExec, this.fs);

@@ -1,11 +1,20 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { app } from 'electron';
 import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
-import rawAppConfig from '@main/appConfig.json';
 import { KV } from '@main/db/kv';
 
-// Build-time defaults from appConfig.json (bundled by electron-vite)
-const appConfig: { posthogHost?: string; posthogKey?: string } = rawAppConfig;
+// Production-only: appConfig.json is injected into dist/main/ by the release pipeline.
+const appConfig: { posthogHost?: string; posthogKey?: string } = (() => {
+  if (!import.meta.env.PROD) return {};
+  try {
+    const raw = readFileSync(join(__dirname, 'appConfig.json'), 'utf-8');
+    return JSON.parse(raw) as { posthogHost?: string; posthogKey?: string };
+  } catch {
+    return {};
+  }
+})();
 
 interface InitOptions {
   installSource?: string;
@@ -66,6 +75,7 @@ function getBaseProps() {
   return {
     schema_version: 1,
     app_version: getVersionSafe(),
+    source: 'desktop_app',
     electron_version: process.versions.electron,
     platform: process.platform,
     arch: process.arch,
@@ -191,8 +201,6 @@ async function posthogCapture(
 ): Promise<void> {
   if (!isEnabled()) return;
   try {
-    const f = (globalThis as { fetch?: typeof fetch }).fetch;
-    if (!f) return;
     const u = (host ?? '').replace(/\/$/, '') + '/capture/';
     const body = {
       api_key: apiKey,
@@ -203,7 +211,7 @@ async function posthogCapture(
         ...sanitizeEventAndProps(event, properties),
       },
     };
-    await f(u, {
+    await fetch(u, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -216,8 +224,6 @@ async function posthogCapture(
 async function posthogIdentify(username: string, accountId?: string): Promise<void> {
   if (!isEnabled() || !username) return;
   try {
-    const f = (globalThis as { fetch?: typeof fetch }).fetch;
-    if (!f) return;
     const u = (host ?? '').replace(/\/$/, '') + '/capture/';
     const body = {
       api_key: apiKey,
@@ -231,7 +237,7 @@ async function posthogIdentify(username: string, accountId?: string): Promise<vo
         },
       },
     };
-    await f(u, {
+    await fetch(u, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

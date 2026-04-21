@@ -31,3 +31,9 @@ export type SshProject = {
 };
 
 export type Project = LocalProject | SshProject;
+
+export type UpdateProjectSettingsError =
+  | { type: 'project-not-found' }
+  | { type: 'invalid-settings' }
+  | { type: 'invalid-worktree-directory' }
+  | { type: 'error' };

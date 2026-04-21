@@ -70,6 +70,7 @@ export const TaskRow = observer(function TaskRow({
     >
       <button
         onClick={() => {
+          if (isArchived) return;
           handleProvision();
           navigate('task', { projectId: task.data.projectId, taskId: task.data.id });
         }}
