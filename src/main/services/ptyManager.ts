@@ -1730,6 +1730,10 @@ export function getPtyKind(id: string): 'local' | 'ssh' | undefined {
   return ptys.get(id)?.kind;
 }
 
+export function getPtyIsDirectSpawn(id: string): boolean {
+  return ptys.get(id)?.isDirectSpawn === true;
+}
+
 export function getPtyTmuxSessionName(id: string): string | undefined {
   return ptys.get(id)?.tmuxSessionName;
 }

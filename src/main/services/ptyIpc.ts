@@ -8,6 +8,7 @@ import {
   getPtyKind,
   startDirectPty,
   startSshPty,
+  getPtyIsDirectSpawn,
   removePtyRecord,
   setOnDirectCliExit,
   parseShellArgs,
@@ -65,7 +66,7 @@ export function registerMobileHooks(opts: {
 }
 
 export function getActivePtyIds(): string[] {
-  return Array.from(listeners);
+  return Array.from(ptyProviderMap.keys());
 }
 const promptHandles = new Map<string, PromptWaitHandle[]>();
 
@@ -1340,8 +1341,12 @@ export function registerPtyIpc(): void {
         if (existing) {
           const wc = event.sender;
           owners.set(id, wc);
-          // Still track agent start even when reusing PTY (happens after shell respawn)
-          maybeMarkProviderStart(id, providerId as ProviderId);
+          // Only track as agent start if the existing PTY is a direct-spawn agent.
+          // If it's a shell respawn (isDirectSpawn false), the renderer is just
+          // reconnecting after navigation — don't re-add to ptyProviderMap.
+          if (getPtyIsDirectSpawn(id)) {
+            maybeMarkProviderStart(id, providerId as ProviderId);
+          }
           return { ok: true, reused: true };
         }
 

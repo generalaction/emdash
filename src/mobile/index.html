@@ -208,7 +208,7 @@
       </div>
 
       <!-- Session picker screen (hidden initially) -->
-      <div id="overlay" style="display: none" data-screen="sessions" id="sessions-screen">
+      <div id="sessions-screen" style="display: none" data-screen="sessions">
         <h1>Sessions</h1>
         <p class="sub">Tap a session to open its terminal</p>
         <div id="session-list"><p class="sub">No active sessions</p></div>
@@ -251,6 +251,7 @@
         let currentPtyId = null;
         let term = null;
         let fitAddon = null;
+        let ptyCols = 80;
         let serverDenied = false; // true when server sent an error frame before closing
 
         // ── WebSocket ────────────────────────────────────────────────────────────
@@ -309,24 +310,30 @@
               send({ type: 'sessions' });
               break;
             case 'error':
-              serverDenied = true;
-              pinError.textContent =
-                msg.message === 'Invalid PIN'
-                  ? 'Incorrect PIN — check Emdash Settings and try again'
-                  : msg.message || 'Error';
-              if (msg.message === 'Invalid PIN') {
-                pinInput.style.borderColor = '#f87171';
-                pinInput.select();
-                localStorage.removeItem('emdash_pin');
+              if (authed) {
+                if (sessError) sessError.textContent = msg.message || 'Error';
+              } else {
+                serverDenied = true;
+                pinError.textContent =
+                  msg.message === 'Invalid PIN'
+                    ? 'Incorrect PIN — check Emdash Settings and try again'
+                    : msg.message || 'Error';
+                if (msg.message === 'Invalid PIN') {
+                  pinInput.style.borderColor = '#f87171';
+                  pinInput.select();
+                  localStorage.removeItem('emdash_pin');
+                }
+                statusEl.textContent = '';
               }
-              statusEl.textContent = '';
               break;
             case 'sessions':
+              if (sessError) sessError.textContent = '';
               renderSessions(msg.sessions || []);
               break;
             case 'subscribed':
               currentPtyId = msg.ptyId;
-              showTerminal(msg.ptyId, msg.label || msg.ptyId, msg.snapshot || null);
+              showTerminal(msg.ptyId, msg.label || msg.ptyId, msg.cols || 80, msg.rows || 24);
+              if (msg.snapshot) term.write(msg.snapshot);
               break;
             case 'data':
               if (term && msg.ptyId === currentPtyId) term.write(msg.data);
@@ -354,11 +361,17 @@
           sessions.forEach(({ ptyId, label, provider }) => {
             const btn = document.createElement('button');
             btn.className = 'session-btn';
-            btn.innerHTML = `
-              <span class="session-label">${label}</span>
-              <span class="session-meta">
-                <span class="session-provider">${provider}</span>
-              </span>`;
+            const labelEl = document.createElement('span');
+            labelEl.className = 'session-label';
+            labelEl.textContent = label;
+            const metaEl = document.createElement('span');
+            metaEl.className = 'session-meta';
+            const provEl = document.createElement('span');
+            provEl.className = 'session-provider';
+            provEl.textContent = provider;
+            metaEl.appendChild(provEl);
+            btn.appendChild(labelEl);
+            btn.appendChild(metaEl);
             btn.onclick = () => {
               send({ type: 'subscribe', ptyId });
             };
@@ -366,13 +379,32 @@
           });
         }
 
-        function showTerminal(ptyId, label, snapshot) {
+        // Fit terminal rows to the phone screen height, keep PTY cols to prevent
+        // \r-based progress lines from wrapping and repeating. If the PTY is wider
+        // than the screen at the current font size, shrink the font so it fits.
+        function fitRows() {
+          if (!fitAddon || !term) return;
+          fitAddon.fit();
+          if (term.cols < ptyCols) {
+            const cellWidth = termContainer.clientWidth / term.cols;
+            const targetCellWidth = termContainer.clientWidth / ptyCols;
+            const newSize = Math.max(8, Math.floor(term.options.fontSize * (targetCellWidth / cellWidth)));
+            term.options.fontSize = newSize;
+            fitAddon.fit();
+          }
+          term.resize(ptyCols, term.rows);
+        }
+
+        function showTerminal(ptyId, label, cols, rows) {
           if (sessScreen) sessScreen.style.display = 'none';
           termWrap.style.display = 'flex';
           ptyLabel.textContent = label || ptyId;
+          ptyCols = cols;
 
           if (!term) {
             term = new Terminal({
+              cols: cols,
+              rows: rows,
               theme: { background: '#0d0d0d', foreground: '#e0e0e0' },
               fontSize: 13,
               fontFamily: 'Menlo, monospace',
@@ -382,26 +414,16 @@
             fitAddon = new FitAddon.FitAddon();
             term.loadAddon(fitAddon);
             term.open(termContainer);
-            fitAddon.fit();
+            fitRows();
 
             term.onData((data) => {
               send({ type: 'input', ptyId: currentPtyId, data });
             });
 
-            window.addEventListener('resize', () => {
-              fitAddon.fit();
-              send({ type: 'resize', ptyId: currentPtyId, cols: term.cols, rows: term.rows });
-            });
-
-            // Send initial size
-            send({ type: 'resize', ptyId: currentPtyId, cols: term.cols, rows: term.rows });
+            window.addEventListener('resize', fitRows);
           } else {
-            fitAddon.fit();
-          }
-
-          if (snapshot) {
-            term.reset();
-            term.write(snapshot);
+            ptyCols = cols;
+            fitRows();
           }
 
           term.focus();
@@ -438,7 +460,6 @@
             if (term) {
               term.dispose();
               term = null;
-              fitAddon = null;
               termContainer.innerHTML = '';
             }
             showSessions();

@@ -6,7 +6,7 @@ import { networkInterfaces } from 'os';
 import { WebSocketServer, WebSocket } from 'ws';
 import { log } from '../lib/logger';
 import { registerMobileHooks, getActivePtyIds } from './ptyIpc';
-import { writePty } from './ptyManager';
+import { writePty, getPty } from './ptyManager';
 import { parsePtyId } from '../../shared/ptyId';
 import { databaseService } from './DatabaseService';
 import { terminalSnapshotService } from './TerminalSnapshotService';
@@ -37,7 +37,8 @@ async function resolveSessionLabel(ptyId: string): Promise<SessionInfo> {
   } catch {
     // fall through to raw ID
   }
-  return { ptyId, label: ptyId, provider };
+  const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1);
+  return { ptyId, label: `${providerLabel} session`, provider };
 }
 
 export class MobileServer {
@@ -52,6 +53,14 @@ export class MobileServer {
   // Authenticated clients
   private authed = new Set<WebSocket>();
   private enabled = false;
+  // Rolling output buffer per PTY — replayed to reconnecting clients
+  private ptyBuffer = new Map<string, string>();
+  private static readonly MAX_BUFFER = 512 * 1024; // 512 KB per PTY
+  // PIN brute-force protection
+  private failedAttempts = 0;
+  private lockedUntil = 0;
+  private static readonly MAX_ATTEMPTS = 5;
+  private static readonly LOCKOUT_MS = 30_000;
 
   async start(port = DEFAULT_PORT): Promise<void> {
     if (this.server) return;
@@ -80,11 +89,30 @@ export class MobileServer {
     this.wss = new WebSocketServer({ server: this.server });
 
     this.wss.on('connection', (ws, req) => {
-      // Allow PIN auth via query param on connect
+      // Allow PIN auth via query param on connect — subject to same lockout as frame auth
       const urlPin = new URL(req.url ?? '/', `http://localhost`).searchParams.get('pin');
-      if (urlPin === this.pin) {
-        this.authed.add(ws);
-        this.send(ws, { type: 'authed' });
+      if (urlPin !== null) {
+        const now = Date.now();
+        if (now < this.lockedUntil) {
+          const secs = Math.ceil((this.lockedUntil - now) / 1000);
+          this.send(ws, { type: 'error', message: `Too many attempts — try again in ${secs}s` });
+          ws.close();
+          return;
+        }
+        if (urlPin === this.pin) {
+          this.failedAttempts = 0;
+          this.authed.add(ws);
+          this.send(ws, { type: 'authed' });
+        } else {
+          this.failedAttempts += 1;
+          if (this.failedAttempts >= MobileServer.MAX_ATTEMPTS) {
+            this.lockedUntil = Date.now() + MobileServer.LOCKOUT_MS;
+            this.failedAttempts = 0;
+          }
+          this.send(ws, { type: 'error', message: 'Invalid PIN' });
+          ws.close();
+          return;
+        }
       }
 
       ws.on('message', (raw) => {
@@ -136,6 +164,7 @@ export class MobileServer {
     this.subscribers.clear();
     this.clientSubs.clear();
     this.authed.clear();
+    this.ptyBuffer.clear();
   }
 
   getPort(): number {
@@ -166,10 +195,23 @@ export class MobileServer {
 
   private handleFrame(ws: WebSocket, frame: MobileFrame): void {
     if (frame.type === 'auth') {
+      const now = Date.now();
+      if (now < this.lockedUntil) {
+        const secs = Math.ceil((this.lockedUntil - now) / 1000);
+        this.send(ws, { type: 'error', message: `Too many attempts — try again in ${secs}s` });
+        ws.close();
+        return;
+      }
       if (frame.pin === this.pin) {
+        this.failedAttempts = 0;
         this.authed.add(ws);
         this.send(ws, { type: 'authed' });
       } else {
+        this.failedAttempts += 1;
+        if (this.failedAttempts >= MobileServer.MAX_ATTEMPTS) {
+          this.lockedUntil = Date.now() + MobileServer.LOCKOUT_MS;
+          this.failedAttempts = 0;
+        }
         this.send(ws, { type: 'error', message: 'Invalid PIN' });
         ws.close();
       }
@@ -187,7 +229,7 @@ export class MobileServer {
         Promise.all(ids.map(resolveSessionLabel)).then((sessions) => {
           this.send(ws, {
             type: 'sessions',
-            sessions: sessions.filter((s) => s.label !== s.ptyId),
+            sessions,
           });
         });
         break;
@@ -202,19 +244,25 @@ export class MobileServer {
         this.subscribers.get(ptyId)!.add(ws);
         if (!this.clientSubs.has(ws)) this.clientSubs.set(ws, new Set());
         this.clientSubs.get(ws)!.add(ptyId);
-        Promise.all([resolveSessionLabel(ptyId), terminalSnapshotService.getSnapshot(ptyId)]).then(
-          ([info, snapshot]) => {
-            this.send(ws, {
-              type: 'subscribed',
-              ptyId,
-              label: info.label,
-              snapshot: snapshot?.data ?? null,
-            });
-          }
-        );
+        const buffer = this.ptyBuffer.get(ptyId) ?? null;
+        const snapshotPromise = buffer
+          ? Promise.resolve(null)
+          : terminalSnapshotService.getSnapshot(ptyId);
+        Promise.all([resolveSessionLabel(ptyId), snapshotPromise]).then(([info, snapshot]) => {
+          const proc = getPty(ptyId);
+          this.send(ws, {
+            type: 'subscribed',
+            ptyId,
+            label: info.label,
+            snapshot: buffer ?? snapshot?.data ?? null,
+            cols: proc?.cols ?? 80,
+            rows: proc?.rows ?? 24,
+          });
+        });
         break;
       }
       case 'input': {
+        if (!this.clientSubs.get(ws)?.has(frame.ptyId)) break;
         try {
           writePty(frame.ptyId, frame.data);
         } catch (err) {
@@ -231,6 +279,15 @@ export class MobileServer {
   }
 
   private broadcastData(ptyId: string, data: string): void {
+    const prev = this.ptyBuffer.get(ptyId) ?? '';
+    const combined = prev + data;
+    this.ptyBuffer.set(
+      ptyId,
+      combined.length > MobileServer.MAX_BUFFER
+        ? combined.slice(-MobileServer.MAX_BUFFER)
+        : combined
+    );
+
     const set = this.subscribers.get(ptyId);
     if (!set) return;
     const frame = JSON.stringify({ type: 'data', ptyId, data });
@@ -240,6 +297,7 @@ export class MobileServer {
   }
 
   private broadcastExit(ptyId: string, exitCode: number | null, signal?: number): void {
+    this.ptyBuffer.delete(ptyId);
     const set = this.subscribers.get(ptyId);
     if (!set) return;
     const frame = JSON.stringify({ type: 'exit', ptyId, exitCode, signal });
