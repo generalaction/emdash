@@ -728,7 +728,7 @@ const IntegrationsCard: React.FC = () => {
               <DialogHeader>
                 <DialogTitle>Connect Jira</DialogTitle>
                 <DialogDescription className="text-xs">
-                  Enter your Jira site URL, email, and API token to connect.
+                  Enter your Jira site URL and credentials to connect.
                 </DialogDescription>
               </DialogHeader>
               <Separator />

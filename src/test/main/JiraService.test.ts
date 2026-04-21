@@ -221,4 +221,29 @@ describe('JiraService wire-level auth behavior', () => {
     expect(captured[0].options.protocol).toBe('http:');
     expect(captured[0].options.path).toBe('/jira/rest/api/2/myself');
   });
+
+  it('sets Content-Length header on POST requests', async () => {
+    const { impl, captured } = fakeRequest('{"issues":[]}');
+    httpsRequestMock.mockImplementation(impl);
+
+    const service = new JiraService() as unknown as {
+      searchRaw: (siteUrl: string, auth: Auth, jql: string, limit: number) => Promise<any[]>;
+    };
+    await service.searchRaw(
+      'https://jira.mycorp.com',
+      { authType: 'bearer', token: 'pat' },
+      'project = FOO',
+      10
+    );
+
+    expect(httpsRequestMock).toHaveBeenCalledTimes(1);
+    expect(captured[0].options.method).toBe('POST');
+    const expectedPayload = JSON.stringify({
+      jql: 'project = FOO',
+      maxResults: 10,
+      fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
+    });
+    expect(captured[0].options.headers['Content-Length']).toBe(Buffer.byteLength(expectedPayload));
+    expect(captured[0].body).toBe(expectedPayload);
+  });
 });

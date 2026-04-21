@@ -254,6 +254,7 @@ export default class JiraService {
       headers: {
         Authorization: authHeader(auth),
         Accept: 'application/json',
+        ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {}),
         ...(extraHeaders || {}),
       },
     };
