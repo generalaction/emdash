@@ -4,6 +4,7 @@ import { resourceSnapshotChannel } from '@shared/events/resourceEvents';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import type { ResourcePtyEntry, ResourceSnapshot } from '@shared/resource-monitor';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 
@@ -63,6 +64,11 @@ export function startResourceSampler(): void {
   if (timer) return;
   const tick = async () => {
     try {
+      const { enabled } = await appSettingsService.get('resourceMonitor');
+      if (!enabled) {
+        lastEntryCount = -1;
+        return;
+      }
       const snap = await sampleOnce();
       // Skip emit when nothing is running and nothing was running last tick —
       // avoids waking up every observer in the renderer every 1.5s while idle.

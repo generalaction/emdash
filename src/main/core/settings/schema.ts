@@ -104,6 +104,8 @@ export const interfaceSettingsSchema = z.object({
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -122,6 +124,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  resourceMonitor: resourceMonitorSettingsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -137,4 +140,5 @@ export const appSettingsSchema = z.object({
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  resourceMonitor: resourceMonitorSettingsSchema,
 });
