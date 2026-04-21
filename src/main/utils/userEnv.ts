@@ -1,4 +1,7 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import os from 'node:os';
+import { spawnLocalPty } from '@main/core/pty/local-pty';
 import { log } from '@main/lib/logger';
 
 /**
@@ -26,9 +29,11 @@ const PRESERVE_KEYS = new Set([
   'NODE_ENV',
 ]);
 
+const ENV_CAPTURE_TIMEOUT_MS = 5_000;
+
 function parseEnvOutput(raw: string): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const line of raw.split('\n')) {
+  for (const line of raw.replace(/\r/g, '').split('\n')) {
     const eq = line.indexOf('=');
     if (eq === -1) continue;
     const key = line.slice(0, eq).trim();
@@ -51,13 +56,103 @@ function mergePath(shellPath: string, currentPath: string): string {
   return [...shellEntries, ...extra].join(sep);
 }
 
+function buildCaptureEnv(shell: string): Record<string, string> {
+  return {
+    ...process.env,
+    SHELL: shell,
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    DISABLE_AUTO_UPDATE: 'true',
+    ZSH_TMUX_AUTOSTART: 'false',
+    ZSH_TMUX_AUTOSTARTED: 'true',
+  };
+}
+
+function extractBetweenMarkers(raw: string, startMarker: string, endMarker: string): string {
+  const normalized = raw.replace(/\r/g, '');
+  const startIndex = normalized.indexOf(startMarker);
+  if (startIndex === -1) throw new Error('env capture start marker not found');
+
+  const endIndex = normalized.indexOf(endMarker, startIndex + startMarker.length);
+  if (endIndex === -1) throw new Error('env capture end marker not found');
+
+  return normalized.slice(startIndex + startMarker.length, endIndex).replace(/^\n+|\n+$/g, '');
+}
+
+async function captureShellEnvViaPty(shell: string): Promise<string> {
+  const startMarker = `__EMDASH_ENV_BEGIN_${randomUUID()}__`;
+  const endMarker = `__EMDASH_ENV_END_${randomUUID()}__`;
+  const command = `printf '%s\\n' '${startMarker}'; env; printf '%s\\n' '${endMarker}'`;
+
+  return new Promise((resolve, reject) => {
+    let output = '';
+    let done = false;
+
+    const pty = spawnLocalPty({
+      id: `user-env:${randomUUID()}`,
+      command: shell,
+      args: ['-ilc', command],
+      cwd: os.homedir(),
+      env: buildCaptureEnv(shell),
+      cols: 80,
+      rows: 24,
+    });
+
+    const finish = (fn: () => void): void => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      fn();
+    };
+
+    const timer = setTimeout(() => {
+      try {
+        pty.kill();
+      } catch {}
+      finish(() => reject(new Error(`Timed out after ${ENV_CAPTURE_TIMEOUT_MS}ms`)));
+    }, ENV_CAPTURE_TIMEOUT_MS);
+
+    pty.onData((chunk) => {
+      output += chunk;
+    });
+
+    pty.onExit(({ exitCode, signal }) => {
+      finish(() => {
+        if (exitCode !== undefined && exitCode !== 0) {
+          reject(new Error(`PTY env capture exited with code ${exitCode}`));
+          return;
+        }
+        if (signal !== undefined && signal !== 0) {
+          reject(new Error(`PTY env capture exited with signal ${String(signal)}`));
+          return;
+        }
+        try {
+          resolve(extractBetweenMarkers(output, startMarker, endMarker));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  });
+}
+
+function captureShellEnvViaExec(shell: string): string {
+  return execFileSync(shell, ['-lc', 'env'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: ENV_CAPTURE_TIMEOUT_MS,
+    env: buildCaptureEnv(shell),
+  });
+}
+
 /**
  * Resolves the user's full login-shell environment once at startup and merges
  * it into `process.env`.
  *
- * Spawns `$SHELL -ilc 'env'` with a 5 s timeout. On any error (timeout,
- * missing shell, restricted environment) the function logs a warning and
- * returns — the app continues with whatever `process.env` already contains.
+ * Captures `$SHELL -ilc env` inside an isolated PTY so interactive shell env
+ * startup files are honored without touching the outer terminal's job control.
+ * If PTY capture fails, it falls back to `$SHELL -lc env`.
  *
  * After this call returns, all subsequent consumers that inherit `process.env`
  * (execFile, PTY env builders, dependency prober, etc.) automatically see the
@@ -72,18 +167,20 @@ export async function resolveUserEnv(): Promise<void> {
   const shell = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
 
   try {
-    const raw = execSync(`${shell} -ilc 'env'`, {
-      encoding: 'utf8',
-      timeout: 5_000,
-      env: {
-        ...process.env,
-        // Prevent oh-my-zsh and tmux plugins from producing extra output or
-        // blocking the env capture.
-        DISABLE_AUTO_UPDATE: 'true',
-        ZSH_TMUX_AUTOSTART: 'false',
-        ZSH_TMUX_AUTOSTARTED: 'true',
-      },
-    });
+    const raw =
+      process.env.EMDASH_DISABLE_PTY === '1'
+        ? captureShellEnvViaExec(shell)
+        : await captureShellEnvViaPty(shell).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : String(error);
+            log.warn(
+              '[userEnv] PTY env capture failed, falling back to non-interactive shell capture',
+              {
+                shell,
+                error: message,
+              }
+            );
+            return captureShellEnvViaExec(shell);
+          });
 
     const shellEnv = parseEnvOutput(raw);
 
