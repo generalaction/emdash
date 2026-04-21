@@ -886,6 +886,7 @@ export class SshFileSystem implements FileSystemProvider {
           msg.includes('already exists') ||
           msg.includes('File exists') ||
           (code === SFTP_STATUS.FAILURE && (msg === 'Failure' || msg === ''));
+        const isMissingParent = code === SFTP_STATUS.NO_SUCH_FILE || msg.includes('No such file');
 
         if (isAlreadyExists) {
           resolve();
@@ -893,7 +894,12 @@ export class SshFileSystem implements FileSystemProvider {
         }
 
         const parentPath = dirPath.substring(0, dirPath.lastIndexOf('/'));
-        if (parentPath && parentPath !== dirPath && parentPath.length >= this.remotePath.length) {
+        if (
+          isMissingParent &&
+          parentPath &&
+          parentPath !== dirPath &&
+          parentPath.length >= this.remotePath.length
+        ) {
           this.ensureRemoteDir(sftp, parentPath)
             .then(() => this.ensureRemoteDir(sftp, dirPath))
             .then(resolve)
