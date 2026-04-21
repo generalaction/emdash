@@ -43,13 +43,12 @@ export const AutoGenerateTaskNamesRow: React.FC = () => {
       description="Automatically suggests a task name when creating a new task."
       control={
         <>
-          {taskSettings.isFieldOverridden('autoGenerateName') && (
-            <ResetToDefaultButton
-              defaultLabel="on"
-              onReset={taskSettings.resetAutoGenerateName}
-              disabled={taskSettings.loading || taskSettings.saving}
-            />
-          )}
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('autoGenerateName')}
+            defaultLabel="on"
+            onReset={taskSettings.resetAutoGenerateName}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
           <Switch
             checked={taskSettings.autoGenerateName}
             disabled={taskSettings.loading || taskSettings.saving}
@@ -78,13 +77,12 @@ export const AutoApproveByDefaultRow: React.FC = () => {
       description="Skips permission prompts for file operations in new tasks."
       control={
         <>
-          {taskSettings.isFieldOverridden('autoApproveByDefault') && (
-            <ResetToDefaultButton
-              defaultLabel="off"
-              onReset={taskSettings.resetAutoApproveByDefault}
-              disabled={taskSettings.loading || taskSettings.saving}
-            />
-          )}
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('autoApproveByDefault')}
+            defaultLabel="off"
+            onReset={taskSettings.resetAutoApproveByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
           <Switch
             checked={taskSettings.autoApproveByDefault}
             disabled={taskSettings.loading || taskSettings.saving}
@@ -113,13 +111,12 @@ export const AutoTrustWorktreesRow: React.FC = () => {
       description="Skip the folder trust prompt in Claude Code for new tasks."
       control={
         <>
-          {taskSettings.isFieldOverridden('autoTrustWorktrees') && (
-            <ResetToDefaultButton
-              defaultLabel="on"
-              onReset={taskSettings.resetAutoTrustWorktrees}
-              disabled={taskSettings.loading || taskSettings.saving}
-            />
-          )}
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('autoTrustWorktrees')}
+            defaultLabel="on"
+            onReset={taskSettings.resetAutoTrustWorktrees}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
           <Switch
             checked={taskSettings.autoTrustWorktrees}
             disabled={taskSettings.loading || taskSettings.saving}
