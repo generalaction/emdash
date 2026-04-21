@@ -45,8 +45,6 @@ export class ResourceMonitorStore {
         this.snapshot = snap;
       });
     });
-    // Seed with an immediate snapshot so the titlebar has data before the
-    // first timer tick arrives.
     rpc.resourceMonitor
       .getSnapshot()
       .then((res) => {

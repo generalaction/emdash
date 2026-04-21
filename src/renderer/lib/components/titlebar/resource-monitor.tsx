@@ -28,6 +28,7 @@ type TaskBucket = {
   scopeId: string;
   taskName: string;
   entries: Entry[];
+  cpuSum: number;
 };
 
 type Group = {
@@ -37,14 +38,16 @@ type Group = {
   entryCount: number;
 };
 
+const UNKNOWN_PROJECT_ID = '__unknown__';
+
 export const ResourceMonitor = observer(function ResourceMonitor() {
   const store = appState.resourceMonitor;
   const snapshot = store.snapshot;
   const cpuLabel = `${store.totalCpuPercent.toFixed(0)}%`;
   const memLabel = formatBytes(store.totalMemoryBytes);
 
-  const { groups, unknown } = useMemo(() => buildGroups(snapshot?.entries ?? []), [snapshot]);
-  const hasAny = groups.length > 0 || unknown !== null;
+  const groups = useMemo(() => buildGroups(snapshot?.entries ?? []), [snapshot]);
+  const hasAny = groups.length > 0;
 
   return (
     <Popover>
@@ -93,9 +96,8 @@ export const ResourceMonitor = observer(function ResourceMonitor() {
           {hasAny ? (
             <div className="flex max-h-80 flex-col overflow-y-auto">
               {groups.map((g) => (
-                <ProjectNode key={g.projectId} group={g} store={store} />
+                <ProjectNode key={g.projectId} group={g} />
               ))}
-              {unknown ? <ProjectNode group={unknown} store={store} /> : null}
             </div>
           ) : (
             <div className="rounded-md border border-border py-6 text-center text-xs text-foreground-passive">
@@ -128,13 +130,7 @@ function TotalCard({
   );
 }
 
-const ProjectNode = observer(function ProjectNode({
-  group,
-  store,
-}: {
-  group: Group;
-  store: typeof appState.resourceMonitor;
-}) {
+const ProjectNode = observer(function ProjectNode({ group }: { group: Group }) {
   return (
     <div className="flex flex-col py-1">
       <div className="flex items-center gap-1.5 px-1 py-0.5">
@@ -146,14 +142,14 @@ const ProjectNode = observer(function ProjectNode({
       </div>
       <div className="ml-[9px] flex flex-col border-l border-border pl-2">
         {group.tasks.map((task) => (
-          <TaskNode key={task.scopeId} task={task} store={store} />
+          <TaskNode key={task.scopeId} task={task} />
         ))}
       </div>
     </div>
   );
 });
 
-function TaskNode({ task, store }: { task: TaskBucket; store: typeof appState.resourceMonitor }) {
+function TaskNode({ task }: { task: TaskBucket }) {
   return (
     <div className="flex flex-col py-0.5">
       <div className="flex items-center gap-1.5 px-1 py-0.5">
@@ -165,15 +161,15 @@ function TaskNode({ task, store }: { task: TaskBucket; store: typeof appState.re
       </div>
       <div className="ml-[7px] flex flex-col border-l border-border pl-2">
         {task.entries.map((entry) => (
-          <AgentRow key={entry.sessionId} entry={entry} store={store} />
+          <AgentRow key={entry.sessionId} entry={entry} />
         ))}
       </div>
     </div>
   );
 }
 
-function AgentRow({ entry, store }: { entry: Entry; store: typeof appState.resourceMonitor }) {
-  const norm = store.normalizedCpu(entry);
+function AgentRow({ entry }: { entry: Entry }) {
+  const norm = appState.resourceMonitor.normalizedCpu(entry);
   const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
   const label =
     entry.conversationTitle || meta?.label || entry.providerId || entry.leafId.slice(0, 8);
@@ -209,60 +205,51 @@ function AgentRow({ entry, store }: { entry: Entry; store: typeof appState.resou
   );
 }
 
-function buildGroups(entries: ResourcePtyEntry[]): { groups: Group[]; unknown: Group | null } {
+function buildGroups(entries: ResourcePtyEntry[]): Group[] {
   const projects = appState.projects.projects;
   const byProject = new Map<string, { projectName: string; tasks: Map<string, TaskBucket> }>();
-  const unknownTasks = new Map<string, TaskBucket>();
 
   for (const entry of entries) {
     const projectStore = projects.get(entry.projectId);
     let taskName = entry.scopeId;
     let providerId: AgentProviderId | undefined;
     let conversationTitle: string | undefined;
+    let projectName = 'Other';
+    let projectKey = UNKNOWN_PROJECT_ID;
 
     if (projectStore) {
+      projectKey = entry.projectId;
+      projectName = projectStore.name ?? projectStore.data?.name ?? entry.projectId.slice(0, 8);
       const mounted = projectStore.mountedProject;
-      if (mounted) {
-        const task = mounted.taskManager.tasks.get(entry.scopeId);
-        if (task) {
-          taskName = task.displayName;
-          const conv = task.provisionedTask?.conversations.conversations.get(entry.leafId);
-          providerId = conv?.data.providerId;
-          conversationTitle = conv?.data.title;
-        }
+      const task = mounted?.taskManager.tasks.get(entry.scopeId);
+      if (task) {
+        taskName = task.displayName;
+        const conv = task.provisionedTask?.conversations.conversations.get(entry.leafId);
+        providerId = conv?.data.providerId;
+        conversationTitle = conv?.data.title;
       }
-
-      const projectName =
-        projectStore.name ?? projectStore.data?.name ?? entry.projectId.slice(0, 8);
-      const project = byProject.get(entry.projectId) ?? {
-        projectName,
-        tasks: new Map<string, TaskBucket>(),
-      };
-      const taskBucket = project.tasks.get(entry.scopeId) ?? {
-        scopeId: entry.scopeId,
-        taskName,
-        entries: [],
-      };
-      taskBucket.entries.push({ ...entry, taskName, providerId, conversationTitle });
-      project.tasks.set(entry.scopeId, taskBucket);
-      byProject.set(entry.projectId, project);
-    } else {
-      const taskBucket = unknownTasks.get(entry.scopeId) ?? {
-        scopeId: entry.scopeId,
-        taskName,
-        entries: [],
-      };
-      taskBucket.entries.push({ ...entry, taskName, providerId, conversationTitle });
-      unknownTasks.set(entry.scopeId, taskBucket);
     }
+
+    const project = byProject.get(projectKey) ?? {
+      projectName,
+      tasks: new Map<string, TaskBucket>(),
+    };
+    const taskBucket = project.tasks.get(entry.scopeId) ?? {
+      scopeId: entry.scopeId,
+      taskName,
+      entries: [],
+      cpuSum: 0,
+    };
+    taskBucket.entries.push({ ...entry, taskName, providerId, conversationTitle });
+    taskBucket.cpuSum += entry.cpu;
+    project.tasks.set(entry.scopeId, taskBucket);
+    byProject.set(projectKey, project);
   }
 
   const groups: Group[] = Array.from(byProject.entries()).map(([projectId, p]) => {
     const tasks = Array.from(p.tasks.values());
     for (const t of tasks) t.entries.sort((a, b) => b.cpu - a.cpu);
-    tasks.sort(
-      (a, b) => sumCpu(b.entries) - sumCpu(a.entries) || a.taskName.localeCompare(b.taskName)
-    );
+    tasks.sort((a, b) => b.cpuSum - a.cpuSum || a.taskName.localeCompare(b.taskName));
     return {
       projectId,
       projectName: p.projectName,
@@ -271,23 +258,12 @@ function buildGroups(entries: ResourcePtyEntry[]): { groups: Group[]; unknown: G
     };
   });
 
-  let unknown: Group | null = null;
-  if (unknownTasks.size > 0) {
-    const tasks = Array.from(unknownTasks.values());
-    for (const t of tasks) t.entries.sort((a, b) => b.cpu - a.cpu);
-    unknown = {
-      projectId: '__unknown__',
-      projectName: 'Other',
-      tasks,
-      entryCount: tasks.reduce((n, t) => n + t.entries.length, 0),
-    };
-  }
+  // Keep the "Other" bucket at the end so real projects render first.
+  groups.sort((a, b) => {
+    if (a.projectId === UNKNOWN_PROJECT_ID) return 1;
+    if (b.projectId === UNKNOWN_PROJECT_ID) return -1;
+    return 0;
+  });
 
-  return { groups, unknown };
-}
-
-function sumCpu(entries: Entry[]): number {
-  let sum = 0;
-  for (const e of entries) sum += e.cpu;
-  return sum;
+  return groups;
 }

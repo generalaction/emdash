@@ -29,15 +29,14 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
     try {
       usage = (await pidusage(localPids)) as Record<string, { cpu: number; memory: number }>;
     } catch {
-      // A dead PID rejects the whole batch — fall back to per-pid sampling.
-      for (const pid of localPids) {
-        try {
-          const u = (await pidusage(pid)) as { cpu: number; memory: number };
-          usage[String(pid)] = { cpu: u.cpu, memory: u.memory };
-        } catch {
-          // process gone — skip
+      // A dead PID rejects the whole batch — fall back to per-pid sampling in parallel.
+      const results = await Promise.allSettled(localPids.map((pid) => pidusage(pid)));
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          const u = r.value as { cpu: number; memory: number };
+          usage[String(localPids[i])] = { cpu: u.cpu, memory: u.memory };
         }
-      }
+      });
     }
   }
 
