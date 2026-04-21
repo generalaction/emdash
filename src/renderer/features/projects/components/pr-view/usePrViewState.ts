@@ -107,7 +107,11 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     }
   };
 
-  const isSyncing = syncing;
+  const prSyncStore = getPrSyncStore(projectId);
+  const backgroundSyncing = repositoryUrl
+    ? (prSyncStore?.isSyncing(repositoryUrl) ?? false)
+    : false;
+  const isSyncing = syncing || backgroundSyncing;
 
   const removeLabel = (name: string) =>
     setSelectedLabelNames((prev) => prev.filter((n) => n !== name));
