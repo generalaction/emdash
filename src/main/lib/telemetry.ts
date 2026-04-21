@@ -75,6 +75,7 @@ function getBaseProps() {
   return {
     schema_version: 1,
     app_version: getVersionSafe(),
+    product: 'desktop_app',
     electron_version: process.versions.electron,
     platform: process.platform,
     arch: process.arch,
@@ -200,8 +201,6 @@ async function posthogCapture(
 ): Promise<void> {
   if (!isEnabled()) return;
   try {
-    const f = (globalThis as { fetch?: typeof fetch }).fetch;
-    if (!f) return;
     const u = (host ?? '').replace(/\/$/, '') + '/capture/';
     const body = {
       api_key: apiKey,
@@ -212,7 +211,7 @@ async function posthogCapture(
         ...sanitizeEventAndProps(event, properties),
       },
     };
-    await f(u, {
+    await fetch(u, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -225,8 +224,6 @@ async function posthogCapture(
 async function posthogIdentify(username: string, accountId?: string): Promise<void> {
   if (!isEnabled() || !username) return;
   try {
-    const f = (globalThis as { fetch?: typeof fetch }).fetch;
-    if (!f) return;
     const u = (host ?? '').replace(/\/$/, '') + '/capture/';
     const body = {
       api_key: apiKey,
@@ -240,7 +237,7 @@ async function posthogIdentify(username: string, accountId?: string): Promise<vo
         },
       },
     };
-    await f(u, {
+    await fetch(u, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
