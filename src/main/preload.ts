@@ -955,6 +955,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+
+  // Mobile LAN server
+  mobileGetInfo: () =>
+    ipcRenderer.invoke('mobile:getInfo') as Promise<{
+      enabled: boolean;
+      port: number;
+      pin: string;
+      urls: string[];
+    }>,
 });
 
 // Type definitions for the exposed API

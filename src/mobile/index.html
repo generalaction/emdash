@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>Emdash Mobile</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+        background: #1a1a1a;
+        color: #e0e0e0;
+        font-family: system-ui, sans-serif;
+      }
+
+      #app {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+
+      #overlay {
+        position: fixed;
+        inset: 0;
+        background: #1a1a1a;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 24px;
+        z-index: 10;
+      }
+      #overlay.hidden {
+        display: none;
+      }
+
+      h1 {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #fff;
+      }
+      p.sub {
+        font-size: 0.85rem;
+        color: #888;
+        text-align: center;
+        max-width: 320px;
+      }
+
+      input[type='text'],
+      input[type='number'] {
+        background: #2a2a2a;
+        border: 1px solid #444;
+        border-radius: 8px;
+        color: #e0e0e0;
+        font-size: 1.1rem;
+        padding: 10px 14px;
+        width: 200px;
+        text-align: center;
+        outline: none;
+        letter-spacing: 4px;
+      }
+      input:focus {
+        border-color: #7c6af7;
+      }
+
+      button {
+        background: #7c6af7;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 28px;
+        font-size: 1rem;
+        cursor: pointer;
+        width: 200px;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      button:active {
+        opacity: 0.8;
+      }
+
+      #session-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+        max-width: 340px;
+      }
+      .session-btn {
+        background: #2a2a2a;
+        border: 1px solid #444;
+        border-radius: 8px;
+        width: 100%;
+        color: #e0e0e0;
+        padding: 12px 16px;
+        font-size: 0.9rem;
+        text-align: left;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .session-btn:active {
+        background: #333;
+      }
+      .session-label {
+        font-size: 0.9rem;
+        color: #e0e0e0;
+        word-break: break-word;
+      }
+      .session-meta {
+        font-size: 0.72rem;
+        color: #666;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .session-provider {
+        background: #3a3a3a;
+        border-radius: 4px;
+        padding: 1px 5px;
+        color: #9d8cff;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      #error {
+        color: #f87171;
+        font-size: 0.85rem;
+        min-height: 20px;
+        text-align: center;
+      }
+      #status {
+        color: #888;
+        font-size: 0.8rem;
+      }
+
+      #terminal-wrap {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: #0d0d0d;
+      }
+      #topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 12px;
+        background: #181818;
+        border-bottom: 1px solid #333;
+        min-height: 36px;
+      }
+      #topbar span {
+        font-size: 0.75rem;
+        color: #777;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 70%;
+      }
+      #back-btn {
+        background: transparent;
+        border: 1px solid #444;
+        border-radius: 6px;
+        color: #aaa;
+        padding: 4px 10px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        width: auto;
+      }
+      #terminal-container {
+        flex: 1;
+        overflow: hidden;
+        padding: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <!-- PIN auth screen -->
+      <div id="overlay" data-screen="pin">
+        <h1>Emdash Mobile</h1>
+        <p class="sub">Enter the 6-digit PIN shown in Emdash Settings → Mobile Access</p>
+        <input
+          id="pin-input"
+          type="number"
+          placeholder="000000"
+          maxlength="6"
+          inputmode="numeric"
+        />
+        <button id="pin-btn">Connect</button>
+        <div id="error"></div>
+        <div id="status">Connecting…</div>
+      </div>
+
+      <!-- Session picker screen (hidden initially) -->
+      <div id="overlay" style="display: none" data-screen="sessions" id="sessions-screen">
+        <h1>Sessions</h1>
+        <p class="sub">Tap a session to open its terminal</p>
+        <div id="session-list"><p class="sub">No active sessions</p></div>
+        <div id="error"></div>
+        <button id="refresh-btn" style="margin-top: 4px">Refresh</button>
+      </div>
+
+      <!-- Terminal screen (hidden initially) -->
+      <div id="terminal-wrap" style="display: none">
+        <div id="topbar">
+          <span id="pty-label"></span>
+          <button id="back-btn">Sessions</button>
+        </div>
+        <div id="terminal-container"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    <script>
+      (function () {
+        // ── DOM refs ──────────────────────────────────────────────────────────────
+        const pinScreen = document.querySelector('[data-screen="pin"]');
+        const sessScreen = document.querySelector('[data-screen="sessions"]');
+        const termWrap = document.getElementById('terminal-wrap');
+        const pinInput = document.getElementById('pin-input');
+        const pinBtn = document.getElementById('pin-btn');
+        const pinError = pinScreen.querySelector('#error');
+        const statusEl = document.getElementById('status');
+        const sessError = sessScreen ? sessScreen.querySelector('#error') : null;
+        const sessionList = document.getElementById('session-list');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const backBtn = document.getElementById('back-btn');
+        const ptyLabel = document.getElementById('pty-label');
+        const termContainer = document.getElementById('terminal-container');
+
+        // ── State ────────────────────────────────────────────────────────────────
+        let ws = null;
+        let authed = false;
+        let currentPtyId = null;
+        let term = null;
+        let fitAddon = null;
+        let serverDenied = false; // true when server sent an error frame before closing
+
+        // ── WebSocket ────────────────────────────────────────────────────────────
+        function connect() {
+          const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const pin = pinInput.value.trim();
+          const url = `${proto}//${location.host}/ws${pin ? '?pin=' + encodeURIComponent(pin) : ''}`;
+
+          serverDenied = false;
+          pinError.textContent = '';
+          pinInput.style.borderColor = '';
+          statusEl.textContent = 'Connecting…';
+          ws = new WebSocket(url);
+
+          ws.onopen = () => {
+            statusEl.textContent = 'Connected';
+          };
+
+          ws.onmessage = (ev) => {
+            let msg;
+            try {
+              msg = JSON.parse(ev.data);
+            } catch {
+              return;
+            }
+            handleMessage(msg);
+          };
+
+          ws.onerror = () => {
+            if (!serverDenied) {
+              statusEl.textContent = 'Connection error';
+              pinError.textContent = 'Could not reach server — check the address and try again';
+            }
+          };
+
+          ws.onclose = () => {
+            authed = false;
+            if (!serverDenied) statusEl.textContent = 'Disconnected';
+            if (currentPtyId) {
+              showTermExit('Connection closed');
+            }
+          };
+        }
+
+        function send(obj) {
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+        }
+
+        function handleMessage(msg) {
+          switch (msg.type) {
+            case 'authed':
+              authed = true;
+              pinError.textContent = '';
+              localStorage.setItem('emdash_pin', pinInput.value.trim());
+              showSessions();
+              send({ type: 'sessions' });
+              break;
+            case 'error':
+              serverDenied = true;
+              pinError.textContent =
+                msg.message === 'Invalid PIN'
+                  ? 'Incorrect PIN — check Emdash Settings and try again'
+                  : msg.message || 'Error';
+              if (msg.message === 'Invalid PIN') {
+                pinInput.style.borderColor = '#f87171';
+                pinInput.select();
+                localStorage.removeItem('emdash_pin');
+              }
+              statusEl.textContent = '';
+              break;
+            case 'sessions':
+              renderSessions(msg.sessions || []);
+              break;
+            case 'subscribed':
+              currentPtyId = msg.ptyId;
+              showTerminal(msg.ptyId, msg.label || msg.ptyId, msg.snapshot || null);
+              break;
+            case 'data':
+              if (term && msg.ptyId === currentPtyId) term.write(msg.data);
+              break;
+            case 'exit':
+              if (msg.ptyId === currentPtyId)
+                showTermExit(`Process exited (code ${msg.exitCode ?? '?'})`);
+              break;
+          }
+        }
+
+        // ── Screens ───────────────────────────────────────────────────────────────
+        function showSessions() {
+          pinScreen.style.display = 'none';
+          if (sessScreen) sessScreen.style.display = 'flex';
+          termWrap.style.display = 'none';
+        }
+
+        function renderSessions(sessions) {
+          if (!sessions.length) {
+            sessionList.innerHTML = '<p class="sub">No active sessions</p>';
+            return;
+          }
+          sessionList.innerHTML = '';
+          sessions.forEach(({ ptyId, label, provider }) => {
+            const btn = document.createElement('button');
+            btn.className = 'session-btn';
+            btn.innerHTML = `
+              <span class="session-label">${label}</span>
+              <span class="session-meta">
+                <span class="session-provider">${provider}</span>
+              </span>`;
+            btn.onclick = () => {
+              send({ type: 'subscribe', ptyId });
+            };
+            sessionList.appendChild(btn);
+          });
+        }
+
+        function showTerminal(ptyId, label, snapshot) {
+          if (sessScreen) sessScreen.style.display = 'none';
+          termWrap.style.display = 'flex';
+          ptyLabel.textContent = label || ptyId;
+
+          if (!term) {
+            term = new Terminal({
+              theme: { background: '#0d0d0d', foreground: '#e0e0e0' },
+              fontSize: 13,
+              fontFamily: 'Menlo, monospace',
+              cursorBlink: true,
+              scrollback: 5000,
+            });
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(termContainer);
+            fitAddon.fit();
+
+            term.onData((data) => {
+              send({ type: 'input', ptyId: currentPtyId, data });
+            });
+
+            window.addEventListener('resize', () => {
+              fitAddon.fit();
+              send({ type: 'resize', ptyId: currentPtyId, cols: term.cols, rows: term.rows });
+            });
+
+            // Send initial size
+            send({ type: 'resize', ptyId: currentPtyId, cols: term.cols, rows: term.rows });
+          } else {
+            fitAddon.fit();
+          }
+
+          if (snapshot) {
+            term.reset();
+            term.write(snapshot);
+          }
+
+          term.focus();
+        }
+
+        function showTermExit(msg) {
+          if (term) term.writeln('\r\n\x1b[33m' + msg + '\x1b[0m');
+          currentPtyId = null;
+        }
+
+        // ── Event handlers ────────────────────────────────────────────────────────
+        pinBtn.onclick = () => {
+          pinError.textContent = '';
+          if (!ws || ws.readyState !== WebSocket.OPEN) {
+            connect();
+          } else if (!authed) {
+            send({ type: 'auth', pin: pinInput.value.trim() });
+          }
+        };
+
+        pinInput.addEventListener('input', () => {
+          pinInput.style.borderColor = '';
+          pinError.textContent = '';
+        });
+        pinInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') pinBtn.click();
+        });
+
+        if (refreshBtn) refreshBtn.onclick = () => send({ type: 'sessions' });
+
+        if (backBtn)
+          backBtn.onclick = () => {
+            currentPtyId = null;
+            if (term) {
+              term.dispose();
+              term = null;
+              fitAddon = null;
+              termContainer.innerHTML = '';
+            }
+            showSessions();
+            send({ type: 'sessions' });
+          };
+
+        // Auto-connect on load — prefer URL param (QR deep-link), then localStorage
+        const urlPin = new URLSearchParams(location.search).get('pin');
+        const savedPin = urlPin || localStorage.getItem('emdash_pin');
+        if (savedPin) {
+          pinInput.value = savedPin;
+          connect();
+        } else {
+          statusEl.textContent = 'Enter PIN to connect';
+        }
+      })();
+    </script>
+  </body>
+</html>

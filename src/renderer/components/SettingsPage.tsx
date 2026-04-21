@@ -28,6 +28,7 @@ import RightSidebarSettingsCard from './RightSidebarSettingsCard';
 import BrowserPreviewSettingsCard from './BrowserPreviewSettingsCard';
 import TaskHoverActionCard from './TaskHoverActionCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
+import MobileAccessSettingsCard from './MobileAccessSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import ReviewAgentSettingsCard from './ReviewAgentSettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
@@ -300,6 +301,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
+        { title: 'Mobile Access', component: <MobileAccessSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Workspace',
