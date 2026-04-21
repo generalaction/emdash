@@ -68,3 +68,5 @@ Thumbs.db
 .env
 .cursor
 .codex/config.toml
+
+src/main/appConfig.json
