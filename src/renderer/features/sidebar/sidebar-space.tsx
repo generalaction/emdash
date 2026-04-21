@@ -1,4 +1,5 @@
 import { PanelLeft } from 'lucide-react';
+import { ResourceMonitor } from '@renderer/lib/components/titlebar/resource-monitor';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Toggle } from '@renderer/lib/ui/toggle';
@@ -7,7 +8,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 export function SidebarSpace() {
   const { isLeftOpen, setCollapsed } = useWorkspaceLayoutContext();
   return (
-    <div className="[-webkit-app-region:drag] flex h-10 w-full justify-end px-2">
+    <div className="[-webkit-app-region:drag] flex h-10 w-full items-center justify-end gap-1 px-2">
+      <div className="[-webkit-app-region:no-drag] flex items-center">
+        <ResourceMonitor />
+      </div>
       <Tooltip>
         <TooltipTrigger>
           <Toggle
