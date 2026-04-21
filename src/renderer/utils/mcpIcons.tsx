@@ -1,7 +1,7 @@
 import { Server } from 'lucide-react';
 import React from 'react';
 
-const svgs = import.meta.glob('../../assets/images/mcp/*.svg', { as: 'raw', eager: true });
+const svgs = import.meta.glob('../../assets/images/mcp/*.svg', { query: '?raw', eager: true });
 const pngs = import.meta.glob('../../assets/images/mcp/*.png', { eager: true, import: 'default' });
 
 function keyFromPath(path: string): string {
