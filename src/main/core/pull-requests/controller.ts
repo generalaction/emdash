@@ -89,6 +89,23 @@ export const pullRequestController = createRPCController({
     }
   },
 
+  triggerIncrementalSync: async (projectId: string) => {
+    try {
+      const capability = await prQueryService.getProjectRemoteInfo(projectId);
+      if (capability.status !== 'ready') {
+        return { success: false as const, error: `Remote not ready: ${capability.status}` };
+      }
+      prSyncCoordinator.runIncrementalSync(capability.repositoryUrl);
+      return { success: true as const };
+    } catch (error) {
+      log.error('Failed to trigger incremental sync:', error);
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : 'Unable to sync',
+      };
+    }
+  },
+
   refreshPullRequest: async (repositoryUrl: string, prNumber: number) => {
     try {
       const pr = await prSyncCoordinator.syncSingle(repositoryUrl, prNumber);

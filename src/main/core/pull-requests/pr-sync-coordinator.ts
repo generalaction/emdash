@@ -102,15 +102,32 @@ export class PrSyncCoordinator {
   // ── Check run sync ─────────────────────────────────────────────────────────
 
   async syncChecks(pullRequestUrl: string, headRefOid: string): Promise<boolean> {
-    const ctrl = new AbortController();
-    try {
-      return await prSyncEngine.syncChecks(pullRequestUrl, headRefOid, ctrl.signal);
-    } catch (e: unknown) {
-      if ((e as { name?: string }).name !== 'AbortError') {
-        log.error('PrSyncCoordinator: syncChecks failed', { pullRequestUrl, error: String(e) });
-      }
+    const key = `checks:${pullRequestUrl}:${headRefOid}`;
+    if (this._inflight.has(key)) {
+      await this._inflight.get(key);
       return false;
     }
+
+    const ctrl = new AbortController();
+    let result = false;
+
+    const promise = prSyncEngine
+      .syncChecks(pullRequestUrl, headRefOid, ctrl.signal)
+      .then((r) => {
+        result = r;
+      })
+      .catch((e: unknown) => {
+        if ((e as { name?: string }).name !== 'AbortError') {
+          log.error('PrSyncCoordinator: syncChecks failed', { pullRequestUrl, error: String(e) });
+        }
+      })
+      .finally(() => {
+        this._inflight.delete(key);
+      });
+
+    this._inflight.set(key, promise);
+    await promise;
+    return result;
   }
 
   // ── Cancellation ──────────────────────────────────────────────────────────

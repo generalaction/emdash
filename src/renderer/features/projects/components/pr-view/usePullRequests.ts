@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
+import { prSyncProgressChannel } from '@shared/events/prEvents';
 import type {
   ListPrOptions,
   PrFilterOptions,
@@ -7,7 +8,7 @@ import type {
   PrSortField,
   PullRequest,
 } from '@shared/pull-requests';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 
 const PAGE_SIZE = 50;
 
@@ -41,10 +42,8 @@ export function usePullRequests(
         throw new Error(response?.error || 'Failed to load pull requests');
       }
       const prs = (response.prs ?? []) as PullRequest[];
-      const syncing = !!(response as { syncing?: boolean }).syncing;
       return {
         prs,
-        syncing,
         nextOffset: prs.length === PAGE_SIZE ? pageParam + PAGE_SIZE : undefined,
       };
     },
@@ -52,23 +51,31 @@ export function usePullRequests(
     getNextPageParam: (lastPage) => lastPage.nextOffset,
     enabled: !!projectId && !!repositoryUrl && enabled,
     staleTime: 10 * 60_000,
-    refetchInterval: (query) => (query.state.data?.pages[0]?.syncing ? 2_000 : false),
   });
 
+  // Invalidate the PR list whenever the sync engine upserts a new batch so
+  // PRs stream in as they arrive rather than waiting for the sync to finish.
+  useEffect(() => {
+    if (!projectId || !repositoryUrl) return;
+    return events.on(prSyncProgressChannel, (progress) => {
+      if (progress.remoteUrl !== repositoryUrl || progress.status !== 'running') return;
+      void queryClient.invalidateQueries({
+        queryKey: ['pull-requests', projectId, repositoryUrl],
+      });
+    });
+  }, [queryClient, projectId, repositoryUrl]);
+
   const prs = query.data?.pages.flatMap((p) => p.prs) ?? [];
-  const syncing = query.data?.pages[0]?.syncing ?? false;
 
   const refresh = useCallback(async () => {
     if (!projectId || !repositoryUrl) return;
-    await rpc.pullRequests.syncPullRequests(projectId);
-    await queryClient.resetQueries({ queryKey: ['pull-requests', projectId, repositoryUrl] });
+    await rpc.pullRequests.triggerIncrementalSync(projectId);
     await queryClient.invalidateQueries({ queryKey: ['pr-filter-options', repositoryUrl] });
   }, [queryClient, projectId, repositoryUrl]);
 
   return {
     prs,
     loading: query.isLoading,
-    syncing,
     dataUpdatedAt: query.dataUpdatedAt,
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage,

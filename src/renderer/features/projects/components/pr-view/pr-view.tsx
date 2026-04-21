@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { PrSyncStatusCard } from './pr-sync-status-card';
 import { PrVirtualList } from './pr-virtual-list';
 
 const SORT_OPTIONS: { value: PrSortField; label: string }[] = [
@@ -350,6 +351,7 @@ export const PullRequestView = observer(function PullRequestView() {
           )}
         </div>
       </div>
+      <PrSyncStatusCard projectId={projectId} repositoryUrl={repositoryUrl} />
       <PrVirtualList
         prs={prs}
         projectId={projectId}

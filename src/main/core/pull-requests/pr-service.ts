@@ -68,12 +68,16 @@ type PrKvSchema = {
 // ---------------------------------------------------------------------------
 
 interface GqlUser {
-  databaseId: number;
+  databaseId?: number; // absent for Mannequin actors
   login: string;
   avatarUrl: string;
   createdAt?: string;
   updatedAt?: string;
   url?: string;
+}
+
+function actorUserId(actor: GqlUser): string {
+  return actor.databaseId != null ? String(actor.databaseId) : `login:${actor.login}`;
 }
 
 interface GqlPrNode {
@@ -161,64 +165,79 @@ export class PrSyncEngine {
 
     let synced = 0;
 
-    for (;;) {
-      if (signal.aborted) return;
+    this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'running', synced: 0 });
 
-      const response = await withRetry(() =>
-        githubRateLimiter.acquire().then(() =>
-          octokit.graphql<{
-            repository: {
-              pullRequests: {
-                totalCount: number;
-                pageInfo: { hasNextPage: boolean; endCursor: string | null };
-                nodes: GqlPrNode[];
-              };
-            };
-          }>(SYNC_PRS_QUERY, { owner, repo, cursor: pageCursor ?? null })
-        )
-      );
+    try {
+      for (;;) {
+        if (signal.aborted) return;
 
-      const { nodes, pageInfo, totalCount } = response.repository.pullRequests;
-      let reachedBoundary = false;
-      const batch: GqlPrNode[] = [];
+        const response = await withRetry(
+          () =>
+            githubRateLimiter.acquire().then(() =>
+              octokit.graphql<{
+                repository: {
+                  pullRequests: {
+                    totalCount: number;
+                    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                    nodes: GqlPrNode[];
+                  };
+                };
+              }>(SYNC_PRS_QUERY, { owner, repo, cursor: pageCursor ?? null, request: { signal } })
+            ),
+          { signal }
+        );
 
-      for (const node of nodes) {
-        if (node.updatedAt < effectiveCutoff) {
-          reachedBoundary = true;
-          break;
+        const { nodes, pageInfo, totalCount } = response.repository.pullRequests;
+        let reachedBoundary = false;
+        const batch: GqlPrNode[] = [];
+
+        for (const node of nodes) {
+          if (node.updatedAt < effectiveCutoff) {
+            reachedBoundary = true;
+            break;
+          }
+          batch.push(node);
         }
-        batch.push(node);
+
+        if (batch.length > 0) {
+          await this._upsertBatch(repositoryUrl, batch);
+          synced += batch.length;
+        }
+
+        const lastUpdatedAt =
+          batch[batch.length - 1]?.updatedAt ?? existing?.lastUpdatedAt ?? new Date().toISOString();
+        const done = reachedBoundary || !pageInfo.hasNextPage;
+
+        await this.kv.set(`fullsync:${repositoryUrl}`, {
+          lastUpdatedAt,
+          updatedAtCutoff: effectiveCutoff,
+          done,
+          pageCursor: done ? undefined : (pageInfo.endCursor ?? undefined),
+        } as FullSyncCursor);
+
+        this._emitProgress({
+          remoteUrl: repositoryUrl,
+          kind: 'full',
+          status: 'running',
+          synced,
+          total: totalCount,
+        });
+
+        if (done) break;
+        pageCursor = pageInfo.endCursor ?? undefined;
       }
 
-      if (batch.length > 0) {
-        await this._upsertBatch(repositoryUrl, batch);
-        synced += batch.length;
-      }
-
-      const lastUpdatedAt =
-        batch[batch.length - 1]?.updatedAt ?? existing?.lastUpdatedAt ?? new Date().toISOString();
-      const done = reachedBoundary || !pageInfo.hasNextPage;
-
-      await this.kv.set(`fullsync:${repositoryUrl}`, {
-        lastUpdatedAt,
-        updatedAtCutoff: effectiveCutoff,
-        done,
-        pageCursor: done ? undefined : (pageInfo.endCursor ?? undefined),
-      } as FullSyncCursor);
-
+      this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'done', synced });
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name === 'AbortError') return;
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'full',
-        status: 'running',
-        synced,
-        total: totalCount,
+        status: 'error',
+        error: e instanceof Error ? e.message : String(e),
       });
-
-      if (done) break;
-      pageCursor = pageInfo.endCursor ?? undefined;
+      throw e;
     }
-
-    this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'done', synced });
   }
 
   // ── Incremental sync ───────────────────────────────────────────────────────
@@ -249,60 +268,90 @@ export class PrSyncEngine {
     let synced = 0;
     let lastUpdatedAt = sinceUpdatedAt;
 
-    for (;;) {
-      if (signal.aborted) return;
+    this._emitProgress({
+      remoteUrl: repositoryUrl,
+      kind: 'incremental',
+      status: 'running',
+      synced: 0,
+    });
 
-      const response = await withRetry(() =>
-        githubRateLimiter.acquire().then(() =>
-          octokit.graphql<{
-            repository: {
-              pullRequests: {
-                pageInfo: { hasNextPage: boolean; endCursor: string | null };
-                nodes: GqlPrNode[];
-              };
-            };
-          }>(INCREMENTAL_SYNC_PRS_QUERY, { owner, repo, cursor: pageCursor ?? null })
-        )
-      );
+    try {
+      for (;;) {
+        if (signal.aborted) return;
 
-      const { nodes, pageInfo } = response.repository.pullRequests;
-      let reachedBoundary = false;
-      const batch: GqlPrNode[] = [];
+        const response = await withRetry(
+          () =>
+            githubRateLimiter.acquire().then(() =>
+              octokit.graphql<{
+                repository: {
+                  pullRequests: {
+                    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                    nodes: GqlPrNode[];
+                  };
+                };
+              }>(INCREMENTAL_SYNC_PRS_QUERY, {
+                owner,
+                repo,
+                cursor: pageCursor ?? null,
+                request: { signal },
+              })
+            ),
+          { signal }
+        );
 
-      for (const node of nodes) {
-        if (node.updatedAt <= sinceUpdatedAt) {
-          reachedBoundary = true;
-          break;
+        const { nodes, pageInfo } = response.repository.pullRequests;
+        let reachedBoundary = false;
+        const batch: GqlPrNode[] = [];
+
+        for (const node of nodes) {
+          if (node.updatedAt <= sinceUpdatedAt) {
+            reachedBoundary = true;
+            break;
+          }
+          batch.push(node);
         }
-        batch.push(node);
+
+        if (batch.length > 0) {
+          await this._upsertBatch(repositoryUrl, batch);
+          synced += batch.length;
+          lastUpdatedAt = batch[0].updatedAt; // most recent first
+        }
+
+        const done = reachedBoundary || !pageInfo.hasNextPage;
+
+        await this.kv.set(`incrementalsync:${repositoryUrl}`, {
+          lastUpdatedAt,
+          pageCursor: done ? undefined : (pageInfo.endCursor ?? undefined),
+          done,
+        } as IncrementalSyncCursor);
+
+        this._emitProgress({
+          remoteUrl: repositoryUrl,
+          kind: 'incremental',
+          status: 'running',
+          synced,
+        });
+
+        if (done) break;
+        pageCursor = pageInfo.endCursor ?? undefined;
       }
-
-      if (batch.length > 0) {
-        await this._upsertBatch(repositoryUrl, batch);
-        synced += batch.length;
-        lastUpdatedAt = batch[0].updatedAt; // most recent first
-      }
-
-      const done = reachedBoundary || !pageInfo.hasNextPage;
-
-      await this.kv.set(`incrementalsync:${repositoryUrl}`, {
-        lastUpdatedAt,
-        pageCursor: done ? undefined : (pageInfo.endCursor ?? undefined),
-        done,
-      } as IncrementalSyncCursor);
 
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'incremental',
-        status: 'running',
+        status: 'done',
         synced,
       });
-
-      if (done) break;
-      pageCursor = pageInfo.endCursor ?? undefined;
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name === 'AbortError') return;
+      this._emitProgress({
+        remoteUrl: repositoryUrl,
+        kind: 'incremental',
+        status: 'error',
+        error: e instanceof Error ? e.message : String(e),
+      });
+      throw e;
     }
-
-    this._emitProgress({ remoteUrl: repositoryUrl, kind: 'incremental', status: 'done', synced });
   }
 
   // ── Single PR sync ─────────────────────────────────────────────────────────
@@ -531,7 +580,7 @@ export class PrSyncEngine {
     // Upsert author
     let authorUserId: string | null = null;
     if (node.author) {
-      authorUserId = String(node.author.databaseId);
+      authorUserId = actorUserId(node.author);
       await db
         .insert(pullRequestUsers)
         .values({
@@ -622,7 +671,7 @@ export class PrSyncEngine {
     await db.delete(pullRequestAssignees).where(eq(pullRequestAssignees.pullRequestUrl, node.url));
     const assigneeRows: (typeof pullRequestUsers.$inferSelect)[] = [];
     for (const a of node.assignees.nodes) {
-      const uid = String(a.databaseId);
+      const uid = actorUserId(a);
       await db
         .insert(pullRequestUsers)
         .values({
@@ -657,7 +706,7 @@ export class PrSyncEngine {
 
     const authorRow = node.author
       ? {
-          userId: String(node.author.databaseId),
+          userId: actorUserId(node.author),
           userName: node.author.login,
           displayName: node.author.login,
           avatarUrl: node.author.avatarUrl || null,

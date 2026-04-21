@@ -18,7 +18,10 @@ export const PR_SUMMARY_FRAGMENT = `
     changedFiles
     mergeable
     mergeStateStatus
-    author { databaseId login avatarUrl createdAt updatedAt url }
+    author {
+      login avatarUrl url
+      ... on User { databaseId createdAt updatedAt }
+    }
     headRepository {
       nameWithOwner
       url
@@ -28,7 +31,12 @@ export const PR_SUMMARY_FRAGMENT = `
       url
     }
     labels(first: 10) { nodes { name color } }
-    assignees(first: 10) { nodes { databaseId login avatarUrl createdAt updatedAt url } }
+    assignees(first: 10) {
+      nodes {
+        login avatarUrl url
+        ... on User { databaseId createdAt updatedAt }
+      }
+    }
     reviewDecision
   }
 `;

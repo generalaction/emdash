@@ -101,7 +101,6 @@ export class GitStore {
           status: 'modified',
           additions: staged.additions + unstaged.additions,
           deletions: staged.deletions + unstaged.deletions,
-          isStaged: true,
         });
       } else if (staged) {
         out.push(staged);

@@ -7,6 +7,8 @@ export type RetryOptions = {
   initialDelayMs?: number;
   /** Maximum delay in ms between retries (default: 30_000). */
   maxDelayMs?: number;
+  /** When provided, aborts retrying immediately when the signal is triggered. */
+  signal?: AbortSignal;
 };
 
 /**
@@ -30,12 +32,22 @@ export async function withRetry<T>(fn: () => Promise<T>, opts?: RetryOptions): P
       const status = (err as { status?: number })?.status;
       const isRetryable = status === undefined || status === 429 || status >= 500;
 
-      if (!isRetryable || attempt >= maxAttempts) {
+      if (!isRetryable || attempt >= maxAttempts || opts?.signal?.aborted) {
         throw err;
       }
 
       log.warn('withRetry: retrying after error', { attempt, status, delay });
-      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+      await new Promise<void>((resolve, reject) => {
+        const id = setTimeout(resolve, delay);
+        opts?.signal?.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(id);
+            reject(err);
+          },
+          { once: true }
+        );
+      });
       delay = Math.min(delay * 2, maxDelayMs);
     }
   }

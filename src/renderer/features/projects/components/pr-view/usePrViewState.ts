@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { PrFilters, PrSortField } from '@shared/pull-requests';
+import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
 export type StatusFilter = 'open' | 'not-open';
@@ -35,20 +36,12 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     ...(selectedAssigneeUserId ? { assigneeUserIds: [selectedAssigneeUserId] } : {}),
   };
 
-  const {
-    prs,
-    refresh,
-    loading,
-    syncing: backgroundSyncing,
-    dataUpdatedAt,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = usePullRequests(projectId, repositoryUrl ?? undefined, {
-    filters,
-    sort: sortFilter,
-    searchQuery: debouncedQuery || undefined,
-  });
+  const { prs, refresh, loading, dataUpdatedAt, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    usePullRequests(projectId, repositoryUrl ?? undefined, {
+      filters,
+      sort: sortFilter,
+      searchQuery: debouncedQuery || undefined,
+    });
 
   useEffect(() => {
     if (dataUpdatedAt > 0 && repositoryUrl) {
@@ -114,7 +107,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     }
   };
 
-  const isSyncing = syncing || backgroundSyncing;
+  const isSyncing = syncing;
 
   const removeLabel = (name: string) =>
     setSelectedLabelNames((prev) => prev.filter((n) => n !== name));
