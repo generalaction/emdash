@@ -75,7 +75,7 @@ function getBaseProps() {
   return {
     schema_version: 1,
     app_version: getVersionSafe(),
-    product: 'desktop_app',
+    source: 'desktop_app',
     electron_version: process.versions.electron,
     platform: process.platform,
     arch: process.arch,
