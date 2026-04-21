@@ -1,4 +1,4 @@
-import type { GitRef } from '@shared/git';
+import type { DiffMode, GitObjectRef, GitRef, MergeBaseRange } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
 import { TooManyFilesChangedError } from '@main/core/git/impl/status-parser';
@@ -73,7 +73,11 @@ export const gitController = createRPCController({
     }
   },
 
-  getChangedFiles: async (projectId: string, workspaceId: string, base: GitRef | string) => {
+  getChangedFiles: async (
+    projectId: string,
+    workspaceId: string,
+    base: DiffMode | GitObjectRef | MergeBaseRange
+  ) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);
       if (!env) return err({ type: 'not_found' as const });
@@ -307,20 +311,6 @@ export const gitController = createRPCController({
     return ok({ hash: result.data.hash });
   },
 
-  fetch: async (projectId: string, workspaceId: string, remote?: string) => {
-    const env = resolveWorkspace(projectId, workspaceId);
-    if (!env) return err({ type: 'not_found' as const });
-    const result = await env.git.fetch(remote);
-    capture('vcs_fetch', {
-      success: result.success,
-      project_id: projectId,
-      task_id: workspaceId,
-      ...(result.success ? {} : { error_type: result.error.type }),
-    });
-    if (!result.success) return err(result.error);
-    return ok();
-  },
-
   push: async (projectId: string, workspaceId: string, remote: string) => {
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env) return err({ type: 'not_found' as const });
@@ -387,7 +377,8 @@ export const gitController = createRPCController({
     maxCount?: number,
     skip?: number,
     knownAheadCount?: number,
-    remote?: string
+    remote?: string,
+    base?: GitObjectRef
   ) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);
@@ -397,6 +388,7 @@ export const gitController = createRPCController({
         skip,
         knownAheadCount,
         preferredRemote: remote,
+        base,
       });
       return ok({ commits: result.commits, aheadCount: result.aheadCount });
     } catch (e) {

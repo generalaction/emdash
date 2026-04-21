@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import {
-  HEAD_REF,
+  HEAD_MODE,
+  toRangeString,
   toRefString,
   type Branch,
   type Commit,
@@ -10,6 +11,7 @@ import {
   type CreateBranchError,
   type DeleteBranchError,
   type DiffLine,
+  type DiffMode,
   type DiffResult,
   type FetchError,
   type FetchPrRefError,
@@ -17,8 +19,9 @@ import {
   type GitChange,
   type GitHeadState,
   type GitInfo,
-  type GitRef,
+  type GitObjectRef,
   type LocalBranch,
+  type MergeBaseRange,
   type PullError,
   type PushError,
   type RemoteBranch,
@@ -416,7 +419,10 @@ export class GitService implements GitProvider {
     }
   }
 
-  async getFileDiff(filePath: string, base: GitRef = HEAD_REF): Promise<DiffResult> {
+  async getFileDiff(
+    filePath: string,
+    base: DiffMode | GitObjectRef = HEAD_MODE
+  ): Promise<DiffResult> {
     const diffArgs = (() => {
       switch (base.kind) {
         case 'staged':
@@ -435,7 +441,7 @@ export class GitService implements GitProvider {
       }
     })();
 
-    const isBranchDiff = base.kind !== 'head' && base.kind !== 'staged';
+    const isObjectRef = base.kind !== 'head' && base.kind !== 'staged';
 
     let diffStdout: string | undefined;
     try {
@@ -446,7 +452,7 @@ export class GitService implements GitProvider {
       diffStdout = stdout;
     } catch {}
 
-    const originalRef = isBranchDiff ? toRefString(base) : 'HEAD';
+    const originalRef = isObjectRef ? toRefString(base as GitObjectRef) : 'HEAD';
 
     const getOriginalContent = async (): Promise<string | undefined> => {
       try {
@@ -461,7 +467,7 @@ export class GitService implements GitProvider {
     };
 
     const getModifiedContent = async (): Promise<string | undefined> => {
-      if (isBranchDiff) {
+      if (isObjectRef) {
         try {
           const { stdout } = await this.exec('git', ['show', `HEAD:${filePath}`], {
             cwd: this.path,
@@ -609,48 +615,65 @@ export class GitService implements GitProvider {
     skip?: number;
     knownAheadCount?: number;
     preferredRemote?: string;
+    /** When provided, compute aheadCount as `base..HEAD` instead of `@{upstream}..HEAD`. */
+    base?: GitObjectRef;
   }): Promise<{ commits: Commit[]; aheadCount: number }> {
-    const { maxCount = 50, skip = 0, knownAheadCount, preferredRemote } = options ?? {};
+    const { maxCount = 50, skip = 0, knownAheadCount, preferredRemote, base } = options ?? {};
     const remote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
 
     let aheadCount = knownAheadCount ?? -1;
     if (aheadCount < 0) {
       aheadCount = 0;
-      try {
-        const { stdout } = await this.exec('git', ['rev-list', '--count', '@{upstream}..HEAD'], {
-          cwd: this.path,
-        });
-        aheadCount = Number.parseInt(stdout.trim(), 10) || 0;
-      } catch {
+
+      if (base !== undefined) {
+        // PR-relative count: compare explicitly against the PR base ref.
         try {
-          const { stdout: branchOut } = await this.exec(
-            'git',
-            ['rev-parse', '--abbrev-ref', 'HEAD'],
-            { cwd: this.path }
-          );
-          const currentBranch = branchOut.trim();
           const { stdout } = await this.exec(
             'git',
-            ['rev-list', '--count', `${remote}/${currentBranch}..HEAD`],
+            ['rev-list', '--count', `${toRefString(base)}..HEAD`],
             { cwd: this.path }
           );
           aheadCount = Number.parseInt(stdout.trim(), 10) || 0;
         } catch {
+          aheadCount = 0;
+        }
+      } else {
+        try {
+          const { stdout } = await this.exec('git', ['rev-list', '--count', '@{upstream}..HEAD'], {
+            cwd: this.path,
+          });
+          aheadCount = Number.parseInt(stdout.trim(), 10) || 0;
+        } catch {
           try {
-            const { stdout: defaultBranchOut } = await this.exec(
+            const { stdout: branchOut } = await this.exec(
               'git',
-              ['symbolic-ref', '--short', `refs/remotes/${remote}/HEAD`],
+              ['rev-parse', '--abbrev-ref', 'HEAD'],
               { cwd: this.path }
             );
-            const defaultBranch = defaultBranchOut.trim();
+            const currentBranch = branchOut.trim();
             const { stdout } = await this.exec(
               'git',
-              ['rev-list', '--count', `${defaultBranch}..HEAD`],
+              ['rev-list', '--count', `${remote}/${currentBranch}..HEAD`],
               { cwd: this.path }
             );
             aheadCount = Number.parseInt(stdout.trim(), 10) || 0;
           } catch {
-            aheadCount = 0;
+            try {
+              const { stdout: defaultBranchOut } = await this.exec(
+                'git',
+                ['symbolic-ref', '--short', `refs/remotes/${remote}/HEAD`],
+                { cwd: this.path }
+              );
+              const defaultBranch = defaultBranchOut.trim();
+              const { stdout } = await this.exec(
+                'git',
+                ['rev-list', '--count', `${defaultBranch}..HEAD`],
+                { cwd: this.path }
+              );
+              aheadCount = Number.parseInt(stdout.trim(), 10) || 0;
+            } catch {
+              aheadCount = 0;
+            }
           }
         }
       }
@@ -697,9 +720,14 @@ export class GitService implements GitProvider {
     return commits[0] || null;
   }
 
-  async getChangedFiles(base: GitRef | string): Promise<GitChange[]> {
-    const isStaged = typeof base === 'object' && base !== null && base.kind === 'staged';
-    const ref = isStaged ? '--cached' : typeof base === 'string' ? base : toRefString(base);
+  async getChangedFiles(base: DiffMode | GitObjectRef | MergeBaseRange): Promise<GitChange[]> {
+    const isRange = 'base' in base;
+    const isStaged = !isRange && (base as DiffMode | GitObjectRef).kind === 'staged';
+    const ref = isStaged
+      ? '--cached'
+      : isRange
+        ? toRangeString(base as MergeBaseRange)
+        : toRefString(base as GitObjectRef);
 
     const parseNumstat = (
       stdout: string

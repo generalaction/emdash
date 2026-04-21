@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Conversation } from '@shared/conversations';
+import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import { LocalProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -12,6 +13,7 @@ import { workspaceKey } from '@shared/workspace-key';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitWatcherService } from '@main/core/git/git-watcher-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
@@ -86,6 +88,7 @@ export class LocalProjectProvider implements ProjectProvider {
   private workspaceRegistry = new WorkspaceRegistry();
   private readonly localExec = getLocalExec();
   private readonly _gitWatcher: GitWatcherService;
+  private readonly _gitFetchService: GitFetchService;
 
   constructor(
     private readonly project: LocalProject,
@@ -109,6 +112,9 @@ export class LocalProjectProvider implements ProjectProvider {
     });
     this._gitWatcher = new GitWatcherService(project.id, project.path);
     void this._gitWatcher.start();
+
+    this._gitFetchService = new GitFetchService(repoGit);
+    this._gitFetchService.start();
   }
 
   async provisionTask(
@@ -152,6 +158,11 @@ export class LocalProjectProvider implements ProjectProvider {
     log.debug('LocalProjectProvider: doProvisionTask START', {
       taskId: task.id,
     });
+
+    // Refresh remote-tracking refs in the background so they are as fresh as
+    // possible during the lifetime of this task. Non-blocking — provision
+    // continues without waiting for the network round-trip.
+    void this._gitFetchService.fetch();
 
     const workspaceId = workspaceKey(task.taskBranch);
     const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
@@ -425,7 +436,12 @@ export class LocalProjectProvider implements ProjectProvider {
     }
   }
 
+  async fetch(): Promise<Result<void, FetchError>> {
+    return this._gitFetchService.fetch();
+  }
+
   async cleanup(): Promise<void> {
+    this._gitFetchService.stop();
     await this._gitWatcher.stop();
 
     const settings = await this.settings.get();

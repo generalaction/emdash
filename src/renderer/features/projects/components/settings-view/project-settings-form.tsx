@@ -118,7 +118,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 }: ProjectSettingsFormProps) {
   const repo = getRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
-  const configuredRemote = repo?.configuredRemote ?? 'origin';
+  const configuredRemote = repo?.configuredRemote.name ?? 'origin';
 
   const baseline = useMemo(
     () => settingsToForm(initial, configuredRemote, remotes),

@@ -1,5 +1,5 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import { HEAD_REF, STAGED_REF, type GitChange, type GitRef } from '@shared/git';
+import { commitRef, HEAD_REF, STAGED_REF, type GitChange, type GitObjectRef } from '@shared/git';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -13,13 +13,13 @@ type DiffType = 'disk' | 'staged' | 'git' | 'pr';
 interface SlotContext {
   files: GitChange[];
   diffType: DiffType;
-  originalRef: GitRef;
+  originalRef: GitObjectRef;
 }
 
 export class DiffSlotStore {
   file: GitChange | null = null;
   diffType: DiffType = 'disk';
-  originalRef: GitRef = HEAD_REF;
+  originalRef: GitObjectRef = commitRef('HEAD');
 
   constructor(
     readonly projectId: string,
@@ -138,7 +138,7 @@ export class StackedDiffPanelStore {
     const activeFile = this.diffView.activeFile;
 
     if (!activeFile) {
-      return { files: [], diffType: 'disk', originalRef: HEAD_REF };
+      return { files: [], diffType: 'disk', originalRef: commitRef('HEAD') };
     }
 
     if (activeFile.group === 'pr') {
@@ -160,7 +160,7 @@ export class StackedDiffPanelStore {
     return {
       files: isStaged ? this.git.stagedFileChanges : this.git.unstagedFileChanges,
       diffType: isStaged ? 'staged' : 'disk',
-      originalRef: HEAD_REF,
+      originalRef: commitRef('HEAD'),
     };
   }
 

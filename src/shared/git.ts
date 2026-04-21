@@ -40,26 +40,93 @@ export type GitHeadState = {
   isUnborn: boolean;
 };
 
-export type GitRef =
-  | { kind: 'head' }
-  | { kind: 'staged' }
-  | { kind: 'local'; branch: string }
-  | { kind: 'remote'; remote: string; branch: string }
-  | { kind: 'commit'; sha: string };
+export type Remote = {
+  name: string;
+  url: string;
+};
 
-export function toRefString(ref: GitRef): string {
+/**
+ * Lean branch addressing — only what is needed to resolve a git object.
+ * No display metadata (divergence etc.). Use LocalBranch / RemoteBranch for
+ * store payloads that carry richer information.
+ */
+export type Branch =
+  | { type: 'local'; branch: string; remote?: Remote }
+  | { type: 'remote'; branch: string; remote: Remote };
+
+/** Display/store enrichment for local branches. May grow over time. */
+export type BranchMetadata = {
+  divergence?: { ahead: number; behind: number };
+};
+
+export type LocalBranch = Extract<Branch, { type: 'local' }> & BranchMetadata;
+export type RemoteBranch = Extract<Branch, { type: 'remote' }>;
+
+/**
+ * Workspace-relative diff intent — NOT real git object addresses.
+ * Maps directly to git command flags, never to ref strings.
+ *   head   → `git diff HEAD`
+ *   staged → `git diff --cached`
+ */
+export type DiffMode = { kind: 'head' } | { kind: 'staged' };
+
+export const HEAD_MODE: DiffMode = { kind: 'head' };
+export const STAGED_MODE: DiffMode = { kind: 'staged' };
+
+/** Backward-compat aliases — prefer HEAD_MODE / STAGED_MODE in new code. */
+export const HEAD_REF = HEAD_MODE;
+export const STAGED_REF = STAGED_MODE;
+
+/**
+ * A real, addressable git object — can appear on either side of a diff.
+ *   branch → local or remote branch (Branch already discriminates)
+ *   commit → a specific SHA
+ *   tag    → a tag name
+ */
+export type GitObjectRef =
+  | { kind: 'branch'; branch: Branch }
+  | { kind: 'commit'; sha: string }
+  | { kind: 'tag'; name: string };
+
+/** Full operand type accepted by diff/log APIs — either a mode or an object ref. */
+export type GitRef = DiffMode | GitObjectRef;
+
+/**
+ * A three-dot merge-base range: `base...head`.
+ * Both sides must be real git object addresses (DiffMode is not valid here).
+ */
+export type MergeBaseRange = { base: GitObjectRef; head: GitObjectRef };
+
+/** Produce the `base...head` range string for use in git commands. */
+export function toRangeString(range: MergeBaseRange): string {
+  return `${toRefString(range.base)}...${toRefString(range.head)}`;
+}
+
+export function mergeBaseRange(base: GitObjectRef, head: GitObjectRef): MergeBaseRange {
+  return { base, head };
+}
+
+export function toRefString(ref: GitObjectRef): string {
   switch (ref.kind) {
-    case 'head':
-      return 'HEAD';
-    case 'staged':
-      return 'staged';
-    case 'local':
-      return ref.branch;
-    case 'remote':
-      return `${ref.remote}/${ref.branch}`;
+    case 'branch':
+      return ref.branch.type === 'remote'
+        ? `${ref.branch.remote.name}/${ref.branch.branch}`
+        : ref.branch.branch;
     case 'commit':
       return ref.sha;
+    case 'tag':
+      return ref.name;
   }
+}
+
+/**
+ * Convert any GitRef (including DiffMode) to a string suitable for git commands
+ * or URI construction. DiffMode variants map to their conventional ref strings.
+ */
+export function gitRefToString(ref: GitRef): string {
+  if (ref.kind === 'head') return 'HEAD';
+  if (ref.kind === 'staged') return 'STAGED';
+  return toRefString(ref);
 }
 
 export function refsEqual(a: GitRef, b: GitRef): boolean {
@@ -68,28 +135,47 @@ export function refsEqual(a: GitRef, b: GitRef): boolean {
     case 'head':
     case 'staged':
       return true;
-    case 'local':
-      return a.branch === (b as typeof a).branch;
-    case 'remote':
-      return a.remote === (b as typeof a).remote && a.branch === (b as typeof a).branch;
+    case 'branch': {
+      const ab = a.branch;
+      const bb = (b as typeof a).branch;
+      if (ab.type !== bb.type) return false;
+      if (ab.type === 'remote' && bb.type === 'remote') {
+        return ab.remote.name === bb.remote.name && ab.branch === bb.branch;
+      }
+      return ab.branch === bb.branch;
+    }
     case 'commit':
       return a.sha === (b as typeof a).sha;
+    case 'tag':
+      return a.name === (b as typeof a).name;
   }
 }
 
-export const HEAD_REF: GitRef = { kind: 'head' };
-export const STAGED_REF: GitRef = { kind: 'staged' };
-
-export function localRef(branch: string): GitRef {
-  return { kind: 'local', branch };
+/** Create a branch GitObjectRef. Accepts a Branch directly. */
+export function branchRef(branch: Branch): GitObjectRef {
+  return { kind: 'branch', branch };
 }
 
-export function remoteRef(remote: string, branch: string): GitRef {
-  return { kind: 'remote', remote, branch };
+/**
+ * Create a remote-branch GitObjectRef.
+ * Accepts a full Remote object or just a name string (url defaults to '' when unknown).
+ */
+export function remoteRef(remote: Remote | string, branch: string): GitObjectRef {
+  const r: Remote = typeof remote === 'string' ? { name: remote, url: '' } : remote;
+  return { kind: 'branch', branch: { type: 'remote', branch, remote: r } };
 }
 
-export function commitRef(sha: string): GitRef {
+/** Create a local-branch GitObjectRef. Backward-compat alias for branchRef({ type: 'local', branch }). */
+export function localRef(branch: string): GitObjectRef {
+  return { kind: 'branch', branch: { type: 'local', branch } };
+}
+
+export function commitRef(sha: string): GitObjectRef {
   return { kind: 'commit', sha };
+}
+
+export function tagRef(name: string): GitObjectRef {
+  return { kind: 'tag', name };
 }
 
 export type Commit = {
@@ -109,29 +195,6 @@ export type CommitFile = {
   deletions: number;
 };
 
-export type Remote = {
-  name: string;
-  url: string;
-};
-
-export type LocalBranch = {
-  type: 'local';
-  branch: string;
-  remote?: Remote;
-  divergence?: {
-    ahead: number;
-    behind: number;
-  };
-};
-
-export type RemoteBranch = {
-  type: 'remote';
-  branch: string;
-  remote: Remote;
-};
-
-export type Branch = LocalBranch | RemoteBranch;
-
 export type LocalBranchesPayload = {
   localBranches: LocalBranch[];
   currentBranch: string | null;
@@ -146,7 +209,7 @@ export type RemoteBranchesPayload = {
 
 /** @deprecated Use LocalBranchesPayload and RemoteBranchesPayload */
 export type BranchesPayload = {
-  branches: Branch[];
+  branches: (LocalBranch | RemoteBranch)[];
   currentBranch: string | null;
   isUnborn: boolean;
   gitDefaultBranch: string;

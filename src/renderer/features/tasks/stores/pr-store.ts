@@ -1,5 +1,13 @@
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import { refsEqual, remoteRef, toRefString, type Commit, type GitChange } from '@shared/git';
+import {
+  commitRef,
+  mergeBaseRange,
+  refsEqual,
+  remoteRef,
+  type Commit,
+  type GitChange,
+  type GitObjectRef,
+} from '@shared/git';
 import { selectCurrentPr, type PrCheckRun, type PullRequest } from '@shared/pull-requests';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -196,21 +204,26 @@ export class PrStore {
     expectedChangedFiles: number
   ): Promise<GitChange[]> {
     const remote = this.repositoryStore.configuredRemote;
-    const ref = `${toRefString(remoteRef(remote, baseRefName))}...HEAD`;
+    const baseRef = remoteRef(remote, baseRefName);
+    const headRef = commitRef('HEAD');
+    const range = mergeBaseRange(baseRef, headRef);
 
-    const tryRef = async (r: string): Promise<GitChange[] | null> => {
-      const result = await rpc.git.getChangedFiles(this.projectId, this.workspaceId, r);
+    const tryRange = async (): Promise<GitChange[] | null> => {
+      const result = await rpc.git.getChangedFiles(this.projectId, this.workspaceId, range);
       if (!result.success) return null;
-      if (result.data.changes.length === 0 && expectedChangedFiles > 0) return null;
-      return result.data.changes;
+      const changes = result.data.changes;
+      // Return null (trigger fetch+retry) when:
+      //   - result is empty but API says there should be changes (stale base)
+      //   - result is larger than expected (stale base includes extra diverged commits)
+      if (expectedChangedFiles > 0 && changes.length === 0) return null;
+      if (expectedChangedFiles > 0 && changes.length > expectedChangedFiles * 2) return null;
+      return changes;
     };
 
-    const first = await tryRef(ref);
+    const first = await tryRange();
     if (first) return first;
 
-    await rpc.git.fetch(this.projectId, this.workspaceId, remote);
-
-    return (await tryRef(ref)) ?? [];
+    return (await tryRange()) ?? [];
   }
 
   private async _fetchCheckRuns(nameWithOwner: string, prNumber: number): Promise<PrCheckRun[]> {
@@ -232,13 +245,20 @@ export class PrStore {
     aheadCount: number;
   }> {
     const remote = this.repositoryStore.configuredRemote;
+    const currentPr = selectCurrentPr(this.getPrs());
+    // When a PR is open, compute aheadCount relative to the PR's base branch so
+    // the commit list matches what GitHub shows rather than @{upstream}.
+    const base: GitObjectRef | undefined = currentPr
+      ? remoteRef(remote, currentPr.metadata.baseRefName)
+      : undefined;
     const result = await rpc.git.getLog(
       this.projectId,
       this.workspaceId,
       undefined,
       undefined,
       undefined,
-      remote
+      remote.name,
+      base
     );
     if (!result.success) return { commits: [], aheadCount: 0 };
     return result.data;

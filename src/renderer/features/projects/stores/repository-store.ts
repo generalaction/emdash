@@ -3,6 +3,7 @@ import { gitRefChangedChannel, type GitRefChange } from '@shared/events/gitEvent
 import type {
   LocalBranch,
   LocalBranchesPayload,
+  Remote,
   RemoteBranch,
   RemoteBranchesPayload,
 } from '@shared/git';
@@ -107,13 +108,13 @@ export class RepositoryStore {
     return this.remoteData.data?.remoteBranches ?? [];
   }
 
-  get configuredRemote(): string {
+  get configuredRemote(): Remote {
     const setting = this.settingsStore.settings?.remote;
     const remotes = this.remoteData.data?.remotes ?? [];
     return selectPreferredRemote(setting, remotes);
   }
 
-  get remotes(): { name: string; url: string }[] {
+  get remotes(): Remote[] {
     return this.remoteData.data?.remotes ?? [];
   }
 
@@ -126,7 +127,7 @@ export class RepositoryStore {
     return computeDefaultBranch(
       configured,
       this.branches,
-      this.configuredRemote,
+      this.configuredRemote.name,
       d.gitDefaultBranch
     );
   }
@@ -138,7 +139,7 @@ export class RepositoryStore {
 
     if (isRemotePref) {
       const remote = this.remoteBranches.find(
-        (b) => b.branch === name && b.remote.name === this.configuredRemote
+        (b) => b.branch === name && b.remote.name === this.configuredRemote.name
       );
       if (remote) return remote;
     }
@@ -152,8 +153,8 @@ export class RepositoryStore {
   }
 
   isBranchOnRemote(branchName: string): boolean {
-    const remote = this.configuredRemote;
-    return this.remoteBranches.some((b) => b.branch === branchName && b.remote.name === remote);
+    const remoteName = this.configuredRemote.name;
+    return this.remoteBranches.some((b) => b.branch === branchName && b.remote.name === remoteName);
   }
 
   getBranchDivergence(branchName: string): { ahead: number; behind: number } | null {

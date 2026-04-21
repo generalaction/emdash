@@ -1,7 +1,7 @@
 import path from 'node:path';
 import parcelWatcher from '@parcel/watcher';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import { localRef, remoteRef, toRefString, type GitRef } from '@shared/git';
+import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/git';
 import { events } from '@main/lib/events';
 
 export class GitWatcherService {
@@ -44,14 +44,14 @@ export class GitWatcherService {
         let emitLocal = false;
         let emitRemote = false;
         let emitConfig = false;
-        const changedLocalByKey = new Map<string, GitRef>();
-        const changedRemoteByKey = new Map<string, GitRef>();
+        const changedLocalByKey = new Map<string, GitObjectRef>();
+        const changedRemoteByKey = new Map<string, GitObjectRef>();
         for (const e of rawEvents) {
           const rel = path.relative(gitDir, e.path).replace(/\\/g, '/');
           // Project-level ref changes
           if (rel.startsWith('refs/heads/')) {
             const branch = rel.slice('refs/heads/'.length);
-            const r = localRef(branch);
+            const r = branchRef({ type: 'local', branch });
             changedLocalByKey.set(toRefString(r), r);
             emitLocal = true;
           } else if (rel === 'HEAD') {

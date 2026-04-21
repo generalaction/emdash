@@ -63,7 +63,7 @@ export const CreatePrModal = observer(function CreatePrModal({
       const pushResult = await rpc.git.push(
         projectId,
         workspaceId,
-        repo?.configuredRemote ?? 'origin'
+        repo?.configuredRemote.name ?? 'origin'
       );
       if (!pushResult.success) {
         log.error('Failed to push branch:', pushResult.error);
