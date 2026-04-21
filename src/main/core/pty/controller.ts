@@ -1,4 +1,5 @@
 import { createRPCController } from '@shared/ipc/rpc';
+import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import { log } from '@main/lib/logger';
 import type { SshProjectProvider } from '../projects/impl/ssh-project-provider';
@@ -64,10 +65,11 @@ export const ptyController = createRPCController({
    */
   uploadFiles: async (args: { sessionId: string; localPaths: string[] }) => {
     try {
-      const [projectId, scopeId] = args.sessionId.split(':');
-      if (!projectId || !scopeId) {
+      const parsed = parsePtySessionId(args.sessionId);
+      if (!parsed) {
         return err({ type: 'invalid_session' as const });
       }
+      const { projectId, scopeId } = parsed;
 
       const provider = projectManager.getProject(projectId);
       if (!provider || provider.type !== 'ssh') {

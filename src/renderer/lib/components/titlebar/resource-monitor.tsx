@@ -194,7 +194,7 @@ function AgentRow({ entry }: { entry: Entry }) {
       </span>
       <div className="min-w-0 flex-1 truncate">
         <span className="truncate text-foreground-muted">{label}</span>
-        {entry.kind === 'ssh' ? (
+        {entry.pid === undefined ? (
           <span className="ml-1 text-[10px] text-foreground-passive">(ssh)</span>
         ) : null}
       </div>

@@ -1,22 +1,13 @@
 import os from 'node:os';
 import pidusage from 'pidusage';
 import { resourceSnapshotChannel } from '@shared/events/resourceEvents';
+import { parsePtySessionId } from '@shared/ptySessionId';
 import type { ResourcePtyEntry, ResourceSnapshot } from '@shared/resource-monitor';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 
 const SAMPLE_INTERVAL_MS = 1500;
-
-function parseSessionId(id: string): {
-  projectId: string;
-  scopeId: string;
-  leafId: string;
-} | null {
-  const parts = id.split(':');
-  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null;
-  return { projectId: parts[0], scopeId: parts[1], leafId: parts[2] };
-}
 
 export async function sampleOnce(): Promise<ResourceSnapshot> {
   const active = ptySessionRegistry.listActiveSessions();
@@ -42,7 +33,7 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
 
   const entries: ResourcePtyEntry[] = [];
   for (const a of active) {
-    const parsed = parseSessionId(a.sessionId);
+    const parsed = parsePtySessionId(a.sessionId);
     if (!parsed) continue;
     const u = typeof a.pid === 'number' ? usage[String(a.pid)] : undefined;
     entries.push({
@@ -51,7 +42,6 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
       scopeId: parsed.scopeId,
       leafId: parsed.leafId,
       pid: a.pid,
-      kind: typeof a.pid === 'number' ? 'local' : 'ssh',
       cpu: u?.cpu ?? 0,
       memory: u?.memory ?? 0,
     });
@@ -67,12 +57,17 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
 }
 
 let timer: NodeJS.Timeout | null = null;
+let lastEntryCount = -1;
 
 export function startResourceSampler(): void {
   if (timer) return;
   const tick = async () => {
     try {
       const snap = await sampleOnce();
+      // Skip emit when nothing is running and nothing was running last tick —
+      // avoids waking up every observer in the renderer every 1.5s while idle.
+      if (snap.entries.length === 0 && lastEntryCount === 0) return;
+      lastEntryCount = snap.entries.length;
       events.emit(resourceSnapshotChannel, snap);
     } catch (err) {
       log.warn('resource-sampler: sample failed', err);
