@@ -30,6 +30,7 @@ const ICON_PATHS = {
   files: 'files.svg',
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
+  windsurf: 'windsurf.png',
   terminal: 'terminal.png',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
@@ -110,6 +111,32 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['code {{path}}', 'code-insiders {{path}}'],
         checkCommands: ['code', 'code-insiders'],
+      },
+    },
+  },
+  windsurf: {
+    id: 'windsurf',
+    label: 'Windsurf',
+    iconPath: ICON_PATHS.windsurf,
+    autoInstall: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v windsurf >/dev/null 2>&1 && windsurf {{path}}',
+          'open -n -b com.exafunction.windsurf --args {{path}}',
+          'open -n -a "Windsurf" {{path}}',
+        ],
+        checkCommands: ['windsurf'],
+        bundleIds: ['com.exafunction.windsurf'],
+        appNames: ['Windsurf'],
+      },
+      win32: {
+        openCommands: ['start "" windsurf {{path}}'],
+        checkCommands: ['windsurf'],
+      },
+      linux: {
+        openCommands: ['windsurf {{path}}'],
+        checkCommands: ['windsurf'],
       },
     },
   },
