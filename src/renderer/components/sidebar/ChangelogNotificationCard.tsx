@@ -85,7 +85,7 @@ export function ChangelogNotificationCard({
           className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 text-left transition-colors hover:bg-accent/40"
         >
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-foreground">Test the v1 Beta</p>
+            <p className="text-xs font-semibold text-foreground">Test the v1 beta</p>
             <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
               <span>emdash.sh</span>
               <ExternalLink className="h-3 w-3" />

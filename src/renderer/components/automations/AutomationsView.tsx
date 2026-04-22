@@ -110,8 +110,8 @@ const AutomationsView: React.FC = () => {
             <div>
               <h1 className="flex items-center gap-2 text-lg font-semibold">
                 Automations
-                <span className="rounded bg-zinc-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase leading-none tracking-wide text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400">
-                  Beta
+                <span className="rounded bg-zinc-500/15 px-1.5 py-0.5 text-[9px] font-medium leading-none tracking-wide text-zinc-600 dark:bg-zinc-400/15 dark:text-zinc-400">
+                  beta
                 </span>
               </h1>
               <p className="mt-1 text-xs text-muted-foreground">
