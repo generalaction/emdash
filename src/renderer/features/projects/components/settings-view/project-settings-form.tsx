@@ -7,6 +7,7 @@ import { err, type Result } from '@shared/result';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
+import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Field, FieldDescription, FieldGroup, FieldTitle } from '@renderer/lib/ui/field';
@@ -290,6 +291,22 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
               <FieldTitle>Lifecycle scripts</FieldTitle>
               <FieldDescription className="mt-1">
                 Shell commands run at each stage of the worktree lifecycle. One command per line.
+                <span> See </span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="group inline-flex h-auto items-center gap-1 px-0 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline focus-visible:outline-none focus-visible:ring-0"
+                  onClick={() => rpc.app.openExternal('https://www.emdash.sh/docs/project-config')}
+                >
+                  <span className="font-mono text-xs transition-colors group-hover:text-foreground">
+                    .emdash.json docs
+                  </span>
+                  <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">
+                    ↗
+                  </span>
+                </Button>
+                <span> for the full project config reference.</span>
               </FieldDescription>
             </div>
 
