@@ -18,6 +18,7 @@ export class WorkspaceRegistryStore {
   acquire(
     projectId: string,
     workspaceId: string,
+    taskId: string,
     repositoryStore: RepositoryStore,
     getPrs: () => PullRequest[]
   ): WorkspaceStore {
@@ -28,7 +29,7 @@ export class WorkspaceRegistryStore {
       return existing.store;
     }
 
-    const store = new WorkspaceStore(projectId, workspaceId, repositoryStore, getPrs);
+    const store = new WorkspaceStore(projectId, workspaceId, taskId, repositoryStore, getPrs);
     this.entries.set(key, { store, refCount: 1, activated: false });
     return store;
   }

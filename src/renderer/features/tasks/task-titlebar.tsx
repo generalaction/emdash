@@ -26,6 +26,7 @@ import {
 } from '@renderer/features/tasks/stores/task-selectors';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { RightPanelView } from '@renderer/features/tasks/types';
+import { PrBadge } from '@renderer/lib/components/pr-badge';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
@@ -259,6 +260,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               />
             </PopoverContent>
           </Popover>
+          {provisionedTask.workspace.pr.currentPr && (
+            <PrBadge pr={provisionedTask.workspace.pr.currentPr} className="ml-1" />
+          )}
           <button
             className={cn(
               'text-foreground-muted ml-1',

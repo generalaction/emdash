@@ -20,6 +20,7 @@ export type MergeResult = { success: true } | { success: false; error: string };
 
 export class PrStore {
   readonly commitHistory: Resource<{ commits: Commit[]; aheadCount: number }>;
+  private readonly _taskPrLookup: Resource<void>;
 
   private _prFiles = new Map<string, Resource<GitChange[]>>();
   private _prCheckRuns = new Map<string, Resource<PrCheckRun[]>>();
@@ -28,6 +29,7 @@ export class PrStore {
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
+    private readonly taskId: string,
     private readonly repositoryStore: RepositoryStore,
     private readonly getPrs: () => PullRequest[]
   ) {
@@ -56,6 +58,39 @@ export class PrStore {
       ]
     );
     this.commitHistory.start();
+
+    // Auto-detect open PRs for this task's branch. The RPC persists results
+    // and emits taskPrUpdatedChannel, which task-manager uses to patch
+    // task.data.prs — there's no local data to hold here.
+    this._taskPrLookup = new Resource<void>(
+      () => this._refreshTaskPrs(),
+      [
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitWorkspaceChangedChannel, (p) => {
+              if (p.workspaceId === workspaceId && p.kind === 'head') handler();
+            }),
+          onEvent: 'reload',
+          debounceMs: 500,
+        },
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitRefChangedChannel, (p) => {
+              if (p.projectId === projectId && p.kind === 'remote-refs') handler();
+            }),
+          onEvent: 'reload',
+          debounceMs: 800,
+        },
+        { kind: 'poll', intervalMs: 60_000, pauseWhenHidden: true },
+      ]
+    );
+    this._taskPrLookup.start();
+  }
+
+  refreshPullRequestsForTask(): void {
+    this._taskPrLookup.invalidate();
   }
 
   get pullRequests(): PullRequest[] {
@@ -194,9 +229,14 @@ export class PrStore {
 
   dispose(): void {
     this.commitHistory.dispose();
+    this._taskPrLookup.dispose();
     for (const r of this._prFiles.values()) r.dispose();
     for (const r of this._prCheckRuns.values()) r.dispose();
     for (const r of this._prComments.values()) r.dispose();
+  }
+
+  private async _refreshTaskPrs(): Promise<void> {
+    await rpc.pullRequests.getPullRequestsForTask(this.projectId, this.taskId, true);
   }
 
   private async _fetchPrFiles(

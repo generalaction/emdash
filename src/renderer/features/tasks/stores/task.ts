@@ -66,6 +66,7 @@ export class ProvisionedTask {
     this.workspace = workspaceRegistry.acquire(
       taskData.projectId,
       this.workspaceId,
+      taskData.id,
       repositoryStore,
       () => (this._taskData as Task).prs ?? []
     );
