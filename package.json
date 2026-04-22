@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "0.4.49",
+  "version": "0.4.50",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "license": "Apache-2.0",
   "main": "dist/main/main/entry.js",
