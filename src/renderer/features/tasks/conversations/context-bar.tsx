@@ -18,11 +18,12 @@ export const ContextBar = observer(function ContextBar() {
   const task = getRegisteredTaskData(projectId, taskId);
   const { value: reviewPrompt, isSaving: isSavingReviewPrompt } = useAppSettingsKey('reviewPrompt');
   const conversationTabs = provisioned.taskView.conversationTabs;
+  const conversationStore = provisioned.conversations;
   const draftComments = provisioned.draftComments;
   const activeConversation = conversationTabs.activeTab;
   const activeSessionId = activeConversation?.session.sessionId;
   const canApplyContext = Boolean(activeSessionId);
-  const hasConversation = conversationTabs.tabs.length > 0;
+  const hasConversation = conversationStore.conversations.size > 0;
   const formattedDraftComments = draftComments.formattedForAgent;
 
   const actions = useMemo(
@@ -37,7 +38,7 @@ export const ContextBar = observer(function ContextBar() {
   const reviewAction = actions.find((action) => action.kind === 'review-prompt') ?? null;
   const draftCommentsAction = actions.find((action) => action.kind === 'draft-comments') ?? null;
 
-  if (!hasConversation || (!issueAction && draftComments.count === 0 && !reviewAction)) return null;
+  if (!hasConversation || (!issueAction && !draftCommentsAction && !reviewAction)) return null;
 
   const applyContext = async (action: ContextAction) => {
     if (!activeSessionId) return;
