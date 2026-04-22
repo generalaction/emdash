@@ -57,10 +57,6 @@ export class Ssh2PtySession implements Pty {
       handler({ exitCode: exitCode ?? undefined, signal: normalizeSignal(signal) });
     });
   }
-
-  getPid(): number | undefined {
-    return undefined;
-  }
 }
 
 export async function openSsh2Pty(

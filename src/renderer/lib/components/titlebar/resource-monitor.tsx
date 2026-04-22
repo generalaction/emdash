@@ -10,13 +10,7 @@ import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-
-function formatBytes(bytes: number): string {
-  if (!bytes || bytes <= 0) return '0 MB';
-  const mb = bytes / (1024 * 1024);
-  if (mb < 1024) return `${mb.toFixed(0)} MB`;
-  return `${(mb / 1024).toFixed(1)} GB`;
-}
+import { formatBytes } from '@renderer/utils/formatBytes';
 
 type Entry = ResourcePtyEntry & {
   taskName?: string;

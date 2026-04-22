@@ -56,6 +56,7 @@
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^20.10.0",
+    "@types/pidusage": "^2.0.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/react-syntax-highlighter": "^15.5.13",

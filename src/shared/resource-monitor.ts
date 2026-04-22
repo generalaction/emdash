@@ -17,6 +17,5 @@ export interface ResourceSnapshot {
   timestamp: number;
   cpuCount: number;
   totalMemoryBytes: number;
-  freeMemoryBytes: number;
   entries: ResourcePtyEntry[];
 }

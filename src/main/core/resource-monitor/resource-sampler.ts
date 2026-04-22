@@ -9,6 +9,8 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 
 const SAMPLE_INTERVAL_MS = 1500;
+const CPU_COUNT = os.cpus().length;
+const TOTAL_MEMORY_BYTES = os.totalmem();
 
 export async function sampleOnce(): Promise<ResourceSnapshot> {
   const active = ptySessionRegistry.listActiveSessions();
@@ -19,14 +21,13 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
   let usage: Record<string, { cpu: number; memory: number }> = {};
   if (localPids.length > 0) {
     try {
-      usage = (await pidusage(localPids)) as Record<string, { cpu: number; memory: number }>;
+      usage = await pidusage(localPids);
     } catch {
       // A dead PID rejects the whole batch — fall back to per-pid sampling in parallel.
       const results = await Promise.allSettled(localPids.map((pid) => pidusage(pid)));
       results.forEach((r, i) => {
         if (r.status === 'fulfilled') {
-          const u = r.value as { cpu: number; memory: number };
-          usage[String(localPids[i])] = { cpu: u.cpu, memory: u.memory };
+          usage[String(localPids[i])] = { cpu: r.value.cpu, memory: r.value.memory };
         }
       });
     }
@@ -50,9 +51,8 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
 
   return {
     timestamp: Date.now(),
-    cpuCount: os.cpus().length,
-    totalMemoryBytes: os.totalmem(),
-    freeMemoryBytes: os.freemem(),
+    cpuCount: CPU_COUNT,
+    totalMemoryBytes: TOTAL_MEMORY_BYTES,
     entries,
   };
 }

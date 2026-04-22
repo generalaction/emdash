@@ -86,9 +86,8 @@ export class LocalPtySession implements Pty {
     });
   }
 
-  getPid(): number | undefined {
-    const pid = this.proc.pid;
-    return typeof pid === 'number' && pid > 0 ? pid : undefined;
+  getPid(): number {
+    return this.proc.pid;
   }
 }
 

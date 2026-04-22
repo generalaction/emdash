@@ -5,6 +5,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 
 export class ResourceMonitorStore {
   snapshot: ResourceSnapshot | null = null;
+  private started = false;
 
   constructor() {
     makeObservable(this, {
@@ -40,6 +41,8 @@ export class ResourceMonitorStore {
   }
 
   start(): void {
+    if (this.started) return;
+    this.started = true;
     events.on(resourceSnapshotChannel, (snap) => {
       runInAction(() => {
         this.snapshot = snap;

@@ -102,15 +102,11 @@ export class PtySessionRegistry {
     this.activeConsumers.delete(sessionId);
   }
 
-  /**
-   * Snapshot of currently registered PTYs with their top-level OS PID, for
-   * resource monitoring. SSH PTYs are included with `pid: undefined` — the
-   * owning process runs on the remote host and isn't sampleable from here.
-   */
+  /** Active PTYs with local OS PID; SSH entries have `pid: undefined`. */
   listActiveSessions(): Array<{ sessionId: string; pid: number | undefined }> {
     const out: Array<{ sessionId: string; pid: number | undefined }> = [];
     for (const [sessionId, pty] of this.ptyMap) {
-      out.push({ sessionId, pid: pty.getPid() });
+      out.push({ sessionId, pid: pty.getPid?.() });
     }
     return out;
   }

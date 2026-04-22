@@ -288,6 +288,9 @@ importers:
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.32
+      '@types/pidusage':
+        specifier: ^2.0.5
+        version: 2.0.5
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
@@ -2644,6 +2647,9 @@ packages:
 
   '@types/node@24.11.0':
     resolution: {integrity: sha512-fPxQqz4VTgPI/IQ+lj9r0h+fDR66bzoeMGHp8ASee+32OSGIkeASsoZuJixsQoVef1QJbeubcPBxKk22QVoWdw==}
+
+  '@types/pidusage@2.0.5':
+    resolution: {integrity: sha512-MIiyZI4/MK9UGUXWt0jJcCZhVw7YdhBuTOuqP/BjuLDLZ2PmmViMIQgZiWxtaMicQfAz/kMrZ5T7PKxFSkTeUA==}
 
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
@@ -9117,6 +9123,8 @@ snapshots:
   '@types/node@24.11.0':
     dependencies:
       undici-types: 7.16.0
+
+  '@types/pidusage@2.0.5': {}
 
   '@types/plist@3.0.5':
     dependencies:

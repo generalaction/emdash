@@ -147,8 +147,9 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   ) as UpdateViewParamsFn;
 
   const slotsValue = useMemo((): SlotsContextValue => {
-    const registry = views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>;
-    const def = registry[currentViewId] ?? registry.home;
+    const def = (views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>)[
+      currentViewId
+    ];
     return {
       WrapView: (def.WrapView ?? Fragment) as ComponentType<
         { children: ReactNode } & Record<string, unknown>
