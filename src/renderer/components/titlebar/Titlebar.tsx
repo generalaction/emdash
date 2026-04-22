@@ -7,11 +7,13 @@ import {
   Settings as SettingsIcon,
   KanbanSquare,
   Code2,
+  ArrowUpRight,
 } from 'lucide-react';
 import { ShortcutHint } from '../ui/shortcut-hint';
 import SidebarLeftToggleButton from './SidebarLeftToggleButton';
 import SidebarRightToggleButton from './SidebarRightToggleButton';
 import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import OpenInMenu from './OpenInMenu';
 import FeedbackModal from '../FeedbackModal';
@@ -24,6 +26,7 @@ import { useProjectManagementContext } from '../../contexts/ProjectManagementPro
 import { useTaskManagementContext } from '../../contexts/TaskManagementContext';
 import { useGithubContext } from '../../contexts/GithubContextProvider';
 import { useAppSettings } from '@/contexts/AppSettingsProvider';
+import { getEmdashV1BetaUrl } from '@shared/urls';
 
 const isMacOS = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
@@ -131,6 +134,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
   const [isHeaderHovered, setIsHeaderHovered] = useState(false);
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
+  const betaUrl = getEmdashV1BetaUrl('titlebar-badge');
 
   const handleOpenFeedback = useCallback(async () => {
     void import('../../lib/telemetryClient').then(({ captureTelemetry }) => {
@@ -219,11 +223,29 @@ const Titlebar: React.FC<TitlebarProps> = ({
           </div>
         )}
         <div
-          className="pointer-events-auto flex flex-shrink-0 items-center [-webkit-app-region:no-drag]"
+          className="pointer-events-auto flex flex-shrink-0 items-center gap-2 [-webkit-app-region:no-drag]"
           style={{
             paddingLeft: isMacOS ? 'env(titlebar-area-x, 80px)' : '0.5rem',
           }}
         >
+          <Badge
+            asChild
+            variant="outline"
+            className="border-emerald-700/18 hover:border-emerald-600/28 h-7 rounded-md bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 px-2.5 text-[11px] font-semibold text-emerald-50 shadow-sm shadow-emerald-950/20 transition-colors hover:from-emerald-900 hover:via-emerald-800 hover:to-teal-800 hover:text-white dark:border-emerald-500/30 dark:from-emerald-950 dark:via-emerald-900 dark:to-teal-900 dark:text-emerald-50 dark:hover:border-emerald-400/40 dark:hover:from-emerald-900 dark:hover:via-emerald-800 dark:hover:to-teal-800"
+          >
+            <a
+              href={betaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => {
+                event.preventDefault();
+                void window.electronAPI.openExternal(betaUrl);
+              }}
+            >
+              Try v1 beta now
+              <ArrowUpRight className="size-3.5" data-icon="inline-end" />
+            </a>
+          </Badge>
           {showResourceMonitor ? <PerformanceChip /> : null}
         </div>
         {/* Center: project/task context (grows to fill) */}

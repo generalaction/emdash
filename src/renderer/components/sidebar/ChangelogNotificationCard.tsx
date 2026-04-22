@@ -3,7 +3,7 @@ import { formatChangelogPublishedAt } from '@/lib/changelogDate';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import type { ChangelogEntry } from '@shared/changelog';
-import { EMDASH_WEBSITE_URL } from '@shared/urls';
+import { getEmdashV1BetaUrl } from '@shared/urls';
 import { ArrowRight, ExternalLink, X } from 'lucide-react';
 import { useEmdashAccount } from '@/contexts/EmdashAccountProvider';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ export function ChangelogNotificationCard({
 }: ChangelogNotificationCardProps) {
   const publishedAt = formatChangelogPublishedAt(entry.publishedAt);
   const { hasAccount } = useEmdashAccount();
+  const betaUrl = getEmdashV1BetaUrl('changelog-notification-card');
 
   return (
     <motion.div
@@ -79,7 +80,7 @@ export function ChangelogNotificationCard({
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            window.electronAPI.openExternal(EMDASH_WEBSITE_URL);
+            window.electronAPI.openExternal(betaUrl);
           }}
           className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 text-left transition-colors hover:bg-accent/40"
         >

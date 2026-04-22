@@ -793,9 +793,11 @@ const ProjectMainView: React.FC<ProjectMainViewProps> = ({
           <div className="mx-auto w-full max-w-6xl">
             {/* Header */}
             <div className="px-10">
-              <header className="flex items-center justify-between">
-                <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
-                <div className="flex items-center gap-2">
+              <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   <BaseBranchControls
                     baseBranch={baseBranch}
                     branchOptions={branchOptions}

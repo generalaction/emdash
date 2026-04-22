@@ -4,7 +4,7 @@ import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { DialogContent } from '@/components/ui/dialog';
 import { formatChangelogPublishedAt } from '@/lib/changelogDate';
 import { EMDASH_CHANGELOG_URL, type ChangelogEntry } from '@shared/changelog';
-import { EMDASH_WEBSITE_URL } from '@shared/urls';
+import { getEmdashV1BetaUrl } from '@shared/urls';
 import { ArrowRight, ExternalLink } from 'lucide-react';
 
 interface ChangelogModalProps {
@@ -76,6 +76,7 @@ function ChangelogModal({ entry }: ChangelogModalProps): JSX.Element {
   const publishedAt = formatChangelogPublishedAt(entry.publishedAt);
   const content = stripLeadingReleaseHeadings(entry.content, entry);
   const { main, footer } = splitContentFooter(content);
+  const betaUrl = getEmdashV1BetaUrl('changelog-modal');
 
   return (
     <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0 focus:outline-none">
@@ -93,7 +94,7 @@ function ChangelogModal({ entry }: ChangelogModalProps): JSX.Element {
         <div className="px-6 py-5">
           <button
             type="button"
-            onClick={() => window.electronAPI.openExternal(EMDASH_WEBSITE_URL)}
+            onClick={() => window.electronAPI.openExternal(betaUrl)}
             className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/35 px-4 py-3 text-left transition-colors hover:bg-accent/40"
           >
             <div className="min-w-0">
