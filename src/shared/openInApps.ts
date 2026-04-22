@@ -138,6 +138,9 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['windsurf {{path}}'],
         checkCommands: ['windsurf'],
+      },
+    },
+  },
   xcode: {
     id: 'xcode',
     label: 'Xcode',
