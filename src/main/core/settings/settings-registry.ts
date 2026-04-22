@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import type { OpenInAppId } from '@shared/openInApps';
+import { getDefaultLocalWorktreeDirectory } from './worktree-defaults';
 
 export const DEFAULT_AGENT_ID = 'claude';
 export const DEFAULT_REVIEW_PROMPT =
@@ -14,7 +15,7 @@ type SettingsDefaultsMap = {
 export const SETTINGS_DEFAULTS = {
   localProject: () => ({
     defaultProjectsDirectory: join(homedir(), 'emdash', 'repositories'),
-    defaultWorktreeDirectory: join(homedir(), 'emdash', 'worktrees'),
+    defaultWorktreeDirectory: getDefaultLocalWorktreeDirectory(),
     branchPrefix: 'emdash',
     pushOnCreate: true,
     writeAgentConfigToGitIgnore: true,

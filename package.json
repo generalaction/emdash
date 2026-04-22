@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "1.0.6",
+  "version": "1.0.10",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "type": "module",
   "main": "./out/main/index.js",
@@ -11,7 +11,7 @@
     "dev:main": "electron-vite dev --watch main",
     "dev:renderer": "electron-vite dev --watch renderer",
     "db:generate": "drizzle-kit generate",
-    "db:reset": "rm -f \"$HOME/Library/Application Support/Emdash Beta/emdash2.db\" \"$HOME/.config/Emdash Beta/emdash2.db\"",
+    "db:reset": "rm -f \"$HOME/Library/Application Support/Emdash/emdash3.db\" \"$HOME/.config/Emdash/emdash3.db\"",
     "test": "vitest run",
     "build": "electron-vite build",
     "build:main": "electron-vite build --filter main",

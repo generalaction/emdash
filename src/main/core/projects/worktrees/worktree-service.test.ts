@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Remote } from '@shared/git';
+import { ok } from '@shared/result';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { getLocalExec, type ExecFn } from '@main/core/utils/exec';
 import type { ProjectSettingsProvider } from '../settings/schema';
@@ -19,7 +20,7 @@ async function initRepo(dir: string, exec: ExecFn): Promise<void> {
 function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider {
   return {
     get: async () => ({ preservePatterns }),
-    update: async () => {},
+    update: async () => ok(),
     ensure: async () => {},
     getWorktreeDirectory: async () => '',
     getDefaultBranch: async () => 'main',

@@ -104,13 +104,18 @@ export class TaskManagerStore {
 
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
-      this._loadPromise = rpc.tasks.getTasks(this.projectId).then((tasks) => {
-        runInAction(() => {
-          for (const t of tasks) {
-            this.tasks.set(t.id, createUnprovisionedTask(t));
-          }
+      this._loadPromise = rpc.tasks
+        .getTasks(this.projectId)
+        .then((tasks) => {
+          runInAction(() => {
+            for (const t of tasks) {
+              this.tasks.set(t.id, createUnprovisionedTask(t));
+            }
+          });
+        })
+        .catch((e) => {
+          console.error('Error loading tasks', e);
         });
-      });
     }
     return this._loadPromise;
   }

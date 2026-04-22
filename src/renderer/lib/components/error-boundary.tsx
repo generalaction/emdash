@@ -1,5 +1,6 @@
 import React from 'react';
 import { captureComponentError } from '../../_legacy/errorTracking';
+import { rpc } from '../ipc';
 import { Button } from '../ui/button';
 
 type ErrorBoundaryState = {
@@ -12,7 +13,21 @@ type ErrorBoundaryProps = {
   componentName?: string;
 };
 
-export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+function ErrorFallback({ message, onReload }: { message: string; onReload: () => void }) {
+  return (
+    <div className="flex h-screen w-screen items-center justify-center bg-background p-6">
+      <div className="max-w-xl rounded-md border border-border bg-card p-6 text-card-foreground shadow-sm">
+        <h1 className="mb-2 text-lg font-semibold">Something went wrong</h1>
+        <p className="mb-4 break-all text-sm text-muted-foreground">{message}</p>
+        <Button variant="default" onClick={onReload}>
+          Reload
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -34,28 +49,16 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   handleReload = () => {
-    try {
-      window.location.reload();
-    } catch {}
+    void rpc.viewState.reset().finally(() => {
+      try {
+        window.location.reload();
+      } catch {}
+    });
   };
 
   render() {
     if (!this.state.hasError) return this.props.children as React.ReactElement;
-
     const message = this.state.error?.message || 'An unexpected error occurred.';
-
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background p-6">
-        <div className="max-w-xl rounded-md border border-border bg-card p-6 text-card-foreground shadow-sm">
-          <h1 className="mb-2 text-lg font-semibold">Something went wrong</h1>
-          <p className="mb-4 break-all text-sm text-muted-foreground">{message}</p>
-          <div className="flex items-center gap-2">
-            <Button variant="default" onClick={this.handleReload}>
-              Reload
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
+    return <ErrorFallback message={message} onReload={this.handleReload} />;
   }
 }

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, like } from 'drizzle-orm';
 import { db } from './client';
 import { kv } from './schema';
 
@@ -43,6 +43,14 @@ export class KV<TSchema extends Record<string, unknown>> {
   async del<K extends keyof TSchema & string>(key: K): Promise<void> {
     try {
       await db.delete(kv).where(eq(kv.key, this.prefixed(key)));
+    } catch {
+      // kv table may not exist yet during the first-run migration window
+    }
+  }
+
+  async clear(): Promise<void> {
+    try {
+      await db.delete(kv).where(like(kv.key, `${this.namespace}:%`));
     } catch {
       // kv table may not exist yet during the first-run migration window
     }

@@ -66,7 +66,7 @@ export const McpModal: React.FC<McpModalProps> = ({
       url: initial.url,
       envEntries: toKV(initial.env),
       headerEntries: toKV(initial.headers),
-      selectedProviders: new Set(initial.providers),
+      selectedProviders: initial.providers,
     },
   });
 
@@ -92,7 +92,7 @@ export const McpModal: React.FC<McpModalProps> = ({
         env: filledEnv.length
           ? Object.fromEntries(filledEnv.map((e) => [e.key, e.value]))
           : undefined,
-        providers: Array.from(v.selectedProviders),
+        providers: v.selectedProviders,
       };
       await onSave(server);
       onSuccess(server);
@@ -147,12 +147,10 @@ export const McpModal: React.FC<McpModalProps> = ({
                       field.handleChange(next);
                       if (next === 'http') {
                         form.setFieldValue('selectedProviders', (prev) => {
-                          const filtered = new Set(prev);
-                          for (const id of prev) {
-                            const prov = providers.find((p) => p.id === id);
-                            if (prov && !prov.supportsHttp) filtered.delete(id);
-                          }
-                          return filtered;
+                          return prev.filter((id) => {
+                            const provider = providers.find((p) => p.id === id);
+                            return provider?.supportsHttp ?? true;
+                          });
                         });
                       }
                     }}
@@ -261,23 +259,26 @@ export const McpModal: React.FC<McpModalProps> = ({
           </form.Subscribe>
 
           {/* Providers */}
-          <form.Subscribe selector={(state) => state.values}>
-            {(values) => (
-              <ProviderSelect
-                providers={providers}
-                selectedProviders={values.selectedProviders}
-                transport={values.transport}
-                onToggle={(id) => {
-                  form.setFieldValue('selectedProviders', (prev) => {
-                    const next = new Set(prev);
-                    if (next.has(id)) next.delete(id);
-                    else next.add(id);
-                    return next;
-                  });
-                }}
-              />
+          <form.Field name="selectedProviders">
+            {(field) => (
+              <form.Subscribe selector={(state) => state.values.transport}>
+                {(transport) => (
+                  <ProviderSelect
+                    providers={providers}
+                    selectedProviders={field.state.value}
+                    transport={transport}
+                    onToggle={(id) => {
+                      field.handleChange(
+                        field.state.value.includes(id)
+                          ? field.state.value.filter((value) => value !== id)
+                          : [...field.state.value, id]
+                      );
+                    }}
+                  />
+                )}
+              </form.Subscribe>
             )}
-          </form.Subscribe>
+          </form.Field>
         </FieldGroup>
       </DialogContentArea>
 
@@ -300,7 +301,7 @@ export const McpModal: React.FC<McpModalProps> = ({
             const canSave =
               !!values.name.trim() &&
               !saving &&
-              values.selectedProviders.size > 0 &&
+              values.selectedProviders.length > 0 &&
               !!(values.transport === 'http' ? values.url.trim() : values.command.trim());
             return (
               <ConfirmButton

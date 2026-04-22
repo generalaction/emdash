@@ -52,9 +52,6 @@ function mergePath(shellPath: string, currentPath: string): string {
 }
 
 /**
- * Resolves the user's full login-shell environment once at startup and merges
- * it into `process.env`.
- *
  * Spawns `$SHELL -ilc 'env'` with a 5 s timeout. On any error (timeout,
  * missing shell, restricted environment) the function logs a warning and
  * returns — the app continues with whatever `process.env` already contains.

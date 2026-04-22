@@ -7,7 +7,6 @@ export type GitChange = {
   status: GitChangeStatus;
   additions: number;
   deletions: number;
-  isStaged: boolean;
 };
 
 /** Result of a single coalesced workspace status refresh (staged + unstaged + branch). */

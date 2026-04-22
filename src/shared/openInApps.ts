@@ -31,6 +31,7 @@ const ICON_PATHS = {
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
   windsurf: 'windsurf.png',
+  xcode: 'xcode.png',
   terminal: 'terminal.png',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
@@ -137,6 +138,20 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['windsurf {{path}}'],
         checkCommands: ['windsurf'],
+  xcode: {
+    id: 'xcode',
+    label: 'Xcode',
+    iconPath: ICON_PATHS.xcode,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v xed >/dev/null 2>&1 && xed {{path}}',
+          'open -n -b com.apple.dt.Xcode --args {{path}}',
+          'open -n -a "Xcode" {{path}}',
+        ],
+        checkCommands: ['xed'],
+        bundleIds: ['com.apple.dt.Xcode'],
+        appNames: ['Xcode'],
       },
     },
   },
