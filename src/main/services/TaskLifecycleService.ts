@@ -12,9 +12,9 @@ import {
   formatLifecycleLogLine,
 } from '@shared/lifecycle';
 import { getTaskEnvVars } from '@shared/task/envVars';
+import { execFile } from 'node:child_process';
 import { log } from '../lib/logger';
 import { buildExternalToolEnv } from '../utils/childProcessEnv';
-import { execFile } from 'node:child_process';
 import { startLifecyclePty, type LifecyclePtyHandle } from './ptyManager';
 
 const execFileAsync = promisify(execFile);
