@@ -27,6 +27,13 @@
     <img src="https://emdash.sh/media/readme/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
 
+  <p>
+    <strong>Emdash v1 beta is now available.</strong>
+    <a href="https://www.emdash.sh/download">Download the beta</a>
+    ·
+    <a href="https://www.emdash.sh/blog">Read the launch post</a>
+  </p>
+
 </div>
 
 <br />
