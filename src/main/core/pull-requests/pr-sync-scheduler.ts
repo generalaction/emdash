@@ -5,7 +5,6 @@ import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { prSyncEngine } from './pr-service';
-import { prSyncCoordinator } from './pr-sync-coordinator';
 import { syncProjectRemotes } from './project-remotes-service';
 
 const INCREMENTAL_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -30,20 +29,11 @@ export class PrSyncScheduler {
     const intervals: ReturnType<typeof setInterval>[] = [];
 
     for (const url of remoteUrls) {
-      const cursor = await prSyncEngine.getFullSyncCursor(url);
+      // sync() routes to full or incremental based on cursor state
+      prSyncEngine.sync(url);
 
-      if (!cursor?.done) {
-        // Full sync not yet complete — start (or resume) it
-        prSyncCoordinator.runFullSync(url);
-      } else {
-        // Full sync done — run an incremental sync immediately, then schedule recurring
-        prSyncCoordinator.runIncrementalSync(url);
-      }
-
-      // Always schedule the recurring incremental sync — the engine guards against
-      // running it before full sync is done
       const handle = setInterval(() => {
-        prSyncCoordinator.runIncrementalSync(url);
+        prSyncEngine.sync(url);
       }, INCREMENTAL_SYNC_INTERVAL_MS);
 
       intervals.push(handle);
@@ -61,7 +51,7 @@ export class PrSyncScheduler {
     // Cancel in-flight syncs for all remotes of this project
     const remoteUrls = this._projectRemoteUrls.get(projectId) ?? [];
     for (const url of remoteUrls) {
-      prSyncCoordinator.cancelAll(url);
+      prSyncEngine.cancel(url);
     }
     this._projectRemoteUrls.delete(projectId);
   }
@@ -75,7 +65,7 @@ export class PrSyncScheduler {
     for (const url of remoteUrls) {
       const prNumber = await this._findPrNumberForBranch(url, taskBranch);
       if (prNumber !== null) {
-        void prSyncCoordinator.syncSingle(url, prNumber);
+        void prSyncEngine.syncSingle(url, prNumber);
       }
     }
   }
@@ -96,7 +86,7 @@ export class PrSyncScheduler {
     // Cancel syncs for removed remotes
     for (const url of oldUrls) {
       if (!newSet.has(url)) {
-        prSyncCoordinator.cancelAll(url);
+        prSyncEngine.cancel(url);
       }
     }
 
@@ -107,16 +97,16 @@ export class PrSyncScheduler {
     this._projectRemoteUrls.set(projectId, newUrls);
     const intervals: ReturnType<typeof setInterval>[] = [];
 
-    // Trigger full sync for newly added remotes, light sync for existing ones
+    // Force full sync for newly added remotes, smart sync for existing ones
     for (const url of newUrls) {
       if (!oldUrls.has(url)) {
-        prSyncCoordinator.runFullSync(url);
+        prSyncEngine.forceFullSync(url);
       } else {
-        prSyncCoordinator.runIncrementalSync(url);
+        prSyncEngine.sync(url);
       }
 
       const handle = setInterval(() => {
-        prSyncCoordinator.runIncrementalSync(url);
+        prSyncEngine.sync(url);
       }, INCREMENTAL_SYNC_INTERVAL_MS);
 
       intervals.push(handle);

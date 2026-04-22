@@ -1,8 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { Octokit } from '@octokit/rest';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
-import type { PrSyncProgress, PullRequest, PullRequestStatus } from '@shared/pull-requests';
+import type {
+  MergeableState,
+  MergeStateStatus,
+  PrSyncProgress,
+  PullRequest,
+  PullRequestStatus,
+} from '@shared/pull-requests';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
 import {
   GET_PR_BY_NUMBER_QUERY,
@@ -97,8 +103,8 @@ interface GqlPrNode {
   additions: number;
   deletions: number;
   changedFiles: number;
-  mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
-  mergeStateStatus: string;
+  mergeable: MergeableState;
+  mergeStateStatus: MergeStateStatus | null;
   author: GqlUser | null;
   headRepository: { nameWithOwner: string; url: string; owner: { login: string } } | null;
   baseRepository: { url: string } | null;
@@ -136,16 +142,94 @@ interface GqlStatusContextNode {
 export class PrSyncEngine {
   private readonly kv = new KV<PrKvSchema>('pr');
 
+  // Per-repository in-flight promise + AbortController (shared by sync/forceFullSync)
+  private readonly _inflight = new Map<string, Promise<void>>();
+  private readonly _controllers = new Map<string, AbortController>();
+  // Per-operation deduplication for single-PR and check-run syncs
+  private readonly _singleInflight = new Map<string, Promise<void>>();
+  private readonly _checksInflight = new Map<string, Promise<void>>();
+
   constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
-  // ── Full sync ──────────────────────────────────────────────────────────────
+  // ── Public sync API ────────────────────────────────────────────────────────
+
+  /**
+   * Smart sync: resumes a full sync if one is incomplete, otherwise runs an
+   * incremental sync. Deduplicated — no-op if a sync is already in-flight.
+   */
+  sync(repositoryUrl: string): void {
+    const key = `sync:${repositoryUrl}`;
+    if (this._inflight.has(key)) {
+      log.info('PrSyncEngine: sync already in flight, skipping', { repositoryUrl });
+      return;
+    }
+
+    const ctrl = new AbortController();
+    this._controllers.set(repositoryUrl, ctrl);
+
+    const promise = this._getFullSyncCursor(repositoryUrl)
+      .then((cursor) => {
+        if (ctrl.signal.aborted) return;
+        return cursor?.done
+          ? this._runIncrementalSync(repositoryUrl, ctrl.signal)
+          : this._runFullSync(repositoryUrl, ctrl.signal);
+      })
+      .catch((e: unknown) => {
+        if ((e as { name?: string }).name !== 'AbortError') {
+          log.error('PrSyncEngine: sync failed', { repositoryUrl, error: String(e) });
+        }
+      })
+      .finally(() => {
+        this._controllers.delete(repositoryUrl);
+        this._inflight.delete(key);
+      });
+
+    this._inflight.set(key, promise);
+  }
+
+  /**
+   * Cancel any in-flight sync and start a full sync unconditionally.
+   * Used by the "Retry" button after an error or when forcing a resync.
+   */
+  forceFullSync(repositoryUrl: string): void {
+    this.cancel(repositoryUrl);
+
+    const key = `sync:${repositoryUrl}`;
+    const ctrl = new AbortController();
+    this._controllers.set(repositoryUrl, ctrl);
+
+    const promise = this._runFullSync(repositoryUrl, ctrl.signal)
+      .catch((e: unknown) => {
+        if ((e as { name?: string }).name !== 'AbortError') {
+          log.error('PrSyncEngine: forceFullSync failed', { repositoryUrl, error: String(e) });
+        }
+      })
+      .finally(() => {
+        this._controllers.delete(repositoryUrl);
+        this._inflight.delete(key);
+      });
+
+    this._inflight.set(key, promise);
+  }
+
+  /** Abort and discard any in-flight sync for this repository URL. */
+  cancel(repositoryUrl: string): void {
+    const ctrl = this._controllers.get(repositoryUrl);
+    if (ctrl) {
+      ctrl.abort();
+      this._controllers.delete(repositoryUrl);
+      this._inflight.delete(`sync:${repositoryUrl}`);
+    }
+  }
+
+  // ── Full sync (private implementation) ────────────────────────────────────
 
   /**
    * Paginate through all PRs for a repository ordered by updatedAt DESC.
    * Saves a cursor after each page so it can be resumed on restart.
    * Sets `done: true` once the cutoff is reached or history is exhausted.
    */
-  async runFullSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
+  private async _runFullSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
     const { owner, repo } = splitNormalizedUrl(repositoryUrl);
     const octokit = await this.getOctokit();
 
@@ -240,27 +324,25 @@ export class PrSyncEngine {
     }
   }
 
-  // ── Incremental sync ───────────────────────────────────────────────────────
+  // ── Incremental sync (private implementation) ─────────────────────────────
 
   /**
    * Fetch only open PRs updated since the last incremental-sync cursor.
-   * Guard: skips if the full sync for this repository has not completed.
    * Resumable: saves a page cursor so it can continue where it left off.
+   * Callers must ensure full sync is complete before calling this (sync() does this).
    */
-  async runIncrementalSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
-    const fullCursor = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
-    if (!fullCursor?.done) {
-      log.debug('PrSyncEngine: skipping incremental sync — full sync not done', { repositoryUrl });
-      return;
-    }
+  private async _runIncrementalSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
+    log.info('PrSyncEngine: runIncrementalSync started', { repositoryUrl });
 
     const { owner, repo } = splitNormalizedUrl(repositoryUrl);
     const octokit = await this.getOctokit();
 
+    const fullCursor = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
     const incrementalCursor = (await this.kv.get(
       `incrementalsync:${repositoryUrl}`
     )) as IncrementalSyncCursor | null;
-    const sinceUpdatedAt = incrementalCursor?.lastUpdatedAt ?? fullCursor.lastUpdatedAt;
+    const sinceUpdatedAt =
+      incrementalCursor?.lastUpdatedAt ?? fullCursor?.lastUpdatedAt ?? new Date(0).toISOString();
 
     let pageCursor: string | undefined = incrementalCursor?.done
       ? undefined
@@ -356,7 +438,40 @@ export class PrSyncEngine {
 
   // ── Single PR sync ─────────────────────────────────────────────────────────
 
-  async syncSingle(
+  /** Sync a single PR by number. Deduplicated — awaits any in-flight call for the same PR. */
+  async syncSingle(repositoryUrl: string, prNumber: number): Promise<PullRequest | null> {
+    const key = `single:${repositoryUrl}:${prNumber}`;
+    if (this._singleInflight.has(key)) {
+      await this._singleInflight.get(key);
+      return null;
+    }
+
+    const ctrl = new AbortController();
+    let result: PullRequest | null = null;
+
+    const promise = this._runSyncSingle(repositoryUrl, prNumber, ctrl.signal)
+      .then((pr) => {
+        result = pr;
+      })
+      .catch((e: unknown) => {
+        if ((e as { name?: string }).name !== 'AbortError') {
+          log.error('PrSyncEngine: syncSingle failed', {
+            repositoryUrl,
+            prNumber,
+            error: String(e),
+          });
+        }
+      })
+      .finally(() => {
+        this._singleInflight.delete(key);
+      });
+
+    this._singleInflight.set(key, promise);
+    await promise;
+    return result;
+  }
+
+  private async _runSyncSingle(
     repositoryUrl: string,
     prNumber: number,
     signal: AbortSignal
@@ -389,11 +504,38 @@ export class PrSyncEngine {
   // ── Check runs sync ────────────────────────────────────────────────────────
 
   /**
-   * Fetch and store check runs for a PR.
-   * If `headRefOid` differs from what is stored, old checks are deleted first.
+   * Fetch and store check runs for a PR. Deduplicated — awaits any in-flight call.
    * Returns true if any check is still running (caller should re-invoke soon).
    */
-  async syncChecks(
+  async syncChecks(pullRequestUrl: string, headRefOid: string): Promise<boolean> {
+    const key = `checks:${pullRequestUrl}:${headRefOid}`;
+    if (this._checksInflight.has(key)) {
+      await this._checksInflight.get(key);
+      return false;
+    }
+
+    const ctrl = new AbortController();
+    let result = false;
+
+    const promise = this._runSyncChecks(pullRequestUrl, headRefOid, ctrl.signal)
+      .then((r) => {
+        result = r;
+      })
+      .catch((e: unknown) => {
+        if ((e as { name?: string }).name !== 'AbortError') {
+          log.error('PrSyncEngine: syncChecks failed', { pullRequestUrl, error: String(e) });
+        }
+      })
+      .finally(() => {
+        this._checksInflight.delete(key);
+      });
+
+    this._checksInflight.set(key, promise);
+    await promise;
+    return result;
+  }
+
+  private async _runSyncChecks(
     pullRequestUrl: string,
     headRefOid: string,
     signal: AbortSignal
@@ -625,6 +767,7 @@ export class PrSyncEngine {
         changedFiles: node.changedFiles,
         commitCount: node.commitCount?.totalCount ?? null,
         mergeableStatus: node.mergeable,
+        mergeStateStatus: node.mergeStateStatus ?? null,
         reviewDecision: node.reviewDecision ?? null,
         pullRequestCreatedAt: node.createdAt,
         pullRequestUpdatedAt: node.updatedAt,
@@ -647,6 +790,7 @@ export class PrSyncEngine {
           changedFiles: node.changedFiles,
           commitCount: node.commitCount?.totalCount ?? null,
           mergeableStatus: node.mergeable,
+          mergeStateStatus: node.mergeStateStatus ?? null,
           reviewDecision: node.reviewDecision ?? null,
           pullRequestUpdatedAt: node.updatedAt,
         },
@@ -818,8 +962,7 @@ export class PrSyncEngine {
     }));
   }
 
-  /** Get the full sync cursor for a repository (used by coordinator/scheduler). */
-  async getFullSyncCursor(repositoryUrl: string): Promise<{ done: boolean } | null> {
+  private async _getFullSyncCursor(repositoryUrl: string): Promise<{ done: boolean } | null> {
     return (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
   }
 }

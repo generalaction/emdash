@@ -1,5 +1,16 @@
 export type PullRequestStatus = 'open' | 'closed' | 'merged';
 
+export type MergeableState = 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+
+export type MergeStateStatus =
+  | 'CLEAN'
+  | 'DIRTY'
+  | 'BEHIND'
+  | 'BLOCKED'
+  | 'HAS_HOOKS'
+  | 'UNSTABLE'
+  | 'UNKNOWN';
+
 export type PullRequestUser = {
   userId: string;
   userName: string;
@@ -49,7 +60,8 @@ export type PullRequest = {
   deletions: number | null;
   changedFiles: number | null;
   commitCount: number | null;
-  mergeableStatus: string | null;
+  mergeableStatus: MergeableState | null;
+  mergeStateStatus: MergeStateStatus | null;
   reviewDecision: string | null;
   createdAt: string;
   updatedAt: string;

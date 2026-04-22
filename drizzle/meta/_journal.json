@@ -36,6 +36,13 @@
       "when": 1776778248173,
       "tag": "0004_abandoned_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1745366400000,
+      "tag": "0005_add_merge_state_status",
+      "breakpoints": true
     }
   ]
 }

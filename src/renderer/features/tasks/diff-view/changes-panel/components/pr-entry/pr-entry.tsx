@@ -48,7 +48,7 @@ function computeMergeUiState(pr: PullRequest): MergeUiState {
       canMerge: false,
     };
   }
-  switch (pr.mergeableStatus) {
+  switch (pr.mergeStateStatus) {
     case 'CLEAN':
       return { kind: 'ready', title: 'Ready to merge', canMerge: true };
     case 'DIRTY':

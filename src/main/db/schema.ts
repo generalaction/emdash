@@ -157,6 +157,7 @@ export const pullRequests = sqliteTable(
     commitCount: integer('commit_count'),
 
     mergeableStatus: text('mergeable_status'),
+    mergeStateStatus: text('merge_state_status'),
     reviewDecision: text('review_decision'),
 
     pullRequestCreatedAt: text('pull_request_created_at')

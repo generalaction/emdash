@@ -4,7 +4,6 @@ import { log } from '@main/lib/logger';
 import { capture } from '@main/lib/telemetry';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-service';
-import { prSyncCoordinator } from './pr-sync-coordinator';
 
 export const pullRequestController = createRPCController({
   // ── DB-cached reads ────────────────────────────────────────────────────────
@@ -78,7 +77,7 @@ export const pullRequestController = createRPCController({
       if (capability.status !== 'ready') {
         return { success: false as const, error: `Remote not ready: ${capability.status}` };
       }
-      prSyncCoordinator.runFullSync(capability.repositoryUrl);
+      prSyncEngine.forceFullSync(capability.repositoryUrl);
       return { success: true as const };
     } catch (error) {
       log.error('Failed to trigger sync:', error);
@@ -91,11 +90,20 @@ export const pullRequestController = createRPCController({
 
   triggerIncrementalSync: async (projectId: string) => {
     try {
+      log.info('PrController: triggerIncrementalSync called', { projectId });
       const capability = await prQueryService.getProjectRemoteInfo(projectId);
       if (capability.status !== 'ready') {
+        log.warn('PrController: remote not ready, skipping incremental sync', {
+          projectId,
+          status: capability.status,
+        });
         return { success: false as const, error: `Remote not ready: ${capability.status}` };
       }
-      prSyncCoordinator.runIncrementalSync(capability.repositoryUrl);
+      log.info('PrController: triggering incremental sync', {
+        projectId,
+        repositoryUrl: capability.repositoryUrl,
+      });
+      prSyncEngine.sync(capability.repositoryUrl);
       return { success: true as const };
     } catch (error) {
       log.error('Failed to trigger incremental sync:', error);
@@ -108,7 +116,7 @@ export const pullRequestController = createRPCController({
 
   refreshPullRequest: async (repositoryUrl: string, prNumber: number) => {
     try {
-      const pr = await prSyncCoordinator.syncSingle(repositoryUrl, prNumber);
+      const pr = await prSyncEngine.syncSingle(repositoryUrl, prNumber);
       return { success: true as const, pr };
     } catch (error) {
       log.error('Failed to refresh pull request:', error);
@@ -121,7 +129,7 @@ export const pullRequestController = createRPCController({
 
   syncChecks: async (pullRequestUrl: string, headRefOid: string) => {
     try {
-      const hasRunning = await prSyncCoordinator.syncChecks(pullRequestUrl, headRefOid);
+      const hasRunning = await prSyncEngine.syncChecks(pullRequestUrl, headRefOid);
       return { success: true as const, hasRunning };
     } catch (error) {
       log.error('Failed to sync checks:', error);
@@ -133,7 +141,7 @@ export const pullRequestController = createRPCController({
   },
 
   cancelSync: (repositoryUrl: string) => {
-    prSyncCoordinator.cancelAll(repositoryUrl);
+    prSyncEngine.cancel(repositoryUrl);
     return { success: true as const };
   },
 
@@ -150,7 +158,7 @@ export const pullRequestController = createRPCController({
     try {
       const result = await prSyncEngine.createPullRequest(params);
       // Sync the newly created PR into the DB
-      void prSyncCoordinator.syncSingle(params.repositoryUrl, result.number);
+      void prSyncEngine.syncSingle(params.repositoryUrl, result.number);
       capture('pr_created', { is_draft: params.draft });
       return { success: true as const, url: result.url, number: result.number };
     } catch (error) {
@@ -173,7 +181,7 @@ export const pullRequestController = createRPCController({
     try {
       const result = await prSyncEngine.mergePullRequest(repositoryUrl, prNumber, options);
       // Refresh the merged PR
-      void prSyncCoordinator.syncSingle(repositoryUrl, prNumber);
+      void prSyncEngine.syncSingle(repositoryUrl, prNumber);
       return { success: true as const, sha: result.sha, merged: result.merged };
     } catch (error) {
       log.error('Failed to merge pull request:', error);
@@ -187,7 +195,7 @@ export const pullRequestController = createRPCController({
   markReadyForReview: async (repositoryUrl: string, prNumber: number) => {
     try {
       await prSyncEngine.markReadyForReview(repositoryUrl, prNumber);
-      void prSyncCoordinator.syncSingle(repositoryUrl, prNumber);
+      void prSyncEngine.syncSingle(repositoryUrl, prNumber);
       return { success: true as const };
     } catch (error) {
       log.error('Failed to mark pull request ready for review:', error);

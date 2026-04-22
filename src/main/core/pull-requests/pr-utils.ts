@@ -1,5 +1,7 @@
 import type {
   Label,
+  MergeableState,
+  MergeStateStatus,
   PullRequest,
   PullRequestCheck,
   PullRequestStatus,
@@ -76,7 +78,8 @@ export function assemblePullRequest(
     deletions: row.deletions ?? null,
     changedFiles: row.changedFiles ?? null,
     commitCount: row.commitCount ?? null,
-    mergeableStatus: row.mergeableStatus ?? null,
+    mergeableStatus: (row.mergeableStatus as MergeableState | null) ?? null,
+    mergeStateStatus: (row.mergeStateStatus as MergeStateStatus | null) ?? null,
     reviewDecision: row.reviewDecision ?? null,
     createdAt: row.pullRequestCreatedAt,
     updatedAt: row.pullRequestUpdatedAt,

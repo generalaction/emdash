@@ -8,6 +8,7 @@
   "scripts": {
     "d": "pnpm install && pnpm run dev",
     "dev": "electron-vite dev",
+    "dev:debug": "VITE_LOG_LEVEL=debug electron-vite dev",
     "dev:main": "electron-vite dev --watch main",
     "dev:renderer": "electron-vite dev --watch renderer",
     "db:generate": "drizzle-kit generate",
