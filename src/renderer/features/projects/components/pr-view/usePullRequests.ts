@@ -69,7 +69,7 @@ export function usePullRequests(
 
   const refresh = useCallback(async () => {
     if (!projectId || !repositoryUrl) return;
-    await rpc.pullRequests.triggerIncrementalSync(projectId);
+    await rpc.pullRequests.syncPullRequests(projectId);
     await queryClient.invalidateQueries({ queryKey: ['pr-filter-options', repositoryUrl] });
   }, [queryClient, projectId, repositoryUrl]);
 

@@ -1,6 +1,8 @@
-import { AlertCircle, Loader2, RotateCcw, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useEffect, useState } from 'react';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
+import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { Button } from '@renderer/lib/ui/button';
 
 const KIND_LABELS: Record<string, string> = {
@@ -20,6 +22,27 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
 }: Props) {
   const prSync = getPrSyncStore(projectId);
   const state = prSync?.getState(repositoryUrl);
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  useEffect(() => {
+    if (state?.status === 'done') {
+      setShowSuccess(true);
+      const timer = setTimeout(() => {
+        setShowSuccess(false);
+        prSync?.clear(repositoryUrl);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [state?.status, prSync, repositoryUrl]);
+
+  if (showSuccess) {
+    return (
+      <ListPopoverCard>
+        <CheckCircle2 className="size-3.5 shrink-0 text-green-500" />
+        <span className="text-foreground-muted grow">Sync complete</span>
+      </ListPopoverCard>
+    );
+  }
 
   if (!state || state.status === 'done') return null;
 
@@ -28,7 +51,7 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
   if (state.status === 'running' && state.kind !== 'single') {
     const hasProgress = state.total != null && state.total > 0;
     return (
-      <div className="flex items-center gap-2 rounded-md border border-border bg-background-1 px-3 py-2 text-sm">
+      <ListPopoverCard>
         <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
         <span className="text-foreground-muted shrink-0">{kindLabel}</span>
         <span className="text-foreground-passive grow">
@@ -42,13 +65,13 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
         >
           Cancel
         </Button>
-      </div>
+      </ListPopoverCard>
     );
   }
 
   if (state.status === 'cancelled' && state.kind !== 'single') {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-border bg-background-1 px-3 py-2 text-sm">
+      <ListPopoverCard>
         <RotateCcw className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="text-muted-foreground font-medium shrink-0">{kindLabel}</span>
         <span className="text-muted-foreground">·</span>
@@ -63,13 +86,13 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
             Resume
           </Button>
         </div>
-      </div>
+      </ListPopoverCard>
     );
   }
 
   // error state
   return (
-    <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-background-1 bg-destructive/5 px-3 py-2 text-sm">
+    <ListPopoverCard className="border-destructive/40 bg-destructive/5">
       <AlertCircle className="size-3.5 shrink-0 text-destructive" />
       <span className="text-destructive font-medium shrink-0">Sync failed</span>
       <span className="text-muted-foreground">·</span>
@@ -94,6 +117,6 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
           <X className="size-3.5" />
         </Button>
       </div>
-    </div>
+    </ListPopoverCard>
   );
 });

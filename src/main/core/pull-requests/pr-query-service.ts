@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, like, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, like, or } from 'drizzle-orm';
 import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
 import { isGitHubUrl, normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -186,21 +186,26 @@ export class PrQueryService {
       .from(pullRequests)
       .where(inArray(pullRequests.repositoryUrl, repositoryUrls));
 
+    const authorUserIdsSub = db
+      .select({ userId: pullRequests.authorUserId })
+      .from(pullRequests)
+      .where(and(inArray(pullRequests.url, prUrlsSub), isNotNull(pullRequests.authorUserId)));
+
+    const assigneeUserIdsSub = db
+      .select({ userId: pullRequestAssignees.userId })
+      .from(pullRequestAssignees)
+      .where(inArray(pullRequestAssignees.pullRequestUrl, prUrlsSub));
+
     const [authorRows, labelRows, assigneeRows] = await Promise.all([
-      db
-        .selectDistinct()
-        .from(pullRequestUsers)
-        .innerJoin(pullRequests, eq(pullRequests.authorUserId, pullRequestUsers.userId))
-        .where(inArray(pullRequests.url, prUrlsSub)),
+      db.select().from(pullRequestUsers).where(inArray(pullRequestUsers.userId, authorUserIdsSub)),
       db
         .selectDistinct({ name: pullRequestLabels.name, color: pullRequestLabels.color })
         .from(pullRequestLabels)
         .where(inArray(pullRequestLabels.pullRequestId, prUrlsSub)),
       db
-        .selectDistinct()
+        .select()
         .from(pullRequestUsers)
-        .innerJoin(pullRequestAssignees, eq(pullRequestAssignees.userId, pullRequestUsers.userId))
-        .where(inArray(pullRequestAssignees.pullRequestUrl, prUrlsSub)),
+        .where(inArray(pullRequestUsers.userId, assigneeUserIdsSub)),
     ]);
 
     const labels: Label[] = labelRows.map((r) => ({
@@ -210,23 +215,23 @@ export class PrQueryService {
 
     return {
       authors: authorRows.map((r) => ({
-        userId: r.pull_request_users.userId,
-        userName: r.pull_request_users.userName,
-        displayName: r.pull_request_users.displayName ?? null,
-        avatarUrl: r.pull_request_users.avatarUrl ?? null,
-        url: r.pull_request_users.url ?? null,
-        userUpdatedAt: r.pull_request_users.userUpdatedAt ?? null,
-        userCreatedAt: r.pull_request_users.userCreatedAt ?? null,
+        userId: r.userId,
+        userName: r.userName,
+        displayName: r.displayName ?? null,
+        avatarUrl: r.avatarUrl ?? null,
+        url: r.url ?? null,
+        userUpdatedAt: r.userUpdatedAt ?? null,
+        userCreatedAt: r.userCreatedAt ?? null,
       })),
       labels,
       assignees: assigneeRows.map((r) => ({
-        userId: r.pull_request_users.userId,
-        userName: r.pull_request_users.userName,
-        displayName: r.pull_request_users.displayName ?? null,
-        avatarUrl: r.pull_request_users.avatarUrl ?? null,
-        url: r.pull_request_users.url ?? null,
-        userUpdatedAt: r.pull_request_users.userUpdatedAt ?? null,
-        userCreatedAt: r.pull_request_users.userCreatedAt ?? null,
+        userId: r.userId,
+        userName: r.userName,
+        displayName: r.displayName ?? null,
+        avatarUrl: r.avatarUrl ?? null,
+        url: r.url ?? null,
+        userUpdatedAt: r.userUpdatedAt ?? null,
+        userCreatedAt: r.userCreatedAt ?? null,
       })),
     };
   }

@@ -135,7 +135,7 @@ interface GqlStatusContextNode {
 export class PrSyncEngine {
   private readonly kv = new KV<PrKvSchema>('pr');
 
-  // Per-repository in-flight promise + AbortController (shared by sync/forceFullSync)
+  // Per-repository in-flight promise + AbortController
   private readonly _inflight = new Map<string, Promise<void>>();
   private readonly _controllers = new Map<string, AbortController>();
   // Per-operation deduplication for single-PR and check-run syncs
@@ -170,31 +170,6 @@ export class PrSyncEngine {
       .catch((e: unknown) => {
         if ((e as { name?: string }).name !== 'AbortError') {
           log.error('PrSyncEngine: sync failed', { repositoryUrl, error: String(e) });
-        }
-      })
-      .finally(() => {
-        this._controllers.delete(repositoryUrl);
-        this._inflight.delete(key);
-      });
-
-    this._inflight.set(key, promise);
-  }
-
-  /**
-   * Cancel any in-flight sync and start a full sync unconditionally.
-   * Used by the "Retry" button after an error or when forcing a resync.
-   */
-  forceFullSync(repositoryUrl: string): void {
-    this.cancel(repositoryUrl);
-
-    const key = `sync:${repositoryUrl}`;
-    const ctrl = new AbortController();
-    this._controllers.set(repositoryUrl, ctrl);
-
-    const promise = this._runFullSync(repositoryUrl, ctrl.signal)
-      .catch((e: unknown) => {
-        if ((e as { name?: string }).name !== 'AbortError') {
-          log.error('PrSyncEngine: forceFullSync failed', { repositoryUrl, error: String(e) });
         }
       })
       .finally(() => {

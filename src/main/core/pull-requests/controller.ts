@@ -73,40 +73,23 @@ export const pullRequestController = createRPCController({
 
   syncPullRequests: async (projectId: string) => {
     try {
+      log.info('PrController: syncPullRequests called', { projectId });
       const capability = await prQueryService.getProjectRemoteInfo(projectId);
       if (capability.status !== 'ready') {
-        return { success: false as const, error: `Remote not ready: ${capability.status}` };
-      }
-      prSyncEngine.forceFullSync(capability.repositoryUrl);
-      return { success: true as const };
-    } catch (error) {
-      log.error('Failed to trigger sync:', error);
-      return {
-        success: false as const,
-        error: error instanceof Error ? error.message : 'Unable to sync',
-      };
-    }
-  },
-
-  triggerIncrementalSync: async (projectId: string) => {
-    try {
-      log.info('PrController: triggerIncrementalSync called', { projectId });
-      const capability = await prQueryService.getProjectRemoteInfo(projectId);
-      if (capability.status !== 'ready') {
-        log.warn('PrController: remote not ready, skipping incremental sync', {
+        log.warn('PrController: remote not ready, skipping sync', {
           projectId,
           status: capability.status,
         });
         return { success: false as const, error: `Remote not ready: ${capability.status}` };
       }
-      log.info('PrController: triggering incremental sync', {
+      log.info('PrController: triggering sync', {
         projectId,
         repositoryUrl: capability.repositoryUrl,
       });
       prSyncEngine.sync(capability.repositoryUrl);
       return { success: true as const };
     } catch (error) {
-      log.error('Failed to trigger incremental sync:', error);
+      log.error('Failed to trigger sync:', error);
       return {
         success: false as const,
         error: error instanceof Error ? error.message : 'Unable to sync',

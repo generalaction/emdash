@@ -110,13 +110,8 @@ export class PrSyncScheduler {
     this._projectRemoteUrls.set(projectId, newUrls);
     const intervals: ReturnType<typeof setInterval>[] = [];
 
-    // Force full sync for newly added remotes, smart sync for existing ones
     for (const url of newUrls) {
-      if (!oldUrls.has(url)) {
-        prSyncEngine.forceFullSync(url);
-      } else {
-        prSyncEngine.sync(url);
-      }
+      prSyncEngine.sync(url);
 
       const handle = setInterval(() => {
         prSyncEngine.sync(url);
