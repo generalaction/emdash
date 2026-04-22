@@ -13,6 +13,7 @@ import {
 } from '@shared/lifecycle';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import { log } from '../lib/logger';
+import { buildExternalToolEnv } from '../utils/childProcessEnv';
 import { execFile } from 'node:child_process';
 import { startLifecyclePty, type LifecyclePtyHandle } from './ptyManager';
 
@@ -141,7 +142,7 @@ class TaskLifecycleService extends EventEmitter {
       defaultBranch,
       portSeed: taskPath || taskId,
     });
-    return { ...process.env, ...taskEnv };
+    return { ...buildExternalToolEnv(process.env), ...taskEnv };
   }
 
   private createPhaseState(): LifecyclePhaseState {
