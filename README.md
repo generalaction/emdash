@@ -31,7 +31,7 @@
     <strong>Emdash v1 beta is now available.</strong>
     <a href="https://www.emdash.sh/download">Download the beta</a>
     ·
-    <a href="https://www.emdash.sh/blog">Read the launch post</a>
+    <a href="https://www.emdash.sh/blog/public-v1-beta">Read the launch post</a>
   </p>
 
 </div>
