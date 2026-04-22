@@ -136,9 +136,6 @@ export class SshProjectProvider implements ProjectProvider {
     this._gitFetchService = new GitFetchService(repoGit);
     this._gitFetchService.start();
     sshConnectionManager.on('connection-event', this.handleConnectionEvent);
-
-    // Trigger initial remote sync + PR sync on project mount
-    void prSyncScheduler.onProjectMounted(project.id);
   }
 
   private handleConnectionEvent = (evt: SshConnectionEvent): void => {
@@ -494,7 +491,6 @@ export class SshProjectProvider implements ProjectProvider {
   async cleanup(): Promise<void> {
     this._gitFetchService.stop();
     sshConnectionManager.off('connection-event', this.handleConnectionEvent);
-    prSyncScheduler.onProjectUnmounted(this.project.id);
 
     const settings = await this.settings.get();
 

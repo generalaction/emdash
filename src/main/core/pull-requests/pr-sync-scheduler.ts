@@ -4,7 +4,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { prSyncEngine } from './pr-service';
+import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';
 
 const INCREMENTAL_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -19,12 +19,22 @@ export class PrSyncScheduler {
   /** Per-project set of known GitHub remote URLs (for cleanup on unmount). */
   private readonly _projectRemoteUrls = new Map<string, string[]>();
 
+  initialize(): void {
+    projectManager.registerOnProjectOpened((id) => this.onProjectMounted(id));
+    projectManager.registerOnProjectClosed((id) => this.onProjectUnmounted(id));
+  }
+
   // ── Project lifecycle ──────────────────────────────────────────────────────
 
   async onProjectMounted(projectId: string): Promise<void> {
+    log.info('PrSyncScheduler: onProjectMounted', { projectId });
     const remoteUrls = await this._syncAndGetGitHubRemotes(projectId);
-    if (remoteUrls.length === 0) return;
+    if (remoteUrls.length === 0) {
+      log.info('PrSyncScheduler: no GitHub remotes found, skipping sync', { projectId });
+      return;
+    }
 
+    log.info('PrSyncScheduler: found GitHub remotes', { projectId, remoteUrls });
     this._projectRemoteUrls.set(projectId, remoteUrls);
     const intervals: ReturnType<typeof setInterval>[] = [];
 
@@ -43,8 +53,11 @@ export class PrSyncScheduler {
   }
 
   onProjectUnmounted(projectId: string): void {
-    // Clear polling intervals
     const handles = this._intervals.get(projectId) ?? [];
+    log.info('PrSyncScheduler: onProjectUnmounted, clearing intervals and cancelling syncs', {
+      projectId,
+      intervals: handles.length,
+    });
     for (const h of handles) clearInterval(h);
     this._intervals.delete(projectId);
 

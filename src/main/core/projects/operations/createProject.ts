@@ -7,18 +7,10 @@ import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
 import { GitService } from '@main/core/git/impl/git-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { projectManager } from '@main/core/projects/project-manager';
-import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getGitSshExec, getLocalExec } from '@main/core/utils/exec';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
-import { log } from '@main/lib/logger';
-
-function triggerPrSync(projectId: string): void {
-  prSyncScheduler.onProjectMounted(projectId).catch((e) => {
-    log.warn('Background PR sync failed on project creation:', e);
-  });
-}
 
 async function ensureGitRepository(
   git: GitService,
@@ -80,7 +72,6 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
   };
 
   await projectManager.openProject(project);
-  triggerPrSync(project.id);
 
   return project;
 }
@@ -147,7 +138,6 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   };
 
   await projectManager.openProject(project);
-  triggerPrSync(project.id);
 
   return project;
 }

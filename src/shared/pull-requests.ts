@@ -76,7 +76,7 @@ export type PullRequest = {
 export type PrSyncProgress = {
   remoteUrl: string;
   kind: 'full' | 'incremental' | 'single';
-  status: 'running' | 'done' | 'error';
+  status: 'running' | 'done' | 'error' | 'cancelled';
   synced?: number;
   total?: number;
   error?: string;

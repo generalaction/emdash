@@ -12,6 +12,8 @@ import { TimeoutSignal, withTimeout } from './utils';
 
 const PROVIDER_TIMEOUT_MS = 60_000;
 
+type ProjectLifecycleHook = (projectId: string) => void | Promise<void>;
+
 type ProviderError = {
   type: 'error';
   message: string;
@@ -44,6 +46,8 @@ class ProjectManager {
   private providers = new Map<string, ProjectProvider>();
   private tearingDownProviders = new Map<string, Promise<Result<void, TeardownProviderError>>>();
   private initializationErrors = new Map<string, InitializeProviderError>();
+  private _onProjectOpenedHooks: ProjectLifecycleHook[] = [];
+  private _onProjectClosedHooks: ProjectLifecycleHook[] = [];
 
   async initialize(): Promise<void> {
     const allProjects = await getProjects();
@@ -66,6 +70,7 @@ class ProjectManager {
       .then((provider) => {
         this.providers.set(project.id, provider);
         this.initializingProviders.delete(project.id);
+        this._fireHooks(this._onProjectOpenedHooks, project.id, 'onProjectOpened');
         return ok(provider);
       })
       .catch((e) => {
@@ -98,10 +103,27 @@ class ProjectManager {
       .finally(() => {
         this.providers.delete(projectId);
         this.tearingDownProviders.delete(projectId);
+        this._fireHooks(this._onProjectClosedHooks, projectId, 'onProjectClosed');
       });
 
     this.tearingDownProviders.set(projectId, promise);
     return promise;
+  }
+
+  registerOnProjectOpened(hook: ProjectLifecycleHook): void {
+    this._onProjectOpenedHooks.push(hook);
+  }
+
+  registerOnProjectClosed(hook: ProjectLifecycleHook): void {
+    this._onProjectClosedHooks.push(hook);
+  }
+
+  private _fireHooks(hooks: ProjectLifecycleHook[], projectId: string, name: string): void {
+    for (const hook of hooks) {
+      Promise.resolve(hook(projectId)).catch((e) =>
+        log.error(`ProjectManager: ${name} hook error`, { projectId, error: String(e) })
+      );
+    }
   }
 
   getProject(projectId: string): ProjectProvider | undefined {

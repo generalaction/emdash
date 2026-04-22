@@ -14,6 +14,7 @@ import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
+import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
 import { initializeDatabase } from './db/initialize';
@@ -86,6 +87,7 @@ app.whenReady().then(async () => {
     log.warn('telemetry init failed:', e);
   }
 
+  prSyncScheduler.initialize();
   appService.initialize();
   appSettingsService.initialize();
 

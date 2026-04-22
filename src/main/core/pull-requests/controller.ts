@@ -3,7 +3,7 @@ import type { ListPrOptions, PullRequestFile } from '@shared/pull-requests';
 import { log } from '@main/lib/logger';
 import { capture } from '@main/lib/telemetry';
 import { prQueryService } from './pr-query-service';
-import { prSyncEngine } from './pr-service';
+import { prSyncEngine } from './pr-sync-engine';
 
 export const pullRequestController = createRPCController({
   // ── DB-cached reads ────────────────────────────────────────────────────────

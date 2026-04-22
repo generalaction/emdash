@@ -120,9 +120,6 @@ export class LocalProjectProvider implements ProjectProvider {
     this._gitFetchService = new GitFetchService(repoGit);
     this._gitFetchService.start();
 
-    // Trigger initial remote sync + PR sync on project mount
-    void prSyncScheduler.onProjectMounted(project.id);
-
     // Re-sync remotes whenever .git/config changes (remote added/removed/changed)
     this._configChangeUnsubscribe = events.on(gitRefChangedChannel, (p) => {
       if (p.projectId === project.id && p.kind === 'config') {
@@ -461,7 +458,6 @@ export class LocalProjectProvider implements ProjectProvider {
     this._configChangeUnsubscribe?.();
     this._gitFetchService.stop();
     await this._gitWatcher.stop();
-    prSyncScheduler.onProjectUnmounted(this.project.id);
 
     const settings = await this.settings.get();
 

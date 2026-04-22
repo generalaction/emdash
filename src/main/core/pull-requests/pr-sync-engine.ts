@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Octokit } from '@octokit/rest';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import type {
   MergeableState,
@@ -24,6 +24,7 @@ import {
 import { db } from '@main/db/client';
 import { KV } from '@main/db/kv';
 import {
+  projectRemotes,
   pullRequestAssignees,
   pullRequestChecks,
   pullRequestLabels,
@@ -36,15 +37,7 @@ import { githubRateLimiter } from '@main/lib/rate-limiter';
 import { withRetry } from '@main/lib/retry';
 import { assemblePullRequest } from './pr-utils';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const PR_SYNC_MAX_AGE_MONTHS = 3;
-
-// ---------------------------------------------------------------------------
-// KV cursor types
-// ---------------------------------------------------------------------------
 
 type FullSyncCursor = {
   /** The `updatedAt` of the last PR we have seen (pagination cursor). */
@@ -222,6 +215,44 @@ export class PrSyncEngine {
     }
   }
 
+  /** Cancel any in-flight syncs for a project and clean up its PR rows and KV cursors. */
+  async deleteProjectData(projectId: string): Promise<void> {
+    log.info('PrSyncEngine: deleteProjectData', { projectId });
+
+    const remoteRows = await db
+      .select({ remoteUrl: projectRemotes.remoteUrl })
+      .from(projectRemotes)
+      .where(eq(projectRemotes.projectId, projectId));
+
+    if (remoteRows.length === 0) return;
+
+    for (const { remoteUrl: url } of remoteRows) {
+      this.cancel(url);
+
+      const shared = await db
+        .select({ projectId: projectRemotes.projectId })
+        .from(projectRemotes)
+        .where(and(eq(projectRemotes.remoteUrl, url), ne(projectRemotes.projectId, projectId)))
+        .limit(1);
+
+      if (shared.length > 0) {
+        log.info(
+          'PrSyncEngine: deleteProjectData — remote shared with other project, skipping data cleanup',
+          { url }
+        );
+        continue;
+      }
+
+      log.info('PrSyncEngine: deleteProjectData — deleting PR rows and KV cursors', { url });
+      await db.delete(pullRequests).where(eq(pullRequests.repositoryUrl, url));
+      await Promise.all([
+        this.kv.del(`fullsync:${url}`),
+        this.kv.del(`incrementalsync:${url}`),
+        this.kv.del(`users-synced-at:${url}`),
+      ]);
+    }
+  }
+
   // ── Full sync (private implementation) ────────────────────────────────────
 
   /**
@@ -230,8 +261,15 @@ export class PrSyncEngine {
    * Sets `done: true` once the cutoff is reached or history is exhausted.
    */
   private async _runFullSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
+    log.info('PrSyncEngine: runFullSync start', { repositoryUrl });
     const { owner, repo } = splitNormalizedUrl(repositoryUrl);
-    const octokit = await this.getOctokit();
+    const octokit = await this.getOctokit().catch((e: unknown) => {
+      log.warn('PrSyncEngine: runFullSync — failed to get Octokit (not authenticated?)', {
+        repositoryUrl,
+        error: String(e),
+      });
+      throw e;
+    });
 
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - PR_SYNC_MAX_AGE_MONTHS);
@@ -313,7 +351,10 @@ export class PrSyncEngine {
 
       this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'done', synced });
     } catch (e: unknown) {
-      if ((e as { name?: string })?.name === 'AbortError') return;
+      if ((e as { name?: string })?.name === 'AbortError') {
+        this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'cancelled' });
+        return;
+      }
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'full',
@@ -335,7 +376,13 @@ export class PrSyncEngine {
     log.info('PrSyncEngine: runIncrementalSync started', { repositoryUrl });
 
     const { owner, repo } = splitNormalizedUrl(repositoryUrl);
-    const octokit = await this.getOctokit();
+    const octokit = await this.getOctokit().catch((e: unknown) => {
+      log.warn('PrSyncEngine: runIncrementalSync — failed to get Octokit (not authenticated?)', {
+        repositoryUrl,
+        error: String(e),
+      });
+      throw e;
+    });
 
     const fullCursor = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
     const incrementalCursor = (await this.kv.get(
@@ -425,7 +472,10 @@ export class PrSyncEngine {
         synced,
       });
     } catch (e: unknown) {
-      if ((e as { name?: string })?.name === 'AbortError') return;
+      if ((e as { name?: string })?.name === 'AbortError') {
+        this._emitProgress({ remoteUrl: repositoryUrl, kind: 'incremental', status: 'cancelled' });
+        return;
+      }
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'incremental',

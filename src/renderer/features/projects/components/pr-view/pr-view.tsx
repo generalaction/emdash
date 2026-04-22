@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
+import { CheckIcon, ChevronDownIcon, Github, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useState } from 'react';
@@ -10,7 +10,8 @@ import {
   type UserItem,
 } from '@renderer/features/projects/components/pr-view/usePrViewState';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
+import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
@@ -204,6 +205,8 @@ export const PullRequestView = observer(function PullRequestView() {
     params: { projectId },
   } = useParams('project');
   const repositoryUrl = getRepositoryStore(projectId)?.repositoryUrl ?? null;
+  const { needsGhAuth } = useGithubContext();
+  const { navigate } = useNavigate();
 
   const {
     statusFilter,
@@ -236,17 +239,46 @@ export const PullRequestView = observer(function PullRequestView() {
   } = usePrViewState(projectId, repositoryUrl);
 
   if (!repositoryUrl) {
-    const message = 'Pull requests are currently available only for configured GitHub remotes.';
-
     return (
       <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
-        <p className="text-sm text-muted-foreground text-center py-4">{message}</p>
+        <p className="text-sm text-muted-foreground text-center py-4">
+          Pull requests are currently available only for configured GitHub remotes. You can change
+          the remote in the project settings.
+        </p>
+      </div>
+    );
+  }
+
+  if (needsGhAuth) {
+    return (
+      <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
+        <div className="flex w-full flex-col items-center justify-center gap-5 rounded-md border border-border border-dashed p-8 mt-4">
+          <span className="relative flex size-8 items-center justify-center overflow-hidden rounded-full bg-background-2">
+            <Github className="size-4 text-foreground-muted" />
+          </span>
+          <p className="text-center text-sm font-normal text-foreground-muted">
+            GitHub is not connected. Create a user account and connect your GitHub account to view
+            pull requests.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() =>
+              navigate('settings', {
+                tab: 'account',
+              })
+            }
+          >
+            Connect User Account
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
+    <div className="relative flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
       {/* ── Header controls ── */}
       <div className="flex flex-col gap-4 border-b border-border pb-2">
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-between">
@@ -351,7 +383,6 @@ export const PullRequestView = observer(function PullRequestView() {
           )}
         </div>
       </div>
-      <PrSyncStatusCard projectId={projectId} repositoryUrl={repositoryUrl} />
       <PrVirtualList
         prs={prs}
         projectId={projectId}
@@ -360,6 +391,9 @@ export const PullRequestView = observer(function PullRequestView() {
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
       />
+      <div className="absolute bottom-4 left-6 right-6">
+        <PrSyncStatusCard projectId={projectId} repositoryUrl={repositoryUrl} />
+      </div>
     </div>
   );
 });
