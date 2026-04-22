@@ -1,6 +1,6 @@
 import React from 'react';
 import { captureComponentError } from '../../_legacy/errorTracking';
-import { useNavigate } from '../layout/navigation-provider';
+import { rpc } from '../ipc';
 import { Button } from '../ui/button';
 
 type ErrorBoundaryState = {
@@ -14,24 +14,20 @@ type ErrorBoundaryProps = {
 };
 
 function ErrorFallback({ message, onReload }: { message: string; onReload: () => void }) {
-  const { navigate } = useNavigate();
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-background p-6">
       <div className="max-w-xl rounded-md border border-border bg-card p-6 text-card-foreground shadow-sm">
         <h1 className="mb-2 text-lg font-semibold">Something went wrong</h1>
         <p className="mb-4 break-all text-sm text-muted-foreground">{message}</p>
-        <div className="flex items-center gap-2">
-          <Button variant="default" onClick={onReload}>
-            Reload
-          </Button>
-          <Button onClick={() => navigate('home')}>Go to home</Button>
-        </div>
+        <Button variant="default" onClick={onReload}>
+          Reload
+        </Button>
       </div>
     </div>
   );
 }
 
-export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -53,9 +49,11 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   handleReload = () => {
-    try {
-      window.location.reload();
-    } catch {}
+    void rpc.viewState.reset().finally(() => {
+      try {
+        window.location.reload();
+      } catch {}
+    });
   };
 
   render() {
