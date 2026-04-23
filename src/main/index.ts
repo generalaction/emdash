@@ -30,6 +30,7 @@ if (process.platform === 'linux') {
 registerAppScheme();
 
 app.setName(PRODUCT_NAME);
+app.setPath('userData', join(app.getPath('appData'), 'emdash'));
 
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0];
