@@ -5,6 +5,7 @@ import type {
   StartupDataGateScenario,
   StartupDataGateState,
 } from '@shared/startup-data-gate';
+import { ISSUE_CONNECTION_STATUS_QUERY_KEY } from '@renderer/features/integrations/integrations-provider';
 import { rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { log } from '@renderer/utils/logger';
@@ -31,6 +32,11 @@ export function StartupGate({ children }: { children: ReactNode }) {
     mutationFn: (action: StartupDataGateAction) => rpc.startupDataGate.resolveAction({ action }),
     onSuccess: (result) => {
       queryClient.setQueryData(STARTUP_DATA_GATE_QUERY_KEY, result.state);
+      if (!result.success) return;
+
+      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['github:status'] });
+      void queryClient.invalidateQueries({ queryKey: ['account:session'] });
     },
   });
 

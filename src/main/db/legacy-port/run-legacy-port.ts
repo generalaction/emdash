@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { log } from '../../lib/logger';
 import { openLegacyReadOnly } from './open-legacy';
+import { portLegacyAuthState } from './port-legacy-auth';
 import { portConversations } from './ports/conversations';
 import { portProjects } from './ports/projects';
 import { portSshConnections } from './ports/ssh-connections';
@@ -95,6 +96,17 @@ export async function runLegacyPort(
     logSummary(projectsSummary);
     logSummary(taskResult.summary);
     logSummary(conversationsSummary);
+
+    try {
+      const authSummary = await portLegacyAuthState(userDataPath, { appDb });
+      log.info(
+        `legacy-port: auth: imported_secrets=${authSummary.importedSecrets.length}, imported_kv=${authSummary.importedKv.length}, skipped=${authSummary.skipped.length}`
+      );
+    } catch (error) {
+      log.warn('legacy-port: auth: failed to port legacy credentials, continuing', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     await markStatus(stateStore, 'completed');
 

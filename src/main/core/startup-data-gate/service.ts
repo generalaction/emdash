@@ -7,6 +7,7 @@ import type {
   StartupDataGateScenario,
   StartupDataGateState,
 } from '@shared/startup-data-gate';
+import { emdashAccountService } from '@main/core/account/services/emdash-account-service';
 import { sqlite } from '@main/db/client';
 import { runLegacyPort } from '@main/db/legacy-port/run-legacy-port';
 import {
@@ -157,6 +158,7 @@ class StartupDataGateService {
     }
 
     await runLegacyPort(userDataPath, { stateStore });
+    await emdashAccountService.loadSessionToken();
   }
 
   async getState(): Promise<StartupDataGateState> {
