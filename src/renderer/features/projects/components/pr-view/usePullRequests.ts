@@ -1,6 +1,5 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect } from 'react';
-import { prSyncProgressChannel } from '@shared/events/prEvents';
+import { useCallback } from 'react';
 import type {
   ListPrOptions,
   PrFilterOptions,
@@ -8,9 +7,22 @@ import type {
   PrSortField,
   PullRequest,
 } from '@shared/pull-requests';
-import { events, rpc } from '@renderer/lib/ipc';
+import { rpc } from '@renderer/lib/ipc';
 
 const PAGE_SIZE = 50;
+
+export const prQueryKeys = {
+  list: (projectId: string, repositoryUrl: string) =>
+    ['pull-requests', projectId, repositoryUrl] as const,
+  listFull: (
+    projectId: string,
+    repositoryUrl: string,
+    filters?: PrFilters,
+    sort?: PrSortField,
+    searchQuery?: string
+  ) => ['pull-requests', projectId, repositoryUrl, filters, sort, searchQuery] as const,
+  filterOptions: (repositoryUrl: string) => ['pr-filter-options', repositoryUrl] as const,
+};
 
 export interface UsePullRequestsOptions {
   filters?: PrFilters;
@@ -28,7 +40,7 @@ export function usePullRequests(
   const queryClient = useQueryClient();
 
   const query = useInfiniteQuery({
-    queryKey: ['pull-requests', projectId, repositoryUrl, filters, sort, searchQuery],
+    queryKey: prQueryKeys.listFull(projectId!, repositoryUrl!, filters, sort, searchQuery),
     queryFn: async ({ pageParam }: { pageParam: number }) => {
       const listOptions: ListPrOptions = {
         limit: PAGE_SIZE,
@@ -50,27 +62,18 @@ export function usePullRequests(
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage.nextOffset,
     enabled: !!projectId && !!repositoryUrl && enabled,
-    staleTime: 10 * 60_000,
+    staleTime: 0,
   });
-
-  // Invalidate the PR list whenever the sync engine upserts a new batch so
-  // PRs stream in as they arrive rather than waiting for the sync to finish.
-  useEffect(() => {
-    if (!projectId || !repositoryUrl) return;
-    return events.on(prSyncProgressChannel, (progress) => {
-      if (progress.remoteUrl !== repositoryUrl || progress.status !== 'running') return;
-      void queryClient.invalidateQueries({
-        queryKey: ['pull-requests', projectId, repositoryUrl],
-      });
-    });
-  }, [queryClient, projectId, repositoryUrl]);
 
   const prs = query.data?.pages.flatMap((p) => p.prs) ?? [];
 
   const refresh = useCallback(async () => {
     if (!projectId || !repositoryUrl) return;
     await rpc.pullRequests.syncPullRequests(projectId);
-    await queryClient.invalidateQueries({ queryKey: ['pr-filter-options', repositoryUrl] });
+    await queryClient.invalidateQueries({ queryKey: prQueryKeys.list(projectId, repositoryUrl) });
+    await queryClient.invalidateQueries({
+      queryKey: prQueryKeys.filterOptions(repositoryUrl),
+    });
   }, [queryClient, projectId, repositoryUrl]);
 
   return {
@@ -91,7 +94,7 @@ export function usePullRequests(
 
 export function useFilterOptions(projectId?: string, repositoryUrl?: string) {
   return useQuery<PrFilterOptions>({
-    queryKey: ['pr-filter-options', repositoryUrl],
+    queryKey: prQueryKeys.filterOptions(repositoryUrl!),
     queryFn: async () => {
       const response = await rpc.pullRequests.getFilterOptions(projectId!);
       if (!response?.success) {

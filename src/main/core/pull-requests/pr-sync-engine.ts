@@ -38,7 +38,7 @@ import { withRetry } from '@main/lib/retry';
 import { assemblePullRequest } from './pr-utils';
 
 const PR_SYNC_MAX_AGE_MONTHS = 3;
-const PR_SYNC_MAX_COUNT = 1500;
+const PR_SYNC_MAX_COUNT = 500;
 
 type FullSyncCursor = {
   /** The `updatedAt` of the last PR we have seen (pagination cursor). */

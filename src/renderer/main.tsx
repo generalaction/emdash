@@ -9,6 +9,7 @@ import { wireModelRegistryInvalidation } from '@renderer/lib/monaco/invalidation
 import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
 import { diffEditorPool } from '@renderer/lib/monaco/monaco-diff-pool';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
+import { wirePrCacheInvalidation } from '@renderer/lib/pr-cache-invalidation';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { appState } from './lib/stores/app-state';
@@ -16,6 +17,7 @@ import { appState } from './lib/stores/app-state';
 async function bootstrap() {
   // Wire invalidation bridges so FS and git events flow into the model registry.
   wireModelRegistryInvalidation(modelRegistry);
+  wirePrCacheInvalidation();
 
   appState.update.start();
   initSoundPlayer();
