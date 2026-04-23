@@ -1,4 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
+import { StartupGate } from './app/startup-gate';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';

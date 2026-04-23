@@ -22,6 +22,7 @@ import { appSettingsController } from './core/settings/controller';
 import { providerSettingsController } from './core/settings/provider-settings-controller';
 import { skillsController } from './core/skills/controller';
 import { sshController } from './core/ssh/controller';
+import { startupDataGateController } from './core/startup-data-gate/controller';
 import { taskController } from './core/tasks/controller';
 import { telemetryController } from './core/telemetry/controller';
 import { terminalsController } from './core/terminals/controller';
@@ -46,6 +47,7 @@ export const rpcRouter = createRPCRouter({
   plain: plainController,
   skills: skillsController,
   ssh: sshController,
+  startupDataGate: startupDataGateController,
   projects: projectController,
   tasks: taskController,
   conversations: conversationController,

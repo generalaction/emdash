@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import type { StartupDataGateStatus } from '@shared/startup-data-gate';
 
-export type LegacyPortStatus = 'completed' | 'no-legacy-file';
+export type LegacyPortStatus = StartupDataGateStatus;
 
 export interface LegacyPortStateStore {
   getStatus(): Promise<LegacyPortStatus | null>;
