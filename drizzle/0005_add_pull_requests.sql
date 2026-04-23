@@ -8,11 +8,11 @@ DROP TABLE IF EXISTS `pull_request_assignees`;
 --> statement-breakpoint
 DROP TABLE IF EXISTS `pull_request_labels`;
 --> statement-breakpoint
--- Drop old pull_requests table (old schema with name_with_owner / metadata blob)
+-- Drop old pull_requests table (old schema with id PK / name_with_owner / metadata blob)
 DROP TABLE IF EXISTS `pull_requests`;
 --> statement-breakpoint
 
--- pull_request_users: stable GitHub user records (synced once a day)
+-- pull_request_users: stable GitHub user records
 CREATE TABLE `pull_request_users` (
 	`user_id` text PRIMARY KEY NOT NULL,
 	`user_name` text NOT NULL,
@@ -45,6 +45,7 @@ CREATE TABLE `pull_requests` (
 	`changed_files` integer,
 	`commit_count` integer,
 	`mergeable_status` text,
+	`merge_state_status` text,
 	`review_decision` text,
 	`pull_request_created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	`pull_request_updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
