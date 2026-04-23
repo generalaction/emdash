@@ -12,7 +12,7 @@
     "dev:main": "electron-vite dev --watch main",
     "dev:renderer": "electron-vite dev --watch renderer",
     "db:generate": "drizzle-kit generate",
-    "db:reset": "rm -f \"$HOME/Library/Application Support/Emdash/emdash3.db\" \"$HOME/.config/Emdash/emdash3.db\"",
+    "db:reset": "rm -f \"$HOME/Library/Application Support/Emdash/emdash3.db\" \"$HOME/Library/Application Support/Emdash/emdash3.db-wal\" \"$HOME/Library/Application Support/Emdash/emdash3.db-shm\" \"$HOME/.config/Emdash/emdash3.db\" \"$HOME/.config/Emdash/emdash3.db-wal\" \"$HOME/.config/Emdash/emdash3.db-shm\"",
     "test": "vitest run",
     "build": "electron-vite build",
     "build:main": "electron-vite build --filter main",
