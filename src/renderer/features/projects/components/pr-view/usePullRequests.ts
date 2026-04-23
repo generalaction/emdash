@@ -48,6 +48,7 @@ export function usePullRequests(
         filters,
         sort,
         searchQuery,
+        repositoryUrl,
       };
       const response = await rpc.pullRequests.listPullRequests(projectId!, listOptions);
       if (!response?.success) {

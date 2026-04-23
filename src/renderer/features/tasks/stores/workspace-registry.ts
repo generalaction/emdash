@@ -1,4 +1,5 @@
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
+import type { TaskStore } from './task';
 import { WorkspaceStore } from './workspace';
 
 type WorkspaceRegistryEntry = {
@@ -17,18 +18,18 @@ export class WorkspaceRegistryStore {
   acquire(
     projectId: string,
     workspaceId: string,
-    taskId: string,
-    taskBranch: string | undefined,
+    taskStore: TaskStore,
     repositoryStore: RepositoryStore
   ): WorkspaceStore {
     const key = makeKey(projectId, workspaceId);
     const existing = this.entries.get(key);
     if (existing) {
       existing.refCount += 1;
+      existing.store.addTask(taskStore);
       return existing.store;
     }
 
-    const store = new WorkspaceStore(projectId, workspaceId, taskId, taskBranch, repositoryStore);
+    const store = new WorkspaceStore(projectId, workspaceId, [taskStore], repositoryStore);
     this.entries.set(key, { store, refCount: 1, activated: false });
     return store;
   }
@@ -42,13 +43,14 @@ export class WorkspaceRegistryStore {
     entry.store.activate();
   }
 
-  release(projectId: string, workspaceId: string): void {
+  release(projectId: string, workspaceId: string, taskStore: TaskStore): void {
     const key = makeKey(projectId, workspaceId);
     const entry = this.entries.get(key);
     if (!entry) {
       return;
     }
 
+    entry.store.removeTask(taskStore);
     entry.refCount -= 1;
 
     if (entry.refCount <= 0) {

@@ -16,6 +16,7 @@ export class ChangesViewStore {
   expandedSections: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
 
   private _disposeReactions: Array<() => void> = [];
+  private _suppressAutoExpand = new Set<keyof ExpandedSections>();
 
   constructor(
     private readonly git: GitStore,
@@ -64,6 +65,61 @@ export class ChangesViewStore {
               staged: hasStaged,
               pullRequests: hasPullRequests,
             };
+          });
+        }
+      )
+    );
+
+    // Auto-collapse when a section empties; auto-expand when it gains entries from zero.
+    this._disposeReactions.push(
+      reaction(
+        () => ({
+          unstaged: this.git.unstagedFileChanges.length,
+          staged: this.git.stagedFileChanges.length,
+          pullRequests: this.pr.pullRequests.length,
+        }),
+        (curr, prev) => {
+          runInAction(() => {
+            const next = { ...this.expandedSections };
+            let changed = false;
+
+            if (curr.unstaged === 0 && prev.unstaged > 0) {
+              next.unstaged = false;
+              changed = true;
+            } else if (curr.unstaged > 0 && prev.unstaged === 0) {
+              if (this._suppressAutoExpand.has('unstaged')) {
+                this._suppressAutoExpand.delete('unstaged');
+              } else {
+                next.unstaged = true;
+                changed = true;
+              }
+            }
+
+            if (curr.staged === 0 && prev.staged > 0) {
+              next.staged = false;
+              changed = true;
+            } else if (curr.staged > 0 && prev.staged === 0) {
+              if (this._suppressAutoExpand.has('staged')) {
+                this._suppressAutoExpand.delete('staged');
+              } else {
+                next.staged = true;
+                changed = true;
+              }
+            }
+
+            if (curr.pullRequests === 0 && prev.pullRequests > 0) {
+              next.pullRequests = false;
+              changed = true;
+            } else if (curr.pullRequests > 0 && prev.pullRequests === 0) {
+              if (this._suppressAutoExpand.has('pullRequests')) {
+                this._suppressAutoExpand.delete('pullRequests');
+              } else {
+                next.pullRequests = true;
+                changed = true;
+              }
+            }
+
+            if (changed) this.expandedSections = next;
           });
         }
       )
@@ -152,6 +208,10 @@ export class ChangesViewStore {
         this.expandedSections = { ...this.expandedSections, [section]: true };
       });
     }
+  }
+
+  suppressNextAutoExpand(section: keyof ExpandedSections): void {
+    this._suppressAutoExpand.add(section);
   }
 
   dispose(): void {

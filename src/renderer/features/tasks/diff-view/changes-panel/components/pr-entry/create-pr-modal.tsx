@@ -113,7 +113,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   };
 
   return (
-    <>
+    <div className="flex flex-col overflow-hidden max-h-[70vh]">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
         <span className="text-sm font-medium">
           {draft ? 'Create Draft PR' : 'Create Pull Request'}
@@ -177,6 +177,6 @@ export const CreatePrModal = observer(function CreatePrModal({
           {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
         </ConfirmButton>
       </div>
-    </>
+    </div>
   );
 });

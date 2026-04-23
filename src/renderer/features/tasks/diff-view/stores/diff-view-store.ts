@@ -23,6 +23,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   diffStyle: 'unified' | 'split' = 'unified';
   readonly viewMode = 'file' as const;
   commitAction: 'commit' | 'commit-push' | null = null;
+  prTab: 'files' | 'commits' | 'checks' = 'files';
 
   readonly changesView: ChangesViewStore;
 
@@ -47,9 +48,21 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       activeFile: computed,
       diffStyle: observable,
       commitAction: observable,
+      prTab: observable,
       setActiveFile: action,
       setDiffStyle: action,
+      setPrTab: action,
     });
+
+    // Reset PR tab when the current PR changes (different PR URL).
+    this._disposeReactions.push(
+      reaction(
+        () => this.pr.currentPr?.url,
+        () => {
+          this.prTab = 'files';
+        }
+      )
+    );
 
     // Auto-expand the changes panel section that contains the newly selected file.
     this._disposeReactions.push(
@@ -118,6 +131,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       viewMode: 'file',
       activeFile: this.activeFileOverride ?? undefined,
       commitAction: this.commitAction,
+      prTab: this.prTab,
     };
   }
 
@@ -133,6 +147,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     // Snapshots with an unrecognised originalRef shape are discarded — the
     // store falls back to _defaultActiveFile automatically.
     if (snapshot.commitAction) this.commitAction = snapshot.commitAction;
+    if (snapshot.prTab) this.prTab = snapshot.prTab;
   }
 
   get effectiveCommitAction(): 'commit' | 'commit-push' {
@@ -157,6 +172,10 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
   setDiffStyle(style: 'unified' | 'split'): void {
     this.diffStyle = style;
+  }
+
+  setPrTab(tab: 'files' | 'commits' | 'checks'): void {
+    this.prTab = tab;
   }
 
   dispose(): void {

@@ -89,14 +89,20 @@ async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
 
 export class PrQueryService {
   async listPullRequests(projectId: string, options: ListPrOptions = {}): Promise<PullRequest[]> {
-    const remoteRows = await db
-      .select({ remoteUrl: projectRemotes.remoteUrl })
-      .from(projectRemotes)
-      .where(eq(projectRemotes.projectId, projectId));
+    let repositoryUrls: string[];
 
-    if (remoteRows.length === 0) return [];
+    if (options.repositoryUrl) {
+      repositoryUrls = [options.repositoryUrl];
+    } else {
+      const remoteRows = await db
+        .select({ remoteUrl: projectRemotes.remoteUrl })
+        .from(projectRemotes)
+        .where(eq(projectRemotes.projectId, projectId));
 
-    const repositoryUrls = remoteRows.map((r) => r.remoteUrl);
+      if (remoteRows.length === 0) return [];
+      repositoryUrls = remoteRows.map((r) => r.remoteUrl);
+    }
+
     const conditions = [inArray(pullRequests.repositoryUrl, repositoryUrls)];
 
     const filters = options.filters;
@@ -158,13 +164,22 @@ export class PrQueryService {
   async getTaskPullRequests(
     projectId: string,
     taskBranch: string,
-    repositoryUrl: string
+    repositoryUrl: string,
+    sourceBranchName?: string
   ): Promise<PullRequest[]> {
+    const branches =
+      sourceBranchName && sourceBranchName !== taskBranch
+        ? [taskBranch, sourceBranchName]
+        : [taskBranch];
+
     const rows = await db
       .select()
       .from(pullRequests)
       .where(
-        and(eq(pullRequests.headRefName, taskBranch), eq(pullRequests.repositoryUrl, repositoryUrl))
+        and(
+          inArray(pullRequests.headRefName, branches),
+          eq(pullRequests.repositoryUrl, repositoryUrl)
+        )
       );
 
     return fetchRelated(rows);

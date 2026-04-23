@@ -1,6 +1,5 @@
-import { makeAutoObservable, observable } from 'mobx';
+import { makeAutoObservable, type IObservableArray } from 'mobx';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import { prUpdatedChannel } from '@shared/events/prEvents';
 import {
   commitRef,
   mergeBaseRange,
@@ -11,10 +10,12 @@ import {
   type GitObjectRef,
 } from '@shared/git';
 import { selectCurrentPr, type PullRequest } from '@shared/pull-requests';
+import type { Task } from '@shared/tasks';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { isRegistered, type TaskStore } from './task';
 
 type MergeMode = 'merge' | 'squash' | 'rebase';
 export type MergeResult = { success: true } | { success: false; error: string };
@@ -29,39 +30,14 @@ function prNumberFromIdentifier(identifier: string | null): number | null {
 export class PrStore {
   readonly commitHistory: Resource<{ commits: Commit[]; aheadCount: number }>;
 
-  /** Internal list of PRs owned by this store. */
-  private readonly _prs = observable.array<PullRequest>([]);
-  /** Initial load resource — populates _prs from the main process. */
-  private readonly _prsResource: Resource<PullRequest[]>;
   private readonly _prFiles = new Map<string, Resource<GitChange[]>>();
-  private _unsubPrUpdated: (() => void) | null = null;
 
   constructor(
     private readonly projectId: string,
     private readonly workspaceId: string,
-    private readonly taskId: string,
-    private readonly taskBranch: string | undefined,
-    private readonly repositoryStore: RepositoryStore
+    private readonly repositoryStore: RepositoryStore,
+    private readonly tasks: IObservableArray<TaskStore>
   ) {
-    this._prsResource = new Resource<PullRequest[]>(
-      () => this._fetchPrsForTask(),
-      [{ kind: 'demand' }]
-    );
-    this._prsResource.start();
-
-    // Subscribe to push-based PR updates from the main process.
-    this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
-      for (const updated of prs) {
-        if (!this._isPrForThisTask(updated)) continue;
-        const idx = this._prs.findIndex((p) => p.url === updated.url);
-        if (idx >= 0) {
-          this._prs.splice(idx, 1, updated);
-        } else {
-          this._prs.push(updated);
-        }
-      }
-    });
-
     this.commitHistory = new Resource(
       () => this._fetchCommitHistory(),
       [
@@ -94,12 +70,9 @@ export class PrStore {
   }
 
   get pullRequests(): PullRequest[] {
-    // Once the initial load completes, populate _prs from the resource data.
-    const loaded = this._prsResource.data;
-    if (loaded && this._prs.length === 0 && loaded.length > 0) {
-      this._prs.replace(loaded);
-    }
-    return this._prs.slice();
+    const task = this.tasks[0];
+    if (!task || !isRegistered(task)) return [];
+    return (task.data as Task).prs ?? [];
   }
 
   get currentPr(): PullRequest | undefined {
@@ -145,7 +118,7 @@ export class PrStore {
     id: string,
     options: { strategy: MergeMode; commitHeadOid?: string }
   ): Promise<MergeResult> {
-    const pr = this._prs.find((p) => p.url === id);
+    const pr = this.pullRequests.find((p) => p.url === id);
     if (!pr) {
       captureTelemetry('pr_merged', {
         strategy: options.strategy,
@@ -182,7 +155,7 @@ export class PrStore {
   }
 
   async markReadyForReview(id: string): Promise<void> {
-    const pr = this._prs.find((p) => p.url === id);
+    const pr = this.pullRequests.find((p) => p.url === id);
     if (!pr) return;
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (!prNumber) return;
@@ -191,10 +164,10 @@ export class PrStore {
 
   /**
    * Trigger a single PR refresh from GitHub. The updated PR will arrive via
-   * `prUpdatedChannel` and be merged into `_prs` automatically.
+   * `prUpdatedChannel` and be merged into `task.data.prs` by `TaskManagerStore`.
    */
   refresh(id: string): void {
-    const pr = this._prs.find((p) => p.url === id);
+    const pr = this.pullRequests.find((p) => p.url === id);
     if (!pr) return;
 
     const prNumber = prNumberFromIdentifier(pr.identifier);
@@ -208,25 +181,8 @@ export class PrStore {
   }
 
   dispose(): void {
-    this._unsubPrUpdated?.();
-    this._unsubPrUpdated = null;
-    this._prsResource.dispose();
     this.commitHistory.dispose();
     for (const r of this._prFiles.values()) r.dispose();
-  }
-
-  private _isPrForThisTask(pr: PullRequest): boolean {
-    if (!this.taskBranch) return false;
-    const repoUrl = this.repositoryStore.repositoryUrl;
-    return pr.headRefName === this.taskBranch && pr.repositoryUrl === (repoUrl ?? '');
-  }
-
-  private async _fetchPrsForTask(): Promise<PullRequest[]> {
-    const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, this.taskId);
-    if (!result.success) return [];
-    const prs = (result.prs ?? []) as PullRequest[];
-    this._prs.replace(prs);
-    return prs;
   }
 
   private async _fetchPrFiles(pr: PullRequest): Promise<GitChange[]> {
