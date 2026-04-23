@@ -1,5 +1,6 @@
 import { and, eq, notInArray } from 'drizzle-orm';
 import type { Remote } from '@shared/git';
+import { isGitHubUrl, normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 
@@ -11,12 +12,13 @@ import { projectRemotes } from '@main/db/schema';
  */
 export async function syncProjectRemotes(projectId: string, remotes: Remote[]): Promise<void> {
   for (const r of remotes) {
+    const remoteUrl = isGitHubUrl(r.url) ? normalizeGitHubUrl(r.url) : r.url;
     await db
       .insert(projectRemotes)
-      .values({ projectId, remoteName: r.name, remoteUrl: r.url })
+      .values({ projectId, remoteName: r.name, remoteUrl })
       .onConflictDoUpdate({
         target: [projectRemotes.projectId, projectRemotes.remoteName],
-        set: { remoteUrl: r.url },
+        set: { remoteUrl },
       });
   }
 
