@@ -3,6 +3,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type Database from 'better-sqlite3';
+import { eq } from 'drizzle-orm';
+import { EncryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
+import { KV } from '@main/db/kv';
+import { appSecrets } from '@main/db/schema';
+import type { RelationalImportDb } from '../relational/types';
 
 const execFileAsync = promisify(execFile);
 
@@ -39,7 +44,8 @@ export type LegacySecretReader = (service: string, account: string) => Promise<s
 export type LegacySecretEncryptor = (secret: string) => string | null | Promise<string | null>;
 
 export type PortLegacyAuthStateOptions = {
-  appDb: Database.Database;
+  appDb: RelationalImportDb;
+  appSqlite: Database.Database;
   legacyToAppSshConnectionId?: ReadonlyMap<string, string>;
   readLegacySecret?: LegacySecretReader;
   encryptSecret?: LegacySecretEncryptor;
@@ -97,18 +103,21 @@ const LEGACY_SECRET_SPECS: LegacySecretSpec[] = [
   },
 ];
 
-function hasTable(appDb: Database.Database, tableName: string): boolean {
-  const row = appDb
+function hasTable(appSqlite: Database.Database, tableName: string): boolean {
+  const row = appSqlite
     .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`)
     .get(tableName) as { 1: number } | undefined;
   return !!row;
 }
 
-function hasStoredSecret(appDb: Database.Database, key: string): boolean {
-  const row = appDb.prepare(`SELECT 1 FROM app_secrets WHERE key = ? LIMIT 1`).get(key) as
-    | { 1: number }
-    | undefined;
-  return !!row;
+async function hasStoredSecret(appDb: RelationalImportDb, key: string): Promise<boolean> {
+  const [row] = await appDb
+    .select({ key: appSecrets.key })
+    .from(appSecrets)
+    .where(eq(appSecrets.key, key))
+    .limit(1)
+    .execute();
+  return Boolean(row);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -286,7 +295,7 @@ export async function portLegacyAuthState(
   userDataPath: string,
   options: PortLegacyAuthStateOptions
 ): Promise<LegacyAuthPortSummary> {
-  const { appDb, legacyToAppSshConnectionId } = options;
+  const { appDb, appSqlite, legacyToAppSshConnectionId } = options;
   const summary: LegacyAuthPortSummary = {
     importedSecrets: [],
     importedKv: [],
@@ -294,8 +303,8 @@ export async function portLegacyAuthState(
     skipped: [],
   };
 
-  const hasKvTable = hasTable(appDb, 'kv');
-  const hasSecretsTable = hasTable(appDb, 'app_secrets');
+  const hasKvTable = hasTable(appSqlite, 'kv');
+  const hasSecretsTable = hasTable(appSqlite, 'app_secrets');
 
   if (!hasKvTable && !hasSecretsTable) {
     summary.skipped.push('auth-port:missing-kv-and-app-secrets-tables');
@@ -337,7 +346,7 @@ export async function portLegacyAuthState(
         }
 
         const targetKey = `ssh:${appConnectionId}:password`;
-        if (hasStoredSecret(appDb, targetKey)) {
+        if (await hasStoredSecret(appDb, targetKey)) {
           summary.skipped.push(`ssh.password:${appConnectionId}:already-present`);
           continue;
         }
@@ -441,28 +450,16 @@ export async function portLegacyAuthState(
     return summary;
   }
 
-  const upsertSecretStatement = hasSecretsTable
-    ? appDb.prepare(
-        `INSERT INTO app_secrets (key, secret) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET secret = excluded.secret`
-      )
-    : null;
+  const secretsStore = hasSecretsTable ? new EncryptedAppSecretsStore(appDb) : null;
 
-  const upsertKvStatement = hasKvTable
-    ? appDb.prepare(
-        `INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
-      )
-    : null;
+  for (const row of secretWrites) {
+    await secretsStore?.setEncryptedSecret(row.key, row.encryptedSecret);
+  }
 
-  appDb.transaction(() => {
-    for (const row of secretWrites) {
-      upsertSecretStatement?.run(row.key, row.encryptedSecret);
-    }
-
-    const now = Date.now();
-    for (const row of kvWrites) {
-      upsertKvStatement?.run(`${row.namespace}:${row.key}`, JSON.stringify(row.value), now);
-    }
-  })();
+  for (const row of kvWrites) {
+    const namespaceKv = new KV<Record<string, unknown>>(row.namespace, appDb);
+    await namespaceKv.set(row.key, row.value);
+  }
 
   return summary;
 }

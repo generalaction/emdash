@@ -3,11 +3,15 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { portLegacyAuthState } from './port-legacy-auth';
+import { createDrizzleClient } from '../../../drizzleClient';
+import { portLegacyAuthState } from './importer';
 
-function createAppDbWithConfigTables(): Database.Database {
-  const db = new Database(':memory:');
-  db.exec(`
+function createAppDbWithConfigTables(): {
+  appSqlite: Database.Database;
+  appDb: ReturnType<typeof createDrizzleClient>['db'];
+} {
+  const appSqlite = new Database(':memory:');
+  appSqlite.exec(`
     CREATE TABLE kv (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -19,19 +23,22 @@ function createAppDbWithConfigTables(): Database.Database {
       secret TEXT NOT NULL
     );
   `);
-  return db;
+  return {
+    appSqlite,
+    appDb: createDrizzleClient({ database: appSqlite }).db,
+  };
 }
 
-function readKv<T>(db: Database.Database, fullKey: string): T | null {
-  const row = db.prepare('SELECT value FROM kv WHERE key = ?').get(fullKey) as
+function readKv<T>(appSqlite: Database.Database, fullKey: string): T | null {
+  const row = appSqlite.prepare('SELECT value FROM kv WHERE key = ?').get(fullKey) as
     | { value: string }
     | undefined;
   if (!row) return null;
   return JSON.parse(row.value) as T;
 }
 
-function readSecret(db: Database.Database, key: string): string | null {
-  const row = db.prepare('SELECT secret FROM app_secrets WHERE key = ?').get(key) as
+function readSecret(appSqlite: Database.Database, key: string): string | null {
+  const row = appSqlite.prepare('SELECT secret FROM app_secrets WHERE key = ?').get(key) as
     | { secret: string }
     | undefined;
   return row?.secret ?? null;
@@ -91,11 +98,12 @@ describe('portLegacyAuthState', () => {
       ['emdash-ssh:legacy-ssh-1:password', 'ssh_pwd_123'],
     ]);
 
-    const appDb = createAppDbWithConfigTables();
-    openDbs.push(appDb);
+    const { appSqlite, appDb } = createAppDbWithConfigTables();
+    openDbs.push(appSqlite);
 
     const summary = await portLegacyAuthState(userDataDir, {
       appDb,
+      appSqlite,
       readLegacySecret: async (service, account) => secretMap.get(`${service}:${account}`) ?? null,
       encryptSecret: (secret) => Buffer.from(`enc:${secret}`, 'utf8').toString('base64'),
       legacyToAppSshConnectionId: new Map([['legacy-ssh-1', 'ssh-app-1']]),
@@ -112,28 +120,30 @@ describe('portLegacyAuthState', () => {
     ]);
     expect(summary.importedSshPasswords).toBe(1);
 
-    expect(readSecret(appDb, 'emdash-github-token')).toBe(
+    expect(readSecret(appSqlite, 'emdash-github-token')).toBe(
       Buffer.from('enc:gh_123', 'utf8').toString('base64')
     );
-    expect(readSecret(appDb, 'emdash-account-token')).toBe(
+    expect(readSecret(appSqlite, 'emdash-account-token')).toBe(
       Buffer.from('enc:session_123', 'utf8').toString('base64')
     );
-    expect(readSecret(appDb, 'ssh:ssh-app-1:password')).toBe(
+    expect(readSecret(appSqlite, 'ssh:ssh-app-1:password')).toBe(
       Buffer.from('enc:ssh_pwd_123', 'utf8').toString('base64')
     );
 
-    expect(readKv<string>(appDb, 'github:tokenSource')).toBe('secure_storage');
-    expect(readKv<{ siteUrl: string; email: string }>(appDb, 'jira:creds')).toEqual({
+    expect(readKv<string>(appSqlite, 'github:tokenSource')).toBe('secure_storage');
+    expect(readKv<{ siteUrl: string; email: string }>(appSqlite, 'jira:creds')).toEqual({
       siteUrl: 'https://jira.example.com',
       email: 'me@example.com',
     });
-    expect(readKv<{ instanceUrl: string }>(appDb, 'forgejo:connection')).toEqual({
+    expect(readKv<{ instanceUrl: string }>(appSqlite, 'forgejo:connection')).toEqual({
       instanceUrl: 'https://forgejo.example.com',
     });
-    expect(readKv<{ instanceUrl: string }>(appDb, 'gitlab:connection')).toEqual({
+    expect(readKv<{ instanceUrl: string }>(appSqlite, 'gitlab:connection')).toEqual({
       instanceUrl: 'https://gitlab.example.com',
     });
-    expect(readKv<{ userId: string; username: string }>(appDb, 'account:profile')).toMatchObject({
+    expect(
+      readKv<{ userId: string; username: string }>(appSqlite, 'account:profile')
+    ).toMatchObject({
       userId: 'user-1',
       username: 'jona',
     });
@@ -150,11 +160,12 @@ describe('portLegacyAuthState', () => {
       'utf8'
     );
 
-    const appDb = createAppDbWithConfigTables();
-    openDbs.push(appDb);
+    const { appSqlite, appDb } = createAppDbWithConfigTables();
+    openDbs.push(appSqlite);
 
     const summary = await portLegacyAuthState(userDataDir, {
       appDb,
+      appSqlite,
       readLegacySecret: async () => null,
       encryptSecret: (secret) => Buffer.from(secret, 'utf8').toString('base64'),
       legacyToAppSshConnectionId: new Map([['legacy-ssh-1', 'ssh-app-1']]),
@@ -166,12 +177,13 @@ describe('portLegacyAuthState', () => {
     expect(summary.skipped.length).toBeGreaterThan(0);
 
     const secretCount = (
-      appDb.prepare('SELECT COUNT(*) AS count FROM app_secrets').get() as {
+      appSqlite.prepare('SELECT COUNT(*) AS count FROM app_secrets').get() as {
         count: number;
       }
     ).count;
-    const kvCount = (appDb.prepare('SELECT COUNT(*) AS count FROM kv').get() as { count: number })
-      .count;
+    const kvCount = (
+      appSqlite.prepare('SELECT COUNT(*) AS count FROM kv').get() as { count: number }
+    ).count;
 
     expect(secretCount).toBe(0);
     expect(kvCount).toBe(0);
@@ -181,10 +193,10 @@ describe('portLegacyAuthState', () => {
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-auth-port-ssh-dedup-'));
     tempDirs.push(userDataDir);
 
-    const appDb = createAppDbWithConfigTables();
-    openDbs.push(appDb);
+    const { appSqlite, appDb } = createAppDbWithConfigTables();
+    openDbs.push(appSqlite);
 
-    appDb
+    appSqlite
       .prepare('INSERT INTO app_secrets (key, secret) VALUES (?, ?)')
       .run('ssh:ssh-app-1:password', Buffer.from('enc:existing_pwd', 'utf8').toString('base64'));
 
@@ -192,6 +204,7 @@ describe('portLegacyAuthState', () => {
 
     const summary = await portLegacyAuthState(userDataDir, {
       appDb,
+      appSqlite,
       readLegacySecret: async (service, account) => secretMap.get(`${service}:${account}`) ?? null,
       encryptSecret: (secret) => Buffer.from(`enc:${secret}`, 'utf8').toString('base64'),
       legacyToAppSshConnectionId: new Map([['legacy-ssh-1', 'ssh-app-1']]),
@@ -199,7 +212,7 @@ describe('portLegacyAuthState', () => {
 
     expect(summary.importedSshPasswords).toBe(0);
     expect(summary.skipped).toContain('ssh.password:ssh-app-1:already-present');
-    expect(readSecret(appDb, 'ssh:ssh-app-1:password')).toBe(
+    expect(readSecret(appSqlite, 'ssh:ssh-app-1:password')).toBe(
       Buffer.from('enc:existing_pwd', 'utf8').toString('base64')
     );
   });

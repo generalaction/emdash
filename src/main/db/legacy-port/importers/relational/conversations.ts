@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { conversations, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import {
   isUniqueConstraintError,
@@ -208,30 +209,37 @@ function pickConversationIdForInsert(params: {
   return candidateResumeUuid;
 }
 
-export function portConversations({
+export async function portConversations({
   appDb,
   legacyDb,
   remap,
   mergedLegacyTaskIds,
   userDataPath,
-}: PortContext & { mergedLegacyTaskIds: Set<string>; userDataPath?: string }): PortSummary {
+}: PortContext & {
+  mergedLegacyTaskIds: Set<string>;
+  userDataPath?: string;
+}): Promise<PortSummary> {
   const summary = createPortSummary('conversations');
   const nowIso = new Date().toISOString();
   const claudeResumeTargets = readLegacyClaudeResumeTargets(userDataPath);
 
-  const taskRows = appDb.prepare(`SELECT id, project_id as projectId FROM tasks`).all() as Array<{
-    id: string;
-    projectId: string;
-  }>;
+  const taskRows = await appDb
+    .select({
+      id: tasks.id,
+      projectId: tasks.projectId,
+    })
+    .from(tasks)
+    .execute();
 
   const taskIdToProjectId = new Map<string, string>();
   for (const row of taskRows) {
     taskIdToProjectId.set(row.id, row.projectId);
   }
 
-  const existingConversationRows = appDb.prepare(`SELECT id FROM conversations`).all() as Array<{
-    id: string;
-  }>;
+  const existingConversationRows = await appDb
+    .select({ id: conversations.id })
+    .from(conversations)
+    .execute();
   const conversationIds = new Set<string>(existingConversationRows.map((row) => row.id));
 
   const legacyRows = readLegacyRows(legacyDb, 'conversations', [
@@ -242,29 +250,6 @@ export function portConversations({
     'created_at',
     'updated_at',
   ]);
-
-  const insertStatement = appDb.prepare(`
-    INSERT INTO conversations (
-      id,
-      project_id,
-      task_id,
-      title,
-      provider,
-      config,
-      created_at,
-      updated_at
-    )
-    VALUES (
-      @id,
-      @projectId,
-      @taskId,
-      @title,
-      @provider,
-      NULL,
-      @createdAt,
-      @updatedAt
-    )
-  `);
 
   for (const row of legacyRows) {
     summary.considered += 1;
@@ -314,6 +299,7 @@ export function portConversations({
       title:
         toTrimmedString(row.title) ?? `Legacy conversation ${legacyConversationId.slice(0, 8)}`,
       provider: legacyProvider,
+      config: null,
       createdAt: toIsoTimestamp(row.created_at, nowIso),
       updatedAt: toIsoTimestamp(row.updated_at, nowIso),
     };
@@ -323,7 +309,7 @@ export function portConversations({
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         insertValues.id = nextConversationId;
-        insertStatement.run(insertValues);
+        await appDb.insert(conversations).values(insertValues).execute();
         inserted = true;
         break;
       } catch (error) {

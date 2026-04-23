@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
+import { eq } from 'drizzle-orm';
+import { projects, sshConnections } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import {
   makeSshFingerprint,
   normalizeLocalPath,
   normalizePort,
   normalizeRemotePath,
-} from '../normalize';
+} from '../../legacy-source/normalize';
 import {
   isUniqueConstraintError,
   readLegacyRows,
@@ -46,10 +48,18 @@ function pickDefaultProjectName(projectPath: string, fallbackId: string): string
   return derived.length > 0 ? derived : `Legacy Project ${fallbackId.slice(0, 8)}`;
 }
 
-function loadConnectionFingerprintById(appDb: PortContext['appDb']): Map<string, string> {
-  const rows = appDb
-    .prepare(`SELECT id, host, port, username FROM ssh_connections`)
-    .all() as ConnectionFingerprintRow[];
+async function loadConnectionFingerprintById(
+  appDb: PortContext['appDb']
+): Promise<Map<string, string>> {
+  const rows = (await appDb
+    .select({
+      id: sshConnections.id,
+      host: sshConnections.host,
+      port: sshConnections.port,
+      username: sshConnections.username,
+    })
+    .from(sshConnections)
+    .execute()) as ConnectionFingerprintRow[];
 
   const result = new Map<string, string>();
   for (const row of rows) {
@@ -58,17 +68,23 @@ function loadConnectionFingerprintById(appDb: PortContext['appDb']): Map<string,
   return result;
 }
 
-export function portProjects({ appDb, legacyDb, remap }: PortContext): PortSummary {
+export async function portProjects({ appDb, legacyDb, remap }: PortContext): Promise<PortSummary> {
   const summary = createPortSummary('projects');
   const nowIso = new Date().toISOString();
 
-  const existingProjectRows = appDb
-    .prepare(
-      `SELECT p.id, p.path, p.workspace_provider as workspaceProvider, p.ssh_connection_id as sshConnectionId, s.host, s.port, s.username
-       FROM projects p
-       LEFT JOIN ssh_connections s ON s.id = p.ssh_connection_id`
-    )
-    .all() as ExistingProjectRow[];
+  const existingProjectRows = (await appDb
+    .select({
+      id: projects.id,
+      path: projects.path,
+      workspaceProvider: projects.workspaceProvider,
+      sshConnectionId: projects.sshConnectionId,
+      host: sshConnections.host,
+      port: sshConnections.port,
+      username: sshConnections.username,
+    })
+    .from(projects)
+    .leftJoin(sshConnections, eq(projects.sshConnectionId, sshConnections.id))
+    .execute()) as ExistingProjectRow[];
 
   const projectIds = new Set<string>();
   const localKeyToProjectId = new Map<string, string>();
@@ -86,7 +102,7 @@ export function portProjects({ appDb, legacyDb, remap }: PortContext): PortSumma
     localKeyToProjectId.set(localProjectKey(row.path), row.id);
   }
 
-  const connectionFingerprintById = loadConnectionFingerprintById(appDb);
+  const connectionFingerprintById = await loadConnectionFingerprintById(appDb);
 
   const legacyRows = readLegacyRows(legacyDb, 'projects', [
     'id',
@@ -99,29 +115,6 @@ export function portProjects({ appDb, legacyDb, remap }: PortContext): PortSumma
     'created_at',
     'updated_at',
   ]);
-
-  const insertStatement = appDb.prepare(`
-    INSERT INTO projects (
-      id,
-      name,
-      path,
-      workspace_provider,
-      base_ref,
-      ssh_connection_id,
-      created_at,
-      updated_at
-    )
-    VALUES (
-      @id,
-      @name,
-      @path,
-      @workspaceProvider,
-      @baseRef,
-      @sshConnectionId,
-      @createdAt,
-      @updatedAt
-    )
-  `);
 
   for (const row of legacyRows) {
     summary.considered += 1;
@@ -240,7 +233,7 @@ export function portProjects({ appDb, legacyDb, remap }: PortContext): PortSumma
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         insertValues.id = nextProjectId;
-        insertStatement.run(insertValues);
+        await appDb.insert(projects).values(insertValues).execute();
         inserted = true;
         break;
       } catch (error) {
@@ -250,9 +243,12 @@ export function portProjects({ appDb, legacyDb, remap }: PortContext): PortSumma
         }
 
         if (isUniqueConstraintError(error, 'projects.path')) {
-          const existingByPath = appDb
-            .prepare(`SELECT id FROM projects WHERE path = ? LIMIT 1`)
-            .get(projectPath) as { id: string } | undefined;
+          const [existingByPath] = await appDb
+            .select({ id: projects.id })
+            .from(projects)
+            .where(eq(projects.path, projectPath))
+            .limit(1)
+            .execute();
 
           if (existingByPath) {
             remap.projectId.set(legacyProjectId, existingByPath.id);

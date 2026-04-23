@@ -3,9 +3,10 @@ import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
-import { APP_SETTINGS_SCHEMA_MAP } from '@main/core/settings/schema';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
-import { computeDelta, isDeepEqual, isPlainObject, mergeDeep } from '@main/core/settings/utils';
+import { SettingsStore } from '@main/core/settings/settings-service';
+import { isPlainObject, mergeDeep } from '@main/core/settings/utils';
+import type { RelationalImportDb } from '../relational/types';
 
 const LEGACY_SETTINGS_FILE = 'settings.json';
 
@@ -15,13 +16,14 @@ export type LegacySettingsPortSummary = {
 };
 
 export type PortLegacySettingsOptions = {
-  appDb: Database.Database;
+  appDb: RelationalImportDb;
+  appSqlite: Database.Database;
 };
 
 type LegacyTheme = 'light' | 'dark' | 'dark-black' | 'system';
 
-function hasTable(appDb: Database.Database, tableName: string): boolean {
-  const row = appDb
+function hasTable(appSqlite: Database.Database, tableName: string): boolean {
+  const row = appSqlite
     .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`)
     .get(tableName) as { 1: number } | undefined;
   return !!row;
@@ -46,93 +48,31 @@ function readBoolean(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
 
-function readStoredSetting(appDb: Database.Database, key: AppSettingsKey): unknown | null {
-  const row = appDb.prepare('SELECT value FROM app_settings WHERE key = ? LIMIT 1').get(key) as
-    | { value: string }
-    | undefined;
-  if (!row) return null;
-
-  try {
-    return JSON.parse(row.value) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredSetting(appDb: Database.Database, key: AppSettingsKey, value: unknown): void {
-  const serialized = JSON.stringify(value);
-  appDb
-    .prepare(
-      `
-      INSERT INTO app_settings (key, value)
-      VALUES (?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `
-    )
-    .run(key, serialized);
-}
-
-function deleteStoredSetting(appDb: Database.Database, key: AppSettingsKey): void {
-  appDb.prepare('DELETE FROM app_settings WHERE key = ?').run(key);
-}
-
-function persistSetting<K extends AppSettingsKey>(
-  appDb: Database.Database,
-  key: K,
-  value: AppSettings[K]
-): void {
-  const defaults = getDefaultForKey(key);
-
-  if (isPlainObject(value) && isPlainObject(defaults)) {
-    const delta = computeDelta(
-      value as Record<string, unknown>,
-      defaults as Record<string, unknown>
-    );
-    if (Object.keys(delta).length === 0) {
-      deleteStoredSetting(appDb, key);
-      return;
-    }
-
-    writeStoredSetting(appDb, key, delta);
-    return;
-  }
-
-  if (isDeepEqual(value, defaults)) {
-    deleteStoredSetting(appDb, key);
-    return;
-  }
-
-  writeStoredSetting(appDb, key, value);
-}
-
-function updateObjectSetting<K extends AppSettingsKey>(
-  appDb: Database.Database,
+async function updateObjectSetting<K extends AppSettingsKey>(
+  settingsStore: SettingsStore,
   key: K,
   patch: Record<string, unknown>
-): void {
+): Promise<void> {
   if (Object.keys(patch).length === 0) return;
 
   const defaults = getDefaultForKey(key);
   if (!isPlainObject(defaults)) return;
 
-  const rawStored = readStoredSetting(appDb, key);
-  const defaultsObject = defaults as Record<string, unknown>;
-  const currentValue = isPlainObject(rawStored)
-    ? mergeDeep(defaultsObject, rawStored)
-    : mergeDeep({}, defaultsObject);
-  const merged = mergeDeep(currentValue, patch);
-  const validated = APP_SETTINGS_SCHEMA_MAP[key].parse(merged) as AppSettings[K];
+  const currentValue = await settingsStore.get(key);
+  const currentObject = isPlainObject(currentValue)
+    ? (currentValue as Record<string, unknown>)
+    : (defaults as Record<string, unknown>);
+  const merged = mergeDeep(currentObject, patch);
 
-  persistSetting(appDb, key, validated);
+  await settingsStore.update(key, merged as AppSettings[K]);
 }
 
-function updateScalarSetting<K extends AppSettingsKey>(
-  appDb: Database.Database,
+async function updateScalarSetting<K extends AppSettingsKey>(
+  settingsStore: SettingsStore,
   key: K,
-  nextValue: unknown
-): void {
-  const validated = APP_SETTINGS_SCHEMA_MAP[key].parse(nextValue) as AppSettings[K];
-  persistSetting(appDb, key, validated);
+  nextValue: AppSettings[K]
+): Promise<void> {
+  await settingsStore.update(key, nextValue);
 }
 
 function mapLegacyTheme(theme: unknown): AppSettings['theme'] | undefined {
@@ -143,18 +83,18 @@ function mapLegacyTheme(theme: unknown): AppSettings['theme'] | undefined {
   return undefined;
 }
 
-export function portLegacySettings(
+export async function portLegacySettings(
   userDataPath: string,
   options: PortLegacySettingsOptions
-): LegacySettingsPortSummary {
-  const { appDb } = options;
+): Promise<LegacySettingsPortSummary> {
+  const { appDb, appSqlite } = options;
 
   const summary: LegacySettingsPortSummary = {
     imported: [],
     skipped: [],
   };
 
-  if (!hasTable(appDb, 'app_settings')) {
+  if (!hasTable(appSqlite, 'app_settings')) {
     summary.skipped.push('settings:app_settings-table-missing');
     return summary;
   }
@@ -171,6 +111,7 @@ export function portLegacySettings(
     return summary;
   }
 
+  const settingsStore = new SettingsStore(appDb);
   const repository = isPlainObject(legacyRaw.repository) ? legacyRaw.repository : null;
   if (repository) {
     const patch: Record<string, unknown> = {};
@@ -189,7 +130,7 @@ export function portLegacySettings(
 
     if (Object.keys(patch).length > 0) {
       try {
-        updateObjectSetting(appDb, 'localProject', patch);
+        await updateObjectSetting(settingsStore, 'localProject', patch);
       } catch {
         summary.skipped.push('localProject:validation-failed');
       }
@@ -218,7 +159,7 @@ export function portLegacySettings(
 
     if (Object.keys(patch).length > 0) {
       try {
-        updateObjectSetting(appDb, 'tasks', patch);
+        await updateObjectSetting(settingsStore, 'tasks', patch);
       } catch {
         summary.skipped.push('tasks:validation-failed');
       }
@@ -252,7 +193,7 @@ export function portLegacySettings(
 
     if (Object.keys(patch).length > 0) {
       try {
-        updateObjectSetting(appDb, 'notifications', patch);
+        await updateObjectSetting(settingsStore, 'notifications', patch);
       } catch {
         summary.skipped.push('notifications:validation-failed');
       }
@@ -262,7 +203,7 @@ export function portLegacySettings(
   if (legacyRaw.defaultProvider !== undefined) {
     if (isValidProviderId(legacyRaw.defaultProvider)) {
       try {
-        updateScalarSetting(appDb, 'defaultAgent', legacyRaw.defaultProvider);
+        await updateScalarSetting(settingsStore, 'defaultAgent', legacyRaw.defaultProvider);
         summary.imported.push('defaultAgent');
       } catch {
         summary.skipped.push('defaultAgent:validation-failed');
@@ -277,7 +218,7 @@ export function portLegacySettings(
     const prompt = readTrimmedString(review.prompt);
     if (prompt) {
       try {
-        updateScalarSetting(appDb, 'reviewPrompt', prompt);
+        await updateScalarSetting(settingsStore, 'reviewPrompt', prompt);
         summary.imported.push('reviewPrompt');
       } catch {
         summary.skipped.push('reviewPrompt:validation-failed');
@@ -290,7 +231,7 @@ export function portLegacySettings(
     const mappedTheme = mapLegacyTheme(interfaceSettings.theme);
     if (mappedTheme !== undefined) {
       try {
-        updateScalarSetting(appDb, 'theme', mappedTheme);
+        await updateScalarSetting(settingsStore, 'theme', mappedTheme);
         summary.imported.push('theme');
       } catch {
         summary.skipped.push('theme:validation-failed');
@@ -303,7 +244,7 @@ export function portLegacySettings(
     const fontFamily = readTrimmedString(terminal.fontFamily);
     if (fontFamily) {
       try {
-        updateObjectSetting(appDb, 'terminal', { fontFamily });
+        await updateObjectSetting(settingsStore, 'terminal', { fontFamily });
         summary.imported.push('terminal.fontFamily');
       } catch {
         summary.skipped.push('terminal:validation-failed');

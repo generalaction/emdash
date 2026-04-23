@@ -1,25 +1,50 @@
 import type Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import type { StartupDataGateStatus } from '@shared/startup-data-gate';
 import { log } from '../../lib/logger';
-import { openLegacyReadOnly } from './open-legacy';
-import { portLegacyAuthState } from './port-legacy-auth';
-import { portLegacySettings } from './port-legacy-settings';
-import { portConversations } from './ports/conversations';
-import { portProjects } from './ports/projects';
-import { portSshConnections } from './ports/ssh-connections';
-import { portTasks } from './ports/tasks';
-import type { PortSummary } from './ports/types';
-import { createRemapTables } from './remap';
-import {
-  createDefaultLegacyPortStateStore,
-  hasLegacyFile,
-  resolveLegacyPath,
-  type LegacyPortStateStore,
-} from './should-run';
+import * as schema from '../schema';
+import { portLegacyAuthState } from './importers/auth/importer';
+import { portConversations } from './importers/relational/conversations';
+import { portProjects } from './importers/relational/projects';
+import { createRemapTables } from './importers/relational/remap';
+import { portSshConnections } from './importers/relational/ssh-connections';
+import { portTasks } from './importers/relational/tasks';
+import type { PortSummary } from './importers/relational/types';
+import { portLegacySettings } from './importers/settings/importer';
+import { openLegacyReadOnly } from './legacy-source/open-readonly';
+import { hasLegacyDatabaseFile, resolveLegacyDatabasePath } from './legacy-source/path';
+import { createLegacyPortStateStore } from './state-store';
+
+type LegacyPortDb = ReturnType<typeof drizzle<typeof schema>>;
+
+type AppTarget = {
+  db: LegacyPortDb;
+  sqlite: Database.Database;
+};
+
+export type LegacyPortStatus = StartupDataGateStatus;
+
+export interface LegacyPortStateStore {
+  getStatus(): Promise<LegacyPortStatus | null>;
+  setStatus(status: LegacyPortStatus): Promise<void>;
+}
 
 export type RunLegacyPortOptions = {
   appDb?: Database.Database;
   stateStore?: LegacyPortStateStore;
 };
+
+async function resolveAppTarget(appSqlite?: Database.Database): Promise<AppTarget> {
+  if (!appSqlite) {
+    const { db, sqlite } = await import('../client');
+    return { db, sqlite };
+  }
+
+  return {
+    db: drizzle(appSqlite, { schema }),
+    sqlite: appSqlite,
+  };
+}
 
 function logSummary(summary: PortSummary): void {
   log.info(
@@ -41,11 +66,23 @@ async function markStatus(
   }
 }
 
+export async function createDefaultLegacyPortStateStore(): Promise<LegacyPortStateStore> {
+  return createLegacyPortStateStore();
+}
+
+export function resolveLegacyPath(userDataPath: string): string {
+  return resolveLegacyDatabasePath(userDataPath);
+}
+
+export function hasLegacyFile(userDataPath: string): boolean {
+  return hasLegacyDatabaseFile(userDataPath);
+}
+
 export async function runLegacyPort(
   userDataPath: string,
   options: RunLegacyPortOptions = {}
 ): Promise<void> {
-  const appDb = options.appDb ?? (await import('../client')).sqlite;
+  const appTarget = await resolveAppTarget(options.appDb);
   const stateStore = options.stateStore ?? (await createDefaultLegacyPortStateStore());
 
   try {
@@ -83,11 +120,11 @@ export async function runLegacyPort(
   try {
     const remap = createRemapTables();
 
-    const sshSummary = portSshConnections({ appDb, legacyDb, remap });
-    const projectsSummary = portProjects({ appDb, legacyDb, remap });
-    const taskResult = portTasks({ appDb, legacyDb, remap });
-    const conversationsSummary = portConversations({
-      appDb,
+    const sshSummary = await portSshConnections({ appDb: appTarget.db, legacyDb, remap });
+    const projectsSummary = await portProjects({ appDb: appTarget.db, legacyDb, remap });
+    const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
+    const conversationsSummary = await portConversations({
+      appDb: appTarget.db,
       legacyDb,
       remap,
       mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
@@ -101,7 +138,8 @@ export async function runLegacyPort(
 
     try {
       const authSummary = await portLegacyAuthState(userDataPath, {
-        appDb,
+        appDb: appTarget.db,
+        appSqlite: appTarget.sqlite,
         legacyToAppSshConnectionId: remap.sshConnectionId,
       });
       log.info(
@@ -114,7 +152,10 @@ export async function runLegacyPort(
     }
 
     try {
-      const settingsSummary = portLegacySettings(userDataPath, { appDb });
+      const settingsSummary = await portLegacySettings(userDataPath, {
+        appDb: appTarget.db,
+        appSqlite: appTarget.sqlite,
+      });
       log.info(
         `legacy-port: settings: imported=${settingsSummary.imported.length}, skipped=${settingsSummary.skipped.length}`
       );

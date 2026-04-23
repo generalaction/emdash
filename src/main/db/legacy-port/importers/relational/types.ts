@@ -1,8 +1,12 @@
 import type Database from 'better-sqlite3';
-import type { RemapTables } from '../remap';
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import type * as schema from '@main/db/schema';
+import type { RemapTables } from './remap';
+
+export type RelationalImportDb = BetterSQLite3Database<typeof schema>;
 
 export type PortContext = {
-  appDb: Database.Database;
+  appDb: RelationalImportDb;
   legacyDb: Database.Database;
   remap: RemapTables;
 };

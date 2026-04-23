@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { AppSettingsKeys, type AppSettings, type AppSettingsKey } from '@shared/app-settings';
-import { db } from '@main/db/client';
+import type { AppDb } from '@main/db/client';
 import { appSettings } from '@main/db/schema';
 import { APP_SETTINGS_SCHEMA_MAP } from './schema';
 import { getDefaultForKey } from './settings-registry';
@@ -9,11 +9,26 @@ import { computeDelta, computeTrueOverrides, isDeepEqual, isPlainObject, mergeDe
 export type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 export { AppSettingsKeys } from '@shared/app-settings';
 
-class Settings {
+export class SettingsStore {
+  constructor(private readonly database?: AppDb) {}
+
   private cache: Partial<AppSettings> = {};
 
+  private async getDatabase(): Promise<AppDb> {
+    if (this.database) {
+      return this.database;
+    }
+
+    return (await import('@main/db/client')).db;
+  }
+
   private async readRaw(key: AppSettingsKey): Promise<unknown> {
-    const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key)).execute();
+    const database = await this.getDatabase();
+    const [row] = await database
+      .select()
+      .from(appSettings)
+      .where(eq(appSettings.key, key))
+      .execute();
     if (!row) return null;
     try {
       return JSON.parse(row.value);
@@ -23,8 +38,9 @@ class Settings {
   }
 
   private async storeRaw(key: AppSettingsKey, value: unknown): Promise<void> {
+    const database = await this.getDatabase();
     const serialized = JSON.stringify(value);
-    await db
+    await database
       .insert(appSettings)
       .values({ key, value: serialized })
       .onConflictDoUpdate({ target: appSettings.key, set: { value: serialized } })
@@ -32,7 +48,8 @@ class Settings {
   }
 
   private async deleteRow(key: AppSettingsKey): Promise<void> {
-    await db.delete(appSettings).where(eq(appSettings.key, key)).execute();
+    const database = await this.getDatabase();
+    await database.delete(appSettings).where(eq(appSettings.key, key)).execute();
   }
 
   async get<K extends AppSettingsKey>(key: K): Promise<AppSettings[K]> {
@@ -139,4 +156,4 @@ class Settings {
   }
 }
 
-export const appSettingsService = new Settings();
+export const appSettingsService = new SettingsStore();

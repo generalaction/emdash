@@ -3,16 +3,20 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createRemapTables } from '../remap';
+import { createDrizzleClient } from '../../../drizzleClient';
 import { portConversations } from './conversations';
 import { portProjects } from './projects';
+import { createRemapTables } from './remap';
 import { portSshConnections } from './ssh-connections';
 import { portTasks } from './tasks';
 
-function createAppDb(): Database.Database {
-  const db = new Database(':memory:');
-  db.pragma('foreign_keys = ON');
-  db.exec(`
+function createAppDb(): {
+  appSqlite: Database.Database;
+  appDb: ReturnType<typeof createDrizzleClient>['db'];
+} {
+  const appSqlite = new Database(':memory:');
+  appSqlite.pragma('foreign_keys = ON');
+  appSqlite.exec(`
     CREATE TABLE ssh_connections (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
@@ -45,6 +49,7 @@ function createAppDb(): Database.Database {
       status TEXT NOT NULL,
       source_branch TEXT,
       task_branch TEXT,
+      linked_issue TEXT,
       archived_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -65,7 +70,10 @@ function createAppDb(): Database.Database {
     );
   `);
 
-  return db;
+  return {
+    appSqlite,
+    appDb: createDrizzleClient({ database: appSqlite }).db,
+  };
 }
 
 function createLegacyDb(): Database.Database {
@@ -130,24 +138,24 @@ describe('legacy-port table passes', () => {
     }
   });
 
-  it('ports with dedup + remap and skips merged-task conversations', () => {
-    const appDb = createAppDb();
+  it('ports with dedup + remap and skips merged-task conversations', async () => {
+    const { appSqlite, appDb } = createAppDb();
     const legacyDb = createLegacyDb();
-    openDbs.push(appDb, legacyDb);
+    openDbs.push(appSqlite, legacyDb);
 
-    appDb
+    appSqlite
       .prepare(
         `INSERT INTO ssh_connections (id, name, host, port, username) VALUES (?, ?, ?, ?, ?)`
       )
       .run('ssh-beta', 'prod', 'example.com', 22, 'alice');
 
-    appDb
+    appSqlite
       .prepare(
         `INSERT INTO projects (id, name, path, workspace_provider, base_ref) VALUES (?, ?, ?, ?, ?)`
       )
       .run('proj-beta-local', 'Beta Local', '/work/repo', 'local', 'main');
 
-    appDb
+    appSqlite
       .prepare(
         `INSERT INTO tasks (id, project_id, name, status, source_branch, task_branch) VALUES (?, ?, ?, ?, ?, ?)`
       )
@@ -227,10 +235,10 @@ describe('legacy-port table passes', () => {
       .run('conv-legacy-new', 'task-legacy-new', 'New conversation', 'codex');
 
     const remap = createRemapTables();
-    const sshSummary = portSshConnections({ appDb, legacyDb, remap });
-    const projectsSummary = portProjects({ appDb, legacyDb, remap });
-    const taskResult = portTasks({ appDb, legacyDb, remap });
-    const conversationsSummary = portConversations({
+    const sshSummary = await portSshConnections({ appDb, legacyDb, remap });
+    const projectsSummary = await portProjects({ appDb, legacyDb, remap });
+    const taskResult = await portTasks({ appDb, legacyDb, remap });
+    const conversationsSummary = await portConversations({
       appDb,
       legacyDb,
       remap,
@@ -257,7 +265,7 @@ describe('legacy-port table passes', () => {
     const insertedTaskId = remap.taskId.get('task-legacy-new');
     expect(insertedTaskId).toBeTruthy();
 
-    const insertedTask = appDb
+    const insertedTask = appSqlite
       .prepare(
         `SELECT project_id, status, source_branch, task_branch, status_changed_at, last_interacted_at, is_pinned FROM tasks WHERE id = ?`
       )
@@ -282,7 +290,7 @@ describe('legacy-port table passes', () => {
     expect(conversationsSummary.considered).toBe(2);
     expect(conversationsSummary.skippedDedup).toBe(1);
 
-    const conversations = appDb
+    const conversations = appSqlite
       .prepare(`SELECT id, task_id, project_id, title FROM conversations ORDER BY id ASC`)
       .all() as Array<{ id: string; task_id: string; project_id: string; title: string }>;
 
@@ -296,10 +304,10 @@ describe('legacy-port table passes', () => {
     ]);
   });
 
-  it('uses claude legacy resume uuid from pty-session-map and falls back to legacy id', () => {
-    const appDb = createAppDb();
+  it('uses claude legacy resume uuid from pty-session-map and falls back to legacy id', async () => {
+    const { appSqlite, appDb } = createAppDb();
     const legacyDb = createLegacyDb();
-    openDbs.push(appDb, legacyDb);
+    openDbs.push(appSqlite, legacyDb);
 
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-port-conv-'));
     tempDirs.push(userDataDir);
@@ -321,12 +329,12 @@ describe('legacy-port table passes', () => {
       'utf8'
     );
 
-    appDb
+    appSqlite
       .prepare(
         `INSERT INTO projects (id, name, path, workspace_provider, base_ref) VALUES (?, ?, ?, ?, ?)`
       )
       .run('proj-existing', 'Existing Project', '/existing/repo', 'local', 'main');
-    appDb
+    appSqlite
       .prepare(
         `INSERT INTO tasks (id, project_id, name, status, source_branch, task_branch) VALUES (?, ?, ?, ?, ?, ?)`
       )
@@ -338,7 +346,7 @@ describe('legacy-port table passes', () => {
         JSON.stringify({ type: 'local', branch: 'main' }),
         'feature/existing'
       );
-    appDb
+    appSqlite
       .prepare(
         `INSERT INTO conversations (id, project_id, task_id, title, provider) VALUES (?, ?, ?, ?, ?)`
       )
@@ -436,11 +444,11 @@ describe('legacy-port table passes', () => {
       .run('conv-legacy-codex', 'task-legacy-chat', 'Legacy Codex Conversation', 'codex');
 
     const remap = createRemapTables();
-    portSshConnections({ appDb, legacyDb, remap });
-    portProjects({ appDb, legacyDb, remap });
-    const taskResult = portTasks({ appDb, legacyDb, remap });
+    await portSshConnections({ appDb, legacyDb, remap });
+    await portProjects({ appDb, legacyDb, remap });
+    const taskResult = await portTasks({ appDb, legacyDb, remap });
 
-    const conversationsSummary = portConversations({
+    const conversationsSummary = await portConversations({
       appDb,
       legacyDb,
       remap,
@@ -450,7 +458,7 @@ describe('legacy-port table passes', () => {
 
     expect(conversationsSummary.inserted).toBe(6);
 
-    const inserted = appDb
+    const inserted = appSqlite
       .prepare(
         `SELECT id, title, provider FROM conversations WHERE title LIKE 'Legacy %' ORDER BY title ASC`
       )

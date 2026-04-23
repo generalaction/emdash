@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import {
   isUniqueConstraintError,
@@ -26,14 +27,19 @@ function coerceTaskStatus(
   return 'todo';
 }
 
-export function portTasks({ appDb, legacyDb, remap }: PortContext): TaskPortResult {
+export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promise<TaskPortResult> {
   const summary = createPortSummary('tasks');
   const mergedLegacyTaskIds = new Set<string>();
   const nowIso = new Date().toISOString();
 
-  const existingTaskRows = appDb
-    .prepare(`SELECT id, project_id as projectId, task_branch as taskBranch FROM tasks`)
-    .all() as Array<{ id: string; projectId: string; taskBranch: string | null }>;
+  const existingTaskRows = await appDb
+    .select({
+      id: tasks.id,
+      projectId: tasks.projectId,
+      taskBranch: tasks.taskBranch,
+    })
+    .from(tasks)
+    .execute();
 
   const existingTaskIds = new Set<string>();
   const branchKeyToTaskId = new Map<string, string>();
@@ -55,37 +61,6 @@ export function portTasks({ appDb, legacyDb, remap }: PortContext): TaskPortResu
     'created_at',
     'updated_at',
   ]);
-
-  const insertStatement = appDb.prepare(`
-    INSERT INTO tasks (
-      id,
-      project_id,
-      name,
-      status,
-      source_branch,
-      task_branch,
-      archived_at,
-      created_at,
-      updated_at,
-      status_changed_at,
-      last_interacted_at,
-      is_pinned
-    )
-    VALUES (
-      @id,
-      @projectId,
-      @name,
-      @status,
-      NULL,
-      @taskBranch,
-      @archivedAt,
-      @createdAt,
-      @updatedAt,
-      @statusChangedAt,
-      @lastInteractedAt,
-      0
-    )
-  `);
 
   for (const row of legacyRows) {
     summary.considered += 1;
@@ -125,12 +100,14 @@ export function portTasks({ appDb, legacyDb, remap }: PortContext): TaskPortResu
       projectId: mappedProjectId,
       name: toTrimmedString(row.name) ?? taskBranch ?? `Legacy Task ${legacyTaskId.slice(0, 8)}`,
       status: coerceTaskStatus(toTrimmedString(row.status)),
+      sourceBranch: null,
       taskBranch: taskBranch ?? null,
       archivedAt: toTrimmedString(row.archived_at) ?? null,
       createdAt,
       updatedAt,
       statusChangedAt: updatedAt,
       lastInteractedAt: updatedAt,
+      isPinned: 0,
     };
 
     let inserted = false;
@@ -138,7 +115,7 @@ export function portTasks({ appDb, legacyDb, remap }: PortContext): TaskPortResu
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         insertValues.id = nextTaskId;
-        insertStatement.run(insertValues);
+        await appDb.insert(tasks).values(insertValues).execute();
         inserted = true;
         break;
       } catch (error) {

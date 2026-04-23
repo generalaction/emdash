@@ -3,8 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { runLegacyPort } from './run-legacy-port';
-import type { LegacyPortStateStore } from './should-run';
+import { runLegacyPort, type LegacyPortStateStore } from './service';
 
 function createAppDb(): Database.Database {
   const db = new Database(':memory:');
@@ -48,6 +47,7 @@ function createAppDb(): Database.Database {
       status TEXT NOT NULL,
       source_branch TEXT,
       task_branch TEXT,
+      linked_issue TEXT,
       archived_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,

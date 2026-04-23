@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { sshConnections } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { makeSshFingerprint, normalizeHost, normalizePort, normalizeUsername } from '../normalize';
+import {
+  makeSshFingerprint,
+  normalizeHost,
+  normalizePort,
+  normalizeUsername,
+} from '../../legacy-source/normalize';
 import {
   isUniqueConstraintError,
   readLegacyRows,
@@ -37,13 +43,24 @@ function pickUniqueConnectionName(baseName: string, usedNames: Set<string>): str
   }
 }
 
-export function portSshConnections({ appDb, legacyDb, remap }: PortContext): PortSummary {
+export async function portSshConnections({
+  appDb,
+  legacyDb,
+  remap,
+}: PortContext): Promise<PortSummary> {
   const summary = createPortSummary('ssh_connections');
   const nowIso = new Date().toISOString();
 
-  const existingConnections = appDb
-    .prepare(`SELECT id, name, host, port, username FROM ssh_connections`)
-    .all() as ExistingSshConnection[];
+  const existingConnections = (await appDb
+    .select({
+      id: sshConnections.id,
+      name: sshConnections.name,
+      host: sshConnections.host,
+      port: sshConnections.port,
+      username: sshConnections.username,
+    })
+    .from(sshConnections)
+    .execute()) as ExistingSshConnection[];
 
   const fingerprintToConnectionId = new Map<string, string>();
   const existingConnectionIds = new Set<string>();
@@ -72,35 +89,6 @@ export function portSshConnections({ appDb, legacyDb, remap }: PortContext): Por
     'created_at',
     'updated_at',
   ]);
-
-  const insertStatement = appDb.prepare(`
-    INSERT INTO ssh_connections (
-      id,
-      name,
-      host,
-      port,
-      username,
-      auth_type,
-      private_key_path,
-      use_agent,
-      metadata,
-      created_at,
-      updated_at
-    )
-    VALUES (
-      @id,
-      @name,
-      @host,
-      @port,
-      @username,
-      @authType,
-      @privateKeyPath,
-      @useAgent,
-      NULL,
-      @createdAt,
-      @updatedAt
-    )
-  `);
 
   for (const row of legacyRows) {
     summary.considered += 1;
@@ -142,6 +130,7 @@ export function portSshConnections({ appDb, legacyDb, remap }: PortContext): Por
       authType: toTrimmedString(row.auth_type) ?? 'agent',
       privateKeyPath: toTrimmedString(row.private_key_path) ?? null,
       useAgent: toInteger(row.use_agent) === 1 ? 1 : 0,
+      metadata: null,
       createdAt: toIsoTimestamp(row.created_at, nowIso),
       updatedAt: toIsoTimestamp(row.updated_at, nowIso),
     };
@@ -150,7 +139,7 @@ export function portSshConnections({ appDb, legacyDb, remap }: PortContext): Por
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         insertValues.id = nextConnectionId;
-        insertStatement.run(insertValues);
+        await appDb.insert(sshConnections).values(insertValues).execute();
         inserted = true;
         break;
       } catch (error) {

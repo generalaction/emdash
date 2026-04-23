@@ -9,12 +9,12 @@ import type {
 } from '@shared/startup-data-gate';
 import { emdashAccountService } from '@main/core/account/services/emdash-account-service';
 import { sqlite } from '@main/db/client';
-import { runLegacyPort } from '@main/db/legacy-port/run-legacy-port';
 import {
   createDefaultLegacyPortStateStore,
   hasLegacyFile,
+  runLegacyPort,
   type LegacyPortStateStore,
-} from '@main/db/legacy-port/should-run';
+} from '@main/db/legacy-port/service';
 import { log } from '@main/lib/logger';
 
 const BETA_DATA_TABLES = ['projects', 'tasks', 'conversations', 'ssh_connections'] as const;

@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
-import { runLegacyPort } from './run-legacy-port';
-import type { LegacyPortStateStore, LegacyPortStatus } from './should-run';
+import { runLegacyPort, type LegacyPortStateStore, type LegacyPortStatus } from './service';
 
 function count(db: Database.Database, table: string): number {
   const row = db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number };
@@ -28,12 +27,16 @@ class OneShotStateStore implements LegacyPortStateStore {
 
 describe('manual legacy port verification', () => {
   it('runs once on testRuns db files', async () => {
-    const repoRoot = '/Users/jona/emdash/worktrees/david-emdash/fix-open-apps-concurrently-0a0uw';
+    const repoRoot = process.cwd();
     const runsDir = process.env.PORT_RUNS_DIR
       ? path.resolve(process.env.PORT_RUNS_DIR)
       : path.join(repoRoot, 'testRuns');
     const appDbPath = path.join(runsDir, 'emdash3.db');
     const legacyDbPath = path.join(runsDir, 'emdash.db');
+
+    if (!fs.existsSync(appDbPath) || !fs.existsSync(legacyDbPath)) {
+      return;
+    }
 
     const appDb = new Database(appDbPath);
     const legacyDb = new Database(legacyDbPath, { readonly: true });

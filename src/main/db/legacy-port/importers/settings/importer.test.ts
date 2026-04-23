@@ -3,22 +3,29 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { portLegacySettings } from './port-legacy-settings';
+import { createDrizzleClient } from '../../../drizzleClient';
+import { portLegacySettings } from './importer';
 
-function createSettingsDb(): Database.Database {
-  const db = new Database(':memory:');
-  db.exec(`
+function createSettingsDb(): {
+  appSqlite: Database.Database;
+  appDb: ReturnType<typeof createDrizzleClient>['db'];
+} {
+  const appSqlite = new Database(':memory:');
+  appSqlite.exec(`
     CREATE TABLE app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       updated_at INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
-  return db;
+  return {
+    appSqlite,
+    appDb: createDrizzleClient({ database: appSqlite }).db,
+  };
 }
 
-function readRawSetting(db: Database.Database, key: string): unknown | null {
-  const row = db.prepare('SELECT value FROM app_settings WHERE key = ? LIMIT 1').get(key) as
+function readRawSetting(appSqlite: Database.Database, key: string): unknown | null {
+  const row = appSqlite.prepare('SELECT value FROM app_settings WHERE key = ? LIMIT 1').get(key) as
     | { value: string }
     | undefined;
   if (!row) return null;
@@ -36,7 +43,7 @@ describe('portLegacySettings', () => {
     }
   });
 
-  it('ports only the approved mappings and preserves existing non-mapped settings', () => {
+  it('ports only the approved mappings and preserves existing non-mapped settings', async () => {
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-settings-port-'));
     tempDirs.push(userDataDir);
 
@@ -77,29 +84,29 @@ describe('portLegacySettings', () => {
       'utf8'
     );
 
-    const appDb = createSettingsDb();
-    openDbs.push(appDb);
+    const { appSqlite, appDb } = createSettingsDb();
+    openDbs.push(appSqlite);
 
-    appDb
+    appSqlite
       .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)')
       .run('localProject', JSON.stringify({ defaultProjectsDirectory: '/beta/projects' }));
-    appDb
+    appSqlite
       .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)')
       .run('terminal', JSON.stringify({ autoCopyOnSelection: true }));
-    appDb
+    appSqlite
       .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)')
       .run(
         'interface',
         JSON.stringify({ autoRightSidebarBehavior: true, taskHoverAction: 'archive' })
       );
-    appDb
+    appSqlite
       .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)')
       .run('openIn', JSON.stringify({ default: 'cursor', hidden: ['terminal'] }));
-    appDb
+    appSqlite
       .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)')
       .run('providerConfigs', JSON.stringify({ codex: { defaultArgs: ['--legacy-arg'] } }));
 
-    const summary = portLegacySettings(userDataDir, { appDb });
+    const summary = await portLegacySettings(userDataDir, { appDb, appSqlite });
 
     expect(summary.imported).toEqual([
       'localProject.branchPrefix',
@@ -117,50 +124,53 @@ describe('portLegacySettings', () => {
       'terminal.fontFamily',
     ]);
 
-    const localProject = readRawSetting(appDb, 'localProject') as Record<string, unknown>;
+    const localProject = readRawSetting(appSqlite, 'localProject') as Record<string, unknown>;
     expect(localProject.defaultProjectsDirectory).toBe('/beta/projects');
     expect(localProject.branchPrefix).toBe('legacy-prefix');
     expect(localProject.pushOnCreate).toBe(false);
 
-    expect(readRawSetting(appDb, 'tasks')).toEqual({
+    expect(readRawSetting(appSqlite, 'tasks')).toEqual({
       autoGenerateName: false,
       autoApproveByDefault: true,
       autoTrustWorktrees: false,
     });
-    expect(readRawSetting(appDb, 'notifications')).toEqual({
+    expect(readRawSetting(appSqlite, 'notifications')).toEqual({
       enabled: false,
       sound: false,
       osNotifications: false,
       soundFocusMode: 'unfocused',
     });
-    expect(readRawSetting(appDb, 'defaultAgent')).toBe('codex');
-    expect(readRawSetting(appDb, 'reviewPrompt')).toBe('Review this worktree carefully.');
-    expect(readRawSetting(appDb, 'theme')).toBe('emdark');
+    expect(readRawSetting(appSqlite, 'defaultAgent')).toBe('codex');
+    expect(readRawSetting(appSqlite, 'reviewPrompt')).toBe('Review this worktree carefully.');
+    expect(readRawSetting(appSqlite, 'theme')).toBe('emdark');
 
-    const terminal = readRawSetting(appDb, 'terminal') as Record<string, unknown>;
+    const terminal = readRawSetting(appSqlite, 'terminal') as Record<string, unknown>;
     expect(terminal.autoCopyOnSelection).toBe(true);
     expect(terminal.fontFamily).toBe('Fira Code');
 
     // Non-mapped keys stay untouched.
-    expect(readRawSetting(appDb, 'interface')).toEqual({
+    expect(readRawSetting(appSqlite, 'interface')).toEqual({
       autoRightSidebarBehavior: true,
       taskHoverAction: 'archive',
     });
-    expect(readRawSetting(appDb, 'openIn')).toEqual({ default: 'cursor', hidden: ['terminal'] });
-    expect(readRawSetting(appDb, 'providerConfigs')).toEqual({
+    expect(readRawSetting(appSqlite, 'openIn')).toEqual({
+      default: 'cursor',
+      hidden: ['terminal'],
+    });
+    expect(readRawSetting(appSqlite, 'providerConfigs')).toEqual({
       codex: { defaultArgs: ['--legacy-arg'] },
     });
-    expect(readRawSetting(appDb, 'browserPreview')).toBe(null);
+    expect(readRawSetting(appSqlite, 'browserPreview')).toBe(null);
   });
 
-  it('skips when settings.json is missing or invalid', () => {
+  it('skips when settings.json is missing or invalid', async () => {
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-settings-port-missing-'));
     tempDirs.push(userDataDir);
 
-    const appDb = createSettingsDb();
-    openDbs.push(appDb);
+    const { appSqlite, appDb } = createSettingsDb();
+    openDbs.push(appSqlite);
 
-    const summary = portLegacySettings(userDataDir, { appDb });
+    const summary = await portLegacySettings(userDataDir, { appDb, appSqlite });
     expect(summary.imported).toEqual([]);
     expect(summary.skipped).toContain('settings:missing-or-invalid-json');
   });
