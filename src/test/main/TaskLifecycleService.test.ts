@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Real buildExternalToolEnv is used so the stripped env is asserted for real.
 
 type MockLifecyclePtyHandle = {
   pid: number | null;
@@ -509,5 +511,107 @@ describe('TaskLifecycleService', () => {
     taskLifecycleService.clearTask(taskId);
     expect(setupHandle.killed).toBe(true);
     expect(serviceAny.finitePtys.has(taskId)).toBe(false);
+  });
+
+  describe('lifecycle env sanitization (AppImage)', () => {
+    const SAVED_ENV_KEYS = [
+      'APPIMAGE',
+      'APPDIR',
+      'ARGV0',
+      'CHROME_DESKTOP',
+      'GSETTINGS_SCHEMA_DIR',
+      'OWD',
+      'PATH',
+      'LD_LIBRARY_PATH',
+      'XDG_DATA_DIRS',
+      'PYTHONHOME',
+    ] as const;
+    const originalEnv: Record<string, string | undefined> = {};
+
+    beforeEach(() => {
+      for (const key of SAVED_ENV_KEYS) originalEnv[key] = process.env[key];
+
+      process.env.APPIMAGE = '/home/user/emdash.AppImage';
+      process.env.APPDIR = '/tmp/.mount_emdashXYZ';
+      process.env.ARGV0 = 'AppRun';
+      process.env.CHROME_DESKTOP = 'emdash.desktop';
+      process.env.GSETTINGS_SCHEMA_DIR = '/tmp/.mount_emdashXYZ/usr/share/glib-2.0/schemas';
+      process.env.OWD = '/tmp';
+      process.env.PATH = '/usr/local/bin:/tmp/.mount_emdashXYZ/usr/bin:/usr/bin';
+      process.env.LD_LIBRARY_PATH = '/tmp/.mount_emdashXYZ/usr/lib:/usr/local/cuda/lib64';
+      process.env.XDG_DATA_DIRS = '/tmp/.mount_emdashXYZ/usr/share:/usr/share';
+      process.env.PYTHONHOME = '/tmp/.mount_emdashXYZ/usr';
+    });
+
+    afterEach(() => {
+      for (const key of SAVED_ENV_KEYS) {
+        if (originalEnv[key] === undefined) delete process.env[key];
+        else process.env[key] = originalEnv[key];
+      }
+    });
+
+    it('strips AppImage env vars from lifecycle setup PTY env', async () => {
+      vi.resetModules();
+
+      const handle = createLifecyclePty(4001);
+      startLifecyclePtyMock.mockReturnValue(handle);
+      getScriptMock.mockImplementation((_: string, phase: string) => {
+        if (phase === 'setup') return 'pnpm install';
+        return null;
+      });
+
+      const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+      const setupPromise = taskLifecycleService.runSetup(
+        'wt-appimage-1',
+        '/tmp/wt-appimage-1',
+        '/tmp/project'
+      );
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      handle.emitExit(0);
+      await setupPromise;
+
+      expect(startLifecyclePtyMock).toHaveBeenCalledTimes(1);
+      const passedEnv = startLifecyclePtyMock.mock.calls[0][0].env as NodeJS.ProcessEnv;
+
+      expect(passedEnv.APPIMAGE).toBeUndefined();
+      expect(passedEnv.APPDIR).toBeUndefined();
+      expect(passedEnv.ARGV0).toBeUndefined();
+      expect(passedEnv.CHROME_DESKTOP).toBeUndefined();
+      expect(passedEnv.GSETTINGS_SCHEMA_DIR).toBeUndefined();
+      expect(passedEnv.OWD).toBeUndefined();
+      expect(passedEnv.PYTHONHOME).toBeUndefined();
+
+      expect(passedEnv.PATH).toBe('/usr/local/bin:/usr/bin');
+      expect(passedEnv.LD_LIBRARY_PATH).toBe('/usr/local/cuda/lib64');
+      expect(passedEnv.XDG_DATA_DIRS).toBe('/usr/share');
+    });
+
+    it('still injects task env vars over the sanitized base env', async () => {
+      vi.resetModules();
+
+      const handle = createLifecyclePty(4002);
+      startLifecyclePtyMock.mockReturnValue(handle);
+      getScriptMock.mockImplementation((_: string, phase: string) =>
+        phase === 'setup' ? 'pnpm install' : null
+      );
+
+      const { taskLifecycleService } = await import('../../main/services/TaskLifecycleService');
+
+      const setupPromise = taskLifecycleService.runSetup(
+        'wt-appimage-2',
+        '/tmp/wt-appimage-2',
+        '/tmp/project',
+        'appimage-task'
+      );
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      handle.emitExit(0);
+      await setupPromise;
+
+      const passedEnv = startLifecyclePtyMock.mock.calls[0][0].env as NodeJS.ProcessEnv;
+
+      expect(passedEnv.EMDASH_TASK_ID).toBe('wt-appimage-2');
+      expect(passedEnv.APPIMAGE).toBeUndefined();
+    });
   });
 });
