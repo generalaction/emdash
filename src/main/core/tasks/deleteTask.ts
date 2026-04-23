@@ -9,7 +9,7 @@ import { capture } from '@main/lib/telemetry';
 export async function deleteTask(projectId: string, taskId: string): Promise<void> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   if (!task) return;
-  const sourceBranch = task.sourceBranch;
+  const sourceBranch = task.sourceBranch ?? undefined;
 
   const project = projectManager.getProject(projectId);
 
@@ -40,7 +40,7 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
         await project.removeTaskWorktree(task.taskBranch).catch((e) => {
           log.warn('deleteTask: worktree removal failed', { taskId, error: String(e) });
         });
-        if (task.taskBranch !== sourceBranch.branch) {
+        if (sourceBranch && task.taskBranch !== sourceBranch.branch) {
           const branchDelete = await project.repository.deleteBranch(task.taskBranch).catch((e) => {
             log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
             return null;

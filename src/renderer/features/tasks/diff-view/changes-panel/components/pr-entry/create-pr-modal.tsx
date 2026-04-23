@@ -49,7 +49,7 @@ export const CreatePrModal = observer(function CreatePrModal({
     selectedBaseOverride ??
     resolveInitialBaseBranch(
       repo?.remoteBranches ?? [],
-      taskPayload?.sourceBranch.branch,
+      taskPayload?.sourceBranch?.branch,
       defaultBranch
     );
 

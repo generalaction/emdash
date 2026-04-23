@@ -571,7 +571,7 @@ export class SshProjectProvider implements ProjectProvider {
       return existing;
     }
 
-    if (task.taskBranch === task.sourceBranch.branch) {
+    if (!task.sourceBranch || task.taskBranch === task.sourceBranch.branch) {
       const result = await this.worktreeService.checkoutExistingBranch(task.taskBranch);
       if (!result.success) {
         throw mapWorktreeErrorToProvisionError(task.taskBranch, result.error);

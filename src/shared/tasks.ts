@@ -23,7 +23,7 @@ export type Task = {
   projectId: string;
   name: string;
   status: TaskLifecycleStatus;
-  sourceBranch: Branch;
+  sourceBranch: Branch | undefined;
   taskBranch?: string;
   createdAt: string;
   updatedAt: string;
