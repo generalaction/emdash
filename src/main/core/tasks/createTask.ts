@@ -13,6 +13,7 @@ import { tasks } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';
 import { createConversation } from '../conversations/createConversation';
 import type { ProvisionTaskError } from '../projects/project-provider';
+import { prQueryService } from '../pull-requests/pr-query-service';
 import { appSettingsService } from '../settings/settings-service';
 import { mapTaskRowToTask } from './core';
 import { resolveTaskBranchName } from './resolveTaskBranchName';
@@ -180,7 +181,19 @@ export async function createTask(
     })
     .returning();
 
-  const task = mapTaskRowToTask(taskRow);
+  let prs: Awaited<ReturnType<typeof prQueryService.getTaskPullRequests>> = [];
+  if (strategy.kind === 'from-pull-request') {
+    const capability = await prQueryService.getProjectRemoteInfo(params.projectId);
+    if (capability.status === 'ready') {
+      prs = await prQueryService.getTaskPullRequests(
+        params.projectId,
+        strategy.headBranch,
+        capability.repositoryUrl
+      );
+    }
+  }
+
+  const task = mapTaskRowToTask(taskRow, prs);
 
   const provisionResult = await project.provisionTask(task, [], []);
   if (!provisionResult.success) {

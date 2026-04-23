@@ -1,5 +1,6 @@
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useMemo } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
 import { useCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
 import { rpc } from '@renderer/lib/ipc';
@@ -22,14 +23,14 @@ const bucketOrder: Record<CheckRunBucket, number> = {
 export function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   switch (bucket) {
     case 'pass':
-      return <CheckCircle2 className="size-3.5 text-green-500" />;
+      return <CheckCircle2 className="size-3.5 text-green-500 shrink-0" />;
     case 'fail':
-      return <XCircle className="size-3.5 text-foreground-destructive" />;
+      return <XCircle className="size-3.5 text-foreground-destructive shrink-0" />;
     case 'pending':
-      return <Loader2 className="size-3.5 animate-spin text-amber-500" />;
+      return <Loader2 className="size-3.5 animate-spin text-amber-500 shrink-0" />;
     case 'skipping':
     case 'cancel':
-      return <MinusCircle className="size-3.5 text-foreground-muted" />;
+      return <MinusCircle className="size-3.5 text-foreground-muted shrink-0" />;
   }
 }
 
@@ -75,22 +76,16 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
   );
 }
 
-export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoading: boolean }) {
-  const sorted = [...checks].sort(
-    (a, b) => bucketOrder[computeCheckBucket(a)] - bucketOrder[computeCheckBucket(b)]
+export function ChecksList({ checks }: { checks: CheckRun[] }) {
+  const sorted = useMemo(
+    () =>
+      [...checks].sort(
+        (a, b) => bucketOrder[computeCheckBucket(a)] - bucketOrder[computeCheckBucket(b)]
+      ),
+    [checks]
   );
-  const hasChecks = checks.length > 0;
-  const shouldShowLoading = !hasChecks && isLoading;
 
-  if (shouldShowLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-1 py-6 text-muted-foreground">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!hasChecks) {
+  if (sorted.length === 0) {
     return <EmptyState label="No checks" description="No checks available" />;
   }
 
@@ -104,6 +99,6 @@ export function ChecksList({ checks, isLoading }: { checks: CheckRun[]; isLoadin
 }
 
 export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
-  const { checks, isLoading } = useCheckRuns(pr);
-  return <ChecksList checks={checks} isLoading={isLoading} />;
+  const { checks } = useCheckRuns(pr);
+  return <ChecksList checks={checks} />;
 });

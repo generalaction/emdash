@@ -1,4 +1,5 @@
-import { GitMerge, RefreshCw } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
@@ -7,18 +8,21 @@ import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { Button } from '@renderer/lib/ui/button';
-import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
+import { SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
 import { PrChecksList } from './checks-list';
 import { PrCommitsList } from './commits-list';
 import { PrFilesList } from './files-list';
+import { MergeFooter } from './merge-footer';
 
-type MergeMode = 'merge' | 'squash' | 'rebase';
+export type MergeMode = 'merge' | 'squash' | 'rebase';
 
-type MergeUiState = {
+export type MergeSeverity = 'success' | 'warning' | 'error' | 'neutral';
+
+export type MergeUiState = {
   kind: 'ready' | 'draft' | 'conflicts' | 'behind' | 'blocked' | 'unstable' | 'unknown';
+  severity: MergeSeverity;
   title: string;
   detail?: string;
   canMerge: boolean;
@@ -38,146 +42,91 @@ const mergeDescriptions: Record<MergeMode, string> = {
 
 function computeMergeUiState(pr: PullRequest): MergeUiState {
   if (pr.status !== 'open') {
-    return { kind: 'unknown', title: 'PR is not open', canMerge: false };
+    return {
+      kind: 'unknown',
+      severity: 'neutral',
+      title: 'Merge status unknown',
+      detail: 'Refresh PR status and try again.',
+      canMerge: false,
+    };
   }
   if (pr.isDraft) {
     return {
       kind: 'draft',
-      title: 'Draft PR',
-      detail: 'Mark it ready to enable merging.',
+      severity: 'neutral',
+      title: 'Draft pull request',
+      detail: 'Mark ready for review to enable merging.',
       canMerge: false,
     };
   }
   switch (pr.mergeStateStatus) {
     case 'CLEAN':
-      return { kind: 'ready', title: 'Ready to merge', canMerge: true };
+      return {
+        kind: 'ready',
+        severity: 'success',
+        title: 'Ready to merge',
+        detail: 'No conflicts or required reviews.',
+        canMerge: true,
+      };
     case 'DIRTY':
       return {
         kind: 'conflicts',
+        severity: 'error',
         title: 'Merge conflicts',
-        detail: 'Resolve conflicts to enable merging.',
+        detail: 'Resolve conflicts before merging.',
         canMerge: false,
       };
     case 'BEHIND':
       return {
         kind: 'behind',
-        title: 'Behind base branch',
-        detail: 'Update the branch before merging.',
+        severity: 'warning',
+        title: 'Branch is out-of-date',
+        detail: 'Update branch before merging.',
         canMerge: false,
       };
     case 'BLOCKED':
       return {
         kind: 'blocked',
-        title: 'Blocked',
-        detail: 'Branch protections or approvals required.',
+        severity: 'error',
+        title: 'Merging is blocked',
+        detail: 'Required reviews or branch protections not satisfied.',
         canMerge: false,
       };
     case 'HAS_HOOKS':
       return {
         kind: 'blocked',
-        title: 'Checks required',
-        detail: 'Required checks are not satisfied yet.',
+        severity: 'error',
+        title: 'Merging is blocked',
+        detail: 'Required checks are not satisfied.',
         canMerge: false,
       };
     case 'UNSTABLE':
       return {
         kind: 'unstable',
+        severity: 'warning',
         title: 'Checks not passing',
-        detail: 'Some required checks are still pending or failing.',
+        detail: 'Review failing checks before merging.',
         canMerge: false,
       };
     default:
       return {
         kind: 'unknown',
+        severity: 'neutral',
         title: 'Merge status unknown',
-        detail: 'Refresh PR status and try again.',
+        detail: 'Refresh to try again.',
         canMerge: false,
       };
   }
 }
 
-const REFRESHABLE_KINDS = new Set<MergeUiState['kind']>(['unstable', 'unknown']);
-
-function MergeFooter({
-  uiState,
-  mergeActions,
-  isMerging,
-  onRefresh,
-  onMarkReady,
-}: {
-  uiState: MergeUiState;
-  mergeActions: SplitButtonAction[];
-  isMerging: boolean;
-  onRefresh: () => void;
-  onMarkReady: () => void;
-}) {
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      onRefresh();
-      await new Promise((resolve) => setTimeout(resolve, 800));
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const isReady = uiState.kind === 'ready';
-  const isDraft = uiState.kind === 'draft';
-  const showRefresh = REFRESHABLE_KINDS.has(uiState.kind);
-
-  return (
-    <div className="shrink-0 border-t border-border p-2.5 flex items-center justify-between gap-2">
-      <div className="flex items-center gap-1.5 min-w-0 text-xs">
-        <span
-          className={cn('font-medium shrink-0', isReady ? 'text-foreground' : 'text-amber-700')}
-        >
-          {uiState.title}
-        </span>
-        {uiState.detail && (
-          <span className={cn('truncate', isReady ? 'text-muted-foreground' : 'text-amber-600')}>
-            {uiState.detail}
-          </span>
-        )}
-        {showRefresh && (
-          <button
-            onClick={() => void handleRefresh()}
-            disabled={isRefreshing}
-            className="shrink-0 text-amber-600 hover:text-amber-800 disabled:opacity-40 transition-colors"
-            title="Refresh PR status"
-          >
-            <RefreshCw className={cn('size-3', { 'animate-spin': isRefreshing })} />
-          </button>
-        )}
-      </div>
-      <div className="shrink-0">
-        {isDraft && (
-          <Button variant="outline" size="xs" onClick={onMarkReady}>
-            Mark ready
-          </Button>
-        )}
-        {isReady && (
-          <SplitButton
-            size="xs"
-            variant="outline"
-            loading={isMerging}
-            loadingLabel="Merging..."
-            icon={<GitMerge className="size-3" />}
-            actions={mergeActions}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-export function PullRequestEntry({ pr }: { pr: PullRequest }) {
+export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr: PullRequest }) {
+  const task = useProvisionedTask();
   const prStatus = pr.status;
-  const prStore = useProvisionedTask().workspace.pr;
+  const prStore = task.workspace.pr;
+  const diffView = task.taskView.diffView;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
-  const [tab, setTab] = useState<'files' | 'commits' | 'checks'>('files');
+  const tab = diffView.prTab;
 
   const uiState = computeMergeUiState(pr);
 
@@ -218,12 +167,15 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
       <div className="flex flex-col gap-2 p-2.5 w-full">
         <div className="flex items-center gap-2 justify-between">
           <button
-            className="flex gap-2 items-center min-w-0"
+            className="relative flex gap-2 items-center min-w-0 group"
             onClick={() => rpc.app.openExternal(pr.url)}
           >
             <StatusIcon className="size-4" status={prStatus} />
             <span className="flex-1 min-w-0 truncate text-sm font-normal">{pr.title}</span>
             <PrNumberBadge number={getPrNumber(pr) ?? 0} />
+            <span className="absolute right-0 flex items-center pl-4 pr-0.5 bg-linear-to-r from-transparent to-background opacity-0 group-hover:opacity-100 transition-opacity">
+              <ExternalLink className="size-3.5 text-foreground-muted" />
+            </span>
           </button>
         </div>
         <PrMergeLine pr={pr} />
@@ -235,7 +187,7 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
           className="w-full"
           onValueChange={([value]) => {
             if (value) {
-              setTab(value as 'files' | 'commits' | 'checks');
+              diffView.setPrTab(value as 'files' | 'commits' | 'checks');
             }
           }}
         >
@@ -255,17 +207,15 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
           {tab === 'checks' && <PrChecksList pr={pr} />}
         </div>
       </div>
-      {prStatus === 'open' && (
-        <MergeFooter
-          uiState={uiState}
-          mergeActions={mergeActions}
-          isMerging={isMerging}
-          onRefresh={() => prStore.refresh(pr.url)}
-          onMarkReady={() => {
-            prStore.markReadyForReview(pr.url).catch(() => {});
-          }}
-        />
-      )}
+      <MergeFooter
+        uiState={uiState}
+        mergeActions={mergeActions}
+        isMerging={isMerging}
+        onRefresh={() => prStore.refresh(pr.url)}
+        onMarkReady={() => {
+          prStore.markReadyForReview(pr.url).catch(() => {});
+        }}
+      />
     </div>
   );
-}
+});

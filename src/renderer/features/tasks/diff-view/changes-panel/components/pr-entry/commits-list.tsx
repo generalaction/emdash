@@ -1,5 +1,4 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import type { Commit } from '@shared/git';
@@ -8,11 +7,11 @@ import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
 
-const ITEM_HEIGHT = 52;
+const ITEM_HEIGHT = 43;
 
 export const PrCommitsList = observer(function PrCommitsList() {
   const prStore = useProvisionedTask().workspace.pr;
-  const { data, loading } = prStore.commitHistory;
+  const { data } = prStore.commitHistory;
   const parentRef = useRef<HTMLDivElement>(null);
 
   const aheadCount = data?.aheadCount ?? 0;
@@ -29,20 +28,12 @@ export const PrCommitsList = observer(function PrCommitsList() {
     overscan: 5,
   });
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-6">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   if (commits.length === 0) {
     return <EmptyState label="No commits" description="No commits available" />;
   }
 
   return (
-    <div ref={parentRef} className="h-full overflow-y-auto overflow-x-hidden">
+    <div ref={parentRef} className="h-full overflow-y-auto overflow-x-hidden py-2">
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const commit = commits[virtualItem.index]!;
@@ -88,7 +79,7 @@ function CommitItem({
         <div className="size-1.5 shrink-0 rounded-full bg-foreground-passive" />
         <div className={cn('w-px flex-1 bg-border', isLast && 'invisible')} />
       </div>
-      <div className="min-w-0 flex-1 p-2 rounded-md">
+      <div className="min-w-0 flex-1 py-1 px-2 rounded-md">
         <div className="truncate text-sm">{commit.subject}</div>
         <div className="flex items-center  gap-1 text-xs text-foreground-muted">
           <span className="truncate font-medium ">{commit.author}</span>

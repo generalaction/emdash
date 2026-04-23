@@ -101,6 +101,7 @@ export type ListPrOptions = {
   searchQuery?: string;
   filters?: PrFilters;
   sort?: PrSortField;
+  repositoryUrl?: string;
 };
 
 export type PrFilterOptions = {

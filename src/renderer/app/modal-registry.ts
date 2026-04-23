@@ -14,34 +14,34 @@ import { FeedbackModal } from '@renderer/lib/components/feedback-modal/feedback-
 import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-device-flow-modal';
 import { ModalComponent } from '@renderer/lib/modal/modal-provider';
 
+export type ModalSize = 'xs' | 'sm' | 'md' | 'lg';
+
 export type ModalRegistryEntry = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   component: ModalComponent<any, any>;
-  /** Extra classes applied to the persistent Popup for this modal. */
-  popupClassName?: string;
-  /** When true, the modal manages its own presentation (no persistent Popup shell). */
-  usesOwnShell?: boolean;
+  size?: ModalSize;
 };
 
+export function createModal<TProps, TResult>(
+  component: ModalComponent<TProps, TResult>,
+  config: Omit<ModalRegistryEntry, 'component'> = {}
+): ModalRegistryEntry {
+  return { component, ...config };
+}
+
 export const modalRegistry = {
-  taskModal: { component: CreateTaskModal },
-  addProjectModal: { component: AddProjectModal },
-  addSshConnModal: { component: AddSshConnModal },
-  githubDeviceFlowModal: {
-    component: GithubDeviceFlowModalOverlay,
-    popupClassName: 'max-w-[480px] p-0',
-  },
-  confirmActionModal: { component: ConfirmActionDialog, popupClassName: 'sm:max-w-xs' },
-  createConversationModal: { component: CreateConversationModal },
-  feedbackModal: { component: FeedbackModal },
-  mcpServerModal: { component: McpModal },
-  createSkillModal: { component: CreateSkillModal },
-  conflictDialog: { component: ConflictDialog, popupClassName: 'sm:max-w-sm' },
-  createPrModal: {
-    component: CreatePrModal,
-    popupClassName: 'max-h-[70vh] gap-0 sm:max-w-2xl',
-  },
-  renameTaskModal: { component: RenameTaskModal, popupClassName: 'sm:max-w-xs' },
-  integrationSetupModal: { component: IntegrationSetupModal, popupClassName: 'max-w-md' },
-  addRemoteModal: { component: AddRemoteModal },
+  taskModal: createModal(CreateTaskModal),
+  addProjectModal: createModal(AddProjectModal),
+  addSshConnModal: createModal(AddSshConnModal),
+  githubDeviceFlowModal: createModal(GithubDeviceFlowModalOverlay, { size: 'md' }),
+  confirmActionModal: createModal(ConfirmActionDialog, { size: 'xs' }),
+  createConversationModal: createModal(CreateConversationModal),
+  feedbackModal: createModal(FeedbackModal),
+  mcpServerModal: createModal(McpModal),
+  createSkillModal: createModal(CreateSkillModal),
+  conflictDialog: createModal(ConflictDialog, { size: 'sm' }),
+  createPrModal: createModal(CreatePrModal, { size: 'lg' }),
+  renameTaskModal: createModal(RenameTaskModal, { size: 'xs' }),
+  integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
+  addRemoteModal: createModal(AddRemoteModal),
 } satisfies Record<string, ModalRegistryEntry>;
