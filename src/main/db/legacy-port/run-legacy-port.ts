@@ -98,9 +98,12 @@ export async function runLegacyPort(
     logSummary(conversationsSummary);
 
     try {
-      const authSummary = await portLegacyAuthState(userDataPath, { appDb });
+      const authSummary = await portLegacyAuthState(userDataPath, {
+        appDb,
+        legacyToAppSshConnectionId: remap.sshConnectionId,
+      });
       log.info(
-        `legacy-port: auth: imported_secrets=${authSummary.importedSecrets.length}, imported_kv=${authSummary.importedKv.length}, skipped=${authSummary.skipped.length}`
+        `legacy-port: auth: imported_secrets=${authSummary.importedSecrets.length}, imported_kv=${authSummary.importedKv.length}, imported_ssh_passwords=${authSummary.importedSshPasswords}, skipped=${authSummary.skipped.length}`
       );
     } catch (error) {
       log.warn('legacy-port: auth: failed to port legacy credentials, continuing', {

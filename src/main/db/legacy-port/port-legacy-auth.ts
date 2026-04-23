@@ -40,6 +40,7 @@ export type LegacySecretEncryptor = (secret: string) => string | null | Promise<
 
 export type PortLegacyAuthStateOptions = {
   appDb: Database.Database;
+  legacyToAppSshConnectionId?: ReadonlyMap<string, string>;
   readLegacySecret?: LegacySecretReader;
   encryptSecret?: LegacySecretEncryptor;
 };
@@ -47,6 +48,7 @@ export type PortLegacyAuthStateOptions = {
 export type LegacyAuthPortSummary = {
   importedSecrets: string[];
   importedKv: string[];
+  importedSshPasswords: number;
   skipped: string[];
 };
 
@@ -99,6 +101,13 @@ function hasTable(appDb: Database.Database, tableName: string): boolean {
   const row = appDb
     .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`)
     .get(tableName) as { 1: number } | undefined;
+  return !!row;
+}
+
+function hasStoredSecret(appDb: Database.Database, key: string): boolean {
+  const row = appDb.prepare(`SELECT 1 FROM app_secrets WHERE key = ? LIMIT 1`).get(key) as
+    | { 1: number }
+    | undefined;
   return !!row;
 }
 
@@ -277,10 +286,11 @@ export async function portLegacyAuthState(
   userDataPath: string,
   options: PortLegacyAuthStateOptions
 ): Promise<LegacyAuthPortSummary> {
-  const { appDb } = options;
+  const { appDb, legacyToAppSshConnectionId } = options;
   const summary: LegacyAuthPortSummary = {
     importedSecrets: [],
     importedKv: [],
+    importedSshPasswords: 0,
     skipped: [],
   };
 
@@ -315,6 +325,43 @@ export async function portLegacyAuthState(
 
       secretWrites.push({ key: spec.appSecretKey, encryptedSecret, label: spec.label });
       summary.importedSecrets.push(spec.label);
+    }
+
+    if (legacyToAppSshConnectionId && legacyToAppSshConnectionId.size > 0) {
+      const migratedTargetIds = new Set<string>();
+
+      for (const [legacyConnectionId, appConnectionId] of legacyToAppSshConnectionId.entries()) {
+        if (migratedTargetIds.has(appConnectionId)) {
+          summary.skipped.push(`ssh.password:${appConnectionId}:duplicate-target`);
+          continue;
+        }
+
+        const targetKey = `ssh:${appConnectionId}:password`;
+        if (hasStoredSecret(appDb, targetKey)) {
+          summary.skipped.push(`ssh.password:${appConnectionId}:already-present`);
+          continue;
+        }
+
+        const rawPassword = await readLegacySecret('emdash-ssh', `${legacyConnectionId}:password`);
+        const password = readTrimmedString(rawPassword);
+        if (!password) {
+          continue;
+        }
+
+        const encryptedSecret = await encryptSecret(password);
+        if (!encryptedSecret) {
+          summary.skipped.push(`ssh.password:${appConnectionId}:secret-encryption-failed`);
+          continue;
+        }
+
+        secretWrites.push({
+          key: targetKey,
+          encryptedSecret,
+          label: `ssh.password:${appConnectionId}`,
+        });
+        migratedTargetIds.add(appConnectionId);
+        summary.importedSshPasswords += 1;
+      }
     }
   } else if (!hasSecretsTable) {
     summary.skipped.push('auth-port:app-secrets-table-missing');

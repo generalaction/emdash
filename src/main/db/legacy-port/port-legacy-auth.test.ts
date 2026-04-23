@@ -88,6 +88,7 @@ describe('portLegacyAuthState', () => {
       ['emdash-forgejo:forgejo-token', 'forgejo_123'],
       ['emdash-gitlab:gitlab-token', 'gitlab_123'],
       ['emdash-account:session-token', 'session_123'],
+      ['emdash-ssh:legacy-ssh-1:password', 'ssh_pwd_123'],
     ]);
 
     const appDb = createAppDbWithConfigTables();
@@ -97,6 +98,7 @@ describe('portLegacyAuthState', () => {
       appDb,
       readLegacySecret: async (service, account) => secretMap.get(`${service}:${account}`) ?? null,
       encryptSecret: (secret) => Buffer.from(`enc:${secret}`, 'utf8').toString('base64'),
+      legacyToAppSshConnectionId: new Map([['legacy-ssh-1', 'ssh-app-1']]),
     });
 
     expect(summary.importedSecrets).toEqual([
@@ -108,12 +110,16 @@ describe('portLegacyAuthState', () => {
       'gitlab',
       'account',
     ]);
+    expect(summary.importedSshPasswords).toBe(1);
 
     expect(readSecret(appDb, 'emdash-github-token')).toBe(
       Buffer.from('enc:gh_123', 'utf8').toString('base64')
     );
     expect(readSecret(appDb, 'emdash-account-token')).toBe(
       Buffer.from('enc:session_123', 'utf8').toString('base64')
+    );
+    expect(readSecret(appDb, 'ssh:ssh-app-1:password')).toBe(
+      Buffer.from('enc:ssh_pwd_123', 'utf8').toString('base64')
     );
 
     expect(readKv<string>(appDb, 'github:tokenSource')).toBe('secure_storage');
@@ -151,10 +157,12 @@ describe('portLegacyAuthState', () => {
       appDb,
       readLegacySecret: async () => null,
       encryptSecret: (secret) => Buffer.from(secret, 'utf8').toString('base64'),
+      legacyToAppSshConnectionId: new Map([['legacy-ssh-1', 'ssh-app-1']]),
     });
 
     expect(summary.importedSecrets).toEqual([]);
     expect(summary.importedKv).toEqual([]);
+    expect(summary.importedSshPasswords).toBe(0);
     expect(summary.skipped.length).toBeGreaterThan(0);
 
     const secretCount = (
@@ -167,5 +175,32 @@ describe('portLegacyAuthState', () => {
 
     expect(secretCount).toBe(0);
     expect(kvCount).toBe(0);
+  });
+
+  it('does not overwrite an existing app ssh password on dedup remap', async () => {
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-auth-port-ssh-dedup-'));
+    tempDirs.push(userDataDir);
+
+    const appDb = createAppDbWithConfigTables();
+    openDbs.push(appDb);
+
+    appDb
+      .prepare('INSERT INTO app_secrets (key, secret) VALUES (?, ?)')
+      .run('ssh:ssh-app-1:password', Buffer.from('enc:existing_pwd', 'utf8').toString('base64'));
+
+    const secretMap = new Map<string, string>([['emdash-ssh:legacy-ssh-1:password', 'legacy_pwd']]);
+
+    const summary = await portLegacyAuthState(userDataDir, {
+      appDb,
+      readLegacySecret: async (service, account) => secretMap.get(`${service}:${account}`) ?? null,
+      encryptSecret: (secret) => Buffer.from(`enc:${secret}`, 'utf8').toString('base64'),
+      legacyToAppSshConnectionId: new Map([['legacy-ssh-1', 'ssh-app-1']]),
+    });
+
+    expect(summary.importedSshPasswords).toBe(0);
+    expect(summary.skipped).toContain('ssh.password:ssh-app-1:already-present');
+    expect(readSecret(appDb, 'ssh:ssh-app-1:password')).toBe(
+      Buffer.from('enc:existing_pwd', 'utf8').toString('base64')
+    );
   });
 });
