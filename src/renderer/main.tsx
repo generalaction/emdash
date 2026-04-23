@@ -22,7 +22,7 @@ async function bootstrap() {
   appState.update.start();
   initSoundPlayer();
 
-  // Initialize Monaco and restore renderer snapshots in parallel. Awaiting Monaco here
+  // Initialize Monaco and load app data in parallel. Awaiting Monaco here
   // guarantees __monaco is set before React renders, so StickyDiffEditor can
   // create editors synchronously on mount without any async coordination.
   const [, , navResult, sidebarResult] = await Promise.all([
@@ -34,6 +34,7 @@ async function bootstrap() {
     }),
     rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
     rpc.viewState.get('sidebar'),
+    appState.projects.load(),
   ]);
 
   if (navResult) appState.navigation.restoreSnapshot(navResult);
