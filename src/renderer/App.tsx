@@ -36,7 +36,9 @@ export function App() {
                 <IntegrationsProvider>
                   <WorkspaceViewProvider>
                     <RightSidebarProvider>
-                      <ThemeProvider>{renderContent()}</ThemeProvider>
+                      <ThemeProvider>
+                        <StartupGate>{renderContent()}</StartupGate>
+                      </ThemeProvider>
                     </RightSidebarProvider>
                   </WorkspaceViewProvider>
                 </IntegrationsProvider>
