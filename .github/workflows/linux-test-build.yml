@@ -1,6 +1,9 @@
 name: Linux Test Build
 
 on:
+  push:
+    branches:
+      - fix-linux-startup-issue-hs4zr
   workflow_dispatch:
 
 jobs:
