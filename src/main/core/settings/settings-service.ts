@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { AppSettingsKeys, type AppSettings, type AppSettingsKey } from '@shared/app-settings';
-import { db, type AppDb } from '@main/db/client';
+import { db } from '@main/db/client';
 import { appSettings } from '@main/db/schema';
 import { APP_SETTINGS_SCHEMA_MAP } from './schema';
 import { getDefaultForKey } from './settings-registry';
@@ -10,16 +10,10 @@ export type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 export { AppSettingsKeys } from '@shared/app-settings';
 
 export class SettingsStore {
-  constructor(private readonly database: AppDb = db) {}
-
   private cache: Partial<AppSettings> = {};
 
   private async readRaw(key: AppSettingsKey): Promise<unknown> {
-    const [row] = await this.database
-      .select()
-      .from(appSettings)
-      .where(eq(appSettings.key, key))
-      .execute();
+    const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key)).execute();
     if (!row) return null;
     try {
       return JSON.parse(row.value);
@@ -30,7 +24,7 @@ export class SettingsStore {
 
   private async storeRaw(key: AppSettingsKey, value: unknown): Promise<void> {
     const serialized = JSON.stringify(value);
-    await this.database
+    await db
       .insert(appSettings)
       .values({ key, value: serialized })
       .onConflictDoUpdate({ target: appSettings.key, set: { value: serialized } })
@@ -38,7 +32,7 @@ export class SettingsStore {
   }
 
   private async deleteRow(key: AppSettingsKey): Promise<void> {
-    await this.database.delete(appSettings).where(eq(appSettings.key, key)).execute();
+    await db.delete(appSettings).where(eq(appSettings.key, key)).execute();
   }
 
   async get<K extends AppSettingsKey>(key: K): Promise<AppSettings[K]> {

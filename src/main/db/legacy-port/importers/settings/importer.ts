@@ -90,7 +90,7 @@ export async function portLegacySettings(
   userDataPath: string,
   options: PortLegacySettingsOptions
 ): Promise<LegacySettingsPortSummary> {
-  const { appDb, appSqlite } = options;
+  const { appSqlite } = options;
 
   const summary: LegacySettingsPortSummary = {
     imported: [],
@@ -116,7 +116,7 @@ export async function portLegacySettings(
 
   const settingsStore =
     options.settingsStore ??
-    new (await import('@main/core/settings/settings-service')).SettingsStore(appDb);
+    new (await import('@main/core/settings/settings-service')).SettingsStore();
   const repository = isPlainObject(legacyRaw.repository) ? legacyRaw.repository : null;
   if (repository) {
     const patch: Record<string, unknown> = {};

@@ -1,19 +1,16 @@
 import { eq, like } from 'drizzle-orm';
-import { db, type AppDb } from './client';
+import { db } from './client';
 import { kv } from './schema';
 
 export class KV<TSchema extends Record<string, unknown>> {
-  constructor(
-    private readonly namespace: string,
-    private readonly database: AppDb = db
-  ) {}
+  constructor(private readonly namespace: string) {}
 
   private prefixed(key: string): string {
     return `${this.namespace}:${key}`;
   }
 
   async get<K extends keyof TSchema & string>(key: K): Promise<TSchema[K] | null> {
-    const rows = await this.database
+    const rows = await db
       .select({ value: kv.value })
       .from(kv)
       .where(eq(kv.key, this.prefixed(key)))
@@ -34,7 +31,7 @@ export class KV<TSchema extends Record<string, unknown>> {
       const serialised = JSON.stringify(value);
       const now = Date.now();
 
-      await this.database
+      await db
         .insert(kv)
         .values({ key: this.prefixed(key), value: serialised, updatedAt: now })
         .onConflictDoUpdate({ target: kv.key, set: { value: serialised, updatedAt: now } });
@@ -45,7 +42,7 @@ export class KV<TSchema extends Record<string, unknown>> {
 
   async del<K extends keyof TSchema & string>(key: K): Promise<void> {
     try {
-      await this.database.delete(kv).where(eq(kv.key, this.prefixed(key)));
+      await db.delete(kv).where(eq(kv.key, this.prefixed(key)));
     } catch {
       // kv table may not exist yet during the first-run migration window
     }
@@ -53,7 +50,7 @@ export class KV<TSchema extends Record<string, unknown>> {
 
   async clear(): Promise<void> {
     try {
-      await this.database.delete(kv).where(like(kv.key, `${this.namespace}:%`));
+      await db.delete(kv).where(like(kv.key, `${this.namespace}:%`));
     } catch {
       // kv table may not exist yet during the first-run migration window
     }
