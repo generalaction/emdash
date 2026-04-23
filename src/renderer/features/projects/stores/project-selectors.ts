@@ -1,5 +1,6 @@
 import type { LocalProject, SshProject } from '@shared/projects';
 import { appState } from '@renderer/lib/stores/app-state';
+import type { PrSyncStore } from './pr-sync-store';
 import { isUnmountedProject, isUnregisteredProject, MountedProject, ProjectStore } from './project';
 import type { ProjectManagerStore } from './project-manager';
 import type { ProjectSettingsStore } from './project-settings-store';
@@ -66,4 +67,9 @@ export function getRepositoryStore(projectId: string): RepositoryStore | undefin
 /** Returns the ProjectSettingsStore for a mounted project, or undefined if not ready. */
 export function getProjectSettingsStore(projectId: string): ProjectSettingsStore | undefined {
   return asMounted(getProjectStore(projectId))?.settings;
+}
+
+/** Returns the PrSyncStore for a mounted project, or undefined if not ready. */
+export function getPrSyncStore(projectId: string): PrSyncStore | undefined {
+  return asMounted(getProjectStore(projectId))?.prSync;
 }

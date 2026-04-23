@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Conversation } from '@shared/conversations';
+import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import { LocalProject } from '@shared/projects';
@@ -19,12 +20,14 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { WorkspaceLifecycleService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import {
   type ProjectProvider,
@@ -89,6 +92,7 @@ export class LocalProjectProvider implements ProjectProvider {
   private readonly localExec = getLocalExec();
   private readonly _gitWatcher: GitWatcherService;
   private readonly _gitFetchService: GitFetchService;
+  private _configChangeUnsubscribe: (() => void) | undefined;
 
   constructor(
     private readonly project: LocalProject,
@@ -115,6 +119,13 @@ export class LocalProjectProvider implements ProjectProvider {
 
     this._gitFetchService = new GitFetchService(repoGit);
     this._gitFetchService.start();
+
+    // Re-sync remotes whenever .git/config changes (remote added/removed/changed)
+    this._configChangeUnsubscribe = events.on(gitRefChangedChannel, (p) => {
+      if (p.projectId === project.id && p.kind === 'config') {
+        void prSyncScheduler.onRemoteChanged(project.id);
+      }
+    });
   }
 
   async provisionTask(
@@ -163,6 +174,9 @@ export class LocalProjectProvider implements ProjectProvider {
     // possible during the lifetime of this task. Non-blocking — provision
     // continues without waiting for the network round-trip.
     void this._gitFetchService.fetch();
+
+    // Sync PRs for this task's branch in the background.
+    void prSyncScheduler.onTaskProvisioned(this.project.id, task.taskBranch);
 
     const workspaceId = workspaceKey(task.taskBranch);
     const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
@@ -441,6 +455,7 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   async cleanup(): Promise<void> {
+    this._configChangeUnsubscribe?.();
     this._gitFetchService.stop();
     await this._gitWatcher.stop();
 

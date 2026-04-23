@@ -40,6 +40,7 @@ export class ProvisionedTask {
   readonly terminals: TerminalManagerStore;
   readonly draftComments: DraftCommentsStore;
   readonly taskView: TaskViewStore;
+  readonly repositoryStore: RepositoryStore;
 
   readonly _taskData: Task;
   readonly path: string;
@@ -64,12 +65,14 @@ export class ProvisionedTask {
     this._taskData = taskData;
     this.path = path;
     this.workspaceId = workspaceKey(taskData.taskBranch);
+    this.repositoryStore = repositoryStore;
 
     this.workspace = workspaceRegistry.acquire(
       taskData.projectId,
       this.workspaceId,
-      repositoryStore,
-      () => (this._taskData as Task).prs ?? []
+      taskData.id,
+      taskData.taskBranch ?? undefined,
+      repositoryStore
     );
     this.devServers = new DevServerStore(taskData.id, this.workspaceId);
     this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);

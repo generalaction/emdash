@@ -58,6 +58,20 @@ export const projects = sqliteTable(
   })
 );
 
+export const projectRemotes = sqliteTable(
+  'project_remotes',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    remoteName: text('remote_name').notNull(),
+    remoteUrl: text('remote_url').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.projectId, table.remoteName] }),
+  })
+);
+
 export const appSettings = sqliteTable(
   'app_settings',
   {
@@ -102,38 +116,63 @@ export const tasks = sqliteTable(
   })
 );
 
+export const pullRequestUsers = sqliteTable('pull_request_users', {
+  userId: text('user_id').primaryKey(),
+  userName: text('user_name').notNull(),
+  displayName: text('display_name'),
+  avatarUrl: text('avatar_url'),
+  url: text('url'),
+
+  userUpdatedAt: text('user_updated_at'),
+  userCreatedAt: text('user_created_at'),
+});
+
 export const pullRequests = sqliteTable(
   'pull_requests',
   {
-    id: text('id').primaryKey(),
+    url: text('url').primaryKey(),
     provider: text('provider').notNull().default('github'),
-    nameWithOwner: text('name_with_owner').notNull().default(''),
-    url: text('url').notNull(),
+    repositoryUrl: text('repository_url').notNull(),
+
+    baseRefName: text('base_ref_name').notNull(),
+    baseRefOid: text('base_ref_oid').notNull(),
+
+    headRepositoryUrl: text('head_repository_url').notNull(),
+    headRefName: text('head_ref_name').notNull(),
+    headRefOid: text('head_ref_oid').notNull(),
+
+    identifier: text('identifier'), // #123 for github
     title: text('title').notNull(),
-    identifier: text('identifier'),
+    description: text('description'),
     status: text('status').notNull().default('open'),
-    author: text('author'),
-    authorLogin: text('author_login'),
-    authorDisplayName: text('author_display_name'),
-    authorAvatarUrl: text('author_avatar_url'),
     isDraft: integer('is_draft'),
-    headRefName: text('head_ref_name'),
-    metadata: text('metadata'),
-    createdAt: text('created_at')
+
+    authorUserId: text('author_user_id').references(() => pullRequestUsers.userId, {
+      onDelete: 'set null',
+    }),
+
+    additions: integer('additions'),
+    deletions: integer('deletions'),
+    changedFiles: integer('changed_files'),
+    commitCount: integer('commit_count'),
+
+    mergeableStatus: text('mergeable_status'),
+    mergeStateStatus: text('merge_state_status'),
+    reviewDecision: text('review_decision'),
+
+    pullRequestCreatedAt: text('pull_request_created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    fetchedAt: text('fetched_at')
+    pullRequestUpdatedAt: text('pull_request_updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
     urlIdx: uniqueIndex('idx_pull_requests_url').on(table.url),
-    nameWithOwnerIdx: index('idx_pull_requests_name_with_owner').on(table.nameWithOwner),
-    authorLoginIdx: index('idx_pull_requests_author_login').on(table.authorLogin),
-    headRefNameIdx: index('idx_pull_requests_head_ref_name').on(table.headRefName),
+    repositoryUrlIdx: index('idx_pull_requests_repository_url').on(table.repositoryUrl),
+    headRepositoryUrlIdx: index('idx_pull_requests_head_repository_url').on(
+      table.headRepositoryUrl
+    ),
   })
 );
 
@@ -142,7 +181,7 @@ export const pullRequestLabels = sqliteTable(
   {
     pullRequestId: text('pull_request_id')
       .notNull()
-      .references(() => pullRequests.id, { onDelete: 'cascade' }),
+      .references(() => pullRequests.url, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     color: text('color'),
   },
@@ -155,46 +194,41 @@ export const pullRequestLabels = sqliteTable(
 export const pullRequestAssignees = sqliteTable(
   'pull_request_assignees',
   {
-    pullRequestId: text('pull_request_id')
-      .notNull()
-      .references(() => pullRequests.id, { onDelete: 'cascade' }),
-    login: text('login').notNull(),
-    avatarUrl: text('avatar_url'),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.pullRequestId, table.login] }),
-    loginIdx: index('idx_pra_login').on(table.login),
-  })
-);
-
-export const projectPullRequests = sqliteTable(
-  'project_pull_requests',
-  {
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
     pullRequestUrl: text('pull_request_url')
       .notNull()
       .references(() => pullRequests.url, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => pullRequestUsers.userId, { onDelete: 'cascade' }),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.projectId, table.pullRequestUrl] }),
-    projectIdIdx: index('idx_project_pull_requests_project_id').on(table.projectId),
+    pk: primaryKey({ columns: [table.pullRequestUrl, table.userId] }),
+    pullRequestUrlIdx: index('idx_pra_pull_request_url').on(table.pullRequestUrl),
+    userIdIdx: index('idx_pra_user_id').on(table.userId),
   })
 );
 
-export const tasksPullRequests = sqliteTable(
-  'tasks_pull_requests',
+export const pullRequestChecks = sqliteTable(
+  'pull_request_checks',
   {
-    taskId: text('task_id')
-      .notNull()
-      .references(() => tasks.id, { onDelete: 'cascade' }),
+    id: text('id').primaryKey(),
     pullRequestUrl: text('pull_request_url')
       .notNull()
       .references(() => pullRequests.url, { onDelete: 'cascade' }),
+    commitSha: text('commit_sha').notNull(),
+    name: text('name').notNull(),
+    status: text('status').notNull(),
+    conclusion: text('conclusion').notNull(),
+
+    detailsUrl: text('details_url'),
+    startedAt: text('started_at'),
+    completedAt: text('completed_at'),
+    workflowName: text('workflow_name'),
+    appName: text('app_name'),
+    appLogoUrl: text('app_logo_url'),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.taskId, table.pullRequestUrl] }),
+    pullRequestUrlIdx: index('idx_prc_pull_request_url').on(table.pullRequestUrl),
   })
 );
 

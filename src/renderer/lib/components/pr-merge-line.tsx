@@ -1,5 +1,5 @@
 import { GitBranch } from 'lucide-react';
-import type { PullRequest } from '@shared/pull-requests';
+import { ownerFromUrl, type PullRequest } from '@shared/pull-requests';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 
@@ -9,10 +9,10 @@ import { cn } from '@renderer/utils/utils';
  */
 export function PrMergeLine({ pr, className }: { pr: PullRequest; className?: string }) {
   const author = pr.author?.userName;
-  const baseOwner = pr.nameWithOwner.split('/')[0];
-  const baseBranch = pr.metadata.baseRefName;
-  const headOwner = pr.metadata.headRepository?.owner.login ?? author;
-  const headBranch = pr.metadata.headRefName;
+  const baseOwner = ownerFromUrl(pr.repositoryUrl);
+  const baseBranch = pr.baseRefName;
+  const headOwner = ownerFromUrl(pr.headRepositoryUrl) ?? author;
+  const headBranch = pr.headRefName;
 
   return (
     <p className={cn('text-xs text-foreground-muted flex items-center gap-1 min-w-0', className)}>

@@ -1,4 +1,3 @@
-import type { PullRequest } from '@shared/pull-requests';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { WorkspaceStore } from './workspace';
 
@@ -18,8 +17,9 @@ export class WorkspaceRegistryStore {
   acquire(
     projectId: string,
     workspaceId: string,
-    repositoryStore: RepositoryStore,
-    getPrs: () => PullRequest[]
+    taskId: string,
+    taskBranch: string | undefined,
+    repositoryStore: RepositoryStore
   ): WorkspaceStore {
     const key = makeKey(projectId, workspaceId);
     const existing = this.entries.get(key);
@@ -28,7 +28,7 @@ export class WorkspaceRegistryStore {
       return existing.store;
     }
 
-    const store = new WorkspaceStore(projectId, workspaceId, repositoryStore, getPrs);
+    const store = new WorkspaceStore(projectId, workspaceId, taskId, taskBranch, repositoryStore);
     this.entries.set(key, { store, refCount: 1, activated: false });
     return store;
   }

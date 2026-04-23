@@ -13,8 +13,8 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   onToggleCollapsed: () => void;
 }) {
   const provisioned = useProvisionedTask();
-  const { pr, nameWithOwner: nwoResource } = provisioned.workspace;
-  const nameWithOwner = nwoResource.data ?? null;
+  const { pr } = provisioned.workspace;
+  const repositoryUrl = provisioned.repositoryStore.repositoryUrl;
   const taskBranch = provisioned.taskBranch;
   const { pullRequests, currentPr } = pr;
   const showCreatePrModal = useShowModal('createPrModal');
@@ -34,7 +34,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
           taskBranch
             ? () =>
                 showCreatePrModal({
-                  nameWithOwner: nameWithOwner ?? '',
+                  nameWithOwner: repositoryUrl ?? '',
                   branchName: taskBranch,
                   draft: false,
                   workspaceId: provisioned.workspaceId,
@@ -44,7 +44,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
         }
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {!nameWithOwner ? (
+        {!repositoryUrl ? (
           <EmptyState
             label="Pull requests unavailable"
             description="Pull requests are currently available only for configured GitHub remotes."
@@ -55,7 +55,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
             description="Push your branch and create a PR to start a review."
           />
         ) : null}
-        {nameWithOwner && currentPr && <PullRequestEntry key={currentPr.id} pr={currentPr} />}
+        {repositoryUrl && currentPr && <PullRequestEntry key={currentPr.url} pr={currentPr} />}
       </div>
     </>
   );

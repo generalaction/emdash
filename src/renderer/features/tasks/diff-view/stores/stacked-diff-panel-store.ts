@@ -1,5 +1,6 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { commitRef, HEAD_REF, STAGED_REF, type GitChange, type GitObjectRef } from '@shared/git';
+import { getPrNumber } from '@shared/pull-requests';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -143,7 +144,7 @@ export class StackedDiffPanelStore {
 
     if (activeFile.group === 'pr') {
       const activePr = this.pr.pullRequests.find(
-        (p) => activeFile.prNumber != null && p.metadata.number === activeFile.prNumber
+        (p) => activeFile.prNumber != null && getPrNumber(p) === activeFile.prNumber
       );
       return {
         files: activePr ? (this.pr.getFiles(activePr).data ?? []) : [],
