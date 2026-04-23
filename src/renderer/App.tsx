@@ -2,7 +2,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
-import ErrorBoundary from './lib/components/error-boundary';
 import { useLocalStorage } from './lib/hooks/useLocalStorage';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
@@ -36,9 +35,7 @@ export function App() {
                 <IntegrationsProvider>
                   <WorkspaceViewProvider>
                     <RightSidebarProvider>
-                      <ThemeProvider>
-                        <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                      </ThemeProvider>
+                      <ThemeProvider>{renderContent()}</ThemeProvider>
                     </RightSidebarProvider>
                   </WorkspaceViewProvider>
                 </IntegrationsProvider>

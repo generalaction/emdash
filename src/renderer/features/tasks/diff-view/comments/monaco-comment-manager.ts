@@ -1,36 +1,38 @@
 import type * as monaco from 'monaco-editor';
 import React from 'react';
-import { createRoot, Root } from 'react-dom/client';
-import type { LineComment } from '@shared/lineComment';
-import { CommentInput } from '@renderer/components/diff/comments/CommentInput';
-import { CommentWidget } from '@renderer/components/diff/comments/CommentWidget';
+import { createRoot, type Root } from 'react-dom/client';
+import type { DraftComment } from '../stores/draft-comments-store';
+import { CommentInput } from './comment-input';
+import { CommentWidget } from './comment-widget';
+
+const GUTTER_GLYPH_MARGIN = 2;
+const COMMENT_ZONE_HEIGHT_PX = 140 + 24;
 
 interface MonacoCommentManagerOptions {
-  onAddComment: (
-    lineNumber: number,
-    content: string,
-    lineContent?: string
-  ) => Promise<string | null | undefined>;
-  onEditComment: (id: string, content: string) => Promise<boolean>;
-  onDeleteComment: (id: string) => Promise<boolean>;
+  onAddComment: (lineNumber: number, content: string, lineContent?: string) => void | Promise<void>;
+  onEditComment: (id: string, content: string) => void | Promise<void>;
+  onDeleteComment: (id: string) => void | Promise<void>;
 }
 
 export class MonacoCommentManager {
-  private editor: monaco.editor.IStandaloneDiffEditor;
-  private options: MonacoCommentManagerOptions;
+  private readonly editor: monaco.editor.IStandaloneDiffEditor;
+  private readonly options: MonacoCommentManagerOptions;
+
   private viewZoneRoots: Map<
     string,
     { zoneId: string; root: Root; domNode: HTMLElement; lineNumber: number }
   > = new Map();
+
   private decorationIds: string[] = [];
   private hoverDecorationIds: string[] = [];
   private pinnedDecorationIds: string[] = [];
   private hoveredLine: number | null = null;
-  private commentedLines: Set<number> = new Set();
+
   private inputZoneId: string | null = null;
   private inputRoot: Root | null = null;
   private inputDomNode: HTMLElement | null = null;
   private activeInputLine: number | null = null;
+
   private disposed = false;
   private gutterClickDisposable: monaco.IDisposable | null = null;
   private hoverMoveDisposable: monaco.IDisposable | null = null;
@@ -47,7 +49,7 @@ export class MonacoCommentManager {
     const modifiedEditor = this.editor.getModifiedEditor();
 
     this.gutterClickDisposable = modifiedEditor.onMouseDown((e) => {
-      if (e.target.type !== 2) return;
+      if (e.target.type !== GUTTER_GLYPH_MARGIN) return;
       const targetElement = e.target.element;
       if (!targetElement?.classList.contains('comment-hover-icon')) return;
 
@@ -75,9 +77,6 @@ export class MonacoCommentManager {
         return;
       }
 
-      // Get line number from any target that has a position
-      // Types: 2=GUTTER_GLYPH_MARGIN, 3=GUTTER_LINE_NUMBERS, 4=GUTTER_LINE_DECORATIONS,
-      // 6=CONTENT_TEXT, 7=CONTENT_EMPTY
       const lineNumber = e.target.position?.lineNumber;
 
       if (lineNumber && lineNumber !== this.hoveredLine) {
@@ -86,11 +85,9 @@ export class MonacoCommentManager {
           this.hoveredLine = lineNumber;
           return;
         }
-        // Always show hover icon - users can add multiple comments to the same line
         this.setHoverDecoration(lineNumber);
         this.hoveredLine = lineNumber;
       } else if (!lineNumber && this.hoveredLine !== null) {
-        // Mouse moved to area without a line (e.g., scrollbar, minimap)
         this.clearHoverDecoration();
         this.hoveredLine = null;
       }
@@ -153,34 +150,17 @@ export class MonacoCommentManager {
     this.pinnedDecorationIds = modifiedEditor.deltaDecorations(this.pinnedDecorationIds, []);
   }
 
-  private focusInputTextarea() {
-    const textarea = this.inputDomNode?.querySelector('textarea');
-    if (textarea instanceof HTMLTextAreaElement) {
-      textarea.focus();
-    }
-  }
-
-  setComments(comments: LineComment[]) {
+  setComments(comments: DraftComment[]) {
     if (this.disposed) return;
 
     const modifiedEditor = this.editor.getModifiedEditor();
+    const nextById = new Map<string, DraftComment>(
+      comments.map((comment) => [comment.id, comment])
+    );
 
-    // Group comments by line
-    const commentsByLine = new Map<number, LineComment[]>();
-    for (const comment of comments) {
-      const existing = commentsByLine.get(comment.lineNumber) ?? [];
-      existing.push(comment);
-      commentsByLine.set(comment.lineNumber, existing);
-    }
+    this.decorationIds = modifiedEditor.deltaDecorations(this.decorationIds, []);
 
-    // Update decorations (glyph margin icons)
-    this.updateDecorations(commentsByLine);
-
-    const nextById = new Map<string, LineComment>(comments.map((comment) => [comment.id, comment]));
-
-    // Update view zones with minimal churn to avoid flicker.
     modifiedEditor.changeViewZones((accessor) => {
-      // Remove stale zones
       for (const [commentId, zoneInfo] of Array.from(this.viewZoneRoots.entries())) {
         if (!nextById.has(commentId)) {
           accessor.removeZone(zoneInfo.zoneId);
@@ -189,7 +169,6 @@ export class MonacoCommentManager {
         }
       }
 
-      // Add or update zones for current comments
       for (const comment of comments) {
         const existing = this.viewZoneRoots.get(comment.id);
         if (existing) {
@@ -210,7 +189,7 @@ export class MonacoCommentManager {
             accessor.removeZone(existing.zoneId);
             const zoneId = accessor.addZone({
               afterLineNumber: comment.lineNumber,
-              heightInPx: 140 + 24,
+              heightInPx: COMMENT_ZONE_HEIGHT_PX,
               domNode: existing.domNode,
               suppressMouseDown: false,
               showInHiddenAreas: true,
@@ -225,10 +204,10 @@ export class MonacoCommentManager {
         }
 
         const domNode = document.createElement('div');
-        domNode.style.padding = '12px'; // Space around comments
+        domNode.style.padding = '12px';
         domNode.style.boxSizing = 'border-box';
         domNode.className = 'comment-view-zone bg-muted/40 border border-border';
-        domNode.style.pointerEvents = 'auto'; // Ensure clicks work
+        domNode.style.pointerEvents = 'auto';
         domNode.style.position = 'relative';
         domNode.style.zIndex = '10';
         domNode.style.width = '100%';
@@ -245,7 +224,7 @@ export class MonacoCommentManager {
 
         const zoneId = accessor.addZone({
           afterLineNumber: comment.lineNumber,
-          heightInPx: 140 + 24,
+          heightInPx: COMMENT_ZONE_HEIGHT_PX,
           domNode,
           suppressMouseDown: false,
           showInHiddenAreas: true,
@@ -261,23 +240,10 @@ export class MonacoCommentManager {
     });
   }
 
-  private updateDecorations(commentsByLine: Map<number, LineComment[]>) {
-    const modifiedEditor = this.editor.getModifiedEditor();
-
-    // Update the set of commented lines for hover logic
-    // No glyph margin icon needed - the comment widget itself is the indicator
-    this.commentedLines.clear();
-    for (const [lineNumber] of commentsByLine) {
-      this.commentedLines.add(lineNumber);
-    }
-
-    // Clear any existing decorations (we don't show icons for commented lines)
-    this.decorationIds = modifiedEditor.deltaDecorations(this.decorationIds, []);
-  }
-
   showInputAt(lineNumber: number, lineContent: string) {
     if (this.activeInputLine === lineNumber && this.inputDomNode) {
-      this.focusInputTextarea();
+      const textarea = this.inputDomNode.querySelector('textarea');
+      if (textarea instanceof HTMLTextAreaElement) textarea.focus();
       return;
     }
 
@@ -310,11 +276,10 @@ export class MonacoCommentManager {
     this.inputDomNode.style.width = '100%';
     this.inputDomNode.dataset.lineNumber = String(lineNumber);
 
-    const initialHeight = 140;
     modifiedEditor.changeViewZones((accessor) => {
       this.inputZoneId = accessor.addZone({
         afterLineNumber: lineNumber,
-        heightInPx: initialHeight + 24,
+        heightInPx: COMMENT_ZONE_HEIGHT_PX,
         domNode: this.inputDomNode!,
         suppressMouseDown: false,
         showInHiddenAreas: true,
@@ -340,53 +305,41 @@ export class MonacoCommentManager {
   }
 
   hideInput() {
+    const modifiedEditor = this.editor.getModifiedEditor();
     if (this.inputZoneId) {
-      const modifiedEditor = this.editor.getModifiedEditor();
       modifiedEditor.changeViewZones((accessor) => {
-        if (this.inputZoneId) accessor.removeZone(this.inputZoneId);
+        accessor.removeZone(this.inputZoneId!);
       });
       this.inputZoneId = null;
     }
-    if (this.inputRoot) {
-      this.inputRoot.unmount();
-      this.inputRoot = null;
-    }
+
+    this.inputRoot?.unmount();
+    this.inputRoot = null;
     this.inputDomNode = null;
-    const hoveredLine = this.hoveredLine;
     this.activeInputLine = null;
     this.clearPinnedDecoration();
-    if (hoveredLine) {
-      this.setHoverDecoration(hoveredLine);
-    }
   }
 
   dispose() {
     this.disposed = true;
+
     this.gutterClickDisposable?.dispose();
-    this.gutterClickDisposable = null;
     this.hoverMoveDisposable?.dispose();
-    this.hoverMoveDisposable = null;
     this.hoverLeaveDisposable?.dispose();
-    this.hoverLeaveDisposable = null;
+
     this.hideInput();
 
-    // Cleanup view zones
     const modifiedEditor = this.editor.getModifiedEditor();
+    this.decorationIds = modifiedEditor.deltaDecorations(this.decorationIds, []);
+    this.hoverDecorationIds = modifiedEditor.deltaDecorations(this.hoverDecorationIds, []);
+    this.pinnedDecorationIds = modifiedEditor.deltaDecorations(this.pinnedDecorationIds, []);
+
     modifiedEditor.changeViewZones((accessor) => {
-      for (const [, zoneInfo] of this.viewZoneRoots) {
-        accessor.removeZone(zoneInfo.zoneId);
-        zoneInfo.root.unmount();
+      for (const zone of this.viewZoneRoots.values()) {
+        accessor.removeZone(zone.zoneId);
+        zone.root.unmount();
       }
     });
     this.viewZoneRoots.clear();
-
-    // Clear all decorations
-    modifiedEditor.deltaDecorations(this.decorationIds, []);
-    modifiedEditor.deltaDecorations(this.hoverDecorationIds, []);
-    modifiedEditor.deltaDecorations(this.pinnedDecorationIds, []);
-    this.decorationIds = [];
-    this.hoverDecorationIds = [];
-    this.pinnedDecorationIds = [];
-    this.commentedLines.clear();
   }
 }

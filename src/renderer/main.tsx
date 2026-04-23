@@ -1,5 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
+import { ErrorBoundary } from './lib/components/error-boundary';
 import './index.css';
 import 'devicon/devicon.min.css';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
@@ -42,7 +43,11 @@ async function bootstrap() {
   }
 
   // Avoid double-mount in dev which can duplicate PTY sessions
-  ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(<App />);
+  ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
 }
 
 bootstrap().catch((error: unknown) => {

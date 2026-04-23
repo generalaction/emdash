@@ -10,6 +10,11 @@ import { SettingRow } from './SettingRow';
 
 export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   const update = appState.update;
+  const downloadProgress =
+    update.state.status === 'downloading' ? update.state.progress : undefined;
+  const hasByteProgress =
+    downloadProgress !== undefined &&
+    ((downloadProgress.total ?? 0) > 0 || (downloadProgress.transferred ?? 0) > 0);
 
   const versionTitle = (
     <div className="flex items-center gap-2">
@@ -49,18 +54,20 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         }
       />
 
-      {update.state.status === 'downloading' && update.state.progress && (
+      {update.state.status === 'downloading' && downloadProgress && (
         <div className="space-y-2">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
               className="h-full bg-primary transition-all duration-300 ease-out"
-              style={{ width: `${update.state.progress.percent || 0}%` }}
+              style={{ width: `${downloadProgress.percent || 0}%` }}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
-            {formatBytes(update.state.progress.transferred || 0)} /{' '}
-            {formatBytes(update.state.progress.total || 0)}
-          </p>
+          {hasByteProgress && (
+            <p className="text-xs text-muted-foreground">
+              {formatBytes(downloadProgress.transferred || 0)} /{' '}
+              {formatBytes(downloadProgress.total || 0)}
+            </p>
+          )}
         </div>
       )}
     </div>

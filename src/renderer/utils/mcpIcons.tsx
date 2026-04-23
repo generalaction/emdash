@@ -1,5 +1,6 @@
 import { Server } from 'lucide-react';
 import React from 'react';
+import { coerceRawSvgContent, prepareInlineSvgMarkup } from './mcp-icon-data';
 
 const svgs = import.meta.glob('../../assets/images/mcp/*.svg', { query: '?raw', eager: true });
 const pngs = import.meta.glob('../../assets/images/mcp/*.png', { eager: true, import: 'default' });
@@ -11,14 +12,16 @@ function keyFromPath(path: string): string {
     .replace(/\.\w+$/, '');
 }
 
-const svgByKey = new Map(Object.entries(svgs).map(([p, d]) => [keyFromPath(p), d as string]));
+const svgByKey = new Map(
+  Object.entries(svgs).map(([p, d]) => [keyFromPath(p), coerceRawSvgContent(d)])
+);
 const pngByKey = new Map(Object.entries(pngs).map(([p, d]) => [keyFromPath(p), d as string]));
 
 function getIcon(
   key: string
 ): { type: 'svg'; data: string } | { type: 'png'; url: string } | undefined {
   const svg = svgByKey.get(key);
-  if (svg) return { type: 'svg', data: svg };
+  if (typeof svg === 'string') return { type: 'svg', data: svg };
   const png = pngByKey.get(key);
   if (png) return { type: 'png', url: png };
   return undefined;
@@ -30,11 +33,7 @@ export const McpServerIcon: React.FC<{ name: string; iconKey?: string }> = ({ na
   const icon = iconKey ? getIcon(iconKey) : undefined;
 
   if (icon?.type === 'svg') {
-    const processed = icon.data
-      .replace(/\bwidth="[^"]*"/g, '')
-      .replace(/\bheight="[^"]*"/g, '')
-      .replace(/<style>[\s\S]*?<\/style>/g, '')
-      .replace('<svg ', '<svg fill="currentColor" class="h-full w-full" ');
+    const processed = prepareInlineSvgMarkup(icon.data);
     return (
       <div className={`${ICON_CONTAINER} p-2`} dangerouslySetInnerHTML={{ __html: processed }} />
     );

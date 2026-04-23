@@ -1,8 +1,8 @@
 {
-  "id": "71b9bacc-a2f1-4bfe-905e-95f3d34f5928",
-  "prevId": "71b9bacc-a2f1-4bfe-905e-95f3d34f5928",
   "version": "6",
   "dialect": "sqlite",
+  "id": "5a9526e3-8d61-467e-8cc4-81524040592c",
+  "prevId": "71b9bacc-a2f1-4bfe-905e-95f3d34f5928",
   "tables": {
     "app_secrets": {
       "name": "app_secrets",
@@ -143,20 +143,20 @@
         "conversations_project_id_projects_id_fk": {
           "name": "conversations_project_id_projects_id_fk",
           "tableFrom": "conversations",
-          "columnsFrom": ["project_id"],
           "tableTo": "projects",
+          "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "conversations_task_id_tasks_id_fk": {
           "name": "conversations_task_id_tasks_id_fk",
           "tableFrom": "conversations",
-          "columnsFrom": ["task_id"],
           "tableTo": "tasks",
+          "columnsFrom": ["task_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -219,11 +219,11 @@
         "editor_buffers_project_id_projects_id_fk": {
           "name": "editor_buffers_project_id_projects_id_fk",
           "tableFrom": "editor_buffers",
-          "columnsFrom": ["project_id"],
           "tableTo": "projects",
+          "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -263,96 +263,6 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "line_comments": {
-      "name": "line_comments",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "task_id": {
-          "name": "task_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_path": {
-          "name": "file_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "line_number": {
-          "name": "line_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "line_content": {
-          "name": "line_content",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "content": {
-          "name": "content",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        },
-        "sent_at": {
-          "name": "sent_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_line_comments_task_file": {
-          "name": "idx_line_comments_task_file",
-          "columns": ["task_id", "file_path"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "line_comments_task_id_tasks_id_fk": {
-          "name": "line_comments_task_id_tasks_id_fk",
-          "tableFrom": "line_comments",
-          "columnsFrom": ["task_id"],
-          "tableTo": "tasks",
-          "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
@@ -419,11 +329,11 @@
         "messages_conversation_id_conversations_id_fk": {
           "name": "messages_conversation_id_conversations_id_fk",
           "tableFrom": "messages",
-          "columnsFrom": ["conversation_id"],
           "tableTo": "conversations",
+          "columnsFrom": ["conversation_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -458,20 +368,20 @@
         "project_pull_requests_project_id_projects_id_fk": {
           "name": "project_pull_requests_project_id_projects_id_fk",
           "tableFrom": "project_pull_requests",
-          "columnsFrom": ["project_id"],
           "tableTo": "projects",
+          "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "project_pull_requests_pull_request_url_pull_requests_url_fk": {
           "name": "project_pull_requests_pull_request_url_pull_requests_url_fk",
           "tableFrom": "project_pull_requests",
-          "columnsFrom": ["pull_request_url"],
           "tableTo": "pull_requests",
+          "columnsFrom": ["pull_request_url"],
           "columnsTo": ["url"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -561,11 +471,11 @@
         "projects_ssh_connection_id_ssh_connections_id_fk": {
           "name": "projects_ssh_connection_id_ssh_connections_id_fk",
           "tableFrom": "projects",
-          "columnsFrom": ["ssh_connection_id"],
           "tableTo": "ssh_connections",
+          "columnsFrom": ["ssh_connection_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -607,11 +517,11 @@
         "pull_request_assignees_pull_request_id_pull_requests_id_fk": {
           "name": "pull_request_assignees_pull_request_id_pull_requests_id_fk",
           "tableFrom": "pull_request_assignees",
-          "columnsFrom": ["pull_request_id"],
           "tableTo": "pull_requests",
+          "columnsFrom": ["pull_request_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -658,11 +568,11 @@
         "pull_request_labels_pull_request_id_pull_requests_id_fk": {
           "name": "pull_request_labels_pull_request_id_pull_requests_id_fk",
           "tableFrom": "pull_request_labels",
-          "columnsFrom": ["pull_request_id"],
           "tableTo": "pull_requests",
+          "columnsFrom": ["pull_request_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1040,11 +950,11 @@
         "tasks_project_id_projects_id_fk": {
           "name": "tasks_project_id_projects_id_fk",
           "tableFrom": "tasks",
-          "columnsFrom": ["project_id"],
           "tableTo": "projects",
+          "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1073,20 +983,20 @@
         "tasks_pull_requests_task_id_tasks_id_fk": {
           "name": "tasks_pull_requests_task_id_tasks_id_fk",
           "tableFrom": "tasks_pull_requests",
-          "columnsFrom": ["task_id"],
           "tableTo": "tasks",
+          "columnsFrom": ["task_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "tasks_pull_requests_pull_request_url_pull_requests_url_fk": {
           "name": "tasks_pull_requests_pull_request_url_pull_requests_url_fk",
           "tableFrom": "tasks_pull_requests",
-          "columnsFrom": ["pull_request_url"],
           "tableTo": "pull_requests",
+          "columnsFrom": ["pull_request_url"],
           "columnsTo": ["url"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -1164,20 +1074,20 @@
         "terminals_project_id_projects_id_fk": {
           "name": "terminals_project_id_projects_id_fk",
           "tableFrom": "terminals",
-          "columnsFrom": ["project_id"],
           "tableTo": "projects",
+          "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         },
         "terminals_task_id_tasks_id_fk": {
           "name": "terminals_task_id_tasks_id_fk",
           "tableFrom": "terminals",
-          "columnsFrom": ["task_id"],
           "tableTo": "tasks",
+          "columnsFrom": ["task_id"],
           "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1186,9 +1096,9 @@
   },
   "enums": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
+    "tables": {},
+    "columns": {}
   },
   "internal": {
     "indexes": {}
