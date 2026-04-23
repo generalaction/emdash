@@ -13,6 +13,12 @@ import { getRepositoryStore } from '@renderer/features/projects/stores/project-s
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { Button } from '@renderer/lib/ui/button';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { SearchInput } from '@renderer/lib/ui/search-input';
@@ -223,6 +229,7 @@ export const PullRequestView = observer(function PullRequestView() {
     handleStatusChange,
     handleSortChange,
     handleRefresh,
+    handleForceFullSync,
     removeLabel,
     prs,
     loading,
@@ -299,14 +306,24 @@ export const PullRequestView = observer(function PullRequestView() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <Button variant="outline" size="icon-sm" onClick={handleRefresh} disabled={syncing}>
-              <motion.div
-                animate={syncing ? { rotate: 360 } : {}}
-                transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}
-              >
-                <RefreshCw className="size-3.5" />
-              </motion.div>
-            </Button>
+            <ContextMenu>
+              <ContextMenuTrigger>
+                <Button variant="outline" size="icon-sm" onClick={handleRefresh} disabled={syncing}>
+                  <motion.div
+                    animate={syncing ? { rotate: 360 } : {}}
+                    transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}
+                  >
+                    <RefreshCw className="size-3.5" />
+                  </motion.div>
+                </Button>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onClick={handleForceFullSync} disabled={syncing}>
+                  <RefreshCw className="size-4" />
+                  Force full sync
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           </div>
         </div>
 

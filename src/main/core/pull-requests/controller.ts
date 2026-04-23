@@ -71,6 +71,23 @@ export const pullRequestController = createRPCController({
 
   // ── Sync triggers ──────────────────────────────────────────────────────────
 
+  forceFullSyncPullRequests: async (projectId: string) => {
+    try {
+      const capability = await prQueryService.getProjectRemoteInfo(projectId);
+      if (capability.status !== 'ready') {
+        return { success: false as const, error: `Remote not ready: ${capability.status}` };
+      }
+      prSyncEngine.forceFullSync(capability.repositoryUrl);
+      return { success: true as const };
+    } catch (error) {
+      log.error('Failed to force full sync:', error);
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : 'Unable to force sync',
+      };
+    }
+  },
+
   syncPullRequests: async (projectId: string) => {
     try {
       log.info('PrController: syncPullRequests called', { projectId });

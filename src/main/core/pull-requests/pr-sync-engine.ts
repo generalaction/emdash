@@ -179,6 +179,15 @@ export class PrSyncEngine {
     this._inflight.set(key, promise);
   }
 
+  /** Cancel any in-flight sync, wipe both cursors, and start a fresh full sync. */
+  forceFullSync(repositoryUrl: string): void {
+    this.cancel(repositoryUrl);
+    void Promise.all([
+      this.kv.del(`fullsync:${repositoryUrl}`),
+      this.kv.del(`incrementalsync:${repositoryUrl}`),
+    ]).then(() => this.sync(repositoryUrl));
+  }
+
   /** Abort and discard any in-flight sync for this repository URL. */
   cancel(repositoryUrl: string): void {
     const ctrl = this._controllers.get(repositoryUrl);

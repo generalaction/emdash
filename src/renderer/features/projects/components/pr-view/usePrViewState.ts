@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { PrFilters, PrSortField } from '@shared/pull-requests';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
+import { rpc } from '@renderer/lib/ipc';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
 export type StatusFilter = 'open' | 'not-open';
@@ -107,6 +108,16 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     }
   };
 
+  const handleForceFullSync = async () => {
+    setSyncing(true);
+    try {
+      await rpc.pullRequests.forceFullSyncPullRequests(projectId);
+      await queryClient.invalidateQueries({ queryKey: ['pull-requests', projectId] });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const prSyncStore = getPrSyncStore(projectId);
   const backgroundSyncing = repositoryUrl
     ? (prSyncStore?.isSyncing(repositoryUrl) ?? false)
@@ -133,6 +144,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     handleStatusChange,
     handleSortChange,
     handleRefresh,
+    handleForceFullSync,
     removeLabel,
     // data
     prs,
