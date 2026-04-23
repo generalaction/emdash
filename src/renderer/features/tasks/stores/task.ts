@@ -4,6 +4,7 @@ import type { TaskViewSnapshot } from '@shared/view-state';
 import { workspaceKey } from '@shared/workspace-key';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
+import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
 import { TaskViewStore } from '@renderer/features/tasks/stores/task-view';
 import type { WorkspaceStore } from '@renderer/features/tasks/stores/workspace';
@@ -37,6 +38,7 @@ export class ProvisionedTask {
   readonly devServers: DevServerStore;
   readonly conversations: ConversationManagerStore;
   readonly terminals: TerminalManagerStore;
+  readonly draftComments: DraftCommentsStore;
   readonly taskView: TaskViewStore;
 
   readonly _taskData: Task;
@@ -72,6 +74,7 @@ export class ProvisionedTask {
     this.devServers = new DevServerStore(taskData.id, this.workspaceId);
     this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
     this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
+    this.draftComments = new DraftCommentsStore(taskData.id);
     this.taskView = new TaskViewStore(
       {
         conversations: this.conversations,
@@ -89,6 +92,7 @@ export class ProvisionedTask {
       devServers: false,
       conversations: false,
       terminals: false,
+      draftComments: false,
       taskView: false,
       /** Owned by TaskStore.data — do not attach a second observable tree here */
       _taskData: false,
@@ -106,6 +110,7 @@ export class ProvisionedTask {
     this._snapshotDisposer = null;
     workspaceRegistry.release(this._taskData.projectId, this.workspaceId);
     this.devServers.dispose();
+    this.draftComments.dispose();
     this.taskView.dispose();
     this.conversations.dispose();
     for (const term of this.terminals.terminals.values()) {

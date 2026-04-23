@@ -14,6 +14,8 @@ export interface StickyDiffEditorProps {
   diffStyle: 'unified' | 'split';
   /** Called whenever the content height changes, for auto-sizing parent containers. */
   onHeightChange?: (height: number) => void;
+  /** Called when the diff editor instance is created/disposed. */
+  onEditorChange?: (editor: monaco.editor.IStandaloneDiffEditor | null) => void;
 }
 
 /**
@@ -29,6 +31,7 @@ export function StickyDiffEditor({
   modifiedUri,
   diffStyle,
   onHeightChange,
+  onEditorChange,
 }: StickyDiffEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
 
@@ -39,6 +42,9 @@ export function StickyDiffEditor({
 
   const onHeightChangeRef = useRef(onHeightChange);
   onHeightChangeRef.current = onHeightChange;
+
+  const onEditorChangeRef = useRef(onEditorChange);
+  onEditorChangeRef.current = onEditorChange;
 
   const { effectiveTheme } = useTheme();
 
@@ -53,6 +59,7 @@ export function StickyDiffEditor({
       ...DIFF_EDITOR_BASE_OPTIONS,
       renderSideBySide: diffStyle === 'split',
     });
+    onEditorChangeRef.current?.(editor);
 
     const modifiedEditor = editor.getModifiedEditor();
     const heightDisposable = modifiedEditor.onDidContentSizeChange(
@@ -66,6 +73,7 @@ export function StickyDiffEditor({
     runInAction(() => editorBox.set(editor));
 
     return () => {
+      onEditorChangeRef.current?.(null);
       heightDisposable.dispose();
       runInAction(() => editorBox.set(null));
       editor.dispose();

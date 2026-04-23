@@ -11,7 +11,6 @@ import { githubController } from './core/github/controller';
 import { gitlabController } from './core/gitlab/controller';
 import { issueController } from './core/issues/controller';
 import { jiraController } from './core/jira/controller';
-import { lineCommentsController } from './core/line-comments';
 import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
 import { plainController } from './core/plain/controller';
@@ -45,7 +44,6 @@ export const rpcRouter = createRPCRouter({
   jira: jiraController,
   linear: linearController,
   plain: plainController,
-  lineComments: lineCommentsController,
   skills: skillsController,
   ssh: sshController,
   projects: projectController,

@@ -625,13 +625,69 @@
     background-color: var(--diff-deleted-bg);
   }
 
-  /* Override Monaco's default glyph margin styles for better visibility */
-  .monaco-editor .margin-view-overlays .glyph-margin {
+  /* Monaco diff comment UI */
+  .file-diff-view .monaco-editor .margin-view-overlays .glyph-margin {
     width: 20px !important;
   }
 
-  /* Ensure glyph margin is visible */
-  .monaco-editor .margin {
+  .file-diff-view .monaco-editor .margin {
     background-color: transparent !important;
+  }
+
+  .file-diff-view .comment-hover-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin: 1px auto;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .file-diff-view .comment-hover-icon::before {
+    content: '';
+    display: block;
+    width: 12px;
+    height: 12px;
+    background-color: currentColor;
+    color: var(--foreground-muted);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  .file-diff-view .comment-hover-icon:hover,
+  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned {
+    background-color: var(--background-2);
+    border-color: var(--border);
+  }
+
+  .file-diff-view .comment-hover-icon:hover::before,
+  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned::before {
+    color: var(--foreground);
+  }
+
+  .file-diff-view .monaco-editor .glyph-margin > div {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .file-diff-view .monaco-editor .view-zones,
+  .file-diff-view .monaco-editor .view-zone,
+  .file-diff-view .comment-view-zone {
+    pointer-events: auto !important;
   }
 }
