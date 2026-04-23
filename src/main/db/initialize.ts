@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
+import { dirname } from 'node:path';
 import type BetterSqlite3 from 'better-sqlite3';
 import journal from '@root/drizzle/meta/_journal.json';
+import { log } from '@main/lib/logger';
 import { sqlite } from './client';
+import { runLegacyPort } from './legacy-port/run-legacy-port';
+import { resolveDatabasePath } from './path';
 
 // Vite bundles all migration SQL files at build time — no runtime path resolution needed.
 // Each value is the raw SQL string content of the file.
@@ -60,5 +64,9 @@ function runBundledMigrations(connection: BetterSqlite3.Database): void {
  */
 export async function initializeDatabase(): Promise<BetterSqlite3.Database> {
   runBundledMigrations(sqlite);
+  const legacyDir = dirname(resolveDatabasePath());
+  await runLegacyPort(legacyDir).catch((error) => {
+    log.warn('legacy-port: unexpected top-level failure', error);
+  });
   return sqlite;
 }
