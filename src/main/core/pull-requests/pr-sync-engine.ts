@@ -38,6 +38,7 @@ import { withRetry } from '@main/lib/retry';
 import { assemblePullRequest } from './pr-utils';
 
 const PR_SYNC_MAX_AGE_MONTHS = 3;
+const PR_SYNC_MAX_COUNT = 1500;
 
 type FullSyncCursor = {
   /** The `updatedAt` of the last PR we have seen (pagination cursor). */
@@ -303,7 +304,7 @@ export class PrSyncEngine {
 
         const lastUpdatedAt =
           batch[batch.length - 1]?.updatedAt ?? existing?.lastUpdatedAt ?? new Date().toISOString();
-        const done = reachedBoundary || !pageInfo.hasNextPage;
+        const done = reachedBoundary || !pageInfo.hasNextPage || synced >= PR_SYNC_MAX_COUNT;
 
         await this.kv.set(`fullsync:${repositoryUrl}`, {
           lastUpdatedAt,
@@ -317,7 +318,7 @@ export class PrSyncEngine {
           kind: 'full',
           status: 'running',
           synced,
-          total: totalCount,
+          total: Math.min(totalCount, PR_SYNC_MAX_COUNT),
         });
 
         if (done) break;
@@ -700,7 +701,55 @@ export class PrSyncEngine {
       return n.state === 'PENDING';
     });
 
+    // Notify the renderer with the fully-assembled PR so checks appear reactively.
+    await this._notifyPrWithChecks(pullRequestUrl);
+
     return hasRunning;
+  }
+
+  private async _notifyPrWithChecks(pullRequestUrl: string): Promise<void> {
+    const [prRow] = await db
+      .select()
+      .from(pullRequests)
+      .where(eq(pullRequests.url, pullRequestUrl))
+      .limit(1);
+
+    if (!prRow) return;
+
+    const [checkRows, labelRows, assigneeJoins] = await Promise.all([
+      db
+        .select()
+        .from(pullRequestChecks)
+        .where(eq(pullRequestChecks.pullRequestUrl, pullRequestUrl)),
+      db
+        .select()
+        .from(pullRequestLabels)
+        .where(eq(pullRequestLabels.pullRequestId, pullRequestUrl)),
+      db
+        .select({ user: pullRequestUsers })
+        .from(pullRequestAssignees)
+        .innerJoin(pullRequestUsers, eq(pullRequestAssignees.userId, pullRequestUsers.userId))
+        .where(eq(pullRequestAssignees.pullRequestUrl, pullRequestUrl)),
+    ]);
+
+    let authorRow: typeof pullRequestUsers.$inferSelect | null = null;
+    if (prRow.authorUserId) {
+      const [a] = await db
+        .select()
+        .from(pullRequestUsers)
+        .where(eq(pullRequestUsers.userId, prRow.authorUserId))
+        .limit(1);
+      authorRow = a ?? null;
+    }
+
+    const assembled = assemblePullRequest(
+      prRow,
+      authorRow,
+      labelRows,
+      assigneeJoins.map((j) => j.user),
+      checkRows
+    );
+    this._notifyPrUpdated(assembled);
   }
 
   // ── Users sync ─────────────────────────────────────────────────────────────
@@ -891,7 +940,12 @@ export class PrSyncEngine {
       color: l.color ?? null,
     }));
 
-    return assemblePullRequest(prRow, authorRow, labelRows, assigneeRows);
+    const checkRows = await db
+      .select()
+      .from(pullRequestChecks)
+      .where(eq(pullRequestChecks.pullRequestUrl, node.url));
+
+    return assemblePullRequest(prRow, authorRow, labelRows, assigneeRows, checkRows);
   }
 
   private _notifyPrUpdated(pr: PullRequest): void {

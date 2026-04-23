@@ -231,7 +231,10 @@ export class PrStore {
 
   private async _fetchPrFiles(pr: PullRequest): Promise<GitChange[]> {
     const remote = this.repositoryStore.configuredRemote;
-    const baseRef = remoteRef(remote, pr.baseRefName);
+    // Dereference the MobX-observable Remote into a plain object — MobX proxies
+    // cannot be structured-cloned by Electron IPC and will throw.
+    const plainRemote = { name: remote.name, url: remote.url };
+    const baseRef = remoteRef(plainRemote, pr.baseRefName);
     const headRef = commitRef('HEAD');
     const range = mergeBaseRange(baseRef, headRef);
 
@@ -256,9 +259,11 @@ export class PrStore {
     aheadCount: number;
   }> {
     const remote = this.repositoryStore.configuredRemote;
+    // Plain copy to avoid MobX proxy IPC serialization failure.
+    const plainRemote = { name: remote.name, url: remote.url };
     const currentPr = selectCurrentPr(this.pullRequests);
     const base: GitObjectRef | undefined = currentPr
-      ? remoteRef(remote, currentPr.baseRefName)
+      ? remoteRef(plainRemote, currentPr.baseRefName)
       : undefined;
     const result = await rpc.git.getLog(
       this.projectId,

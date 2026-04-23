@@ -16,24 +16,16 @@ interface SyncStatusCardProps {
   label?: ReactNode;
   content: ReactNode;
   actions?: ReactNode;
-  separator?: boolean;
   className?: string;
 }
 
-function SyncStatusCard({
-  icon,
-  label,
-  content,
-  actions,
-  separator = false,
-  className,
-}: SyncStatusCardProps) {
+function SyncStatusCard({ icon, label, content, actions, className }: SyncStatusCardProps) {
   return (
     <ListPopoverCard className={className}>
       {icon}
       {label && <span className="text-foreground-muted shrink-0">{label}</span>}
-      {separator && label && <span className="text-muted-foreground">·</span>}
-      <span className="text-foreground-passive grow">{content}</span>
+
+      <span className="text-foreground-passive grow min-w-0">{content}</span>
       {actions && <div className="flex items-center gap-1 shrink-0">{actions}</div>}
     </ListPopoverCard>
   );
@@ -104,7 +96,6 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
       <SyncStatusCard
         icon={<RotateCcw className="size-3.5 shrink-0 text-muted-foreground" />}
         label={kindLabel}
-        separator
         content="Sync cancelled"
         actions={
           <Button
@@ -123,12 +114,10 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
   // error state
   return (
     <SyncStatusCard
-      className="border-destructive/40 bg-destructive/5"
-      icon={<AlertCircle className="size-3.5 shrink-0 text-destructive" />}
+      icon={<AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />}
       label={<span className="text-destructive font-medium">Sync failed</span>}
-      separator
       content={
-        <span className="truncate" title={state.error}>
+        <span className="block truncate" title={state.error}>
           {state.error ?? 'Unknown error'}
         </span>
       }
