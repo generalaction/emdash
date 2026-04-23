@@ -136,7 +136,7 @@ export const SYNC_PRS_QUERY = `
 export const INCREMENTAL_SYNC_PRS_QUERY = `
   query incrementalSyncPullRequests($owner: String!, $repo: String!, $cursor: String) {
     repository(owner: $owner, name: $repo) {
-      pullRequests(states: OPEN, first: 50, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+      pullRequests(first: 50, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
         pageInfo { hasNextPage endCursor }
         nodes { ...PrSummaryFields }
       }

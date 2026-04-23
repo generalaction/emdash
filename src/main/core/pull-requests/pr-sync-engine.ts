@@ -409,7 +409,7 @@ export class PrSyncEngine {
         const batch: GqlPrNode[] = [];
 
         for (const node of nodes) {
-          if (node.updatedAt <= sinceUpdatedAt) {
+          if (node.updatedAt < sinceUpdatedAt) {
             reachedBoundary = true;
             break;
           }
