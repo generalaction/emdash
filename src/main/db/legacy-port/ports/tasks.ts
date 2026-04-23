@@ -95,20 +95,12 @@ export function portTasks({ appDb, legacyDb, remap }: PortContext): TaskPortResu
 
     if (!legacyTaskId || !legacyProjectId) {
       summary.skippedInvalid += 1;
-      log.warn('legacy-port: tasks: skipping invalid row (missing id/project_id)', {
-        legacyTaskId,
-        legacyProjectId,
-      });
       continue;
     }
 
     const mappedProjectId = remap.projectId.get(legacyProjectId);
     if (!mappedProjectId) {
       summary.skippedError += 1;
-      log.warn('legacy-port: tasks: skipping row with unresolved project remap', {
-        legacyTaskId,
-        legacyProjectId,
-      });
       continue;
     }
 

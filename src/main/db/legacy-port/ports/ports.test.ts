@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createRemapTables } from '../remap';
@@ -118,9 +121,13 @@ function createLegacyDb(): Database.Database {
 
 describe('legacy-port table passes', () => {
   const openDbs: Database.Database[] = [];
+  const tempDirs: string[] = [];
 
   afterEach(() => {
     for (const db of openDbs.splice(0)) db.close();
+    for (const dir of tempDirs.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('ports with dedup + remap and skips merged-task conversations', () => {
@@ -286,6 +293,176 @@ describe('legacy-port table passes', () => {
         project_id: mappedSshProjectId!,
         title: 'New conversation',
       },
+    ]);
+  });
+
+  it('uses claude legacy resume uuid from pty-session-map and falls back to legacy id', () => {
+    const appDb = createAppDb();
+    const legacyDb = createLegacyDb();
+    openDbs.push(appDb, legacyDb);
+
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-port-conv-'));
+    tempDirs.push(userDataDir);
+
+    const mappedChatUuid = '6ba95736-36d7-401e-9ef6-01655fb9162a';
+    const mappedMainUuid = '08973564-c91f-4de8-a4df-a8f31e84c95f';
+    const collisionUuid = '7f27294f-b8bf-4d9e-b8ac-c6f3f8575970';
+    const mappedOptimisticUuid = '1a834cde-bb43-41e6-bdcf-f955a498ce96';
+
+    fs.writeFileSync(
+      path.join(userDataDir, 'pty-session-map.json'),
+      JSON.stringify({
+        'claude-chat-conv-legacy-chat': { uuid: mappedChatUuid },
+        'claude-main-task-legacy-main': { uuid: mappedMainUuid },
+        'claude-main-optimistic-1776065416593': { uuid: mappedOptimisticUuid },
+        'claude-chat-conv-legacy-invalid': { uuid: 'not-a-uuid' },
+        'claude-chat-conv-legacy-collision': { uuid: collisionUuid },
+      }),
+      'utf8'
+    );
+
+    appDb
+      .prepare(
+        `INSERT INTO projects (id, name, path, workspace_provider, base_ref) VALUES (?, ?, ?, ?, ?)`
+      )
+      .run('proj-existing', 'Existing Project', '/existing/repo', 'local', 'main');
+    appDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, source_branch, task_branch) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-existing',
+        'proj-existing',
+        'Existing Task',
+        'todo',
+        JSON.stringify({ type: 'local', branch: 'main' }),
+        'feature/existing'
+      );
+    appDb
+      .prepare(
+        `INSERT INTO conversations (id, project_id, task_id, title, provider) VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(collisionUuid, 'proj-existing', 'task-existing', 'Existing Conversation', 'claude');
+
+    legacyDb
+      .prepare(
+        `INSERT INTO projects (id, name, path, base_ref, is_remote, remote_path, ssh_connection_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run('proj-legacy-claude', 'Legacy Claude', '/legacy/repo', 'main', 0, null, null);
+
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-chat',
+        'proj-legacy-claude',
+        'Legacy Task Chat',
+        'running',
+        'feature/legacy-chat',
+        '2026-01-03T12:00:00.000Z'
+      );
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-main',
+        'proj-legacy-claude',
+        'Legacy Task Main',
+        'running',
+        'feature/legacy-main',
+        '2026-01-03T12:00:00.000Z'
+      );
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-invalid',
+        'proj-legacy-claude',
+        'Legacy Task Invalid',
+        'running',
+        'feature/legacy-invalid',
+        '2026-01-03T12:00:00.000Z'
+      );
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-collision',
+        'proj-legacy-claude',
+        'Legacy Task Collision',
+        'running',
+        'feature/legacy-collision',
+        '2026-01-03T12:00:00.000Z'
+      );
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-wt',
+        'proj-legacy-claude',
+        'Legacy Task WT',
+        'running',
+        'feature/legacy-wt',
+        '2026-01-03T12:00:00.000Z'
+      );
+
+    legacyDb
+      .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
+      .run('conv-legacy-chat', 'task-legacy-chat', 'Legacy Claude Chat', 'claude');
+    legacyDb
+      .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
+      .run('conv-legacy-main', 'task-legacy-main', 'Legacy Claude Main', 'claude');
+    legacyDb
+      .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
+      .run('conv-legacy-invalid', 'task-legacy-invalid', 'Legacy Claude Invalid', 'claude');
+    legacyDb
+      .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
+      .run('conv-legacy-collision', 'task-legacy-collision', 'Legacy Claude Collision', 'claude');
+    legacyDb
+      .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
+      .run(
+        'conv-wt-legacy-wt-1776065417596',
+        'task-legacy-wt',
+        'Legacy Claude Optimistic Alias',
+        'claude'
+      );
+    legacyDb
+      .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
+      .run('conv-legacy-codex', 'task-legacy-chat', 'Legacy Codex Conversation', 'codex');
+
+    const remap = createRemapTables();
+    portSshConnections({ appDb, legacyDb, remap });
+    portProjects({ appDb, legacyDb, remap });
+    const taskResult = portTasks({ appDb, legacyDb, remap });
+
+    const conversationsSummary = portConversations({
+      appDb,
+      legacyDb,
+      remap,
+      mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
+      userDataPath: userDataDir,
+    });
+
+    expect(conversationsSummary.inserted).toBe(6);
+
+    const inserted = appDb
+      .prepare(
+        `SELECT id, title, provider FROM conversations WHERE title LIKE 'Legacy %' ORDER BY title ASC`
+      )
+      .all() as Array<{ id: string; title: string; provider: string | null }>;
+
+    expect(inserted).toEqual([
+      { id: mappedChatUuid, title: 'Legacy Claude Chat', provider: 'claude' },
+      { id: 'conv-legacy-collision', title: 'Legacy Claude Collision', provider: 'claude' },
+      { id: 'conv-legacy-invalid', title: 'Legacy Claude Invalid', provider: 'claude' },
+      { id: mappedMainUuid, title: 'Legacy Claude Main', provider: 'claude' },
+      { id: mappedOptimisticUuid, title: 'Legacy Claude Optimistic Alias', provider: 'claude' },
+      { id: 'conv-legacy-codex', title: 'Legacy Codex Conversation', provider: 'codex' },
     ]);
   });
 });

@@ -91,6 +91,7 @@ export async function runLegacyPort(
       legacyDb,
       remap,
       mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
+      userDataPath,
     });
 
     logSummary(sshSummary);
