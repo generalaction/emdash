@@ -46,6 +46,7 @@ export class ProvisionedTask {
   readonly path: string;
   readonly workspaceId: string;
 
+  private readonly _taskStore: TaskStore;
   private _snapshotDisposer: (() => void) | null = null;
 
   get snapshot(): TaskViewSnapshot {
@@ -57,11 +58,13 @@ export class ProvisionedTask {
   }
 
   constructor(
-    taskData: Task,
+    taskStore: TaskStore,
     path: string,
     repositoryStore: RepositoryStore,
     savedSnapshot?: TaskViewSnapshot
   ) {
+    this._taskStore = taskStore;
+    const taskData = taskStore.data as Task;
     this._taskData = taskData;
     this.path = path;
     this.workspaceId = workspaceKey(taskData.taskBranch);
@@ -70,8 +73,7 @@ export class ProvisionedTask {
     this.workspace = workspaceRegistry.acquire(
       taskData.projectId,
       this.workspaceId,
-      taskData.id,
-      taskData.taskBranch ?? undefined,
+      taskStore,
       repositoryStore
     );
     this.devServers = new DevServerStore(taskData.id, this.workspaceId);
@@ -111,7 +113,7 @@ export class ProvisionedTask {
   dispose(): void {
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
-    workspaceRegistry.release(this._taskData.projectId, this.workspaceId);
+    workspaceRegistry.release(this._taskData.projectId, this.workspaceId, this._taskStore);
     this.devServers.dispose();
     this.draftComments.dispose();
     this.taskView.dispose();
@@ -163,12 +165,7 @@ export class TaskStore {
     savedSnapshot?: TaskViewSnapshot
   ): void {
     this.data = data;
-    this.provisionedTask = new ProvisionedTask(
-      this.data as Task,
-      path,
-      repositoryStore,
-      savedSnapshot
-    );
+    this.provisionedTask = new ProvisionedTask(this, path, repositoryStore, savedSnapshot);
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;

@@ -215,7 +215,7 @@ export function PullRequestEntry({ pr }: { pr: PullRequest }) {
 
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col border-t border-border')}>
-      <div className="flex flex-col gap-3 p-2.5 w-full">
+      <div className="flex flex-col gap-2 p-2.5 w-full">
         <div className="flex items-center gap-2 justify-between">
           <button
             className="flex gap-2 items-center min-w-0"
