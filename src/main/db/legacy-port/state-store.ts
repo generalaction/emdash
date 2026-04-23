@@ -1,4 +1,3 @@
-import { KV } from '../kv';
 import type { LegacyPortStateStore } from './service';
 
 type LegacyPortKvSchema = {
@@ -6,6 +5,7 @@ type LegacyPortKvSchema = {
 };
 
 export async function createLegacyPortStateStore(): Promise<LegacyPortStateStore> {
+  const { KV } = await import('../kv');
   const kv = new KV<LegacyPortKvSchema>('legacyPort');
 
   return {

@@ -44,6 +44,36 @@ function readSecret(appSqlite: Database.Database, key: string): string | null {
   return row?.secret ?? null;
 }
 
+function upsertKv(
+  appSqlite: Database.Database,
+  namespace: string,
+  key: string,
+  value: unknown
+): void {
+  appSqlite
+    .prepare(
+      `
+        INSERT INTO kv (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE
+        SET value = excluded.value, updated_at = excluded.updated_at
+      `
+    )
+    .run(`${namespace}:${key}`, JSON.stringify(value), Date.now());
+}
+
+function upsertSecret(appSqlite: Database.Database, key: string, secret: string): void {
+  appSqlite
+    .prepare(
+      `
+        INSERT INTO app_secrets (key, secret)
+        VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET secret = excluded.secret
+      `
+    )
+    .run(key, secret);
+}
+
 describe('portLegacyAuthState', () => {
   const tempDirs: string[] = [];
   const openDbs: Database.Database[] = [];
@@ -107,6 +137,14 @@ describe('portLegacyAuthState', () => {
       readLegacySecret: async (service, account) => secretMap.get(`${service}:${account}`) ?? null,
       encryptSecret: (secret) => Buffer.from(`enc:${secret}`, 'utf8').toString('base64'),
       legacyToAppSshConnectionId: new Map([['legacy-ssh-1', 'ssh-app-1']]),
+      writeKv: async (namespace, key, value) => {
+        upsertKv(appSqlite, namespace, key, value);
+      },
+      secretsStore: {
+        async setEncryptedSecret(key, encryptedSecret) {
+          upsertSecret(appSqlite, key, encryptedSecret);
+        },
+      },
     });
 
     expect(summary.importedSecrets).toEqual([
@@ -169,6 +207,14 @@ describe('portLegacyAuthState', () => {
       readLegacySecret: async () => null,
       encryptSecret: (secret) => Buffer.from(secret, 'utf8').toString('base64'),
       legacyToAppSshConnectionId: new Map([['legacy-ssh-1', 'ssh-app-1']]),
+      writeKv: async (namespace, key, value) => {
+        upsertKv(appSqlite, namespace, key, value);
+      },
+      secretsStore: {
+        async setEncryptedSecret(key, encryptedSecret) {
+          upsertSecret(appSqlite, key, encryptedSecret);
+        },
+      },
     });
 
     expect(summary.importedSecrets).toEqual([]);
@@ -208,6 +254,14 @@ describe('portLegacyAuthState', () => {
       readLegacySecret: async (service, account) => secretMap.get(`${service}:${account}`) ?? null,
       encryptSecret: (secret) => Buffer.from(`enc:${secret}`, 'utf8').toString('base64'),
       legacyToAppSshConnectionId: new Map([['legacy-ssh-1', 'ssh-app-1']]),
+      writeKv: async (namespace, key, value) => {
+        upsertKv(appSqlite, namespace, key, value);
+      },
+      secretsStore: {
+        async setEncryptedSecret(key, encryptedSecret) {
+          upsertSecret(appSqlite, key, encryptedSecret);
+        },
+      },
     });
 
     expect(summary.importedSshPasswords).toBe(0);

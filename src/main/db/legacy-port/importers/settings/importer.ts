@@ -4,7 +4,6 @@ import type Database from 'better-sqlite3';
 import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
-import { SettingsStore } from '@main/core/settings/settings-service';
 import { isPlainObject, mergeDeep } from '@main/core/settings/utils';
 import type { RelationalImportDb } from '../relational/types';
 
@@ -18,6 +17,10 @@ export type LegacySettingsPortSummary = {
 export type PortLegacySettingsOptions = {
   appDb: RelationalImportDb;
   appSqlite: Database.Database;
+  settingsStore?: {
+    get<K extends AppSettingsKey>(key: K): Promise<AppSettings[K]>;
+    update<K extends AppSettingsKey>(key: K, value: AppSettings[K]): Promise<void>;
+  };
 };
 
 type LegacyTheme = 'light' | 'dark' | 'dark-black' | 'system';
@@ -49,7 +52,7 @@ function readBoolean(value: unknown): boolean | null {
 }
 
 async function updateObjectSetting<K extends AppSettingsKey>(
-  settingsStore: SettingsStore,
+  settingsStore: NonNullable<PortLegacySettingsOptions['settingsStore']>,
   key: K,
   patch: Record<string, unknown>
 ): Promise<void> {
@@ -68,7 +71,7 @@ async function updateObjectSetting<K extends AppSettingsKey>(
 }
 
 async function updateScalarSetting<K extends AppSettingsKey>(
-  settingsStore: SettingsStore,
+  settingsStore: NonNullable<PortLegacySettingsOptions['settingsStore']>,
   key: K,
   nextValue: AppSettings[K]
 ): Promise<void> {
@@ -111,7 +114,9 @@ export async function portLegacySettings(
     return summary;
   }
 
-  const settingsStore = new SettingsStore(appDb);
+  const settingsStore =
+    options.settingsStore ??
+    new (await import('@main/core/settings/settings-service')).SettingsStore(appDb);
   const repository = isPlainObject(legacyRaw.repository) ? legacyRaw.repository : null;
   if (repository) {
     const patch: Record<string, unknown> = {};

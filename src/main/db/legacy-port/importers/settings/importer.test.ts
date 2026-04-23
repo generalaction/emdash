@@ -3,6 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
+import { getDefaultForKey } from '@main/core/settings/settings-registry';
+import { computeDelta, isDeepEqual, isPlainObject, mergeDeep } from '@main/core/settings/utils';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { portLegacySettings } from './importer';
 
@@ -30,6 +33,69 @@ function readRawSetting(appSqlite: Database.Database, key: string): unknown | nu
     | undefined;
   if (!row) return null;
   return JSON.parse(row.value) as unknown;
+}
+
+function upsertRawSetting(appSqlite: Database.Database, key: string, value: unknown): void {
+  appSqlite
+    .prepare(
+      `
+        INSERT INTO app_settings (key, value)
+        VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `
+    )
+    .run(key, JSON.stringify(value));
+}
+
+function deleteRawSetting(appSqlite: Database.Database, key: string): void {
+  appSqlite.prepare('DELETE FROM app_settings WHERE key = ?').run(key);
+}
+
+function createSettingsStoreStub(appSqlite: Database.Database): {
+  get<K extends AppSettingsKey>(key: K): Promise<AppSettings[K]>;
+  update<K extends AppSettingsKey>(key: K, value: AppSettings[K]): Promise<void>;
+} {
+  return {
+    async get<K extends AppSettingsKey>(key: K): Promise<AppSettings[K]> {
+      const defaults = getDefaultForKey(key);
+      const raw = readRawSetting(appSqlite, key);
+
+      if (raw === null || raw === undefined) {
+        return defaults;
+      }
+
+      if (isPlainObject(raw) && isPlainObject(defaults)) {
+        return mergeDeep(defaults as Record<string, unknown>, raw) as AppSettings[K];
+      }
+
+      return raw as AppSettings[K];
+    },
+    async update<K extends AppSettingsKey>(key: K, value: AppSettings[K]): Promise<void> {
+      const defaults = getDefaultForKey(key);
+
+      if (isPlainObject(value) && isPlainObject(defaults)) {
+        const delta = computeDelta(
+          value as Record<string, unknown>,
+          defaults as Record<string, unknown>
+        );
+
+        if (Object.keys(delta).length === 0) {
+          deleteRawSetting(appSqlite, key);
+        } else {
+          upsertRawSetting(appSqlite, key, delta);
+        }
+
+        return;
+      }
+
+      if (isDeepEqual(value, defaults)) {
+        deleteRawSetting(appSqlite, key);
+        return;
+      }
+
+      upsertRawSetting(appSqlite, key, value);
+    },
+  };
 }
 
 describe('portLegacySettings', () => {
@@ -106,7 +172,11 @@ describe('portLegacySettings', () => {
       .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)')
       .run('providerConfigs', JSON.stringify({ codex: { defaultArgs: ['--legacy-arg'] } }));
 
-    const summary = await portLegacySettings(userDataDir, { appDb, appSqlite });
+    const summary = await portLegacySettings(userDataDir, {
+      appDb,
+      appSqlite,
+      settingsStore: createSettingsStoreStub(appSqlite),
+    });
 
     expect(summary.imported).toEqual([
       'localProject.branchPrefix',
@@ -170,7 +240,11 @@ describe('portLegacySettings', () => {
     const { appSqlite, appDb } = createSettingsDb();
     openDbs.push(appSqlite);
 
-    const summary = await portLegacySettings(userDataDir, { appDb, appSqlite });
+    const summary = await portLegacySettings(userDataDir, {
+      appDb,
+      appSqlite,
+      settingsStore: createSettingsStoreStub(appSqlite),
+    });
     expect(summary.imported).toEqual([]);
     expect(summary.skipped).toContain('settings:missing-or-invalid-json');
   });

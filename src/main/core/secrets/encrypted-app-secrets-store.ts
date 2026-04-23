@@ -1,26 +1,17 @@
 import { eq } from 'drizzle-orm';
 import { safeStorage } from 'electron';
-import type { AppDb } from '@main/db/client';
+import { db as appDb } from '@main/db/client';
 import { appSecrets } from '@main/db/schema';
 
 export class EncryptedAppSecretsStore {
   constructor(
-    private readonly database?: AppDb,
+    private readonly db = appDb,
     private readonly safeStorageApi = safeStorage,
     private readonly platform: NodeJS.Platform = process.platform
   ) {}
 
-  private async getDatabase(): Promise<AppDb> {
-    if (this.database) {
-      return this.database;
-    }
-
-    return (await import('@main/db/client')).db;
-  }
-
   async getSecret(key: string): Promise<string | null> {
-    const database = await this.getDatabase();
-    const rows = await database
+    const rows = await this.db
       .select({ secret: appSecrets.secret })
       .from(appSecrets)
       .where(eq(appSecrets.key, key))
@@ -43,8 +34,7 @@ export class EncryptedAppSecretsStore {
   }
 
   async setEncryptedSecret(key: string, encryptedSecret: string): Promise<void> {
-    const database = await this.getDatabase();
-    await database
+    await this.db
       .insert(appSecrets)
       .values({
         key: key,
@@ -55,8 +45,7 @@ export class EncryptedAppSecretsStore {
   }
 
   async deleteSecret(key: string): Promise<void> {
-    const database = await this.getDatabase();
-    await database.delete(appSecrets).where(eq(appSecrets.key, key));
+    await this.db.delete(appSecrets).where(eq(appSecrets.key, key));
   }
 
   private assertSecureStorageAvailable(): void {

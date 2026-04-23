@@ -4,9 +4,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
-import { EncryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
-import { KV } from '@main/db/kv';
-import { appSecrets } from '@main/db/schema';
+import { appSecrets, kv } from '@main/db/schema';
 import type { RelationalImportDb } from '../relational/types';
 
 const execFileAsync = promisify(execFile);
@@ -49,6 +47,10 @@ export type PortLegacyAuthStateOptions = {
   legacyToAppSshConnectionId?: ReadonlyMap<string, string>;
   readLegacySecret?: LegacySecretReader;
   encryptSecret?: LegacySecretEncryptor;
+  writeKv?: (namespace: string, key: string, value: unknown) => Promise<void>;
+  secretsStore?: {
+    setEncryptedSecret(key: string, encryptedSecret: string): Promise<void>;
+  };
 };
 
 export type LegacyAuthPortSummary = {
@@ -313,6 +315,22 @@ export async function portLegacyAuthState(
 
   const readLegacySecret = options.readLegacySecret ?? defaultReadLegacySecret;
   const encryptSecret = options.encryptSecret ?? (await createDefaultEncryptor());
+  const writeKv =
+    options.writeKv ??
+    (async (namespace: string, key: string, value: unknown) => {
+      const namespaceKey = `${namespace}:${key}`;
+      const serialized = JSON.stringify(value);
+      const now = Date.now();
+
+      await appDb
+        .insert(kv)
+        .values({ key: namespaceKey, value: serialized, updatedAt: now })
+        .onConflictDoUpdate({
+          target: kv.key,
+          set: { value: serialized, updatedAt: now },
+        })
+        .execute();
+    });
 
   const secretWrites: SecretWrite[] = [];
   const kvWrites: KvWrite[] = [];
@@ -450,15 +468,20 @@ export async function portLegacyAuthState(
     return summary;
   }
 
-  const secretsStore = hasSecretsTable ? new EncryptedAppSecretsStore(appDb) : null;
+  const secretsStore =
+    options.secretsStore ??
+    (hasSecretsTable
+      ? new (
+          await import('@main/core/secrets/encrypted-app-secrets-store')
+        ).EncryptedAppSecretsStore(appDb)
+      : null);
 
   for (const row of secretWrites) {
     await secretsStore?.setEncryptedSecret(row.key, row.encryptedSecret);
   }
 
   for (const row of kvWrites) {
-    const namespaceKv = new KV<Record<string, unknown>>(row.namespace, appDb);
-    await namespaceKv.set(row.key, row.value);
+    await writeKv(row.namespace, row.key, row.value);
   }
 
   return summary;
