@@ -4,6 +4,7 @@ import { log } from '@main/lib/logger';
 import {
   isUniqueConstraintError,
   readLegacyRows,
+  toInteger,
   toIsoTimestamp,
   toTrimmedString,
 } from './helpers';
@@ -25,6 +26,37 @@ function coerceTaskStatus(
   if (normalized === 'done' || normalized === 'completed') return 'done';
   if (normalized === 'cancelled') return 'cancelled';
   return 'todo';
+}
+
+function inferLegacyTaskLayout(args: {
+  branch: string | undefined;
+  taskPath: string | undefined;
+  legacyProjectPath: string | undefined;
+  useWorktree: number | undefined;
+}): { sourceBranch: { type: 'local'; branch: string } | null; taskBranch: string | null } {
+  const { branch, taskPath, legacyProjectPath, useWorktree } = args;
+
+  if (!branch) return { sourceBranch: null, taskBranch: null };
+
+  if (useWorktree === 0) {
+    return {
+      sourceBranch: { type: 'local', branch },
+      taskBranch: null,
+    };
+  }
+
+  if (useWorktree === 1) {
+    return { sourceBranch: null, taskBranch: branch };
+  }
+
+  if (taskPath && legacyProjectPath && taskPath === legacyProjectPath) {
+    return {
+      sourceBranch: { type: 'local', branch },
+      taskBranch: null,
+    };
+  }
+
+  return { sourceBranch: null, taskBranch: branch };
 }
 
 export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promise<TaskPortResult> {
@@ -51,12 +83,25 @@ export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promis
     }
   }
 
+  const legacyProjectRows = readLegacyRows(legacyDb, 'projects', ['id', 'path']);
+  const legacyProjectPathById = new Map<string, string>();
+
+  for (const row of legacyProjectRows) {
+    const legacyProjectId = toTrimmedString(row.id);
+    const legacyProjectPath = toTrimmedString(row.path);
+    if (legacyProjectId && legacyProjectPath) {
+      legacyProjectPathById.set(legacyProjectId, legacyProjectPath);
+    }
+  }
+
   const legacyRows = readLegacyRows(legacyDb, 'tasks', [
     'id',
     'project_id',
     'name',
     'status',
     'branch',
+    'path',
+    'use_worktree',
     'archived_at',
     'created_at',
     'updated_at',
@@ -79,7 +124,17 @@ export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promis
       continue;
     }
 
-    const taskBranch = toTrimmedString(row.branch);
+    const branch = toTrimmedString(row.branch);
+    const taskPath = toTrimmedString(row.path);
+    const useWorktree = toInteger(row.use_worktree);
+    const legacyProjectPath = legacyProjectPathById.get(legacyProjectId);
+    const { sourceBranch, taskBranch } = inferLegacyTaskLayout({
+      branch,
+      taskPath,
+      legacyProjectPath,
+      useWorktree,
+    });
+
     if (taskBranch) {
       const existingTaskId = branchKeyToTaskId.get(`${mappedProjectId}::${taskBranch}`);
       if (existingTaskId) {
@@ -98,9 +153,9 @@ export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promis
     const insertValues = {
       id: nextTaskId,
       projectId: mappedProjectId,
-      name: toTrimmedString(row.name) ?? taskBranch ?? `Legacy Task ${legacyTaskId.slice(0, 8)}`,
+      name: toTrimmedString(row.name) ?? branch ?? `Legacy Task ${legacyTaskId.slice(0, 8)}`,
       status: coerceTaskStatus(toTrimmedString(row.status)),
-      sourceBranch: null,
+      sourceBranch,
       taskBranch: taskBranch ?? null,
       archivedAt: toTrimmedString(row.archived_at) ?? null,
       createdAt,

@@ -304,6 +304,155 @@ describe('legacy-port table passes', () => {
     ]);
   });
 
+  it('imports direct legacy tasks as source-branch-only when use_worktree is false', async () => {
+    const { appSqlite, appDb } = createAppDb();
+    const legacyDb = createLegacyDb();
+    openDbs.push(appSqlite, legacyDb);
+
+    legacyDb.exec(`
+      ALTER TABLE tasks ADD COLUMN path TEXT;
+      ALTER TABLE tasks ADD COLUMN use_worktree INTEGER;
+    `);
+
+    legacyDb
+      .prepare(
+        `INSERT INTO projects (id, name, path, base_ref, is_remote, remote_path, ssh_connection_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run('proj-legacy-local', 'Legacy Local', '/work/repo', 'main', 0, null, null);
+
+    const remap = createRemapTables();
+    const projectsSummary = await portProjects({ appDb, legacyDb, remap });
+    expect(projectsSummary.inserted).toBe(1);
+
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, path, use_worktree, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-direct',
+        'proj-legacy-local',
+        'Legacy Direct Task',
+        'idle',
+        'main',
+        '/work/repo',
+        0,
+        '2026-01-04T12:00:00.000Z'
+      );
+
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, path, use_worktree, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-worktree',
+        'proj-legacy-local',
+        'Legacy Worktree Task',
+        'running',
+        'feature/worktree',
+        '/work/worktrees/feature-worktree',
+        1,
+        '2026-01-05T12:00:00.000Z'
+      );
+
+    const taskResult = await portTasks({ appDb, legacyDb, remap });
+    expect(taskResult.summary.inserted).toBe(2);
+
+    const insertedTasks = appSqlite
+      .prepare(
+        `SELECT id, source_branch, task_branch FROM tasks WHERE id IN (?, ?) ORDER BY id ASC`
+      )
+      .all('task-legacy-direct', 'task-legacy-worktree') as Array<{
+      id: string;
+      source_branch: string | null;
+      task_branch: string | null;
+    }>;
+
+    expect(insertedTasks).toEqual([
+      {
+        id: 'task-legacy-direct',
+        source_branch: JSON.stringify({ type: 'local', branch: 'main' }),
+        task_branch: null,
+      },
+      {
+        id: 'task-legacy-worktree',
+        source_branch: null,
+        task_branch: 'feature/worktree',
+      },
+    ]);
+  });
+
+  it('falls back to comparing task path with project path when use_worktree is missing', async () => {
+    const { appSqlite, appDb } = createAppDb();
+    const legacyDb = createLegacyDb();
+    openDbs.push(appSqlite, legacyDb);
+
+    legacyDb.exec(`ALTER TABLE tasks ADD COLUMN path TEXT;`);
+
+    legacyDb
+      .prepare(
+        `INSERT INTO projects (id, name, path, base_ref, is_remote, remote_path, ssh_connection_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run('proj-legacy-local', 'Legacy Local', '/work/repo', 'main', 0, null, null);
+
+    const remap = createRemapTables();
+    const projectsSummary = await portProjects({ appDb, legacyDb, remap });
+    expect(projectsSummary.inserted).toBe(1);
+
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, path, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-direct',
+        'proj-legacy-local',
+        'Legacy Direct Task',
+        'idle',
+        'develop',
+        '/work/repo',
+        '2026-01-06T12:00:00.000Z'
+      );
+
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, path, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-worktree',
+        'proj-legacy-local',
+        'Legacy Worktree Task',
+        'running',
+        'feature/fallback-worktree',
+        '/work/worktrees/feature-fallback-worktree',
+        '2026-01-07T12:00:00.000Z'
+      );
+
+    const taskResult = await portTasks({ appDb, legacyDb, remap });
+    expect(taskResult.summary.inserted).toBe(2);
+
+    const insertedTasks = appSqlite
+      .prepare(
+        `SELECT id, source_branch, task_branch FROM tasks WHERE id IN (?, ?) ORDER BY id ASC`
+      )
+      .all('task-legacy-direct', 'task-legacy-worktree') as Array<{
+      id: string;
+      source_branch: string | null;
+      task_branch: string | null;
+    }>;
+
+    expect(insertedTasks).toEqual([
+      {
+        id: 'task-legacy-direct',
+        source_branch: JSON.stringify({ type: 'local', branch: 'develop' }),
+        task_branch: null,
+      },
+      {
+        id: 'task-legacy-worktree',
+        source_branch: null,
+        task_branch: 'feature/fallback-worktree',
+      },
+    ]);
+  });
+
   it('uses claude legacy resume uuid from pty-session-map and falls back to legacy id', async () => {
     const { appSqlite, appDb } = createAppDb();
     const legacyDb = createLegacyDb();
