@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Octokit } from '@octokit/rest';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, lt, ne } from 'drizzle-orm';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import type {
   MergeableState,
@@ -37,15 +37,13 @@ import { githubRateLimiter } from '@main/lib/rate-limiter';
 import { withRetry } from '@main/lib/retry';
 import { assemblePullRequest } from './pr-utils';
 
-const PR_SYNC_MAX_AGE_MONTHS = 3;
 const PR_SYNC_MAX_COUNT = 300;
+const PR_ARCHIVE_AGE_MONTHS = 6;
 
 type FullSyncCursor = {
   /** The `updatedAt` of the last PR we have seen (pagination cursor). */
   lastUpdatedAt: string;
-  /** Fixed at sync-start; we stop when we reach this age boundary. */
-  updatedAtCutoff: string;
-  /** true once we have reached either the cutoff or the beginning of history. */
+  /** true once we have reached the count limit or the beginning of history. */
   done: boolean;
   /** GraphQL page cursor from the last completed page. */
   pageCursor?: string;
@@ -247,19 +245,9 @@ export class PrSyncEngine {
       throw e;
     });
 
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - PR_SYNC_MAX_AGE_MONTHS);
-    const updatedAtCutoff = cutoff.toISOString();
-
     // Resume from an existing cursor if available
     const existing = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
     let pageCursor: string | undefined = existing?.done ? undefined : existing?.pageCursor;
-    const resuming = !!existing && !existing.done;
-
-    // If resuming, use the same cutoff; otherwise start fresh
-    const effectiveCutoff = resuming
-      ? (existing?.updatedAtCutoff ?? updatedAtCutoff)
-      : updatedAtCutoff;
 
     let synced = 0;
 
@@ -286,16 +274,7 @@ export class PrSyncEngine {
         );
 
         const { nodes, pageInfo, totalCount } = response.repository.pullRequests;
-        let reachedBoundary = false;
-        const batch: GqlPrNode[] = [];
-
-        for (const node of nodes) {
-          if (node.updatedAt < effectiveCutoff) {
-            reachedBoundary = true;
-            break;
-          }
-          batch.push(node);
-        }
+        const batch: GqlPrNode[] = nodes.slice();
 
         if (batch.length > 0) {
           await this._upsertBatch(repositoryUrl, batch);
@@ -304,11 +283,10 @@ export class PrSyncEngine {
 
         const lastUpdatedAt =
           batch[batch.length - 1]?.updatedAt ?? existing?.lastUpdatedAt ?? new Date().toISOString();
-        const done = reachedBoundary || !pageInfo.hasNextPage || synced >= PR_SYNC_MAX_COUNT;
+        const done = !pageInfo.hasNextPage || synced >= PR_SYNC_MAX_COUNT;
 
         await this.kv.set(`fullsync:${repositoryUrl}`, {
           lastUpdatedAt,
-          updatedAtCutoff: effectiveCutoff,
           done,
           pageCursor: done ? undefined : (pageInfo.endCursor ?? undefined),
         } as FullSyncCursor);
@@ -325,6 +303,7 @@ export class PrSyncEngine {
         pageCursor = pageInfo.endCursor ?? undefined;
       }
 
+      await this._archiveOldPrs(repositoryUrl);
       this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'done', synced });
     } catch (e: unknown) {
       if ((e as { name?: string })?.name === 'AbortError') {
@@ -420,6 +399,23 @@ export class PrSyncEngine {
           await this._upsertBatch(repositoryUrl, batch);
           synced += batch.length;
           lastUpdatedAt = batch[0].updatedAt; // most recent first
+        }
+
+        // If we've processed too many PRs, the cursor is too stale — reset to a full sync.
+        if (synced >= PR_SYNC_MAX_COUNT) {
+          log.info('PrSyncEngine: incremental overflow — resetting to full sync', {
+            repositoryUrl,
+            synced,
+          });
+          await this.kv.del(`fullsync:${repositoryUrl}`);
+          await this.kv.del(`incrementalsync:${repositoryUrl}`);
+          this._emitProgress({
+            remoteUrl: repositoryUrl,
+            kind: 'incremental',
+            status: 'done',
+            synced,
+          });
+          return;
         }
 
         const done = reachedBoundary || !pageInfo.hasNextPage;
@@ -946,6 +942,24 @@ export class PrSyncEngine {
       .where(eq(pullRequestChecks.pullRequestUrl, node.url));
 
     return assemblePullRequest(prRow, authorRow, labelRows, assigneeRows, checkRows);
+  }
+
+  private async _archiveOldPrs(repositoryUrl: string): Promise<void> {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - PR_ARCHIVE_AGE_MONTHS);
+    const cutoffIso = cutoff.toISOString();
+
+    await db
+      .delete(pullRequests)
+      .where(
+        and(
+          eq(pullRequests.repositoryUrl, repositoryUrl),
+          inArray(pullRequests.status, ['closed', 'merged']),
+          lt(pullRequests.pullRequestUpdatedAt, cutoffIso)
+        )
+      );
+
+    log.info('PrSyncEngine: archived old PRs', { repositoryUrl, cutoffIso });
   }
 
   private _notifyPrUpdated(pr: PullRequest): void {
