@@ -1,5 +1,6 @@
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
+import { quoteShellArg } from '@main/utils/shellEscape';
 
 export type SessionType = 'agent' | 'general' | 'lifecycle';
 export type SessionConfig = AgentSessionConfig | GeneralSessionConfig;
@@ -100,8 +101,9 @@ export function resolveSshCommand(
 
   const innerCmd = command === shell && args[0] === '-c' ? args[1] : [command, ...args].join(' ');
   const envPrefix = envVars ? buildSshEnvPrefix(envVars) : '';
+  const commandString = `cd ${JSON.stringify(cwd)} && ${envPrefix}${innerCmd}`;
 
-  return `cd ${JSON.stringify(cwd)} && ${envPrefix}${innerCmd}`;
+  return `bash -l -c ${quoteShellArg(commandString)}`;
 }
 
 export function buildSshEnvPrefix(vars: Record<string, string>): string {
