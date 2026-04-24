@@ -6,7 +6,6 @@ import { IntegrationsProvider } from './features/integrations/integrations-provi
 import { Onboarding } from './features/onboarding/onboarding';
 import { useAccountSession } from './lib/hooks/useAccount';
 import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
-import { useLocalStorage } from './lib/hooks/useLocalStorage';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
 import { ModalProvider } from './lib/modal/modal-provider';
@@ -19,14 +18,13 @@ import { TooltipProvider } from './lib/ui/tooltip';
 
 export const HAS_SEEN_ONBOARDING = 'emdash:has-seen-onboarding:v1';
 
+type AppView = 'onboarding' | 'welcome' | 'workspace';
 type OnboardingStep = 'sign-in' | 'import';
 
 function AppContent() {
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useLocalStorage(
-    HAS_SEEN_ONBOARDING,
-    false
+  const [view, setView] = useState<AppView>(() =>
+    localStorage.getItem(HAS_SEEN_ONBOARDING) === 'true' ? 'workspace' : 'onboarding'
   );
-  const [showWelcome, setShowWelcome] = useState(false);
 
   const { data: session, isLoading: sessionLoading } = useAccountSession();
   const { data: legacyStatus, isLoading: legacyLoading } = useLegacyPortStatus();
@@ -34,7 +32,7 @@ function AppContent() {
   const isLoading = sessionLoading || legacyLoading;
 
   const stepsNeeded: OnboardingStep[] = [];
-  if (!isLoading && !hasCompletedOnboarding) {
+  if (!isLoading && view === 'onboarding') {
     if (!session?.isSignedIn) {
       stepsNeeded.push('sign-in');
     }
@@ -48,25 +46,22 @@ function AppContent() {
     }
   }
 
+  const handleOnboardingComplete = () => {
+    localStorage.setItem(HAS_SEEN_ONBOARDING, 'true');
+    setView('welcome');
+  };
+
   const renderContent = () => {
     if (isLoading) {
       return null;
     }
-    if (!hasCompletedOnboarding && stepsNeeded.length > 0) {
-      return (
-        <Onboarding
-          steps={stepsNeeded}
-          onComplete={() => {
-            setHasCompletedOnboarding(true);
-            setShowWelcome(true);
-          }}
-        />
-      );
+    if (view === 'onboarding' && stepsNeeded.length > 0) {
+      return <Onboarding steps={stepsNeeded} onComplete={handleOnboardingComplete} />;
     }
     return (
       <>
         <Workspace />
-        {showWelcome && <WelcomeScreen onGetStarted={() => setShowWelcome(false)} />}
+        {view === 'welcome' && <WelcomeScreen onGetStarted={() => setView('workspace')} />}
       </>
     );
   };
