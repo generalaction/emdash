@@ -45,7 +45,7 @@ export const pullRequestController = createRPCController({
       const { eq } = await import('drizzle-orm');
       const { db } = await import('@main/db/client');
       const [taskRow] = await db
-        .select({ taskBranch: tasks.taskBranch, sourceBranch: tasks.sourceBranch })
+        .select({ taskBranch: tasks.taskBranch })
         .from(tasks)
         .where(eq(tasks.id, taskId))
         .limit(1);
@@ -54,13 +54,10 @@ export const pullRequestController = createRPCController({
         return { success: true as const, prs: [], taskBranch: null };
       }
 
-      const sourceBranchName = taskRow.sourceBranch?.branch;
-
       const prs = await prQueryService.getTaskPullRequests(
         projectId,
         taskRow.taskBranch,
-        capability.repositoryUrl,
-        sourceBranchName
+        capability.repositoryUrl
       );
       return { success: true as const, prs, taskBranch: taskRow.taskBranch };
     } catch (error) {

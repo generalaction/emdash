@@ -164,22 +164,13 @@ export class PrQueryService {
   async getTaskPullRequests(
     projectId: string,
     taskBranch: string,
-    repositoryUrl: string,
-    sourceBranchName?: string
+    repositoryUrl: string
   ): Promise<PullRequest[]> {
-    const branches =
-      sourceBranchName && sourceBranchName !== taskBranch
-        ? [taskBranch, sourceBranchName]
-        : [taskBranch];
-
     const rows = await db
       .select()
       .from(pullRequests)
       .where(
-        and(
-          inArray(pullRequests.headRefName, branches),
-          eq(pullRequests.repositoryUrl, repositoryUrl)
-        )
+        and(eq(pullRequests.headRefName, taskBranch), eq(pullRequests.repositoryUrl, repositoryUrl))
       );
 
     return fetchRelated(rows);
