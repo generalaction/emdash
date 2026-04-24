@@ -169,10 +169,14 @@ export const pullRequestController = createRPCController({
       capture('pr_creation_failed', {
         error_type: error instanceof Error ? error.name || 'error' : 'unknown_error',
       });
-      return {
-        success: false as const,
-        error: error instanceof Error ? error.message : 'Unable to create pull request',
-      };
+      const ghErrors = (error as any)?.response?.data?.errors;
+      const message =
+        Array.isArray(ghErrors) && ghErrors[0]?.message
+          ? ghErrors[0].message
+          : error instanceof Error
+            ? error.message
+            : 'Unable to create pull request';
+      return { success: false as const, error: message };
     }
   },
 

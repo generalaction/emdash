@@ -1,4 +1,4 @@
-import { ChevronDown, GitBranch, X } from 'lucide-react';
+import { ChevronDown, CircleAlert, GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Branch } from '@shared/git';
@@ -8,12 +8,11 @@ import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { rpc } from '@renderer/lib/ipc';
-import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { Button } from '@renderer/lib/ui/button';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { Alert, AlertDescription, AlertTitle } from '@renderer/lib/ui/alert';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
-  DialogClose,
   DialogContentArea,
   DialogFooter,
   DialogHeader,
@@ -22,6 +21,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import { Separator } from '@renderer/lib/ui/separator';
+import { SplitButton } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { log } from '@renderer/utils/logger';
 import { resolveInitialBaseBranch } from './base-branch';
@@ -44,14 +44,17 @@ export const CreatePrModal = observer(function CreatePrModal({
   onClose,
 }: Props) {
   const { projectId, taskId } = useTaskViewContext();
-  const showConfirm = useShowModal('confirmActionModal');
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<Branch | undefined>();
   const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const repo = getRepositoryStore(projectId);
   const defaultBranch = repo?.defaultBranch;
   const taskPayload = getRegisteredTaskData(projectId, taskId);
+  const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
+  const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
+  const needsPush = !isOnRemote || aheadCount > 0;
 
   const hasGitHubRemote = Boolean(repositoryUrl);
   const selectedBase =
@@ -62,63 +65,43 @@ export const CreatePrModal = observer(function CreatePrModal({
       defaultBranch
     );
 
-  const doPushAndCreate = async (
-    capturedTitle: string,
-    capturedDescription: string,
-    capturedBase: string
-  ) => {
+  const doCreate = async (push: boolean) => {
+    if (!title.trim() || !repositoryUrl || !selectedBase?.branch) return;
+    setError(null);
     setIsCreating(true);
     try {
-      const pushResult = await rpc.git.push(
-        projectId,
-        workspaceId,
-        repo?.configuredRemote.name ?? 'origin'
-      );
-      if (!pushResult.success) {
-        log.error('Failed to push branch:', pushResult.error);
-        return;
+      if (push) {
+        const pushResult = await rpc.git.push(
+          projectId,
+          workspaceId,
+          repo?.configuredRemote.name ?? 'origin'
+        );
+        if (!pushResult.success) {
+          log.error('Failed to push branch:', pushResult.error);
+          setError(
+            ('message' in pushResult.error && pushResult.error.message) || 'Failed to push branch'
+          );
+          return;
+        }
       }
 
       const result = await rpc.pullRequests.createPullRequest({
         repositoryUrl,
         head: branchName,
-        base: capturedBase,
-        title: capturedTitle,
-        body: capturedDescription || undefined,
+        base: selectedBase.branch,
+        title: title.trim(),
+        body: description.trim() || undefined,
         draft,
       });
 
       if (result.success) {
         onSuccess();
+      } else {
+        setError(result.error);
       }
     } finally {
       setIsCreating(false);
     }
-  };
-
-  const handleCreate = async () => {
-    if (!title.trim() || !repositoryUrl || !selectedBase?.branch) return;
-
-    const capturedTitle = title.trim();
-    const capturedDescription = description.trim();
-    const capturedBase = selectedBase.branch;
-
-    const isPushed = repo?.isBranchOnRemote(branchName) ?? false;
-
-    if (!isPushed) {
-      showConfirm({
-        title: 'Push branch to remote?',
-        description: `"${branchName}" hasn't been pushed yet. It needs to be pushed before opening a pull request.`,
-        confirmLabel: 'Push & Create PR',
-        variant: 'default',
-        onSuccess: () => {
-          void doPushAndCreate(capturedTitle, capturedDescription, capturedBase);
-        },
-      });
-      return;
-    }
-
-    void doPushAndCreate(capturedTitle, capturedDescription, capturedBase);
   };
 
   return (
@@ -183,15 +166,44 @@ export const CreatePrModal = observer(function CreatePrModal({
             />
           </Field>
         </FieldGroup>
+        {error && (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertTitle>Failed to create pull request</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </DialogContentArea>
       <DialogFooter>
-        <ConfirmButton
-          size="sm"
-          onClick={() => void handleCreate()}
-          disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim() || isCreating}
-        >
-          {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
-        </ConfirmButton>
+        {needsPush ? (
+          <SplitButton
+            size="sm"
+            loading={isCreating}
+            loadingLabel="Creating..."
+            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim()}
+            actions={[
+              {
+                value: 'push-and-create',
+                label: draft ? 'Push & Create Draft' : 'Push & Create PR',
+                action: () => void doCreate(true),
+              },
+              {
+                value: 'create-only',
+                label: draft ? 'Create Draft' : 'Create PR',
+                description: 'Skip push and open a PR from the current remote state',
+                action: () => void doCreate(false),
+              },
+            ]}
+          />
+        ) : (
+          <ConfirmButton
+            size="sm"
+            onClick={() => void doCreate(false)}
+            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim() || isCreating}
+          >
+            {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
+          </ConfirmButton>
+        )}
       </DialogFooter>
     </div>
   );

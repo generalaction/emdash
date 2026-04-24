@@ -23,7 +23,6 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const showCreatePrModal = useShowModal('createPrModal');
 
   const hasOpenPr = pullRequests.some((p) => p.status === 'open');
-  const hasUpstream = provisioned.workspace.git.isBranchPublished;
   const isRefreshing = repositoryUrl
     ? (getPrSyncStore(projectId)?.isSyncing(repositoryUrl) ?? false)
     : false;
@@ -34,7 +33,6 @@ export const PullRequestsSection = observer(function PullRequestsSection({
         count={pullRequests.length}
         collapsed={collapsed}
         onToggleCollapsed={onToggleCollapsed}
-        hasUpstream={hasUpstream}
         hasOpenPr={hasOpenPr}
         onCreatePr={
           taskBranch
