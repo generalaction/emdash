@@ -1,8 +1,7 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { LayoutList, Play, Terminal } from 'lucide-react';
+import { LayoutList, Pause, Play, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { TabbedPtyPanel } from '@renderer/features/tasks/tabbed-pty-panel';
@@ -74,11 +73,22 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const handleRunScript = () => {
     const activeScript = lifecycleScriptsMgr?.activeTab;
     if (!activeScript) return;
-    void rpc.terminals.runLifecycleScript({
-      projectId,
-      workspaceId: provisionedTask.workspaceId,
-      type: activeScript.data.type,
-    });
+    activeScript.markRunning();
+    void rpc.terminals
+      .runLifecycleScript({
+        projectId,
+        workspaceId: provisionedTask.workspaceId,
+        type: activeScript.data.type,
+      })
+      .catch(() => {
+        activeScript.markExited();
+      });
+  };
+
+  const handleStopScript = () => {
+    const activeScript = lifecycleScriptsMgr?.activeTab;
+    if (!activeScript) return;
+    void rpc.pty.sendInput(activeScript.session.sessionId, '\x03');
   };
 
   const activeStore = mode === 'terminals' ? terminalTabView : lifecycleScriptsMgr;
@@ -92,12 +102,18 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       <TooltipTrigger>
         <button
           className="size-10 justify-center items-center flex border-l hover:bg-background text-foreground-muted hover:text-foreground"
-          onClick={handleRunScript}
+          onClick={lifecycleScriptsMgr?.activeTab?.isRunning ? handleStopScript : handleRunScript}
         >
-          <Play className="size-4" />
+          {lifecycleScriptsMgr?.activeTab?.isRunning ? (
+            <Pause className="size-4" />
+          ) : (
+            <Play className="size-4" />
+          )}
         </button>
       </TooltipTrigger>
-      <TooltipContent>Run script</TooltipContent>
+      <TooltipContent>
+        {lifecycleScriptsMgr?.activeTab?.isRunning ? 'Stop script' : 'Run script'}
+      </TooltipContent>
     </Tooltip>
   );
 
@@ -203,7 +219,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       }}
       store={store}
       paneId={mode === 'terminals' ? 'terminals' : 'lifecycle-scripts'}
-      getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}
       remoteConnectionId={remoteConnectionId}
       tabBar={tabBar}

@@ -2,6 +2,7 @@ import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createScriptTerminalId } from '@shared/terminals';
 import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 
@@ -17,6 +18,7 @@ export class WorkspaceLifecycleService {
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;
+  private disposed = false;
 
   constructor({
     projectId,
@@ -95,6 +97,13 @@ export class WorkspaceLifecycleService {
       );
     }
 
+    if (exit && !waitForExit) {
+      pty.onExit(() => {
+        if (this.disposed) return;
+        this.prepareLifecycleScript(script, { initialSize });
+      });
+    }
+
     const exitPromise = waitForExit
       ? new Promise<void>((resolve) => {
           events.once(ptyExitChannel, () => resolve(), sessionId);
@@ -123,6 +132,7 @@ export class WorkspaceLifecycleService {
   }
 
   async dispose(): Promise<void> {
+    this.disposed = true;
     await this.terminals.destroyAll();
   }
 }

@@ -57,7 +57,7 @@ const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 export interface UsePtyOptions {
-  /** Deterministic PTY session ID: makePtySessionId(projectId, taskId, conversationId|terminalId) */
+  /** Deterministic PTY session ID: makePtySessionId(projectId, scopeId, leafId). */
   sessionId: string;
   /** Pre-connected FrontendPty instance owned by the entity's PtySession store. */
   pty: FrontendPty;
