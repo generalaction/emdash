@@ -51,6 +51,7 @@ type TelemetryKVSchema = {
 };
 
 const telemetryKV = new KV<TelemetryKVSchema>('telemetry');
+const isViteDevBuild = import.meta.env.DEV;
 
 function getVersionSafe(): string {
   try {
@@ -62,6 +63,7 @@ function getVersionSafe(): string {
 
 function isEnabled(): boolean {
   return (
+    !isViteDevBuild &&
     enabled === true &&
     userOptOut !== true &&
     !!apiKey &&
@@ -276,7 +278,7 @@ async function checkDailyActiveUser(): Promise<void> {
 export async function init(options?: InitOptions): Promise<void> {
   const env = process.env;
   const enabledEnv = (env.TELEMETRY_ENABLED ?? 'true').toString().toLowerCase();
-  enabled = enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';
+  enabled = !isViteDevBuild && enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';
   apiKey =
     env.POSTHOG_PROJECT_API_KEY || (appConfig?.posthogKey as string | undefined) || undefined;
   host = normalizeHost(
@@ -429,7 +431,7 @@ export function isTelemetryEnabled(): boolean {
 export function getTelemetryStatus() {
   return {
     enabled: isEnabled(),
-    envDisabled: !enabled,
+    envDisabled: isViteDevBuild || !enabled,
     userOptOut: userOptOut === true,
     hasKeyAndHost: !!apiKey && !!host,
     onboardingSeen,
