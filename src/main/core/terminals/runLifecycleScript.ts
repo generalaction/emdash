@@ -19,5 +19,5 @@ export async function runLifecycleScript({
   });
   const script = settings.scripts?.[type];
   if (!script) return;
-  await workspace.lifecycleService.runLifecycleScript({ type, script });
+  await workspace.lifecycleService.runLifecycleScript({ type, script }, { exit: true });
 }
