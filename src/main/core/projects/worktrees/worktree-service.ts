@@ -84,7 +84,11 @@ export class WorktreeService {
     return undefined;
   }
 
-  private async resolveSourceBaseRef(sourceBranch: Branch): Promise<string | undefined> {
+  private async resolveSourceBaseRef(
+    sourceBranch: Branch | undefined
+  ): Promise<string | undefined> {
+    if (!sourceBranch) return undefined;
+
     if (sourceBranch.type === 'local') {
       const localRef = `refs/heads/${sourceBranch.branch}`;
       try {
@@ -130,7 +134,7 @@ export class WorktreeService {
   }
 
   async checkoutBranchWorktree(
-    sourceBranch: Branch,
+    sourceBranch: Branch | undefined,
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
     await this.ensureWorktreePoolDirExists();
@@ -138,7 +142,7 @@ export class WorktreeService {
   }
 
   private async doCheckoutBranchWorktree(
-    sourceBranch: Branch,
+    sourceBranch: Branch | undefined,
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
     const checkedOutPath = await this.findCheckedOutPathForBranch(branchName);
@@ -165,7 +169,7 @@ export class WorktreeService {
       if (!localExists) {
         const sourceRef = await this.resolveSourceBaseRef(sourceBranch);
         if (!sourceRef) {
-          return err({ type: 'branch-not-found', branch: sourceBranch.branch });
+          return err({ type: 'branch-not-found', branch: sourceBranch?.branch ?? branchName });
         }
         await this.exec('git', ['branch', '--no-track', branchName, sourceRef], {
           cwd: this.repoPath,

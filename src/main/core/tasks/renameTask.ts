@@ -16,11 +16,11 @@ export async function renameTask(
   if (!project) throw new Error(`Project not found: ${projectId}`);
 
   const oldBranch = row.taskBranch;
-  const sourceBranch = row.sourceBranch;
+  const sourceBranch = row.sourceBranch ?? undefined;
   let newBranch: string | null = null;
 
   if (oldBranch) {
-    if (oldBranch !== sourceBranch.branch) {
+    if (sourceBranch && oldBranch !== sourceBranch.branch) {
       const siblings = await db
         .select({ id: tasks.id })
         .from(tasks)

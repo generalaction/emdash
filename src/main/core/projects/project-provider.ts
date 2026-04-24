@@ -34,7 +34,7 @@ export type ProjectRemoteState = {
 export interface TaskProvider {
   readonly taskId: string;
   readonly taskBranch: string | undefined;
-  readonly sourceBranch: Branch;
+  readonly sourceBranch: Branch | undefined;
   readonly taskEnvVars: Record<string, string>;
   readonly conversations: ConversationProvider;
   readonly terminals: TerminalProvider;
