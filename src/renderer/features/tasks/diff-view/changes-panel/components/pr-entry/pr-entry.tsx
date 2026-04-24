@@ -126,7 +126,8 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const diffView = task.taskView.diffView;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
-  const tab = diffView.prTab;
+  const tab = diffView.effectivePrTab;
+  const isOpen = pr.status === 'open';
 
   const uiState = computeMergeUiState(pr);
 
@@ -191,7 +192,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
             }
           }}
         >
-          <ToggleGroupItem className="flex-1" value="files">
+          <ToggleGroupItem className="flex-1" value="files" disabled={!isOpen}>
             Files
           </ToggleGroupItem>
           <ToggleGroupItem className="flex-1" value="commits">
@@ -207,15 +208,17 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           {tab === 'checks' && <PrChecksList pr={pr} />}
         </div>
       </div>
-      <MergeFooter
-        uiState={uiState}
-        mergeActions={mergeActions}
-        isMerging={isMerging}
-        onRefresh={() => prStore.refresh(pr.url)}
-        onMarkReady={() => {
-          prStore.markReadyForReview(pr.url).catch(() => {});
-        }}
-      />
+      {pr.status === 'open' && (
+        <MergeFooter
+          uiState={uiState}
+          mergeActions={mergeActions}
+          isMerging={isMerging}
+          onRefresh={() => prStore.refresh(pr.url)}
+          onMarkReady={() => {
+            prStore.markReadyForReview(pr.url).catch(() => {});
+          }}
+        />
+      )}
     </div>
   );
 });

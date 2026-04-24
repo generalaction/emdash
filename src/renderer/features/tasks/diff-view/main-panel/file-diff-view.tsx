@@ -77,7 +77,10 @@ export const FileDiffView = observer(function FileDiffView() {
   const modifiedUri = (() => {
     if (!activeFile || !uri) return '';
     if (activeFile.group === 'staged') return modelRegistry.toGitUri(uri, STAGED_REF);
-    if (activeFile.group === 'git' || activeFile.group === 'pr') {
+    if (activeFile.group === 'pr') {
+      return modelRegistry.toGitUri(uri, activeFile.modifiedRef ?? HEAD_REF);
+    }
+    if (activeFile.group === 'git') {
       return modelRegistry.toGitUri(uri, HEAD_REF);
     }
     return modelRegistry.toDiskUri(uri);
@@ -121,8 +124,18 @@ export const FileDiffView = observer(function FileDiffView() {
           activeFile.originalRef
         )
         .catch(() => {});
+      const effectiveModifiedRef =
+        activeFile.group === 'pr' ? (activeFile.modifiedRef ?? HEAD_REF) : HEAD_REF;
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, activeFile.path, language, 'git', HEAD_REF)
+        .registerModel(
+          projectId,
+          workspaceId,
+          root,
+          activeFile.path,
+          language,
+          'git',
+          effectiveModifiedRef
+        )
         .catch(() => {});
     }
     return () => {

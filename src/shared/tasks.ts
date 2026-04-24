@@ -1,5 +1,5 @@
 import { CreateConversationParams } from '@shared/conversations';
-import type { Branch, CreateBranchError, FetchPrRefError, PushError } from '@shared/git';
+import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import { PullRequest } from './pull-requests';
 
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
@@ -49,7 +49,10 @@ export type CreateTaskStrategy =
   | {
       kind: 'from-pull-request';
       prNumber: number;
+      /** The PR's headRefName, used as the local branch name (same as `gh pr checkout`). */
       headBranch: string;
+      headRepositoryUrl: string;
+      isFork: boolean;
       taskBranch?: string;
       pushBranch?: boolean;
     }
@@ -74,7 +77,7 @@ export type CreateTaskError =
   | { type: 'project-not-found' }
   | { type: 'initial-commit-required'; branch: string }
   | { type: 'branch-create-failed'; branch: string; error: CreateBranchError }
-  | { type: 'pr-fetch-failed'; error: FetchPrRefError; remote: string }
+  | { type: 'pr-fetch-failed'; error: FetchPrForReviewError; remote: string }
   | { type: 'branch-not-found'; branch: string }
   | { type: 'worktree-setup-failed'; branch: string; message?: string }
   | { type: 'provision-failed'; message: string };

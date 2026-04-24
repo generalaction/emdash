@@ -46,6 +46,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     makeObservable(this, {
       activeFileOverride: observable,
       activeFile: computed,
+      effectivePrTab: computed,
       diffStyle: observable,
       commitAction: observable,
       prTab: observable,
@@ -59,7 +60,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       reaction(
         () => this.pr.currentPr?.url,
         () => {
-          this.prTab = 'files';
+          this.prTab = this.pr.currentPr?.status === 'open' ? 'files' : 'commits';
         }
       )
     );
@@ -123,6 +124,13 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     }
 
     return null;
+  }
+
+  get effectivePrTab(): 'files' | 'commits' | 'checks' {
+    if (this.pr.currentPr?.status !== 'open' && this.prTab === 'files') {
+      return 'commits';
+    }
+    return this.prTab;
   }
 
   get snapshot(): DiffViewSnapshot {

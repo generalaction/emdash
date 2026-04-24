@@ -40,7 +40,7 @@ export const modalRegistry = {
   mcpServerModal: createModal(McpModal),
   createSkillModal: createModal(CreateSkillModal),
   conflictDialog: createModal(ConflictDialog, { size: 'sm' }),
-  createPrModal: createModal(CreatePrModal, { size: 'lg' }),
+  createPrModal: createModal(CreatePrModal, { size: 'md' }),
   renameTaskModal: createModal(RenameTaskModal, { size: 'xs' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   addRemoteModal: createModal(AddRemoteModal),

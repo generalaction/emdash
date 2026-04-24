@@ -9,7 +9,7 @@ import {
   type GitChange,
   type GitObjectRef,
 } from '@shared/git';
-import { selectCurrentPr, type PullRequest } from '@shared/pull-requests';
+import { isForkPr, ownerFromUrl, selectCurrentPr, type PullRequest } from '@shared/pull-requests';
 import type { Task } from '@shared/tasks';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -30,7 +30,10 @@ function prNumberFromIdentifier(identifier: string | null): number | null {
 export class PrStore {
   readonly commitHistory: Resource<{ commits: Commit[]; aheadCount: number }>;
 
-  private readonly _prFiles = new Map<string, Resource<GitChange[]>>();
+  private readonly _prFiles = new Map<
+    string,
+    { resource: Resource<GitChange[]>; headRefOid: string }
+  >();
 
   constructor(
     private readonly projectId: string,
@@ -81,6 +84,11 @@ export class PrStore {
 
   getFiles(pr: PullRequest): Resource<GitChange[]> {
     const key = pr.url;
+    const existing = this._prFiles.get(key);
+    if (existing && existing.headRefOid !== pr.headRefOid) {
+      existing.resource.dispose();
+      this._prFiles.delete(key);
+    }
     if (!this._prFiles.has(key)) {
       const resource = new Resource<GitChange[]>(
         () => this._fetchPrFiles(pr),
@@ -92,15 +100,33 @@ export class PrStore {
               const unsubHead = events.on(gitWorkspaceChangedChannel, (p) => {
                 if (p.workspaceId === this.workspaceId && p.kind === 'head') handler();
               });
-              const unsubRemote = events.on(gitRefChangedChannel, (p) => {
+              const unsubBaseRef = events.on(gitRefChangedChannel, (p) => {
                 if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
                 const baseRef = remoteRef(this.repositoryStore.configuredRemote, pr.baseRefName);
                 const relevant = !p.changedRefs || p.changedRefs.some((r) => refsEqual(r, baseRef));
                 if (relevant) handler();
               });
+              const unsubPrHead = events.on(gitRefChangedChannel, (p) => {
+                if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
+                const sameRepoRef = remoteRef(
+                  this.repositoryStore.configuredRemote,
+                  pr.headRefName
+                );
+                const forkOwner = isForkPr(pr)
+                  ? (ownerFromUrl(pr.headRepositoryUrl) ?? null)
+                  : null;
+                const forkRef = forkOwner ? remoteRef(forkOwner, pr.headRefName) : null;
+                const relevant =
+                  !p.changedRefs ||
+                  p.changedRefs.some(
+                    (r) => refsEqual(r, sameRepoRef) || (forkRef != null && refsEqual(r, forkRef))
+                  );
+                if (relevant) handler();
+              });
               return () => {
                 unsubHead();
-                unsubRemote();
+                unsubBaseRef();
+                unsubPrHead();
               };
             },
             onEvent: 'reload',
@@ -109,9 +135,9 @@ export class PrStore {
         ]
       );
       resource.start();
-      this._prFiles.set(key, resource);
+      this._prFiles.set(key, { resource, headRefOid: pr.headRefOid });
     }
-    return this._prFiles.get(key)!;
+    return this._prFiles.get(key)!.resource;
   }
 
   async mergePr(
@@ -182,7 +208,7 @@ export class PrStore {
 
   dispose(): void {
     this.commitHistory.dispose();
-    for (const r of this._prFiles.values()) r.dispose();
+    for (const entry of this._prFiles.values()) entry.resource.dispose();
   }
 
   private async _fetchPrFiles(pr: PullRequest): Promise<GitChange[]> {
@@ -191,7 +217,7 @@ export class PrStore {
     // cannot be structured-cloned by Electron IPC and will throw.
     const plainRemote = { name: remote.name, url: remote.url };
     const baseRef = remoteRef(plainRemote, pr.baseRefName);
-    const headRef = commitRef('HEAD');
+    const headRef = commitRef(pr.headRefOid);
     const range = mergeBaseRange(baseRef, headRef);
 
     const tryRange = async (): Promise<GitChange[] | null> => {
@@ -207,6 +233,17 @@ export class PrStore {
     const first = await tryRange();
     if (first) return first;
 
+    // headRefOid not available locally — fetch the PR branch then retry
+    const prNumber = prNumberFromIdentifier(pr.identifier);
+    if (prNumber) {
+      await rpc.repository.fetchPrForReview(
+        this.projectId,
+        prNumber,
+        pr.headRefName,
+        pr.headRepositoryUrl,
+        isForkPr(pr)
+      );
+    }
     return (await tryRange()) ?? [];
   }
 

@@ -5,14 +5,23 @@ import type { Branch } from '@shared/git';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
-import { DialogClose } from '@renderer/lib/ui/dialog';
+import {
+  DialogClose,
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@renderer/lib/ui/dialog';
+import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
+import { Separator } from '@renderer/lib/ui/separator';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { log } from '@renderer/utils/logger';
 import { resolveInitialBaseBranch } from './base-branch';
@@ -114,61 +123,68 @@ export const CreatePrModal = observer(function CreatePrModal({
 
   return (
     <div className="flex flex-col overflow-hidden max-h-[70vh]">
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
-        <span className="text-sm font-medium">
-          {draft ? 'Create Draft PR' : 'Create Pull Request'}
-        </span>
-        <DialogClose render={<Button variant="ghost" size="icon-sm" />}>
-          <X className="size-4" />
-          <span className="sr-only">Close</span>
-        </DialogClose>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+      <DialogHeader>
+        <DialogTitle>{draft ? 'Create Draft PR' : 'Create Pull Request'}</DialogTitle>
+      </DialogHeader>
+      <DialogContentArea className="space-y-4">
         {!hasGitHubRemote && (
           <p className="text-sm text-muted-foreground">
             No GitHub remote detected. Configure a GitHub remote to create pull requests.
           </p>
         )}
-        <ProjectBranchSelector
-          projectId={projectId}
-          value={selectedBase}
-          onValueChange={setSelectedBaseOverride}
-          remoteOnly
-          trigger={
-            <ComboboxTrigger className="flex w-full items-center gap-2 justify-between border border-border rounded-md p-2 text-left outline-none">
-              <div className="flex flex-col text-left text-sm gap-0.5">
-                <span className="text-foreground-passive text-xs">Base Branch</span>
-                <span className="flex items-center gap-1">
-                  <GitBranch
-                    absoluteStrokeWidth
-                    strokeWidth={2}
-                    className="size-3.5 shrink-0 text-foreground-muted"
-                  />
-                  <ComboboxValue placeholder="Select a base branch" />
-                </span>
-              </div>
-              <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
-            </ComboboxTrigger>
-          }
-        />
-        <Input
-          placeholder="PR title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          disabled={!hasGitHubRemote}
-        />
-        <Textarea
-          placeholder="Description (optional)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={1}
-          disabled={!hasGitHubRemote}
-        />
-      </div>
-      <div className="flex items-center justify-end gap-2 border-t border-border p-3">
-        <Button variant="outline" size="sm" onClick={onClose}>
-          Cancel
-        </Button>
+        <div className="flex items-center gap-2 flex-col">
+          <BranchDisplay
+            label="Head Branch"
+            branchName={branchName}
+            className="border border-border rounded-md"
+          />
+          <ProjectBranchSelector
+            projectId={projectId}
+            value={selectedBase}
+            onValueChange={setSelectedBaseOverride}
+            remoteOnly
+            trigger={
+              <ComboboxTrigger className="flex w-full items-center gap-2 justify-between border border-border rounded-md p-2 text-left outline-none">
+                <div className="flex flex-col text-left text-sm gap-0.5">
+                  <span className="text-foreground-passive text-xs">Base Branch</span>
+                  <span className="flex items-center gap-1">
+                    <GitBranch
+                      absoluteStrokeWidth
+                      strokeWidth={2}
+                      className="size-3.5 shrink-0 text-foreground-muted"
+                    />
+                    <ComboboxValue placeholder="Select a base branch" />
+                  </span>
+                </div>
+                <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
+              </ComboboxTrigger>
+            }
+          />
+        </div>
+        <Separator />
+        <FieldGroup>
+          <Field>
+            <FieldLabel>Title</FieldLabel>
+            <Input
+              placeholder="PR title"
+              autoFocus
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={!hasGitHubRemote}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Description</FieldLabel>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={1}
+              disabled={!hasGitHubRemote}
+            />
+          </Field>
+        </FieldGroup>
+      </DialogContentArea>
+      <DialogFooter>
         <ConfirmButton
           size="sm"
           onClick={() => void handleCreate()}
@@ -176,7 +192,7 @@ export const CreatePrModal = observer(function CreatePrModal({
         >
           {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
         </ConfirmButton>
-      </div>
+      </DialogFooter>
     </div>
   );
 });

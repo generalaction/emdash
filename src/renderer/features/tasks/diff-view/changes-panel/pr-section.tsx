@@ -1,7 +1,9 @@
 import { observer } from 'mobx-react-lite';
+import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
+import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { useProvisionedTask } from '../../task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '../../task-view-context';
 import { PullRequestEntry } from './components/pr-entry/pr-entry';
 import { PullRequestSectionHeader } from './components/section-header';
 
@@ -12,6 +14,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }) {
+  const { projectId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const { pr } = provisioned.workspace;
   const repositoryUrl = provisioned.repositoryStore.repositoryUrl;
@@ -21,6 +24,9 @@ export const PullRequestsSection = observer(function PullRequestsSection({
 
   const hasOpenPr = pullRequests.some((p) => p.status === 'open');
   const hasUpstream = provisioned.workspace.git.isBranchPublished;
+  const isRefreshing = repositoryUrl
+    ? (getPrSyncStore(projectId)?.isSyncing(repositoryUrl) ?? false)
+    : false;
 
   return (
     <>
@@ -42,6 +48,10 @@ export const PullRequestsSection = observer(function PullRequestsSection({
                 })
             : undefined
         }
+        onRefresh={() => {
+          void rpc.pullRequests.syncPullRequests(projectId);
+        }}
+        isRefreshing={isRefreshing}
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!repositoryUrl ? (

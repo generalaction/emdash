@@ -1,7 +1,7 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
+import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   getProjectManagerStore,
   getRepositoryStore,
@@ -131,10 +131,13 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       }
       case 'from-pull-request': {
         if (!fromPR.linkedPR) return;
+        const reviewBranch = fromPR.linkedPR.headRefName;
         const taskStrategy = resolvePullRequestTaskStrategy({
           checkoutMode: fromPR.checkoutMode,
           prNumber: getPrNumber(fromPR.linkedPR) ?? 0,
-          headBranch: fromPR.linkedPR.headRefName,
+          headBranch: reviewBranch,
+          headRepositoryUrl: fromPR.linkedPR.headRepositoryUrl,
+          isFork: isForkPr(fromPR.linkedPR),
           taskBranch: fromPR.taskName,
           pushBranch: fromPR.branchSelection.pushBranch,
         });
@@ -142,7 +145,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromPR.taskName,
-          sourceBranch: { type: 'local', branch: fromPR.linkedPR.headRefName },
+          sourceBranch: { type: 'local', branch: reviewBranch },
           initialStatus:
             fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
           strategy: taskStrategy,

@@ -81,10 +81,10 @@ function CommitItem({
       </div>
       <div className="min-w-0 flex-1 py-1 px-2 rounded-md">
         <div className="truncate text-sm">{commit.subject}</div>
-        <div className="flex items-center  gap-1 text-xs text-foreground-muted">
-          <span className="truncate font-medium ">{commit.author}</span>
+        <div className="flex items-center  gap-1 text-xs text-foreground-muted min-w-0">
+          <span className="truncate font-medium min-w-0">{commit.author}</span>
           {'·'}
-          <RelativeTime compact value={commit.date} ago className="text-foreground-muted" />
+          <RelativeTime compact value={commit.date} className="text-foreground-muted" />
           {'·'}
           <span className="font-mono text-foreground-passive">{shortHash}</span>
         </div>

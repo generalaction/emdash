@@ -1,4 +1,4 @@
-import { ChevronDown, Plus } from 'lucide-react';
+import { ChevronDown, Plus, RefreshCw } from 'lucide-react';
 import { SelectionState } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
@@ -61,6 +61,8 @@ export function PullRequestSectionHeader({
   hasUpstream,
   hasOpenPr,
   onCreatePr,
+  onRefresh,
+  isRefreshing,
 }: {
   count: number;
   collapsed?: boolean;
@@ -68,6 +70,8 @@ export function PullRequestSectionHeader({
   hasUpstream: boolean;
   hasOpenPr: boolean;
   onCreatePr?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }) {
   return (
     <div className="shrink-0 flex items-center justify-between px-2.5 h-10">
@@ -88,26 +92,36 @@ export function PullRequestSectionHeader({
             </span>
           </span>
         </button>
-        <Tooltip>
-          <TooltipTrigger>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={onCreatePr}
-              disabled={!hasUpstream || hasOpenPr}
-            >
-              <Plus className="size-3" />
-              Create PR
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {!hasUpstream
-              ? 'No upstream branch'
-              : hasOpenPr
-                ? 'A pull request is already open'
-                : 'Create a pull request'}
-          </TooltipContent>
-        </Tooltip>
+        <div className="flex items-center gap-1.5">
+          <Tooltip>
+            <TooltipTrigger>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={onCreatePr}
+                disabled={!hasUpstream || hasOpenPr}
+              >
+                <Plus className="size-3" />
+                Create PR
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {!hasUpstream
+                ? 'No upstream branch'
+                : hasOpenPr
+                  ? 'A pull request is already open'
+                  : 'Create a pull request'}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger>
+              <Button variant="outline" size="icon-xs" onClick={onRefresh} disabled={isRefreshing}>
+                <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh pull requests</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
     </div>
   );

@@ -33,6 +33,9 @@ export interface ActiveFile {
    *  'pr'     = PR diff (originalRef is remote-tracking base) */
   group: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
+  /** PR head SHA for the modified side of a 'pr' group diff.
+   *  When absent the diff stack falls back to HEAD_REF. */
+  modifiedRef?: GitObjectRef;
   /** Set only when group === 'pr'. Identifies the PR for store lookups. */
   prNumber?: number;
 }

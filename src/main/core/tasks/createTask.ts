@@ -103,10 +103,14 @@ export async function createTask(
     }
 
     case 'from-pull-request': {
-      // Fetch via GitHub's PR ref — works for fork PRs and same-repo PRs alike.
-      const fetchResult = await project.repository.fetchPrRef(
+      // Fetch the PR head — handles same-repo and fork PRs.
+      // Uses headRefName directly as the local branch name (same as `gh pr checkout`).
+      const fetchResult = await project.repository.fetchPrForReview(
         strategy.prNumber,
         strategy.headBranch,
+        strategy.headRepositoryUrl,
+        strategy.headBranch,
+        strategy.isFork,
         configuredRemote
       );
       if (!fetchResult.success) {
@@ -151,7 +155,7 @@ export async function createTask(
         }
       } else {
         // Check out the PR head branch directly — taskBranch === sourceBranch signals
-        // the provider to use checkoutExistingBranch (local branch now exists from fetchPrRef).
+        // the provider to use checkoutExistingBranch (local branch now exists from fetchPrForReview).
         taskBranch = strategy.headBranch;
       }
       break;

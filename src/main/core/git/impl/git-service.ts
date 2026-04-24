@@ -14,7 +14,7 @@ import {
   type DiffMode,
   type DiffResult,
   type FetchError,
-  type FetchPrRefError,
+  type FetchPrForReviewError,
   type FullGitStatus,
   type GitChange,
   type GitHeadState,
@@ -29,6 +29,7 @@ import {
   type SoftResetError,
 } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
+import { ownerFromUrl } from '@shared/pull-requests';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE, type ExecFn } from '@main/core/utils/exec';
@@ -1354,20 +1355,66 @@ export class GitService implements GitProvider {
     }
   }
 
-  async fetchPrRef(
+  async fetchPrForReview(
     prNumber: number,
-    localBranchName: string,
-    remote = 'origin'
-  ): Promise<Result<void, FetchPrRefError>> {
+    headRefName: string,
+    headRepositoryUrl: string,
+    localBranch: string,
+    isFork: boolean,
+    configuredRemote = 'origin'
+  ): Promise<Result<void, FetchPrForReviewError>> {
     try {
-      await this.exec(
-        'git',
-        ['fetch', remote, `refs/pull/${prNumber}/head:refs/heads/${localBranchName}`],
-        { cwd: this.path }
-      );
+      if (isFork) {
+        const forkRemote = ownerFromUrl(headRepositoryUrl) ?? 'fork';
+        // Idempotently ensure remote exists with the correct URL
+        const remotes = await this.exec('git', ['remote'], { cwd: this.path }).catch(() => ({
+          stdout: '',
+        }));
+        const names = remotes.stdout
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (!names.includes(forkRemote)) {
+          await this.exec('git', ['remote', 'add', forkRemote, headRepositoryUrl], {
+            cwd: this.path,
+          });
+        } else {
+          await this.exec('git', ['remote', 'set-url', forkRemote, headRepositoryUrl], {
+            cwd: this.path,
+          }).catch(() => {});
+        }
+        await this.exec(
+          'git',
+          ['fetch', forkRemote, `${headRefName}:refs/heads/${localBranch}`, '--force'],
+          { cwd: this.path }
+        );
+        // Set tracking so `git push` targets the contributor's fork branch
+        await this.exec(
+          'git',
+          ['branch', `--set-upstream-to=${forkRemote}/${headRefName}`, localBranch],
+          { cwd: this.path }
+        ).catch(() => {});
+      } else {
+        // Same-repo: GitHub always exposes refs/pull/{N}/head on origin
+        await this.exec(
+          'git',
+          [
+            'fetch',
+            configuredRemote,
+            `refs/pull/${prNumber}/head:refs/heads/${localBranch}`,
+            '--force',
+          ],
+          { cwd: this.path }
+        );
+        await this.exec(
+          'git',
+          ['branch', `--set-upstream-to=${configuredRemote}/${headRefName}`, localBranch],
+          { cwd: this.path }
+        ).catch(() => {});
+      }
       return ok();
     } catch (error: unknown) {
-      const stderr = (error as { stderr?: string })?.stderr || String(error);
+      const stderr = (error as { stderr?: string })?.stderr ?? String(error);
       if (
         stderr.includes('not found') ||
         stderr.includes("couldn't find remote ref") ||
