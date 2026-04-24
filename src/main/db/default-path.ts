@@ -1,7 +1,8 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export const CURRENT_DB_FILENAME = 'emdash3.db';
+export const PREVIOUS_DB_FILENAME = 'emdash3.db';
+export const CURRENT_DB_FILENAME = 'emdash4.db';
 const USER_DATA_DIR_NAME = 'emdash';
 
 /**
