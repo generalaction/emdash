@@ -2,13 +2,13 @@ import { Settings2, Sparkles } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
 import { AGENT_PROVIDERS } from '@shared/agent-provider-registry';
+import type { DependencyState } from '@shared/dependencies';
 import { CliAgentStatus } from '@renderer/features/settings/components/connections';
 import CustomCommandModal from '@renderer/features/settings/components/CustomCommandModal';
 import IntegrationRow from '@renderer/features/settings/components/IntegrationRow';
 import { rpc } from '@renderer/lib/ipc';
 import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
-import { type DependencyState } from '@renderer/lib/stores/dependencies-store';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
 

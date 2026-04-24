@@ -1,8 +1,9 @@
+import { Download, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AgentProviderId } from '@shared/agent-provider-registry';
 import AgentLogo from '@renderer/lib/components/agent-logo';
-import { appState } from '@renderer/lib/stores/app-state';
+import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
   ComboboxCollection,
@@ -14,22 +15,17 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
+import {
+  getInstallButtonState,
+  isComboboxOptionDisabled,
+  type AgentGroup,
+  type AgentOption,
+} from './agent-selector-options';
 import { AgentTooltipRow } from './agent-tooltip-row';
-
-interface AgentOption {
-  value: string;
-  label: string;
-  agentId: AgentProviderId;
-  disabled: boolean;
-}
-
-interface AgentGroup {
-  value: string;
-  label: string;
-  items: AgentOption[];
-}
+import { useAgentAvailability } from './use-agent-availability';
 
 interface AgentSelectorProps {
   value: AgentProviderId | null;
@@ -37,32 +33,17 @@ interface AgentSelectorProps {
   disabled?: boolean;
   className?: string;
   connectionId?: string;
+  installable?: boolean;
 }
 
 export const AgentSelector: React.FC<AgentSelectorProps> = observer(
-  ({ value, onChange, disabled = false, className = '', connectionId }) => {
-    const installedAgents = connectionId
-      ? appState.dependencies.remoteInstalledAgents(connectionId)
-      : appState.dependencies.localInstalledAgents;
+  ({ value, onChange, disabled = false, className = '', connectionId, installable = true }) => {
     const [open, setOpen] = useState(false);
-
-    const installedSet = new Set(installedAgents.filter((id) => id in agentConfig));
-    const allAgentIds = Object.keys(agentConfig) as AgentProviderId[];
-
-    const installedOptions: AgentOption[] = allAgentIds
-      .filter((id) => installedSet.has(id))
-      .map((id) => ({ value: id, label: agentConfig[id].name, agentId: id, disabled: false }));
-
-    const notInstalledOptions: AgentOption[] = allAgentIds
-      .filter((id) => !installedSet.has(id))
-      .map((id) => ({ value: id, label: agentConfig[id].name, agentId: id, disabled: true }));
-
-    const groups: AgentGroup[] = [
-      { value: 'installed', label: 'Installed', items: installedOptions },
-      { value: 'not-installed', label: 'Not installed', items: notInstalledOptions },
-    ].filter((g) => g.items.length > 0);
-
-    const allOptions = [...installedOptions, ...notInstalledOptions];
+    const { groups, installingAgents, installAgent } = useAgentAvailability({
+      connectionId,
+      value,
+    });
+    const allOptions = useMemo(() => groups.flatMap((group) => group.items), [groups]);
 
     const selectedConfig = value ? agentConfig[value] : null;
     const selectedOption = value ? allOptions.find((o) => o.value === value) : null;
@@ -118,14 +99,22 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                   <ComboboxCollection>
                     {(item: AgentOption) => {
                       const config = agentConfig[item.agentId];
+                      const installButton = getInstallButtonState(
+                        item,
+                        installable,
+                        installingAgents
+                      );
+                      const showInstall = installButton.render;
                       return (
                         <AgentTooltipRow key={item.value} id={item.agentId}>
                           <ComboboxItem
                             value={item}
-                            disabled={item.disabled}
+                            disabled={isComboboxOptionDisabled(item)}
                             className={cn(
+                              'group/agent-row',
                               item.disabled &&
-                                'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed'
+                                'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed',
+                              showInstall && 'data-disabled:opacity-100'
                             )}
                           >
                             {config && (
@@ -134,10 +123,54 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                                 alt={config.alt}
                                 isSvg={config.isSvg}
                                 invertInDark={config.invertInDark}
-                                className="h-4 w-4 shrink-0 rounded-sm"
+                                className={cn(
+                                  'h-4 w-4 shrink-0 rounded-sm',
+                                  showInstall && 'opacity-50'
+                                )}
                               />
                             )}
-                            {item.label}
+                            <span
+                              className={cn(
+                                'min-w-0 flex-1 truncate',
+                                showInstall && 'text-foreground-muted'
+                              )}
+                            >
+                              {item.label}
+                            </span>
+                            {installButton.render ? (
+                              <TooltipProvider delay={150}>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-xs"
+                                      disabled={installButton.disabled}
+                                      aria-label={installButton.label}
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        if (disabled) return;
+                                        void installAgent(item.agentId);
+                                      }}
+                                      className="ml-auto size-6 cursor-pointer"
+                                    >
+                                      {installButton.installing ? (
+                                        <Loader2
+                                          className="h-3 w-3 animate-spin"
+                                          aria-hidden="true"
+                                        />
+                                      ) : (
+                                        <Download className="h-3 w-3" aria-hidden="true" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="text-xs">
+                                    {installButton.label}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : null}
                           </ComboboxItem>
                         </AgentTooltipRow>
                       );

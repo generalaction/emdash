@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
@@ -22,6 +23,9 @@ export const ConversationsTabs = observer(function ConversationsTabs({
   const conversationMgr = provisioned.conversations;
   const conversationTabs = provisioned.taskView.conversationTabs;
   const showCreateConversationModal = useShowModal('createConversationModal');
+  const mountedProject = asMounted(getProjectStore(projectId));
+  const connectionId =
+    mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
 
   return (
     <TabBar<ConversationStore>
@@ -55,6 +59,7 @@ export const ConversationsTabs = observer(function ConversationsTabs({
               className="size-10 justify-center items-center flex border-l hover:bg-background text-foreground-muted hover:text-foreground"
               onClick={() =>
                 showCreateConversationModal({
+                  connectionId,
                   projectId,
                   taskId,
                   onSuccess: ({ conversationId }) => conversationTabs.setActiveTab(conversationId),

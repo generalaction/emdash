@@ -5,7 +5,6 @@ import {
   AgentProviderId,
   isValidProviderId,
 } from '@shared/agent-provider-registry';
-import { getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
@@ -31,10 +30,12 @@ function getConversationsPaneSize() {
 }
 
 export const CreateConversationModal = observer(function CreateConversationModal({
+  connectionId,
   onSuccess,
   projectId,
   taskId,
 }: BaseModalProps<{ conversationId: string }> & {
+  connectionId?: string;
   projectId: string;
   taskId: string;
 }) {
@@ -44,8 +45,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
     ? defaultAgentValue
     : 'claude';
 
-  const projectData = getProjectStore(projectId)?.data;
-  const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
   const dependencyResource = connectionId
     ? appState.dependencies.getRemote(connectionId)
     : appState.dependencies.local;
