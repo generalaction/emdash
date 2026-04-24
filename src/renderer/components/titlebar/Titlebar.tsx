@@ -231,7 +231,7 @@ const Titlebar: React.FC<TitlebarProps> = ({
           <Badge
             asChild
             variant="outline"
-            className="border-emerald-700/18 hover:border-emerald-600/28 h-7 rounded-md bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 px-2.5 text-[11px] font-semibold text-emerald-50 shadow-sm shadow-emerald-950/20 transition-colors hover:from-emerald-900 hover:via-emerald-800 hover:to-teal-800 hover:text-white dark:border-emerald-500/30 dark:from-emerald-950 dark:via-emerald-900 dark:to-teal-900 dark:text-emerald-50 dark:hover:border-emerald-400/40 dark:hover:from-emerald-900 dark:hover:via-emerald-800 dark:hover:to-teal-800"
+            className="h-7 rounded-md border-emerald-700/25 bg-emerald-950 px-2.5 text-[11px] font-semibold text-emerald-50 shadow-sm shadow-emerald-950/20 transition-colors hover:border-emerald-600/35 hover:bg-emerald-900 hover:text-white dark:border-emerald-500/30 dark:bg-emerald-950 dark:text-emerald-50 dark:hover:border-emerald-400/40 dark:hover:bg-emerald-900"
           >
             <a
               href={betaUrl}
