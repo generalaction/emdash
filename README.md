@@ -17,22 +17,22 @@
 
 <br />
 
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+  <a href="https://emdash.sh/download" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
     <img src="https://emdash.sh/media/readme/downloadforwindows.png" alt="Download for Windows" height="40">
   </a>
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+  <a href="https://emdash.sh/download" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
     <img src="https://emdash.sh/media/readme/downloadformacos.png" alt="Download for macOS" height="40">
   </a>
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; text-decoration:none; outline:none; border:none;">
+  <a href="https://emdash.sh/download" style="display:inline-block; text-decoration:none; outline:none; border:none;">
     <img src="https://emdash.sh/media/readme/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
 
   <h3>
-    <a href="https://www.emdash.sh/download">Download the Emdash v1 beta</a>
+    <a href="https://emdash.sh/download">Download Emdash v1</a>
   </h3>
   <p>
-    Now available for macOS, Windows, and Linux ·
-    <a href="https://www.emdash.sh/blog/public-v1-beta">Read the launch post</a>
+    Stable v1 is now available for macOS, Windows, and Linux ·
+    <a href="https://emdash.sh/blog/emdash-v1-stable">Read the launch post</a>
   </p>
 
 </div>
@@ -53,16 +53,13 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 </div>
 
-<img alt="Emdash product" src="https://emdash.sh/media/readme/product.jpeg" />
+<img alt="Emdash product" src="https://emdash.sh/media/blog/public-v1-beta/v1beta.jpg" />
 
 # Installation
 
 ### macOS
 - Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg
 - Intel x64: https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg
-
-[![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
-> macOS users can also: `brew install --cask emdash`
 
 ### Windows
 - Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi
@@ -161,48 +158,15 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 </details>
 
 <details>
-<summary><b>Do I need GitHub CLI?</b></summary>
-
-> **Only if you want GitHub features** (open PRs from Emdash, fetch repo info, GitHub Issues integration).  
-> Install & sign in:
->
-> ```bash
-> gh auth login
-> ```
->
-> If you don’t use GitHub features, you can skip installing `gh`.
-</details>
-
-<details>
 <summary><b>How do I add a new provider?</b></summary>
 
 > Emdash is **provider‑agnostic** and built to add CLIs quickly.
 >
 > - Open a PR following the **Contributing Guide** (`CONTRIBUTING.md`).
 > - Include: provider name, how it’s invoked (CLI command), auth notes, and minimal setup steps.
-> - We’ll add it to the **Integrations** matrix and wire up provider selection in the UI.
+> - We’ll add it to the **Providers table** and wire up provider selection in the UI.
 >
 > If you’re unsure where to start, open an issue with the CLI’s link and typical commands.
-</details>
-
-<details>
-<summary><b>I hit a native‑module crash (sqlite3 / node‑pty / keytar). What’s the fast fix?</b></summary>
-
-> This usually happens after switching Node/Electron versions.
->
-> 1) Rebuild native modules:
->
-> ```bash
-> npm run rebuild
-> ```
->
-> 2) If that fails, clean and reinstall:
->
-> ```bash
-> npm run reset
-> ```
->
-> (Resets `node_modules`, reinstalls, and re‑builds Electron native deps.)
 </details>
 
 <details>
