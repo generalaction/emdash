@@ -4,6 +4,7 @@ import { ErrorBoundary } from './lib/components/error-boundary';
 import './index.css';
 import 'devicon/devicon.min.css';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
+import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
 import { rpc } from '@renderer/lib/ipc';
 import { wireModelRegistryInvalidation } from '@renderer/lib/monaco/invalidation-bridges';
 import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
@@ -18,6 +19,7 @@ async function bootstrap() {
   // Wire invalidation bridges so FS and git events flow into the model registry.
   wireModelRegistryInvalidation(modelRegistry);
   wirePrCacheInvalidation();
+  wireCommitHistoryInvalidation();
 
   appState.update.start();
   initSoundPlayer();

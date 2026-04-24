@@ -2,23 +2,26 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import type { Commit } from '@shared/git';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
+import { usePrCommits } from './use-pr-commits';
 
 const ITEM_HEIGHT = 43;
 
 export const PrCommitsList = observer(function PrCommitsList() {
-  const prStore = useProvisionedTask().workspace.pr;
-  const { data } = prStore.commitHistory;
-  const parentRef = useRef<HTMLDivElement>(null);
+  const { projectId } = useTaskViewContext();
+  const task = useProvisionedTask();
+  const pr = task.workspace.pr.currentPr;
+  const { data, isFetchingNextPage, hasNextPage, fetchNextPage } = usePrCommits(
+    projectId,
+    task.workspaceId,
+    pr
+  );
 
-  const aheadCount = data?.aheadCount ?? 0;
-  const allCommits = data?.commits ?? [];
-  // Show only the commits that are ahead of upstream — those belong to the PR.
-  // If aheadCount is 0 (e.g. upstream not configured), fall back to all commits.
-  const commits = aheadCount > 0 ? allCommits.slice(0, aheadCount) : allCommits;
+  const commits = data?.pages.flat() ?? [];
+  const parentRef = useRef<HTMLDivElement>(null);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
@@ -28,7 +31,7 @@ export const PrCommitsList = observer(function PrCommitsList() {
     overscan: 5,
   });
 
-  if (commits.length === 0) {
+  if (commits.length === 0 && !isFetchingNextPage) {
     return <EmptyState label="No commits" description="No commits available" />;
   }
 
@@ -57,6 +60,17 @@ export const PrCommitsList = observer(function PrCommitsList() {
           );
         })}
       </div>
+      {hasNextPage && (
+        <div className="flex justify-center py-2">
+          <button
+            className="text-xs text-foreground-muted hover:text-foreground px-3 py-1 rounded-md hover:bg-surface-raised transition-colors"
+            onClick={() => void fetchNextPage()}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      )}
     </div>
   );
 });

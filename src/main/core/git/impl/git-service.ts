@@ -613,11 +613,21 @@ export class GitService implements GitProvider {
     skip?: number;
     knownAheadCount?: number;
     preferredRemote?: string;
-    /** When provided, compute aheadCount as `base..HEAD` instead of `@{upstream}..HEAD`. */
+    /**
+     * When provided, compute aheadCount as `base..<head|HEAD>` instead of
+     * `@{upstream}..HEAD`. Use an immutable commit SHA for merged PRs so the
+     * count remains stable after the remote base branch moves forward.
+     */
     base?: GitObjectRef;
+    /**
+     * When provided, anchor the log and aheadCount range to this ref instead
+     * of the live HEAD. Pass `commitRef(pr.headRefOid)` for merged PRs.
+     */
+    head?: GitObjectRef;
   }): Promise<{ commits: Commit[]; aheadCount: number }> {
-    const { maxCount = 50, skip = 0, knownAheadCount, preferredRemote, base } = options ?? {};
+    const { maxCount = 50, skip = 0, knownAheadCount, preferredRemote, base, head } = options ?? {};
     const remote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
+    const headStr = head ? toRefString(head) : 'HEAD';
 
     let aheadCount = knownAheadCount ?? -1;
     if (aheadCount < 0) {
@@ -628,7 +638,7 @@ export class GitService implements GitProvider {
         try {
           const { stdout } = await this.exec(
             'git',
-            ['rev-list', '--count', `${toRefString(base)}..HEAD`],
+            ['rev-list', '--count', `${toRefString(base)}..${headStr}`],
             { cwd: this.path }
           );
           aheadCount = Number.parseInt(stdout.trim(), 10) || 0;
@@ -680,9 +690,19 @@ export class GitService implements GitProvider {
     const FIELD_SEP = '---FIELD_SEP---';
     const RECORD_SEP = '---RECORD_SEP---';
     const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%b`;
+    // When base is provided (PR view), use a range so only commits between
+    // base and head are returned — not a raw linear walk from head.
+    const rangeArg = base ? `${toRefString(base)}..${headStr}` : headStr;
     const { stdout } = await this.exec(
       'git',
-      ['log', `--max-count=${maxCount}`, `--skip=${skip}`, `--pretty=format:${format}`, '--'],
+      [
+        'log',
+        `--max-count=${maxCount}`,
+        `--skip=${skip}`,
+        `--pretty=format:${format}`,
+        rangeArg,
+        '--',
+      ],
       { cwd: this.path }
     );
 

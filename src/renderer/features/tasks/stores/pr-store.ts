@@ -1,14 +1,6 @@
 import { makeAutoObservable, type IObservableArray } from 'mobx';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import {
-  commitRef,
-  mergeBaseRange,
-  refsEqual,
-  remoteRef,
-  type Commit,
-  type GitChange,
-  type GitObjectRef,
-} from '@shared/git';
+import { commitRef, mergeBaseRange, refsEqual, remoteRef, type GitChange } from '@shared/git';
 import { isForkPr, ownerFromUrl, selectCurrentPr, type PullRequest } from '@shared/pull-requests';
 import type { Task } from '@shared/tasks';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
@@ -28,8 +20,6 @@ function prNumberFromIdentifier(identifier: string | null): number | null {
 }
 
 export class PrStore {
-  readonly commitHistory: Resource<{ commits: Commit[]; aheadCount: number }>;
-
   private readonly _prFiles = new Map<
     string,
     { resource: Resource<GitChange[]>; headRefOid: string }
@@ -41,35 +31,7 @@ export class PrStore {
     private readonly repositoryStore: RepositoryStore,
     private readonly tasks: IObservableArray<TaskStore>
   ) {
-    this.commitHistory = new Resource(
-      () => this._fetchCommitHistory(),
-      [
-        { kind: 'demand' },
-        {
-          kind: 'event',
-          subscribe: (handler) =>
-            events.on(gitWorkspaceChangedChannel, (p) => {
-              if (p.workspaceId === workspaceId && p.kind === 'head') handler();
-            }),
-          onEvent: 'reload',
-          debounceMs: 300,
-        },
-        {
-          kind: 'event',
-          subscribe: (handler) =>
-            events.on(gitRefChangedChannel, (p) => {
-              if (p.projectId === projectId && p.kind === 'remote-refs') handler();
-            }),
-          onEvent: 'reload',
-          debounceMs: 500,
-        },
-      ]
-    );
-    this.commitHistory.start();
-
-    makeAutoObservable(this, {
-      commitHistory: false,
-    });
+    makeAutoObservable(this);
   }
 
   get pullRequests(): PullRequest[] {
@@ -207,7 +169,6 @@ export class PrStore {
   }
 
   dispose(): void {
-    this.commitHistory.dispose();
     for (const entry of this._prFiles.values()) entry.resource.dispose();
   }
 
@@ -245,29 +206,5 @@ export class PrStore {
       );
     }
     return (await tryRange()) ?? [];
-  }
-
-  private async _fetchCommitHistory(): Promise<{
-    commits: Commit[];
-    aheadCount: number;
-  }> {
-    const remote = this.repositoryStore.configuredRemote;
-    // Plain copy to avoid MobX proxy IPC serialization failure.
-    const plainRemote = { name: remote.name, url: remote.url };
-    const currentPr = selectCurrentPr(this.pullRequests);
-    const base: GitObjectRef | undefined = currentPr
-      ? remoteRef(plainRemote, currentPr.baseRefName)
-      : undefined;
-    const result = await rpc.git.getLog(
-      this.projectId,
-      this.workspaceId,
-      undefined,
-      undefined,
-      undefined,
-      remote.name,
-      base
-    );
-    if (!result.success) return { commits: [], aheadCount: 0 };
-    return result.data;
   }
 }
