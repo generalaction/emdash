@@ -51,7 +51,9 @@ export function createMainWindow(): BrowserWindow {
   // Track window focus for telemetry
   mainWindow.on('focus', () => {
     capture('app_window_focused');
-    mainWindow?.setWindowButtonVisibility(true);
+    if (typeof mainWindow?.setWindowButtonVisibility === 'function') {
+      mainWindow.setWindowButtonVisibility(true);
+    }
     checkAndReportDailyActiveUser();
   });
 
