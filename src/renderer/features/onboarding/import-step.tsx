@@ -4,6 +4,7 @@ import { useLegacyPortImport, useLegacyPortPreview } from '@renderer/lib/hooks/u
 import { Button } from '@renderer/lib/ui/button';
 
 const PROGRESS_DURATION_MS = 4000;
+const COMPLETE_DELAY_MS = 1000;
 
 export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const { data: preview, isLoading: previewLoading } = useLegacyPortPreview(true);
@@ -12,24 +13,31 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importDone, setImportDone] = useState(false);
-  const [animationDone, setAnimationDone] = useState(false);
+
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   const animationRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (importDone && animationDone) {
-      onComplete();
-    }
-  }, [importDone, animationDone, onComplete]);
+  const completeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const importDoneRef = useRef(false);
+  const animationDoneRef = useRef(false);
 
   useEffect(() => {
     return () => {
-      if (animationRef.current !== null) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
+      if (completeTimerRef.current !== null) clearTimeout(completeTimerRef.current);
     };
   }, []);
+
+  const maybeScheduleComplete = () => {
+    if (importDoneRef.current && animationDoneRef.current && completeTimerRef.current === null) {
+      completeTimerRef.current = setTimeout(() => {
+        onCompleteRef.current();
+      }, COMPLETE_DELAY_MS);
+    }
+  };
 
   const startAnimation = () => {
     const startTime = performance.now();
@@ -43,7 +51,8 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
         animationRef.current = requestAnimationFrame(tick);
       } else {
         animationRef.current = null;
-        setAnimationDone(true);
+        animationDoneRef.current = true;
+        maybeScheduleComplete();
       }
     };
 
@@ -53,9 +62,10 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const handleImport = async () => {
     setImportError(null);
     setIsImporting(true);
-    setImportDone(false);
-    setAnimationDone(false);
     setProgress(0);
+    importDoneRef.current = false;
+    animationDoneRef.current = false;
+    completeTimerRef.current = null;
 
     startAnimation();
 
@@ -71,7 +81,8 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
         setProgress(0);
         return;
       }
-      setImportDone(true);
+      importDoneRef.current = true;
+      maybeScheduleComplete();
     } catch (err) {
       if (animationRef.current !== null) {
         cancelAnimationFrame(animationRef.current);
