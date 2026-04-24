@@ -225,10 +225,10 @@ jobs:
         with:
           name: WINDOWS-ARTIFACTS
           path: |
-            release/emdash-beta-*.exe
-            release/emdash-beta-*.msi
+            release/emdash-*.exe
+            release/emdash-*.msi
             release/*.blockmap
-            release/v1-beta*.yml
+            release/v1-stable*.yml
           if-no-files-found: error
 
   release-mac:
@@ -322,8 +322,8 @@ jobs:
         with:
           name: SIGNED-STAPLED-DMGS
           path: |
-            release/emdash-beta-*.dmg
-            release/emdash-beta-*.zip
+            release/emdash-*.dmg
+            release/emdash-*.zip
             release/*.blockmap
-            release/v1-beta*.yml
+            release/v1-stable*.yml
           if-no-files-found: error
