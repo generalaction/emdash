@@ -5,7 +5,7 @@ import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
-import { pastePromptInjection, sendPromptInjection } from '@renderer/lib/pty/prompt-injection';
+import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
@@ -44,19 +44,12 @@ export const ContextBar = observer(function ContextBar() {
     if (!activeSessionId) return;
     if (!action.text) return;
 
-    if (action.behavior === 'send') {
-      await sendPromptInjection({
-        providerId: activeConversation?.data.providerId,
-        text: action.text,
-        sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
-      });
-    } else {
-      await pastePromptInjection({
-        providerId: activeConversation?.data.providerId,
-        text: action.text,
-        sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
-      });
-    }
+    await pastePromptInjection({
+      providerId: activeConversation?.data.providerId,
+      text: action.text,
+      sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
+    });
+
     activeConversation?.session.pty?.terminal.focus();
   };
 
@@ -80,7 +73,7 @@ export const ContextBar = observer(function ContextBar() {
             </TooltipTrigger>
             <TooltipContent>
               {canApplyContext
-                ? 'Send review prompt to the agent'
+                ? 'Add review prompt to the chat input'
                 : 'Create and select a conversation first'}
             </TooltipContent>
           </Tooltip>

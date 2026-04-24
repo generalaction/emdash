@@ -3,14 +3,11 @@ import { ISSUE_PROVIDER_META } from '@renderer/features/integrations/issue-provi
 
 const MAX_LABEL_TITLE_LENGTH = 24;
 
-export type ContextActionBehavior = 'inject' | 'send';
-
 export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'review-prompt';
 
 export interface ContextAction {
   id: string;
   kind: ContextActionKind;
-  behavior: ContextActionBehavior;
   label: string;
   text: string;
   provider?: Issue['provider'];
@@ -62,7 +59,6 @@ export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | nu
   return {
     id: `linked-issue:${issue.provider}:${normalizedIdentifier}`,
     kind: 'linked-issue',
-    behavior: 'inject',
     label: issueLabel(issue),
     text: issueInjectionText(issue),
     provider: issue.provider,
@@ -75,7 +71,6 @@ export function buildReviewPromptContextAction(reviewPrompt?: string): ContextAc
   return {
     id: 'review-prompt',
     kind: 'review-prompt',
-    behavior: 'send',
     label: 'Review prompt',
     text,
   };
@@ -91,7 +86,6 @@ export function buildDraftCommentsContextAction(args: {
   return {
     id: 'draft-comments',
     kind: 'draft-comments',
-    behavior: 'inject',
     label: `Comments (${args.count})`,
     text,
   };
