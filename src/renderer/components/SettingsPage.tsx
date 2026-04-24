@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ExternalLink, X } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, X } from 'lucide-react';
 import { Separator } from './ui/separator';
 import type { CliAgentStatus } from '../types/connections';
 import { BASE_CLI_AGENTS, CliAgentsList } from './CliAgentsList';
@@ -34,7 +34,8 @@ import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import { AccountTab } from './settings/AccountTab';
 import { WorkspaceProviderInfoCard } from './WorkspaceProviderInfoCard';
 import { useTaskSettings } from '../hooks/useTaskSettings';
-import { EMDASH_DOCS_URL } from '@shared/urls';
+import { EMDASH_DOCS_URL, getEmdashV1BetaUrl } from '@shared/urls';
+import emdashBetaIcon from '../../assets/images/emdash/app-icon-beta-rounded.png';
 
 export type SettingsPageTab =
   | 'general'
@@ -111,6 +112,37 @@ interface SectionConfig {
   title?: string;
   action?: React.ReactNode;
   component: React.ReactNode;
+}
+
+function SettingsV1BetaNotice(): JSX.Element {
+  const betaUrl = getEmdashV1BetaUrl('settings-update-section');
+
+  return (
+    <button
+      type="button"
+      onClick={() => window.electronAPI.openExternal(betaUrl)}
+      className="group mb-4 flex w-full items-center justify-between gap-4 rounded-lg border border-border/70 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/35"
+    >
+      <img
+        src={emdashBetaIcon}
+        alt=""
+        aria-hidden="true"
+        className="h-10 w-10 flex-shrink-0 rounded-xl border border-border/50 bg-background object-cover shadow-sm"
+      />
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium text-foreground">Emdash v1 is now available</p>
+        </div>
+        <p className="text-sm leading-5 text-muted-foreground">
+          A new version of Emdash is ready to try from the download page.
+        </p>
+        <p className="text-sm leading-5 text-muted-foreground">
+          You can import your old chats into v1 after installing it.
+        </p>
+      </div>
+      <ArrowUpRight className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+    </button>
+  );
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose }) => {
@@ -258,7 +290,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ initialTab, onClose 
           component: <NotificationSettingsCard />,
         },
         {
-          component: <UpdateCard />,
+          component: (
+            <div id="settings-update-section" className="grid gap-3">
+              <UpdateCard />
+              <SettingsV1BetaNotice />
+            </div>
+          ),
         },
       ],
     },

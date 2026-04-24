@@ -237,13 +237,17 @@ const Titlebar: React.FC<TitlebarProps> = ({
               href={betaUrl}
               target="_blank"
               rel="noopener noreferrer"
+              className="group/titlebar-v1"
               onClick={(event) => {
                 event.preventDefault();
                 void window.electronAPI.openExternal(betaUrl);
               }}
             >
-              Try v1 beta now
-              <ArrowUpRight className="size-3.5" data-icon="inline-end" />
+              Try Emdash v1
+              <ArrowUpRight
+                className="size-3.5 transition-transform duration-150 group-hover/titlebar-v1:-translate-y-0.5"
+                data-icon="inline-end"
+              />
             </a>
           </Badge>
           {showResourceMonitor ? <PerformanceChip /> : null}
