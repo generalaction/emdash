@@ -33,7 +33,6 @@ describe('buildLinkedIssueContextAction', () => {
 
     expect(action).not.toBeNull();
     expect(action?.id).toBe('linked-issue:github:EMD-123');
-    expect(action?.behavior).toBe('inject');
     expect(action?.provider).toBe('github');
     expect(action?.label).toContain('EMD-123');
     expect(action?.label).toContain('Fix task context');
@@ -70,13 +69,12 @@ describe('buildReviewPromptContextAction', () => {
     expect(buildReviewPromptContextAction('   ')).toBeNull();
   });
 
-  it('builds send action for review prompt', () => {
+  it('builds review prompt action', () => {
     const action = buildReviewPromptContextAction('Review this worktree for issues.');
     expect(action).not.toBeNull();
     expect(action).toMatchObject({
       id: 'review-prompt',
       kind: 'review-prompt',
-      behavior: 'send',
       label: 'Review prompt',
       text: 'Review this worktree for issues.',
     });
@@ -102,7 +100,7 @@ describe('buildDraftCommentsContextAction', () => {
     ).toBeNull();
   });
 
-  it('builds an inject action with count label', () => {
+  it('builds an action with count label', () => {
     const action = buildDraftCommentsContextAction({
       count: 2,
       formattedComments: '<user_comments>test</user_comments>',
@@ -111,7 +109,6 @@ describe('buildDraftCommentsContextAction', () => {
     expect(action).toEqual({
       id: 'draft-comments',
       kind: 'draft-comments',
-      behavior: 'inject',
       label: 'Comments (2)',
       text: '<user_comments>test</user_comments>',
     });
