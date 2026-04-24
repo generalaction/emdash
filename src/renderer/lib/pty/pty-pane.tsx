@@ -6,7 +6,7 @@ import { usePty } from './use-pty';
 
 type Props = {
   /**
-   * Deterministic PTY session ID: `makePtySessionId(projectId, taskId, conversationId|terminalId)`.
+   * Deterministic PTY session ID: `makePtySessionId(projectId, scopeId, leafId)`.
    */
   sessionId: string;
   /** Pre-connected FrontendPty owned by the entity's PtySession store. */

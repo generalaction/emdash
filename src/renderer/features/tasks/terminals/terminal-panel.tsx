@@ -2,7 +2,6 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { LayoutList, Play, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { TabbedPtyPanel } from '@renderer/features/tasks/tabbed-pty-panel';
@@ -203,7 +202,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       }}
       store={store}
       paneId={mode === 'terminals' ? 'terminals' : 'lifecycle-scripts'}
-      getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
       getSession={(s) => s.session}
       remoteConnectionId={remoteConnectionId}
       tabBar={tabBar}
