@@ -1,6 +1,6 @@
+import type { DependencyCategory, DependencyId } from '@shared/dependencies';
 import { createRPCController } from '@shared/ipc/rpc';
 import { getDependencyManager } from './dependency-manager';
-import type { DependencyCategory, DependencyId } from './types';
 
 export const dependenciesController = createRPCController({
   getAll: async (connectionId?: string) => {
