@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
 import { Onboarding } from './features/onboarding/onboarding';
@@ -25,6 +26,7 @@ function AppContent() {
     HAS_SEEN_ONBOARDING,
     false
   );
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const { data: session, isLoading: sessionLoading } = useAccountSession();
   const { data: legacyStatus, isLoading: legacyLoading } = useLegacyPortStatus();
@@ -51,9 +53,22 @@ function AppContent() {
       return null;
     }
     if (!hasCompletedOnboarding && stepsNeeded.length > 0) {
-      return <Onboarding steps={stepsNeeded} onComplete={() => setHasCompletedOnboarding(true)} />;
+      return (
+        <Onboarding
+          steps={stepsNeeded}
+          onComplete={() => {
+            setHasCompletedOnboarding(true);
+            setShowWelcome(true);
+          }}
+        />
+      );
     }
-    return <Workspace />;
+    return (
+      <>
+        <Workspace />
+        {showWelcome && <WelcomeScreen onGetStarted={() => setShowWelcome(false)} />}
+      </>
+    );
   };
 
   return (

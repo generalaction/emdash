@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLegacyPortImport, useLegacyPortPreview } from '@renderer/lib/hooks/useLegacyPort';
 import { Button } from '@renderer/lib/ui/button';
 
-const PROGRESS_DURATION_MS = 2000;
+const PROGRESS_DURATION_MS = 4000;
 
 export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const { data: preview, isLoading: previewLoading } = useLegacyPortPreview(true);
@@ -112,7 +112,7 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
       {isImporting && (
         <div className="flex flex-col gap-2">
           <div className="w-full h-2 bg-background-1 rounded-full overflow-hidden">
-            <div className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }} />
+            <div className="h-full bg-foreground rounded-full" style={{ width: `${progress}%` }} />
           </div>
           <p className="text-xs text-foreground-muted text-center">{progress}%</p>
         </div>
