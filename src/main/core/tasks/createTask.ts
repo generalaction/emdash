@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import { err, ok, Result } from '@shared/result';
 import type {
   CreateTaskError,
@@ -40,7 +41,7 @@ export async function createTask(
   const { strategy } = params;
   const suffix = Math.random().toString(36).slice(2, 7);
   const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
-  const taskSettings = await appSettingsService.get('tasks');
+  const agentAutoApproveDefaults = await appSettingsService.get('agentAutoApproveDefaults');
   let warning: CreateTaskWarning | undefined;
 
   const project = projectManager.getProject(params.projectId);
@@ -211,7 +212,11 @@ export async function createTask(
   if (params.initialConversation) {
     await createConversation({
       ...params.initialConversation,
-      autoApprove: params.initialConversation.autoApprove ?? taskSettings.autoApproveByDefault,
+      autoApprove: resolveAgentAutoApprove(
+        params.initialConversation.autoApprove,
+        agentAutoApproveDefaults,
+        params.initialConversation.provider
+      ),
     });
   }
 
