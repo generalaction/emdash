@@ -22,9 +22,9 @@ export const SETTINGS_DEFAULTS = {
   }),
   tasks: {
     autoGenerateName: true,
-    autoApproveByDefault: false,
     autoTrustWorktrees: true,
   },
+  agentAutoApproveDefaults: {},
   notifications: {
     enabled: true,
     sound: true,

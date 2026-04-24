@@ -1,17 +1,10 @@
 import { Info } from 'lucide-react';
 import React from 'react';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
-import { agentMeta } from '@renderer/lib/providers/meta';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
-
-const SUPPORTED_AUTO_APPROVE_AGENTS = Object.values(agentMeta)
-  .filter((meta) => Boolean(meta.autoApproveFlag))
-  .map((meta) => meta.label)
-  .sort((a, b) => a.localeCompare(b))
-  .join(', ');
 
 function InfoTooltip({ label, content }: { label: string; content: React.ReactNode }) {
   return (
@@ -53,40 +46,6 @@ export const AutoGenerateTaskNamesRow: React.FC = () => {
             checked={taskSettings.autoGenerateName}
             disabled={taskSettings.loading || taskSettings.saving}
             onCheckedChange={taskSettings.updateAutoGenerateName}
-          />
-        </>
-      }
-    />
-  );
-};
-
-export const AutoApproveByDefaultRow: React.FC = () => {
-  const taskSettings = useTaskSettings();
-
-  return (
-    <SettingRow
-      title={
-        <div className="flex items-center gap-1.5">
-          Auto-approve by default
-          <InfoTooltip
-            label="Show supported agents for auto-approve"
-            content={`Supported by: ${SUPPORTED_AUTO_APPROVE_AGENTS}`}
-          />
-        </div>
-      }
-      description="Skips permission prompts for file operations in new tasks."
-      control={
-        <>
-          <ResetToDefaultButton
-            visible={taskSettings.isFieldOverridden('autoApproveByDefault')}
-            defaultLabel="off"
-            onReset={taskSettings.resetAutoApproveByDefault}
-            disabled={taskSettings.loading || taskSettings.saving}
-          />
-          <Switch
-            checked={taskSettings.autoApproveByDefault}
-            disabled={taskSettings.loading || taskSettings.saving}
-            onCheckedChange={taskSettings.updateAutoApproveByDefault}
           />
         </>
       }
