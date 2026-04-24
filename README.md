@@ -18,13 +18,13 @@
 <br />
 
   <a href="https://www.emdash.sh/download" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
-    <img src="https://emdash.sh/media/readme/downloadforwindows.png" alt="Download for Windows" height="40">
+    <img src="https://www.emdash.sh/media/readme/downloadforwindows.png" alt="Download for Windows" height="40">
   </a>
   <a href="https://www.emdash.sh/download" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
-    <img src="https://emdash.sh/media/readme/downloadformacos.png" alt="Download for macOS" height="40">
+    <img src="https://www.emdash.sh/media/readme/downloadformacos.png" alt="Download for macOS" height="40">
   </a>
   <a href="https://www.emdash.sh/download" style="display:inline-block; text-decoration:none; outline:none; border:none;">
-    <img src="https://emdash.sh/media/readme/downloadforlinux.png" alt="Download for Linux" height="40">
+    <img src="https://www.emdash.sh/media/readme/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
 
   <h3>
