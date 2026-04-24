@@ -108,6 +108,22 @@ export const SETTINGS_INDEX: SearchableSetting[] = [
     tabId: 'general',
     elementId: 'notification-settings-card',
   },
+  {
+    id: 'app-updates',
+    label: 'App updates',
+    description: 'Check your current app version and update status',
+    aliases: ['version', 'release', 'changelog', 'download', 'updater'],
+    tabId: 'general',
+    elementId: 'settings-update-section',
+  },
+  {
+    id: 'emdash-v1',
+    label: 'Emdash v1',
+    description: 'Download Emdash v1',
+    aliases: ['v1', 'new version', 'download v1'],
+    tabId: 'general',
+    elementId: 'settings-update-section',
+  },
 
   // Agents (clis-models) Tab
   {

@@ -6,6 +6,7 @@ import { formatChangelogPublishedAt } from '@/lib/changelogDate';
 import { EMDASH_CHANGELOG_URL, type ChangelogEntry } from '@shared/changelog';
 import { getEmdashV1BetaUrl } from '@shared/urls';
 import { ArrowRight, ExternalLink } from 'lucide-react';
+import emdashBetaIcon from '../../assets/images/emdash/app-icon-beta-rounded.png';
 
 interface ChangelogModalProps {
   entry: ChangelogEntry;
@@ -97,9 +98,17 @@ function ChangelogModal({ entry }: ChangelogModalProps): JSX.Element {
             onClick={() => window.electronAPI.openExternal(betaUrl)}
             className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/35 px-4 py-3 text-left transition-colors hover:bg-accent/40"
           >
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">Emdash v1 is in public beta</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">Download the beta</p>
+            <div className="flex min-w-0 items-center gap-3">
+              <img
+                src={emdashBetaIcon}
+                alt=""
+                aria-hidden="true"
+                className="h-10 w-10 flex-shrink-0 rounded-xl border border-border/50 bg-background object-cover shadow-sm"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">Emdash v1 is now available</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">Download Emdash v1</p>
+              </div>
             </div>
             <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
           </button>
