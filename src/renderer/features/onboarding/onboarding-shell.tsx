@@ -65,7 +65,7 @@ export function OnboardingShell({
   };
 
   return (
-    <div className="flex flex-col items-start justify-center max-w-5xl mx-auto w-full h-full max-h-[70vh]">
+    <div className="flex flex-col items-start justify-center max-w-5xl mx-auto w-full h-full max-h-[70vh] [-webkit-app-region:no-drag]">
       <div className="flex flex-row border border-b-0">
         {steps.map((step, index) => (
           <StepHeader
