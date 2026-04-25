@@ -53,7 +53,7 @@ export function OnboardingShell({
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const activeStep = steps[activeIndex];
-  const StepComponent = stepConfig[activeStep].component;
+  const StepComponent = stepConfig[activeStep]?.component;
 
   const handleStepComplete = () => {
     const nextIndex = activeIndex + 1;

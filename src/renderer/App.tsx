@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
@@ -31,20 +31,26 @@ function AppContent() {
 
   const isLoading = sessionLoading || legacyLoading;
 
-  const stepsNeeded: OnboardingStep[] = [];
-  if (!isLoading && view === 'onboarding') {
-    if (!session?.isSignedIn) {
-      stepsNeeded.push('sign-in');
+  // Computed once when queries first resolve while in onboarding. Never updated
+  // after that so query refetches mid-onboarding (e.g. legacyPortStatus after
+  // import completes) cannot shrink the step list and unmount active step components.
+  const [frozenSteps, setFrozenSteps] = useState<OnboardingStep[] | null>(null);
+
+  useEffect(() => {
+    if (!isLoading && view === 'onboarding' && frozenSteps === null) {
+      const computed: OnboardingStep[] = [];
+      if (!session?.isSignedIn) computed.push('sign-in');
+      const needsImport =
+        legacyStatus?.hasLegacyDb &&
+        legacyStatus.portStatus !== 'completed' &&
+        legacyStatus.portStatus !== 'no-legacy-file' &&
+        !legacyStatus.hasExistingData;
+      if (needsImport) computed.push('import');
+      setFrozenSteps(computed);
     }
-    const needsImport =
-      legacyStatus?.hasLegacyDb &&
-      legacyStatus.portStatus !== 'completed' &&
-      legacyStatus.portStatus !== 'no-legacy-file' &&
-      !legacyStatus.hasExistingData;
-    if (needsImport) {
-      stepsNeeded.push('import');
-    }
-  }
+  }, [view, isLoading, frozenSteps, session, legacyStatus]);
+
+  const stepsNeeded = frozenSteps ?? [];
 
   const handleOnboardingComplete = () => {
     localStorage.setItem(HAS_SEEN_ONBOARDING, 'true');
@@ -52,7 +58,7 @@ function AppContent() {
   };
 
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading || (view === 'onboarding' && frozenSteps === null)) {
       return null;
     }
     if (view === 'onboarding' && stepsNeeded.length > 0) {
