@@ -1,4 +1,7 @@
 import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { log } from '@main/lib/logger';
 
 /**
@@ -26,6 +29,16 @@ const PRESERVE_KEYS = new Set([
   'NODE_ENV',
 ]);
 
+const USER_BIN_DIRS = [path.join(os.homedir(), '.local', 'bin')];
+
+function pathEntryExists(entry: string): boolean {
+  try {
+    return fs.statSync(entry).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function parseEnvOutput(raw: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const line of raw.split('\n')) {
@@ -49,6 +62,22 @@ function mergePath(shellPath: string, currentPath: string): string {
   const seen = new Set(shellEntries);
   const extra = currentEntries.filter((p) => !seen.has(p));
   return [...shellEntries, ...extra].join(sep);
+}
+
+export function ensureUserBinDirsInPath(candidates: string[] = USER_BIN_DIRS): string[] {
+  const currentPath = process.env.PATH ?? '';
+  const entries = currentPath.split(path.delimiter).filter(Boolean);
+  const existing = new Set(entries);
+  const additions = candidates.filter(
+    (candidate) => pathEntryExists(candidate) && !existing.has(candidate)
+  );
+
+  if (additions.length === 0) {
+    return [];
+  }
+
+  process.env.PATH = [...additions, ...entries].join(path.delimiter);
+  return additions;
 }
 
 /**

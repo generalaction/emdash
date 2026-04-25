@@ -6,6 +6,7 @@ import type { Pty } from '@main/core/pty/pty';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
+import { ensureUserBinDirsInPath } from '@main/utils/userEnv';
 import { quoteShellArg } from '../../utils/shellEscape';
 
 export type InstallCommandRunner<TData = void, TError = InstallCommandError> = (
@@ -77,7 +78,12 @@ export function runLocalInstallCommand(
     return Promise.resolve(err({ type: 'pty-open-failed', message }));
   }
 
-  return waitForInstallPty(pty);
+  return waitForInstallPty(pty).then((result) => {
+    if (result.success) {
+      ensureUserBinDirsInPath();
+    }
+    return result;
+  });
 }
 
 export function createSshInstallCommandRunner(proxy: SshClientProxy): InstallCommandRunner {
