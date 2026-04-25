@@ -61,7 +61,7 @@ function AppContent() {
     return (
       <>
         <Workspace />
-        {view === 'welcome' && <WelcomeScreen onGetStarted={() => setView('workspace')} />}
+        {view === 'welcome' && <WelcomeScreen onGetStarted={() => window.location.reload()} />}
       </>
     );
   };
