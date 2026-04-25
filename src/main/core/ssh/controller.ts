@@ -32,10 +32,13 @@ export const sshController = createRPCController({
 
   /** Create or update an SSH connection, storing secrets in local secure storage. */
   saveConnection: async (
-    config: Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }
+    config: Partial<Pick<SshConfig, 'id'>> &
+      Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }
   ): Promise<SshConfig> => {
-    const connectionId = randomUUID();
+    const connectionId = config.id ?? randomUUID();
 
+    // Only update stored credentials when a non-empty value is provided.
+    // On edits, leaving a field blank means "keep the existing credential".
     if (config.password) {
       await sshCredentialService.storePassword(connectionId, config.password);
     }

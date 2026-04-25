@@ -186,10 +186,10 @@
     --status-cancelled: color(display-p3 0.553 0.553 0.553);
 
     /* Monaco editor */
-    --monaco-bg: color(display-p3 0.973 0.98 0.988);
-    --monaco-fg: color(display-p3 0.118 0.161 0.231);
-    --monaco-line-highlight: color(display-p3 0.945 0.961 0.976);
-    --monaco-line-number: color(display-p3 0.58 0.639 0.722);
+    --monaco-bg: var(--background);
+    --monaco-fg: var(--foreground);
+    --monaco-line-highlight: var(--background-2);
+    --monaco-line-number: var(--foreground-passive);
     --monaco-gutter: color(display-p3 0.973 0.98 0.988);
     --monaco-inserted-text-bg: color(display-p3 0.063 0.725 0.506 / 0.251);
     --monaco-inserted-line-bg: color(display-p3 0.925 0.992 0.961 / 0.502);

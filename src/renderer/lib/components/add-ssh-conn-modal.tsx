@@ -33,6 +33,10 @@ import { Input } from '@renderer/lib/ui/input';
 import { ModalLayout } from '@renderer/lib/ui/modal-layout';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 
+export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: string }> {
+  initialConfig?: SshConfig;
+}
+
 const formSchema = z
   .object({
     name: z.string().min(1, 'Name is required'),
@@ -50,9 +54,10 @@ const formSchema = z
     password: z.string(),
     privateKeyPath: z.string(),
     passphrase: z.string(),
+    isEditing: z.boolean(),
   })
   .superRefine((val, ctx) => {
-    if (val.authType === 'password' && !val.password) {
+    if (val.authType === 'password' && !val.password && !val.isEditing) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Password is required',
@@ -71,8 +76,9 @@ const formSchema = z
 type AuthType = 'password' | 'key' | 'agent';
 type TestState = 'idle' | 'testing' | 'success' | 'error';
 
-export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connectionId: string }>) {
+export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshConnModalProps) {
   const sshConnections = appState.sshConnections;
+  const isEditing = !!initialConfig;
 
   const [testState, setTestState] = useState<TestState>('idle');
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
@@ -81,14 +87,15 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
 
   const form = useForm({
     defaultValues: {
-      name: '',
-      host: '',
-      port: 22,
-      username: '',
-      authType: 'password' as AuthType,
+      name: initialConfig?.name ?? '',
+      host: initialConfig?.host ?? '',
+      port: initialConfig?.port ?? 22,
+      username: initialConfig?.username ?? '',
+      authType: (initialConfig?.authType ?? 'password') as AuthType,
       password: '',
-      privateKeyPath: '',
+      privateKeyPath: initialConfig?.privateKeyPath ?? '',
       passphrase: '',
+      isEditing,
     },
     validators: {
       onSubmit: formSchema,
@@ -96,7 +103,9 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
       try {
-        const config: Omit<SshConfig, 'id'> & { password?: string; passphrase?: string } = {
+        const config: Partial<Pick<SshConfig, 'id'>> &
+          Omit<SshConfig, 'id'> & { password?: string; passphrase?: string } = {
+          id: initialConfig?.id,
           name: value.name,
           host: value.host,
           port: value.port,
@@ -156,7 +165,7 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
             <Button variant="ghost" size="icon-sm" onClick={onClose}>
               <ArrowLeftIcon className="w-4 h-4" />
             </Button>
-            <DialogTitle>Add SSH Connection</DialogTitle>
+            <DialogTitle>{isEditing ? 'Edit SSH Connection' : 'Add SSH Connection'}</DialogTitle>
           </div>
         </DialogHeader>
       }
@@ -334,6 +343,7 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
                               onChange={(e) => field.handleChange(e.target.value)}
                               aria-invalid={isInvalid}
                               autoComplete="current-password"
+                              placeholder={isEditing ? 'Leave blank to keep existing' : undefined}
                             />
                             {isInvalid && <FieldError errors={field.state.meta.errors} />}
                           </Field>
@@ -377,12 +387,14 @@ export function AddSshConnModal({ onSuccess, onClose }: BaseModalProps<{ connect
                               value={field.state.value ?? ''}
                               onBlur={field.handleBlur}
                               onChange={(e) => field.handleChange(e.target.value)}
-                              placeholder="Optional"
+                              placeholder={isEditing ? 'Leave blank to keep existing' : 'Optional'}
                               autoComplete="off"
                             />
-                            <FieldDescription>
-                              Leave empty if your key has no passphrase.
-                            </FieldDescription>
+                            {!isEditing && (
+                              <FieldDescription>
+                                Leave empty if your key has no passphrase.
+                              </FieldDescription>
+                            )}
                           </Field>
                         )}
                       </form.Field>

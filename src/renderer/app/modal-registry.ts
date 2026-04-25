@@ -9,6 +9,7 @@ import { CreatePrModal } from '@renderer/features/tasks/diff-view/changes-panel/
 import { ConflictDialog } from '@renderer/features/tasks/editor/conflict-dialog';
 import { RenameTaskModal } from '@renderer/features/tasks/rename-task-modal';
 import { AddSshConnModal } from '@renderer/lib/components/add-ssh-conn-modal';
+import { ChangeProjectConnectionModal } from '@renderer/lib/components/change-project-connection-modal';
 import { ConfirmActionDialog } from '@renderer/lib/components/confirm-action-dialog';
 import { FeedbackModal } from '@renderer/lib/components/feedback-modal/feedback-modal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-device-flow-modal';
@@ -33,6 +34,7 @@ export const modalRegistry = {
   taskModal: createModal(CreateTaskModal),
   addProjectModal: createModal(AddProjectModal),
   addSshConnModal: createModal(AddSshConnModal),
+  changeProjectConnectionModal: createModal(ChangeProjectConnectionModal, { size: 'sm' }),
   githubDeviceFlowModal: createModal(GithubDeviceFlowModalOverlay, { size: 'md' }),
   confirmActionModal: createModal(ConfirmActionDialog, { size: 'xs' }),
   createConversationModal: createModal(CreateConversationModal),

@@ -177,6 +177,7 @@ export class WorktreeService {
       }
 
       await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
+      await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
       await this.exec('git', ['worktree', 'add', targetPath, branchName], {
         cwd: this.repoPath,
       });
@@ -256,6 +257,7 @@ export class WorktreeService {
         );
       }
 
+      await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
       await this.exec('git', ['worktree', 'add', targetPath, branchName], {
         cwd: this.repoPath,
       });

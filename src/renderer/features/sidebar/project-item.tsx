@@ -1,4 +1,5 @@
 import {
+  CableIcon,
   ChevronRight,
   FolderClosed,
   FolderInput,
@@ -56,6 +57,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const { params: taskParams } = useParams('task');
   const showCreateTaskModal = useShowModal('taskModal');
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
+  const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
 
   const project = getProjectStore(projectId);
 
@@ -201,6 +203,17 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <RotateCcw className="size-4" />
               Reconnect
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => {
+                showChangeConnectionModal({
+                  projectId,
+                  currentConnectionId: sshConnectionId,
+                });
+              }}
+            >
+              <CableIcon className="size-4" />
+              Change SSH Connection
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>

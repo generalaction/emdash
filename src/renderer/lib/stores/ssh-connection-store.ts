@@ -4,7 +4,8 @@ import type { ConnectionState, ConnectionTestResult, SshConfig } from '@shared/s
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from './resource';
 
-type SaveConnectionInput = Omit<SshConfig, 'id'> & { password?: string; passphrase?: string };
+type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
+  Omit<SshConfig, 'id'> & { password?: string; passphrase?: string };
 
 function toConnectionState(event: SshConnectionEvent): ConnectionState {
   switch (event.type) {

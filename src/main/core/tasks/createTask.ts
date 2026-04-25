@@ -104,18 +104,28 @@ export async function createTask(
     }
 
     case 'from-pull-request': {
-      // Fetch the PR head — handles same-repo and fork PRs.
-      // Uses headRefName directly as the local branch name (same as `gh pr checkout`).
-      const fetchResult = await project.repository.fetchPrForReview(
-        strategy.prNumber,
-        strategy.headBranch,
-        strategy.headRepositoryUrl,
-        strategy.headBranch,
-        strategy.isFork,
-        configuredRemote
-      );
-      if (!fetchResult.success) {
-        return err({ type: 'pr-fetch-failed', error: fetchResult.error, remote: configuredRemote });
+      // If the head branch is already checked out in a valid worktree, skip the fetch.
+      // Git refuses to update a branch that is currently checked out, even with --force.
+      const existingWorktree = await project.getWorktreeForBranch(strategy.headBranch);
+
+      if (!existingWorktree) {
+        // Fetch the PR head — handles same-repo and fork PRs.
+        // Uses headRefName directly as the local branch name (same as `gh pr checkout`).
+        const fetchResult = await project.repository.fetchPrForReview(
+          strategy.prNumber,
+          strategy.headBranch,
+          strategy.headRepositoryUrl,
+          strategy.headBranch,
+          strategy.isFork,
+          configuredRemote
+        );
+        if (!fetchResult.success) {
+          return err({
+            type: 'pr-fetch-failed',
+            error: fetchResult.error,
+            remote: configuredRemote,
+          });
+        }
       }
 
       dbSourceBranch = { type: 'local', branch: strategy.headBranch };

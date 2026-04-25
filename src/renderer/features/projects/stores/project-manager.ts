@@ -8,6 +8,7 @@ import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import {
   createUnmountedProject,
   createUnregisteredProject,
+  isMountedProject,
   isUnmountedProject,
   isUnregisteredProject,
   ProjectStore,
@@ -349,6 +350,34 @@ export class ProjectManagerStore {
       });
       throw err;
     }
+  }
+
+  async updateProjectConnection(projectId: string, newConnectionId: string): Promise<void> {
+    await rpc.projects.updateProjectConnection(projectId, newConnectionId);
+
+    const store = this.projects.get(projectId);
+    if (!store || !store.data || store.data.type !== 'ssh') return;
+
+    const newData: SshProject = { ...store.data, connectionId: newConnectionId };
+
+    runInAction(() => {
+      const current = this.projects.get(projectId);
+      if (!current || !current.data || current.data.type !== 'ssh') return;
+      if (isMountedProject(current)) {
+        current.transitionToUnmounted(newData, 'opening');
+      } else if (isUnmountedProject(current)) {
+        current.data = newData;
+        current.phase = 'opening';
+        current.error = undefined;
+        current.errorCode = undefined;
+      }
+    });
+
+    // Wait for any existing in-flight mount to settle before attempting a fresh mount
+    const inFlight = this._projectMountPromises.get(projectId);
+    if (inFlight) await inFlight.catch(() => {});
+
+    this.mountProject(projectId).catch(() => {});
   }
 
   removeUnregisteredProject(projectId: string): void {
