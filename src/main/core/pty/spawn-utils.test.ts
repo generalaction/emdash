@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
-import { buildTmuxParams, resolveSpawnParams } from './spawn-utils';
+import { buildTmuxParams, resolveSpawnParams, resolveSshCommand } from './spawn-utils';
 
 const SHELL = '/bin/bash';
 
@@ -178,5 +178,13 @@ describe('buildTmuxParams', () => {
   it('uses the provided cwd', () => {
     const result = buildTmuxParams(SHELL, 'sess', 'cmd', '/custom/path');
     expect(result.cwd).toBe('/custom/path');
+  });
+});
+
+describe('resolveSshCommand', () => {
+  it('runs remote commands through a login shell so PATH matches install/probe', () => {
+    const result = resolveSshCommand('agent', makeAgentConfig());
+
+    expect(result).toBe(`bash -l -c 'cd "/workspace" && claude --resume conv-1'`);
   });
 });

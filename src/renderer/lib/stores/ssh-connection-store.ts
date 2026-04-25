@@ -7,6 +7,10 @@ import { Resource } from './resource';
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
   Omit<SshConfig, 'id'> & { password?: string; passphrase?: string };
 
+type SshConnectionStoreOptions = {
+  onConnectionReady?: (connectionId: string) => void;
+};
+
 function toConnectionState(event: SshConnectionEvent): ConnectionState {
   switch (event.type) {
     case 'connected':
@@ -30,27 +34,35 @@ export class SshConnectionStore {
 
   private pendingMutations = 0;
   private started = false;
+  private readonly onConnectionReady?: (connectionId: string) => void;
 
-  constructor() {
+  constructor({ onConnectionReady }: SshConnectionStoreOptions = {}) {
+    this.onConnectionReady = onConnectionReady;
     this.connectionsResource = new Resource<SshConfig[]>(() => rpc.ssh.getConnections(), []);
 
     this.connectionStatesResource = new Resource<
       Record<string, ConnectionState>,
       SshConnectionEvent
-    >(
-      () => rpc.ssh.getConnectionState(),
-      [
-        {
-          kind: 'event',
-          subscribe: (handler) => events.on(sshConnectionEventChannel, handler),
-          onEvent: (event, ctx) => {
-            const next = { ...(ctx.data ?? {}) };
-            next[event.connectionId] = toConnectionState(event);
-            ctx.set(next);
-          },
+    >(async () => {
+      const states = await rpc.ssh.getConnectionState();
+      for (const [connectionId, state] of Object.entries(states)) {
+        if (state === 'connected') this.onConnectionReady?.(connectionId);
+      }
+      return states;
+    }, [
+      {
+        kind: 'event',
+        subscribe: (handler) => events.on(sshConnectionEventChannel, handler),
+        onEvent: (event, ctx) => {
+          const next = { ...(ctx.data ?? {}) };
+          next[event.connectionId] = toConnectionState(event);
+          ctx.set(next);
+          if (event.type === 'connected' || event.type === 'reconnected') {
+            this.onConnectionReady?.(event.connectionId);
+          }
         },
-      ]
-    );
+      },
+    ]);
 
     makeObservable<SshConnectionStore, 'pendingMutations'>(this, {
       pendingMutations: observable,

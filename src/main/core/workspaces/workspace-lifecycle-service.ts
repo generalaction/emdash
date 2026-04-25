@@ -2,7 +2,6 @@ import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createScriptTerminalId } from '@shared/terminals';
 import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 
