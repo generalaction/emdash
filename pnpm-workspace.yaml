@@ -6,7 +6,6 @@ onlyBuiltDependencies:
   - core-js
   - electron
   - esbuild
-  - keytar
   - node-pty
   - protobufjs
   - sqlite3

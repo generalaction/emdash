@@ -59,19 +59,6 @@
           cp ${electronLinuxZip} $out/electron-v${electronVersion}-linux-x64.zip
         '';
 
-        # Pre-fetch Electron headers for native module compilation (node-gyp)
-        electronHeaders = pkgs.fetchurl {
-          url = "https://www.electronjs.org/headers/v${electronVersion}/node-v${electronVersion}-headers.tar.gz";
-          sha256 = "sha256-Q+c8G4nIRoJL/0uAYVYY2hrnFgvmkKB6RC3nxJtFYzU=";
-        };
-
-        # Create a node-gyp cache directory with the Electron headers
-        electronHeadersDir = pkgs.runCommand "electron-headers" {} ''
-          mkdir -p $out/${electronVersion}
-          tar -xzf ${electronHeaders} -C $out/${electronVersion} --strip-components=1
-          echo "9" > $out/${electronVersion}/installVersion
-        '';
-
         sharedEnv =
           [
             nodejs
@@ -107,13 +94,13 @@
                     inherit pname version src;
                     inherit pnpm;
                     fetcherVersion = 1;
-                    hash = "sha256-utuVjD/5w9AihDqvwFOzTqWvQqdHcKj3PybdOE2Cef8=";
+                    hash = "";
                   }
                 else
                   pnpm.fetchDeps {
                     inherit pname version src;
                     fetcherVersion = 1;
-                    hash = "sha256-utuVjD/5w9AihDqvwFOzTqWvQqdHcKj3PybdOE2Cef8=";
+                    hash = "";
                   };
               nativeBuildInputs =
                 sharedEnv
@@ -122,38 +109,12 @@
                   (pkgs.pnpmConfigHook or pnpm.configHook)
                   pkgs.dpkg
                   pkgs.rpm
-                  pkgs.autoPatchelfHook
-                  pkgs.makeWrapper
                 ];
               buildInputs = [
                 pkgs.libsecret
                 pkgs.sqlite
                 pkgs.zlib
                 pkgs.libutempter
-                # Electron runtime dependencies
-                pkgs.libglvnd
-                pkgs.mesa
-                pkgs.alsa-lib
-                pkgs.nss
-                pkgs.nspr
-                pkgs.systemdLibs
-                pkgs.gtk3
-                pkgs.at-spi2-atk
-                pkgs.at-spi2-core
-                pkgs.cups
-                pkgs.libdrm
-                pkgs.pango
-                pkgs.cairo
-                pkgs.xorg.libX11
-                pkgs.xorg.libXcomposite
-                pkgs.xorg.libXdamage
-                pkgs.xorg.libXext
-                pkgs.xorg.libXfixes
-                pkgs.xorg.libXrandr
-                pkgs.xorg.libxcb
-                pkgs.libxkbcommon
-                pkgs.expat
-                pkgs.mesa.drivers
               ];
               env = {
                 HOME = "$TMPDIR/emdash-home";
@@ -171,11 +132,6 @@
 
                 # Build the app (renderer + main)
                 pnpm run build
-
-                # Rebuild native modules (keytar, sqlite3, node-pty) for Electron
-                # Point node-gyp at pre-fetched headers to avoid network access
-                export npm_config_nodedir="${electronHeadersDir}/${electronVersion}"
-                pnpm exec electron-rebuild -f -v ${electronVersion} --only=sqlite3,node-pty,keytar
 
                 # Run electron-builder with electronDist override to avoid download
                 # Use --dir to only produce unpacked output (no AppImage/deb which require network)
@@ -208,16 +164,14 @@
                 fi
 
                 install -d $out/bin
-                makeWrapper $out/share/emdash/linux-unpacked/emdash $out/bin/emdash \
-                  --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [
-                    pkgs.libglvnd
-                    pkgs.mesa
-                    pkgs.alsa-lib
-                    pkgs.nss
-                    pkgs.nspr
-                    pkgs.systemdLibs
-                    pkgs.libsecret
-                  ]}"
+                cat <<EOF > $out/bin/emdash
+#!${pkgs.bash}/bin/bash
+set -euo pipefail
+
+APP_ROOT="$out/share/emdash/linux-unpacked"
+exec "\$APP_ROOT/emdash" "\$@"
+EOF
+                chmod +x $out/bin/emdash
 
                 runHook postInstall
               '';

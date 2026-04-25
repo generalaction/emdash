@@ -11,23 +11,18 @@
       }
     ],
     "@typescript-eslint/no-explicit-any": "warn",
+
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/explicit-module-boundary-types": "off",
     "@typescript-eslint/no-empty-function": "off",
     "prefer-const": "warn",
     "react-hooks/set-state-in-effect": "warn"
   },
-  "overrides": [
-    {
-      "files": ["src/main/**/*.ts", "src/main/**/*.tsx"],
-      "rules": {
-        "@typescript-eslint/no-var-requires": "off"
-      }
-    }
-  ],
+  "overrides": [],
   "env": {
     "browser": true,
     "es2020": true,
     "node": true
-  }
+  },
+  "ignorePatterns": ["**/_*/**"]
 }

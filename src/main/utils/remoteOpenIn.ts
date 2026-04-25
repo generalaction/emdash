@@ -43,9 +43,7 @@ type GhosttyRemoteExecInput = {
  * - keep session alive even when SHELL is unset/invalid by chaining shell fallbacks
  */
 export function buildRemoteTerminalShellCommand(targetPath: string): string {
-  // Wrap the POSIX payload in /bin/sh -c so non-POSIX login shells (fish, csh) can execute it.
-  const posixPayload = `cd ${quoteShellArg(targetPath)} && (if command -v infocmp >/dev/null 2>&1 && [ -n "\${TERM:-}" ] && infocmp "\${TERM}" >/dev/null 2>&1; then :; else export TERM=xterm-256color; fi) && (exec "\${SHELL:-/bin/bash}" || exec /bin/bash || exec /bin/sh)`;
-  return `/bin/sh -c ${quoteShellArg(posixPayload)}`;
+  return `cd ${quoteShellArg(targetPath)} && (if command -v infocmp >/dev/null 2>&1 && [ -n "\${TERM:-}" ] && infocmp "\${TERM}" >/dev/null 2>&1; then :; else export TERM=xterm-256color; fi) && (exec "\${SHELL:-/bin/bash}" || exec /bin/bash || exec /bin/sh)`;
 }
 
 /**

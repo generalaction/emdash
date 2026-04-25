@@ -1,15 +1,16 @@
+
 ---
 default_branch: main
 package_manager: pnpm
-node_version: "22.20.0"
+node_version: "24.x.x"
 start_command: "pnpm run d"
 dev_command: "pnpm run dev"
 build_command: "pnpm run build"
 test_commands:
   - "pnpm run format"
   - "pnpm run lint"
-  - "pnpm run type-check"
-  - "pnpm exec vitest run"
+  - "pnpm run typecheck"
+  - "pnpm run test"
 ports:
   dev: 3000
 required_env: []
@@ -54,13 +55,43 @@ Start here. Load only the linked `agents/` docs that are relevant to the task.
 ## Conventions
 
 - IPC contract and typing: `agents/conventions/ipc.md`
+- Main process patterns (controllers, services, Result type, events): `agents/conventions/main-patterns.md`
+- Renderer patterns (modals, views, PTY frontend, React Query contexts): `agents/conventions/renderer-patterns.md`
 - TypeScript and React norms: `agents/conventions/typescript.md`
 - Config files and repo rules: `agents/conventions/config-files.md`
+- Never do re exports always import from the original source
+
+### State Guard Conventions (renderer stores)
+
+`ProjectStore` and `TaskStore` are mutable MobX class instances that transition through states. Use the following layers — do not mix them:
+
+**Selectors** (`task-selectors.ts`, `project-selectors.ts`) — pure functions, safe in observer components, effects, and event handlers:
+- `getTaskStore(projectId, taskId)` → `TaskStore | undefined`
+- `asProvisioned(store)` → `ProvisionedTask | undefined` (use with explicit null check, never `!`)
+- `taskViewKind(store, projectId)` → `TaskViewKind`
+- `getTaskManagerStore(projectId)` → `TaskManagerStore | undefined` (use this instead of reaching through project store)
+- `getProjectStore(projectId)` → `ProjectStore | undefined`
+- `asMounted(store)` → `MountedProject | undefined` (use with explicit null check, never `!`)
+
+**Hooks** (`task-view-context.tsx`) — for `observer` components inside the task view tree:
+- `useTaskViewKind()` — routing/state-gating
+- `useProvisionedTask()` → `ProvisionedTask | null` — when the component handles a non-provisioned state
+- `useRequireProvisionedTask()` → `ProvisionedTask` — when the component must only render when provisioned (throws with a descriptive error if the invariant is violated)
+
+**Rules:**
+- Never `asProvisioned(...)!` or `asMounted(...)!` — use the hook or an explicit null check
+- State guards must use `kind !== 'ready'`, never enumerate non-ready states (new states would silently fall through)
+- Access task manager via `getTaskManagerStore(projectId)`, not through `project.taskManager`
+- Access mounted project via `asMounted(getProjectStore(id))`, not via inline `isMountedProject` guards
 
 ## Non-Negotiables
 
-- Run `pnpm run format`, `pnpm run lint`, `pnpm run type-check`, and `pnpm exec vitest run` before merging.
+- Run `pnpm run format`, `pnpm run lint`, `pnpm run typecheck`, and `pnpm test` before merging.
 - Do not hand-edit numbered Drizzle migrations or `drizzle/meta/`.
-- Add renderer typings in `src/renderer/types/electron-api.d.ts` for any new IPC method.
-- Treat `src/main/services/ptyManager.ts`, `src/main/services/ssh/**`, `src/main/db/**`, and updater code as high risk.
+- New RPC methods go in the appropriate `src/main/core/*/controller.ts` and are auto-registered via `src/main/rpc.ts`.
+- Only use manual IPC in `electron-api.d.ts` for methods requiring `event.sender`.
+- New modals must be registered in `src/renderer/core/modal/registry.ts`.
+- New views must be registered in `src/renderer/core/view/registry.ts`.
+- Treat `src/main/core/pty/`, `src/main/core/ssh/`, `src/main/db/`, and updater code as high risk.
 - Avoid editing `dist/`, `release/`, and `build/` unless the task is explicitly about packaging or updater/signing behavior.
+- The docs app in `docs/` is separate from the Electron renderer and also defaults to port `3000`.

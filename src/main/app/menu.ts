@@ -1,85 +1,13 @@
-import { Menu, shell, app, BrowserWindow, ipcMain } from 'electron';
-import { EMDASH_RELEASES_URL, EMDASH_DOCS_URL } from '@shared/urls';
-
-function getFocusedWindow(): BrowserWindow | null {
-  return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
-}
-
-function sendToRenderer(channel: string) {
-  const win = getFocusedWindow();
-  if (win) win.webContents.send(channel);
-}
-
-/** Menu labels exposed to the renderer for the custom title-bar menu. */
-export type TitlebarMenuLabel = 'File' | 'Edit' | 'View' | 'Window' | 'Help';
-
-function getWindowsMenuTemplate(): Record<
-  TitlebarMenuLabel,
-  Electron.MenuItemConstructorOptions[]
-> {
-  return {
-    File: [
-      {
-        label: 'Settings\u2026',
-        accelerator: 'CmdOrCtrl+,',
-        click: () => sendToRenderer('menu:open-settings'),
-      },
-      { type: 'separator' },
-      {
-        label: 'Close Tab',
-        accelerator: 'CmdOrCtrl+W',
-        click: () => sendToRenderer('menu:close-tab'),
-      },
-      { type: 'separator' },
-      { role: 'quit' },
-    ],
-    Edit: [
-      {
-        label: 'Undo',
-        accelerator: 'CmdOrCtrl+Z',
-        click: () => sendToRenderer('menu:undo'),
-      },
-      {
-        label: 'Redo',
-        accelerator: 'CmdOrCtrl+Y',
-        click: () => sendToRenderer('menu:redo'),
-      },
-      { type: 'separator' },
-      { role: 'cut' },
-      { role: 'copy' },
-      { role: 'paste' },
-      { role: 'delete' },
-      { role: 'selectAll' },
-    ],
-    View: [
-      { role: 'reload' },
-      { role: 'forceReload' },
-      { role: 'toggleDevTools' },
-      { type: 'separator' },
-      { role: 'resetZoom' },
-      { role: 'zoomIn' },
-      { role: 'zoomOut' },
-      { type: 'separator' },
-      { role: 'togglefullscreen' },
-    ],
-    Window: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'close' }],
-    Help: [
-      {
-        label: 'Docs',
-        click: () => shell.openExternal(EMDASH_DOCS_URL),
-      },
-      {
-        label: 'Changelog',
-        click: () => shell.openExternal(EMDASH_RELEASES_URL),
-      },
-      { type: 'separator' },
-      {
-        label: 'Check for Updates\u2026',
-        click: () => sendToRenderer('menu:check-for-updates'),
-      },
-    ],
-  };
-}
+import { app, Menu, shell } from 'electron';
+import {
+  menuCheckForUpdatesChannel,
+  menuCloseTabChannel,
+  menuOpenSettingsChannel,
+  menuRedoChannel,
+  menuUndoChannel,
+} from '@shared/events/appEvents';
+import { EMDASH_DOCS_URL, EMDASH_RELEASES_URL } from '@shared/urls';
+import { events } from '@main/lib/events';
 
 export function setupApplicationMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -99,11 +27,11 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => sendToRenderer('menu:open-settings'),
+                click: () => events.emit(menuOpenSettingsChannel, undefined),
               },
               {
                 label: 'Check for Updates\u2026',
-                click: () => sendToRenderer('menu:check-for-updates'),
+                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
               },
               { type: 'separator' as const },
               { role: 'services' as const },
@@ -131,17 +59,18 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => sendToRenderer('menu:open-settings'),
+                click: () => events.emit(menuOpenSettingsChannel, undefined),
               },
               { type: 'separator' as const },
             ]
           : []),
-        {
-          label: 'Close Tab',
-          accelerator: 'CmdOrCtrl+W',
-          click: () => sendToRenderer('menu:close-tab'),
-        },
-        ...(!isMac ? [{ type: 'separator' as const }, { role: 'quit' as const }] : []),
+        isMac
+          ? {
+              label: 'Close Tab',
+              accelerator: 'CmdOrCtrl+W',
+              click: () => events.emit(menuCloseTabChannel, undefined),
+            }
+          : { role: 'quit' as const },
       ],
     },
     // Edit menu
@@ -151,12 +80,12 @@ export function setupApplicationMenu(): void {
         {
           label: 'Undo',
           accelerator: 'CmdOrCtrl+Z',
-          click: () => sendToRenderer('menu:undo'),
+          click: () => events.emit(menuUndoChannel, undefined),
         },
         {
           label: 'Redo',
           accelerator: isMac ? 'Shift+CmdOrCtrl+Z' : 'CmdOrCtrl+Y',
-          click: () => sendToRenderer('menu:redo'),
+          click: () => events.emit(menuRedoChannel, undefined),
         },
         { type: 'separator' as const },
         { role: 'cut' as const },
@@ -201,7 +130,7 @@ export function setupApplicationMenu(): void {
               { type: 'separator' as const },
               {
                 label: 'Check for Updates\u2026',
-                click: () => sendToRenderer('menu:check-for-updates'),
+                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
               },
             ]
           : []),
@@ -211,18 +140,4 @@ export function setupApplicationMenu(): void {
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
-
-  // Register IPC handler for popup menus (custom title bar on Windows/Linux)
-  if (!isMac) {
-    const windowsMenus = getWindowsMenuTemplate();
-
-    ipcMain.handle('app:popupMenu', (_event, args: { label: string; x: number; y: number }) => {
-      const win = getFocusedWindow();
-      if (!win) return;
-      const items = windowsMenus[args.label as TitlebarMenuLabel];
-      if (!items) return;
-      const contextMenu = Menu.buildFromTemplate(items);
-      contextMenu.popup({ window: win, x: Math.round(args.x), y: Math.round(args.y) });
-    });
-  }
 }

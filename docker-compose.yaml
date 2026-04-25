@@ -1,0 +1,50 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Emdash SSH Dev Container — docker-compose
+#
+# Usage:
+#   cp .env.example .env       # fill in your API keys
+#   docker compose up --build -d
+#
+# Connect from emdash:
+#   host: localhost  port: 2222  user: devuser  auth: password  pass: devpass
+# ──────────────────────────────────────────────────────────────────────────────
+services:
+  ssh-dev:
+    build:
+      context: ./docker-ssh
+      dockerfile: dockerfile
+    container_name: emdash-ssh-dev
+    ports:
+      - "2222:22"
+    environment:
+      # API keys forwarded into SSH sessions via ~/.ssh/environment.
+      # Define these in a .env file next to this compose file (gitignored).
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GH_TOKEN=${GH_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - AMP_API_KEY=${AMP_API_KEY:-}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
+      - KIMI_API_KEY=${KIMI_API_KEY:-}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      - CODEBUFF_API_KEY=${CODEBUFF_API_KEY:-}
+      - FACTORY_API_KEY=${FACTORY_API_KEY:-}
+      - CURSOR_API_KEY=${CURSOR_API_KEY:-}
+    volumes:
+      # ── Project mounts ───────────────────────────────────────────────────
+      # Option A: mount a real local git repo from your Mac (recommended):
+      #   - /Users/yourname/code/myrepo:/home/devuser/projects/myrepo
+      #
+      # Option B: use a named volume for a self-contained sandbox:
+      - projects:/home/devuser/projects
+    restart: unless-stopped
+    # Needed for tmux PTY allocation over SSH
+    tty: true
+    stdin_open: true
+    shm_size: '256mb'
+
+volumes:
+  projects:
+    driver: local

@@ -1,27 +1,13 @@
+import { resolve } from 'node:path';
 import { defineConfig } from 'drizzle-kit';
-import { join } from 'path';
-import { homedir } from 'os';
+import { defaultDbFilePath, resolveDefaultUserDataPath } from './src/main/db/default-path';
 
-function resolveDefaultDbFile() {
-  const explicit = process.env.EMDASH_DB_FILE;
-  if (explicit && explicit.length > 0) {
-    return explicit;
+function resolveDbUrl(): string {
+  const explicit = process.env.EMDASH_DB_FILE?.trim();
+  if (explicit) {
+    return resolve(explicit);
   }
-
-  const home = process.env.HOME ?? homedir();
-  const platform = process.platform;
-
-  if (platform === 'darwin') {
-    return join(home, 'Library', 'Application Support', 'emdash', 'emdash.db');
-  }
-
-  if (platform === 'win32') {
-    const appData = process.env.APPDATA ?? join(home, 'AppData', 'Roaming');
-    return join(appData, 'emdash', 'emdash.db');
-  }
-
-  const xdgData = process.env.XDG_DATA_HOME ?? join(home, '.local', 'share');
-  return join(xdgData, 'emdash', 'emdash.db');
+  return defaultDbFilePath(resolveDefaultUserDataPath());
 }
 
 export default defineConfig({
@@ -29,7 +15,7 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'sqlite',
   dbCredentials: {
-    url: resolveDefaultDbFile(),
+    url: resolveDbUrl(),
   },
   strict: true,
   verbose: true,

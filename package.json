@@ -1,31 +1,39 @@
 {
   "name": "emdash",
-  "version": "0.4.50",
+  "version": "1.1.3",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
-  "license": "Apache-2.0",
-  "main": "dist/main/main/entry.js",
+  "type": "module",
+  "main": "./out/main/index.js",
   "packageManager": "pnpm@10.28.2",
   "scripts": {
     "d": "pnpm install && pnpm run dev",
-    "dev": "concurrently \"pnpm run dev:main\" \"pnpm run dev:renderer\"",
-    "dev:main": "tsc -p tsconfig.main.json && node scripts/copy-main-assets.cjs && electron dist/main/main/entry.js --dev",
-    "dev:renderer": "vite",
+    "dev": "electron-vite dev",
+    "dev:debug": "VITE_LOG_LEVEL=debug electron-vite dev",
+    "dev:main": "electron-vite dev --watch main",
+    "dev:renderer": "electron-vite dev --watch renderer",
+    "db:generate": "drizzle-kit generate",
+    "db:reset": "pnpm run db:reset:3 && pnpm run db:reset:4",
+    "db:reset:3": "rm -f \"$HOME/Library/Application Support/emdash/emdash3.db\" \"$HOME/Library/Application Support/emdash/emdash3.db-wal\" \"$HOME/Library/Application Support/emdash/emdash3.db-shm\" \"$HOME/.config/emdash/emdash3.db\" \"$HOME/.config/emdash/emdash3.db-wal\" \"$HOME/.config/emdash/emdash3.db-shm\"",
+    "db:reset:4": "rm -f \"$HOME/Library/Application Support/emdash/emdash4.db\" \"$HOME/Library/Application Support/emdash/emdash4.db-wal\" \"$HOME/Library/Application Support/emdash/emdash4.db-shm\" \"$HOME/.config/emdash/emdash4.db\" \"$HOME/.config/emdash/emdash4.db-wal\" \"$HOME/.config/emdash/emdash4.db-shm\"",
     "test": "vitest run",
-    "build": "pnpm run build:main && pnpm run build:renderer",
-    "build:main": "tsc -p tsconfig.main.json && node scripts/copy-main-assets.cjs",
-    "build:renderer": "vite build",
-    "package": "pnpm run build && electron-builder",
-    "package:mac": "pnpm run build && electron-builder --mac",
-    "package:linux": "pnpm run build && electron-builder --linux --publish never",
-    "package:win": "pnpm run build && electron-builder --win --publish never",
-    "postinstall": "node scripts/postinstall.cjs",
-    "rebuild": "electron-rebuild -f -v 30.5.1 --only=sqlite3,node-pty,keytar",
-    "clean": "node scripts/clean.cjs",
+    "build": "electron-vite build",
+    "build:main": "electron-vite build --filter main",
+    "build:renderer": "electron-vite build --filter renderer",
+    "package": "pnpm run build && electron-builder --config electron-builder.config.ts",
+    "package:mac": "pnpm run build && electron-builder --mac --config electron-builder.config.ts",
+    "package:linux": "pnpm run build && electron-builder --linux --publish never --config electron-builder.config.ts",
+    "package:win": "pnpm run build && electron-builder --win --publish never --config electron-builder.config.ts",
+    "postinstall": "node --experimental-strip-types scripts/postinstall.ts",
+    "rebuild": "electron-rebuild -f -v 40.7.0 --only=better-sqlite3,node-pty",
+    "run:docker-ssh": "docker compose up --build -d",
+    "clean": "rm -rf node_modules dist",
     "reset": "pnpm run clean && pnpm install",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "type-check": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/release/tsconfig.json",
+    "docs": "cd docs && pnpm run dev",
+    "docs:build": "cd docs && pnpm run build",
     "prepare": "husky"
   },
   "keywords": [
@@ -40,46 +48,58 @@
     "email": "support@emdash.sh"
   },
   "engines": {
-    "node": ">=20.0.0 <23.0.0",
+    "node": ">=24.0.0",
     "pnpm": ">=10.28.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+    "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^20.10.0",
-    "@types/pidusage": "^2.0.5",
-    "@types/react": "^18.2.45",
-    "@types/react-dom": "^18.2.18",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
     "@typescript-eslint/parser": "^6.14.0",
     "@vitejs/plugin-react": "^4.7.0",
-    "autoprefixer": "^10.4.16",
-    "better-sqlite3": "^12.6.0",
+    "@vitest/browser": "^4.1.0",
+    "@vitest/browser-playwright": "^4.1.0",
+    "@vitest/browser-preview": "^4.1.0",
     "concurrently": "^8.2.2",
     "drizzle-kit": "^0.24.2",
-    "electron": "^30.5.1",
-    "electron-builder": "^26.0.12",
+    "electron": "^40.7.0",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^5.0.0",
     "eslint": "^8.55.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.0",
     "husky": "^9.1.7",
-    "jsdom": "^29.0.1",
+    "jsdom": "^29.0.2",
     "lint-staged": "^16.3.0",
     "postcss": "^8.4.32",
     "prettier": "3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",
-    "tailwindcss": "^3.3.6",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.10",
-    "vitest": "^3.2.4"
+    "s3mini": "^0.9.4",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^6.0.2",
+    "vite": "^6.4.1",
+    "vitest": "^4.1.0",
+    "vitest-browser-react": "^2.1.0"
   },
   "dependencies": {
+    "@base-ui/react": "^1.3.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/react": "^0.3.2",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@gitbeaker/rest": "^43.8.0",
     "@isaacs/brace-expansion": "^5.0.1",
+    "@linear/sdk": "^77.0.0",
+    "@llamaduck/forgejo-ts": "^14.0.3",
     "@monaco-editor/react": "^4.7.0",
-    "@posthog/react": "^1.8.2",
+    "@octokit/auth-oauth-device": "^8.0.3",
+    "@octokit/rest": "^22.0.1",
+    "@parcel/watcher": "^2.5.6",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-checkbox": "^1.3.3",
@@ -96,196 +116,79 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-toast": "^1.2.15",
+    "@radix-ui/react-toggle": "^1.1.10",
+    "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
+    "@tanstack/react-form": "^1.28.4",
+    "@tanstack/react-hotkeys": "^0.4.1",
     "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-virtual": "^3.13.23",
+    "@team-plain/graphql": "^1.0.1",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/react-window": "^1.8.8",
-    "@types/sqlite3": "^3.1.11",
     "@types/ssh2": "^1.15.5",
+    "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-fit": "^0.11.0",
-    "@xterm/addon-serialize": "^0.14.0",
     "@xterm/addon-web-links": "^0.12.0",
-    "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
+    "allotment": "^1.20.5",
+    "better-sqlite3": "^12.6.0",
+    "chokidar": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "dotenv": "^17.2.3",
+    "date-fns": "^4.1.0",
+    "devicon": "^2.17.0",
     "drizzle-orm": "^0.32.1",
     "electron-updater": "^6.3.9",
     "fix-path": "^4.0.0",
     "framer-motion": "^12.33.0",
+    "glob": "^13.0.6",
     "human-id": "^4.1.2",
     "ignore": "^5.3.1",
     "jsonc-parser": "^3.3.1",
-    "keytar": "^7.9.0",
     "lucide-react": "^0.564.0",
-    "minimatch": "^10.2.3",
+    "minimatch": "^10.1.1",
+    "mobx": "^6.15.0",
+    "mobx-react-lite": "^4.1.1",
     "monaco-editor": "^0.55.1",
     "motion": "^12.23.12",
     "nbranch": "^0.1.0",
-    "node-pty": "1.0.0",
-    "pidusage": "^4.0.1",
+    "node-pty": "1.1.0",
     "posthog-js": "^1.297.2",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
-    "react-resizable-panels": "^3.0.6",
+    "react-resizable-panels": "^4.7.3",
     "react-syntax-highlighter": "^15.6.6",
     "react-window": "^2.2.4",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "smol-toml": "^1.6.0",
-    "sqlite3": "^5.1.7",
+    "sonner": "^2.0.7",
     "ssh2": "^1.17.0",
     "streamdown": "^1.3.0",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7",
-    "tsconfig-paths": "^3.15.0"
-  },
-  "build": {
-    "appId": "com.emdash",
-    "productName": "Emdash",
-    "directories": {
-      "output": "release"
-    },
-    "artifactName": "emdash-${arch}.${ext}",
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "generalaction",
-        "repo": "emdash",
-        "releaseType": "release"
-      }
-    ],
-    "generateUpdatesFilesForAllChannels": true,
-    "files": [
-      "dist/**/*",
-      "node_modules/**/*",
-      "drizzle/**/*"
-    ],
-    "asarUnpack": [
-      "node_modules/sqlite3/**",
-      "node_modules/node-pty/**",
-      "node_modules/keytar/**",
-      "**/*.node"
-    ],
-    "mac": {
-      "category": "public.app-category.developer-tools",
-      "hardenedRuntime": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
-      "extendInfo": {
-        "LSEnvironment": {
-          "LANG": "en_US.UTF-8",
-          "LC_CTYPE": "en_US.UTF-8"
-        }
-      },
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "arm64"
-          ]
-        }
-      ],
-      "icon": "src/assets/images/emdash/emdash.icns",
-      "notarize": false
-    },
-    "dmg": {
-      "icon": "src/assets/images/emdash/emdash.icns"
-    },
-    "linux": {
-      "category": "Development",
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "rpm",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "win": {
-      "icon": "src/assets/images/emdash/icon-light.png",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "msi",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "azureSignOptions": {
-        "publisherName": "General Action, Inc.",
-        "endpoint": "https://eus.codesigning.azure.net/",
-        "certificateProfileName": "emdash-public",
-        "codeSigningAccountName": "emdash"
-      }
-    },
-    "msi": {
-      "oneClick": false,
-      "perMachine": false
-    },
-    "nsis": {
-      "differentialPackage": true,
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "perMachine": false
-    },
-    "npmRebuild": false
+    "tsconfig-paths": "^3.15.0",
+    "tw-animate-css": "^1.4.0",
+    "zod": "^4.3.6"
   },
   "pnpm": {
-    "overrides": {
-      "app-builder-lib>minimatch": "10.1.2",
-      "minimatch@3": "3.1.4",
-      "minimatch@5": "5.1.8",
-      "minimatch@9": "9.0.7",
-      "minimatch@10": "10.2.3"
-    },
     "onlyBuiltDependencies": [
-      "sqlite3",
+      "better-sqlite3",
       "node-pty",
-      "keytar",
       "electron"
     ],
     "ignoredBuiltDependencies": [
-      "better-sqlite3",
       "core-js",
       "cpu-features",
       "esbuild",
       "protobufjs",
       "ssh2"
-    ],
-    "patchedDependencies": {
-      "ssh2@1.17.0": "patches/ssh2@1.17.0.patch"
-    }
+    ]
   },
   "lint-staged": {
     "*.{ts,tsx}": [

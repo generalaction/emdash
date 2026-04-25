@@ -1,4 +1,115 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
 @import '@xterm/xterm/css/xterm.css';
+@import 'allotment/dist/style.css';
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant dark-black (&:is(.dark-black *));
+@custom-variant emlight (&:is(.emlight *));
+@custom-variant emdark (&:is(.emdark *));
+
+@theme inline {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-mono: Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  --text-code: 13px;
+  --text-code--line-height: 1.2;
+  --text-tiny: 11px;
+  --text-tiny--line-height: 1.3;
+  --text-micro: 10px;
+  --text-micro--line-height: 1.2;
+
+  --color-background: var(--background);
+  --color-background-1: var(--background-1);
+  --color-background-2: var(--background-2);
+  --color-background-3: var(--background-3);
+
+  --color-foreground: var(--foreground);
+  --color-foreground-inverse: var(--foreground-inverse);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-passive: var(--foreground-passive);
+
+  --color-background-secondary: var(--background-secondary);
+  --color-background-secondary-1: var(--background-secondary-1);
+  --color-background-secondary-2: var(--background-secondary-2);
+  --color-background-secondary-3: var(--background-secondary-3);
+
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-secondary-muted: var(--foreground-secondary-muted);
+  --color-foreground-secondary-passive: var(--foreground-secondary-passive);
+
+  --color-background-tertiary: var(--background-tertiary);
+  --color-background-tertiary-1: var(--background-tertiary-1);
+  --color-background-tertiary-2: var(--background-tertiary-2);
+  --color-background-tertiary-3: var(--background-tertiary-3);
+
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-tertiary-muted: var(--foreground-tertiary-muted);
+  --color-foreground-tertiary-passive: var(--foreground-tertiary-passive);
+
+  --color-background-destructive: var(--background-destructive);
+  --color-foreground-destructive: var(--foreground-destructive);
+
+  --color-background-quaternary: var(--background-quaternary);
+  --color-background-quaternary-1: var(--background-quaternary-1);
+  --color-background-quaternary-2: var(--background-quaternary-2);
+
+  --color-background-neutral: var(--background-neutral);
+  --color-foreground-neutral: var(--foreground-neutral);
+
+  --color-primary-button-background: var(--primary-button-background);
+  --color-primary-button-background-hover: var(--primary-button-background-hover);
+  --color-primary-button-foreground: var(--primary-button-foreground);
+  --color-primary-button-border: var(--primary-button-border);
+
+  --color-foreground-diff-added: var(--foreground-diff-added);
+  --color-foreground-diff-modified: var(--foreground-diff-modified);
+  --color-foreground-diff-deleted: var(--foreground-diff-deleted);
+
+  --color-border: var(--border);
+  --color-border-1: var(--border-1);
+  --color-border-2: var(--border-2);
+  --color-border-destructive: var(--border-destructive);
+  --color-border-primary: var(--border-primary);
+
+  --color-status-in-progress: var(--status-in-progress);
+  --color-status-in-review: var(--status-in-review);
+  --color-status-done: var(--status-done);
+  --color-status-todo: var(--status-todo);
+  --color-status-cancelled: var(--status-cancelled);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--accordion-panel-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--accordion-panel-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--selection-foreground);
+}
 
 /* Hide xterm viewport scrollbars in embedded terminals */
 .xterm .xterm-viewport {
@@ -11,97 +122,197 @@
   height: 0 !important;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+  .emlight {
+    --background: color(display-p3 0.988 0.988 0.988);
+    --background-1: color(display-p3 0.975 0.975 0.975);
+    --background-2: color(display-p3 0.939 0.939 0.939);
+    --background-3: color(display-p3 0.908 0.908 0.908);
+
+    --foreground: color(display-p3 0.125 0.125 0.125);
+    --foreground-inverse: white;
+    --foreground-muted: color(display-p3 0.392 0.392 0.392);
+    --foreground-passive: color(display-p3 0.732 0.732 0.732);
+
+    --background-secondary: var(--background-1);
+    --background-secondary-1: var(--background);
+    --background-secondary-2: color(display-p3 0.88 0.88 0.88);
+    --background-secondary-3: color(display-p3 0.849 0.849 0.849);
+
+    --foreground-secondary: color(display-p3 0.125 0.125 0.125);
+    --foreground-secondary-muted: color(display-p3 0.392 0.392 0.392);
+    --foreground-secondary-passive: color(display-p3 0.732 0.732 0.732);
+
+    --background-tertiary: color(display-p3 0.939 0.939 0.939);
+    --background-tertiary-1: color(display-p3 0.908 0.908 0.908);
+    --background-tertiary-2: color(display-p3 0.88 0.88 0.88);
+    --background-tertiary-3: color(display-p3 0.849 0.849 0.849);
+
+    --foreground-tertiary: color(display-p3 0.125 0.125 0.125);
+    --foreground-tertiary-muted: color(display-p3 0.392 0.392 0.392);
+    --foreground-tertiary-passive: color(display-p3 0.732 0.732 0.732);
+
+    --background-quaternary: var(--background);
+    --background-quaternary-1: var(--background-1);
+    --background-quaternary-2: var(--background-2);
+
+    --background-destructive: color(display-p3 0.995 0.971 0.971);
+    --foreground-destructive: color(display-p3 0.744 0.234 0.222);
+
+    --background-neutral: color(display-p3 0.125 0.125 0.125);
+    --foreground-neutral: color(display-p3 0.988 0.988 0.988);
+
+    --primary-button-background: color(display-p3 0.142 0.229 0.194);
+    --primary-button-background-hover: color(display-p3 0.15 0.5 0.37);
+    --primary-button-foreground: color(display-p3 0.962 0.983 0.969);
+    --primary-button-border: transparent;
+
+    --border: color(display-p3 0.88 0.88 0.88);
+    --border-1: color(display-p3 0.732 0.732 0.732);
+    --border-2: color(display-p3 0.553 0.553 0.553);
+    --border-destructive: color(display-p3 0.872 0.575 0.572);
+    --border-primary: color(display-p3 0.553 0.553 0.553);
+
+    --ring: hsl(0 0% 3.9%);
     --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --selection: 217 91% 60%;
-    --selection-foreground: 0 0% 12%;
+
+    --selection: color(display-p3 0.709 0.843 0.976);
+    --selection-foreground: color(display-p3 0.102 0.193 0.379);
+
+    --status-in-progress: color(display-p3 0.64 0.4 0);
+    --status-in-review: color(display-p3 0.344 0.598 0.342);
+    --status-done: color(display-p3 0.553 0.553 0.553);
+    --status-todo: color(display-p3 0.553 0.553 0.553);
+    --status-cancelled: color(display-p3 0.553 0.553 0.553);
+
+    /* Monaco editor */
+    --monaco-bg: var(--background);
+    --monaco-fg: var(--foreground);
+    --monaco-error-fg: var(--foreground-destructive);
+
+    --monaco-line-highlight: var(--background-2);
+    --monaco-line-number: var(--foreground-passive);
+    --monaco-gutter: var(--monaco-bg);
+    --monaco-inserted-text-bg: color(display-p3 0.063 0.725 0.506 / 0.251);
+    --monaco-inserted-line-bg: color(display-p3 0.925 0.992 0.961 / 0.502);
+    --monaco-removed-text-bg: color(display-p3 0.957 0.247 0.369 / 0.251);
+    --monaco-removed-line-bg: color(display-p3 1 0.945 0.949 / 0.502);
+    --monaco-unchanged-region-bg: color(display-p3 0.886 0.91 0.941);
+    --monaco-diff-diagonal-fill: var(--background-2);
+    --monaco-selection-bg: var(--selection);
+    --monaco-selection-fg: var(--selection-foreground);
+    --monaco-inactive-selection-bg: color-mix(in srgb, var(--selection) 15.3%, transparent);
+
+    /* xterm terminals */
+    --xterm-bg: var(--background);
+    --xterm-fg: #1f2937;
+    --xterm-cursor: #1e293b;
+    --xterm-cursor-accent: #ffffff;
+    --xterm-selection-bg: rgba(96, 165, 250, 0.3);
+    --xterm-selection-fg: #0f172a;
+    --xterm-bg-mistral: #ffffff;
+
+    --foreground-diff-added: color(display-p3 0.426 0.694 0.426);
+    --foreground-diff-modified: color(display-p3 1 0.77 0.26);
+    --foreground-diff-deleted: color(display-p3 0.83 0.329 0.324);
   }
 
-  .dark {
-    --background: 215 28% 17%; /* gray-800: #1f2937 */
-    --foreground: 220 9% 96%; /* gray-100: #f3f4f6 */
-    --card: 215 28% 17%; /* gray-800: #1f2937 */
-    --card-foreground: 220 9% 96%;
-    --popover: 220 24% 21%; /* gray-750: slightly lighter than bg */
-    --popover-foreground: 220 9% 96%;
-    --primary: 220 9% 96%;
-    --primary-foreground: 215 28% 17%;
-    --secondary: 217 23% 27%; /* gray-700: #374151 */
-    --secondary-foreground: 220 9% 96%;
-    --muted: 217 23% 27%; /* gray-700: #374151 */
-    --muted-foreground: 220 9% 70%; /* gray-400: #9ca3af */
-    --accent: 217 23% 27%;
-    --accent-foreground: 220 9% 96%;
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 217 17% 32%; /* gray-650: between 700 and 600 */
-    --input: 217 17% 32%;
-    --ring: 220 9% 70%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --selection: 217 92% 80%;
-    --selection-foreground: 0 0% 98%;
-  }
+  .emdark {
+    --background: color(display-p3 0.067 0.067 0.067);
+    --background-1: color(display-p3 0.098 0.098 0.098);
+    --background-2: color(display-p3 0.135 0.135 0.135);
+    --background-3: color(display-p3 0.163 0.163 0.163);
 
-  .dark-black {
-    --background: 0 0% 0%; /* pure black #000000 */
-    --foreground: 0 0% 95%; /* near white #f2f2f2 */
-    --card: 0 0% 4%; /* very dark gray #0a0a0a */
-    --card-foreground: 0 0% 95%;
-    --popover: 0 0% 8%; /* slightly lighter gray #141414 */
-    --popover-foreground: 0 0% 95%;
-    --primary: 0 0% 95%;
-    --primary-foreground: 0 0% 0%;
-    --secondary: 0 0% 12%; /* dark gray #1f1f1f */
-    --secondary-foreground: 0 0% 95%;
-    --muted: 0 0% 15%; /* muted gray #262626 */
-    --muted-foreground: 0 0% 65%; /* lighter muted text #a6a6a6 */
-    --accent: 0 0% 15%;
-    --accent-foreground: 0 0% 95%;
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 20%; /* border gray #333333 */
-    --input: 0 0% 20%;
-    --ring: 0 0% 60%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --selection: 217 92% 70%;
-    --selection-foreground: 0 0% 95%;
+    --foreground: color(display-p3 0.933 0.933 0.933);
+    --foreground-inverse: color(display-p3 0.067 0.067 0.067);
+    --foreground-muted: color(display-p3 0.706 0.706 0.706);
+    --foreground-passive: color(display-p3 0.431 0.431 0.431);
+
+    --background-secondary: var(--background);
+    --background-secondary-1: var(--background-1);
+    --background-secondary-2: var(--background-2);
+    --background-secondary-3: var(--background-3);
+
+    --foreground-secondary: var(--foreground);
+    --foreground-secondary-muted: var(--foreground-muted);
+    --foreground-secondary-passive: var(--foreground-passive);
+
+    --background-tertiary: var(--background);
+    --background-tertiary-1: var(--background-1);
+    --background-tertiary-2: var(--background-2);
+    --background-tertiary-3: var(--background-3);
+
+    --foreground-tertiary: var(--foreground);
+    --foreground-tertiary-muted: var(--foreground-muted);
+    --foreground-tertiary-passive: var(--foreground-passive);
+
+    --background-quaternary: var(--background-1);
+    --background-quaternary-1: var(--background-2);
+    --background-quaternary-2: var(--background-3);
+
+    --background-destructive: color(display-p3 0.211 0.081 0.099);
+    --background-destructive-1: color(display-p3 0.25 0.102 0.122);
+    --foreground-destructive: color(display-p3 0.83 0.329 0.324);
+    --foreground-destructive-muted: color(display-p3 0.661 0.263 0.26);
+
+    --background-neutral: color(display-p3 0.933 0.933 0.933);
+    --foreground-neutral: color(display-p3 0.067 0.067 0.067);
+
+    --primary-button-background: color(display-p3 0.102 0.228 0.177);
+    --primary-button-background-hover: color(display-p3 0.133 0.279 0.221);
+    --primary-button-foreground: color(display-p3 0.734 0.934 0.838);
+    --primary-button-border: color(display-p3 0.219 0.402 0.335);
+
+    --border: color(display-p3 0.228 0.228 0.228);
+    --border-1: color(display-p3 0.283 0.283 0.283);
+    --border-2: color(display-p3 0.375 0.375 0.375);
+    --border-destructive: color(display-p3 0.659 0.298 0.297);
+    --border-primary: color(display-p3 0.553 0.553 0.553);
+
+    --ring: hsl(0 0% 3.9%);
+    --radius: 0.5rem;
+
+    --selection: color(display-p3 0.709 0.843 0.976);
+    --selection-foreground: color(display-p3 0.102 0.193 0.379);
+
+    --status-in-progress: color(display-p3 0.64 0.4 0);
+    --status-in-review: color(display-p3 0.344 0.598 0.342);
+    --status-done: color(display-p3 0.553 0.553 0.553);
+    --status-todo: color(display-p3 0.553 0.553 0.553);
+    --status-cancelled: color(display-p3 0.553 0.553 0.553);
+
+    /* Monaco editor */
+    --monaco-bg: color(display-p3 0.098 0.098 0.098);
+    --monaco-fg: color(display-p3 0.706 0.706 0.706);
+    --monaco-error-fg: color(display-p3 1 0.592 0.49);
+
+    --monaco-line-highlight: color(display-p3 0.192 0.192 0.192);
+    --monaco-line-number: color(display-p3 0.227 0.227 0.227);
+    --monaco-gutter: var(--monaco-bg);
+    --monaco-inserted-text-bg: color(display-p3 0.145 0.282 0.176);
+    --monaco-inserted-line-bg: color(display-p3 0.106 0.165 0.118);
+    --monaco-inserted-text-border: color(display-p3 0.145 0.282 0.176);
+    --monaco-removed-text-bg: color(display-p3 0.38 0.086 0.137);
+    --monaco-removed-line-bg: color(display-p3 0.231 0.071 0.098);
+    --monaco-removed-text-border: color(display-p3 0.38 0.086 0.137);
+    --monaco-unchanged-region-bg: color(display-p3 0.165 0.165 0.165);
+    --monaco-diff-border: color(display-p3 0.227 0.227 0.227);
+    --monaco-diff-diagonal-fill: color(display-p3 0.165 0.165 0.165);
+    --monaco-selection-bg: color(display-p3 0 0.2 0.384);
+    --monaco-selection-fg: color(display-p3 0.439 0.722 1);
+    --monaco-inactive-selection-bg: color(display-p3 1 1 1 / 0.133);
+
+    /* xterm terminals */
+    --xterm-bg: var(--background-1);
+    --xterm-fg: var(--foreground) --xterm-cursor: #1e293b;
+    --xterm-cursor-accent: color(display-p3 0.484 0.484 0.484);
+    --xterm-selection-bg: color(display-p3 0.033 0.197 0.37);
+    --xterm-selection-fg: color(display-p3 0.49 0.72 1);
+    --xterm-bg-mistral: #ffffff;
+
+    --foreground-diff-added: color(display-p3 0.426 0.694 0.426);
+    --foreground-diff-modified: color(display-p3 1 0.77 0.26);
+    --foreground-diff-deleted: color(display-p3 0.83 0.329 0.324);
   }
 }
 
@@ -109,24 +320,33 @@
   * {
     @apply border-border;
   }
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
   body {
     @apply bg-background text-foreground;
   }
 
   ::selection {
-    background-color: hsl(var(--selection) / 0.35);
-    color: hsl(var(--selection-foreground));
+    background-color: color-mix(in srgb, var(--selection) 35%, transparent);
+    color: var(--selection-foreground);
   }
 
   ::-moz-selection {
-    background-color: hsl(var(--selection) / 0.35);
-    color: hsl(var(--selection-foreground));
+    background-color: color-mix(in srgb, var(--selection) 35%, transparent);
+    color: var(--selection-foreground);
   }
 
   /* Scrollbar styles for light and dark mode */
   * {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) transparent;
+    scrollbar-color: var(--border) transparent;
   }
 
   *::-webkit-scrollbar {
@@ -139,30 +359,30 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
+    background-color: var(--border);
     border-radius: 4px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
 
   *::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.5);
+    background-color: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
   }
 
   .dark *::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
+    background-color: var(--border);
   }
 
   .dark *::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.5);
+    background-color: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
   }
 
   .dark-black *::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
+    background-color: var(--border);
   }
 
   .dark-black *::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.4);
+    background-color: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
   }
 }
 
@@ -247,5 +467,117 @@
       animation: none;
       opacity: 0;
     }
+  }
+
+  /* Diff decorations for Monaco editor gutter and line highlights */
+  .diff-glyph-added::before,
+  .diff-glyph-modified::before,
+  .diff-glyph-deleted::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    width: 3px;
+    height: 100%;
+    border-radius: 1px;
+  }
+
+  .diff-glyph-added::before {
+    background-color: var(--diff-added);
+  }
+
+  .diff-glyph-modified::before {
+    background-color: var(--diff-modified);
+  }
+
+  .diff-glyph-deleted::before {
+    background-color: var(--diff-deleted);
+  }
+
+  .diff-glyph-added:hover::before,
+  .diff-glyph-modified:hover::before,
+  .diff-glyph-deleted:hover::before {
+    width: 4px;
+    left: 2px;
+    transition:
+      width 0.1s ease-in-out,
+      left 0.1s ease-in-out;
+  }
+
+  .diff-line-added {
+    background-color: var(--diff-added-bg);
+  }
+
+  .diff-line-modified {
+    background-color: var(--diff-modified-bg);
+  }
+
+  .diff-line-deleted {
+    background-color: var(--diff-deleted-bg);
+  }
+
+  /* Monaco diff comment UI */
+  .file-diff-view .monaco-editor .margin-view-overlays .glyph-margin {
+    width: 20px !important;
+  }
+
+  .file-diff-view .monaco-editor .margin {
+    background-color: transparent !important;
+  }
+
+  .file-diff-view .comment-hover-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin: 1px auto;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .file-diff-view .comment-hover-icon::before {
+    content: '';
+    display: block;
+    width: 12px;
+    height: 12px;
+    background-color: currentColor;
+    color: var(--foreground-muted);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  .file-diff-view .comment-hover-icon:hover,
+  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned {
+    background-color: var(--background-2);
+    border-color: var(--border);
+  }
+
+  .file-diff-view .comment-hover-icon:hover::before,
+  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned::before {
+    color: var(--foreground);
+  }
+
+  .file-diff-view .monaco-editor .glyph-margin > div {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .file-diff-view .monaco-editor .view-zones,
+  .file-diff-view .monaco-editor .view-zone,
+  .file-diff-view .comment-view-zone {
+    pointer-events: auto !important;
   }
 }

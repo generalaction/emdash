@@ -1,7 +1,8 @@
 # Dependencies
 node_modules/
 dist/
-release/
+out/
+/release/
 
 # Logs
 *.log
@@ -59,9 +60,6 @@ Thumbs.db
 .notes
 .claude/
 
-# Local generated worktrees for perf experiments
-worktrees/
-
 # Checkouts directory
 .checkouts/
 
@@ -69,3 +67,6 @@ worktrees/
 
 .env
 .cursor
+.codex/config.toml
+
+src/main/appConfig.json

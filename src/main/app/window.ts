@@ -1,68 +1,47 @@
-import { BrowserWindow, app } from 'electron';
-import { join } from 'path';
-import { isDev } from '../utils/dev';
-import { registerExternalLinkHandlers } from '../utils/externalLinks';
-import { ensureRendererServer } from './staticServer';
+import { join } from 'node:path';
+import { BrowserWindow } from 'electron';
+import appIcon from '@/assets/images/emdash/emdash_logo.png?asset';
+import { PRODUCT_NAME } from '@shared/app-identity';
+import { capture, checkAndReportDailyActiveUser } from '@main/lib/telemetry';
+import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
+import { APP_ORIGIN } from './protocol';
 
 let mainWindow: BrowserWindow | null = null;
 
 export function createMainWindow(): BrowserWindow {
-  // In development, resolve icon from src/assets
-  // In production (packaged), electron-builder handles the icon
-  const iconPath = isDev
-    ? join(__dirname, '..', '..', '..', 'src', 'assets', 'images', 'emdash', 'emdash_logo.png')
-    : undefined;
-
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 700,
     minHeight: 500,
-    title: 'Emdash',
-    ...(iconPath && { icon: iconPath }),
+    title: PRODUCT_NAME,
+    // In production, electron-builder injects the icon from the app bundle.
+    ...(import.meta.env.DEV && { icon: appIcon }),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      // Required for ESM preload scripts (.mjs)
+      sandbox: false,
       // Allow using <webview> in renderer for in‑app browser pane.
       // The webview runs in a separate process; nodeIntegration remains disabled.
       webviewTag: true,
-      // __dirname here resolves to dist/main/main/app at runtime (dev)
-      // Preload is emitted to dist/main/main/preload.js
-      preload: join(__dirname, '..', 'preload.js'),
+      // __dirname resolves to out/main/ at runtime; preload is at out/preload/index.mjs
+      preload: join(__dirname, '../preload/index.mjs'),
     },
     ...(process.platform === 'darwin'
-      ? {
-          titleBarStyle: 'hiddenInset' as const,
-          trafficLightPosition: { x: 16, y: 12 },
-          // Enable Window Controls Overlay API so the renderer can use
-          // env(titlebar-area-x) to position content after the traffic lights.
-          titleBarOverlay: { height: 36 },
-        }
-      : { frame: false }),
+      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 10, y: 10 } }
+      : {}),
     show: false,
   });
 
-  if (isDev) {
-    mainWindow.loadURL(`http://localhost:${process.env.EMDASH_DEV_PORT || 3000}`);
+  if (import.meta.env.DEV) {
+    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
   } else {
-    // Serve renderer over an HTTP origin in production so embeds work.
-    const rendererRoot = join(app.getAppPath(), 'dist', 'renderer');
-    void ensureRendererServer(rendererRoot)
-      .then((url: string) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.loadURL(url);
-        }
-      })
-      .catch(() => {
-        // Fallback to file load if server fails for any reason.
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.loadFile(join(rendererRoot, 'index.html'));
-        }
-      });
+    mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
   }
 
   // Route external links to the user’s default browser
-  registerExternalLinkHandlers(mainWindow, isDev);
+  registerExternalLinkHandlers(mainWindow, import.meta.env.DEV);
 
   // Show when ready
   mainWindow.once('ready-to-show', () => {
@@ -71,23 +50,16 @@ export function createMainWindow(): BrowserWindow {
 
   // Track window focus for telemetry
   mainWindow.on('focus', () => {
-    // Lazy import to avoid circular dependencies
-    void import('../telemetry').then(({ capture, checkAndReportDailyActiveUser }) => {
-      void capture('app_window_focused');
-      // Also check for daily active user when window gains focus
-      checkAndReportDailyActiveUser();
-    });
+    capture('app_window_focused');
+    if (typeof mainWindow?.setWindowButtonVisibility === 'function') {
+      mainWindow.setWindowButtonVisibility(true);
+    }
+    checkAndReportDailyActiveUser();
   });
 
-  // Notify renderer of maximize/unmaximize for custom title bar
-  if (process.platform !== 'darwin') {
-    mainWindow.on('maximize', () => {
-      mainWindow?.webContents.send('window:maximized');
-    });
-    mainWindow.on('unmaximize', () => {
-      mainWindow?.webContents.send('window:unmaximized');
-    });
-  }
+  mainWindow.on('blur', () => {
+    capture('app_window_unfocused');
+  });
 
   // Cleanup reference on close
   mainWindow.on('closed', () => {

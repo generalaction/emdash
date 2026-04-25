@@ -2,20 +2,18 @@
 
 ## Main Files
 
-- `src/main/services/McpService.ts`
-- `src/main/services/mcp/`
+- `src/main/core/mcp/services/McpService.ts`
+- `src/main/core/mcp/utils/` — adapters, catalog, config IO, config paths, conversion
+- `src/main/core/mcp/controller.ts`
 - `src/shared/mcp/`
 - `src/renderer/components/mcp/`
+- `src/renderer/views/mcp-view.tsx`
 
 ## Current Behavior
 
 - MCP server configs are read, adapted, merged, and written across supported agent ecosystems
-- provider-specific config formats are handled through adapters in `src/main/services/mcp/`
+- provider-specific config formats are handled through adapters in `src/main/core/mcp/utils/`
 - the renderer MCP UI manages installed servers and catalog entries
-- save/remove operations use a 2-phase flow:
-  - read phase is atomic, any read/parse failure aborts before writes begin
-  - write phase is best-effort, provider writes continue and failures are reported after all attempts
-- when a write phase partially succeeds, the thrown error reports both failed agents and any configs that were updated before the failure
 
 ## Important Constraint
 

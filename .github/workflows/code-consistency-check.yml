@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.20.0'
+          node-version: '24'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -48,7 +48,7 @@ jobs:
       #   run: pnpm run lint
 
       - name: Type check
-        run: pnpm run type-check
+        run: pnpm run typecheck
 
   vitest:
     runs-on: ubuntu-latest
@@ -65,7 +65,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.20.0'
+          node-version: '24'
           cache: 'pnpm'
 
       - name: Install Linux native deps

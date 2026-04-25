@@ -2,12 +2,11 @@
 
 ## Main Files
 
-- `src/main/services/ssh/`
-- `src/main/services/RemotePtyService.ts`
-- `src/main/services/RemoteGitService.ts`
+- `src/main/core/ssh/` — `ssh-connection-manager.ts`, `ssh-credential-service.ts`, `ssh-client-proxy.ts`, `sshConfigParser.ts`, `build-connect-config.ts`, `controller.ts`
+- `src/main/core/fs/impl/ssh-fs.ts`
+- `src/main/core/pty/ssh2-pty.ts`
+- `src/main/core/terminals/impl/ssh-terminal-provider.ts`
 - `src/main/utils/shellEscape.ts`
-- `src/main/utils/sshCommandValidation.ts`
-- `src/main/utils/sshConfigParser.ts`
 
 ## Rules
 

@@ -1,58 +1,102 @@
-import { ThemeProvider } from './components/ThemeProvider';
-import ErrorBoundary from './components/ErrorBoundary';
-import { WelcomeScreen } from './views/Welcome';
-import { Workspace } from './views/Workspace';
-import { useLocalStorage } from './hooks/useLocalStorage';
-import { FIRST_LAUNCH_KEY } from './constants/layout';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AppSettingsProvider } from './contexts/AppSettingsProvider';
-import { AppContextProvider } from './contexts/AppContextProvider';
-import { GithubContextProvider } from './contexts/GithubContextProvider';
-import { EmdashAccountProvider } from './contexts/EmdashAccountProvider';
-import { PostHogFeatureFlagProvider } from './contexts/PostHogFeatureFlagProvider';
-import { ProjectManagementProvider } from './contexts/ProjectManagementProvider';
-import { TaskManagementProvider } from './contexts/TaskManagementContext';
-import { ModalProvider } from './contexts/ModalProvider';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { WelcomeScreen } from './app/welcome';
+import { Workspace } from './app/workspace';
+import { IntegrationsProvider } from './features/integrations/integrations-provider';
+import { Onboarding } from './features/onboarding/onboarding';
+import { useAccountSession } from './lib/hooks/useAccount';
+import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
+import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
+import { WorkspaceViewProvider } from './lib/layout/provider';
+import { ModalProvider } from './lib/modal/modal-provider';
+import { GithubContextProvider } from './lib/providers/github-context-provider';
+import { ThemeProvider } from './lib/providers/theme-provider';
+import { TerminalPoolProvider } from './lib/pty/pty-pool-provider';
+import { queryClient } from './lib/query-client';
+import { RightSidebarProvider } from './lib/ui/right-sidebar';
+import { TooltipProvider } from './lib/ui/tooltip';
 
-const queryClient = new QueryClient();
+export const HAS_SEEN_ONBOARDING = 'emdash:has-seen-onboarding:v1';
 
-export function App() {
-  const [isFirstLaunch, setIsFirstLaunch] = useLocalStorage<boolean | number>(
-    FIRST_LAUNCH_KEY,
-    true
+type AppView = 'onboarding' | 'welcome' | 'workspace';
+type OnboardingStep = 'sign-in' | 'import';
+
+function AppContent() {
+  const [view, setView] = useState<AppView>(() =>
+    localStorage.getItem(HAS_SEEN_ONBOARDING) === 'true' ? 'workspace' : 'onboarding'
   );
 
-  const renderContent = () => {
-    // Handle legacy string value '1' from old implementation
-    const isFirstLaunchBool = isFirstLaunch === true || isFirstLaunch === 1;
+  const { data: session, isLoading: sessionLoading } = useAccountSession();
+  const { data: legacyStatus, isLoading: legacyLoading } = useLegacyPortStatus();
 
-    if (isFirstLaunchBool) {
-      return <WelcomeScreen onGetStarted={() => setIsFirstLaunch(false)} />;
+  const isLoading = sessionLoading || legacyLoading;
+
+  // Computed once when queries first resolve while in onboarding. Never updated
+  // after that so query refetches mid-onboarding (e.g. legacyPortStatus after
+  // import completes) cannot shrink the step list and unmount active step components.
+  const [frozenSteps, setFrozenSteps] = useState<OnboardingStep[] | null>(null);
+
+  useEffect(() => {
+    if (!isLoading && view === 'onboarding' && frozenSteps === null) {
+      const computed: OnboardingStep[] = [];
+      if (!session?.isSignedIn) computed.push('sign-in');
+      const needsImport =
+        legacyStatus?.hasLegacyDb &&
+        legacyStatus.portStatus !== 'completed' &&
+        legacyStatus.portStatus !== 'no-legacy-file' &&
+        !legacyStatus.hasExistingData;
+      if (needsImport) computed.push('import');
+      setFrozenSteps(computed);
     }
-    return <Workspace />;
+  }, [view, isLoading, frozenSteps, session, legacyStatus]);
+
+  const stepsNeeded = frozenSteps ?? [];
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem(HAS_SEEN_ONBOARDING, 'true');
+    setView('welcome');
+  };
+
+  const renderContent = () => {
+    if (isLoading || (view === 'onboarding' && frozenSteps === null)) {
+      return null;
+    }
+    if (view === 'onboarding' && stepsNeeded.length > 0) {
+      return <Onboarding steps={stepsNeeded} onComplete={handleOnboardingComplete} />;
+    }
+    return (
+      <>
+        <Workspace />
+        {view === 'welcome' && <WelcomeScreen onGetStarted={() => window.location.reload()} />}
+      </>
+    );
   };
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <TooltipProvider delay={300}>
       <ModalProvider>
-        <AppContextProvider>
-          <EmdashAccountProvider>
-            <PostHogFeatureFlagProvider>
-              <GithubContextProvider>
-                <ProjectManagementProvider>
-                  <TaskManagementProvider>
-                    <AppSettingsProvider>
-                      <ThemeProvider>
-                        <ErrorBoundary>{renderContent()}</ErrorBoundary>
-                      </ThemeProvider>
-                    </AppSettingsProvider>
-                  </TaskManagementProvider>
-                </ProjectManagementProvider>
-              </GithubContextProvider>
-            </PostHogFeatureFlagProvider>
-          </EmdashAccountProvider>
-        </AppContextProvider>
+        <WorkspaceLayoutContextProvider>
+          <TerminalPoolProvider>
+            <GithubContextProvider>
+              <IntegrationsProvider>
+                <WorkspaceViewProvider>
+                  <RightSidebarProvider>
+                    <ThemeProvider>{renderContent()}</ThemeProvider>
+                  </RightSidebarProvider>
+                </WorkspaceViewProvider>
+              </IntegrationsProvider>
+            </GithubContextProvider>
+          </TerminalPoolProvider>
+        </WorkspaceLayoutContextProvider>
       </ModalProvider>
+    </TooltipProvider>
+  );
+}
+
+export function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppContent />
     </QueryClientProvider>
   );
 }

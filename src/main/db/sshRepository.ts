@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm';
-import { getDrizzleClient } from './drizzleClient';
+import { db } from './client';
 import {
-  sshConnections,
   projects,
-  type SshConnectionRow,
+  sshConnections,
   type SshConnectionInsert,
+  type SshConnectionRow,
 } from './schema';
 
 export class SshRepository {
@@ -20,7 +20,6 @@ export class SshRepository {
   async createConnection(
     data: Omit<SshConnectionInsert, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<SshConnectionRow> {
-    const { db } = await getDrizzleClient();
     const id = `ssh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     const result = await db
@@ -37,13 +36,11 @@ export class SshRepository {
   }
 
   async getConnection(id: string): Promise<SshConnectionRow | undefined> {
-    const { db } = await getDrizzleClient();
     const result = await db.select().from(sshConnections).where(eq(sshConnections.id, id));
     return result[0];
   }
 
   async getAllConnections(): Promise<SshConnectionRow[]> {
-    const { db } = await getDrizzleClient();
     return db.select().from(sshConnections);
   }
 
@@ -51,7 +48,6 @@ export class SshRepository {
     id: string,
     data: Partial<SshConnectionInsert>
   ): Promise<SshConnectionRow> {
-    const { db } = await getDrizzleClient();
     const result = await db
       .update(sshConnections)
       .set({
@@ -64,12 +60,10 @@ export class SshRepository {
   }
 
   async deleteConnection(id: string): Promise<void> {
-    const { db } = await getDrizzleClient();
-
     // First update any projects using this connection
     await db
       .update(projects)
-      .set({ sshConnectionId: null, isRemote: 0 })
+      .set({ sshConnectionId: null })
       .where(eq(projects.sshConnectionId, id));
 
     // Then delete the connection
@@ -77,7 +71,6 @@ export class SshRepository {
   }
 
   async getProjectsForConnection(connectionId: string): Promise<string[]> {
-    const { db } = await getDrizzleClient();
     const result = await db
       .select({ id: projects.id })
       .from(projects)

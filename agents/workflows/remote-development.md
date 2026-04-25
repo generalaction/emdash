@@ -2,11 +2,11 @@
 
 ## Main Files
 
-- `src/main/services/RemotePtyService.ts`
-- `src/main/services/RemoteGitService.ts`
-- `src/main/services/ssh/`
+- `src/main/core/ssh/` — connection management, credentials, config parsing
+- `src/main/core/pty/ssh2-pty.ts`
+- `src/main/core/fs/impl/ssh-fs.ts`
+- `src/main/core/terminals/impl/ssh-terminal-provider.ts`
 - `src/main/utils/shellEscape.ts`
-- `src/main/utils/sshCommandValidation.ts`
 
 ## Current Model
 
@@ -17,7 +17,7 @@
 ## Authentication And Storage
 
 - SSH credentials are managed through the SSH services and OS-backed secret storage
-- host key handling is implemented under `src/main/services/ssh/`
+- host key handling is implemented under `src/main/core/ssh/`
 
 ## Rules
 

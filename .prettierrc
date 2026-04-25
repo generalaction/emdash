@@ -6,5 +6,15 @@
   "tabWidth": 2,
   "bracketSpacing": true,
   "bracketSameLine": false,
-  "plugins": ["prettier-plugin-tailwindcss"]
+  "plugins": ["prettier-plugin-tailwindcss", "@ianvs/prettier-plugin-sort-imports"],
+  "tailwindStylesheet": "./src/renderer/index.css",
+  "importOrder": [
+    "^@/(.*)$",
+    "^@root/(.*)$",
+    "^@shared/(.*)$",
+    "^@main/(.*)$",
+    "^@renderer/(.*)$",
+    "^[./]"
+  ],
+  "importOrderTypeScriptVersion": "5.0.0"
 }

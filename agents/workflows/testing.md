@@ -7,21 +7,22 @@ Run these before merging:
 ```bash
 pnpm run format
 pnpm run lint
-pnpm run type-check
-pnpm exec vitest run
+pnpm run typecheck
+pnpm run test
 ```
 
 ## Test Layout
 
-- main-process tests: `src/test/main/`
-- renderer-focused tests: `src/test/renderer/`
-- utility tests: `src/main/utils/__tests__/`
+- main-process tests: colocated in `src/main/core/**/*.test.ts`
+- renderer unit tests: `src/renderer/tests/`
+- renderer browser tests: `src/renderer/tests/browser/` (run via Playwright)
 
 ## Current Setup
 
-- Vitest config is in `vite.config.ts`.
-- Tests run with `environment: 'node'`.
-- Included test files match `src/**/*.test.ts`.
+- Vitest config is in `vitest.config.ts` (separate from the build config in `electron.vite.config.ts`).
+- Two test projects:
+  - `node` — all `src/**/*.test.ts` files excluding `_*` dirs and browser tests
+  - `browser` — `src/renderer/tests/browser/**/*.test.{ts,tsx}` via `@vitest/browser-playwright`
 - Tests use per-file `vi.mock()` setup.
 - Integration-style tests create temporary repos and worktrees in `os.tmpdir()`.
 
@@ -29,11 +30,12 @@ pnpm exec vitest run
 
 - `.github/workflows/code-consistency-check.yml` currently enforces:
   - `pnpm run format:check`
-  - `pnpm run type-check`
+  - `pnpm run typecheck`
   - `pnpm exec vitest run`
 - Lint is still expected locally even though it is not enabled in that workflow yet.
 
 ## Focused Validation
 
-- after IPC changes: rerun the affected Vitest file and confirm `electron-api.d.ts`
-- after worktree or PTY changes: rerun the closest main-process service tests
+- after IPC/RPC changes: rerun the affected Vitest file and confirm the controller is wired in `src/main/rpc.ts`
+- after worktree or PTY changes: rerun the closest `src/main/core/` test files
+- after docs changes: run `pnpm run docs:build`

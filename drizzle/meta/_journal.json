@@ -5,92 +5,50 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1761210820918,
-      "tag": "0000_initial",
+      "when": 1776084172070,
+      "tag": "0000_cuddly_scarecrow",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "6",
-      "when": 1761240000000,
-      "tag": "0001_add_base_ref_to_projects",
+      "when": 1776180612307,
+      "tag": "0001_skinny_robin_chapel",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "6",
-      "when": 1765592430354,
-      "tag": "0002_lyrical_impossible_man",
+      "when": 1776700840315,
+      "tag": "0002_noisy_maestro",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "6",
-      "when": 1765592430355,
-      "tag": "0003_add_run_config_status_to_projects",
+      "when": 1776845763296,
+      "tag": "0003_even_vampiro",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "6",
-      "when": 1765592430356,
-      "tag": "0004_add_line_comments",
+      "when": 1776862823258,
+      "tag": "0004_material_flatman",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "6",
-      "when": 1765592430357,
-      "tag": "0005_add_use_worktree_to_tasks",
+      "when": 1776938559947,
+      "tag": "0005_add_pull_requests",
       "breakpoints": true
     },
     {
       "idx": 6,
       "version": "6",
-      "when": 1765592430358,
-      "tag": "0006_add_multi_chat_support",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1765592430359,
-      "tag": "0007_add_is_main_to_conversations",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1765592430360,
-      "tag": "0008_add_archived_at_to_tasks",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1738857600000,
-      "tag": "0009_add_ssh_support",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "6",
-      "when": 1741017600000,
-      "tag": "0010_add_workspace_instances",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "6",
-      "when": 1742860800000,
-      "tag": "0011_add_automations_tables",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "6",
-      "when": 1743033600000,
-      "tag": "0012_add_automation_triggers",
+      "when": 1776959681864,
+      "tag": "0006_bumpy_gamma_corps",
       "breakpoints": true
     }
   ]
