@@ -622,7 +622,12 @@ export function registerPtyIpc(): void {
   // When a direct-spawned CLI exits, spawn a shell so user can continue working
   setOnDirectCliExit(async (id: string, cwd: string) => {
     const wc = owners.get(id);
-    if (!wc) return;
+    if (!wc) {
+      // No owner — clean up since the ptyIpc onExit handler skipped
+      // cleanup for direct spawns.
+      removePtyRecord(id);
+      return;
+    }
 
     try {
       // Spawn a shell in the same terminal
@@ -636,6 +641,11 @@ export function registerPtyIpc(): void {
       if (!proc) {
         log.warn('ptyIpc: Failed to spawn shell after CLI exit', { id });
         killPty(id); // Clean up dead PTY record
+        safeSendToOwner(id, `pty:exit:${id}`, { exitCode: 1, signal: undefined });
+        sendPtyExitGlobal(id);
+        owners.delete(id);
+        listeners.delete(id);
+        removePtyRecord(id);
         return;
       }
 
@@ -665,6 +675,11 @@ export function registerPtyIpc(): void {
     } catch (err) {
       log.error('ptyIpc: Error spawning shell after CLI exit', { id, error: err });
       killPty(id); // Clean up dead PTY record
+      safeSendToOwner(id, `pty:exit:${id}`, { exitCode: 1, signal: undefined });
+      sendPtyExitGlobal(id);
+      owners.delete(id);
+      listeners.delete(id);
+      removePtyRecord(id);
     }
   });
 
@@ -1420,6 +1435,21 @@ export function registerPtyIpc(): void {
               signal,
               isAppQuitting ? 'app_quit' : 'process_exit'
             );
+            // Direct-spawn CLIs are replaced by a fallback shell via the
+            // onDirectCliExit callback (registered in ptyManager).  That
+            // callback is async — it calls startPty() which creates a new
+            // PTY record and re-attaches listeners.  If we run cleanup
+            // here synchronously we race with the async respawn: we'd
+            // delete the PTY record and send pty:exit before the new shell
+            // is ready, leaving the renderer with a dead terminal.
+            //
+            // So for direct spawns we only clean up listeners (the respawn
+            // callback re-adds them) and leave the PTY record + owner
+            // intact for the respawn to reuse.
+            if (!usedFallback) {
+              listeners.delete(id);
+              return;
+            }
             // Direct-spawn CLIs can be replaced immediately by a fallback shell after exit.
             // If this PTY has already been replaced, skip cleanup so we don't delete the new PTY record.
             const current = getPty(id);
@@ -1428,11 +1458,7 @@ export function registerPtyIpc(): void {
             }
             safeSendToOwner(id, `pty:exit:${id}`, { exitCode, signal });
             sendPtyExitGlobal(id);
-            // For direct spawn: keep owner (shell respawn reuses it), delete listeners (shell respawn re-adds)
-            // For fallback: clean up owner since no shell respawn happens
-            if (usedFallback) {
-              owners.delete(id);
-            }
+            owners.delete(id);
             listeners.delete(id);
             removePtyRecord(id);
           });

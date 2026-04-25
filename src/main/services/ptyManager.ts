@@ -1347,12 +1347,16 @@ export function startDirectPty(options: {
   // Store record with cwd for shell respawn after CLI exits
   ptys.set(id, { id, proc, cwd, isDirectSpawn: true, kind: 'local', cols, rows });
 
-  // When CLI exits, spawn a shell so user can continue working
+  // When CLI exits, spawn a shell so user can continue working.
+  // If no callback is registered, clean up the PTY record so it
+  // doesn't leak (the ptyIpc onExit handler skips cleanup for
+  // direct spawns, relying on the callback to handle it).
   proc.onExit(() => {
     const rec = ptys.get(id);
     if (rec?.isDirectSpawn && rec.cwd && onDirectCliExitCallback) {
-      // Spawn shell immediately after CLI exits
       onDirectCliExitCallback(id, rec.cwd);
+    } else if (rec?.isDirectSpawn && !onDirectCliExitCallback) {
+      removePtyRecord(id);
     }
   });
 
