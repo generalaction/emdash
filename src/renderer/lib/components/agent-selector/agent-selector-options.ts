@@ -1,6 +1,6 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { DependencyInstallError } from '@shared/dependencies';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import { getAgentInstallActionState } from './agent-install';
 
 export interface AgentOption {
   value: string;
@@ -53,33 +53,15 @@ export function isComboboxOptionDisabled(item: AgentOption): boolean {
   return item.disabled;
 }
 
-export function getAgentInstallErrorMessage(error: DependencyInstallError): string {
-  switch (error.type) {
-    case 'permission-denied':
-      return error.message;
-    case 'command-failed':
-      return error.output ? `${error.message} ${error.output}` : error.message;
-    case 'pty-open-failed':
-      return error.message;
-    case 'unknown-dependency':
-      return `Unknown dependency: ${error.id}`;
-    case 'no-install-command':
-      return `No install command is available for ${error.id}.`;
-    case 'not-detected-after-install':
-      return 'The agent was not detected after installation.';
-  }
-}
-
 export function getInstallButtonState(
   item: AgentOption,
   allowInstall: boolean,
   installingAgents: ReadonlySet<AgentProviderId>
 ): { render: boolean; disabled: boolean; installing: boolean; label: string } {
-  const installing = installingAgents.has(item.agentId);
-  return {
-    render: canInstallAgentOption(item, allowInstall),
-    disabled: installing,
-    installing,
-    label: `Install ${agentConfig[item.agentId].name}`,
-  };
+  return getAgentInstallActionState({
+    agentId: item.agentId,
+    canInstall: allowInstall,
+    isInstalled: !item.disabled,
+    isInstalling: installingAgents.has(item.agentId),
+  });
 }

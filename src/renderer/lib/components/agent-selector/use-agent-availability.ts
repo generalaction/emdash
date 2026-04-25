@@ -3,11 +3,8 @@ import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { appState } from '@renderer/lib/stores/app-state';
 import { agentConfig } from '@renderer/utils/agentConfig';
-import {
-  buildAgentGroups,
-  getAgentInstallErrorMessage,
-  getAssumedInstalledAgents,
-} from './agent-selector-options';
+import { getAgentInstallErrorMessage } from './agent-install';
+import { buildAgentGroups, getAssumedInstalledAgents } from './agent-selector-options';
 
 export function useAgentAvailability({
   connectionId,

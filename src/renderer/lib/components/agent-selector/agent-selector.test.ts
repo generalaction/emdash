@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { getAgentInstallActionState, getAgentInstallErrorMessage } from './agent-install';
 import {
   buildAgentGroups,
   canInstallAgentOption,
-  getAgentInstallErrorMessage,
   getAssumedInstalledAgents,
   getInstallButtonState,
   isComboboxOptionDisabled,
@@ -80,6 +80,31 @@ describe('buildAgentGroups', () => {
         exitCode: 243,
       })
     ).toBe('User does not have sufficient permissions.');
+  });
+
+  it('supports non-combobox install actions', () => {
+    expect(
+      getAgentInstallActionState({
+        agentId: 'cursor',
+        canInstall: true,
+        isInstalled: false,
+        isInstalling: true,
+      })
+    ).toEqual({
+      render: true,
+      disabled: true,
+      installing: true,
+      label: 'Install Cursor',
+    });
+
+    expect(
+      getAgentInstallActionState({
+        agentId: 'cursor',
+        canInstall: true,
+        isInstalled: true,
+        isInstalling: false,
+      }).render
+    ).toBe(false);
   });
 
   it('only disables the actively installing agent button', () => {

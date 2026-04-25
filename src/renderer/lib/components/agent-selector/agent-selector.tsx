@@ -1,9 +1,7 @@
-import { Download, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useMemo, useState } from 'react';
 import { AgentProviderId } from '@shared/agent-provider-registry';
 import AgentLogo from '@renderer/lib/components/agent-logo';
-import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
   ComboboxCollection,
@@ -15,11 +13,11 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
+import { AgentInstallButton } from './agent-install-button';
 import {
-  getInstallButtonState,
+  canInstallAgentOption,
   isComboboxOptionDisabled,
   type AgentGroup,
   type AgentOption,
@@ -99,12 +97,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                   <ComboboxCollection>
                     {(item: AgentOption) => {
                       const config = agentConfig[item.agentId];
-                      const installButton = getInstallButtonState(
-                        item,
-                        installable,
-                        installingAgents
-                      );
-                      const showInstall = installButton.render;
+                      const showInstall = canInstallAgentOption(item, installable);
                       return (
                         <AgentTooltipRow key={item.value} id={item.agentId}>
                           <ComboboxItem
@@ -137,40 +130,20 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                             >
                               {item.label}
                             </span>
-                            {installButton.render ? (
-                              <TooltipProvider delay={150}>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon-xs"
-                                      disabled={installButton.disabled}
-                                      aria-label={installButton.label}
-                                      onClick={(event) => {
-                                        event.preventDefault();
-                                        event.stopPropagation();
-                                        if (disabled) return;
-                                        void installAgent(item.agentId);
-                                      }}
-                                      className="ml-auto size-6 cursor-pointer"
-                                    >
-                                      {installButton.installing ? (
-                                        <Loader2
-                                          className="h-3 w-3 animate-spin"
-                                          aria-hidden="true"
-                                        />
-                                      ) : (
-                                        <Download className="h-3 w-3" aria-hidden="true" />
-                                      )}
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" className="text-xs">
-                                    {installButton.label}
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : null}
+                            <AgentInstallButton
+                              agentId={item.agentId}
+                              canInstall={installable}
+                              isInstalled={!item.disabled}
+                              isInstalling={installingAgents.has(item.agentId)}
+                              disabled={disabled}
+                              className="size-6"
+                              onInstall={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (disabled) return;
+                                void installAgent(item.agentId);
+                              }}
+                            />
                           </ComboboxItem>
                         </AgentTooltipRow>
                       );
