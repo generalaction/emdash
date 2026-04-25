@@ -1,7 +1,8 @@
 import { makeObservable, observable, runInAction } from 'mobx';
+import { sshConnectionEventChannel } from '@shared/events/sshEvents';
 import { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import {
@@ -46,6 +47,20 @@ export class ProjectManagerStore {
 
   constructor() {
     makeObservable(this, { projects: observable });
+
+    events.on(sshConnectionEventChannel, (event) => {
+      if (event.type !== 'connected' && event.type !== 'reconnected') return;
+      for (const [projectId, store] of this.projects) {
+        if (
+          isUnmountedProject(store) &&
+          store.errorCode === 'ssh-disconnected' &&
+          store.data.type === 'ssh' &&
+          store.data.connectionId === event.connectionId
+        ) {
+          this.mountProject(projectId).catch(() => {});
+        }
+      }
+    });
   }
 
   load(): Promise<void> {
@@ -249,13 +264,33 @@ export class ProjectManagerStore {
     runInAction(() => {
       project.phase = 'opening';
       project.error = undefined;
+      project.errorCode = undefined;
     });
 
     const promise = Promise.all([
       rpc.projects.openProject(projectId),
       rpc.viewState.get(`project:${projectId}`),
     ])
-      .then(async ([, savedSnapshot]) => {
+      .then(async ([openResult, savedSnapshot]) => {
+        if (!openResult.success) {
+          runInAction(() => {
+            const current = this.projects.get(projectId);
+            if (current && isUnmountedProject(current)) {
+              current.phase = 'error';
+              if (openResult.error.type === 'path-not-found') {
+                current.error = openResult.error.path;
+                current.errorCode = 'path-not-found';
+              } else if (openResult.error.type === 'ssh-disconnected') {
+                current.error = openResult.error.connectionId;
+                current.errorCode = 'ssh-disconnected';
+              } else {
+                current.error = openResult.error.message;
+                current.errorCode = undefined;
+              }
+            }
+          });
+          return;
+        }
         runInAction(() => {
           const current = this.projects.get(projectId);
           if (current && isUnmountedProject(current)) {
@@ -288,6 +323,7 @@ export class ProjectManagerStore {
           if (current && isUnmountedProject(current)) {
             current.phase = 'error';
             current.error = err instanceof Error ? err.message : String(err);
+            current.errorCode = undefined;
           }
         });
         throw err;

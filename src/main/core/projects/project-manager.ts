@@ -1,8 +1,14 @@
-import type { LocalProject, ProjectBootstrapStatus, SshProject } from '@shared/projects';
+import type {
+  LocalProject,
+  OpenProjectError,
+  ProjectBootstrapStatus,
+  SshProject,
+} from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { log } from '@main/lib/logger';
 import { LocalFileSystem } from '../fs/impl/local-fs';
 import { SshFileSystem } from '../fs/impl/ssh-fs';
+import { checkIsValidDirectory } from '../git/impl/detectGitInfo';
 import { getProjectById, getProjects } from '../projects/operations/getProjects';
 import { sshConnectionManager } from '../ssh/ssh-connection-manager';
 import { createLocalProvider } from './impl/local-project-provider';
@@ -138,10 +144,20 @@ class ProjectManager {
     return { status: 'not-started' };
   }
 
-  async openProjectById(projectId: string): Promise<void> {
+  async openProjectById(projectId: string): Promise<Result<void, OpenProjectError>> {
     const project = await getProjectById(projectId);
-    if (!project) throw new Error(`Project not found: ${projectId}`);
-    await this.openProject(project);
+    if (!project) return err({ type: 'error', message: `Project not found: ${projectId}` });
+    if (project.type === 'local' && !checkIsValidDirectory(project.path)) {
+      return err({ type: 'path-not-found', path: project.path });
+    }
+    const result = await this.openProject(project);
+    if (!result.success) {
+      if (project.type === 'ssh') {
+        return err({ type: 'ssh-disconnected', connectionId: project.connectionId });
+      }
+      return err({ type: 'error', message: result.error.message });
+    }
+    return ok();
   }
 
   async shutdown(): Promise<void> {

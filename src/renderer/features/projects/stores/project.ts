@@ -81,6 +81,7 @@ export class ProjectStore {
   data: LocalProject | SshProject | null;
   phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
   error: string | undefined = undefined;
+  errorCode: 'path-not-found' | 'ssh-disconnected' | undefined = undefined;
   mode: ProjectMode | null;
   mountedProject: MountedProject | null = null;
 
@@ -109,6 +110,7 @@ export class ProjectStore {
     this.state = 'mounted';
     this.phase = null;
     this.error = undefined;
+    this.errorCode = undefined;
   }
 
   transitionToUnmounted(
@@ -123,6 +125,7 @@ export class ProjectStore {
     this.state = 'unmounted';
     this.phase = phase;
     this.error = undefined;
+    this.errorCode = undefined;
   }
 
   transitionToUnregistered(
@@ -157,6 +160,7 @@ export type UnmountedProject = ProjectStore & {
   data: LocalProject | SshProject;
   phase: UnmountedProjectPhase;
   error: string | undefined;
+  errorCode: 'path-not-found' | 'ssh-disconnected' | undefined;
 };
 
 export function isUnregisteredProject(p: ProjectStore): p is UnregisteredProject {

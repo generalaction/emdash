@@ -36,7 +36,6 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const repo = getRepositoryStore(projectId);
   const configuredRemote = repo?.configuredRemote;
   const remoteUrl = configuredRemote?.url;
-  const remoteName = configuredRemote?.name;
   const repositoryUrl = repo?.repositoryUrl;
 
   const isGithubUrl = repositoryUrl?.includes('github.com');
@@ -77,25 +76,22 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      {remoteName && (
+      {remoteUrl && (
         <>
           <Separator
             orientation="vertical"
             className="h-4 data-[orientation=vertical]:self-center"
           />
-          {remoteUrl && (
-            <button
-              className="flex items-center gap-1.5 text-foreground-muted text-sm hover:text-foreground group transition-colors"
-              onClick={() => void rpc.app.openExternal(remoteUrl ?? '')}
-            >
-              <div className="text-sm flex items-center gap-1">
-                {isGithubUrl ? <GithubIcon className="size-3.5" /> : <Globe className="size-3.5" />}
-                <span className="truncate">{repoLabel}</span>
-              </div>
-              <ExternalLink className="size-3.5 shrink-0 opacity-0 group-hover:opacity-100 text-foreground-muted hover:text-foreground transition-opacity" />
-            </button>
-          )}
+          <button
+            className="flex items-center gap-1.5 text-foreground-muted text-sm hover:text-foreground group transition-colors"
+            onClick={() => void rpc.app.openExternal(remoteUrl ?? '')}
+          >
+            <div className="text-sm flex items-center gap-1">
+              {isGithubUrl ? <GithubIcon className="size-3.5" /> : <Globe className="size-3.5" />}
+              <span className="truncate">{repoLabel}</span>
+            </div>
+            <ExternalLink className="size-3.5 shrink-0 opacity-0 group-hover:opacity-100 text-foreground-muted hover:text-foreground transition-opacity" />
+          </button>
         </>
       )}
     </div>

@@ -22,6 +22,8 @@ export type ProjectViewKind =
   | 'creating'
   | 'bootstrapping'
   | 'mount_error'
+  | 'path_not_found'
+  | 'ssh_disconnected'
   | 'idle_unmounted'
   | 'ready';
 
@@ -30,7 +32,11 @@ export function projectViewKind(store: ProjectStore | undefined): ProjectViewKin
   if (isUnregisteredProject(store)) return 'creating';
   if (isUnmountedProject(store)) {
     if (store.phase === 'opening') return 'bootstrapping';
-    if (store.phase === 'error') return 'mount_error';
+    if (store.phase === 'error') {
+      if (store.errorCode === 'path-not-found') return 'path_not_found';
+      if (store.errorCode === 'ssh-disconnected') return 'ssh_disconnected';
+      return 'mount_error';
+    }
     return 'idle_unmounted';
   }
   return 'ready';
@@ -54,6 +60,9 @@ export function projectDisplayName(store: ProjectStore | undefined): string | un
 
 export function unmountedMountErrorMessage(store: ProjectStore | undefined): string {
   if (store && isUnmountedProject(store) && store.phase === 'error') {
+    if (store.errorCode === 'path-not-found') {
+      return `No project found at ${store.error ?? 'the configured path'}`;
+    }
     return store.error ?? 'Failed to open project';
   }
   return 'Failed to open project';

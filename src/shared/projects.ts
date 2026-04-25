@@ -32,6 +32,11 @@ export type SshProject = {
 
 export type Project = LocalProject | SshProject;
 
+export type OpenProjectError =
+  | { type: 'path-not-found'; path: string }
+  | { type: 'ssh-disconnected'; connectionId: string }
+  | { type: 'error'; message: string };
+
 export type UpdateProjectSettingsError =
   | { type: 'project-not-found' }
   | { type: 'invalid-settings' }
