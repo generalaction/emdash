@@ -188,14 +188,20 @@
     /* Monaco editor */
     --monaco-bg: var(--background);
     --monaco-fg: var(--foreground);
+    --monaco-error-fg: var(--foreground-destructive);
+
     --monaco-line-highlight: var(--background-2);
     --monaco-line-number: var(--foreground-passive);
-    --monaco-gutter: color(display-p3 0.973 0.98 0.988);
+    --monaco-gutter: var(--monaco-bg);
     --monaco-inserted-text-bg: color(display-p3 0.063 0.725 0.506 / 0.251);
     --monaco-inserted-line-bg: color(display-p3 0.925 0.992 0.961 / 0.502);
     --monaco-removed-text-bg: color(display-p3 0.957 0.247 0.369 / 0.251);
     --monaco-removed-line-bg: color(display-p3 1 0.945 0.949 / 0.502);
     --monaco-unchanged-region-bg: color(display-p3 0.886 0.91 0.941);
+    --monaco-diff-diagonal-fill: var(--background-2);
+    --monaco-selection-bg: var(--selection);
+    --monaco-selection-fg: var(--selection-foreground);
+    --monaco-inactive-selection-bg: color-mix(in srgb, var(--selection) 15.3%, transparent);
 
     /* xterm terminals */
     --xterm-bg: var(--background);
