@@ -41,7 +41,6 @@ export const CreatePrModal = observer(function CreatePrModal({
   draft,
   workspaceId,
   onSuccess,
-  onClose,
 }: Props) {
   const { projectId, taskId } = useTaskViewContext();
   const [title, setTitle] = useState(branchName);
