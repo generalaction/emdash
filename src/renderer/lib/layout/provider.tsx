@@ -22,17 +22,46 @@ import { clearTelemetryTaskScope, setTelemetryTaskScope } from '@renderer/utils/
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import {
   WorkspaceNavigateContext,
+  WorkspaceNavigationHistoryContext,
   WorkspaceSlotsContext,
   WorkspaceUpdateViewParamsContext,
   WorkspaceViewParamsStoreContext,
   WorkspaceWrapParamsContext,
   type NavigateFnTyped,
+  type NavigationHistoryContextValue,
   type SlotsContextValue,
   type UpdateViewParamsFn,
   type WrapParamsContextValue,
 } from './navigation-provider';
 
 type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
+
+type HistoryEntry = {
+  viewId: ViewId;
+  params?: Record<string, unknown>;
+};
+
+type HistoryState = {
+  entries: HistoryEntry[];
+  index: number;
+};
+
+const HISTORY_LIMIT = 50;
+
+function shallowEqualParams(
+  a: Record<string, unknown> | undefined,
+  b: Record<string, unknown> | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const key of keysA) {
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
+}
 
 function syncTelemetryScope(currentViewId: ViewId, viewParamsStore: ViewParamsStore): void {
   if (currentViewId !== 'task') {
@@ -79,6 +108,13 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   const [viewParamsStore, setViewParamsStore] = useState<ViewParamsStore>(
     () => appState.navigation.viewParamsStore as ViewParamsStore
   );
+  const [historyState, setHistoryState] = useState<HistoryState>(() => {
+    const initialId = appState.navigation.currentViewId;
+    const initialParams = appState.navigation.viewParamsStore[initialId] as
+      | Record<string, unknown>
+      | undefined;
+    return { entries: [{ viewId: initialId, params: initialParams }], index: 0 };
+  });
   const [_, startTransition] = useTransition();
 
   // Sync React state back to the MobX persistence mirror after every commit.
@@ -127,10 +163,70 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
           setViewParamsStore((prev) => ({ ...prev, [viewId]: params }));
         }
         closeModal();
+
+        setHistoryState((prev) => {
+          const truncated = prev.entries.slice(0, prev.index + 1);
+          const last = truncated[truncated.length - 1];
+          const recordedParams = params as Record<string, unknown> | undefined;
+          if (last && last.viewId === viewId && shallowEqualParams(last.params, recordedParams)) {
+            return prev;
+          }
+          const next = [...truncated, { viewId, params: recordedParams }];
+          const trimmed =
+            next.length > HISTORY_LIMIT ? next.slice(next.length - HISTORY_LIMIT) : next;
+          return { entries: trimmed, index: trimmed.length - 1 };
+        });
       });
     },
     [closeModal, currentViewId]
   ) as NavigateFnTyped;
+
+  const navigateToEntry = useCallback(
+    (entry: HistoryEntry) => {
+      startTransition(() => {
+        setCurrentViewId(entry.viewId);
+        setViewParamsStore((prev) => {
+          const next: ViewParamsStore = { ...prev };
+          if (entry.params === undefined) {
+            delete next[entry.viewId];
+          } else {
+            (next as Record<ViewId, unknown>)[entry.viewId] = entry.params;
+          }
+          return next;
+        });
+        closeModal();
+      });
+    },
+    [closeModal]
+  );
+
+  const goBack = useCallback(() => {
+    setHistoryState((prev) => {
+      if (prev.index <= 0) return prev;
+      const nextIndex = prev.index - 1;
+      navigateToEntry(prev.entries[nextIndex]);
+      return { ...prev, index: nextIndex };
+    });
+  }, [navigateToEntry]);
+
+  const goForward = useCallback(() => {
+    setHistoryState((prev) => {
+      if (prev.index >= prev.entries.length - 1) return prev;
+      const nextIndex = prev.index + 1;
+      navigateToEntry(prev.entries[nextIndex]);
+      return { ...prev, index: nextIndex };
+    });
+  }, [navigateToEntry]);
+
+  const navigationHistoryValue = useMemo<NavigationHistoryContextValue>(
+    () => ({
+      goBack,
+      goForward,
+      canGoBack: historyState.index > 0,
+      canGoForward: historyState.index < historyState.entries.length - 1,
+    }),
+    [goBack, goForward, historyState]
+  );
 
   const updateViewParams = useCallback(
     <TId extends ViewId>(
@@ -172,15 +268,17 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
 
   return (
     <WorkspaceNavigateContext.Provider value={navigate}>
-      <WorkspaceSlotsContext.Provider value={slotsValue}>
-        <WorkspaceWrapParamsContext.Provider value={wrapParamsValue}>
-          <WorkspaceViewParamsStoreContext.Provider value={viewParamsStoreValue}>
-            <WorkspaceUpdateViewParamsContext.Provider value={updateViewParams}>
-              {children}
-            </WorkspaceUpdateViewParamsContext.Provider>
-          </WorkspaceViewParamsStoreContext.Provider>
-        </WorkspaceWrapParamsContext.Provider>
-      </WorkspaceSlotsContext.Provider>
+      <WorkspaceNavigationHistoryContext.Provider value={navigationHistoryValue}>
+        <WorkspaceSlotsContext.Provider value={slotsValue}>
+          <WorkspaceWrapParamsContext.Provider value={wrapParamsValue}>
+            <WorkspaceViewParamsStoreContext.Provider value={viewParamsStoreValue}>
+              <WorkspaceUpdateViewParamsContext.Provider value={updateViewParams}>
+                {children}
+              </WorkspaceUpdateViewParamsContext.Provider>
+            </WorkspaceViewParamsStoreContext.Provider>
+          </WorkspaceWrapParamsContext.Provider>
+        </WorkspaceSlotsContext.Provider>
+      </WorkspaceNavigationHistoryContext.Provider>
     </WorkspaceNavigateContext.Provider>
   );
 }
