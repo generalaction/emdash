@@ -299,7 +299,8 @@ function formatReport(snapshot: ResourceSnapshot, groups: Group[]): string {
         if (e.ppid !== undefined) parts.push(`ppid=${e.ppid}`);
         if (e.pid === undefined) parts.push('ssh');
         const suffix = parts.length > 0 ? ` (${parts.join(' ')})` : '';
-        lines.push(`${path} ${e.cpu.toFixed(1)}% ${formatBytes(e.memory)}${suffix}`);
+        const cpu = snapshot.cpuCount > 0 ? e.cpu / snapshot.cpuCount : 0;
+        lines.push(`${path} ${cpu.toFixed(1)}% ${formatBytes(e.memory)}${suffix}`);
       }
     }
   }

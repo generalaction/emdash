@@ -105,18 +105,26 @@ let timer: NodeJS.Timeout | null = null;
 
 export function startResourceSampler(): void {
   if (timer) return;
+
   const tick = async () => {
     try {
-      const { enabled } = await appSettingsService.get('resourceMonitor');
-      if (!enabled) return;
       const snap = await sampleOnce();
       events.emit(resourceSnapshotChannel, snap);
     } catch (err) {
       log.warn('resource-sampler: sample failed', err);
     }
   };
-  timer = setInterval(tick, SAMPLE_INTERVAL_MS);
-  void tick();
+
+  void appSettingsService
+    .get('resourceMonitor')
+    .then(({ enabled }) => {
+      if (!enabled || timer) return;
+      timer = setInterval(tick, SAMPLE_INTERVAL_MS);
+      void tick();
+    })
+    .catch((err) => {
+      log.warn('resource-sampler: failed to read settings', err);
+    });
 }
 
 export function stopResourceSampler(): void {
