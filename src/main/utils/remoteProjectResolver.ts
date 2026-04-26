@@ -1,3 +1,4 @@
+import type { RemoteLocator } from '../../shared/ipc/remoteLocator';
 import { databaseService, type Project } from '../services/DatabaseService';
 import { workspaceProviderService } from '../services/WorkspaceProviderService';
 
@@ -21,17 +22,17 @@ export interface RemoteContext {
 
 export async function resolveRemoteContext(
   worktreePath: string,
-  taskId?: string
+  locator?: Pick<RemoteLocator, 'taskId' | 'sshConnectionId'>
 ): Promise<RemoteContext | null> {
   // Check workspace instances by taskId first
-  if (taskId) {
-    const instance = await workspaceProviderService.getActiveInstance(taskId);
+  if (locator?.taskId) {
+    const instance = await workspaceProviderService.getActiveInstance(locator.taskId);
     if (instance?.connectionId && instance?.worktreePath) {
       return { connectionId: instance.connectionId, remotePath: instance.worktreePath };
     }
   }
   // Fall back to existing project-based SSH matching
-  const project = await resolveRemoteProjectForWorktreePath(worktreePath);
+  const project = await resolveRemoteProjectForWorktreePath(worktreePath, locator?.sshConnectionId);
   if (project) {
     return { connectionId: project.sshConnectionId, remotePath: worktreePath };
   }

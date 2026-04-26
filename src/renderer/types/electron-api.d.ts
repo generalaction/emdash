@@ -1,11 +1,19 @@
 // Updated for Codex integration
 
+import type { OpenInAppId } from '#shared/openInApps';
+import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
 import type { AgentEvent } from '../../shared/agentEvents';
-import type { AutoMergeRequest } from '../lib/prStatus';
 import type { DiffPayload } from '../../shared/diff/types';
 import type { GitIndexUpdateArgs } from '../../shared/git/types';
-import type { ResourceMetricsSnapshot } from '../../shared/performanceTypes';
 import type { SentryIssue } from '../../shared/integrations/sentryTypes';
+import type {
+  ProjectPathLocator,
+  RepoPathLocator,
+  TaskPathLocator,
+  WorktreePathLocator,
+} from '../../shared/ipc/remoteLocator';
+import type { ResourceMetricsSnapshot } from '../../shared/performanceTypes';
+import type { AutoMergeRequest } from '../lib/prStatus';
 
 type ProjectSettingsPayload = {
   projectId: string;
@@ -176,10 +184,11 @@ declare global {
         projectId: string;
         baseRef?: string;
       }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
-      worktreeList: (args: {
-        projectPath: string;
-        sshConnectionId?: string;
-      }) => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
+      worktreeList: (args: ProjectPathLocator) => Promise<{
+        success: boolean;
+        worktrees?: any[];
+        error?: string;
+      }>;
       worktreeRemove: (args: {
         projectPath: string;
         worktreeId: string;
@@ -188,9 +197,11 @@ declare global {
         taskName?: string;
         sshConnectionId?: string;
       }) => Promise<{ success: boolean; error?: string }>;
-      worktreeStatus: (args: {
-        worktreePath: string;
-      }) => Promise<{ success: boolean; status?: any; error?: string }>;
+      worktreeStatus: (args: WorktreePathLocator) => Promise<{
+        success: boolean;
+        status?: any;
+        error?: string;
+      }>;
       worktreeMerge: (args: {
         projectPath: string;
         worktreeId: string;
@@ -359,7 +370,7 @@ declare global {
         rootPath?: string;
         error?: string;
       }>;
-      getGitStatus: (arg: string | { taskPath: string; taskId?: string }) => Promise<{
+      getGitStatus: (arg: string | TaskPathLocator) => Promise<{
         success: boolean;
         changes?: Array<{
           path: string;
@@ -398,13 +409,13 @@ declare global {
         >;
         error?: string;
       }>;
-      watchGitStatus: (arg: string | { taskPath: string; taskId?: string }) => Promise<{
+      watchGitStatus: (arg: string | TaskPathLocator) => Promise<{
         success: boolean;
         watchId?: string;
         error?: string;
       }>;
       unwatchGitStatus: (
-        arg: string | { taskPath: string; taskId?: string },
+        arg: string | TaskPathLocator,
         watchId?: string
       ) => Promise<{
         success: boolean;
@@ -413,22 +424,22 @@ declare global {
       onGitStatusChanged: (
         listener: (data: { taskPath: string; error?: string }) => void
       ) => () => void;
-      getFileDiff: (args: {
-        taskPath: string;
-        taskId?: string;
-        filePath: string;
-        baseRef?: string;
-        forceLarge?: boolean;
-      }) => Promise<{
+      getFileDiff: (
+        args: TaskPathLocator & {
+          filePath: string;
+          baseRef?: string;
+          forceLarge?: boolean;
+        }
+      ) => Promise<{
         success: boolean;
         diff?: DiffPayload;
         error?: string;
       }>;
-      updateIndex: (args: { taskPath: string; taskId?: string } & GitIndexUpdateArgs) => Promise<{
+      updateIndex: (args: TaskPathLocator & GitIndexUpdateArgs) => Promise<{
         success: boolean;
         error?: string;
       }>;
-      revertFile: (args: { taskPath: string; taskId?: string; filePath: string }) => Promise<{
+      revertFile: (args: TaskPathLocator & { filePath: string }) => Promise<{
         success: boolean;
         action?: 'reverted';
         error?: string;
@@ -448,12 +459,13 @@ declare global {
         output?: string;
         error?: string;
       }>;
-      gitGetLog: (args: {
-        taskPath: string;
-        maxCount?: number;
-        skip?: number;
-        aheadCount?: number;
-      }) => Promise<{
+      gitGetLog: (
+        args: TaskPathLocator & {
+          maxCount?: number;
+          skip?: number;
+          aheadCount?: number;
+        }
+      ) => Promise<{
         success: boolean;
         commits?: Array<{
           hash: string;
@@ -468,7 +480,7 @@ declare global {
         aheadCount?: number;
         error?: string;
       }>;
-      gitGetLatestCommit: (args: { taskPath: string }) => Promise<{
+      gitGetLatestCommit: (args: TaskPathLocator) => Promise<{
         success: boolean;
         commit?: {
           hash: string;
@@ -478,7 +490,7 @@ declare global {
         } | null;
         error?: string;
       }>;
-      gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) => Promise<{
+      gitGetCommitFiles: (args: TaskPathLocator & { commitHash: string }) => Promise<{
         success: boolean;
         files?: Array<{
           path: string;
@@ -488,12 +500,13 @@ declare global {
         }>;
         error?: string;
       }>;
-      gitGetCommitFileDiff: (args: {
-        taskPath: string;
-        commitHash: string;
-        filePath: string;
-        forceLarge?: boolean;
-      }) => Promise<{
+      gitGetCommitFileDiff: (
+        args: TaskPathLocator & {
+          commitHash: string;
+          filePath: string;
+          forceLarge?: boolean;
+        }
+      ) => Promise<{
         success: boolean;
         diff?: DiffPayload;
         error?: string;
@@ -504,64 +517,60 @@ declare global {
         body?: string;
         error?: string;
       }>;
-      gitCommitAndPush: (args: {
-        taskPath: string;
-        taskId?: string;
-        commitMessage?: string;
-        createBranchIfOnDefault?: boolean;
-        branchPrefix?: string;
-      }) => Promise<{
+      gitCommitAndPush: (
+        args: TaskPathLocator & {
+          commitMessage?: string;
+          createBranchIfOnDefault?: boolean;
+          branchPrefix?: string;
+        }
+      ) => Promise<{
         success: boolean;
         branch?: string;
         output?: string;
         error?: string;
       }>;
-      generatePrContent: (args: {
-        taskPath: string;
-        base?: string;
-        sshConnectionId?: string;
-      }) => Promise<{
+      generatePrContent: (args: TaskPathLocator & { base?: string }) => Promise<{
         success: boolean;
         title?: string;
         description?: string;
         error?: string;
       }>;
-      createPullRequest: (args: {
-        taskPath: string;
-        title?: string;
-        body?: string;
-        base?: string;
-        head?: string;
-        draft?: boolean;
-        web?: boolean;
-        fill?: boolean;
-        skipPrePush?: boolean;
-        sshConnectionId?: string;
-      }) => Promise<{
+      createPullRequest: (
+        args: TaskPathLocator & {
+          title?: string;
+          body?: string;
+          base?: string;
+          head?: string;
+          draft?: boolean;
+          web?: boolean;
+          fill?: boolean;
+          skipPrePush?: boolean;
+        }
+      ) => Promise<{
         success: boolean;
         url?: string;
         output?: string;
         error?: string;
       }>;
-      mergeToMain: (args: { taskPath: string; taskId?: string }) => Promise<{
+      mergeToMain: (args: TaskPathLocator) => Promise<{
         success: boolean;
         output?: string;
         prUrl?: string;
         error?: string;
       }>;
-      mergePr: (args: {
-        taskPath: string;
-        prNumber?: number;
-        strategy?: 'merge' | 'squash' | 'rebase';
-        admin?: boolean;
-        sshConnectionId?: string;
-      }) => Promise<{
+      mergePr: (
+        args: TaskPathLocator & {
+          prNumber?: number;
+          strategy?: 'merge' | 'squash' | 'rebase';
+          admin?: boolean;
+        }
+      ) => Promise<{
         success: boolean;
         output?: string;
         error?: string;
         code?: string;
       }>;
-      getPrStatus: (args: { taskPath: string; sshConnectionId?: string }) => Promise<{
+      getPrStatus: (args: TaskPathLocator) => Promise<{
         success: boolean;
         pr?: {
           number: number;
@@ -580,26 +589,22 @@ declare global {
         } | null;
         error?: string;
       }>;
-      enableAutoMerge: (args: {
-        taskPath: string;
-        prNumber?: number;
-        strategy?: 'merge' | 'squash' | 'rebase';
-        sshConnectionId?: string;
-      }) => Promise<{
+      enableAutoMerge: (
+        args: TaskPathLocator & {
+          prNumber?: number;
+          strategy?: 'merge' | 'squash' | 'rebase';
+        }
+      ) => Promise<{
         success: boolean;
         output?: string;
         error?: string;
       }>;
-      disableAutoMerge: (args: {
-        taskPath: string;
-        prNumber?: number;
-        sshConnectionId?: string;
-      }) => Promise<{
+      disableAutoMerge: (args: TaskPathLocator & { prNumber?: number }) => Promise<{
         success: boolean;
         output?: string;
         error?: string;
       }>;
-      getCheckRuns: (args: { taskPath: string; sshConnectionId?: string }) => Promise<{
+      getCheckRuns: (args: TaskPathLocator) => Promise<{
         success: boolean;
         checks?: Array<{
           name: string;
@@ -615,11 +620,7 @@ declare global {
         error?: string;
         code?: string;
       }>;
-      getPrComments: (args: {
-        taskPath: string;
-        prNumber?: number;
-        sshConnectionId?: string;
-      }) => Promise<{
+      getPrComments: (args: TaskPathLocator & { prNumber?: number }) => Promise<{
         success: boolean;
         comments?: Array<{
           id: string;
@@ -637,7 +638,7 @@ declare global {
         error?: string;
         code?: string;
       }>;
-      getBranchStatus: (args: { taskPath: string; taskId?: string }) => Promise<{
+      getBranchStatus: (args: TaskPathLocator) => Promise<{
         success: boolean;
         branch?: string;
         defaultBranch?: string;
@@ -646,21 +647,17 @@ declare global {
         aheadOfDefault?: number;
         error?: string;
       }>;
-      renameBranch: (args: {
-        repoPath: string;
-        oldBranch: string;
-        newBranch: string;
-        sshConnectionId?: string;
-      }) => Promise<{
+      renameBranch: (
+        args: RepoPathLocator & {
+          oldBranch: string;
+          newBranch: string;
+        }
+      ) => Promise<{
         success: boolean;
         remotePushed?: boolean;
         error?: string;
       }>;
-      listRemoteBranches: (args: {
-        projectPath: string;
-        remote?: string;
-        sshConnectionId?: string;
-      }) => Promise<{
+      listRemoteBranches: (args: ProjectPathLocator & { remote?: string }) => Promise<{
         success: boolean;
         branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
         error?: string;
@@ -1585,19 +1582,24 @@ export interface ElectronAPI {
     projectId: string;
     baseRef?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
-  worktreeList: (args: {
-    projectPath: string;
-  }) => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
+  worktreeList: (args: ProjectPathLocator) => Promise<{
+    success: boolean;
+    worktrees?: any[];
+    error?: string;
+  }>;
   worktreeRemove: (args: {
     projectPath: string;
     worktreeId: string;
     worktreePath?: string;
     branch?: string;
     taskName?: string;
+    sshConnectionId?: string;
   }) => Promise<{ success: boolean; error?: string }>;
-  worktreeStatus: (args: {
-    worktreePath: string;
-  }) => Promise<{ success: boolean; status?: any; error?: string }>;
+  worktreeStatus: (args: WorktreePathLocator) => Promise<{
+    success: boolean;
+    status?: any;
+    error?: string;
+  }>;
   worktreeMerge: (args: {
     projectPath: string;
     worktreeId: string;
@@ -1759,32 +1761,29 @@ export interface ElectronAPI {
     path?: string;
     error?: string;
   }>;
-  listRemoteBranches: (args: {
-    projectPath: string;
-    remote?: string;
-    sshConnectionId?: string;
-  }) => Promise<{
+  listRemoteBranches: (args: ProjectPathLocator & { remote?: string }) => Promise<{
     success: boolean;
     branches?: Array<{ ref: string; remote: string; branch: string; label: string }>;
     error?: string;
   }>;
-  createPullRequest: (args: {
-    taskPath: string;
-    title?: string;
-    body?: string;
-    base?: string;
-    head?: string;
-    draft?: boolean;
-    web?: boolean;
-    fill?: boolean;
-    skipPrePush?: boolean;
-  }) => Promise<{
+  createPullRequest: (
+    args: TaskPathLocator & {
+      title?: string;
+      body?: string;
+      base?: string;
+      head?: string;
+      draft?: boolean;
+      web?: boolean;
+      fill?: boolean;
+      skipPrePush?: boolean;
+    }
+  ) => Promise<{
     success: boolean;
     url?: string;
     output?: string;
     error?: string;
   }>;
-  mergeToMain: (args: { taskPath: string; taskId?: string }) => Promise<{
+  mergeToMain: (args: TaskPathLocator) => Promise<{
     success: boolean;
     output?: string;
     prUrl?: string;
@@ -2282,5 +2281,3 @@ export interface ElectronAPI {
   }>;
   onPerfSnapshot: (listener: (snapshot: ResourceMetricsSnapshot) => void) => () => void;
 }
-import type { TerminalSnapshotPayload } from '#types/terminalSnapshot';
-import type { OpenInAppId } from '#shared/openInApps';

@@ -1,11 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
-import type { OpenInAppId } from '../shared/openInApps';
 import type { AgentEvent } from '../shared/agentEvents';
-import type { McpServer } from '../shared/mcp/types';
 import type { DiffPayload } from '../shared/diff/types';
 import type { GitIndexUpdateArgs } from '../shared/git/types';
+import type {
+  ProjectPathLocator,
+  RepoPathLocator,
+  TaskPathLocator,
+  WorktreePathLocator,
+} from '../shared/ipc/remoteLocator';
+import type { McpServer } from '../shared/mcp/types';
+import type { OpenInAppId } from '../shared/openInApps';
 import type { ResourceMetricsSnapshot } from '../shared/performanceTypes';
+import type { TerminalSnapshotPayload } from './types/terminalSnapshot';
 
 // Keep preload self-contained: sandboxed preload cannot reliably require local runtime modules.
 const LIFECYCLE_EVENT_CHANNEL = 'lifecycle:event';
@@ -239,8 +245,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     projectId: string;
     baseRef?: string;
   }) => ipcRenderer.invoke('worktree:create', args),
-  worktreeList: (args: { projectPath: string; sshConnectionId?: string }) =>
-    ipcRenderer.invoke('worktree:list', args),
+  worktreeList: (args: ProjectPathLocator) => ipcRenderer.invoke('worktree:list', args),
   worktreeRemove: (args: {
     projectPath: string;
     worktreeId: string;
@@ -249,7 +254,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     taskName?: string;
     sshConnectionId?: string;
   }) => ipcRenderer.invoke('worktree:remove', args),
-  worktreeStatus: (args: { worktreePath: string }) => ipcRenderer.invoke('worktree:status', args),
+  worktreeStatus: (args: WorktreePathLocator) => ipcRenderer.invoke('worktree:status', args),
   worktreeMerge: (args: { projectPath: string; worktreeId: string }) =>
     ipcRenderer.invoke('worktree:merge', args),
   worktreeGet: (args: { worktreeId: string }) => ipcRenderer.invoke('worktree:get', args),
@@ -385,15 +390,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchProjectBaseRef: (args: { projectId: string; projectPath: string }) =>
     ipcRenderer.invoke('projectSettings:fetchBaseRef', args),
   getGitInfo: (projectPath: string) => ipcRenderer.invoke('git:getInfo', projectPath),
-  getGitStatus: (arg: string | { taskPath: string; taskId?: string }) =>
-    ipcRenderer.invoke('git:get-status', arg),
+  getGitStatus: (arg: string | TaskPathLocator) => ipcRenderer.invoke('git:get-status', arg),
   getDeleteRisks: (args: {
     targets: Array<{ id: string; taskPath: string; sshConnectionId?: string }>;
     includePr?: boolean;
   }) => ipcRenderer.invoke('git:get-delete-risks', args),
-  watchGitStatus: (arg: string | { taskPath: string; taskId?: string }) =>
-    ipcRenderer.invoke('git:watch-status', arg),
-  unwatchGitStatus: (arg: string | { taskPath: string; taskId?: string }, watchId?: string) =>
+  watchGitStatus: (arg: string | TaskPathLocator) => ipcRenderer.invoke('git:watch-status', arg),
+  unwatchGitStatus: (arg: string | TaskPathLocator, watchId?: string) =>
     ipcRenderer.invoke('git:unwatch-status', arg, watchId),
   onGitStatusChanged: (listener: (data: { taskPath: string; error?: string }) => void) => {
     attachGitStatusBridgeOnce();
@@ -402,87 +405,83 @@ contextBridge.exposeInMainWorld('electronAPI', {
       gitStatusChangedListeners.delete(listener);
     };
   },
-  getFileDiff: (args: {
-    taskPath: string;
-    taskId?: string;
-    filePath: string;
-    baseRef?: string;
-    forceLarge?: boolean;
-  }) => ipcRenderer.invoke('git:get-file-diff', args),
-  updateIndex: (args: { taskPath: string; taskId?: string } & GitIndexUpdateArgs) =>
+  getFileDiff: (
+    args: TaskPathLocator & {
+      filePath: string;
+      baseRef?: string;
+      forceLarge?: boolean;
+    }
+  ) => ipcRenderer.invoke('git:get-file-diff', args),
+  updateIndex: (args: TaskPathLocator & GitIndexUpdateArgs) =>
     ipcRenderer.invoke('git:update-index', args),
-  revertFile: (args: { taskPath: string; taskId?: string; filePath: string }) =>
+  revertFile: (args: TaskPathLocator & { filePath: string }) =>
     ipcRenderer.invoke('git:revert-file', args),
   gitCommit: (args: { taskPath: string; message: string }) =>
     ipcRenderer.invoke('git:commit', args),
   gitPush: (args: { taskPath: string }) => ipcRenderer.invoke('git:push', args),
   gitPull: (args: { taskPath: string }) => ipcRenderer.invoke('git:pull', args),
-  gitGetLog: (args: { taskPath: string; maxCount?: number; skip?: number }) =>
+  gitGetLog: (args: TaskPathLocator & { maxCount?: number; skip?: number; aheadCount?: number }) =>
     ipcRenderer.invoke('git:get-log', args),
-  gitGetLatestCommit: (args: { taskPath: string }) =>
-    ipcRenderer.invoke('git:get-latest-commit', args),
-  gitGetCommitFiles: (args: { taskPath: string; commitHash: string }) =>
+  gitGetLatestCommit: (args: TaskPathLocator) => ipcRenderer.invoke('git:get-latest-commit', args),
+  gitGetCommitFiles: (args: TaskPathLocator & { commitHash: string }) =>
     ipcRenderer.invoke('git:get-commit-files', args),
-  gitGetCommitFileDiff: (args: {
-    taskPath: string;
-    commitHash: string;
-    filePath: string;
-    forceLarge?: boolean;
-  }) => ipcRenderer.invoke('git:get-commit-file-diff', args),
+  gitGetCommitFileDiff: (
+    args: TaskPathLocator & {
+      commitHash: string;
+      filePath: string;
+      forceLarge?: boolean;
+    }
+  ) => ipcRenderer.invoke('git:get-commit-file-diff', args),
   gitSoftReset: (args: { taskPath: string }) => ipcRenderer.invoke('git:soft-reset', args),
-  gitCommitAndPush: (args: {
-    taskPath: string;
-    taskId?: string;
-    commitMessage?: string;
-    createBranchIfOnDefault?: boolean;
-    branchPrefix?: string;
-  }) => ipcRenderer.invoke('git:commit-and-push', args),
-  generatePrContent: (args: { taskPath: string; base?: string; sshConnectionId?: string }) =>
+  gitCommitAndPush: (
+    args: TaskPathLocator & {
+      commitMessage?: string;
+      createBranchIfOnDefault?: boolean;
+      branchPrefix?: string;
+    }
+  ) => ipcRenderer.invoke('git:commit-and-push', args),
+  generatePrContent: (args: TaskPathLocator & { base?: string }) =>
     ipcRenderer.invoke('git:generate-pr-content', args),
-  createPullRequest: (args: {
-    taskPath: string;
-    title?: string;
-    body?: string;
-    base?: string;
-    head?: string;
-    draft?: boolean;
-    web?: boolean;
-    fill?: boolean;
-    skipPrePush?: boolean;
-    sshConnectionId?: string;
-  }) => ipcRenderer.invoke('git:create-pr', args),
-  mergeToMain: (args: { taskPath: string; taskId?: string }) =>
-    ipcRenderer.invoke('git:merge-to-main', args),
-  mergePr: (args: {
-    taskPath: string;
-    prNumber?: number;
-    strategy?: 'merge' | 'squash' | 'rebase';
-    admin?: boolean;
-    sshConnectionId?: string;
-  }) => ipcRenderer.invoke('git:merge-pr', args),
-  getPrStatus: (args: { taskPath: string; sshConnectionId?: string }) =>
-    ipcRenderer.invoke('git:get-pr-status', args),
-  enableAutoMerge: (args: {
-    taskPath: string;
-    prNumber?: number;
-    strategy?: 'merge' | 'squash' | 'rebase';
-    sshConnectionId?: string;
-  }) => ipcRenderer.invoke('git:enable-auto-merge', args),
-  disableAutoMerge: (args: { taskPath: string; prNumber?: number; sshConnectionId?: string }) =>
+  createPullRequest: (
+    args: TaskPathLocator & {
+      title?: string;
+      body?: string;
+      base?: string;
+      head?: string;
+      draft?: boolean;
+      web?: boolean;
+      fill?: boolean;
+      skipPrePush?: boolean;
+    }
+  ) => ipcRenderer.invoke('git:create-pr', args),
+  mergeToMain: (args: TaskPathLocator) => ipcRenderer.invoke('git:merge-to-main', args),
+  mergePr: (
+    args: TaskPathLocator & {
+      prNumber?: number;
+      strategy?: 'merge' | 'squash' | 'rebase';
+      admin?: boolean;
+    }
+  ) => ipcRenderer.invoke('git:merge-pr', args),
+  getPrStatus: (args: TaskPathLocator) => ipcRenderer.invoke('git:get-pr-status', args),
+  enableAutoMerge: (
+    args: TaskPathLocator & {
+      prNumber?: number;
+      strategy?: 'merge' | 'squash' | 'rebase';
+    }
+  ) => ipcRenderer.invoke('git:enable-auto-merge', args),
+  disableAutoMerge: (args: TaskPathLocator & { prNumber?: number }) =>
     ipcRenderer.invoke('git:disable-auto-merge', args),
-  getCheckRuns: (args: { taskPath: string; sshConnectionId?: string }) =>
-    ipcRenderer.invoke('git:get-check-runs', args),
-  getPrComments: (args: { taskPath: string; prNumber?: number; sshConnectionId?: string }) =>
+  getCheckRuns: (args: TaskPathLocator) => ipcRenderer.invoke('git:get-check-runs', args),
+  getPrComments: (args: TaskPathLocator & { prNumber?: number }) =>
     ipcRenderer.invoke('git:get-pr-comments', args),
-  getBranchStatus: (args: { taskPath: string; taskId?: string }) =>
-    ipcRenderer.invoke('git:get-branch-status', args),
-  renameBranch: (args: {
-    repoPath: string;
-    oldBranch: string;
-    newBranch: string;
-    sshConnectionId?: string;
-  }) => ipcRenderer.invoke('git:rename-branch', args),
-  listRemoteBranches: (args: { projectPath: string; remote?: string; sshConnectionId?: string }) =>
+  getBranchStatus: (args: TaskPathLocator) => ipcRenderer.invoke('git:get-branch-status', args),
+  renameBranch: (
+    args: RepoPathLocator & {
+      oldBranch: string;
+      newBranch: string;
+    }
+  ) => ipcRenderer.invoke('git:rename-branch', args),
+  listRemoteBranches: (args: ProjectPathLocator & { remote?: string }) =>
     ipcRenderer.invoke('git:list-remote-branches', args),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   clipboardWriteText: (text: string) => ipcRenderer.invoke('app:clipboard-write-text', text),
@@ -1048,19 +1047,24 @@ export interface ElectronAPI {
     projectId: string;
     baseRef?: string;
   }) => Promise<{ success: boolean; worktree?: any; error?: string }>;
-  worktreeList: (args: {
-    projectPath: string;
-  }) => Promise<{ success: boolean; worktrees?: any[]; error?: string }>;
+  worktreeList: (args: ProjectPathLocator) => Promise<{
+    success: boolean;
+    worktrees?: any[];
+    error?: string;
+  }>;
   worktreeRemove: (args: {
     projectPath: string;
     worktreeId: string;
     worktreePath?: string;
     branch?: string;
     taskName?: string;
+    sshConnectionId?: string;
   }) => Promise<{ success: boolean; error?: string }>;
-  worktreeStatus: (args: {
-    worktreePath: string;
-  }) => Promise<{ success: boolean; status?: any; error?: string }>;
+  worktreeStatus: (args: WorktreePathLocator) => Promise<{
+    success: boolean;
+    status?: any;
+    error?: string;
+  }>;
   worktreeMerge: (args: {
     projectPath: string;
     worktreeId: string;
@@ -1189,7 +1193,7 @@ export interface ElectronAPI {
     rootPath?: string;
     error?: string;
   }>;
-  getGitStatus: (taskPath: string) => Promise<{
+  getGitStatus: (arg: string | TaskPathLocator) => Promise<{
     success: boolean;
     changes?: Array<{
       path: string;
@@ -1202,7 +1206,7 @@ export interface ElectronAPI {
     error?: string;
   }>;
   getDeleteRisks: (args: {
-    targets: Array<{ id: string; taskPath: string }>;
+    targets: Array<{ id: string; taskPath: string; sshConnectionId?: string }>;
     includePr?: boolean;
   }) => Promise<{
     success: boolean;
@@ -1228,13 +1232,13 @@ export interface ElectronAPI {
     >;
     error?: string;
   }>;
-  watchGitStatus: (taskPath: string) => Promise<{
+  watchGitStatus: (arg: string | TaskPathLocator) => Promise<{
     success: boolean;
     watchId?: string;
     error?: string;
   }>;
   unwatchGitStatus: (
-    taskPath: string,
+    arg: string | TaskPathLocator,
     watchId?: string
   ) => Promise<{
     success: boolean;
@@ -1243,31 +1247,33 @@ export interface ElectronAPI {
   onGitStatusChanged: (
     listener: (data: { taskPath: string; error?: string }) => void
   ) => () => void;
-  getFileDiff: (args: {
-    taskPath: string;
-    filePath: string;
-    baseRef?: string;
-    forceLarge?: boolean;
-  }) => Promise<{
+  getFileDiff: (
+    args: TaskPathLocator & {
+      filePath: string;
+      baseRef?: string;
+      forceLarge?: boolean;
+    }
+  ) => Promise<{
     success: boolean;
     diff?: DiffPayload;
     error?: string;
   }>;
-  updateIndex: (args: { taskPath: string } & GitIndexUpdateArgs) => Promise<{
+  updateIndex: (args: TaskPathLocator & GitIndexUpdateArgs) => Promise<{
     success: boolean;
     error?: string;
   }>;
-  revertFile: (args: { taskPath: string; filePath: string }) => Promise<{
+  revertFile: (args: TaskPathLocator & { filePath: string }) => Promise<{
     success: boolean;
     action?: 'reverted';
     error?: string;
   }>;
-  gitCommitAndPush: (args: {
-    taskPath: string;
-    commitMessage?: string;
-    createBranchIfOnDefault?: boolean;
-    branchPrefix?: string;
-  }) => Promise<{ success: boolean; branch?: string; output?: string; error?: string }>;
+  gitCommitAndPush: (
+    args: TaskPathLocator & {
+      commitMessage?: string;
+      createBranchIfOnDefault?: boolean;
+      branchPrefix?: string;
+    }
+  ) => Promise<{ success: boolean; branch?: string; output?: string; error?: string }>;
   createPullRequest: (args: {
     taskPath: string;
     title?: string;

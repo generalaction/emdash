@@ -1,15 +1,16 @@
-import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
-import { useToast } from './use-toast';
-import { rpc } from '../lib/rpc';
-import { makePtyId } from '@shared/ptyId';
-import {
-  setAutomationRunPhase,
-  clearAutomationRun,
-} from '../components/automations/useRunningAutomations';
+import { useCallback, useEffect, useRef } from 'react';
 import type { Automation } from '@shared/automations/types';
 import { isValidProviderId } from '@shared/providers/registry';
+import { makePtyId } from '@shared/ptyId';
+import {
+  clearAutomationRun,
+  setAutomationRunPhase,
+} from '../components/automations/useRunningAutomations';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
+import { getProjectRemoteLocator } from '../lib/remoteLocator';
+import { rpc } from '../lib/rpc';
+import { useToast } from './use-toast';
 
 /**
  * Global listener for automation trigger events from the main process.
@@ -186,7 +187,7 @@ export function useAutomationTrigger(enabled = true): void {
               projectPath: project.path,
               worktreeId: taskId,
               worktreePath: taskPath,
-              sshConnectionId: project.sshConnectionId ?? undefined,
+              ...getProjectRemoteLocator(project),
             });
           } catch {
             // Best-effort cleanup — don't mask the original error

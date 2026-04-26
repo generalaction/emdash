@@ -1,12 +1,13 @@
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
 import type { AgentRun, TaskMetadata } from '../types/chat';
+import { type ForgejoIssueSummary } from '../types/forgejo';
 import { type GitHubIssueSummary } from '../types/github';
+import { type GitLabIssueSummary } from '../types/gitlab';
 import { type JiraIssueSummary } from '../types/jira';
 import { type LinearIssueSummary } from '../types/linear';
 import { type PlainThreadSummary } from '../types/plain';
-import { type GitLabIssueSummary } from '../types/gitlab';
-import { type ForgejoIssueSummary } from '../types/forgejo';
+import { getProjectRemoteLocator } from './remoteLocator';
 import { rpc } from './rpc';
 
 export interface CreateTaskParams {
@@ -458,7 +459,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
             .worktreeRemove({
               projectPath: project.path,
               worktreeId: variant.worktreeId,
-              sshConnectionId: project.sshConnectionId ?? undefined,
+              ...getProjectRemoteLocator(project),
             })
             .catch(() => {});
         }
@@ -507,7 +508,7 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskRe
             .worktreeRemove({
               projectPath: project.path,
               worktreeId: variant.worktreeId,
-              sshConnectionId: project.sshConnectionId ?? undefined,
+              ...getProjectRemoteLocator(project),
             })
             .catch(() => {});
         }

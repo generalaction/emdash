@@ -1,19 +1,20 @@
+import crypto from 'crypto';
+import { eq } from 'drizzle-orm';
 import { ipcMain } from 'electron';
-import { worktreeService } from './WorktreeService';
-import { worktreePoolService } from './WorktreePoolService';
-import { databaseService, type Project } from './DatabaseService';
+import type { ProjectPathLocator, WorktreePathLocator } from '../../shared/ipc/remoteLocator';
 import { getDrizzleClient } from '../db/drizzleClient';
 import { projects as projectsTable } from '../db/schema';
-import { eq } from 'drizzle-orm';
-import crypto from 'crypto';
-import { RemoteGitService } from './RemoteGitService';
-import { sshService } from './ssh/SshService';
 import { log } from '../lib/logger';
-import { quoteShellArg } from '../utils/shellEscape';
 import {
   isRemoteProject,
   resolveRemoteProjectForWorktreePath,
 } from '../utils/remoteProjectResolver';
+import { quoteShellArg } from '../utils/shellEscape';
+import { databaseService, type Project } from './DatabaseService';
+import { RemoteGitService } from './RemoteGitService';
+import { sshService } from './ssh/SshService';
+import { worktreePoolService } from './WorktreePoolService';
+import { worktreeService } from './WorktreeService';
 
 const remoteGitService = new RemoteGitService(sshService);
 
@@ -41,6 +42,23 @@ async function resolveProjectByIdOrPath(args: {
     }
   }
   return null;
+}
+
+async function resolveProjectForPathLocator(args: ProjectPathLocator): Promise<Project | null> {
+  if (args.sshConnectionId) {
+    const remoteProject = await resolveRemoteProjectForWorktreePath(
+      args.projectPath,
+      args.sshConnectionId
+    );
+    if (remoteProject) {
+      return remoteProject;
+    }
+  }
+
+  return resolveProjectByIdOrPath({
+    projectId: args.projectId,
+    projectPath: args.projectPath,
+  });
 }
 
 // isRemoteProject and resolveRemoteProjectForWorktreePath imported from ../utils/remoteProjectResolver
@@ -103,48 +121,36 @@ export function registerWorktreeIpc(): void {
   );
 
   // List worktrees for a project
-  ipcMain.handle(
-    'worktree:list',
-    async (event, args: { projectPath: string; sshConnectionId?: string }) => {
-      try {
-        let project: Project | null = null;
-        if (args.sshConnectionId) {
-          project = await resolveRemoteProjectForWorktreePath(
-            args.projectPath,
-            args.sshConnectionId
-          );
-        }
-        if (!project) {
-          project = await resolveProjectByIdOrPath({ projectPath: args.projectPath });
-        }
-        if (isRemoteProject(project)) {
-          const remoteWorktrees = await remoteGitService.listWorktrees(
-            project.sshConnectionId,
-            project.remotePath
-          );
-          const worktrees = remoteWorktrees.map((wt) => {
-            const name = wt.path.split('/').filter(Boolean).pop() || wt.path;
-            return {
-              id: stableIdFromRemotePath(wt.path),
-              name,
-              branch: wt.branch,
-              path: wt.path,
-              projectId: project.id,
-              status: 'active' as const,
-              createdAt: new Date().toISOString(),
-            };
-          });
-          return { success: true, worktrees };
-        }
-
-        const worktrees = await worktreeService.listWorktrees(args.projectPath);
+  ipcMain.handle('worktree:list', async (event, args: ProjectPathLocator) => {
+    try {
+      const project = await resolveProjectForPathLocator(args);
+      if (isRemoteProject(project)) {
+        const remoteWorktrees = await remoteGitService.listWorktrees(
+          project.sshConnectionId,
+          project.remotePath
+        );
+        const worktrees = remoteWorktrees.map((wt) => {
+          const name = wt.path.split('/').filter(Boolean).pop() || wt.path;
+          return {
+            id: stableIdFromRemotePath(wt.path),
+            name,
+            branch: wt.branch,
+            path: wt.path,
+            projectId: project.id,
+            status: 'active' as const,
+            createdAt: new Date().toISOString(),
+          };
+        });
         return { success: true, worktrees };
-      } catch (error) {
-        console.error('Failed to list worktrees:', error);
-        return { success: false, error: (error as Error).message };
       }
+
+      const worktrees = await worktreeService.listWorktrees(args.projectPath);
+      return { success: true, worktrees };
+    } catch (error) {
+      console.error('Failed to list worktrees:', error);
+      return { success: false, error: (error as Error).message };
     }
-  );
+  });
 
   // Remove a worktree
   ipcMain.handle(
@@ -157,20 +163,11 @@ export function registerWorktreeIpc(): void {
         worktreePath?: string;
         branch?: string;
         sshConnectionId?: string;
+        projectId?: string;
       }
     ) => {
       try {
-        // Prefer sshConnectionId for disambiguation when multiple remotes share the same path
-        let project: Project | null = null;
-        if (args.sshConnectionId) {
-          project = await resolveRemoteProjectForWorktreePath(
-            args.projectPath,
-            args.sshConnectionId
-          );
-        }
-        if (!project) {
-          project = await resolveProjectByIdOrPath({ projectPath: args.projectPath });
-        }
+        const project = await resolveProjectForPathLocator(args);
         if (isRemoteProject(project)) {
           const pathToRemove = args.worktreePath;
           if (!pathToRemove) {
@@ -221,9 +218,12 @@ export function registerWorktreeIpc(): void {
   );
 
   // Get worktree status
-  ipcMain.handle('worktree:status', async (event, args: { worktreePath: string }) => {
+  ipcMain.handle('worktree:status', async (event, args: WorktreePathLocator) => {
     try {
-      const remoteProject = await resolveRemoteProjectForWorktreePath(args.worktreePath);
+      const remoteProject = await resolveRemoteProjectForWorktreePath(
+        args.worktreePath,
+        args.sshConnectionId
+      );
       if (remoteProject) {
         const status = await remoteGitService.getWorktreeStatus(
           remoteProject.sshConnectionId,

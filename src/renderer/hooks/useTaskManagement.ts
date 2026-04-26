@@ -1,27 +1,28 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
-import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
-import { makePtyId } from '@shared/ptyId';
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProviderId } from '@shared/providers/registry';
-import { saveActiveIds, getStoredActiveIds } from '../constants/layout';
+import { makePtyId } from '@shared/ptyId';
+import { TERMINAL_PROVIDER_IDS } from '../constants/agents';
+import { getStoredActiveIds, saveActiveIds } from '../constants/layout';
+import { useModalContext } from '../contexts/ModalProvider';
+import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
 import { getAgentForTask } from '../lib/getAgentForTask';
+import { getProjectRemoteLocator } from '../lib/remoteLocator';
+import { rpc } from '../lib/rpc';
+import { createTask } from '../lib/taskCreationService';
+import { upsertTaskInList } from '../lib/taskListCache';
 import { disposeTaskTerminals } from '../lib/taskTerminalsStore';
 import { terminalSessionRegistry } from '../terminal/SessionRegistry';
 import type { Agent } from '../types';
 import type { Project, Task } from '../types/app';
-import type { GitHubIssueLink, AgentRun } from '../types/chat';
-import type { LinearIssueSummary } from '../types/linear';
-import type { GitHubIssueSummary } from '../types/github';
-import type { JiraIssueSummary } from '../types/jira';
-import type { PlainThreadSummary } from '../types/plain';
-import type { GitLabIssueSummary } from '../types/gitlab';
+import type { AgentRun, GitHubIssueLink } from '../types/chat';
 import type { ForgejoIssueSummary } from '../types/forgejo';
-import { upsertTaskInList } from '../lib/taskListCache';
-import { rpc } from '../lib/rpc';
-import { createTask } from '../lib/taskCreationService';
-import { useProjectManagementContext } from '../contexts/ProjectManagementProvider';
+import type { GitHubIssueSummary } from '../types/github';
+import type { GitLabIssueSummary } from '../types/gitlab';
+import type { JiraIssueSummary } from '../types/jira';
+import type { LinearIssueSummary } from '../types/linear';
+import type { PlainThreadSummary } from '../types/plain';
 import { useToast } from './use-toast';
-import { useModalContext } from '../contexts/ModalProvider';
 
 const LIFECYCLE_TEARDOWN_TIMEOUT_MS = 15000;
 type LifecycleTarget = { taskId: string; taskPath: string; label: string };
@@ -566,7 +567,7 @@ export function useTaskManagement() {
               worktreePath: task.path,
               branch: task.branch,
               taskName: task.name,
-              sshConnectionId: project.sshConnectionId ?? undefined,
+              ...getProjectRemoteLocator(project),
             })
           );
         }
