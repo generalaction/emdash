@@ -139,7 +139,7 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
               path={mounted.data.path}
               isRemote={isRemote}
               sshConnectionId={sshConnectionId}
-              className="h-7 bg-background"
+              className="bg-background"
             />
           )}
           <ToggleGroup

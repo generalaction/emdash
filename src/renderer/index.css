@@ -3,7 +3,7 @@
 @import '@xterm/xterm/css/xterm.css';
 @import 'allotment/dist/style.css';
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, .dark-black *, .emdark *));
 @custom-variant dark-black (&:is(.dark-black *));
 @custom-variant emlight (&:is(.emlight *));
 @custom-variant emdark (&:is(.emdark *));
