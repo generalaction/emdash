@@ -1,7 +1,9 @@
-import { PanelLeft, PanelRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PanelLeft, PanelRight } from 'lucide-react';
 import { ReactNode } from 'react';
+import { useTrackpadHistorySwipe } from '@renderer/lib/hooks/useTrackpadHistorySwipe';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
+import { useNavigationHistory, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
+import { Button } from '@renderer/lib/ui/button';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -10,6 +12,8 @@ import { cn } from '@renderer/utils/utils';
 export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightSlot?: ReactNode }) {
   const { isRightOpen, setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
   const { RightPanel } = useWorkspaceSlots();
+  const { goBack, goForward, canGoBack, canGoForward } = useNavigationHistory();
+  useTrackpadHistorySwipe();
   return (
     <header
       className={cn(
@@ -20,7 +24,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
       <div className="pointer-events-auto flex w-full items-center gap-1">
         {!isLeftOpen && <div className="[-webkit-app-region:no-drag]"></div>}
         <div className="flex w-full items-center justify-between">
-          <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
+          <div className="flex items-center justify-start gap-1 [-webkit-app-region:no-drag]">
             {!isLeftOpen && (
               <Tooltip>
                 <TooltipTrigger>
@@ -40,6 +44,38 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                 </TooltipContent>
               </Tooltip>
             )}
+            <div className={cn('flex items-center gap-0.5', isLeftOpen ? 'ml-2' : 'ml-1')}>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-flex" />}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-7"
+                    disabled={!canGoBack}
+                    onClick={goBack}
+                    aria-label="Go back"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Back</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-flex" />}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-7"
+                    disabled={!canGoForward}
+                    onClick={goForward}
+                    aria-label="Go forward"
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Forward</TooltipContent>
+              </Tooltip>
+            </div>
             {leftSlot}
           </div>
           <div className="flex items-center justify-end [-webkit-app-region:no-drag]">
