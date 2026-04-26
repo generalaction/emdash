@@ -8,7 +8,41 @@ type TelemetryState = {
   loading: boolean;
 };
 
-const initialState: TelemetryState = {
+const CACHE_KEY = 'emdash:telemetry-consent-cache';
+
+const readCache = (): TelemetryState | null => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<TelemetryState>;
+    if (typeof parsed.prefEnabled !== 'boolean') return null;
+    return {
+      prefEnabled: parsed.prefEnabled,
+      envDisabled: !!parsed.envDisabled,
+      hasKeyAndHost: parsed.hasKeyAndHost !== false,
+      loading: true,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = (state: TelemetryState) => {
+  try {
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({
+        prefEnabled: state.prefEnabled,
+        envDisabled: state.envDisabled,
+        hasKeyAndHost: state.hasKeyAndHost,
+      })
+    );
+  } catch {
+    // ignore
+  }
+};
+
+const fallbackInitialState: TelemetryState = {
   prefEnabled: true,
   envDisabled: false,
   hasKeyAndHost: true,
@@ -16,18 +50,20 @@ const initialState: TelemetryState = {
 };
 
 export function useTelemetryConsent() {
-  const [state, setState] = useState<TelemetryState>(initialState);
+  const [state, setState] = useState<TelemetryState>(() => readCache() ?? fallbackInitialState);
 
   const applyStatus = useCallback(
     (res: Awaited<ReturnType<typeof rpc.telemetry.getStatus>> | null) => {
       if (res?.status) {
         const { envDisabled: envOff, userOptOut, hasKeyAndHost } = res.status;
-        setState({
+        const next: TelemetryState = {
           prefEnabled: !envOff && userOptOut !== true,
           envDisabled: !!envOff,
           hasKeyAndHost: !!hasKeyAndHost,
           loading: false,
-        });
+        };
+        writeCache(next);
+        setState(next);
       } else {
         setState((prev) => ({ ...prev, loading: false }));
       }
