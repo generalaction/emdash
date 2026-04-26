@@ -86,6 +86,13 @@ export async function parseSshConfigFile(): Promise<SshConfigHost[]> {
       continue;
     }
 
+    // Match ProxyCommand
+    const proxyCommandMatch = trimmed.match(/^ProxyCommand\s+(.+)$/i);
+    if (proxyCommandMatch && currentHost) {
+      currentHost.proxyCommand = proxyCommandMatch[1].trim();
+      continue;
+    }
+
     // Match IdentityFile
     const identityMatch = trimmed.match(/^IdentityFile\s+(.+)$/i);
     if (identityMatch && currentHost) {

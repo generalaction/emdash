@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { eq } from 'drizzle-orm';
-import { Client, type ConnectConfig } from 'ssh2';
+import { Client } from 'ssh2';
 import { sshConnectionEventChannel } from '@shared/events/sshEvents';
 import type { ConnectionState } from '@shared/ssh';
 import { db } from '@main/db/client';
@@ -8,7 +8,7 @@ import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { parseRemoteEnvOutput } from '@main/utils/userEnv';
-import { buildConnectConfigFromRow } from './build-connect-config';
+import { buildConnectConfigFromRow, type ManagedConnectConfig } from './build-connect-config';
 import { SshClientProxy } from './ssh-client-proxy';
 
 // ─── Error classes ────────────────────────────────────────────────────────────
@@ -188,7 +188,7 @@ export class SshConnectionManager extends EventEmitter {
 
   // ─── Private ─────────────────────────────────────────────────────────────
 
-  private createConnection(id: string, config: ConnectConfig): Promise<SshClientProxy> {
+  private createConnection(id: string, config: ManagedConnectConfig): Promise<SshClientProxy> {
     log.info('SshConnectionManager: creating connection', {
       connectionId: id,
       host: config.host,
@@ -221,6 +221,7 @@ export class SshConnectionManager extends EventEmitter {
       };
 
       client.on('error', (error: Error) => {
+        config.cleanupTransport?.();
         log.error('SshConnectionManager: connection error', {
           connectionId: id,
           error: error.message,
@@ -242,6 +243,7 @@ export class SshConnectionManager extends EventEmitter {
       });
 
       client.on('close', () => {
+        config.cleanupTransport?.();
         log.info('SshConnectionManager: connection closed', { connectionId: id });
 
         // Only react if this client is still the one backing the proxy.

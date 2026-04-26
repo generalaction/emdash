@@ -9,6 +9,8 @@ import { db } from '@main/db/client';
 import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { capture } from '@main/lib/telemetry';
+import { parseSshConnectionMetadata, serializeSshConnectionMetadata } from './connection-metadata';
+import { createProxyCommandTransport } from './proxy-command';
 import { sshConnectionManager } from './ssh-connection-manager';
 import { sshCredentialService } from './ssh-credential-service';
 import { resolveIdentityAgent } from './utils';
@@ -17,17 +19,21 @@ export const sshController = createRPCController({
   /** List all saved SSH connections (no secrets). */
   getConnections: async (): Promise<SshConfig[]> => {
     const rows = await db.select().from(sshConnectionsTable);
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      host: row.host,
-      port: row.port,
-      worktreesDir: row.metadata ? JSON.parse(row.metadata).worktreesDir : undefined,
-      username: row.username,
-      authType: row.authType as 'password' | 'key' | 'agent',
-      privateKeyPath: row.privateKeyPath ?? undefined,
-      useAgent: row.useAgent === 1,
-    }));
+    return rows.map((row) => {
+      const metadata = parseSshConnectionMetadata(row.metadata);
+      return {
+        id: row.id,
+        name: row.name,
+        host: row.host,
+        port: row.port,
+        username: row.username,
+        proxyCommand: metadata.proxyCommand,
+        worktreesDir: metadata.worktreesDir,
+        authType: row.authType as 'password' | 'key' | 'agent',
+        privateKeyPath: row.privateKeyPath ?? undefined,
+        useAgent: row.useAgent === 1,
+      };
+    });
   },
 
   /** Create or update an SSH connection, storing secrets in local secure storage. */
@@ -48,16 +54,15 @@ export const sshController = createRPCController({
 
     const { password: _p, passphrase: _pp, ...dbConfig } = config;
 
-    const metadata: Record<string, unknown> = {
-      worktreesDir: config.worktreesDir,
-    };
-
     const insertData: SshConnectionInsert = {
       id: connectionId,
       name: dbConfig.name,
       host: dbConfig.host,
       port: dbConfig.port,
-      metadata: JSON.stringify(metadata),
+      metadata: serializeSshConnectionMetadata({
+        worktreesDir: config.worktreesDir,
+        proxyCommand: config.proxyCommand,
+      }),
       username: dbConfig.username,
       authType: dbConfig.authType,
       privateKeyPath: dbConfig.privateKeyPath ?? null,
@@ -82,7 +87,12 @@ export const sshController = createRPCController({
         },
       });
 
-    return { ...dbConfig, id: connectionId, worktreesDir: config.worktreesDir };
+    return {
+      ...dbConfig,
+      id: connectionId,
+      proxyCommand: config.proxyCommand,
+      worktreesDir: config.worktreesDir,
+    };
   },
 
   /** Delete a saved SSH connection and its stored credentials. */
@@ -112,6 +122,11 @@ export const sshController = createRPCController({
       const client = new Client();
       const debugLogs: string[] = [];
       const startTime = Date.now();
+      let cleanupTransport: (() => void) | undefined;
+
+      client.on('close', () => {
+        cleanupTransport?.();
+      });
 
       client.on('ready', () => {
         const latency = Date.now() - startTime;
@@ -133,6 +148,16 @@ export const sshController = createRPCController({
           readyTimeout: 10_000,
           debug: (info: string) => debugLogs.push(info),
         };
+        if (config.proxyCommand) {
+          const proxyTransport = createProxyCommandTransport(config.proxyCommand, {
+            host: config.host,
+            port: config.port,
+            username: config.username,
+            onDebug: (line) => debugLogs.push(line),
+          });
+          connectConfig.sock = proxyTransport.sock;
+          cleanupTransport = proxyTransport.cleanup;
+        }
 
         if (config.authType === 'password') {
           connectConfig.password = config.password;
@@ -147,6 +172,7 @@ export const sshController = createRPCController({
 
         client.connect(connectConfig);
       } catch (e) {
+        cleanupTransport?.();
         capture('ssh_connection_attempted', { success: false });
         resolve({ success: false, error: (e as Error).message, debugLogs });
       }
