@@ -6,10 +6,26 @@ Thanks for your interest in contributing! We favor small, focused PRs and clear 
 
 Prerequisites
 
-- **Node.js 24.0.0+ (recommended: 24.14.0)** and Git
+- **Node.js 20.0.0+ (recommended: 22.20.0)** and Git
+- **Python 3.11+** with [uv](https://docs.astral.sh/uv/) (for native module builds)
 - Optional (recommended for end‑to‑end testing):
   - GitHub CLI (`brew install gh`; then `gh auth login`)
   - At least one supported coding agent CLI (see docs for list)
+
+### Python Setup
+
+This project uses [uv](https://docs.astral.sh/uv/) to manage Python build dependencies. Install uv first, then the project will automatically use the Python version specified in `.python-version`:
+
+```bash
+# Install uv (Linux/macOS)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or on Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Python dependencies are installed automatically via 'pnpm install'
+# or manually: uv pip install .
+```
 
 Setup
 
@@ -29,7 +45,7 @@ pnpm install
 pnpm run dev
 
 # Type checking, lint, build
- pnpm run typecheck
+ pnpm run type-check
  pnpm run lint
  pnpm run build
 ```
@@ -62,7 +78,7 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 
 ```
 pnpm run format      # Format code with Prettier (required)
-pnpm run typecheck  # TypeScript type checking
+pnpm run type-check  # TypeScript type checking
 pnpm run lint        # ESLint
 pnpm run build       # Build both main and renderer
 ```
@@ -98,7 +114,7 @@ TypeScript + ESLint + Prettier
 Pre-commit hooks handle formatting and linting automatically on staged files. For full-project checks you can run them manually:
 
 - `pnpm run format` -- format all files with Prettier
-- `pnpm run typecheck` -- TypeScript type checking (whole project)
+- `pnpm run type-check` -- TypeScript type checking (whole project)
 - `pnpm run lint` -- ESLint across all files
 - `pnpm exec vitest run` -- run the test suite
 
