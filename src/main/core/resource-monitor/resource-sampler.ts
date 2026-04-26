@@ -105,7 +105,6 @@ let timer: NodeJS.Timeout | null = null;
 
 export function startResourceSampler(): void {
   if (timer) return;
-
   const tick = async () => {
     try {
       const snap = await sampleOnce();
@@ -114,17 +113,8 @@ export function startResourceSampler(): void {
       log.warn('resource-sampler: sample failed', err);
     }
   };
-
-  void appSettingsService
-    .get('resourceMonitor')
-    .then(({ enabled }) => {
-      if (!enabled || timer) return;
-      timer = setInterval(tick, SAMPLE_INTERVAL_MS);
-      void tick();
-    })
-    .catch((err) => {
-      log.warn('resource-sampler: failed to read settings', err);
-    });
+  timer = setInterval(tick, SAMPLE_INTERVAL_MS);
+  void tick();
 }
 
 export function stopResourceSampler(): void {
@@ -136,5 +126,15 @@ export function stopResourceSampler(): void {
     } catch {
       // ignore
     }
+  }
+}
+
+export async function reconcileResourceSampler(): Promise<void> {
+  try {
+    const { enabled } = await appSettingsService.get('resourceMonitor');
+    if (enabled) startResourceSampler();
+    else stopResourceSampler();
+  } catch (err) {
+    log.warn('resource-sampler: failed to read settings', err);
   }
 }

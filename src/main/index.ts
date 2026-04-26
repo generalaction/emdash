@@ -16,7 +16,7 @@ import { githubConnectionService } from './core/github/services/github-connectio
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import {
-  startResourceSampler,
+  reconcileResourceSampler,
   stopResourceSampler,
 } from './core/resource-monitor/resource-sampler';
 import { appSettingsService } from './core/settings/settings-service';
@@ -108,7 +108,7 @@ app.whenReady().then(async () => {
 
   registerRPCRouter(rpcRouter, ipcMain);
 
-  startResourceSampler();
+  void reconcileResourceSampler();
 
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);

@@ -271,21 +271,18 @@ function CopyReportButton({
 }
 
 function formatReport(snapshot: ResourceSnapshot, groups: Group[]): string {
-  const totalMem =
-    (snapshot.app?.memoryBytes ?? 0) + snapshot.entries.reduce((n, e) => n + e.memory, 0);
+  const entryMem = snapshot.entries.reduce((n, e) => n + e.memory, 0);
+  const entryCpu = snapshot.entries.reduce((n, e) => n + e.cpu, 0);
+  const totalMem = snapshot.app.memoryBytes + entryMem;
   const totalCpuNorm =
-    snapshot.cpuCount > 0
-      ? ((snapshot.app?.cpuPercent ?? 0) + snapshot.entries.reduce((n, e) => n + e.cpu, 0)) /
-        snapshot.cpuCount
-      : 0;
+    snapshot.cpuCount > 0 ? (snapshot.app.cpuPercent + entryCpu) / snapshot.cpuCount : 0;
 
   const lines: string[] = [];
   lines.push(`CPU ${totalCpuNorm.toFixed(1)}% Memory ${formatBytes(totalMem)}`);
 
-  for (const proc of snapshot.appProcesses ?? []) {
+  for (const proc of snapshot.appProcesses) {
     const label = appProcessLabel(proc.type, proc.name);
-    const parts = [`pid=${proc.pid}`];
-    lines.push(`${label} ${proc.cpu.toFixed(1)}% ${formatBytes(proc.memory)} (${parts.join(' ')})`);
+    lines.push(`${label} ${proc.cpu.toFixed(1)}% ${formatBytes(proc.memory)} (pid=${proc.pid})`);
   }
 
   for (const g of groups) {
