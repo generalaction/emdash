@@ -146,7 +146,7 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
             variant="outline"
             size="sm"
             value={[mounted.view.activeView]}
-            className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1"
+            className="rounded-lg overflow-hidden shadow-none h-7! border border-border mx-1"
             onValueChange={([value]) => {
               if (value) mounted.view.setProjectView(value as ProjectView);
             }}
