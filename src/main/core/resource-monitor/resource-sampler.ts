@@ -1,8 +1,14 @@
 import os from 'node:os';
+import { app } from 'electron';
 import pidusage from 'pidusage';
 import { resourceSnapshotChannel } from '@shared/events/resourceEvents';
 import { parsePtySessionId } from '@shared/ptySessionId';
-import type { ResourcePtyEntry, ResourceSnapshot } from '@shared/resource-monitor';
+import type {
+  ResourceAppProcess,
+  ResourceAppUsage,
+  ResourcePtyEntry,
+  ResourceSnapshot,
+} from '@shared/resource-monitor';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
@@ -18,7 +24,7 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
     .map((a) => a.pid)
     .filter((p): p is number => typeof p === 'number' && p > 0);
 
-  let usage: Record<string, { cpu: number; memory: number }> = {};
+  let usage: Record<string, { cpu: number; memory: number; ppid?: number }> = {};
   if (localPids.length > 0) {
     try {
       usage = await pidusage(localPids);
@@ -27,7 +33,11 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
       const results = await Promise.allSettled(localPids.map((pid) => pidusage(pid)));
       results.forEach((r, i) => {
         if (r.status === 'fulfilled') {
-          usage[String(localPids[i])] = { cpu: r.value.cpu, memory: r.value.memory };
+          usage[String(localPids[i])] = {
+            cpu: r.value.cpu,
+            memory: r.value.memory,
+            ppid: r.value.ppid,
+          };
         }
       });
     }
@@ -44,36 +54,62 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
       scopeId: parsed.scopeId,
       leafId: parsed.leafId,
       pid: a.pid,
+      ppid: u?.ppid,
       cpu: u?.cpu ?? 0,
       memory: u?.memory ?? 0,
     });
   }
 
+  const { usage: appUsage, processes: appProcesses } = sampleAppUsage();
   return {
     timestamp: Date.now(),
     cpuCount: CPU_COUNT,
     totalMemoryBytes: TOTAL_MEMORY_BYTES,
+    app: appUsage,
+    appProcesses,
     entries,
   };
 }
 
+/**
+ * Sum memory + CPU across all Electron processes (main, renderer, GPU, utility)
+ * and capture each row individually. `workingSetSize` is reported in KiB;
+ * `percentCPUUsage` is % of one core.
+ */
+function sampleAppUsage(): { usage: ResourceAppUsage; processes: ResourceAppProcess[] } {
+  try {
+    const metrics = app.getAppMetrics();
+    let memoryBytes = 0;
+    let cpuPercent = 0;
+    const processes: ResourceAppProcess[] = [];
+    for (const m of metrics) {
+      const memBytes = m.memory.workingSetSize * 1024;
+      memoryBytes += memBytes;
+      cpuPercent += m.cpu.percentCPUUsage;
+      processes.push({
+        pid: m.pid,
+        type: m.type,
+        name: m.name ?? m.serviceName,
+        cpu: m.cpu.percentCPUUsage,
+        memory: memBytes,
+      });
+    }
+    return { usage: { memoryBytes, cpuPercent }, processes };
+  } catch (err) {
+    log.warn('resource-sampler: app metrics failed', err);
+    return { usage: { memoryBytes: 0, cpuPercent: 0 }, processes: [] };
+  }
+}
+
 let timer: NodeJS.Timeout | null = null;
-let lastEntryCount = -1;
 
 export function startResourceSampler(): void {
   if (timer) return;
   const tick = async () => {
     try {
       const { enabled } = await appSettingsService.get('resourceMonitor');
-      if (!enabled) {
-        lastEntryCount = -1;
-        return;
-      }
+      if (!enabled) return;
       const snap = await sampleOnce();
-      // Skip emit when nothing is running and nothing was running last tick —
-      // avoids waking up every observer in the renderer every 1.5s while idle.
-      if (snap.entries.length === 0 && lastEntryCount === 0) return;
-      lastEntryCount = snap.entries.length;
       events.emit(resourceSnapshotChannel, snap);
     } catch (err) {
       log.warn('resource-sampler: sample failed', err);

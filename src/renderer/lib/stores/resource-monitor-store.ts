@@ -12,6 +12,8 @@ export class ResourceMonitorStore {
       snapshot: observable,
       totalCpuPercent: computed,
       totalMemoryBytes: computed,
+      appMemoryBytes: computed,
+      agentMemoryBytes: computed,
       entryCount: computed,
     });
   }
@@ -24,12 +26,20 @@ export class ResourceMonitorStore {
   get totalCpuPercent(): number {
     const snap = this.snapshot;
     if (!snap || snap.cpuCount === 0) return 0;
-    let sum = 0;
+    let sum = snap.app?.cpuPercent ?? 0;
     for (const e of snap.entries) sum += e.cpu;
     return sum / snap.cpuCount;
   }
 
   get totalMemoryBytes(): number {
+    return this.appMemoryBytes + this.agentMemoryBytes;
+  }
+
+  get appMemoryBytes(): number {
+    return this.snapshot?.app?.memoryBytes ?? 0;
+  }
+
+  get agentMemoryBytes(): number {
     if (!this.snapshot) return 0;
     let sum = 0;
     for (const e of this.snapshot.entries) sum += e.memory;
