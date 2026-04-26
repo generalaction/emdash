@@ -6,19 +6,13 @@ const COOLDOWN_MS = 600;
 const RESET_GAP_MS = 200;
 const HORIZONTAL_RATIO = 1.4;
 
-/**
- * Two-finger horizontal trackpad swipe → back/forward navigation.
- *
- * Accumulates horizontal wheel deltas while gestures are clearly horizontal,
- * fires once per gesture, then waits for the swipe to settle before re-arming.
- *
- * Bails when:
- * - The gesture is more vertical than horizontal (regular page scroll).
- * - The wheel target sits inside an explicit `[data-history-swipe-ignore]`
- *   element (e.g. Monaco editor, terminal, horizontally-scrolling diff).
- * - The wheel event was already consumed by a native scrollable element
- *   (`event.defaultPrevented`).
- */
+export const HISTORY_SWIPE_IGNORE_ATTR = 'data-history-swipe-ignore';
+
+// Native scrollables (Monaco, terminal, horizontal diff) opt out via this selector
+// so their internal horizontal scroll isn't hijacked by history navigation.
+const IGNORE_SELECTOR = `[${HISTORY_SWIPE_IGNORE_ATTR}], input, textarea, [contenteditable="true"]`;
+
+/** Two-finger horizontal trackpad swipe → back/forward navigation. */
 export function useTrackpadHistorySwipe(): void {
   const { goBack, goForward, canGoBack, canGoForward } = useNavigationHistory();
 
@@ -44,10 +38,7 @@ export function useTrackpadHistorySwipe(): void {
       }
 
       const target = event.target;
-      if (
-        target instanceof Element &&
-        target.closest('[data-history-swipe-ignore], input, textarea, [contenteditable="true"]')
-      ) {
+      if (target instanceof Element && target.closest(IGNORE_SELECTOR)) {
         return;
       }
 

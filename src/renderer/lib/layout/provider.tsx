@@ -117,7 +117,16 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
     return { entries: [{ viewId: initialId, params: initialParams }], index: 0 };
   });
   const historyStateRef = useRef(historyState);
+  const viewParamsStoreRef = useRef(viewParamsStore);
   const [_, startTransition] = useTransition();
+
+  useEffect(() => {
+    historyStateRef.current = historyState;
+  }, [historyState]);
+
+  useEffect(() => {
+    viewParamsStoreRef.current = viewParamsStore;
+  }, [viewParamsStore]);
 
   // Sync React state back to the MobX persistence mirror after every commit.
   // The SnapshotRegistry reaction then debounces the RPC write by 1 s.
@@ -169,29 +178,43 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
         setHistoryState((prev) => {
           const truncated = prev.entries.slice(0, prev.index + 1);
           const last = truncated[truncated.length - 1];
-          const recordedParams = (params ?? viewParamsStore[viewId]) as
+          const recordedParams = (params ?? viewParamsStoreRef.current[viewId]) as
             | Record<string, unknown>
             | undefined;
           if (last && last.viewId === viewId && shallowEqualParams(last.params, recordedParams)) {
-            historyStateRef.current = prev;
             return prev;
           }
           const next = [...truncated, { viewId, params: recordedParams }];
           const trimmed =
             next.length > HISTORY_LIMIT ? next.slice(next.length - HISTORY_LIMIT) : next;
-          const nextState = { entries: trimmed, index: trimmed.length - 1 };
-          historyStateRef.current = nextState;
-          return nextState;
+          return { entries: trimmed, index: trimmed.length - 1 };
         });
       });
     },
-    [closeModal, currentViewId, viewParamsStore]
+    [closeModal, currentViewId]
   ) as NavigateFnTyped;
 
   const navigateToEntry = useCallback(
     (entry: HistoryEntry, nextHistoryState: HistoryState) => {
+      if (entry.viewId !== currentViewId) {
+        const transition = focusTracker.transition(
+          entry.viewId === 'task'
+            ? { view: entry.viewId }
+            : {
+                view: entry.viewId,
+                mainPanel: null,
+                rightPanel: null,
+                focusedRegion: null,
+              },
+          'navigation'
+        );
+
+        captureTelemetry(viewEvents[entry.viewId], {
+          from_view: transition?.previous.view ?? null,
+        });
+      }
+
       startTransition(() => {
-        historyStateRef.current = nextHistoryState;
         setHistoryState(nextHistoryState);
         setCurrentViewId(entry.viewId);
         setViewParamsStore((prev) => {
@@ -206,7 +229,7 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
         closeModal();
       });
     },
-    [closeModal]
+    [closeModal, currentViewId]
   );
 
   const goBack = useCallback(() => {

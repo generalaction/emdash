@@ -1,6 +1,5 @@
 import { ChevronLeft, ChevronRight, PanelLeft, PanelRight } from 'lucide-react';
 import { ReactNode } from 'react';
-import { useTrackpadHistorySwipe } from '@renderer/lib/hooks/useTrackpadHistorySwipe';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { useNavigationHistory, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -13,7 +12,6 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
   const { isRightOpen, setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
   const { RightPanel } = useWorkspaceSlots();
   const { goBack, goForward, canGoBack, canGoForward } = useNavigationHistory();
-  useTrackpadHistorySwipe();
   return (
     <header
       className={cn(
