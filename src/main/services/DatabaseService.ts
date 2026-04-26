@@ -203,6 +203,17 @@ export class DatabaseService {
       .limit(1);
     const existingById = existingByIdRows[0] ?? null;
 
+    // For remote projects, check for exact duplicate (same path + same sshConnectionId).
+    // This allows same path on different hosts but prevents true duplicates.
+    // For local projects, path uniqueness is preserved.
+    const isNewRemote = project.isRemote && !!project.sshConnectionId;
+    const pathCondition = isNewRemote
+      ? and(
+          eq(projectsTable.path, project.path),
+          eq(projectsTable.sshConnectionId, project.sshConnectionId!)
+        )
+      : eq(projectsTable.path, project.path);
+
     const existingByPathRows = await db
       .select({
         id: projectsTable.id,
@@ -212,25 +223,16 @@ export class DatabaseService {
         isRemote: projectsTable.isRemote,
       })
       .from(projectsTable)
-      .where(eq(projectsTable.path, project.path))
+      .where(pathCondition)
       .limit(1);
     const existingByPath = existingByPathRows[0] ?? null;
 
     if (existingByPath && existingByPath.id !== project.id) {
-      // For remote projects, allow the same path if sshConnectionId is different
-      const isNewProjectRemote = project.isRemote && project.sshConnectionId;
-      const isExistingProjectRemote =
-        existingByPath.isRemote === 1 && existingByPath.sshConnectionId;
-      const sameSshConnection =
-        project.sshConnectionId && existingByPath.sshConnectionId === project.sshConnectionId;
-
-      if (!isNewProjectRemote || !isExistingProjectRemote || sameSshConnection) {
-        throw new ProjectConflictError({
-          existingProjectId: existingByPath.id,
-          existingProjectName: existingByPath.name,
-          projectPath: existingByPath.path,
-        });
-      }
+      throw new ProjectConflictError({
+        existingProjectId: existingByPath.id,
+        existingProjectName: existingByPath.name,
+        projectPath: existingByPath.path,
+      });
     }
 
     const values = {

@@ -197,17 +197,10 @@ describe('DatabaseService.saveProject', () => {
   });
 
   it('allows two remote projects with the same path but different sshConnectionId', async () => {
-    // Both projects are remote with the same path but DIFFERENT sshConnectionId — allowed
-    selectResults.push([]);
-    selectResults.push([
-      {
-        id: 'project-existing',
-        name: 'Existing Remote on Host B',
-        path: '/srv/project-one',
-        isRemote: 1,
-        sshConnectionId: 'ssh-host-b',
-      },
-    ]);
+    // Both projects are remote with the same path but DIFFERENT sshConnectionId — allowed.
+    // For remote projects, conflict check uses exact (path + sshConnectionId) match.
+    selectResults.push([]); // existingById check (no match)
+    selectResults.push([]); // existingByPath check with path+sshCondition (no match)
 
     // New project on a different host (ssh-host-a) — same path, different connection
     const remoteProjectOnDifferentHost: Omit<Project, 'createdAt' | 'updatedAt'> = {
