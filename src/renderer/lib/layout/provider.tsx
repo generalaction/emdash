@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type ReactNode,
@@ -115,6 +116,7 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
       | undefined;
     return { entries: [{ viewId: initialId, params: initialParams }], index: 0 };
   });
+  const historyStateRef = useRef(historyState);
   const [_, startTransition] = useTransition();
 
   // Sync React state back to the MobX persistence mirror after every commit.
@@ -167,23 +169,30 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
         setHistoryState((prev) => {
           const truncated = prev.entries.slice(0, prev.index + 1);
           const last = truncated[truncated.length - 1];
-          const recordedParams = params as Record<string, unknown> | undefined;
+          const recordedParams = (params ?? viewParamsStore[viewId]) as
+            | Record<string, unknown>
+            | undefined;
           if (last && last.viewId === viewId && shallowEqualParams(last.params, recordedParams)) {
+            historyStateRef.current = prev;
             return prev;
           }
           const next = [...truncated, { viewId, params: recordedParams }];
           const trimmed =
             next.length > HISTORY_LIMIT ? next.slice(next.length - HISTORY_LIMIT) : next;
-          return { entries: trimmed, index: trimmed.length - 1 };
+          const nextState = { entries: trimmed, index: trimmed.length - 1 };
+          historyStateRef.current = nextState;
+          return nextState;
         });
       });
     },
-    [closeModal, currentViewId]
+    [closeModal, currentViewId, viewParamsStore]
   ) as NavigateFnTyped;
 
   const navigateToEntry = useCallback(
-    (entry: HistoryEntry) => {
+    (entry: HistoryEntry, nextHistoryState: HistoryState) => {
       startTransition(() => {
+        historyStateRef.current = nextHistoryState;
+        setHistoryState(nextHistoryState);
         setCurrentViewId(entry.viewId);
         setViewParamsStore((prev) => {
           const next: ViewParamsStore = { ...prev };
@@ -201,21 +210,17 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   );
 
   const goBack = useCallback(() => {
-    setHistoryState((prev) => {
-      if (prev.index <= 0) return prev;
-      const nextIndex = prev.index - 1;
-      navigateToEntry(prev.entries[nextIndex]);
-      return { ...prev, index: nextIndex };
-    });
+    const prev = historyStateRef.current;
+    if (prev.index <= 0) return;
+    const nextIndex = prev.index - 1;
+    navigateToEntry(prev.entries[nextIndex], { ...prev, index: nextIndex });
   }, [navigateToEntry]);
 
   const goForward = useCallback(() => {
-    setHistoryState((prev) => {
-      if (prev.index >= prev.entries.length - 1) return prev;
-      const nextIndex = prev.index + 1;
-      navigateToEntry(prev.entries[nextIndex]);
-      return { ...prev, index: nextIndex };
-    });
+    const prev = historyStateRef.current;
+    if (prev.index >= prev.entries.length - 1) return;
+    const nextIndex = prev.index + 1;
+    navigateToEntry(prev.entries[nextIndex], { ...prev, index: nextIndex });
   }, [navigateToEntry]);
 
   const navigationHistoryValue = useMemo<NavigationHistoryContextValue>(
