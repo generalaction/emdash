@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
@@ -36,19 +36,17 @@ function AppContent() {
   // import completes) cannot shrink the step list and unmount active step components.
   const [frozenSteps, setFrozenSteps] = useState<OnboardingStep[] | null>(null);
 
-  useEffect(() => {
-    if (!isLoading && view === 'onboarding' && frozenSteps === null) {
-      const computed: OnboardingStep[] = [];
-      if (!session?.isSignedIn) computed.push('sign-in');
-      const needsImport =
-        legacyStatus?.hasLegacyDb &&
-        legacyStatus.portStatus !== 'completed' &&
-        legacyStatus.portStatus !== 'no-legacy-file' &&
-        !legacyStatus.hasExistingData;
-      if (needsImport) computed.push('import');
-      setFrozenSteps(computed);
-    }
-  }, [view, isLoading, frozenSteps, session, legacyStatus]);
+  if (!isLoading && view === 'onboarding' && frozenSteps === null) {
+    const computed: OnboardingStep[] = [];
+    if (!session?.isSignedIn) computed.push('sign-in');
+    const needsImport =
+      legacyStatus?.hasLegacyDb &&
+      legacyStatus.portStatus !== 'completed' &&
+      legacyStatus.portStatus !== 'no-legacy-file' &&
+      !legacyStatus.hasExistingData;
+    if (needsImport) computed.push('import');
+    setFrozenSteps(computed);
+  }
 
   const stepsNeeded = frozenSteps ?? [];
 

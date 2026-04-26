@@ -213,7 +213,6 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           uiState={uiState}
           mergeActions={mergeActions}
           isMerging={isMerging}
-          onRefresh={() => prStore.refresh(pr.url)}
           onMarkReady={() => {
             prStore.markReadyForReview(pr.url).catch(() => {});
           }}

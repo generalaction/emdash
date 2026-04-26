@@ -26,7 +26,7 @@ export type ModalRegistryEntry = {
 export function createModal<TProps, TResult>(
   component: ModalComponent<TProps, TResult>,
   config: Omit<ModalRegistryEntry, 'component'> = {}
-): ModalRegistryEntry {
+): { component: ModalComponent<TProps, TResult>; size?: ModalSize } {
   return { component, ...config };
 }
 

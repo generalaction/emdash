@@ -166,7 +166,8 @@ export const pullRequestController = createRPCController({
       capture('pr_creation_failed', {
         error_type: error instanceof Error ? error.name || 'error' : 'unknown_error',
       });
-      const ghErrors = (error as any)?.response?.data?.errors;
+      const ghErrors = (error as { response?: { data?: { errors?: { message?: string }[] } } })
+        ?.response?.data?.errors;
       const message =
         Array.isArray(ghErrors) && ghErrors[0]?.message
           ? ghErrors[0].message
