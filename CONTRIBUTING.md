@@ -7,7 +7,7 @@ Thanks for your interest in contributing! We favor small, focused PRs and clear 
 Prerequisites
 
 - **Node.js 20.0.0+ (recommended: 22.20.0)** and Git
-- **Python 3.11+** with [uv](https://docs.astral.sh/uv/) (for native module builds)
+- **Python 3.12+** with [uv](https://docs.astral.sh/uv/) (for native module builds)
 - Optional (recommended for end‑to‑end testing):
   - GitHub CLI (`brew install gh`; then `gh auth login`)
   - At least one supported coding agent CLI (see docs for list)
@@ -23,8 +23,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Or on Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# Python dependencies are installed automatically via 'pnpm install'
-# or manually: uv pip install .
+# Install Python build deps (setuptools, wheel) for native modules
+uv pip install .
 ```
 
 Setup

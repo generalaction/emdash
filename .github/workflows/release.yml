@@ -49,18 +49,8 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.0.0
-        with:
-          version: "0.11.3"
-
-      - name: Set up Python
-        run: |
-          uv python install
-          echo "python=$(uv python find)" >> $GITHUB_ENV
-
-      - name: Install Python build deps
-        run: uv pip install .
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
 
       - name: Install dependencies (strict lockfile)
         env:
@@ -195,18 +185,8 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.0.0
-        with:
-          version: "0.11.3"
-
-      - name: Set up Python
-        run: |
-          uv python install
-          echo "python=$(uv python find)" >> $GITHUB_ENV
-
-      - name: Install Python build deps
-        run: uv pip install .
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
 
       - name: Install system build dependencies
         run: |
@@ -311,20 +291,8 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.0.0
-        with:
-          version: "0.11.3"
-
-      - name: Set up Python
-        shell: bash
-        run: |
-          uv python install
-          echo "python=$(uv python find)" >> "$GITHUB_ENV"
-
-      - name: Install Python build deps
-        shell: bash
-        run: uv pip install .
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
 
       - name: Install dependencies (strict lockfile)
         shell: bash
@@ -489,18 +457,8 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.0.0
-        with:
-          version: "0.11.3"
-
-      - name: Set up Python
-        run: |
-          uv python install
-          echo "python=$(uv python find)" >> $GITHUB_ENV
-
-      - name: Install Python build deps
-        run: uv pip install .
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
 
       - name: Install dependencies (strict lockfile)
         env:
