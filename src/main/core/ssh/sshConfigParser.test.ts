@@ -37,4 +37,20 @@ Host edge
       },
     ]);
   });
+
+  it('normalizes ProxyCommand none to an unset value', async () => {
+    readFile.mockResolvedValue(`
+Host disabled-proxy
+  HostName disabled.example.com
+  ProxyCommand none
+`);
+
+    const { parseSshConfigFile } = await import('./sshConfigParser');
+    await expect(parseSshConfigFile()).resolves.toEqual([
+      {
+        host: 'disabled-proxy',
+        hostname: 'disabled.example.com',
+      },
+    ]);
+  });
 });

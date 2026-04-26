@@ -4,6 +4,7 @@ import type { ConnectConfig } from 'ssh2';
 import { sshCredentialService } from '@main/core/ssh/ssh-credential-service';
 import { resolveIdentityAgent } from '@main/core/ssh/sshConfigParser';
 import type { SshConnectionRow } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { parseSshConnectionMetadata } from './connection-metadata';
 import { createProxyCommandTransport, type ProxyCommandTransport } from './proxy-command';
 
@@ -33,6 +34,13 @@ export async function buildConnectConfigFromRow(
       host: row.host,
       port: row.port,
       username: row.username,
+      onDebug: (line) => {
+        log.debug('buildConnectConfigFromRow: ProxyCommand stderr', {
+          connectionId: row.id,
+          host: row.host,
+          line,
+        });
+      },
     });
     base.sock = proxyTransport.sock;
     base.cleanupTransport = proxyTransport.cleanup;

@@ -221,7 +221,6 @@ export class SshConnectionManager extends EventEmitter {
       };
 
       client.on('error', (error: Error) => {
-        config.cleanupTransport?.();
         log.error('SshConnectionManager: connection error', {
           connectionId: id,
           error: error.message,
