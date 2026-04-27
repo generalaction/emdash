@@ -7,17 +7,17 @@ import {
   useLegacyPortStartFresh,
 } from '@renderer/lib/hooks/useLegacyPort';
 import { Button } from '@renderer/lib/ui/button';
+import { cn } from '@renderer/utils/utils';
 import { ImportHeader } from './components/import-header';
 import { ImportProgress } from './components/import-progress';
 import { ImportSourceSelector } from './components/import-source-selector';
 import { ProjectConflicts } from './components/project-conflicts';
-
-function availableSources(preview: ReturnType<typeof useLegacyPortPreview>['data']) {
-  const sources: LegacyImportSource[] = [];
-  if (preview?.sources.v0.available) sources.push('v0');
-  if (preview?.sources.v1Beta.available) sources.push('v1-beta');
-  return sources;
-}
+import {
+  availableSources,
+  shouldCenterImportContent,
+  shouldShowSourceSelector,
+  singleAvailableSource,
+} from './import-state';
 
 function toggleSourceSelection(
   sources: LegacyImportSource[],
@@ -53,6 +53,9 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const v0Preview = preview?.sources.v0 ?? { available: false, projects: 0, tasks: 0 };
   const betaPreview = preview?.sources.v1Beta ?? { available: false, projects: 0, tasks: 0 };
   const canImport = selectedSources.length > 0 && !previewLoading;
+  const singleSource = singleAvailableSource(preview);
+  const showSourceSelector = shouldShowSourceSelector(preview);
+  const centerContent = shouldCenterImportContent(preview);
 
   const toggleSource = (source: LegacyImportSource) => {
     setSelectedSourcesOverride((current) =>
@@ -104,10 +107,25 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const isBusy = importProgress.isImporting || startFreshMutation.isPending;
 
   return (
-    <div className="flex h-full min-h-0 w-full max-w-3xl flex-col gap-5 overflow-hidden p-6">
-      <ImportHeader isLoading={previewLoading} />
+    <div
+      className={cn(
+        'flex h-full min-h-0 w-full max-w-3xl flex-col gap-5 overflow-hidden p-6',
+        centerContent && 'justify-center'
+      )}
+    >
+      <ImportHeader
+        isLoading={previewLoading}
+        singleSource={
+          singleSource
+            ? {
+                source: singleSource,
+                preview: singleSource === 'v0' ? v0Preview : betaPreview,
+              }
+            : null
+        }
+      />
 
-      {!previewLoading && (
+      {!previewLoading && showSourceSelector && (
         <ImportSourceSelector
           sources={sourceOptions}
           v0Preview={v0Preview}
