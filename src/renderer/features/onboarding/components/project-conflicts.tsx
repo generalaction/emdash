@@ -7,11 +7,13 @@ function ConflictChoice({
   source,
   conflict,
   selected,
+  disabled,
   onSelect,
 }: {
   source: LegacyImportSource;
   conflict: LegacyProjectConflict;
   selected: boolean;
+  disabled: boolean;
   onSelect: () => void;
 }) {
   const details = source === 'v0' ? conflict.v0 : conflict.v1Beta;
@@ -20,10 +22,12 @@ function ConflictChoice({
     <button
       type="button"
       aria-pressed={selected}
+      disabled={disabled}
       onClick={onSelect}
       className={cn(
         'flex min-w-0 flex-1 flex-col gap-1 border p-2.5 text-left',
-        selected ? 'border-primary bg-background' : 'border-border bg-background-1'
+        selected ? 'border-primary bg-background' : 'border-border bg-background-1',
+        disabled && 'cursor-not-allowed opacity-60'
       )}
     >
       <span className="flex items-center justify-between gap-2">
@@ -42,10 +46,12 @@ function ConflictChoice({
 function ConflictCard({
   conflict,
   selectedSource,
+  disabled,
   onSelect,
 }: {
   conflict: LegacyProjectConflict;
   selectedSource: LegacyImportSource;
+  disabled: boolean;
   onSelect: (source: LegacyImportSource) => void;
 }) {
   return (
@@ -61,12 +67,14 @@ function ConflictCard({
           source="v0"
           conflict={conflict}
           selected={selectedSource === 'v0'}
+          disabled={disabled}
           onSelect={() => onSelect('v0')}
         />
         <ConflictChoice
           source="v1-beta"
           conflict={conflict}
           selected={selectedSource === 'v1-beta'}
+          disabled={disabled}
           onSelect={() => onSelect('v1-beta')}
         />
       </div>
@@ -77,10 +85,12 @@ function ConflictCard({
 export function ProjectConflicts({
   conflicts,
   choices,
+  disabled = false,
   onChoiceChange,
 }: {
   conflicts: LegacyProjectConflict[];
   choices: Record<string, LegacyImportSource>;
+  disabled?: boolean;
   onChoiceChange: (identityKey: string, source: LegacyImportSource) => void;
 }) {
   if (conflicts.length === 0) return null;
@@ -99,6 +109,7 @@ export function ProjectConflicts({
             key={conflict.identityKey}
             conflict={conflict}
             selectedSource={choices[conflict.identityKey] ?? 'v1-beta'}
+            disabled={disabled}
             onSelect={(source) => onChoiceChange(conflict.identityKey, source)}
           />
         ))}

@@ -113,6 +113,7 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
           v0Preview={v0Preview}
           betaPreview={betaPreview}
           selectedSources={selectedSources}
+          disabled={importProgress.isImporting}
           onToggle={toggleSource}
         />
       )}
@@ -120,6 +121,7 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
       <ProjectConflicts
         conflicts={visibleConflicts}
         choices={conflictChoiceOverrides}
+        disabled={importProgress.isImporting}
         onChoiceChange={updateConflictChoice}
       />
 

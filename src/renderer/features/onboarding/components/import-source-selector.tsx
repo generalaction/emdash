@@ -7,23 +7,27 @@ function SourceCard({
   source,
   preview,
   selected,
+  disabled,
   onToggle,
 }: {
   source: LegacyImportSource;
   preview: LegacyPortPreviewSource;
   selected: boolean;
+  disabled: boolean;
   onToggle: () => void;
 }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
+      disabled={disabled}
       onClick={onToggle}
       className={cn(
         'flex min-h-24 flex-1 flex-col items-start justify-between border p-4 text-left transition-colors',
         selected
           ? 'border-primary bg-background text-foreground'
-          : 'border-border bg-background-1 text-foreground hover:bg-background'
+          : 'border-border bg-background-1 text-foreground hover:bg-background',
+        disabled && 'cursor-not-allowed opacity-60 hover:bg-background-1'
       )}
     >
       <span className="flex w-full items-center justify-between gap-3">
@@ -49,12 +53,14 @@ export function ImportSourceSelector({
   v0Preview,
   betaPreview,
   selectedSources,
+  disabled = false,
   onToggle,
 }: {
   sources: LegacyImportSource[];
   v0Preview: LegacyPortPreviewSource;
   betaPreview: LegacyPortPreviewSource;
   selectedSources: LegacyImportSource[];
+  disabled?: boolean;
   onToggle: (source: LegacyImportSource) => void;
 }) {
   if (sources.length === 0) return null;
@@ -66,6 +72,7 @@ export function ImportSourceSelector({
           source="v0"
           preview={v0Preview}
           selected={selectedSources.includes('v0')}
+          disabled={disabled}
           onToggle={() => onToggle('v0')}
         />
       )}
@@ -74,6 +81,7 @@ export function ImportSourceSelector({
           source="v1-beta"
           preview={betaPreview}
           selected={selectedSources.includes('v1-beta')}
+          disabled={disabled}
           onToggle={() => onToggle('v1-beta')}
         />
       )}
