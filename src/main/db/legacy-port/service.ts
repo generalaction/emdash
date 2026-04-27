@@ -4,6 +4,7 @@ import type { StartupDataGateStatus } from '@shared/startup-data-gate';
 import { log } from '../../lib/logger';
 import * as schema from '../schema';
 import { importBetaDatabaseIntoDestination } from './beta-import';
+import { deleteProjectsById } from './destination-cleanup';
 import { portConversations } from './importers/relational/conversations';
 import { portProjects } from './importers/relational/projects';
 import { createRemapTables } from './importers/relational/remap';
@@ -73,71 +74,6 @@ async function markStatus(
       status,
       error: error instanceof Error ? error.message : String(error),
     });
-  }
-}
-
-function deleteProjectsById(sqlite: Database.Database, projectIds: ReadonlySet<string>): void {
-  if (projectIds.size === 0) return;
-
-  const ids = [...projectIds];
-  const placeholders = ids.map(() => '?').join(', ');
-  const tableExists = (tableName: string): boolean =>
-    Boolean(
-      sqlite
-        .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`)
-        .get(tableName)
-    );
-
-  const taskRows = tableExists('tasks')
-    ? (sqlite
-        .prepare(`SELECT id FROM tasks WHERE project_id IN (${placeholders})`)
-        .all(...ids) as Array<{ id: string }>)
-    : [];
-  const taskIds = taskRows.map((row) => row.id);
-  const taskPlaceholders = taskIds.map(() => '?').join(', ');
-
-  if (tableExists('messages') && tableExists('conversations')) {
-    sqlite
-      .prepare(
-        `DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE project_id IN (${placeholders}))`
-      )
-      .run(...ids);
-  }
-
-  if (tableExists('conversations')) {
-    sqlite.prepare(`DELETE FROM conversations WHERE project_id IN (${placeholders})`).run(...ids);
-  }
-
-  if (tableExists('terminals')) {
-    sqlite.prepare(`DELETE FROM terminals WHERE project_id IN (${placeholders})`).run(...ids);
-  }
-
-  if (tableExists('editor_buffers')) {
-    sqlite.prepare(`DELETE FROM editor_buffers WHERE project_id IN (${placeholders})`).run(...ids);
-  }
-
-  if (tableExists('project_remotes')) {
-    sqlite.prepare(`DELETE FROM project_remotes WHERE project_id IN (${placeholders})`).run(...ids);
-  }
-
-  if (taskIds.length > 0 && tableExists('tasks_pull_requests')) {
-    sqlite
-      .prepare(`DELETE FROM tasks_pull_requests WHERE task_id IN (${taskPlaceholders})`)
-      .run(...taskIds);
-  }
-
-  if (tableExists('projects_pull_requests')) {
-    sqlite
-      .prepare(`DELETE FROM projects_pull_requests WHERE project_id IN (${placeholders})`)
-      .run(...ids);
-  }
-
-  if (tableExists('tasks')) {
-    sqlite.prepare(`DELETE FROM tasks WHERE project_id IN (${placeholders})`).run(...ids);
-  }
-
-  if (tableExists('projects')) {
-    sqlite.prepare(`DELETE FROM projects WHERE id IN (${placeholders})`).run(...ids);
   }
 }
 
