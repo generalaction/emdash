@@ -61,20 +61,15 @@ function toTeardownError(e: unknown): TeardownTaskError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-export async function createLocalProvider(
-  project: LocalProject,
-  rootFs: FileSystemProvider
-): Promise<LocalProjectProvider> {
-  const settings = new LocalProjectSettingsProvider(
-    project.path,
-    bareRefName(project.baseRef),
-    rootFs
-  );
-  const worktreePoolPath = path.join(await settings.getWorktreeDirectory(), project.name);
+export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
+  const settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
+  const worktreeDirectory = await settings.getWorktreeDirectory();
+  const worktreeRootFs = new LocalFileSystem(path.parse(worktreeDirectory).root);
+  const worktreePoolPath = path.join(worktreeDirectory, project.name);
 
   await fs.promises.mkdir(worktreePoolPath, { recursive: true });
 
-  return new LocalProjectProvider(project, rootFs, { settings, worktreePoolPath });
+  return new LocalProjectProvider(project, worktreeRootFs, { settings, worktreePoolPath });
 }
 
 export class LocalProjectProvider implements ProjectProvider {

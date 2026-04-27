@@ -31,8 +31,7 @@ function parseSettingsOrDefault(raw: string, source: string): ProjectSettings {
 export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
   constructor(
     private readonly projectPath: string,
-    private readonly defaultBranchFallback: string = 'main',
-    private readonly rootFs?: Pick<FileSystemProvider, 'mkdir' | 'realPath'>
+    private readonly defaultBranchFallback: string = 'main'
   ) {}
 
   async get(): Promise<ProjectSettings> {
@@ -54,7 +53,7 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
       {
         projectPath: this.projectPath,
         pathApi: path,
-        fs: this.rootFs ?? defaultLocalWorktreeFs,
+        fs: defaultLocalWorktreeFs,
         homeDirectory: os.homedir(),
       }
     );

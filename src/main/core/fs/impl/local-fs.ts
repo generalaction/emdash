@@ -168,7 +168,7 @@ export class LocalFileSystem implements FileSystemProvider {
   private resolvePath(relPath: string): string {
     // Normalize the path and resolve it against project root
     const normalizedRelPath = relPath.replace(/\\/g, '/').replace(/^\//, '');
-    const fullPath = resolve(join(this.projectPath, normalizedRelPath));
+    const fullPath = resolve(this.projectPath, normalizedRelPath);
 
     // Security: ensure path is within projectPath (handle trailing separator edge cases)
     const projectPathWithSep = this.projectPath.endsWith(sep)
