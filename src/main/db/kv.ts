@@ -36,24 +36,24 @@ export class KV<TSchema extends Record<string, unknown>> {
         .insert(kv)
         .values({ key: this.prefixed(key), value: serialised, updatedAt: now })
         .onConflictDoUpdate({ target: kv.key, set: { value: serialised, updatedAt: now } });
-    } catch (_e) {
-      log.error('Failed to set KV', { key, value, error: _e });
+    } catch (e) {
+      log.error('Failed to set KV', { key, value, error: e });
     }
   }
 
   async del<K extends keyof TSchema & string>(key: K): Promise<void> {
     try {
       await db.delete(kv).where(eq(kv.key, this.prefixed(key)));
-    } catch {
-      log.error('Failed to delete KV', { key });
+    } catch (e) {
+      log.error('Failed to delete KV', { key, error: e });
     }
   }
 
   async clear(): Promise<void> {
     try {
       await db.delete(kv).where(like(kv.key, `${this.namespace}:%`));
-    } catch {
-      log.error('Failed to clear KV', { namespace: this.namespace });
+    } catch (e) {
+      log.error('Failed to clear KV', { namespace: this.namespace, error: e });
     }
   }
 }

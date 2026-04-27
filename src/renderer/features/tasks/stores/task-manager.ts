@@ -37,10 +37,8 @@ function formatCreateTaskError(error: CreateTaskError): string {
           return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
           return `Branch "${error.error.name}" is not a valid branch name.`;
-        case 'error':
-          return `Could not create branch "${error.branch}": ${error.error.message}`;
         default:
-          return '';
+          return `Could not create branch "${error.branch}": ${error.error.message}`;
       }
     }
     case 'pr-fetch-failed':

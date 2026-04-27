@@ -28,7 +28,6 @@ function runElectronRebuild(onlyModules) {
       : spawnSync(electronRebuildBin, args, { stdio: 'inherit' });
 
   if (result.error) {
-     
     console.error('postinstall: failed to run electron-rebuild:', result.error);
   }
 
