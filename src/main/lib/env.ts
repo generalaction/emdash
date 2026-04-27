@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { log } from './logger';
 
 const buildSchema = z.object({
   VITE_POSTHOG_KEY: z.string().optional(),
@@ -24,7 +25,8 @@ function parseSection<T extends z.ZodRawShape>(
 ): z.infer<z.ZodObject<T>> {
   const result = schema.safeParse(source);
   if (!result.success) {
-    throw new Error(`[env:${label}]\n${result.error.message}`);
+    log.error(`[env:${label}] Failed to parse environment variables`, { error: result.error });
+    return {} as z.infer<z.ZodObject<T>>;
   }
   return result.data;
 }
