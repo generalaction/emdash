@@ -4,7 +4,11 @@ import type { LegacyImportSource } from '@shared/legacy-port';
 import type { StartupDataGateStatus } from '@shared/startup-data-gate';
 import { log } from '../../lib/logger';
 import * as schema from '../schema';
-import { importBetaDatabaseIntoDestination } from './beta-import';
+import {
+  copyAttachedBetaDatabaseIntoDestination,
+  importBetaDatabaseIntoDestination,
+  withBetaDatabaseAttached,
+} from './beta-import';
 import { deleteProjectsById } from './destination-cleanup';
 import { portConversations } from './importers/relational/conversations';
 import { portProjects } from './importers/relational/projects';
@@ -128,7 +132,7 @@ export async function runLegacyPort(
     return;
   }
 
-  if (selectedSources.has('v1-beta')) {
+  if (selectedSources.has('v1-beta') && !selectedSources.has('v0')) {
     const betaPath = resolveBetaDatabasePath(userDataPath);
     if (hasBetaDatabaseFile(userDataPath)) {
       importBetaDatabaseIntoDestination(appTarget.sqlite, betaPath);
@@ -163,48 +167,67 @@ export async function runLegacyPort(
 
   const start = Date.now();
 
-  try {
-    const { sshSummary, projectsSummary, taskResult, conversationsSummary } =
-      await withAtomicDestinationImport(appTarget.sqlite, async () => {
-        const remap = createRemapTables();
-        if (!selectedSources.has('v1-beta')) {
-          clearDestinationDataPreservingSignIn(appTarget.sqlite);
+  const betaPath = resolveBetaDatabasePath(userDataPath);
+  const shouldCopyBeta = selectedSources.has('v1-beta') && hasBetaDatabaseFile(userDataPath);
+  const runImport = async (): Promise<{
+    sshSummary: PortSummary;
+    projectsSummary: PortSummary;
+    taskResult: Awaited<ReturnType<typeof portTasks>>;
+    conversationsSummary: PortSummary;
+  }> =>
+    await withAtomicDestinationImport(appTarget.sqlite, async () => {
+      const remap = createRemapTables();
+      if (selectedSources.has('v1-beta')) {
+        if (shouldCopyBeta) {
+          copyAttachedBetaDatabaseIntoDestination(appTarget.sqlite);
+        } else {
+          log.warn('legacy-port: v1-beta source selected but emdash3.db was not found', {
+            betaPath,
+          });
         }
+      } else {
+        clearDestinationDataPreservingSignIn(appTarget.sqlite);
+      }
 
-        const selection = await buildLegacyProjectSelection({
-          appDb: appTarget.db,
-          legacyDb,
-          selectedSources,
-          conflictChoices: options.conflictChoices ?? {},
-        });
-
-        if (selectedSources.has('v1-beta')) {
-          deleteProjectsById(appTarget.sqlite, selection.replaceAppProjectIds);
-        }
-
-        const sshSummary = await portSshConnections({
-          appDb: appTarget.db,
-          legacyDb,
-          remap,
-          allowedLegacyConnectionIds: selection.allowedLegacySshConnectionIds,
-        });
-        const projectsSummary = await portProjects({
-          appDb: appTarget.db,
-          legacyDb,
-          remap,
-          skipLegacyProjectIds: selection.skipLegacyProjectIds,
-        });
-        const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
-        const conversationsSummary = await portConversations({
-          appDb: appTarget.db,
-          legacyDb,
-          remap,
-          mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
-          userDataPath,
-        });
-
-        return { sshSummary, projectsSummary, taskResult, conversationsSummary };
+      const selection = await buildLegacyProjectSelection({
+        appDb: appTarget.db,
+        legacyDb,
+        selectedSources,
+        conflictChoices: options.conflictChoices ?? {},
       });
+
+      if (selectedSources.has('v1-beta')) {
+        deleteProjectsById(appTarget.sqlite, selection.replaceAppProjectIds);
+      }
+
+      const sshSummary = await portSshConnections({
+        appDb: appTarget.db,
+        legacyDb,
+        remap,
+        allowedLegacyConnectionIds: selection.allowedLegacySshConnectionIds,
+      });
+      const projectsSummary = await portProjects({
+        appDb: appTarget.db,
+        legacyDb,
+        remap,
+        skipLegacyProjectIds: selection.skipLegacyProjectIds,
+      });
+      const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
+      const conversationsSummary = await portConversations({
+        appDb: appTarget.db,
+        legacyDb,
+        remap,
+        mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
+        userDataPath,
+      });
+
+      return { sshSummary, projectsSummary, taskResult, conversationsSummary };
+    });
+
+  try {
+    const { sshSummary, projectsSummary, taskResult, conversationsSummary } = shouldCopyBeta
+      ? await withBetaDatabaseAttached(appTarget.sqlite, betaPath, runImport)
+      : await runImport();
 
     logSummary(sshSummary);
     logSummary(projectsSummary);

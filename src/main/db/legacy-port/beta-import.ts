@@ -42,6 +42,31 @@ function copyTable(sqlite: Database.Database, tableName: string): void {
     .run();
 }
 
+function copyAttachedBetaTables(sqlite: Database.Database): void {
+  clearDestinationDataPreservingSignIn(sqlite);
+  for (const tableName of COPY_TABLE_ORDER) {
+    copyTable(sqlite, tableName);
+  }
+}
+
+export function copyAttachedBetaDatabaseIntoDestination(sqlite: Database.Database): void {
+  copyAttachedBetaTables(sqlite);
+}
+
+export async function withBetaDatabaseAttached<T>(
+  sqlite: Database.Database,
+  betaDatabasePath: string,
+  action: () => Promise<T>
+): Promise<T> {
+  sqlite.exec(`ATTACH DATABASE ${quoteSqliteString(betaDatabasePath)} AS beta`);
+
+  try {
+    return await action();
+  } finally {
+    sqlite.exec('DETACH DATABASE beta');
+  }
+}
+
 export function importBetaDatabaseIntoDestination(
   sqlite: Database.Database,
   betaDatabasePath: string
@@ -50,13 +75,9 @@ export function importBetaDatabaseIntoDestination(
     sqlite.exec(`ATTACH DATABASE ${quoteSqliteString(betaDatabasePath)} AS beta`);
 
     try {
-      const copy = sqlite.transaction(() => {
-        clearDestinationDataPreservingSignIn(sqlite);
-        for (const tableName of COPY_TABLE_ORDER) {
-          copyTable(sqlite, tableName);
-        }
-      });
-      copy();
+      sqlite.transaction(() => {
+        copyAttachedBetaTables(sqlite);
+      })();
     } finally {
       sqlite.exec('DETACH DATABASE beta');
     }

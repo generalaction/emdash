@@ -7,7 +7,12 @@ import type {
   SourceProjectInfo,
 } from '@shared/legacy-port';
 import { projectRemotes, projects, sshConnections, tasks } from '@main/db/schema';
-import { readLegacyRows, toInteger, toTrimmedString } from './importers/relational/helpers';
+import {
+  legacyTableExists,
+  readLegacyRows,
+  toInteger,
+  toTrimmedString,
+} from './importers/relational/helpers';
 import type { RelationalImportDb } from './importers/relational/types';
 import { makeSshFingerprint, normalizePort } from './legacy-source/normalize';
 import {
@@ -15,6 +20,7 @@ import {
   localProjectIdentityKey,
   sshProjectIdentityKey,
 } from './legacy-source/project-identity';
+import { quoteIdentifier } from './sqlite-utils';
 
 export type LegacyProjectSelection = {
   skipLegacyProjectIds: Set<string>;
@@ -70,7 +76,11 @@ function countLegacyTasksByProject(legacyDb: Database.Database): Map<string, num
 }
 
 function countRows(legacyDb: Database.Database, tableName: string): number {
-  return readLegacyRows(legacyDb, tableName, ['id']).length;
+  if (!legacyTableExists(legacyDb, tableName)) return 0;
+  const row = legacyDb
+    .prepare(`SELECT COUNT(*) AS count FROM ${quoteIdentifier(tableName)}`)
+    .get() as { count: number };
+  return row.count;
 }
 
 function legacySshFingerprintsById(legacyDb: Database.Database): Map<string, string> {

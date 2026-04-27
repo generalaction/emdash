@@ -1,5 +1,10 @@
 import type Database from 'better-sqlite3';
-import { tableExists, withForeignKeysEnabled } from './sqlite-utils';
+import { tableExists } from './sqlite-utils';
+
+function runDelete(sqlite: Database.Database, tableName: string, sql: string, ids: string[]): void {
+  if (!tableExists(sqlite, tableName)) return;
+  sqlite.prepare(sql).run(...ids);
+}
 
 export function deleteProjectsById(
   sqlite: Database.Database,
@@ -11,7 +16,41 @@ export function deleteProjectsById(
   const ids = [...projectIds];
   const placeholders = ids.map(() => '?').join(', ');
 
-  withForeignKeysEnabled(sqlite, () => {
-    sqlite.prepare(`DELETE FROM projects WHERE id IN (${placeholders})`).run(...ids);
-  });
+  if (tableExists(sqlite, 'conversations')) {
+    runDelete(
+      sqlite,
+      'messages',
+      `DELETE FROM messages WHERE conversation_id IN (
+        SELECT id FROM conversations WHERE project_id IN (${placeholders})
+      )`,
+      ids
+    );
+  }
+
+  runDelete(
+    sqlite,
+    'terminals',
+    `DELETE FROM terminals WHERE project_id IN (${placeholders})`,
+    ids
+  );
+  runDelete(
+    sqlite,
+    'conversations',
+    `DELETE FROM conversations WHERE project_id IN (${placeholders})`,
+    ids
+  );
+  runDelete(
+    sqlite,
+    'editor_buffers',
+    `DELETE FROM editor_buffers WHERE project_id IN (${placeholders})`,
+    ids
+  );
+  runDelete(
+    sqlite,
+    'project_remotes',
+    `DELETE FROM project_remotes WHERE project_id IN (${placeholders})`,
+    ids
+  );
+  runDelete(sqlite, 'tasks', `DELETE FROM tasks WHERE project_id IN (${placeholders})`, ids);
+  sqlite.prepare(`DELETE FROM projects WHERE id IN (${placeholders})`).run(...ids);
 }
