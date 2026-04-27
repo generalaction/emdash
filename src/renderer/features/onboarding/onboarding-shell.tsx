@@ -65,7 +65,7 @@ export function OnboardingShell({
   };
 
   return (
-    <div className="flex flex-col items-start justify-center max-w-5xl mx-auto w-full h-full max-h-[70vh] [-webkit-app-region:no-drag]">
+    <div className="flex flex-col items-start justify-center max-w-5xl mx-auto w-full h-full max-h-[70vh] min-h-0 [-webkit-app-region:no-drag]">
       <div className="flex flex-row border border-b-0">
         {steps.map((step, index) => (
           <StepHeader
@@ -77,7 +77,7 @@ export function OnboardingShell({
           />
         ))}
       </div>
-      <div className="flex flex-col items-center justify-center h-full w-full border bg-background-1">
+      <div className="flex min-h-0 flex-col items-center justify-center h-full w-full border bg-background-1">
         <StepComponent onComplete={handleStepComplete} />
       </div>
     </div>

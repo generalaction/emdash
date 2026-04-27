@@ -40,11 +40,7 @@ function AppContent() {
     if (!isLoading && view === 'onboarding' && frozenSteps === null) {
       const computed: OnboardingStep[] = [];
       if (!session?.isSignedIn) computed.push('sign-in');
-      const needsImport =
-        legacyStatus?.hasLegacyDb &&
-        legacyStatus.portStatus !== 'completed' &&
-        legacyStatus.portStatus !== 'no-legacy-file' &&
-        !legacyStatus.hasExistingData;
+      const needsImport = legacyStatus?.hasImportSources && !legacyStatus.portStatus;
       if (needsImport) computed.push('import');
       setFrozenSteps(computed);
     }
