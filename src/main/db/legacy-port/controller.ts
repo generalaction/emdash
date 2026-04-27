@@ -3,6 +3,7 @@ import { count } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { app } from 'electron';
 import { createRPCController } from '@shared/ipc/rpc';
+import type { LegacyImportSource } from '@shared/legacy-port';
 import { db } from '@main/db/client';
 import { PREVIOUS_DB_FILENAME } from '@main/db/default-path';
 import * as schema from '@main/db/schema';
@@ -14,11 +15,7 @@ import {
   hasLegacyDatabaseFile,
   resolveLegacyDatabasePath,
 } from './legacy-source/path';
-import {
-  createDefaultLegacyPortStateStore,
-  runLegacyPort,
-  type LegacyImportSource,
-} from './service';
+import { createDefaultLegacyPortStateStore, runLegacyPort } from './service';
 import { createLegacyPortPreview } from './source-analysis';
 
 export const legacyPortController = createRPCController({

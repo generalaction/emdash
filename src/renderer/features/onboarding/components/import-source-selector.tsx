@@ -1,8 +1,5 @@
 import { Check } from 'lucide-react';
-import {
-  type LegacyImportSource,
-  type LegacyPortPreviewSource,
-} from '@renderer/lib/hooks/useLegacyPort';
+import { type LegacyImportSource, type LegacyPortPreviewSource } from '@shared/legacy-port';
 import { cn } from '@renderer/utils/utils';
 import { formatCount, sourceLabel } from './import-format';
 

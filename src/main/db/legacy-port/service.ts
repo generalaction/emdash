@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import type { LegacyImportSource } from '@shared/legacy-port';
 import type { StartupDataGateStatus } from '@shared/startup-data-gate';
 import { log } from '../../lib/logger';
 import * as schema from '../schema';
@@ -31,7 +32,6 @@ type AppTarget = {
 };
 
 export type LegacyPortStatus = StartupDataGateStatus;
-export type LegacyImportSource = 'v0' | 'v1-beta';
 
 export interface LegacyPortStateStore {
   getStatus(): Promise<LegacyPortStatus | null>;

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
+import type { LegacyImportSource } from '@shared/legacy-port';
 import { useImportProgress } from '@renderer/lib/hooks/useImportProgress';
 import {
   useLegacyPortImport,
   useLegacyPortPreview,
   useLegacyPortSkip,
-  type LegacyImportSource,
 } from '@renderer/lib/hooks/useLegacyPort';
 import { Button } from '@renderer/lib/ui/button';
 import { ImportHeader } from './components/import-header';

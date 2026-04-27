@@ -1,4 +1,4 @@
-import type { LegacyImportSource } from '@renderer/lib/hooks/useLegacyPort';
+import type { LegacyImportSource } from '@shared/legacy-port';
 
 export function sourceLabel(source: LegacyImportSource): string {
   return source === 'v0' ? 'v0' : 'v1-beta';

@@ -1,5 +1,11 @@
 import type Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
+import type {
+  LegacyImportSource,
+  LegacyPortPreview,
+  LegacyProjectConflict,
+  SourceProjectInfo,
+} from '@shared/legacy-port';
 import { projectRemotes, projects, sshConnections, tasks } from '@main/db/schema';
 import { readLegacyRows, toInteger, toTrimmedString } from './importers/relational/helpers';
 import type { RelationalImportDb } from './importers/relational/types';
@@ -9,44 +15,6 @@ import {
   localProjectIdentityKey,
   sshProjectIdentityKey,
 } from './legacy-source/project-identity';
-import type { LegacyImportSource } from './service';
-
-export type ProjectIdentityKind = 'local' | 'ssh';
-
-export type SourceProjectInfo = {
-  id: string;
-  identityKey: string;
-  kind: ProjectIdentityKind;
-  name: string;
-  path: string;
-  taskCount: number;
-  updatedAt: string | null;
-  sshConnectionId: string | null;
-  gitRemoteKeys: string[];
-};
-
-export type LegacyProjectConflict = {
-  identityKey: string;
-  kind: ProjectIdentityKind;
-  v0: SourceProjectInfo;
-  v1Beta: SourceProjectInfo;
-};
-
-export type LegacyPortPreviewSource = {
-  available: boolean;
-  projects: number;
-  tasks: number;
-};
-
-export type LegacyPortPreview = {
-  sources: {
-    v0: LegacyPortPreviewSource;
-    v1Beta: LegacyPortPreviewSource;
-  };
-  conflicts: LegacyProjectConflict[];
-  projects: number;
-  tasks: number;
-};
 
 export type LegacyProjectSelection = {
   skipLegacyProjectIds: Set<string>;

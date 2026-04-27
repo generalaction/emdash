@@ -1,8 +1,5 @@
 import { Check } from 'lucide-react';
-import {
-  type LegacyImportSource,
-  type LegacyPortProjectConflict,
-} from '@renderer/lib/hooks/useLegacyPort';
+import { type LegacyImportSource, type LegacyProjectConflict } from '@shared/legacy-port';
 import { cn } from '@renderer/utils/utils';
 import { formatCount, sourceLabel } from './import-format';
 
@@ -13,7 +10,7 @@ function ConflictChoice({
   onSelect,
 }: {
   source: LegacyImportSource;
-  conflict: LegacyPortProjectConflict;
+  conflict: LegacyProjectConflict;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -47,7 +44,7 @@ function ConflictCard({
   selectedSource,
   onSelect,
 }: {
-  conflict: LegacyPortProjectConflict;
+  conflict: LegacyProjectConflict;
   selectedSource: LegacyImportSource;
   onSelect: (source: LegacyImportSource) => void;
 }) {
@@ -82,7 +79,7 @@ export function ProjectConflicts({
   choices,
   onChoiceChange,
 }: {
-  conflicts: LegacyPortProjectConflict[];
+  conflicts: LegacyProjectConflict[];
   choices: Record<string, LegacyImportSource>;
   onChoiceChange: (identityKey: string, source: LegacyImportSource) => void;
 }) {
