@@ -1,28 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { app } from 'electron';
 import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 import { KV } from '@main/db/kv';
-
-// Production-only: appConfig.json is injected into dist/main/ by the release pipeline.
-const appConfig: { posthogHost?: string; posthogKey?: string } = (() => {
-  if (!import.meta.env.PROD) return {};
-  try {
-    const raw = readFileSync(join(__dirname, 'appConfig.json'), 'utf-8');
-    return JSON.parse(raw) as { posthogHost?: string; posthogKey?: string };
-  } catch {
-    return {};
-  }
-})();
+import { env as appEnv } from '@main/lib/env';
 
 interface InitOptions {
   installSource?: string;
 }
-
-// ---------------------------------------------------------------------------
-// Module-level state
-// ---------------------------------------------------------------------------
 
 let enabled = true;
 let apiKey: string | undefined;
@@ -276,15 +260,12 @@ async function checkDailyActiveUser(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function init(options?: InitOptions): Promise<void> {
-  const env = process.env;
-  const enabledEnv = (env.TELEMETRY_ENABLED ?? 'true').toString().toLowerCase();
+  const enabledEnv = (appEnv.runtime.TELEMETRY_ENABLED ?? 'true').toLowerCase();
   enabled = !isViteDevBuild && enabledEnv !== 'false' && enabledEnv !== '0' && enabledEnv !== 'no';
-  apiKey =
-    env.POSTHOG_PROJECT_API_KEY || (appConfig?.posthogKey as string | undefined) || undefined;
-  host = normalizeHost(
-    env.POSTHOG_HOST || (appConfig?.posthogHost as string | undefined) || undefined
-  );
-  installSource = options?.installSource || env.INSTALL_SOURCE || undefined;
+  // build value wins (prod); dev fallback used locally without VITE_ vars set
+  apiKey = appEnv.build.VITE_POSTHOG_KEY ?? appEnv.dev.POSTHOG_PROJECT_API_KEY;
+  host = normalizeHost(appEnv.build.VITE_POSTHOG_HOST ?? appEnv.dev.POSTHOG_HOST);
+  installSource = options?.installSource ?? appEnv.runtime.INSTALL_SOURCE;
   sessionId = randomUUID();
 
   // Load persisted state from SQLite KV (all reads are non-blocking best-effort)
