@@ -1,9 +1,6 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { StartupDataGateStatus } from '@shared/startup-data-gate';
-import { PREVIOUS_DB_FILENAME } from '@main/db/default-path';
 import { log } from '../../lib/logger';
 import * as schema from '../schema';
 import { importBetaDatabaseIntoDestination } from './beta-import';
@@ -15,7 +12,12 @@ import { portTasks } from './importers/relational/tasks';
 import type { PortSummary } from './importers/relational/types';
 import { portLegacySettings } from './importers/settings/importer';
 import { openLegacyReadOnly } from './legacy-source/open-readonly';
-import { hasLegacyDatabaseFile, resolveLegacyDatabasePath } from './legacy-source/path';
+import {
+  hasBetaDatabaseFile,
+  hasLegacyDatabaseFile,
+  resolveBetaDatabasePath,
+  resolveLegacyDatabasePath,
+} from './legacy-source/path';
 import { clearDestinationDataPreservingSignIn } from './reset';
 import { buildLegacyProjectSelection } from './source-analysis';
 import { createLegacyPortStateStore } from './state-store';
@@ -143,22 +145,6 @@ export async function createDefaultLegacyPortStateStore(): Promise<LegacyPortSta
   return createLegacyPortStateStore();
 }
 
-export function resolveLegacyPath(userDataPath: string): string {
-  return resolveLegacyDatabasePath(userDataPath);
-}
-
-export function hasLegacyFile(userDataPath: string): boolean {
-  return hasLegacyDatabaseFile(userDataPath);
-}
-
-function resolveBetaPath(userDataPath: string): string {
-  return join(userDataPath, PREVIOUS_DB_FILENAME);
-}
-
-function hasBetaFile(userDataPath: string): boolean {
-  return existsSync(resolveBetaPath(userDataPath));
-}
-
 export async function runLegacyPort(
   userDataPath: string,
   options: RunLegacyPortOptions = {}
@@ -185,8 +171,8 @@ export async function runLegacyPort(
   }
 
   if (selectedSources.has('v1-beta')) {
-    const betaPath = resolveBetaPath(userDataPath);
-    if (hasBetaFile(userDataPath)) {
+    const betaPath = resolveBetaDatabasePath(userDataPath);
+    if (hasBetaDatabaseFile(userDataPath)) {
       importBetaDatabaseIntoDestination(appTarget.sqlite, betaPath);
     } else {
       log.warn('legacy-port: v1-beta source selected but emdash3.db was not found', { betaPath });
@@ -198,13 +184,13 @@ export async function runLegacyPort(
     return;
   }
 
-  if (!hasLegacyFile(userDataPath)) {
+  if (!hasLegacyDatabaseFile(userDataPath)) {
     log.info('legacy-port: no legacy emdash.db found, marking complete');
     await markStatus(stateStore, 'no-legacy-file');
     return;
   }
 
-  const legacyPath = resolveLegacyPath(userDataPath);
+  const legacyPath = resolveLegacyDatabasePath(userDataPath);
   let legacyDb: Database.Database;
 
   try {

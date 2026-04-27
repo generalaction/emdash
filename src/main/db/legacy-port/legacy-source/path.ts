@@ -10,6 +10,10 @@ export function hasLegacyDatabaseFile(userDataPath: string): boolean {
   return existsSync(resolveLegacyDatabasePath(userDataPath));
 }
 
+export function resolveBetaDatabasePath(userDataPath: string) {
+  return join(userDataPath, PREVIOUS_DB_FILENAME);
+}
+
 export function hasBetaDatabaseFile(userDataPath: string): boolean {
-  return existsSync(join(userDataPath, PREVIOUS_DB_FILENAME));
+  return existsSync(resolveBetaDatabasePath(userDataPath));
 }
