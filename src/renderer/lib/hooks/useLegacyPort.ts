@@ -35,10 +35,10 @@ export function useLegacyPortImport() {
   });
 }
 
-export function useLegacyPortSkip() {
+export function useLegacyPortStartFresh() {
   const queryClient = useQueryClient();
   return useMutation({
-    // An explicit empty source list means "skip import and start fresh".
+    // An explicit empty source list means "start fresh".
     mutationFn: () => rpc.legacyPort.runImport({ sources: [] }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...LEGACY_PORT_STATUS_KEY] });

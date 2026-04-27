@@ -22,25 +22,23 @@ const stepConfig: Record<
 function StepHeader({
   label,
   isActive,
-  onClick,
   isLast,
 }: {
   label: string;
   isActive: boolean;
-  onClick: () => void;
   isLast: boolean;
 }) {
   return (
-    <button
+    <div
+      aria-current={isActive ? 'step' : undefined}
       className={cn(
-        'text-md border-r py-3 px-5 hover:bg-background-1/50',
-        isActive ? 'text-primary bg-background-1 hover:bg-background-1' : 'text-foreground-muted',
+        'text-md border-r px-5 py-3',
+        isActive ? 'bg-background-1 text-primary' : 'text-foreground-muted',
         isLast && 'border-r-0'
       )}
-      onClick={onClick}
     >
       {label}
-    </button>
+    </div>
   );
 }
 
@@ -73,7 +71,6 @@ export function OnboardingShell({
             label={stepConfig[step].label}
             isLast={index === steps.length - 1}
             isActive={step === activeStep}
-            onClick={() => setActiveIndex(index)}
           />
         ))}
       </div>

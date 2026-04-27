@@ -4,7 +4,7 @@ import { useImportProgress } from '@renderer/lib/hooks/useImportProgress';
 import {
   useLegacyPortImport,
   useLegacyPortPreview,
-  useLegacyPortSkip,
+  useLegacyPortStartFresh,
 } from '@renderer/lib/hooks/useLegacyPort';
 import { Button } from '@renderer/lib/ui/button';
 import { ImportHeader } from './components/import-header';
@@ -32,7 +32,7 @@ function toggleSourceSelection(
 export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const { data: preview, isLoading: previewLoading } = useLegacyPortPreview(true);
   const importMutation = useLegacyPortImport();
-  const skipMutation = useLegacyPortSkip();
+  const startFreshMutation = useLegacyPortStartFresh();
   const importProgress = useImportProgress();
 
   const sourceOptions = useMemo(() => availableSources(preview), [preview]);
@@ -42,7 +42,7 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const [conflictChoiceOverrides, setConflictChoiceOverrides] = useState<
     Record<string, LegacyImportSource>
   >({});
-  const [skipError, setSkipError] = useState<string | null>(null);
+  const [startFreshError, setStartFreshError] = useState<string | null>(null);
 
   const selectedSources = selectedSourcesOverride ?? sourceOptions;
   const visibleConflicts = useMemo(() => {
@@ -68,7 +68,7 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
   };
 
   const handleImport = async () => {
-    setSkipError(null);
+    setStartFreshError(null);
     const conflictChoices = Object.fromEntries(
       visibleConflicts.map((conflict) => [
         conflict.identityKey,
@@ -86,22 +86,22 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
     );
   };
 
-  const handleSkip = async () => {
-    setSkipError(null);
+  const handleStartFresh = async () => {
+    setStartFreshError(null);
     importProgress.clearError();
     try {
-      const result = await skipMutation.mutateAsync();
+      const result = await startFreshMutation.mutateAsync();
       if (!result.success) {
-        setSkipError(result.error ?? 'Skip failed');
+        setStartFreshError(result.error ?? 'Start fresh failed');
         return;
       }
       onComplete();
     } catch (err) {
-      setSkipError(err instanceof Error ? err.message : 'Skip failed');
+      setStartFreshError(err instanceof Error ? err.message : 'Start fresh failed');
     }
   };
 
-  const isBusy = importProgress.isImporting || skipMutation.isPending;
+  const isBusy = importProgress.isImporting || startFreshMutation.isPending;
 
   return (
     <div className="flex h-full min-h-0 w-full max-w-3xl flex-col gap-5 overflow-hidden p-6">
@@ -128,14 +128,14 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
       {importProgress.error && (
         <p className="text-sm text-destructive text-center">{importProgress.error}</p>
       )}
-      {skipError && <p className="text-sm text-destructive text-center">{skipError}</p>}
+      {startFreshError && <p className="text-sm text-destructive text-center">{startFreshError}</p>}
 
       <div className="flex w-full shrink-0 flex-col gap-2">
         <Button size={'lg'} onClick={handleImport} disabled={isBusy || !canImport}>
           {importProgress.isImporting ? 'Importing...' : 'Import data'}
         </Button>
-        <Button variant="ghost" onClick={handleSkip} disabled={isBusy}>
-          Skip
+        <Button variant="ghost" onClick={handleStartFresh} disabled={isBusy}>
+          Start fresh
         </Button>
       </div>
     </div>
