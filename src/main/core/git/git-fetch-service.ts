@@ -14,9 +14,7 @@ export class GitFetchService {
   constructor(
     private readonly git: GitService,
     private readonly hasGitHubToken: () => Promise<boolean>
-  ) {
-    this.hasGitHubToken = hasGitHubToken;
-  }
+  ) {}
 
   /** Start the background fetch loop: immediate fetch, then every `intervalMs`. */
   start(): void {
@@ -80,6 +78,6 @@ export class GitFetchService {
     if (sshRemotes.length === 0) return true;
     if (!sshRemotes.every((remote) => isGitHubSshRemoteUrl(remote.url))) return false;
 
-    return (await this.hasGitHubToken?.()) ?? false;
+    return await this.hasGitHubToken();
   }
 }
