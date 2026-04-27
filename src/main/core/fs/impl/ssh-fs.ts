@@ -10,10 +10,10 @@ import { quoteShellArg } from '../../../utils/shellEscape';
 import type { SshClientProxy } from '../../ssh/ssh-client-proxy';
 import {
   DEFAULT_EMDASH_CONFIG,
-  type FileEntry,
-  type FileListResult,
   FileSystemError,
   FileSystemErrorCodes,
+  type FileEntry,
+  type FileListResult,
   type FileSystemProvider,
   type FileWatcher,
   type ListOptions,

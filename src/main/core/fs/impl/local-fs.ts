@@ -8,10 +8,10 @@ import type { FileWatchEvent } from '@shared/fs';
 import { log } from '@main/lib/logger';
 import {
   DEFAULT_EMDASH_CONFIG,
-  type FileEntry,
-  type FileListResult,
   FileSystemError,
   FileSystemErrorCodes,
+  type FileEntry,
+  type FileListResult,
   type FileSystemProvider,
   type FileWatcher,
   type ListOptions,
