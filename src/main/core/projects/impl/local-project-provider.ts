@@ -117,7 +117,10 @@ export class LocalProjectProvider implements ProjectProvider {
     this._gitWatcher = new GitWatcherService(project.id, project.path);
     void this._gitWatcher.start();
 
-    this._gitFetchService = new GitFetchService(repoGit);
+    this._gitFetchService = new GitFetchService(
+      repoGit,
+      async () => (await githubConnectionService.getToken()) !== null
+    );
     this._gitFetchService.start();
 
     // Re-sync remotes whenever .git/config changes (remote added/removed/changed)

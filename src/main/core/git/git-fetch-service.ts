@@ -2,21 +2,27 @@ import type { FetchError } from '@shared/git';
 import { err, type Result } from '@shared/result';
 import { log } from '@main/lib/logger';
 import type { GitService } from './impl/git-service';
+import { isGitHubSshRemoteUrl, isSshRemoteUrl } from './remote-helper';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;
 
 export class GitFetchService {
   private _timer: ReturnType<typeof setInterval> | undefined;
   private _inflight: Promise<Result<void, FetchError>> | undefined;
+  private readonly intervalMs = DEFAULT_INTERVAL_MS;
 
   constructor(
     private readonly git: GitService,
-    private readonly intervalMs = DEFAULT_INTERVAL_MS
-  ) {}
+    private readonly hasGitHubToken: () => Promise<boolean>
+  ) {
+    this.hasGitHubToken = hasGitHubToken;
+  }
 
   /** Start the background fetch loop: immediate fetch, then every `intervalMs`. */
   start(): void {
-    void this._doFetch();
+    void this._canBackgroundFetchWithoutPrompt().then((canFetch) => {
+      if (canFetch) void this._doFetch();
+    });
     this._scheduleNext();
   }
 
@@ -55,6 +61,25 @@ export class GitFetchService {
   }
 
   private _scheduleNext(): void {
-    this._timer = setInterval(() => void this._doFetch(), this.intervalMs);
+    this._timer = setInterval(() => {
+      void this._canBackgroundFetchWithoutPrompt().then((canFetch) => {
+        if (canFetch) void this._doFetch();
+      });
+    }, this.intervalMs);
+  }
+
+  private async _canBackgroundFetchWithoutPrompt(): Promise<boolean> {
+    let remotes: { url: string }[] = [];
+    try {
+      remotes = await this.git.getRemotes();
+    } catch {
+      return false;
+    }
+
+    const sshRemotes = remotes.filter((remote) => isSshRemoteUrl(remote.url));
+    if (sshRemotes.length === 0) return true;
+    if (!sshRemotes.every((remote) => isGitHubSshRemoteUrl(remote.url))) return false;
+
+    return (await this.hasGitHubToken?.()) ?? false;
   }
 }

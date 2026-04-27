@@ -133,7 +133,10 @@ export class SshProjectProvider implements ProjectProvider {
       exec: gitExec,
       rootFs: rootFs,
     });
-    this._gitFetchService = new GitFetchService(repoGit);
+    this._gitFetchService = new GitFetchService(
+      repoGit,
+      async () => (await githubConnectionService.getToken()) !== null
+    );
     this._gitFetchService.start();
     sshConnectionManager.on('connection-event', this.handleConnectionEvent);
   }

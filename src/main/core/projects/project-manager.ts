@@ -8,11 +8,11 @@ import { err, ok, type Result } from '@shared/result';
 import { log } from '@main/lib/logger';
 import { LocalFileSystem } from '../fs/impl/local-fs';
 import { SshFileSystem } from '../fs/impl/ssh-fs';
-import { checkIsValidDirectory } from '../git/impl/detectGitInfo';
 import { getProjectById, getProjects } from '../projects/operations/getProjects';
 import { sshConnectionManager } from '../ssh/ssh-connection-manager';
 import { createLocalProvider } from './impl/local-project-provider';
 import { createSshProvider } from './impl/ssh-project-provider';
+import { checkIsValidDirectory } from './path-utils';
 import type { ProjectProvider } from './project-provider';
 import { TimeoutSignal, withTimeout } from './utils';
 
