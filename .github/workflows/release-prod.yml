@@ -1,9 +1,6 @@
 name: Release (Production)
 
 on:
-  push:
-    tags:
-      - 'v1.*'
   workflow_dispatch:
     inputs:
       arch:
