@@ -1,14 +1,9 @@
-import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { conversations, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import {
-  isUniqueConstraintError,
-  readLegacyRows,
-  toIsoTimestamp,
-  toTrimmedString,
-} from './helpers';
+import { readLegacyRows, toIsoTimestamp, toTrimmedString } from './helpers';
+import { insertWithRegeneratedId } from './insert';
 import { createPortSummary, type PortContext, type PortSummary } from './types';
 
 const LEGACY_PTY_SESSION_MAP_FILE = 'pty-session-map.json';
@@ -288,12 +283,8 @@ export async function portConversations({
       claudeResumeTargets,
     });
 
-    let nextConversationId = conversationIds.has(preferredConversationId)
-      ? randomUUID()
-      : preferredConversationId;
-
     const insertValues = {
-      id: nextConversationId,
+      id: preferredConversationId,
       projectId: mappedProjectId,
       taskId: mappedTaskId,
       title:
@@ -304,32 +295,29 @@ export async function portConversations({
       updatedAt: toIsoTimestamp(row.updated_at, nowIso),
     };
 
-    let inserted = false;
+    const insertResult = await insertWithRegeneratedId({
+      initialId: preferredConversationId,
+      existingIds: conversationIds,
+      uniqueConstraintDetail: 'conversations.id',
+      setId: (id) => {
+        insertValues.id = id;
+      },
+      insert: () => appDb.insert(conversations).values(insertValues).execute(),
+    });
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        insertValues.id = nextConversationId;
-        await appDb.insert(conversations).values(insertValues).execute();
-        inserted = true;
-        break;
-      } catch (error) {
-        if (attempt === 0 && isUniqueConstraintError(error, 'conversations.id')) {
-          nextConversationId = randomUUID();
-          continue;
-        }
-
-        summary.skippedError += 1;
-        log.warn('legacy-port: conversations: failed to insert row', {
-          legacyConversationId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        break;
-      }
+    if (!insertResult.inserted) {
+      summary.skippedError += 1;
+      log.warn('legacy-port: conversations: failed to insert row', {
+        legacyConversationId,
+        error:
+          insertResult.error instanceof Error
+            ? insertResult.error.message
+            : String(insertResult.error),
+      });
+      continue;
     }
 
-    if (!inserted) continue;
-
-    conversationIds.add(nextConversationId);
+    conversationIds.add(insertResult.id);
     summary.inserted += 1;
   }
 

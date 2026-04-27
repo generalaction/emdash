@@ -1,9 +1,15 @@
 import type Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import type { LegacyImportSource } from '@shared/legacy-port';
 import type { StartupDataGateStatus } from '@shared/startup-data-gate';
 import { log } from '../../lib/logger';
 import * as schema from '../schema';
-import { portLegacyAuthState } from './importers/auth/importer';
+import {
+  copyAttachedBetaDatabaseIntoDestination,
+  importBetaDatabaseIntoDestination,
+  withBetaDatabaseAttached,
+} from './beta-import';
+import { deleteProjectsById } from './destination-cleanup';
 import { portConversations } from './importers/relational/conversations';
 import { portProjects } from './importers/relational/projects';
 import { createRemapTables } from './importers/relational/remap';
@@ -12,7 +18,14 @@ import { portTasks } from './importers/relational/tasks';
 import type { PortSummary } from './importers/relational/types';
 import { portLegacySettings } from './importers/settings/importer';
 import { openLegacyReadOnly } from './legacy-source/open-readonly';
-import { hasLegacyDatabaseFile, resolveLegacyDatabasePath } from './legacy-source/path';
+import {
+  hasBetaDatabaseFile,
+  hasLegacyDatabaseFile,
+  resolveBetaDatabasePath,
+  resolveLegacyDatabasePath,
+} from './legacy-source/path';
+import { clearDestinationDataPreservingSignIn } from './reset';
+import { buildLegacyProjectSelection } from './source-analysis';
 import { createLegacyPortStateStore } from './state-store';
 
 type LegacyPortDb = ReturnType<typeof drizzle<typeof schema>>;
@@ -32,6 +45,8 @@ export interface LegacyPortStateStore {
 export type RunLegacyPortOptions = {
   appDb?: Database.Database;
   stateStore?: LegacyPortStateStore;
+  sources?: LegacyImportSource[];
+  conflictChoices?: Record<string, LegacyImportSource>;
 };
 
 async function resolveAppTarget(appSqlite?: Database.Database): Promise<AppTarget> {
@@ -54,7 +69,7 @@ function logSummary(summary: PortSummary): void {
 
 async function markStatus(
   stateStore: LegacyPortStateStore,
-  status: 'completed' | 'no-legacy-file'
+  status: LegacyPortStatus
 ): Promise<void> {
   try {
     await stateStore.setStatus(status);
@@ -66,16 +81,30 @@ async function markStatus(
   }
 }
 
+async function withAtomicDestinationImport<T>(
+  sqlite: Database.Database,
+  action: () => Promise<T>
+): Promise<T> {
+  const foreignKeys = sqlite.pragma('foreign_keys', { simple: true }) as number;
+  sqlite.pragma('foreign_keys = OFF');
+  sqlite.exec('BEGIN IMMEDIATE');
+
+  try {
+    const result = await action();
+    sqlite.exec('COMMIT');
+    return result;
+  } catch (error) {
+    if (sqlite.inTransaction) {
+      sqlite.exec('ROLLBACK');
+    }
+    throw error;
+  } finally {
+    sqlite.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);
+  }
+}
+
 export async function createDefaultLegacyPortStateStore(): Promise<LegacyPortStateStore> {
   return createLegacyPortStateStore();
-}
-
-export function resolveLegacyPath(userDataPath: string): string {
-  return resolveLegacyDatabasePath(userDataPath);
-}
-
-export function hasLegacyFile(userDataPath: string): boolean {
-  return hasLegacyDatabaseFile(userDataPath);
 }
 
 export async function runLegacyPort(
@@ -84,6 +113,7 @@ export async function runLegacyPort(
 ): Promise<void> {
   const appTarget = await resolveAppTarget(options.appDb);
   const stateStore = options.stateStore ?? (await createDefaultLegacyPortStateStore());
+  const selectedSources = new Set<LegacyImportSource>(options.sources ?? ['v0']);
 
   try {
     const status = await stateStore.getStatus();
@@ -96,13 +126,33 @@ export async function runLegacyPort(
     });
   }
 
-  if (!hasLegacyFile(userDataPath)) {
+  if (selectedSources.size === 0) {
+    clearDestinationDataPreservingSignIn(appTarget.sqlite);
+    await markStatus(stateStore, 'wiped-beta');
+    return;
+  }
+
+  if (selectedSources.has('v1-beta') && !selectedSources.has('v0')) {
+    const betaPath = resolveBetaDatabasePath(userDataPath);
+    if (hasBetaDatabaseFile(userDataPath)) {
+      importBetaDatabaseIntoDestination(appTarget.sqlite, betaPath);
+    } else {
+      log.warn('legacy-port: v1-beta source selected but emdash3.db was not found', { betaPath });
+    }
+  }
+
+  if (!selectedSources.has('v0')) {
+    await markStatus(stateStore, selectedSources.has('v1-beta') ? 'kept-beta' : 'skipped-legacy');
+    return;
+  }
+
+  if (!hasLegacyDatabaseFile(userDataPath)) {
     log.info('legacy-port: no legacy emdash.db found, marking complete');
     await markStatus(stateStore, 'no-legacy-file');
     return;
   }
 
-  const legacyPath = resolveLegacyPath(userDataPath);
+  const legacyPath = resolveLegacyDatabasePath(userDataPath);
   let legacyDb: Database.Database;
 
   try {
@@ -117,39 +167,72 @@ export async function runLegacyPort(
 
   const start = Date.now();
 
-  try {
-    const remap = createRemapTables();
+  const betaPath = resolveBetaDatabasePath(userDataPath);
+  const shouldCopyBeta = selectedSources.has('v1-beta') && hasBetaDatabaseFile(userDataPath);
+  const runImport = async (): Promise<{
+    sshSummary: PortSummary;
+    projectsSummary: PortSummary;
+    taskResult: Awaited<ReturnType<typeof portTasks>>;
+    conversationsSummary: PortSummary;
+  }> =>
+    await withAtomicDestinationImport(appTarget.sqlite, async () => {
+      const remap = createRemapTables();
+      if (selectedSources.has('v1-beta')) {
+        if (shouldCopyBeta) {
+          copyAttachedBetaDatabaseIntoDestination(appTarget.sqlite);
+        } else {
+          log.warn('legacy-port: v1-beta source selected but emdash3.db was not found', {
+            betaPath,
+          });
+        }
+      } else {
+        clearDestinationDataPreservingSignIn(appTarget.sqlite);
+      }
 
-    const sshSummary = await portSshConnections({ appDb: appTarget.db, legacyDb, remap });
-    const projectsSummary = await portProjects({ appDb: appTarget.db, legacyDb, remap });
-    const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
-    const conversationsSummary = await portConversations({
-      appDb: appTarget.db,
-      legacyDb,
-      remap,
-      mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
-      userDataPath,
+      const selection = await buildLegacyProjectSelection({
+        appDb: appTarget.db,
+        legacyDb,
+        selectedSources,
+        conflictChoices: options.conflictChoices ?? {},
+      });
+
+      if (selectedSources.has('v1-beta')) {
+        deleteProjectsById(appTarget.sqlite, selection.replaceAppProjectIds);
+      }
+
+      const sshSummary = await portSshConnections({
+        appDb: appTarget.db,
+        legacyDb,
+        remap,
+        allowedLegacyConnectionIds: selection.allowedLegacySshConnectionIds,
+      });
+      const projectsSummary = await portProjects({
+        appDb: appTarget.db,
+        legacyDb,
+        remap,
+        skipLegacyProjectIds: selection.skipLegacyProjectIds,
+      });
+      const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
+      const conversationsSummary = await portConversations({
+        appDb: appTarget.db,
+        legacyDb,
+        remap,
+        mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
+        userDataPath,
+      });
+
+      return { sshSummary, projectsSummary, taskResult, conversationsSummary };
     });
+
+  try {
+    const { sshSummary, projectsSummary, taskResult, conversationsSummary } = shouldCopyBeta
+      ? await withBetaDatabaseAttached(appTarget.sqlite, betaPath, runImport)
+      : await runImport();
 
     logSummary(sshSummary);
     logSummary(projectsSummary);
     logSummary(taskResult.summary);
     logSummary(conversationsSummary);
-
-    try {
-      const authSummary = await portLegacyAuthState(userDataPath, {
-        appDb: appTarget.db,
-        appSqlite: appTarget.sqlite,
-        legacyToAppSshConnectionId: remap.sshConnectionId,
-      });
-      log.info(
-        `legacy-port: auth: imported_secrets=${authSummary.importedSecrets.length}, imported_kv=${authSummary.importedKv.length}, imported_ssh_passwords=${authSummary.importedSshPasswords}, skipped=${authSummary.skipped.length}`
-      );
-    } catch (error) {
-      log.warn('legacy-port: auth: failed to port legacy credentials, continuing', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
 
     try {
       const settingsSummary = await portLegacySettings(userDataPath, {
