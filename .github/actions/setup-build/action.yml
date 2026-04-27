@@ -10,6 +10,10 @@ inputs:
     description: PostHog host
     required: false
     default: ''
+  build-variant:
+    description: Build variant to embed (canary | prod)
+    required: false
+    default: 'prod'
   windows-native:
     description: Set to true on Windows to pass MSVC/gyp flags to pnpm install
     required: false
@@ -53,6 +57,8 @@ runs:
       env:
         PH_KEY: ${{ inputs.posthog-key }}
         PH_HOST: ${{ inputs.posthog-host }}
+        BUILD_VARIANT: ${{ inputs.build-variant }}
       run: |
         echo "VITE_POSTHOG_KEY=$PH_KEY" >> .env.production
         echo "VITE_POSTHOG_HOST=$PH_HOST" >> .env.production
+        echo "VITE_BUILD=$BUILD_VARIANT" >> .env.production

@@ -1,0 +1,3 @@
+provider: generic
+url: https://releases.emdash.sh
+channel: v1-canary
