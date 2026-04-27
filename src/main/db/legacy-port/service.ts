@@ -77,6 +77,28 @@ async function markStatus(
   }
 }
 
+async function withAtomicDestinationImport<T>(
+  sqlite: Database.Database,
+  action: () => Promise<T>
+): Promise<T> {
+  const foreignKeys = sqlite.pragma('foreign_keys', { simple: true }) as number;
+  sqlite.pragma('foreign_keys = OFF');
+  sqlite.exec('BEGIN IMMEDIATE');
+
+  try {
+    const result = await action();
+    sqlite.exec('COMMIT');
+    return result;
+  } catch (error) {
+    if (sqlite.inTransaction) {
+      sqlite.exec('ROLLBACK');
+    }
+    throw error;
+  } finally {
+    sqlite.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);
+  }
+}
+
 export async function createDefaultLegacyPortStateStore(): Promise<LegacyPortStateStore> {
   return createLegacyPortStateStore();
 }
@@ -142,42 +164,47 @@ export async function runLegacyPort(
   const start = Date.now();
 
   try {
-    const remap = createRemapTables();
-    if (!selectedSources.has('v1-beta')) {
-      clearDestinationDataPreservingSignIn(appTarget.sqlite);
-    }
+    const { sshSummary, projectsSummary, taskResult, conversationsSummary } =
+      await withAtomicDestinationImport(appTarget.sqlite, async () => {
+        const remap = createRemapTables();
+        if (!selectedSources.has('v1-beta')) {
+          clearDestinationDataPreservingSignIn(appTarget.sqlite);
+        }
 
-    const selection = await buildLegacyProjectSelection({
-      appDb: appTarget.db,
-      legacyDb,
-      selectedSources,
-      conflictChoices: options.conflictChoices ?? {},
-    });
+        const selection = await buildLegacyProjectSelection({
+          appDb: appTarget.db,
+          legacyDb,
+          selectedSources,
+          conflictChoices: options.conflictChoices ?? {},
+        });
 
-    if (selectedSources.has('v1-beta')) {
-      deleteProjectsById(appTarget.sqlite, selection.replaceAppProjectIds);
-    }
+        if (selectedSources.has('v1-beta')) {
+          deleteProjectsById(appTarget.sqlite, selection.replaceAppProjectIds);
+        }
 
-    const sshSummary = await portSshConnections({
-      appDb: appTarget.db,
-      legacyDb,
-      remap,
-      allowedLegacyConnectionIds: selection.allowedLegacySshConnectionIds,
-    });
-    const projectsSummary = await portProjects({
-      appDb: appTarget.db,
-      legacyDb,
-      remap,
-      skipLegacyProjectIds: selection.skipLegacyProjectIds,
-    });
-    const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
-    const conversationsSummary = await portConversations({
-      appDb: appTarget.db,
-      legacyDb,
-      remap,
-      mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
-      userDataPath,
-    });
+        const sshSummary = await portSshConnections({
+          appDb: appTarget.db,
+          legacyDb,
+          remap,
+          allowedLegacyConnectionIds: selection.allowedLegacySshConnectionIds,
+        });
+        const projectsSummary = await portProjects({
+          appDb: appTarget.db,
+          legacyDb,
+          remap,
+          skipLegacyProjectIds: selection.skipLegacyProjectIds,
+        });
+        const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
+        const conversationsSummary = await portConversations({
+          appDb: appTarget.db,
+          legacyDb,
+          remap,
+          mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
+          userDataPath,
+        });
+
+        return { sshSummary, projectsSummary, taskResult, conversationsSummary };
+      });
 
     logSummary(sshSummary);
     logSummary(projectsSummary);
