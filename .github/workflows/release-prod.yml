@@ -1,0 +1,259 @@
+name: Release (Production)
+
+on:
+  push:
+    tags:
+      - 'v1.*'
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: 'Architecture to build (arm64 | x64 | both)'
+        required: false
+        default: 'both'
+      dry_run:
+        description: 'Build signed+stapled but DO NOT publish (artifacts only)'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: read
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Init flags
+        id: init
+        run: |
+          set -euo pipefail
+          DRY=${{ inputs.dry_run || '' }}
+          if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
+          DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
+          case "$DRY" in
+            true|1|yes) DRY=true ;;
+            *) DRY=false ;;
+          esac
+          echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-build
+        with:
+          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          posthog-host: ${{ secrets.POSTHOG_HOST }}
+
+      - run: pnpm run build
+
+      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
+
+      - name: Build unsigned DMGs
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg
+
+      - name: Verify macOS bundle
+        run: node --experimental-strip-types scripts/release/verify-mac.ts
+
+  release-linux:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libsecret-1-dev rpm
+      - uses: ./.github/actions/setup-build
+        with:
+          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          posthog-host: ${{ secrets.POSTHOG_HOST }}
+
+      - run: pnpm run build
+
+      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
+
+      - name: Build Linux packages
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform linux --arch x64
+
+      - uses: ./.github/actions/upload-r2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+
+  release-win:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    environment: release
+    steps:
+      - name: Init flags
+        id: init
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRY=${{ inputs.dry_run || '' }}
+          if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
+          if [ "${GITHUB_EVENT_NAME:-}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "branch" ]; then
+            DRY=true
+          fi
+          DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
+          case "$DRY" in
+            true|1|yes) DRY=true ;;
+            *) DRY=false ;;
+          esac
+          echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-build
+        with:
+          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          posthog-host: ${{ secrets.POSTHOG_HOST }}
+          windows-native: 'true'
+      - name: Export Python path for native modules
+        shell: bash
+        run: echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Build app
+        shell: bash
+        run: pnpm run build
+
+      - shell: bash
+        run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
+
+      - name: Check Azure Trusted Signing secrets
+        id: signing
+        shell: bash
+        env:
+          AZ_TENANT: ${{ secrets.AZURE_TENANT_ID }}
+          AZ_CLIENT: ${{ secrets.AZURE_CLIENT_ID }}
+          AZ_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          if [ -n "$AZ_TENANT" ] && [ -n "$AZ_CLIENT" ] && [ -n "$AZ_SECRET" ]; then
+            echo "has_signing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_signing=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Azure Trusted Signing secrets not configured. Windows build will be unsigned."
+          fi
+
+      - name: Build Windows packages
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform win --arch x64
+
+      - name: Verify Windows code signature
+        if: ${{ steps.signing.outputs.has_signing == 'true' }}
+        shell: bash
+        run: node --experimental-strip-types scripts/release/verify-win.ts
+
+      - name: Upload to R2
+        if: ${{ steps.init.outputs.dry_run != 'true' }}
+        uses: ./.github/actions/upload-r2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+
+      - name: Upload artifacts (dry-run)
+        if: ${{ steps.init.outputs.dry_run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: WINDOWS-ARTIFACTS
+          path: |
+            release/emdash-*.exe
+            release/emdash-*.msi
+            release/*.blockmap
+            release/v1-stable*.yml
+          if-no-files-found: error
+
+  release-mac:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    environment: release
+    steps:
+      - name: Init flags
+        id: init
+        run: |
+          set -euo pipefail
+          DRY=${{ inputs.dry_run || '' }}
+          if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
+          DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
+          case "$DRY" in
+            true|1|yes) DRY=true ;;
+            *) DRY=false ;;
+          esac
+          echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-build
+        with:
+          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          posthog-host: ${{ secrets.POSTHOG_HOST }}
+
+      - name: Import Apple signing certificate
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.CERTIFICATE_PASSWORD }}
+
+      - run: pnpm run build
+
+      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
+
+      - name: Build signed DMGs + ZIPs
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'true'
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg,zip
+
+      - name: Verify macOS bundle
+        run: >
+          node --experimental-strip-types scripts/release/verify-mac.ts
+          --expected-team-id ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Notarize and staple
+        if: ${{ steps.init.outputs.dry_run != 'true' }}
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: node --experimental-strip-types scripts/release/notarize-mac.ts
+
+      - name: Upload to R2
+        if: ${{ steps.init.outputs.dry_run != 'true' }}
+        uses: ./.github/actions/upload-r2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+
+      - name: Upload artifacts (dry-run)
+        if: ${{ steps.init.outputs.dry_run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: SIGNED-STAPLED-DMGS
+          path: |
+            release/emdash-*.dmg
+            release/emdash-*.zip
+            release/*.blockmap
+            release/v1-stable*.yml
+          if-no-files-found: error

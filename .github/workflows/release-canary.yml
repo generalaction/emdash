@@ -1,9 +1,6 @@
-name: Release
+name: Release (Canary)
 
 on:
-  push:
-    tags:
-      - 'v1.*'
   workflow_dispatch:
     inputs:
       arch:
@@ -51,12 +48,12 @@ jobs:
         run: >
           node --experimental-strip-types scripts/release/build.ts
           --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg
+          --config electron-builder.canary.config.ts
 
       - name: Verify macOS bundle
         run: node --experimental-strip-types scripts/release/verify-mac.ts
 
   release-linux:
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -78,17 +75,18 @@ jobs:
         run: >
           node --experimental-strip-types scripts/release/build.ts
           --platform linux --arch x64
+          --config electron-builder.canary.config.ts
 
-      - name: Upload to R2
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-        run: node --experimental-strip-types scripts/release/upload-r2.ts
+      - uses: ./.github/actions/upload-r2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          channel: v1-canary
+          prefix: emdash-canary
 
   release-win:
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: windows-2022
     permissions:
       contents: read
@@ -101,9 +99,6 @@ jobs:
           set -euo pipefail
           DRY=${{ inputs.dry_run || '' }}
           if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
-          if [ "${GITHUB_EVENT_NAME:-}" = "push" ] && [ "${GITHUB_REF_TYPE:-}" = "branch" ]; then
-            DRY=true
-          fi
           DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
           case "$DRY" in
             true|1|yes) DRY=true ;;
@@ -152,6 +147,7 @@ jobs:
         run: >
           node --experimental-strip-types scripts/release/build.ts
           --platform win --arch x64
+          --config electron-builder.canary.config.ts
 
       - name: Verify Windows code signature
         if: ${{ steps.signing.outputs.has_signing == 'true' }}
@@ -160,28 +156,28 @@ jobs:
 
       - name: Upload to R2
         if: ${{ steps.init.outputs.dry_run != 'true' }}
-        shell: bash
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-        run: node --experimental-strip-types scripts/release/upload-r2.ts
+        uses: ./.github/actions/upload-r2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          channel: v1-canary
+          prefix: emdash-canary
 
       - name: Upload artifacts (dry-run)
         if: ${{ steps.init.outputs.dry_run == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: WINDOWS-ARTIFACTS
+          name: WINDOWS-CANARY-ARTIFACTS
           path: |
-            release/emdash-*.exe
-            release/emdash-*.msi
+            release/emdash-canary-*.exe
+            release/emdash-canary-*.msi
             release/*.blockmap
-            release/v1-stable*.yml
+            release/v1-canary*.yml
           if-no-files-found: error
 
   release-mac:
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     permissions:
       contents: read
@@ -225,6 +221,7 @@ jobs:
         run: >
           node --experimental-strip-types scripts/release/build.ts
           --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg,zip
+          --config electron-builder.canary.config.ts
 
       - name: Verify macOS bundle
         run: >
@@ -241,21 +238,23 @@ jobs:
 
       - name: Upload to R2
         if: ${{ steps.init.outputs.dry_run != 'true' }}
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-        run: node --experimental-strip-types scripts/release/upload-r2.ts
+        uses: ./.github/actions/upload-r2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          channel: v1-canary
+          prefix: emdash-canary
 
       - name: Upload artifacts (dry-run)
         if: ${{ steps.init.outputs.dry_run == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: SIGNED-STAPLED-DMGS
+          name: SIGNED-STAPLED-CANARY-DMGS
           path: |
-            release/emdash-*.dmg
-            release/emdash-*.zip
+            release/emdash-canary-*.dmg
+            release/emdash-canary-*.zip
             release/*.blockmap
-            release/v1-stable*.yml
+            release/v1-canary*.yml
           if-no-files-found: error
