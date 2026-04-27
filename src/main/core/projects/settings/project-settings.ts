@@ -221,6 +221,20 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
         },
       });
       if (normalized.success) {
+        if (this.rootFs) {
+          try {
+            await this.rootFs.mkdir(normalized.data, { recursive: true });
+          } catch {
+            log.warn(
+              'SshProjectSettingsProvider: inaccessible worktreeDirectory, falling back to default',
+              {
+                worktreeDirectory: settings.worktreeDirectory,
+                defaultWorktreeDirectory,
+              }
+            );
+            return defaultWorktreeDirectory;
+          }
+        }
         return normalized.data;
       }
       {
