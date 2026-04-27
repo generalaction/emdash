@@ -1,3 +1,4 @@
+import { RequestError } from '@octokit/request-error';
 import { createRPCController } from '@shared/ipc/rpc';
 import type { ListPrOptions, PullRequestFile } from '@shared/pull-requests';
 import { log } from '@main/lib/logger';
@@ -166,13 +167,14 @@ export const pullRequestController = createRPCController({
       capture('pr_creation_failed', {
         error_type: error instanceof Error ? error.name || 'error' : 'unknown_error',
       });
-      const ghErrors = (error as any)?.response?.data?.errors;
+      const ghErrors =
+        error instanceof RequestError &&
+        Array.isArray((error.response?.data as { errors?: unknown[] } | undefined)?.errors)
+          ? (error.response!.data as { errors: { message?: string }[] }).errors
+          : undefined;
       const message =
-        Array.isArray(ghErrors) && ghErrors[0]?.message
-          ? ghErrors[0].message
-          : error instanceof Error
-            ? error.message
-            : 'Unable to create pull request';
+        ghErrors?.[0]?.message ??
+        (error instanceof Error ? error.message : 'Unable to create pull request');
       return { success: false as const, error: message };
     }
   },

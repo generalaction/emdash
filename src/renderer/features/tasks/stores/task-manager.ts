@@ -20,7 +20,7 @@ import {
   isRegistered,
   isUnprovisioned,
   isUnregistered,
-  TaskStore,
+  type TaskStore,
 } from './task';
 
 function formatCreateTaskError(error: CreateTaskError): string {
@@ -37,7 +37,7 @@ function formatCreateTaskError(error: CreateTaskError): string {
           return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
           return `Branch "${error.error.name}" is not a valid branch name.`;
-        case 'error':
+        default:
           return `Could not create branch "${error.branch}": ${error.error.message}`;
       }
     }

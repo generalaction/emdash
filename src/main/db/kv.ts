@@ -1,4 +1,5 @@
 import { eq, like } from 'drizzle-orm';
+import { log } from '@main/lib/logger';
 import { db } from './client';
 import { kv } from './schema';
 
@@ -36,23 +37,23 @@ export class KV<TSchema extends Record<string, unknown>> {
         .values({ key: this.prefixed(key), value: serialised, updatedAt: now })
         .onConflictDoUpdate({ target: kv.key, set: { value: serialised, updatedAt: now } });
     } catch (e) {
-      // kv table may not exist yet during the first-run migration window
+      log.error('Failed to set KV', { key, value, error: e });
     }
   }
 
   async del<K extends keyof TSchema & string>(key: K): Promise<void> {
     try {
       await db.delete(kv).where(eq(kv.key, this.prefixed(key)));
-    } catch {
-      // kv table may not exist yet during the first-run migration window
+    } catch (e) {
+      log.error('Failed to delete KV', { key, error: e });
     }
   }
 
   async clear(): Promise<void> {
     try {
       await db.delete(kv).where(like(kv.key, `${this.namespace}:%`));
-    } catch {
-      // kv table may not exist yet during the first-run migration window
+    } catch (e) {
+      log.error('Failed to clear KV', { namespace: this.namespace, error: e });
     }
   }
 }
