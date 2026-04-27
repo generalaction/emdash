@@ -3,7 +3,6 @@ import { sql } from 'drizzle-orm';
 import { type LocalProject, type ProjectPathStatus, type SshProject } from '@shared/projects';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
 import { GitService } from '@main/core/git/impl/git-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -11,6 +10,7 @@ import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getGitSshExec, getLocalExec } from '@main/core/utils/exec';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import { checkIsValidDirectory } from '../path-utils';
 
 async function ensureGitRepository(
   git: GitService,
