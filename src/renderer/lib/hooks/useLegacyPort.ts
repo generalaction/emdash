@@ -72,8 +72,8 @@ export function useLegacyPortImport() {
 export function useLegacyPortSkip() {
   const queryClient = useQueryClient();
   return useMutation({
-    // run import without args skips import
-    mutationFn: () => rpc.legacyPort.runImport(),
+    // An explicit empty source list means "skip import and start fresh".
+    mutationFn: () => rpc.legacyPort.runImport({ sources: [] }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...LEGACY_PORT_STATUS_KEY] });
     },

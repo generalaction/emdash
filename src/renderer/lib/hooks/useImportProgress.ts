@@ -107,5 +107,5 @@ export function useImportProgress() {
     }
   };
 
-  return { error, isImporting, progress, run };
+  return { clearError: () => setError(null), error, isImporting, progress, run };
 }

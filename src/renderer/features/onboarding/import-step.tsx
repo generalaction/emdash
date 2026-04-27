@@ -42,6 +42,7 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const [conflictChoiceOverrides, setConflictChoiceOverrides] = useState<
     Record<string, LegacyImportSource>
   >({});
+  const [skipError, setSkipError] = useState<string | null>(null);
 
   const selectedSources = selectedSourcesOverride ?? sourceOptions;
   const visibleConflicts = useMemo(() => {
@@ -67,6 +68,7 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
   };
 
   const handleImport = async () => {
+    setSkipError(null);
     const conflictChoices = Object.fromEntries(
       visibleConflicts.map((conflict) => [
         conflict.identityKey,
@@ -85,8 +87,21 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
   };
 
   const handleSkip = async () => {
-    await importProgress.run(() => skipMutation.mutateAsync(), { onComplete });
+    setSkipError(null);
+    importProgress.clearError();
+    try {
+      const result = await skipMutation.mutateAsync();
+      if (!result.success) {
+        setSkipError(result.error ?? 'Skip failed');
+        return;
+      }
+      onComplete();
+    } catch (err) {
+      setSkipError(err instanceof Error ? err.message : 'Skip failed');
+    }
   };
+
+  const isBusy = importProgress.isImporting || skipMutation.isPending;
 
   return (
     <div className="flex h-full min-h-0 w-full max-w-3xl flex-col gap-5 overflow-hidden p-6">
@@ -113,20 +128,13 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
       {importProgress.error && (
         <p className="text-sm text-destructive text-center">{importProgress.error}</p>
       )}
+      {skipError && <p className="text-sm text-destructive text-center">{skipError}</p>}
 
       <div className="flex w-full shrink-0 flex-col gap-2">
-        <Button
-          size={'lg'}
-          onClick={handleImport}
-          disabled={importProgress.isImporting || !canImport}
-        >
+        <Button size={'lg'} onClick={handleImport} disabled={isBusy || !canImport}>
           {importProgress.isImporting ? 'Importing...' : 'Import data'}
         </Button>
-        <Button
-          variant="ghost"
-          onClick={handleSkip}
-          disabled={importProgress.isImporting || skipMutation.isPending}
-        >
+        <Button variant="ghost" onClick={handleSkip} disabled={isBusy}>
           Skip
         </Button>
       </div>
