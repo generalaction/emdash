@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 const buildSchema = z.object({
-  VITE_POSTHOG_KEY: z.string().min(1).optional(),
-  VITE_POSTHOG_HOST: z.string().url().optional(),
+  VITE_POSTHOG_KEY: z.string().optional(),
+  VITE_POSTHOG_HOST: z.string().optional(),
 });
 
 // Dev-only overrides: read from process.env (supports non-VITE_ prefixed vars,
