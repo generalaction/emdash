@@ -155,7 +155,7 @@ jobs:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        run: node --experimental-strip-types scripts/release/notarize-mac.ts
+        run: node --experimental-strip-types scripts/release/notarize-mac.ts --app-bundle "Emdash Canary.app"
 
       - name: Upload to R2
         uses: ./.github/actions/upload-r2
