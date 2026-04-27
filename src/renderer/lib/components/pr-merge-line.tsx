@@ -32,7 +32,7 @@ export function getPrMergeLineActionText(status: PullRequest['status']) {
     case 'merged':
       return 'merged into';
     case 'closed':
-      return 'was closed without merging into';
+      return 'closed without merging into';
     case 'open':
       return 'wants to merge into';
   }
