@@ -7,10 +7,6 @@ on:
         description: 'Architecture to build (arm64 | x64 | both)'
         required: false
         default: 'both'
-      dry_run:
-        description: 'Build signed+stapled but DO NOT publish (artifacts only)'
-        required: false
-        default: 'true'
 
 permissions:
   contents: read
@@ -19,19 +15,6 @@ jobs:
   build-mac:
     runs-on: macos-latest
     steps:
-      - name: Init flags
-        id: init
-        run: |
-          set -euo pipefail
-          DRY=${{ inputs.dry_run || '' }}
-          if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
-          DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
-          case "$DRY" in
-            true|1|yes) DRY=true ;;
-            *) DRY=false ;;
-          esac
-          echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-build
         with:
@@ -92,20 +75,6 @@ jobs:
       contents: read
     environment: release
     steps:
-      - name: Init flags
-        id: init
-        shell: bash
-        run: |
-          set -euo pipefail
-          DRY=${{ inputs.dry_run || '' }}
-          if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
-          DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
-          case "$DRY" in
-            true|1|yes) DRY=true ;;
-            *) DRY=false ;;
-          esac
-          echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-build
         with:
@@ -155,7 +124,6 @@ jobs:
         run: node --experimental-strip-types scripts/release/verify-win.ts
 
       - name: Upload to R2
-        if: ${{ steps.init.outputs.dry_run != 'true' }}
         uses: ./.github/actions/upload-r2
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
@@ -165,37 +133,12 @@ jobs:
           channel: v1-canary
           prefix: emdash-canary
 
-      - name: Upload artifacts (dry-run)
-        if: ${{ steps.init.outputs.dry_run == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: WINDOWS-CANARY-ARTIFACTS
-          path: |
-            release/emdash-canary-*.exe
-            release/emdash-canary-*.msi
-            release/*.blockmap
-            release/v1-canary*.yml
-          if-no-files-found: error
-
   release-mac:
     runs-on: macos-latest
     permissions:
       contents: read
     environment: release
     steps:
-      - name: Init flags
-        id: init
-        run: |
-          set -euo pipefail
-          DRY=${{ inputs.dry_run || '' }}
-          if [ -z "$DRY" ]; then DRY=${{ github.event.inputs.dry_run || '' }}; fi
-          DRY=$(printf "%s" "$DRY" | tr '[:upper:]' '[:lower:]')
-          case "$DRY" in
-            true|1|yes) DRY=true ;;
-            *) DRY=false ;;
-          esac
-          echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-build
         with:
@@ -229,7 +172,6 @@ jobs:
           --expected-team-id ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Notarize and staple
-        if: ${{ steps.init.outputs.dry_run != 'true' }}
         env:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
@@ -237,7 +179,6 @@ jobs:
         run: node --experimental-strip-types scripts/release/notarize-mac.ts
 
       - name: Upload to R2
-        if: ${{ steps.init.outputs.dry_run != 'true' }}
         uses: ./.github/actions/upload-r2
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
@@ -246,15 +187,3 @@ jobs:
           r2-bucket: ${{ secrets.R2_BUCKET }}
           channel: v1-canary
           prefix: emdash-canary
-
-      - name: Upload artifacts (dry-run)
-        if: ${{ steps.init.outputs.dry_run == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: SIGNED-STAPLED-CANARY-DMGS
-          path: |
-            release/emdash-canary-*.dmg
-            release/emdash-canary-*.zip
-            release/*.blockmap
-            release/v1-canary*.yml
-          if-no-files-found: error
