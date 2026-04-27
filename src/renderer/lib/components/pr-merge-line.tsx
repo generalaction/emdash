@@ -13,17 +13,29 @@ export function PrMergeLine({ pr, className }: { pr: PullRequest; className?: st
   const baseBranch = pr.baseRefName;
   const headOwner = ownerFromUrl(pr.headRepositoryUrl) ?? author;
   const headBranch = pr.headRefName;
+  const actionText = getPrMergeLineActionText(pr.status);
 
   return (
     <p className={cn('text-xs text-foreground-muted flex items-center gap-1 min-w-0', className)}>
       {author && <span className="font-medium shrink-0">{author}</span>}
       {author && ' '}
-      <span className="shrink-0">wants to merge into </span>
+      <span className="shrink-0">{actionText} </span>
       <PrBranchBadge owner={baseOwner} branch={baseBranch} />
       <span className="shrink-0"> from </span>
       <PrBranchBadge owner={headOwner} branch={headBranch} />
     </p>
   );
+}
+
+export function getPrMergeLineActionText(status: PullRequest['status']) {
+  switch (status) {
+    case 'merged':
+      return 'merged into';
+    case 'closed':
+      return 'was closed without merging into';
+    case 'open':
+      return 'wants to merge into';
+  }
 }
 
 function PrBranchBadge({ owner, branch }: { owner?: string; branch: string }) {
