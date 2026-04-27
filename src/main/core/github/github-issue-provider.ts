@@ -7,6 +7,17 @@ import {
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { githubConnectionService } from './services/github-connection-service';
 import { issueService } from './services/issue-service';
+import { parseNameWithOwner } from './services/utils';
+
+// The renderer passes a full repository URL (e.g. https://github.com/owner/repo)
+// as `nameWithOwner`, but the underlying issue service expects the plain
+// `owner/repo` shape. Normalise URLs here while still accepting the bare form
+// used by tests and direct callers.
+function resolveNameWithOwner(input?: string): string | null {
+  const trimmed = requireNameWithOwner(input);
+  if (!trimmed) return null;
+  return parseNameWithOwner(trimmed) ?? (/^[^/\s]+\/[^/\s]+$/.test(trimmed) ? trimmed : null);
+}
 
 function toIssue(raw: {
   number: number;
@@ -82,7 +93,7 @@ export const githubIssueProvider: IssueProvider = {
   },
 
   listIssues: async (opts) => {
-    const nameWithOwner = requireNameWithOwner(opts.nameWithOwner);
+    const nameWithOwner = resolveNameWithOwner(opts.nameWithOwner);
     if (!nameWithOwner) {
       return { success: false, error: 'Repository name is required.' };
     }
@@ -91,7 +102,7 @@ export const githubIssueProvider: IssueProvider = {
   },
 
   searchIssues: async (opts) => {
-    const nameWithOwner = requireNameWithOwner(opts.nameWithOwner);
+    const nameWithOwner = resolveNameWithOwner(opts.nameWithOwner);
     if (!nameWithOwner) {
       return { success: false, error: 'Repository name is required.' };
     }
