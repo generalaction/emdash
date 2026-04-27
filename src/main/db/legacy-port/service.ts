@@ -1,9 +1,12 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { StartupDataGateStatus } from '@shared/startup-data-gate';
+import { PREVIOUS_DB_FILENAME } from '@main/db/default-path';
 import { log } from '../../lib/logger';
 import * as schema from '../schema';
-import { portLegacyAuthState } from './importers/auth/importer';
+import { importBetaDatabaseIntoDestination } from './beta-import';
 import { portConversations } from './importers/relational/conversations';
 import { portProjects } from './importers/relational/projects';
 import { createRemapTables } from './importers/relational/remap';
@@ -13,6 +16,8 @@ import type { PortSummary } from './importers/relational/types';
 import { portLegacySettings } from './importers/settings/importer';
 import { openLegacyReadOnly } from './legacy-source/open-readonly';
 import { hasLegacyDatabaseFile, resolveLegacyDatabasePath } from './legacy-source/path';
+import { clearDestinationDataPreservingSignIn } from './reset';
+import { buildLegacyProjectSelection } from './source-analysis';
 import { createLegacyPortStateStore } from './state-store';
 
 type LegacyPortDb = ReturnType<typeof drizzle<typeof schema>>;
@@ -23,6 +28,7 @@ type AppTarget = {
 };
 
 export type LegacyPortStatus = StartupDataGateStatus;
+export type LegacyImportSource = 'v0' | 'v1-beta';
 
 export interface LegacyPortStateStore {
   getStatus(): Promise<LegacyPortStatus | null>;
@@ -32,6 +38,8 @@ export interface LegacyPortStateStore {
 export type RunLegacyPortOptions = {
   appDb?: Database.Database;
   stateStore?: LegacyPortStateStore;
+  sources?: LegacyImportSource[];
+  conflictChoices?: Record<string, LegacyImportSource>;
 };
 
 async function resolveAppTarget(appSqlite?: Database.Database): Promise<AppTarget> {
@@ -54,7 +62,7 @@ function logSummary(summary: PortSummary): void {
 
 async function markStatus(
   stateStore: LegacyPortStateStore,
-  status: 'completed' | 'no-legacy-file'
+  status: LegacyPortStatus
 ): Promise<void> {
   try {
     await stateStore.setStatus(status);
@@ -63,6 +71,71 @@ async function markStatus(
       status,
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+}
+
+function deleteProjectsById(sqlite: Database.Database, projectIds: ReadonlySet<string>): void {
+  if (projectIds.size === 0) return;
+
+  const ids = [...projectIds];
+  const placeholders = ids.map(() => '?').join(', ');
+  const tableExists = (tableName: string): boolean =>
+    Boolean(
+      sqlite
+        .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`)
+        .get(tableName)
+    );
+
+  const taskRows = tableExists('tasks')
+    ? (sqlite
+        .prepare(`SELECT id FROM tasks WHERE project_id IN (${placeholders})`)
+        .all(...ids) as Array<{ id: string }>)
+    : [];
+  const taskIds = taskRows.map((row) => row.id);
+  const taskPlaceholders = taskIds.map(() => '?').join(', ');
+
+  if (tableExists('messages') && tableExists('conversations')) {
+    sqlite
+      .prepare(
+        `DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE project_id IN (${placeholders}))`
+      )
+      .run(...ids);
+  }
+
+  if (tableExists('conversations')) {
+    sqlite.prepare(`DELETE FROM conversations WHERE project_id IN (${placeholders})`).run(...ids);
+  }
+
+  if (tableExists('terminals')) {
+    sqlite.prepare(`DELETE FROM terminals WHERE project_id IN (${placeholders})`).run(...ids);
+  }
+
+  if (tableExists('editor_buffers')) {
+    sqlite.prepare(`DELETE FROM editor_buffers WHERE project_id IN (${placeholders})`).run(...ids);
+  }
+
+  if (tableExists('project_remotes')) {
+    sqlite.prepare(`DELETE FROM project_remotes WHERE project_id IN (${placeholders})`).run(...ids);
+  }
+
+  if (taskIds.length > 0 && tableExists('tasks_pull_requests')) {
+    sqlite
+      .prepare(`DELETE FROM tasks_pull_requests WHERE task_id IN (${taskPlaceholders})`)
+      .run(...taskIds);
+  }
+
+  if (tableExists('projects_pull_requests')) {
+    sqlite
+      .prepare(`DELETE FROM projects_pull_requests WHERE project_id IN (${placeholders})`)
+      .run(...ids);
+  }
+
+  if (tableExists('tasks')) {
+    sqlite.prepare(`DELETE FROM tasks WHERE project_id IN (${placeholders})`).run(...ids);
+  }
+
+  if (tableExists('projects')) {
+    sqlite.prepare(`DELETE FROM projects WHERE id IN (${placeholders})`).run(...ids);
   }
 }
 
@@ -78,12 +151,21 @@ export function hasLegacyFile(userDataPath: string): boolean {
   return hasLegacyDatabaseFile(userDataPath);
 }
 
+function resolveBetaPath(userDataPath: string): string {
+  return join(userDataPath, PREVIOUS_DB_FILENAME);
+}
+
+function hasBetaFile(userDataPath: string): boolean {
+  return existsSync(resolveBetaPath(userDataPath));
+}
+
 export async function runLegacyPort(
   userDataPath: string,
   options: RunLegacyPortOptions = {}
 ): Promise<void> {
   const appTarget = await resolveAppTarget(options.appDb);
   const stateStore = options.stateStore ?? (await createDefaultLegacyPortStateStore());
+  const selectedSources = new Set<LegacyImportSource>(options.sources ?? ['v0']);
 
   try {
     const status = await stateStore.getStatus();
@@ -94,6 +176,26 @@ export async function runLegacyPort(
     log.warn('legacy-port: failed to read status, continuing', {
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+
+  if (selectedSources.size === 0) {
+    clearDestinationDataPreservingSignIn(appTarget.sqlite);
+    await markStatus(stateStore, 'wiped-beta');
+    return;
+  }
+
+  if (selectedSources.has('v1-beta')) {
+    const betaPath = resolveBetaPath(userDataPath);
+    if (hasBetaFile(userDataPath)) {
+      importBetaDatabaseIntoDestination(appTarget.sqlite, betaPath);
+    } else {
+      log.warn('legacy-port: v1-beta source selected but emdash3.db was not found', { betaPath });
+    }
+  }
+
+  if (!selectedSources.has('v0')) {
+    await markStatus(stateStore, selectedSources.has('v1-beta') ? 'kept-beta' : 'skipped-legacy');
+    return;
   }
 
   if (!hasLegacyFile(userDataPath)) {
@@ -119,9 +221,33 @@ export async function runLegacyPort(
 
   try {
     const remap = createRemapTables();
+    if (!selectedSources.has('v1-beta')) {
+      clearDestinationDataPreservingSignIn(appTarget.sqlite);
+    }
 
-    const sshSummary = await portSshConnections({ appDb: appTarget.db, legacyDb, remap });
-    const projectsSummary = await portProjects({ appDb: appTarget.db, legacyDb, remap });
+    const selection = await buildLegacyProjectSelection({
+      appDb: appTarget.db,
+      legacyDb,
+      selectedSources,
+      conflictChoices: options.conflictChoices ?? {},
+    });
+
+    if (selectedSources.has('v1-beta')) {
+      deleteProjectsById(appTarget.sqlite, selection.replaceAppProjectIds);
+    }
+
+    const sshSummary = await portSshConnections({
+      appDb: appTarget.db,
+      legacyDb,
+      remap,
+      allowedLegacyConnectionIds: selection.allowedLegacySshConnectionIds,
+    });
+    const projectsSummary = await portProjects({
+      appDb: appTarget.db,
+      legacyDb,
+      remap,
+      skipLegacyProjectIds: selection.skipLegacyProjectIds,
+    });
     const taskResult = await portTasks({ appDb: appTarget.db, legacyDb, remap });
     const conversationsSummary = await portConversations({
       appDb: appTarget.db,
@@ -135,21 +261,6 @@ export async function runLegacyPort(
     logSummary(projectsSummary);
     logSummary(taskResult.summary);
     logSummary(conversationsSummary);
-
-    try {
-      const authSummary = await portLegacyAuthState(userDataPath, {
-        appDb: appTarget.db,
-        appSqlite: appTarget.sqlite,
-        legacyToAppSshConnectionId: remap.sshConnectionId,
-      });
-      log.info(
-        `legacy-port: auth: imported_secrets=${authSummary.importedSecrets.length}, imported_kv=${authSummary.importedKv.length}, imported_ssh_passwords=${authSummary.importedSshPasswords}, skipped=${authSummary.skipped.length}`
-      );
-    } catch (error) {
-      log.warn('legacy-port: auth: failed to port legacy credentials, continuing', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
 
     try {
       const settingsSummary = await portLegacySettings(userDataPath, {

@@ -47,7 +47,10 @@ export async function portSshConnections({
   appDb,
   legacyDb,
   remap,
-}: PortContext): Promise<PortSummary> {
+  allowedLegacyConnectionIds,
+}: PortContext & {
+  allowedLegacyConnectionIds?: ReadonlySet<string>;
+}): Promise<PortSummary> {
   const summary = createPortSummary('ssh_connections');
   const nowIso = new Date().toISOString();
 
@@ -102,6 +105,11 @@ export async function portSshConnections({
       log.warn('legacy-port: ssh_connections: skipping invalid row (missing id/host/username)', {
         legacyId,
       });
+      continue;
+    }
+
+    if (allowedLegacyConnectionIds && !allowedLegacyConnectionIds.has(legacyId)) {
+      summary.skippedDedup += 1;
       continue;
     }
 

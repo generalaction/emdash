@@ -68,7 +68,14 @@ async function loadConnectionFingerprintById(
   return result;
 }
 
-export async function portProjects({ appDb, legacyDb, remap }: PortContext): Promise<PortSummary> {
+export async function portProjects({
+  appDb,
+  legacyDb,
+  remap,
+  skipLegacyProjectIds,
+}: PortContext & {
+  skipLegacyProjectIds?: ReadonlySet<string>;
+}): Promise<PortSummary> {
   const summary = createPortSummary('projects');
   const nowIso = new Date().toISOString();
 
@@ -123,6 +130,11 @@ export async function portProjects({ appDb, legacyDb, remap }: PortContext): Pro
     if (!legacyProjectId) {
       summary.skippedInvalid += 1;
       log.warn('legacy-port: projects: skipping invalid row (missing id)');
+      continue;
+    }
+
+    if (skipLegacyProjectIds?.has(legacyProjectId)) {
+      summary.skippedDedup += 1;
       continue;
     }
 
