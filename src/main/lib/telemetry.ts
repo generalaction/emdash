@@ -61,6 +61,7 @@ function getBaseProps() {
   return {
     schema_version: 1,
     app_version: getVersionSafe(),
+    build_variant: appEnv.build.VITE_BUILD,
     source: 'desktop_app',
     electron_version: process.versions.electron,
     platform: process.platform,

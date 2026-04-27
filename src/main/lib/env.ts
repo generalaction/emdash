@@ -4,6 +4,7 @@ import { log } from './logger';
 const buildSchema = z.object({
   VITE_POSTHOG_KEY: z.string().optional(),
   VITE_POSTHOG_HOST: z.string().optional(),
+  VITE_BUILD: z.enum(['canary', 'prod']).default('prod'),
 });
 
 // Dev-only overrides: read from process.env (supports non-VITE_ prefixed vars,

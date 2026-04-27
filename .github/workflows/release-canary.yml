@@ -20,6 +20,7 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          build-variant: canary
 
       - run: pnpm run build
 
@@ -49,6 +50,7 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          build-variant: canary
 
       - run: pnpm run build
 
@@ -80,6 +82,7 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          build-variant: canary
           windows-native: 'true'
       - name: Export Python path for native modules
         shell: bash
@@ -144,6 +147,7 @@ jobs:
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          build-variant: canary
 
       - name: Import Apple signing certificate
         uses: apple-actions/import-codesign-certs@v2
