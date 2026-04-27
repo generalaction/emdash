@@ -46,6 +46,7 @@ function AppContent() {
         legacyStatus.portStatus !== 'no-legacy-file' &&
         !legacyStatus.hasExistingData;
       if (needsImport) computed.push('import');
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       setFrozenSteps(computed);
     }
   }, [view, isLoading, frozenSteps, session, legacyStatus]);

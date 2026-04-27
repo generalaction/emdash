@@ -24,13 +24,11 @@ export function MergeFooter({
   uiState,
   mergeActions,
   isMerging,
-
   onMarkReady,
 }: {
   uiState: MergeUiState;
   mergeActions: SplitButtonAction[];
   isMerging: boolean;
-
   onMarkReady: () => void;
 }) {
   const isDraft = uiState.kind === 'draft';
