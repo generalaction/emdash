@@ -1,24 +1,11 @@
 import type Database from 'better-sqlite3';
+import { quoteIdentifier, tableExists, withForeignKeysDisabled } from './sqlite-utils';
 
 export const PRESERVED_SECRET_KEYS = ['emdash-account-token', 'emdash-github-token'] as const;
 export const PRESERVED_KV_KEYS = ['account:profile', 'github:tokenSource'] as const;
 
-export function quoteIdentifier(identifier: string): string {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
-    throw new Error(`Invalid SQL identifier: ${identifier}`);
-  }
-  return `"${identifier}"`;
-}
-
 function placeholders(values: readonly string[]): string {
   return values.map(() => '?').join(', ');
-}
-
-export function tableExists(sqlite: Database.Database, tableName: string): boolean {
-  const row = sqlite
-    .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`)
-    .get(tableName);
-  return Boolean(row);
 }
 
 export function listUserTables(sqlite: Database.Database): string[] {
@@ -38,10 +25,7 @@ export function listUserTables(sqlite: Database.Database): string[] {
 }
 
 export function clearDestinationDataPreservingSignIn(sqlite: Database.Database): void {
-  const foreignKeys = sqlite.pragma('foreign_keys', { simple: true }) as number;
-  sqlite.pragma('foreign_keys = OFF');
-
-  try {
+  withForeignKeysDisabled(sqlite, () => {
     const tables = listUserTables(sqlite);
     const clear = sqlite.transaction(() => {
       for (const table of tables) {
@@ -68,7 +52,5 @@ export function clearDestinationDataPreservingSignIn(sqlite: Database.Database):
     });
 
     clear();
-  } finally {
-    sqlite.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);
-  }
+  });
 }

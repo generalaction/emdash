@@ -1,15 +1,14 @@
 import type Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
-import { normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { projectRemotes, projects, sshConnections, tasks } from '@main/db/schema';
 import { readLegacyRows, toInteger, toTrimmedString } from './importers/relational/helpers';
 import type { RelationalImportDb } from './importers/relational/types';
+import { makeSshFingerprint, normalizePort } from './legacy-source/normalize';
 import {
-  makeSshFingerprint,
-  normalizeLocalPath,
-  normalizePort,
-  normalizeRemotePath,
-} from './legacy-source/normalize';
+  gitRemoteIdentityKeys,
+  localProjectIdentityKey,
+  sshProjectIdentityKey,
+} from './legacy-source/project-identity';
 import type { LegacyImportSource } from './service';
 
 export type ProjectIdentityKind = 'local' | 'ssh';
@@ -71,31 +70,6 @@ type AppProjectRemoteRow = {
   projectId: string;
   remoteUrl: string;
 };
-
-function localIdentityKey(projectPath: string): string {
-  return `local:${normalizeLocalPath(projectPath)}`;
-}
-
-function sshIdentityKey(fingerprint: string, projectPath: string): string {
-  return `ssh:${fingerprint}:${normalizeRemotePath(projectPath)}`;
-}
-
-function gitRemoteIdentityKey(remote: string): string | null {
-  const normalized = normalizeGitHubUrl(remote.trim())
-    .replace(/\.git$/i, '')
-    .replace(/\/+$/g, '');
-  if (!normalized) return null;
-  return `git:${normalized.toLowerCase()}`;
-}
-
-function githubRepositoryIdentityKey(repository: string): string | null {
-  const normalized = repository
-    .trim()
-    .replace(/^\/+|\/+$/g, '')
-    .replace(/\.git$/i, '');
-  if (!normalized.includes('/')) return null;
-  return gitRemoteIdentityKey(`https://github.com/${normalized}`);
-}
 
 async function readAppProjectRemoteRows(appDb: RelationalImportDb): Promise<AppProjectRemoteRow[]> {
   try {
@@ -174,9 +148,7 @@ export function readLegacyProjectInfos(legacyDb: Database.Database): SourceProje
       toTrimmedString(row.github_repository),
     ].flatMap((value) => {
       if (!value) return [];
-      const remoteKey = gitRemoteIdentityKey(value);
-      const repositoryKey = githubRepositoryIdentityKey(value);
-      return [...new Set([remoteKey, repositoryKey].filter((key): key is string => Boolean(key)))];
+      return gitRemoteIdentityKeys(value);
     });
 
     if (isRemote) {
@@ -189,7 +161,7 @@ export function readLegacyProjectInfos(legacyDb: Database.Database): SourceProje
 
       result.push({
         id,
-        identityKey: sshIdentityKey(fingerprint, remotePath),
+        identityKey: sshProjectIdentityKey(fingerprint, remotePath),
         kind: 'ssh',
         name,
         path: remotePath,
@@ -206,7 +178,7 @@ export function readLegacyProjectInfos(legacyDb: Database.Database): SourceProje
 
     result.push({
       id,
-      identityKey: localIdentityKey(localPath),
+      identityKey: localProjectIdentityKey(localPath),
       kind: 'local',
       name,
       path: localPath,
@@ -230,10 +202,8 @@ export async function readAppProjectInfos(appDb: RelationalImportDb): Promise<So
   const remoteRows = await readAppProjectRemoteRows(appDb);
   const gitRemoteKeysByProject = new Map<string, string[]>();
   for (const row of remoteRows) {
-    const key = gitRemoteIdentityKey(row.remoteUrl);
-    if (!key) continue;
     const keys = gitRemoteKeysByProject.get(row.projectId) ?? [];
-    keys.push(key);
+    keys.push(...gitRemoteIdentityKeys(row.remoteUrl));
     gitRemoteKeysByProject.set(row.projectId, [...new Set(keys)]);
   }
 
@@ -259,7 +229,7 @@ export async function readAppProjectInfos(appDb: RelationalImportDb): Promise<So
       const fingerprint = makeSshFingerprint(row.host, normalizePort(row.port), row.username);
       result.push({
         id: row.id,
-        identityKey: sshIdentityKey(fingerprint, row.path),
+        identityKey: sshProjectIdentityKey(fingerprint, row.path),
         kind: 'ssh',
         name: row.name,
         path: row.path,
@@ -273,7 +243,7 @@ export async function readAppProjectInfos(appDb: RelationalImportDb): Promise<So
 
     result.push({
       id: row.id,
-      identityKey: localIdentityKey(row.path),
+      identityKey: localProjectIdentityKey(row.path),
       kind: 'local',
       name: row.name,
       path: row.path,

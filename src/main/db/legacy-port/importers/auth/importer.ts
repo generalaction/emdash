@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import type Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
 import { appSecrets, kv } from '@main/db/schema';
+import { tableExists } from '../../sqlite-utils';
 import type { RelationalImportDb } from '../relational/types';
 
 const execFileAsync = promisify(execFile);
@@ -104,13 +105,6 @@ const LEGACY_SECRET_SPECS: LegacySecretSpec[] = [
     appSecretKey: 'emdash-account-token',
   },
 ];
-
-function hasTable(appSqlite: Database.Database, tableName: string): boolean {
-  const row = appSqlite
-    .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`)
-    .get(tableName) as { 1: number } | undefined;
-  return !!row;
-}
 
 async function hasStoredSecret(appDb: RelationalImportDb, key: string): Promise<boolean> {
   const [row] = await appDb
@@ -305,8 +299,8 @@ export async function portLegacyAuthState(
     skipped: [],
   };
 
-  const hasKvTable = hasTable(appSqlite, 'kv');
-  const hasSecretsTable = hasTable(appSqlite, 'app_secrets');
+  const hasKvTable = tableExists(appSqlite, 'kv');
+  const hasSecretsTable = tableExists(appSqlite, 'app_secrets');
 
   if (!hasKvTable && !hasSecretsTable) {
     summary.skipped.push('auth-port:missing-kv-and-app-secrets-tables');

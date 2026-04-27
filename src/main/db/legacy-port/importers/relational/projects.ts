@@ -1,14 +1,16 @@
-import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { projects, sshConnections } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import {
   makeSshFingerprint,
-  normalizeLocalPath,
   normalizePort,
   normalizeRemotePath,
 } from '../../legacy-source/normalize';
+import {
+  localProjectIdentityKey,
+  sshProjectIdentityKey,
+} from '../../legacy-source/project-identity';
 import {
   isUniqueConstraintError,
   readLegacyRows,
@@ -16,6 +18,7 @@ import {
   toIsoTimestamp,
   toTrimmedString,
 } from './helpers';
+import { insertWithRegeneratedId } from './insert';
 import { createPortSummary, type PortContext, type PortSummary } from './types';
 
 type ExistingProjectRow = {
@@ -34,14 +37,6 @@ type ConnectionFingerprintRow = {
   port: number;
   username: string;
 };
-
-function localProjectKey(projectPath: string): string {
-  return `local:${normalizeLocalPath(projectPath)}`;
-}
-
-function sshProjectKey(fingerprint: string, projectPath: string): string {
-  return `ssh:${fingerprint}:${normalizeRemotePath(projectPath)}`;
-}
 
 function pickDefaultProjectName(projectPath: string, fallbackId: string): string {
   const derived = basename(projectPath.trim());
@@ -102,11 +97,11 @@ export async function portProjects({
 
     if (row.workspaceProvider === 'ssh' && row.sshConnectionId && row.host && row.username) {
       const fingerprint = makeSshFingerprint(row.host, normalizePort(row.port), row.username);
-      sshKeyToProjectId.set(sshProjectKey(fingerprint, row.path), row.id);
+      sshKeyToProjectId.set(sshProjectIdentityKey(fingerprint, row.path), row.id);
       continue;
     }
 
-    localKeyToProjectId.set(localProjectKey(row.path), row.id);
+    localKeyToProjectId.set(localProjectIdentityKey(row.path), row.id);
   }
 
   const connectionFingerprintById = await loadConnectionFingerprintById(appDb);
@@ -193,7 +188,7 @@ export async function portProjects({
       }
 
       projectPath = remotePath;
-      dedupKey = sshProjectKey(fingerprint, normalizedRemotePath);
+      dedupKey = sshProjectIdentityKey(fingerprint, normalizedRemotePath);
 
       const existingProjectId = sshKeyToProjectId.get(dedupKey);
       if (existingProjectId) {
@@ -212,7 +207,7 @@ export async function portProjects({
       }
 
       projectPath = localPath;
-      dedupKey = localProjectKey(localPath);
+      dedupKey = localProjectIdentityKey(localPath);
 
       const existingProjectId = localKeyToProjectId.get(dedupKey);
       if (existingProjectId) {
@@ -227,10 +222,8 @@ export async function portProjects({
       continue;
     }
 
-    let nextProjectId = projectIds.has(legacyProjectId) ? randomUUID() : legacyProjectId;
-
     const insertValues = {
-      id: nextProjectId,
+      id: legacyProjectId,
       name: toTrimmedString(row.name) ?? pickDefaultProjectName(projectPath, legacyProjectId),
       path: projectPath,
       workspaceProvider,
@@ -240,54 +233,50 @@ export async function portProjects({
       updatedAt,
     };
 
-    let inserted = false;
+    const insertResult = await insertWithRegeneratedId({
+      initialId: legacyProjectId,
+      existingIds: projectIds,
+      uniqueConstraintDetail: 'projects.id',
+      setId: (id) => {
+        insertValues.id = id;
+      },
+      insert: () => appDb.insert(projects).values(insertValues).execute(),
+    });
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        insertValues.id = nextProjectId;
-        await appDb.insert(projects).values(insertValues).execute();
-        inserted = true;
-        break;
-      } catch (error) {
-        if (attempt === 0 && isUniqueConstraintError(error, 'projects.id')) {
-          nextProjectId = randomUUID();
-          continue;
+    if (!insertResult.inserted) {
+      if (isUniqueConstraintError(insertResult.error, 'projects.path')) {
+        const [existingByPath] = await appDb
+          .select({ id: projects.id })
+          .from(projects)
+          .where(eq(projects.path, projectPath))
+          .limit(1)
+          .execute();
+
+        if (existingByPath) {
+          remap.projectId.set(legacyProjectId, existingByPath.id);
+          summary.skippedDedup += 1;
+        } else {
+          summary.skippedError += 1;
+          log.warn('legacy-port: projects: path conflict but no surviving row found', {
+            legacyProjectId,
+            projectPath,
+          });
         }
-
-        if (isUniqueConstraintError(error, 'projects.path')) {
-          const [existingByPath] = await appDb
-            .select({ id: projects.id })
-            .from(projects)
-            .where(eq(projects.path, projectPath))
-            .limit(1)
-            .execute();
-
-          if (existingByPath) {
-            remap.projectId.set(legacyProjectId, existingByPath.id);
-            summary.skippedDedup += 1;
-          } else {
-            summary.skippedError += 1;
-            log.warn('legacy-port: projects: path conflict but no surviving row found', {
-              legacyProjectId,
-              projectPath,
-            });
-          }
-          break;
-        }
-
+      } else {
         summary.skippedError += 1;
         log.warn('legacy-port: projects: failed to insert row', {
           legacyProjectId,
-          error: error instanceof Error ? error.message : String(error),
+          error:
+            insertResult.error instanceof Error
+              ? insertResult.error.message
+              : String(insertResult.error),
         });
-        break;
       }
+      continue;
     }
 
-    if (!inserted) continue;
-
-    remap.projectId.set(legacyProjectId, nextProjectId);
-    projectIds.add(nextProjectId);
+    remap.projectId.set(legacyProjectId, insertResult.id);
+    projectIds.add(insertResult.id);
     summary.inserted += 1;
 
     if (workspaceProvider === 'ssh') {
@@ -295,10 +284,10 @@ export async function portProjects({
         ? connectionFingerprintById.get(mappedSshConnectionId)
         : undefined;
       if (fingerprint) {
-        sshKeyToProjectId.set(sshProjectKey(fingerprint, projectPath), nextProjectId);
+        sshKeyToProjectId.set(sshProjectIdentityKey(fingerprint, projectPath), insertResult.id);
       }
     } else {
-      localKeyToProjectId.set(localProjectKey(projectPath), nextProjectId);
+      localKeyToProjectId.set(localProjectIdentityKey(projectPath), insertResult.id);
     }
   }
 

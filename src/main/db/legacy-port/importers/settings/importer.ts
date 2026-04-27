@@ -5,6 +5,7 @@ import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { isPlainObject, mergeDeep } from '@main/core/settings/utils';
+import { tableExists } from '../../sqlite-utils';
 import type { RelationalImportDb } from '../relational/types';
 
 const LEGACY_SETTINGS_FILE = 'settings.json';
@@ -24,13 +25,6 @@ export type PortLegacySettingsOptions = {
 };
 
 type LegacyTheme = 'light' | 'dark' | 'dark-black' | 'system';
-
-function hasTable(appSqlite: Database.Database, tableName: string): boolean {
-  const row = appSqlite
-    .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`)
-    .get(tableName) as { 1: number } | undefined;
-  return !!row;
-}
 
 function readJsonFile(filePath: string): unknown | null {
   if (!existsSync(filePath)) return null;
@@ -97,7 +91,7 @@ export async function portLegacySettings(
     skipped: [],
   };
 
-  if (!hasTable(appSqlite, 'app_settings')) {
+  if (!tableExists(appSqlite, 'app_settings')) {
     summary.skipped.push('settings:app_settings-table-missing');
     return summary;
   }
