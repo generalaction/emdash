@@ -5,20 +5,21 @@ import parcelWatcher from '@parcel/watcher';
 import { glob } from 'glob';
 import ignore from 'ignore';
 import type { FileWatchEvent } from '@shared/fs';
+import { log } from '@main/lib/logger';
 import {
   DEFAULT_EMDASH_CONFIG,
-  FileEntry,
-  FileListResult,
+  type FileEntry,
+  type FileListResult,
   FileSystemError,
   FileSystemErrorCodes,
-  FileSystemProvider,
-  FileWatcher,
-  ListOptions,
-  ReadResult,
-  SearchMatch,
-  SearchOptions,
-  SearchResult,
-  WriteResult,
+  type FileSystemProvider,
+  type FileWatcher,
+  type ListOptions,
+  type ReadResult,
+  type SearchMatch,
+  type SearchOptions,
+  type SearchResult,
+  type WriteResult,
 } from '../types';
 
 // Binary file extensions to skip during search
@@ -334,6 +335,7 @@ export class LocalFileSystem implements FileSystemProvider {
     try {
       stat = await fs.stat(fullPath);
     } catch (err) {
+      log.error('Failed to stat file', { path, error: err });
       throw new FileSystemError(`File not found: ${path}`, FileSystemErrorCodes.NOT_FOUND, path);
     }
 
@@ -378,6 +380,7 @@ export class LocalFileSystem implements FileSystemProvider {
     try {
       await fs.mkdir(dir, { recursive: true });
     } catch (err) {
+      log.error('Failed to create directory', { dir, error: err });
       throw new FileSystemError(
         `Failed to create directory: ${dir}`,
         FileSystemErrorCodes.PERMISSION_DENIED,
@@ -388,6 +391,7 @@ export class LocalFileSystem implements FileSystemProvider {
     try {
       await fs.writeFile(fullPath, content, 'utf-8');
     } catch (err) {
+      log.error('Failed to write file', { path, error: err });
       throw new FileSystemError(
         `Failed to write file: ${path}`,
         FileSystemErrorCodes.PERMISSION_DENIED,

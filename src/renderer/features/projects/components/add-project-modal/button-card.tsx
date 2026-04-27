@@ -1,9 +1,7 @@
-import { ButtonHTMLAttributes, forwardRef } from 'react';
+import { type ButtonHTMLAttributes, forwardRef } from 'react';
 import { cn } from '@renderer/utils/utils';
 
-interface ButtonCardProps extends ButtonHTMLAttributes<HTMLButtonElement> {}
-
-export const ButtonCard = forwardRef<HTMLButtonElement, ButtonCardProps>(
+export const ButtonCard = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>(
   ({ children, className, ...props }, ref) => {
     return (
       <button

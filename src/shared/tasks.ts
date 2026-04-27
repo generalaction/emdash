@@ -1,6 +1,6 @@
-import { CreateConversationParams } from '@shared/conversations';
+import type { CreateConversationParams } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
-import { PullRequest } from './pull-requests';
+import type { PullRequest } from '@shared/pull-requests';
 
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
 

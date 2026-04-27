@@ -28,7 +28,7 @@ function runElectronRebuild(onlyModules) {
       : spawnSync(electronRebuildBin, args, { stdio: 'inherit' });
 
   if (result.error) {
-    // eslint-disable-next-line no-console
+     
     console.error('postinstall: failed to run electron-rebuild:', result.error);
   }
 
@@ -39,7 +39,7 @@ function runElectronRebuild(onlyModules) {
 const disablePty = process.env.EMDASH_DISABLE_PTY === '1';
 const disableNativeDb = process.env.EMDASH_DISABLE_NATIVE_DB === '1';
 
-const nativeModules = [];
+const nativeModules: string[] = [];
 if (!disableNativeDb) nativeModules.push('better-sqlite3');
 if (!disablePty) nativeModules.push('node-pty');
 

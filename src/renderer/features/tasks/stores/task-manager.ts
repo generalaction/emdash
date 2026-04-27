@@ -20,7 +20,7 @@ import {
   isRegistered,
   isUnprovisioned,
   isUnregistered,
-  TaskStore,
+  type TaskStore,
 } from './task';
 
 function formatCreateTaskError(error: CreateTaskError): string {
@@ -39,6 +39,8 @@ function formatCreateTaskError(error: CreateTaskError): string {
           return `Branch "${error.error.name}" is not a valid branch name.`;
         case 'error':
           return `Could not create branch "${error.branch}": ${error.error.message}`;
+        default:
+          return '';
       }
     }
     case 'pr-fetch-failed':
