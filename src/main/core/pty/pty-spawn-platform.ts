@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { log } from '@main/lib/logger';
+import { getWindowsEnvValue } from '@main/utils/windows-env';
 import { buildTmuxShellLine } from './tmux-session-name';
 
 export type PtyCommandSpec =
@@ -62,12 +63,6 @@ function quoteForCmdExe(input: string): string {
     .replace(/%/g, '%%')
     .replace(/!/g, '^!')
     .replace(/(["^&|<>()])/g, '^$1')}"`;
-}
-
-function getWindowsEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  const lowerKey = key.toLowerCase();
-  const envKey = Object.keys(env).find((candidate) => candidate.toLowerCase() === lowerKey);
-  return envKey ? env[envKey] : undefined;
 }
 
 function getWindowsPathDirs(env: NodeJS.ProcessEnv): string[] {

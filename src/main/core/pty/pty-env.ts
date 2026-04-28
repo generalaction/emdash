@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { detectSshAuthSock } from '@main/utils/shellEnv';
+import { getWindowsEnvValue } from '@main/utils/windows-env';
 
 export const AGENT_ENV_VARS = [
   'AMP_API_KEY',
@@ -60,25 +61,31 @@ function getWindowsEssentialEnv(resolvedPath: string): Record<string, string> {
   const home = os.homedir();
   return {
     PATH: resolvedPath,
-    PATHEXT: process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC',
-    SystemRoot: process.env.SystemRoot || 'C:\\Windows',
-    ComSpec: process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
-    TEMP: process.env.TEMP || process.env.TMP || '',
-    TMP: process.env.TMP || process.env.TEMP || '',
-    USERPROFILE: process.env.USERPROFILE || home,
-    APPDATA: process.env.APPDATA || '',
-    LOCALAPPDATA: process.env.LOCALAPPDATA || '',
-    HOMEDRIVE: process.env.HOMEDRIVE || '',
-    HOMEPATH: process.env.HOMEPATH || '',
-    USERNAME: process.env.USERNAME || os.userInfo().username,
-    ProgramFiles: process.env.ProgramFiles || 'C:\\Program Files',
-    'ProgramFiles(x86)': process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
-    ProgramData: process.env.ProgramData || 'C:\\ProgramData',
-    CommonProgramFiles: process.env.CommonProgramFiles || 'C:\\Program Files\\Common Files',
+    PATHEXT:
+      getWindowsEnvValue(process.env, 'PATHEXT') ||
+      '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC',
+    SystemRoot: getWindowsEnvValue(process.env, 'SystemRoot') || 'C:\\Windows',
+    ComSpec: getWindowsEnvValue(process.env, 'ComSpec') || 'C:\\Windows\\System32\\cmd.exe',
+    TEMP: getWindowsEnvValue(process.env, 'TEMP') || getWindowsEnvValue(process.env, 'TMP') || '',
+    TMP: getWindowsEnvValue(process.env, 'TMP') || getWindowsEnvValue(process.env, 'TEMP') || '',
+    USERPROFILE: getWindowsEnvValue(process.env, 'USERPROFILE') || home,
+    APPDATA: getWindowsEnvValue(process.env, 'APPDATA') || '',
+    LOCALAPPDATA: getWindowsEnvValue(process.env, 'LOCALAPPDATA') || '',
+    HOMEDRIVE: getWindowsEnvValue(process.env, 'HOMEDRIVE') || '',
+    HOMEPATH: getWindowsEnvValue(process.env, 'HOMEPATH') || '',
+    USERNAME: getWindowsEnvValue(process.env, 'USERNAME') || os.userInfo().username,
+    ProgramFiles: getWindowsEnvValue(process.env, 'ProgramFiles') || 'C:\\Program Files',
+    'ProgramFiles(x86)':
+      getWindowsEnvValue(process.env, 'ProgramFiles(x86)') || 'C:\\Program Files (x86)',
+    ProgramData: getWindowsEnvValue(process.env, 'ProgramData') || 'C:\\ProgramData',
+    CommonProgramFiles:
+      getWindowsEnvValue(process.env, 'CommonProgramFiles') || 'C:\\Program Files\\Common Files',
     'CommonProgramFiles(x86)':
-      process.env['CommonProgramFiles(x86)'] || 'C:\\Program Files (x86)\\Common Files',
-    ProgramW6432: process.env.ProgramW6432 || 'C:\\Program Files',
-    CommonProgramW6432: process.env.CommonProgramW6432 || 'C:\\Program Files\\Common Files',
+      getWindowsEnvValue(process.env, 'CommonProgramFiles(x86)') ||
+      'C:\\Program Files (x86)\\Common Files',
+    ProgramW6432: getWindowsEnvValue(process.env, 'ProgramW6432') || 'C:\\Program Files',
+    CommonProgramW6432:
+      getWindowsEnvValue(process.env, 'CommonProgramW6432') || 'C:\\Program Files\\Common Files',
   };
 }
 
@@ -172,7 +179,7 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
   // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
   const resolvedPath =
     process.platform === 'win32'
-      ? (process.env.PATH ?? process.env.Path ?? '')
+      ? (getWindowsEnvValue(process.env, 'PATH') ?? '')
       : (process.env.PATH ?? '');
   const env: Record<string, string> = {
     TERM: 'xterm-256color',
