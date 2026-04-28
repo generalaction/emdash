@@ -1,7 +1,7 @@
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { WorkspaceGitProvider } from '@main/core/git/workspace-git-provider';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/schema';
-import type { WorkspaceLifecycleService } from './workspace-lifecycle-service';
+import type { LifecycleScriptService } from './workspace-lifecycle-service';
 
 export interface Workspace {
   readonly id: string;
@@ -9,5 +9,5 @@ export interface Workspace {
   readonly fs: FileSystemProvider;
   readonly git: WorkspaceGitProvider;
   readonly settings: ProjectSettingsProvider;
-  readonly lifecycleService: WorkspaceLifecycleService;
+  readonly lifecycleService: LifecycleScriptService;
 }

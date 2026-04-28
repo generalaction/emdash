@@ -25,7 +25,7 @@ import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
 import type { Workspace } from '@main/core/workspaces/workspace';
-import { WorkspaceLifecycleService } from '@main/core/workspaces/workspace-lifecycle-service';
+import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -203,7 +203,7 @@ export class LocalProjectProvider implements ProjectProvider {
         exec,
         taskEnvVars: bootstrapTaskEnvVars,
       });
-      const lifecycleService = new WorkspaceLifecycleService({
+      const lifecycleService = new LifecycleScriptService({
         projectId: this.project.id,
         workspaceId,
         terminals: workspaceTerminals,
@@ -218,35 +218,61 @@ export class LocalProjectProvider implements ProjectProvider {
         lifecycleService,
       };
 
-      if (scripts?.setup) {
-        void lifecycleService.prepareAndRunLifecycleScript({
-          type: 'setup',
-          script: scripts.setup,
-        });
-      }
+      return {
+        workspace: createdWorkspace,
 
-      if (scripts?.run) {
-        void lifecycleService.prepareLifecycleScript({
-          type: 'run',
-          script: scripts.run,
-        });
-      }
+        onCreateSideEffect: (ws) => {
+          if (scripts?.setup) {
+            void ws.lifecycleService.prepareAndRunLifecycleScript({
+              type: 'setup',
+              script: scripts.setup,
+            });
+          }
+          if (scripts?.run) {
+            void ws.lifecycleService.prepareLifecycleScript({ type: 'run', script: scripts.run });
+          }
+          if (scripts?.teardown) {
+            void ws.lifecycleService.prepareLifecycleScript({
+              type: 'teardown',
+              script: scripts.teardown,
+            });
+          }
+        },
 
-      if (scripts?.teardown) {
-        void lifecycleService.prepareLifecycleScript({
-          type: 'teardown',
-          script: scripts.teardown,
-        });
-      }
+        onCreate: async (ws) => {
+          const mainDotGitAbs = path.resolve(this.project.path, '.git');
+          const relativeGitDir = await ws.git.getWorktreeGitDir(mainDotGitAbs);
+          this._gitWatcher.registerWorktree(workspaceId, relativeGitDir);
+        },
 
-      return createdWorkspace;
+        onDestroy: async (ws) => {
+          if (scripts?.teardown) {
+            try {
+              await withTimeout(
+                ws.lifecycleService.runLifecycleScript(
+                  { type: 'teardown', script: scripts.teardown },
+                  { waitForExit: true, exit: true }
+                ),
+                TEARDOWN_SCRIPT_WAIT_MS
+              );
+            } catch (error) {
+              if (error instanceof TimeoutSignal) {
+                log.debug('LocalProjectProvider: teardown script wait timed out', {
+                  workspaceId,
+                  timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
+                });
+              } else {
+                log.warn('LocalProjectProvider: teardown script failed (continuing cleanup)', {
+                  workspaceId,
+                  error: String(error),
+                });
+              }
+            }
+          }
+          this._gitWatcher.unregisterWorktree(workspaceId);
+        },
+      };
     });
-
-    // Register the workspace with the git watcher so that index/HEAD changes
-    // in its worktree git dir are emitted as granular workspace events.
-    const mainDotGitAbs = path.resolve(this.project.path, '.git');
-    const relativeGitDir = await workspace.git.getWorktreeGitDir(mainDotGitAbs);
-    this._gitWatcher.registerWorktree(workspaceId, relativeGitDir);
 
     let provisionSucceeded = false;
     try {
@@ -381,45 +407,9 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   private async doTeardownTask(task: TaskProvider): Promise<void> {
-    const wsId = workspaceKey(task.taskBranch);
-    const workspace = this.workspaceRegistry.get(wsId);
-
-    if (workspace) {
-      const settings = await getEffectiveTaskSettings({
-        projectSettings: this.settings,
-        taskFs: workspace.fs,
-      });
-      const scripts = settings.scripts;
-
-      if (scripts?.teardown && this.workspaceRegistry.refCount(wsId) === 1) {
-        try {
-          const runTeardown = workspace.lifecycleService.runLifecycleScript(
-            { type: 'teardown', script: scripts.teardown },
-            { waitForExit: true, exit: true }
-          );
-          await withTimeout(runTeardown, TEARDOWN_SCRIPT_WAIT_MS);
-        } catch (error) {
-          if (error instanceof TimeoutSignal) {
-            log.debug('LocalProjectProvider: teardown script wait timed out', {
-              taskId: task.taskId,
-              timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
-            });
-          } else {
-            log.warn('LocalProjectProvider: teardown script failed (continuing cleanup)', {
-              taskId: task.taskId,
-              error: String(error),
-            });
-          }
-        }
-      }
-    }
-
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
-    if (this.workspaceRegistry.refCount(wsId) <= 1) {
-      this._gitWatcher.unregisterWorktree(wsId);
-    }
-    await this.workspaceRegistry.release(wsId);
+    await this.workspaceRegistry.release(workspaceKey(task.taskBranch));
   }
 
   private async cleanupDetachedTmuxSessions(taskId: string): Promise<void> {

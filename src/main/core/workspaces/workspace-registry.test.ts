@@ -30,7 +30,7 @@ describe('WorkspaceRegistry', () => {
   it('creates once and increments ref count on repeated acquire', async () => {
     const registry = new WorkspaceRegistry();
     const { workspace } = makeWorkspace('branch:main');
-    const factory = vi.fn(async () => workspace);
+    const factory = vi.fn(async () => ({ workspace }));
 
     const first = await registry.acquire('branch:main', factory);
     const second = await registry.acquire('branch:main', factory);
@@ -45,10 +45,10 @@ describe('WorkspaceRegistry', () => {
   it('coalesces concurrent acquires for the same key', async () => {
     const registry = new WorkspaceRegistry();
     const { workspace } = makeWorkspace('branch:main');
-    let resolveFactory: ((value: Workspace) => void) | undefined;
+    let resolveFactory: ((value: { workspace: Workspace }) => void) | undefined;
     const factory = vi.fn(
       () =>
-        new Promise<Workspace>((resolve) => {
+        new Promise<{ workspace: Workspace }>((resolve) => {
           resolveFactory = resolve;
         })
     );
@@ -57,7 +57,7 @@ describe('WorkspaceRegistry', () => {
     const second = registry.acquire('branch:main', factory);
 
     expect(factory).toHaveBeenCalledTimes(1);
-    resolveFactory?.(workspace);
+    resolveFactory?.({ workspace });
 
     await expect(first).resolves.toBe(workspace);
     await expect(second).resolves.toBe(workspace);
@@ -67,7 +67,7 @@ describe('WorkspaceRegistry', () => {
   it('disposes workspace resources when ref count reaches zero', async () => {
     const registry = new WorkspaceRegistry();
     const { workspace, dispose, gitDispose } = makeWorkspace('branch:main');
-    const factory = vi.fn(async () => workspace);
+    const factory = vi.fn(async () => ({ workspace }));
 
     await registry.acquire('branch:main', factory);
     await registry.acquire('branch:main', factory);
@@ -89,9 +89,9 @@ describe('WorkspaceRegistry', () => {
     const first = makeWorkspace('branch:main');
     const second = makeWorkspace('root:');
 
-    await registry.acquire('branch:main', async () => first.workspace);
-    await registry.acquire('branch:main', async () => first.workspace);
-    await registry.acquire('root:', async () => second.workspace);
+    await registry.acquire('branch:main', async () => ({ workspace: first.workspace }));
+    await registry.acquire('branch:main', async () => ({ workspace: first.workspace }));
+    await registry.acquire('root:', async () => ({ workspace: second.workspace }));
 
     await registry.releaseAll();
 
@@ -106,5 +106,116 @@ describe('WorkspaceRegistry', () => {
   it('ignores release for unknown keys', async () => {
     const registry = new WorkspaceRegistry();
     await expect(registry.release('missing')).resolves.toBeUndefined();
+  });
+
+  it('calls onCreateSideEffect once on first acquire and not on re-acquire', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace } = makeWorkspace('branch:main');
+    const onCreateSideEffect = vi.fn();
+    const factory = vi.fn(async () => ({ workspace, onCreateSideEffect }));
+
+    await registry.acquire('branch:main', factory);
+    expect(onCreateSideEffect).toHaveBeenCalledTimes(1);
+    expect(onCreateSideEffect).toHaveBeenCalledWith(workspace);
+
+    await registry.acquire('branch:main', factory);
+    expect(onCreateSideEffect).toHaveBeenCalledTimes(1);
+  });
+
+  it('awaits onCreate before acquire resolves', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace } = makeWorkspace('branch:main');
+    const order: string[] = [];
+
+    const onCreate = vi.fn(async () => {
+      order.push('onCreate');
+    });
+    const factory = vi.fn(async () => ({ workspace, onCreate }));
+
+    const acquired = registry.acquire('branch:main', factory).then((ws) => {
+      order.push('acquired');
+      return ws;
+    });
+
+    await acquired;
+
+    expect(order).toEqual(['onCreate', 'acquired']);
+    expect(onCreate).toHaveBeenCalledWith(workspace);
+  });
+
+  it('does not call onCreate on re-acquire', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace } = makeWorkspace('branch:main');
+    const onCreate = vi.fn(async () => {});
+    const factory = vi.fn(async () => ({ workspace, onCreate }));
+
+    await registry.acquire('branch:main', factory);
+    await registry.acquire('branch:main', factory);
+
+    expect(onCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onDestroy once at final release, not on earlier releases', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace } = makeWorkspace('branch:main');
+    const onDestroy = vi.fn(async () => {});
+    const factory = vi.fn(async () => ({ workspace, onDestroy }));
+
+    await registry.acquire('branch:main', factory);
+    await registry.acquire('branch:main', factory);
+
+    await registry.release('branch:main');
+    expect(onDestroy).not.toHaveBeenCalled();
+
+    await registry.release('branch:main');
+    expect(onDestroy).toHaveBeenCalledTimes(1);
+    expect(onDestroy).toHaveBeenCalledWith(workspace);
+  });
+
+  it('calls onDestroy before git.dispose and lifecycleService.dispose', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace, dispose, gitDispose } = makeWorkspace('branch:main');
+    const order: string[] = [];
+
+    dispose.mockImplementation(async () => {
+      order.push('lifecycleDispose');
+    });
+    gitDispose.mockImplementation(() => {
+      order.push('gitDispose');
+    });
+
+    const onDestroy = vi.fn(async () => {
+      order.push('onDestroy');
+    });
+    const factory = vi.fn(async () => ({ workspace, onDestroy }));
+
+    await registry.acquire('branch:main', factory);
+    await registry.release('branch:main');
+
+    expect(order).toEqual(['onDestroy', 'gitDispose', 'lifecycleDispose']);
+  });
+
+  it('calls onDestroy for each entry in releaseAll', async () => {
+    const registry = new WorkspaceRegistry();
+    const first = makeWorkspace('branch:main');
+    const second = makeWorkspace('root:');
+    const onDestroyFirst = vi.fn(async () => {});
+    const onDestroySecond = vi.fn(async () => {});
+
+    await registry.acquire('branch:main', async () => ({
+      workspace: first.workspace,
+      onDestroy: onDestroyFirst,
+    }));
+    await registry.acquire('root:', async () => ({
+      workspace: second.workspace,
+      onDestroy: onDestroySecond,
+    }));
+
+    await registry.releaseAll();
+
+    expect(onDestroyFirst).toHaveBeenCalledTimes(1);
+    expect(onDestroyFirst).toHaveBeenCalledWith(first.workspace);
+    expect(onDestroySecond).toHaveBeenCalledTimes(1);
+    expect(onDestroySecond).toHaveBeenCalledWith(second.workspace);
   });
 });

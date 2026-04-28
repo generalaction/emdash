@@ -1,15 +1,24 @@
 import type { Workspace } from './workspace';
 
+type WorkspaceHooks = {
+  onCreate?: (workspace: Workspace) => Promise<void>;
+  onCreateSideEffect?: (workspace: Workspace) => void;
+  onDestroy?: (workspace: Workspace) => Promise<void>;
+};
+
+export type WorkspaceFactoryResult = { workspace: Workspace } & WorkspaceHooks;
+
 type WorkspaceEntry = {
   workspace: Workspace;
   refCount: number;
+  onDestroy?: (workspace: Workspace) => Promise<void>;
 };
 
 export class WorkspaceRegistry {
   private entries = new Map<string, WorkspaceEntry>();
   private acquiring = new Map<string, Promise<Workspace>>();
 
-  async acquire(key: string, factory: () => Promise<Workspace>): Promise<Workspace> {
+  async acquire(key: string, factory: () => Promise<WorkspaceFactoryResult>): Promise<Workspace> {
     const existing = this.entries.get(key);
     if (existing) {
       existing.refCount += 1;
@@ -25,9 +34,15 @@ export class WorkspaceRegistry {
     }
 
     const pending = factory()
-      .then((workspace) => {
-        this.entries.set(key, { workspace, refCount: 1 });
-        return workspace;
+      .then(async (result) => {
+        this.entries.set(key, {
+          workspace: result.workspace,
+          refCount: 1,
+          onDestroy: result.onDestroy,
+        });
+        result.onCreateSideEffect?.(result.workspace);
+        await result.onCreate?.(result.workspace);
+        return result.workspace;
       })
       .finally(() => {
         this.acquiring.delete(key);
@@ -54,6 +69,7 @@ export class WorkspaceRegistry {
     }
 
     this.entries.delete(key);
+    await entry.onDestroy?.(entry.workspace);
     entry.workspace.git.dispose();
     await entry.workspace.lifecycleService.dispose();
   }
@@ -71,6 +87,7 @@ export class WorkspaceRegistry {
     this.entries.clear();
     await Promise.all(
       entries.map(async (entry) => {
+        await entry.onDestroy?.(entry.workspace);
         entry.workspace.git.dispose();
         await entry.workspace.lifecycleService.dispose();
       })
