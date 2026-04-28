@@ -3,6 +3,7 @@ import _electronUpdater, {
   type UpdateInfo,
   type Logger as UpdaterLogger,
 } from 'electron-updater';
+import { UPDATE_CHANNEL } from '@shared/app-identity';
 import {
   updateAvailableEvent,
   updateCheckingEvent,
@@ -14,14 +15,11 @@ import {
   updateProgressEvent,
 } from '@shared/events/updateEvents';
 import { resolveAppVersion } from '@main/core/app/utils';
-import { env } from '@main/lib/env';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
 
 const { autoUpdater } = _electronUpdater;
-
-const UPDATE_CHANNEL = env.build.VITE_BUILD === 'canary' ? 'v1-canary' : 'v1-stable';
 
 const ALLOW_PRERELEASE = false;
 const ALLOW_DOWNGRADE = false;
