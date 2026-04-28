@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { log } from '@main/lib/logger';
 import { buildTmuxShellLine } from './tmux-session-name';
@@ -30,6 +31,8 @@ export type ResolvedLocalPtySpawn = {
   warnings: LocalPtySpawnWarning[];
 };
 
+type FileExists = (candidate: string) => boolean;
+
 function getPosixShell(env: NodeJS.ProcessEnv): string {
   return env.SHELL || '/bin/sh';
 }
@@ -61,6 +64,64 @@ function quoteForCmdExe(input: string): string {
     .replace(/(["^&|<>()])/g, '^$1')}"`;
 }
 
+function getWindowsEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const lowerKey = key.toLowerCase();
+  const envKey = Object.keys(env).find((candidate) => candidate.toLowerCase() === lowerKey);
+  return envKey ? env[envKey] : undefined;
+}
+
+function getWindowsPathDirs(env: NodeJS.ProcessEnv): string[] {
+  const rawPath = getWindowsEnvValue(env, 'PATH') ?? '';
+  return rawPath.split(path.win32.delimiter).filter(Boolean);
+}
+
+function getWindowsPathExts(env: NodeJS.ProcessEnv): string[] {
+  const rawPathExt =
+    getWindowsEnvValue(env, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC';
+  return rawPathExt
+    .split(';')
+    .map((ext) => ext.trim())
+    .filter(Boolean)
+    .map((ext) => (ext.startsWith('.') ? ext : `.${ext}`));
+}
+
+function hasWindowsPathSeparator(command: string): boolean {
+  return command.includes('\\') || command.includes('/');
+}
+
+function resolveWindowsCommandPath({
+  command,
+  cwd,
+  env,
+  fileExists,
+}: {
+  command: string;
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  fileExists: FileExists;
+}): string | null {
+  if (path.win32.extname(command)) {
+    return null;
+  }
+
+  const baseCandidates =
+    hasWindowsPathSeparator(command) || path.win32.isAbsolute(command)
+      ? [path.win32.isAbsolute(command) ? command : path.win32.join(cwd, command)]
+      : [
+          path.win32.join(cwd, command),
+          ...getWindowsPathDirs(env).map((dir) => path.win32.join(dir, command)),
+        ];
+
+  for (const base of baseCandidates) {
+    for (const ext of getWindowsPathExts(env)) {
+      const candidate = `${base}${ext}`;
+      if (fileExists(candidate)) return candidate;
+    }
+  }
+
+  return null;
+}
+
 function windowsWarnings(intent: PtySpawnIntent): LocalPtySpawnWarning[] {
   const warnings: LocalPtySpawnWarning[] = [];
   if (intent.shellSetup) warnings.push('shell_setup_ignored_on_windows');
@@ -70,7 +131,8 @@ function windowsWarnings(intent: PtySpawnIntent): LocalPtySpawnWarning[] {
 
 function resolveWindowsSpawn(
   intent: PtySpawnIntent,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  fileExists: FileExists
 ): ResolvedLocalPtySpawn {
   const warnings = windowsWarnings(intent);
   const shell = getWindowsShell(env);
@@ -89,12 +151,19 @@ function resolveWindowsSpawn(
   }
 
   const { command, args } = intent.command;
-  const ext = path.extname(command).toLowerCase();
+  const resolvedCommand =
+    resolveWindowsCommandPath({
+      command,
+      cwd: intent.cwd,
+      env,
+      fileExists,
+    }) ?? command;
+  const ext = path.win32.extname(resolvedCommand).toLowerCase();
 
   if (ext === '.cmd' || ext === '.bat') {
     return {
       command: shell,
-      args: ['/d', '/s', '/c', [command, ...args].map(quoteForCmdExe).join(' ')],
+      args: ['/d', '/s', '/c', [resolvedCommand, ...args].map(quoteForCmdExe).join(' ')],
       cwd: intent.cwd,
       warnings,
     };
@@ -103,13 +172,22 @@ function resolveWindowsSpawn(
   if (ext === '.ps1') {
     return {
       command: 'powershell.exe',
-      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', command, ...args],
+      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolvedCommand, ...args],
       cwd: intent.cwd,
       warnings,
     };
   }
 
-  return { command, args, cwd: intent.cwd, warnings };
+  if (!ext) {
+    return {
+      command: shell,
+      args: ['/d', '/s', '/c', [command, ...args].map(quoteForCmdExe).join(' ')],
+      cwd: intent.cwd,
+      warnings,
+    };
+  }
+
+  return { command: resolvedCommand, args, cwd: intent.cwd, warnings };
 }
 
 function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): ResolvedLocalPtySpawn {
@@ -169,12 +247,16 @@ export function resolveLocalPtySpawn({
   intent,
   platform,
   env,
+  fileExists = existsSync,
 }: {
   intent: PtySpawnIntent;
   platform: NodeJS.Platform;
   env: NodeJS.ProcessEnv;
+  fileExists?: FileExists;
 }): ResolvedLocalPtySpawn {
-  return isWindows(platform) ? resolveWindowsSpawn(intent, env) : resolvePosixSpawn(intent, env);
+  return isWindows(platform)
+    ? resolveWindowsSpawn(intent, env, fileExists)
+    : resolvePosixSpawn(intent, env);
 }
 
 export function logLocalPtySpawnWarnings(

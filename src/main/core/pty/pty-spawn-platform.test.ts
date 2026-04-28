@@ -11,6 +11,11 @@ const posixEnv = {
 } satisfies NodeJS.ProcessEnv;
 
 describe('resolveLocalPtySpawn - Windows', () => {
+  const windowsPathEnv = {
+    ...winEnv,
+    Path: 'C:\\Users\\me\\AppData\\Roaming\\npm;C:\\Program Files\\nodejs',
+  } satisfies NodeJS.ProcessEnv;
+
   it('uses ComSpec for interactive shells without POSIX flags', () => {
     const result = resolveLocalPtySpawn({
       platform: 'win32',
@@ -40,6 +45,66 @@ describe('resolveLocalPtySpawn - Windows', () => {
     expect(result).toEqual({
       command: 'node.exe',
       args: ['--version'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
+  it('resolves extensionless commands through PATH and PATHEXT before wrapping cmd shims', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: windowsPathEnv,
+      fileExists: (candidate) => candidate === 'C:\\Users\\me\\AppData\\Roaming\\npm\\codex.CMD',
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        command: { kind: 'argv', command: 'codex', args: ['hello world'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', 'C:\\Users\\me\\AppData\\Roaming\\npm\\codex.CMD "hello world"'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
+  it('direct-spawns extensionless commands that resolve to exe files', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: windowsPathEnv,
+      fileExists: (candidate) => candidate === 'C:\\Program Files\\nodejs\\node.EXE',
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        command: { kind: 'argv', command: 'node', args: ['--version'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Program Files\\nodejs\\node.EXE',
+      args: ['--version'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
+  it('falls back to cmd.exe for unresolved extensionless commands', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: windowsPathEnv,
+      fileExists: () => false,
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        command: { kind: 'argv', command: 'codex', args: ['A&B', '100%'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', 'codex "A^&B" "100%%"'],
       cwd: 'C:\\repo',
       warnings: [],
     });
