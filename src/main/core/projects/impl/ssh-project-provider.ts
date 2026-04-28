@@ -7,11 +7,10 @@ import { bareRefName } from '@shared/git-utils';
 import type { ProjectRemoteState, SshProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
-import { getTaskEnvVars } from '@shared/task/envVars';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import { workspaceKey } from '@shared/workspace-key';
-import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
+import type { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
@@ -26,10 +25,8 @@ import {
   type SshConnectionEvent,
 } from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
-import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
+import type { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
-import type { Workspace } from '@main/core/workspaces/workspace';
-import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { log } from '@main/lib/logger';
 import {
@@ -41,15 +38,13 @@ import {
 import {
   formatProvisionTaskError,
   TASK_TIMEOUT_MS,
-  TEARDOWN_SCRIPT_WAIT_MS,
   toProvisionError,
   toTeardownError,
 } from '../provision-task-error';
 import { SshProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
-import { getEffectiveTaskSettings } from '../settings/task-settings';
-import { TimeoutSignal, withTimeout } from '../utils';
-import { resolveTaskWorkDir } from '../worktrees/utils';
+import { withTimeout } from '../utils';
+import { buildTaskProviders, createWorkspaceFactory, resolveTaskEnv } from '../workspace-factory';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 export async function createSshProvider(
@@ -211,144 +206,42 @@ export class SshProjectProvider implements ProjectProvider {
     void prSyncScheduler.onTaskProvisioned(this.project.id, task.taskBranch);
 
     const workspaceId = workspaceKey(task.taskBranch);
-    const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
-      const workDir = await resolveTaskWorkDir(task, this.project.path, this.worktreeService);
-      const workspaceFs = new SshFileSystem(this.proxy, workDir);
-      const projectSettings = await this.settings.get();
-      const defaultBranch = await this.settings.getDefaultBranch();
-      const bootstrapTaskEnvVars = getTaskEnvVars({
-        taskId: task.id,
-        taskName: task.name,
-        taskPath: workDir,
-        projectPath: this.project.path,
-        defaultBranch,
-        portSeed: workDir,
-      });
-      const tmuxEnabled = projectSettings.tmux ?? false;
-      const taskLevelSettings = await getEffectiveTaskSettings({
-        projectSettings: this.settings,
-        taskFs: workspaceFs,
-      });
-      const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
-      const scripts = taskLevelSettings.scripts;
-      const proxy = this.proxy;
-      const exec = getSshExec(proxy);
-      const workspaceTerminals = new SshTerminalProvider({
-        projectId: this.project.id,
-        scopeId: workspaceId,
-        taskPath: workDir,
-        tmux: tmuxEnabled,
-        shellSetup,
-        exec,
-        proxy,
-        taskEnvVars: bootstrapTaskEnvVars,
-      });
-      const lifecycleService = new LifecycleScriptService({
-        projectId: this.project.id,
+    const workspace = await this.workspaceRegistry.acquire(
+      workspaceId,
+      createWorkspaceFactory(
         workspaceId,
-        terminals: workspaceTerminals,
-      });
-      const workspaceGitExec = getGitSshExec(proxy, () => githubConnectionService.getToken());
-      const createdWorkspace: Workspace = {
-        id: workspaceId,
-        path: workDir,
-        fs: workspaceFs,
-        git: new GitService(workDir, workspaceGitExec, workspaceFs, false),
-        settings: this.settings,
-        lifecycleService,
-      };
-
-      return {
-        workspace: createdWorkspace,
-
-        onCreateSideEffect: (ws) => {
-          if (scripts?.setup) {
-            void ws.lifecycleService.prepareAndRunLifecycleScript({
-              type: 'setup',
-              script: scripts.setup,
-            });
-          }
-          if (scripts?.run) {
-            void ws.lifecycleService.prepareLifecycleScript({ type: 'run', script: scripts.run });
-          }
-          if (scripts?.teardown) {
-            void ws.lifecycleService.prepareLifecycleScript({
-              type: 'teardown',
-              script: scripts.teardown,
-            });
-          }
-        },
-
-        onDestroy: async (ws) => {
-          if (scripts?.teardown) {
-            try {
-              await withTimeout(
-                ws.lifecycleService.runLifecycleScript(
-                  { type: 'teardown', script: scripts.teardown },
-                  { waitForExit: true, exit: true }
-                ),
-                TEARDOWN_SCRIPT_WAIT_MS
-              );
-            } catch (error) {
-              if (error instanceof TimeoutSignal) {
-                log.debug('SshProjectProvider: teardown script wait timed out', {
-                  workspaceId,
-                  timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
-                });
-              } else {
-                log.warn('SshProjectProvider: teardown script failed (continuing cleanup)', {
-                  workspaceId,
-                  error: String(error),
-                });
-              }
-            }
-          }
-        },
-      };
-    });
+        { kind: 'ssh', proxy: this.proxy },
+        {
+          task,
+          projectId: this.project.id,
+          projectPath: this.project.path,
+          settings: this.settings,
+          worktreeService: this.worktreeService,
+          logPrefix: 'SshProjectProvider',
+        }
+      )
+    );
 
     let provisionSucceeded = false;
     try {
-      const projectSettings = await this.settings.get();
-      const defaultBranch = await this.settings.getDefaultBranch();
-      const taskEnvVars = getTaskEnvVars({
-        taskId: task.id,
-        taskName: task.name,
-        taskPath: workspace.path,
-        projectPath: this.project.path,
-        defaultBranch,
-        portSeed: workspace.path,
-      });
-      const tmuxEnabled = projectSettings.tmux ?? false;
-      const taskLevelSettings = await getEffectiveTaskSettings({
-        projectSettings: this.settings,
-        taskFs: workspace.fs,
-      });
-      const shellSetup = taskLevelSettings.shellSetup ?? projectSettings.shellSetup;
-      const proxy = this.proxy;
-      const exec = getSshExec(proxy);
-
-      const conversationProvider = new SshConversationProvider({
-        projectId: this.project.id,
-        taskPath: workspace.path,
-        taskId: task.id,
-        tmux: tmuxEnabled,
-        shellSetup,
-        exec,
-        proxy,
-        taskEnvVars,
-      });
-
-      const terminalProvider = new SshTerminalProvider({
-        projectId: this.project.id,
-        scopeId: task.id,
-        taskPath: workspace.path,
-        tmux: tmuxEnabled,
-        shellSetup,
-        exec,
-        proxy,
-        taskEnvVars,
-      });
+      const { taskEnvVars, tmuxEnabled, shellSetup } = await resolveTaskEnv(
+        task,
+        workspace,
+        this.project.path,
+        this.settings
+      );
+      const { conversations: conversationProvider, terminals: terminalProvider } =
+        buildTaskProviders(
+          { kind: 'ssh', proxy: this.proxy },
+          {
+            projectId: this.project.id,
+            taskId: task.id,
+            taskPath: workspace.path,
+            tmuxEnabled,
+            shellSetup,
+            taskEnvVars,
+          }
+        );
 
       const taskEnv: TaskProvider = {
         taskId: task.id,
@@ -359,7 +252,7 @@ export class SshProjectProvider implements ProjectProvider {
         terminals: terminalProvider,
       };
 
-      Promise.all(
+      void Promise.all(
         terminals.map((term) =>
           terminalProvider.spawnTerminal(term).catch((e) => {
             log.error('SshEnvironmentProvider: failed to hydrate terminal', {
@@ -370,7 +263,7 @@ export class SshProjectProvider implements ProjectProvider {
         )
       );
 
-      Promise.all(
+      void Promise.all(
         conversations.map((conv) =>
           conversationProvider.startSession(conv, undefined, true).catch((e) => {
             log.error('SshEnvironmentProvider: failed to hydrate conversation', {
@@ -381,8 +274,8 @@ export class SshProjectProvider implements ProjectProvider {
         )
       );
 
-      this.terminalProviders.set(task.id, terminalProvider);
-      this.conversationProviders.set(task.id, conversationProvider);
+      this.terminalProviders.set(task.id, terminalProvider as SshTerminalProvider);
+      this.conversationProviders.set(task.id, conversationProvider as SshConversationProvider);
       log.debug('SshProjectProvider: doProvisionTask DONE', {
         taskId: task.id,
       });
