@@ -4,6 +4,7 @@ import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
+import { makeClaudeHookCommand, makeCodexNotifyCommand } from './agent-notify-command';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
@@ -16,33 +17,6 @@ const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
   { eventType: 'stop', hookKey: 'Stop' },
 ] satisfies { eventType: string; hookKey: string }[];
-
-function makeClaudeHookCommand(eventType: string): string {
-  return (
-    'curl -sf -X POST ' +
-    '-H "Content-Type: application/json" ' +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
-    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-    `-H "X-Emdash-Event-Type: ${eventType}" ` +
-    '-d @- ' +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
-  );
-}
-
-function makeCodexNotifyCommand(): string[] {
-  return [
-    'bash',
-    '-c',
-    'curl -sf -X POST ' +
-      "-H 'Content-Type: application/json' " +
-      '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
-      '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-      '-H "X-Emdash-Event-Type: notification" ' +
-      '-d "$1" ' +
-      '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true',
-    '_',
-  ];
-}
 
 export class HookConfigWriter {
   constructor(
