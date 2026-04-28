@@ -53,10 +53,12 @@ export class HookConfigWriter {
   async writeClaudeHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('claude', this.exec))) return false;
 
-    const config: Record<string, unknown> = await this.fs
-      .read(CLAUDE_SETTINGS_PATH)
-      .then((r) => JSON.parse(r.content) ?? {})
-      .catch(() => ({}));
+    const config: Record<string, unknown> = (await this.fs.exists(CLAUDE_SETTINGS_PATH))
+      ? await this.fs
+          .read(CLAUDE_SETTINGS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
 
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
 
@@ -72,10 +74,12 @@ export class HookConfigWriter {
   async writeCodexNotify(): Promise<boolean> {
     if (!(await resolveCommandPath('codex', this.exec))) return false;
 
-    const config: Record<string, unknown> = await this.fs
-      .read(CODEX_CONFIG_PATH)
-      .then((result) => toml.parse(result.content) ?? {})
-      .catch(() => ({}));
+    const config: Record<string, unknown> = (await this.fs.exists(CODEX_CONFIG_PATH))
+      ? await this.fs
+          .read(CODEX_CONFIG_PATH)
+          .then((result) => toml.parse(result.content) ?? {})
+          .catch(() => ({}))
+      : {};
 
     config.notify = makeCodexNotifyCommand();
     await this.fs.write(CODEX_CONFIG_PATH, toml.stringify(config));
