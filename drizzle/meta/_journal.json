@@ -54,15 +54,8 @@
     {
       "idx": 7,
       "version": "6",
-      "when": 1777378774526,
-      "tag": "0007_secret_boomer",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1777382026422,
-      "tag": "0008_premium_azazel",
+      "when": 1777399834705,
+      "tag": "0007_bent_spitfire",
       "breakpoints": true
     }
   ]
