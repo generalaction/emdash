@@ -63,7 +63,8 @@ export class ProvisionedTask {
     workspaceId: string,
     settingsStore: ProjectSettingsStore,
     baseRef: string,
-    savedSnapshot?: TaskViewSnapshot
+    savedSnapshot?: TaskViewSnapshot,
+    sshConnectionId?: string
   ) {
     this._taskStore = taskStore;
     const taskData = taskStore.data as Task;
@@ -76,7 +77,8 @@ export class ProvisionedTask {
       this.workspaceId,
       taskStore,
       settingsStore,
-      baseRef
+      baseRef,
+      sshConnectionId
     );
     this.repositoryStore = this.workspace.repository;
     this.devServers = new DevServerStore(taskData.id, this.workspaceId);
@@ -168,7 +170,8 @@ export class TaskStore {
     workspaceId: string,
     settingsStore: ProjectSettingsStore,
     baseRef: string,
-    savedSnapshot?: TaskViewSnapshot
+    savedSnapshot?: TaskViewSnapshot,
+    sshConnectionId?: string
   ): void {
     this.data = data;
     this.provisionedTask = new ProvisionedTask(
@@ -177,7 +180,8 @@ export class TaskStore {
       workspaceId,
       settingsStore,
       baseRef,
-      savedSnapshot
+      savedSnapshot,
+      sshConnectionId
     );
     this.state = 'provisioned';
     this.phase = null;

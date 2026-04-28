@@ -147,6 +147,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
       persistData: {
         workspaceId: workspace.id,
         workspaceProviderData: { ...wpConfig, remoteWorkspaceId: output.id },
+        sshConnectionId: connectionId,
       },
     };
   } finally {

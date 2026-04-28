@@ -20,7 +20,8 @@ export class WorkspaceRegistryStore {
     workspaceId: string,
     taskStore: TaskStore,
     settingsStore: ProjectSettingsStore,
-    baseRef: string
+    baseRef: string,
+    sshConnectionId?: string
   ): WorkspaceStore {
     const key = makeKey(projectId, workspaceId);
     const existing = this.entries.get(key);
@@ -30,7 +31,14 @@ export class WorkspaceRegistryStore {
       return existing.store;
     }
 
-    const store = new WorkspaceStore(projectId, workspaceId, [taskStore], settingsStore, baseRef);
+    const store = new WorkspaceStore(
+      projectId,
+      workspaceId,
+      [taskStore],
+      settingsStore,
+      baseRef,
+      sshConnectionId
+    );
     this.entries.set(key, { store, refCount: 1, activated: false });
     return store;
   }

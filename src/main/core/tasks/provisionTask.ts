@@ -21,7 +21,11 @@ export async function provisionTask(taskId: string) {
 
   if (existingTask) {
     const wsId = project.tasks.getWorkspaceId(taskId) ?? '';
-    return { path: workspaceRegistry.get(wsId)?.path ?? '', workspaceId: wsId };
+    return {
+      path: workspaceRegistry.get(wsId)?.path ?? '',
+      workspaceId: wsId,
+      sshConnectionId: undefined,
+    };
   }
 
   const [existingTerminals, existingConversations] = await Promise.all([
@@ -62,5 +66,6 @@ export async function provisionTask(taskId: string) {
   return {
     path: workspaceRegistry.get(persistData.workspaceId)?.path ?? '',
     workspaceId: persistData.workspaceId,
+    sshConnectionId: persistData.sshConnectionId,
   };
 }

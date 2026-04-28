@@ -284,7 +284,8 @@ export class TaskManagerStore {
               result.workspaceId,
               this._settingsStore,
               this._baseRef,
-              savedSnapshot as TaskViewSnapshot | undefined
+              savedSnapshot as TaskViewSnapshot | undefined,
+              result.sshConnectionId ?? undefined
             );
             current.activate();
           }

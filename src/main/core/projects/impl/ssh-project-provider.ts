@@ -122,7 +122,10 @@ export async function createSshProvider(
       );
       log.debug('SshProjectProvider: doProvisionTask DONE', { taskId: task.id });
 
-      return provisionResult;
+      return {
+        ...provisionResult,
+        persistData: { ...provisionResult.persistData, sshConnectionId: project.connectionId },
+      };
     }
 
     async function doTeardownTask(

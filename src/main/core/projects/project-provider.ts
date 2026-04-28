@@ -29,6 +29,7 @@ export type ProvisionResult = {
   persistData: {
     workspaceId: string;
     workspaceProviderData?: WorkspaceProviderData;
+    sshConnectionId?: string;
   };
 };
 
