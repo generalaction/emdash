@@ -2,11 +2,12 @@ import z from 'zod';
 import { err, ok, type Result } from '@shared/result';
 
 const provisionOutputSchema = z.object({
-  id: z.string().optional(),
+  id: z.string(),
   host: z.string().min(1, 'Provisioner output must contain a non-empty "host" field').trim(),
   port: z.number().optional(),
   username: z.string().optional(),
   worktreePath: z.string().optional(),
+  password: z.string().optional(),
 });
 
 export type ProvisionOutput = z.infer<typeof provisionOutputSchema>;

@@ -205,7 +205,9 @@ export async function createLocalProvider(
       host: output.host,
       port: output.port ?? 22,
       username: output.username ?? process.env['USER'],
-      agent: process.env['SSH_AUTH_SOCK'],
+      ...(output.password
+        ? { password: output.password }
+        : { agent: process.env['SSH_AUTH_SOCK'] }),
     });
 
     events.emit(taskProvisionProgressChannel, {
