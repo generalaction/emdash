@@ -11,6 +11,7 @@ import type {
 } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import {
@@ -71,6 +72,8 @@ function formatCreateTaskWarning(warning: CreateTaskWarning): string {
 export class TaskManagerStore {
   private readonly projectId: string;
   private readonly _repository: RepositoryStore;
+  private readonly _settingsStore: ProjectSettingsStore;
+  private readonly _baseRef: string;
   private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
@@ -81,9 +84,16 @@ export class TaskManagerStore {
 
   tasks = observable.map<string, TaskStore>();
 
-  constructor(projectId: string, repository: RepositoryStore) {
+  constructor(
+    projectId: string,
+    repository: RepositoryStore,
+    settingsStore: ProjectSettingsStore,
+    baseRef: string
+  ) {
     this.projectId = projectId;
     this._repository = repository;
+    this._settingsStore = settingsStore;
+    this._baseRef = baseRef;
     makeObservable(this, { tasks: observable });
 
     events.on(taskStatusUpdatedChannel, ({ taskId, projectId: evtProjectId, status }) => {
@@ -257,7 +267,8 @@ export class TaskManagerStore {
             current.transitionToProvisioned(
               { ...current.data, lastInteractedAt: new Date().toISOString() },
               result.path,
-              this._repository,
+              this._settingsStore,
+              this._baseRef,
               savedSnapshot as TaskViewSnapshot | undefined
             );
             current.activate();

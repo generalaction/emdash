@@ -178,6 +178,8 @@ export class LocalProjectProvider implements ProjectProvider {
           projectPath: this.project.path,
           settings: this.settings,
           logPrefix: 'LocalProjectProvider',
+          repository: this.repository,
+          fetchService: this._gitFetchService,
           extraHooks: {
             onCreate: async (ws) => {
               const mainDotGitAbs = path.resolve(this.project.path, '.git');

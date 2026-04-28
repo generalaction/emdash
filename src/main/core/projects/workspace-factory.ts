@@ -5,7 +5,9 @@ import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conve
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
+import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
@@ -30,6 +32,12 @@ type WorkspaceFactoryContext = {
   projectPath: string;
   settings: ProjectSettingsProvider;
   logPrefix: string;
+  /** Inject an existing repository service (e.g. the project-level singleton).
+   *  When absent, the factory creates a fresh instance from the workspace's GitService. */
+  repository?: GitRepositoryService;
+  /** Inject an existing fetch service. When absent, the factory creates and manages one.
+   *  Lifecycle (start/stop) is only managed by the factory when it creates the instance. */
+  fetchService?: GitFetchService;
   extraHooks?: {
     onCreate?: (ws: Workspace) => Promise<void>;
     onDestroy?: (ws: Workspace) => Promise<void>;
@@ -111,13 +119,32 @@ export function createWorkspaceFactory(
       terminals: workspaceTerminals,
     });
 
+    const gitService = new GitService(
+      workDir,
+      gitExec,
+      workspaceFs,
+      type.kind === 'ssh' ? false : undefined
+    );
+
+    const repository = context.repository ?? new GitRepositoryService(gitService, context.settings);
+
+    const ownsFetchService = !context.fetchService;
+    const fetchService =
+      context.fetchService ??
+      new GitFetchService(
+        gitService,
+        async () => (await githubConnectionService.getToken()) !== null
+      );
+
     const workspace: Workspace = {
       id: workspaceId,
       path: workDir,
       fs: workspaceFs,
-      git: new GitService(workDir, gitExec, workspaceFs, type.kind === 'ssh' ? false : undefined),
+      git: gitService,
       settings: context.settings,
       lifecycleService,
+      repository,
+      fetchService,
     };
 
     const { logPrefix } = context;
@@ -126,6 +153,9 @@ export function createWorkspaceFactory(
       workspace,
 
       onCreateSideEffect: (ws) => {
+        if (ownsFetchService) {
+          fetchService.start();
+        }
         if (scripts?.setup) {
           void ws.lifecycleService.prepareAndRunLifecycleScript({
             type: 'setup',
@@ -146,6 +176,9 @@ export function createWorkspaceFactory(
       onCreate: context.extraHooks?.onCreate,
 
       onDestroy: async (ws) => {
+        if (ownsFetchService) {
+          fetchService.stop();
+        }
         if (scripts?.teardown) {
           try {
             await withTimeout(

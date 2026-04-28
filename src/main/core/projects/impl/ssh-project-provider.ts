@@ -220,6 +220,8 @@ export class SshProjectProvider implements ProjectProvider {
           projectPath: this.project.path,
           settings: this.settings,
           logPrefix: 'SshProjectProvider',
+          repository: this.repository,
+          fetchService: this._gitFetchService,
         }
       )
     );

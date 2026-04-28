@@ -20,6 +20,8 @@ function makeWorkspace(id: string): {
       lifecycleService: {
         dispose,
       } as unknown as Workspace['lifecycleService'],
+      repository: {} as Workspace['repository'],
+      fetchService: {} as Workspace['fetchService'],
     },
     dispose,
     gitDispose,

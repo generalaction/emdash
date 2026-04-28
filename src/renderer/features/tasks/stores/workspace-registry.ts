@@ -1,4 +1,4 @@
-import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
+import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { TaskStore } from './task';
 import { WorkspaceStore } from './workspace';
 
@@ -19,7 +19,8 @@ export class WorkspaceRegistryStore {
     projectId: string,
     workspaceId: string,
     taskStore: TaskStore,
-    repositoryStore: RepositoryStore
+    settingsStore: ProjectSettingsStore,
+    baseRef: string
   ): WorkspaceStore {
     const key = makeKey(projectId, workspaceId);
     const existing = this.entries.get(key);
@@ -29,7 +30,7 @@ export class WorkspaceRegistryStore {
       return existing.store;
     }
 
-    const store = new WorkspaceStore(projectId, workspaceId, [taskStore], repositoryStore);
+    const store = new WorkspaceStore(projectId, workspaceId, [taskStore], settingsStore, baseRef);
     this.entries.set(key, { store, refCount: 1, activated: false });
     return store;
   }
