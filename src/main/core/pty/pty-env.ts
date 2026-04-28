@@ -120,8 +120,9 @@ export interface AgentEnvOptions {
  * feels identical to one opened in Ghostty or Terminal.app — the user's
  * EDITOR, MANPATH, JAVA_HOME, custom vars, etc. are all present.
  *
- * TERM, COLORTERM, TERM_PROGRAM, and SHELL are always set or overridden so
- * the shell and programs inside it report the correct terminal identity.
+ * TERM, COLORTERM, and TERM_PROGRAM are always set or overridden so programs
+ * inside the terminal report the correct terminal identity. SHELL is only
+ * synthesized on POSIX platforms.
  * SSH_AUTH_SOCK is injected via the same cached detector used for agents,
  * since GUI-launched apps often don't inherit it from the user's login shell.
  */
@@ -137,8 +138,13 @@ export function buildTerminalEnv(): Record<string, string> {
   env.COLORTERM = 'truecolor';
   env.TERM_PROGRAM = 'emdash';
 
-  // Ensure SHELL reflects the user's configured shell (may be absent in GUI).
-  env.SHELL = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+  // Ensure SHELL reflects the user's configured shell on POSIX. Native Windows
+  // shells are selected via ComSpec by the spawn resolver, not SHELL.
+  if (process.platform !== 'win32') {
+    env.SHELL = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+  } else if (process.env.SHELL) {
+    env.SHELL = process.env.SHELL;
+  }
 
   // SSH_AUTH_SOCK is normally set by resolveUserEnv() at startup. The
   // detectSshAuthSock() fallback covers cases where that failed (timeout,
@@ -181,8 +187,10 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
   const sshAuthSock = process.env.SSH_AUTH_SOCK ?? detectSshAuthSock();
   if (sshAuthSock) env.SSH_AUTH_SOCK = sshAuthSock;
 
-  if (includeShellVar) {
+  if (includeShellVar && process.platform !== 'win32') {
     env.SHELL = process.env.SHELL || '/bin/bash';
+  } else if (includeShellVar && process.env.SHELL) {
+    env.SHELL = process.env.SHELL;
   }
 
   if (agentApiVars) {
