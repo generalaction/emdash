@@ -33,6 +33,7 @@ const EXCLUDED_NAMES = new Set([
   '.conductor',
   '.cursor',
   '.claude',
+  '.devin',
   '.amp',
   '.codex',
   '.aider',
