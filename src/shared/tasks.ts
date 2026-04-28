@@ -35,6 +35,7 @@ export type Task = {
   isPinned: boolean;
   prs: PullRequest[];
   conversations: Record<string, number>;
+  workspaceProvider?: 'local' | 'ssh';
 };
 
 export type TaskBootstrapStatus =
@@ -71,6 +72,7 @@ export type CreateTaskParams = {
   /**  */
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
+  workspaceProvider?: 'local' | 'ssh';
 };
 
 export type CreateTaskError =

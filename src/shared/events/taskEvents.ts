@@ -13,3 +13,16 @@ export const taskPrUpdatedChannel = defineEvent<{
   workspaceId: string;
   prs: PullRequest[];
 }>('task:pr-updated');
+
+export const taskProvisionProgressChannel = defineEvent<{
+  taskId: string;
+  projectId: string;
+  step:
+    | 'resolving-worktree'
+    | 'initialising-workspace'
+    | 'running-provision-script'
+    | 'connecting'
+    | 'setting-up-workspace'
+    | 'starting-sessions';
+  message: string;
+}>('task:provision-progress');

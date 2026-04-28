@@ -133,6 +133,7 @@ export class TaskStore {
   phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
   errorMessage: string | undefined = undefined;
   provisionedTask: ProvisionedTask | null = null;
+  provisionProgressMessage: string | null = null;
 
   get displayName(): string {
     return this.data.name;
@@ -173,6 +174,7 @@ export class TaskStore {
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
+    this.provisionProgressMessage = null;
   }
 
   transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
@@ -182,6 +184,7 @@ export class TaskStore {
     this.state = 'unprovisioned';
     this.phase = phase;
     this.errorMessage = undefined;
+    this.provisionProgressMessage = null;
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {

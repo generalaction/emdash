@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `workspace_provider` text DEFAULT 'local' NOT NULL;

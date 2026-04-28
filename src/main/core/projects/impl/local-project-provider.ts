@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Conversation } from '@shared/conversations';
 import { gitRefChangedChannel } from '@shared/events/gitEvents';
+import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { LocalProject, ProjectRemoteState } from '@shared/projects';
@@ -19,18 +20,21 @@ import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
+import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { quoteShellArg } from '@main/utils/shellEscape';
 import {
   type ProjectProvider,
   type ProvisionTaskError,
   type TaskProvider,
   type TeardownTaskError,
 } from '../project-provider';
+import { parseProvisionOutput } from '../provision-output';
 import {
   formatProvisionTaskError,
   TASK_TIMEOUT_MS,
@@ -38,9 +42,10 @@ import {
   toTeardownError,
 } from '../provision-task-error';
 import { LocalProjectSettingsProvider } from '../settings/project-settings';
-import type { ProjectSettingsProvider } from '../settings/schema';
+import type { ProjectSettings, ProjectSettingsProvider } from '../settings/schema';
+import { buildTaskFromWorkspace } from '../task-builder';
 import { withTimeout } from '../utils';
-import { buildTaskProviders, createWorkspaceFactory, resolveTaskEnv } from '../workspace-factory';
+import { createWorkspaceFactory } from '../workspace-factory';
 import { resolveTaskWorkDir } from '../worktrees/utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
@@ -76,6 +81,13 @@ export class LocalProjectProvider implements ProjectProvider {
   private readonly _gitWatcher: GitWatcherService;
   private readonly _gitFetchService: GitFetchService;
   private _configChangeUnsubscribe: (() => void) | undefined;
+  private _remoteHandles = new Map<
+    string,
+    {
+      terminationId: string | undefined;
+      terminateCommand: string;
+    }
+  >();
 
   constructor(
     private readonly project: LocalProject,
@@ -152,9 +164,12 @@ export class LocalProjectProvider implements ProjectProvider {
     conversations: Conversation[],
     terminals: Terminal[]
   ): Promise<TaskProvider> {
-    log.debug('LocalProjectProvider: doProvisionTask START', {
-      taskId: task.id,
-    });
+    log.debug('LocalProjectProvider: doProvisionTask START', { taskId: task.id });
+
+    const settings = await this.settings.get();
+    if (task.workspaceProvider === 'ssh' && settings.workspaceProvider?.type === 'script') {
+      return this.doProvisionRemoteTask(task, conversations, terminals, settings.workspaceProvider);
+    }
 
     // Refresh remote-tracking refs in the background so they are as fresh as
     // possible during the lifetime of this task. Non-blocking — provision
@@ -165,7 +180,21 @@ export class LocalProjectProvider implements ProjectProvider {
     void prSyncScheduler.onTaskProvisioned(this.project.id, task.taskBranch);
 
     const workspaceId = workspaceKey(task.taskBranch);
+
+    events.emit(taskProvisionProgressChannel, {
+      taskId: task.id,
+      projectId: this.project.id,
+      step: 'resolving-worktree',
+      message: 'Resolving worktree…',
+    });
     const workDir = await resolveTaskWorkDir(task, this.project.path, this.worktreeService);
+
+    events.emit(taskProvisionProgressChannel, {
+      taskId: task.id,
+      projectId: this.project.id,
+      step: 'initialising-workspace',
+      message: 'Initialising workspace…',
+    });
     const workspace = await this.workspaceRegistry.acquire(
       workspaceId,
       createWorkspaceFactory(
@@ -194,61 +223,127 @@ export class LocalProjectProvider implements ProjectProvider {
 
     let provisionSucceeded = false;
     try {
-      const { taskEnvVars, tmuxEnabled, shellSetup } = await resolveTaskEnv(
+      events.emit(taskProvisionProgressChannel, {
+        taskId: task.id,
+        projectId: this.project.id,
+        step: 'starting-sessions',
+        message: 'Starting sessions…',
+      });
+      const { taskProvider } = await buildTaskFromWorkspace(
         task,
         workspace,
+        { kind: 'local' },
+        this.project.id,
         this.project.path,
-        this.settings
+        this.settings,
+        { conversations, terminals },
+        'LocalProjectProvider'
       );
-      const { conversations: conversationProvider, terminals: terminalProvider } =
-        buildTaskProviders(
-          { kind: 'local' },
-          {
-            projectId: this.project.id,
-            taskId: task.id,
-            taskPath: workspace.path,
-            tmuxEnabled,
-            shellSetup,
-            taskEnvVars,
-          }
-        );
-
-      const taskEnv: TaskProvider = {
-        taskId: task.id,
-        taskBranch: task.taskBranch,
-        sourceBranch: task.sourceBranch,
-        taskEnvVars,
-        conversations: conversationProvider,
-        terminals: terminalProvider,
-      };
-
-      void Promise.all(
-        terminals.map((term) =>
-          terminalProvider.spawnTerminal(term).catch((e) => {
-            log.error('LocalEnvironmentProvider: failed to hydrate terminal', {
-              terminalId: term.id,
-              error: String(e),
-            });
-          })
-        )
-      );
-
-      void Promise.all(
-        conversations.map((conv) =>
-          conversationProvider.startSession(conv, undefined, true).catch((e) => {
-            log.error('LocalEnvironmentProvider: failed to hydrate conversation', {
-              conversationId: conv.id,
-              error: String(e),
-            });
-          })
-        )
-      );
-
-      log.debug('LocalProjectProvider: doProvisionTask DONE', {
-        taskId: task.id,
-      });
+      log.debug('LocalProjectProvider: doProvisionTask DONE', { taskId: task.id });
       provisionSucceeded = true;
-      return taskEnv;
+      return taskProvider;
+    } finally {
+      if (!provisionSucceeded) {
+        await this.workspaceRegistry.release(workspace.id).catch(() => {});
+      }
+    }
+  }
+
+  private async doProvisionRemoteTask(
+    task: Task,
+    conversations: Conversation[],
+    terminals: Terminal[],
+    wpConfig: NonNullable<ProjectSettings['workspaceProvider']>
+  ): Promise<TaskProvider> {
+    events.emit(taskProvisionProgressChannel, {
+      taskId: task.id,
+      projectId: this.project.id,
+      step: 'running-provision-script',
+      message: 'Running provision script…',
+    });
+
+    const { stdout } = await this.localExec('/bin/sh', ['-c', wpConfig.provisionCommand], {
+      cwd: this.project.path,
+    });
+
+    const parseResult = parseProvisionOutput(stdout);
+    if (!parseResult.success) {
+      throw new Error(parseResult.error.message);
+    }
+    const output = parseResult.data;
+
+    events.emit(taskProvisionProgressChannel, {
+      taskId: task.id,
+      projectId: this.project.id,
+      step: 'connecting',
+      message: `Connecting to ${output.host}…`,
+    });
+
+    const connectionId = `task:${task.id}`;
+    const proxy = await sshConnectionManager.connectFromConfig(connectionId, {
+      host: output.host,
+      port: output.port ?? 22,
+      username: output.username ?? process.env['USER'],
+      agent: process.env['SSH_AUTH_SOCK'],
+    });
+
+    this._remoteHandles.set(task.id, {
+      terminationId: output.id,
+      terminateCommand: wpConfig.terminateCommand,
+    });
+
+    events.emit(taskProvisionProgressChannel, {
+      taskId: task.id,
+      projectId: this.project.id,
+      step: 'setting-up-workspace',
+      message: 'Setting up workspace…',
+    });
+
+    const workDir = output.worktreePath ?? this.project.path;
+    const workspaceId = workspaceKey(task.taskBranch);
+
+    const workspace = await this.workspaceRegistry.acquire(
+      workspaceId,
+      createWorkspaceFactory(
+        workspaceId,
+        { kind: 'ssh', proxy },
+        {
+          task,
+          workDir,
+          projectId: this.project.id,
+          projectPath: this.project.path,
+          settings: this.settings,
+          logPrefix: 'LocalProjectProvider[remote]',
+          extraHooks: {
+            onDestroy: async () => {
+              await sshConnectionManager.disconnect(connectionId);
+            },
+          },
+        }
+      )
+    );
+
+    let provisionSucceeded = false;
+    try {
+      events.emit(taskProvisionProgressChannel, {
+        taskId: task.id,
+        projectId: this.project.id,
+        step: 'starting-sessions',
+        message: 'Starting sessions…',
+      });
+      const { taskProvider } = await buildTaskFromWorkspace(
+        task,
+        workspace,
+        { kind: 'ssh', proxy },
+        this.project.id,
+        this.project.path,
+        this.settings,
+        { conversations, terminals },
+        'LocalProjectProvider[remote]'
+      );
+      log.debug('LocalProjectProvider: doProvisionRemoteTask DONE', { taskId: task.id });
+      provisionSucceeded = true;
+      return taskProvider;
     } finally {
       if (!provisionSucceeded) {
         await this.workspaceRegistry.release(workspace.id).catch(() => {});
@@ -309,6 +404,17 @@ export class LocalProjectProvider implements ProjectProvider {
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
     await this.workspaceRegistry.release(workspaceKey(task.taskBranch));
+
+    const handle = this._remoteHandles.get(task.taskId);
+    if (handle) {
+      const cmd = handle.terminationId
+        ? `REMOTE_WORKSPACE_ID=${quoteShellArg(handle.terminationId)} ${handle.terminateCommand}`
+        : handle.terminateCommand;
+      await this.localExec('/bin/sh', ['-c', cmd], { cwd: this.project.path }).catch((e) => {
+        log.warn('LocalProjectProvider: terminate command failed', { error: String(e) });
+      });
+      this._remoteHandles.delete(task.taskId);
+    }
   }
 
   private async cleanupDetachedTmuxSessions(taskId: string): Promise<void> {

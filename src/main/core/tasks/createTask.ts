@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
-import { err, ok, Result } from '@shared/result';
+import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -190,6 +190,7 @@ export async function createTask(
       status: initialStatus,
       sourceBranch: toStoredBranch(dbSourceBranch),
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
+      workspaceProvider: params.workspaceProvider ?? 'local',
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,

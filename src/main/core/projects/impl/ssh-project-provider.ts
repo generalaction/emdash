@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
 import type { Conversation } from '@shared/conversations';
+import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { ProjectRemoteState, SshProject } from '@shared/projects';
@@ -27,7 +28,9 @@ import {
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
+import type { Workspace } from '@main/core/workspaces/workspace';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import {
   type ProjectProvider,
@@ -43,8 +46,9 @@ import {
 } from '../provision-task-error';
 import { SshProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
+import { buildTaskFromWorkspace } from '../task-builder';
 import { withTimeout } from '../utils';
-import { buildTaskProviders, createWorkspaceFactory, resolveTaskEnv } from '../workspace-factory';
+import { createWorkspaceFactory } from '../workspace-factory';
 import { resolveTaskWorkDir } from '../worktrees/utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
@@ -207,7 +211,21 @@ export class SshProjectProvider implements ProjectProvider {
     void prSyncScheduler.onTaskProvisioned(this.project.id, task.taskBranch);
 
     const workspaceId = workspaceKey(task.taskBranch);
+
+    events.emit(taskProvisionProgressChannel, {
+      taskId: task.id,
+      projectId: this.project.id,
+      step: 'resolving-worktree',
+      message: 'Resolving worktree…',
+    });
     const workDir = await resolveTaskWorkDir(task, this.project.path, this.worktreeService);
+
+    events.emit(taskProvisionProgressChannel, {
+      taskId: task.id,
+      projectId: this.project.id,
+      step: 'initialising-workspace',
+      message: 'Initialising workspace…',
+    });
     const workspace = await this.workspaceRegistry.acquire(
       workspaceId,
       createWorkspaceFactory(
@@ -228,63 +246,28 @@ export class SshProjectProvider implements ProjectProvider {
 
     let provisionSucceeded = false;
     try {
-      const { taskEnvVars, tmuxEnabled, shellSetup } = await resolveTaskEnv(
+      events.emit(taskProvisionProgressChannel, {
+        taskId: task.id,
+        projectId: this.project.id,
+        step: 'starting-sessions',
+        message: 'Starting sessions…',
+      });
+      const { taskProvider, conversationProvider, terminalProvider } = await buildTaskFromWorkspace(
         task,
         workspace,
+        { kind: 'ssh', proxy: this.proxy },
+        this.project.id,
         this.project.path,
-        this.settings
-      );
-      const { conversations: conversationProvider, terminals: terminalProvider } =
-        buildTaskProviders(
-          { kind: 'ssh', proxy: this.proxy },
-          {
-            projectId: this.project.id,
-            taskId: task.id,
-            taskPath: workspace.path,
-            tmuxEnabled,
-            shellSetup,
-            taskEnvVars,
-          }
-        );
-
-      const taskEnv: TaskProvider = {
-        taskId: task.id,
-        taskBranch: task.taskBranch,
-        sourceBranch: task.sourceBranch,
-        taskEnvVars,
-        conversations: conversationProvider,
-        terminals: terminalProvider,
-      };
-
-      void Promise.all(
-        terminals.map((term) =>
-          terminalProvider.spawnTerminal(term).catch((e) => {
-            log.error('SshEnvironmentProvider: failed to hydrate terminal', {
-              terminalId: term.id,
-              error: String(e),
-            });
-          })
-        )
-      );
-
-      void Promise.all(
-        conversations.map((conv) =>
-          conversationProvider.startSession(conv, undefined, true).catch((e) => {
-            log.error('SshEnvironmentProvider: failed to hydrate conversation', {
-              conversationId: conv.id,
-              error: String(e),
-            });
-          })
-        )
+        this.settings,
+        { conversations, terminals },
+        'SshProjectProvider'
       );
 
       this.terminalProviders.set(task.id, terminalProvider as SshTerminalProvider);
       this.conversationProviders.set(task.id, conversationProvider as SshConversationProvider);
-      log.debug('SshProjectProvider: doProvisionTask DONE', {
-        taskId: task.id,
-      });
+      log.debug('SshProjectProvider: doProvisionTask DONE', { taskId: task.id });
       provisionSucceeded = true;
-      return taskEnv;
+      return taskProvider;
     } finally {
       if (!provisionSucceeded) {
         await this.workspaceRegistry.release(workspace.id).catch(() => {});
@@ -339,9 +322,7 @@ export class SshProjectProvider implements ProjectProvider {
     return promise;
   }
 
-  getWorkspace(
-    workspaceId: string
-  ): import('@main/core/workspaces/workspace').Workspace | undefined {
+  getWorkspace(workspaceId: string): Workspace | undefined {
     return this.workspaceRegistry.get(workspaceId);
   }
 
