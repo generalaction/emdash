@@ -10,6 +10,8 @@ export type CodexNotifyCommandOptions = {
   scriptPath?: string;
 };
 
+const ensuredWindowsCodexNotifyScriptPaths = new Set<string>();
+
 export function makeClaudeHookCommand(eventType: string): string {
   return (
     'curl -sf -X POST ' +
@@ -59,6 +61,10 @@ function windowsCodexNotifyScript(): string {
 function ensureWindowsCodexNotifyScript(options: CodexNotifyCommandOptions): string {
   const platform = options.platform ?? process.platform;
   const scriptPath = options.scriptPath ?? join(tmpdir(), 'emdash-codex-notify.ps1');
+  if (ensuredWindowsCodexNotifyScriptPaths.has(scriptPath)) {
+    return scriptPath;
+  }
+
   const scriptDir = platform === 'win32' ? win32.dirname(scriptPath) : dirname(scriptPath);
   const mkdir = options.mkdir ?? ((path: string) => mkdirSync(path, { recursive: true }));
   const writeFile = options.writeFile ?? writeFileSync;
@@ -66,6 +72,7 @@ function ensureWindowsCodexNotifyScript(options: CodexNotifyCommandOptions): str
   try {
     mkdir(scriptDir);
     writeFile(scriptPath, windowsCodexNotifyScript());
+    ensuredWindowsCodexNotifyScriptPaths.add(scriptPath);
   } catch (err) {
     log.warn('CodexNotifyCommand: failed to write Windows notify script', {
       path: scriptPath,
