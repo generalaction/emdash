@@ -170,7 +170,10 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
 
   // process.env.PATH is enriched at startup by resolveUserEnv() so it already
   // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
-  const resolvedPath = process.env.PATH ?? '';
+  const resolvedPath =
+    process.platform === 'win32'
+      ? (process.env.PATH ?? process.env.Path ?? '')
+      : (process.env.PATH ?? '');
   const env: Record<string, string> = {
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
