@@ -819,7 +819,7 @@ export class SshFileSystem implements FileSystemProvider {
 
     // Handle absolute paths (should not escape base)
     if (normalized.startsWith('/')) {
-      const resolved = normalized;
+      const resolved = this.normalizePosixPath(normalized);
       // Security: ensure resolved path is within remotePath base
       if (!this.isWithinBase(resolved)) {
         throw new FileSystemError(
@@ -831,8 +831,9 @@ export class SshFileSystem implements FileSystemProvider {
       return resolved;
     }
 
-    // Join with base path
-    const fullPath = `${this.remotePath}/${normalized}`.replace(/\/+/g, '/');
+    // Join with base path and normalize away any '.' segments (e.g. when relPath is '.')
+    const joined = `${this.remotePath}/${normalized}`.replace(/\/+/g, '/');
+    const fullPath = this.normalizePosixPath(joined);
 
     // Security: ensure path is within basePath
     if (!this.isWithinBase(fullPath)) {
@@ -844,6 +845,18 @@ export class SshFileSystem implements FileSystemProvider {
     }
 
     return fullPath;
+  }
+
+  /** Remove single-dot segments from a POSIX path (e.g. /a/./b → /a/b). */
+  private normalizePosixPath(p: string): string {
+    const parts = p.split('/');
+    const out: string[] = [];
+    for (const seg of parts) {
+      if (seg === '.') continue;
+      out.push(seg);
+    }
+    // Re-join and collapse any double slashes introduced by the filter
+    return out.join('/').replace(/\/+/g, '/') || '/';
   }
 
   /**
