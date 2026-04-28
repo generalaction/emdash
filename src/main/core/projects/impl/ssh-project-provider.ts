@@ -1,6 +1,5 @@
 import path from 'node:path';
 import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import { bareRefName } from '@shared/git-utils';
 import type { SshProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -25,14 +24,12 @@ import type { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import { sshWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
-import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { provisionBYOITask } from '../../workspaces/byoi/provision-byoi-task';
 import { type ProjectProvider, type ProvisionResult, type TaskProvider } from '../project-provider';
 import { SshProjectSettingsProvider } from '../settings/project-settings';
-import { buildTaskFromWorkspace } from '../task-builder';
+import { provisionLocalTask } from '../task-builder';
 import { TaskProvisionManager } from '../task-provision-manager';
-import { createWorkspaceFactory } from '../workspace-factory';
-import { resolveTaskWorkDir } from '../worktrees/utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 export async function createSshProvider(
@@ -80,74 +77,52 @@ export async function createSshProvider(
     ): Promise<ProvisionResult> {
       log.debug('SshProjectProvider: doProvisionTask START', { taskId: task.id });
 
+      if (task.workspaceProvider === 'byoi') {
+        const projectSettings = await settings.get();
+        if (projectSettings.workspaceProvider?.type !== 'script') {
+          throw new Error(
+            'Task has workspaceProvider=byoi but project has no script provider configured'
+          );
+        }
+        return provisionBYOITask({
+          task,
+          conversations,
+          terminals,
+          wpConfig: projectSettings.workspaceProvider,
+          execFn: getSshExec(proxy),
+          projectId: project.id,
+          projectPath: project.path,
+          settings,
+          logPrefix: 'SshProjectProvider[byoi]',
+        });
+      }
+
       void gitFetchService.fetch();
       void prSyncScheduler.onTaskProvisioned(project.id, task.taskBranch);
 
-      const workspaceId = sshWorkspaceId(project.id, task.taskBranch);
-
-      events.emit(taskProvisionProgressChannel, {
-        taskId: task.id,
+      const { provisionResult, buildTaskResult } = await provisionLocalTask({
+        task,
+        conversations,
+        terminals,
+        workspaceId: sshWorkspaceId(project.id, task.taskBranch),
+        type: { kind: 'ssh', proxy },
         projectId: project.id,
-        step: 'resolving-worktree',
-        message: 'Resolving worktree…',
+        projectPath: project.path,
+        settings,
+        worktreeService,
+        fetchService: gitFetchService,
+        repository,
+        logPrefix: 'SshProjectProvider',
       });
-      const workDir = await resolveTaskWorkDir(task, project.path, worktreeService);
 
-      events.emit(taskProvisionProgressChannel, {
-        taskId: task.id,
-        projectId: project.id,
-        step: 'initialising-workspace',
-        message: 'Initialising workspace…',
-      });
-      const workspace = await workspaceRegistry.acquire(
-        workspaceId,
-        project.id,
-        createWorkspaceFactory(
-          workspaceId,
-          { kind: 'ssh', proxy },
-          {
-            task,
-            workDir,
-            projectId: project.id,
-            projectPath: project.path,
-            settings,
-            logPrefix: 'SshProjectProvider',
-            repository,
-            fetchService: gitFetchService,
-          }
-        )
+      terminalProviders.set(task.id, buildTaskResult.terminalProvider as SshTerminalProvider);
+      conversationProviders.set(
+        task.id,
+        buildTaskResult.conversationProvider as SshConversationProvider
       );
+      log.debug('SshProjectProvider: doProvisionTask DONE', { taskId: task.id });
 
-      let provisionSucceeded = false;
-      try {
-        events.emit(taskProvisionProgressChannel, {
-          taskId: task.id,
-          projectId: project.id,
-          step: 'starting-sessions',
-          message: 'Starting sessions…',
-        });
-        const { taskProvider, conversationProvider, terminalProvider } =
-          await buildTaskFromWorkspace(
-            task,
-            workspace,
-            { kind: 'ssh', proxy },
-            project.id,
-            project.path,
-            settings,
-            { conversations, terminals },
-            'SshProjectProvider'
-          );
-
-        terminalProviders.set(task.id, terminalProvider as SshTerminalProvider);
-        conversationProviders.set(task.id, conversationProvider as SshConversationProvider);
-        log.debug('SshProjectProvider: doProvisionTask DONE', { taskId: task.id });
-        provisionSucceeded = true;
-        return { taskProvider, persistData: { workspaceId: workspace.id } };
-      } finally {
-        if (!provisionSucceeded) {
-          await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
-        }
-      }
+      return provisionResult;
     }
 
     async function doTeardownTask(

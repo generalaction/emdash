@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Conversation } from '@shared/conversations';
 import { gitRefChangedChannel } from '@shared/events/gitEvents';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import { bareRefName } from '@shared/git-utils';
 import type { LocalProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -17,22 +16,17 @@ import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
-import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
-import { localWorkspaceId, remoteTaskWorkspaceId } from '@main/core/workspaces/workspace-id';
+import { localWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { quoteShellArg } from '@main/utils/shellEscape';
+import { provisionBYOITask } from '../../workspaces/byoi/provision-byoi-task';
 import type { ProjectProvider, ProvisionResult, TaskProvider } from '../project-provider';
-import { parseProvisionOutput } from '../provision-output';
 import { LocalProjectSettingsProvider } from '../settings/project-settings';
-import type { ProjectSettings } from '../settings/schema';
-import { buildTaskFromWorkspace } from '../task-builder';
+import { provisionLocalTask } from '../task-builder';
 import { TaskProvisionManager } from '../task-provision-manager';
-import { createWorkspaceFactory } from '../workspace-factory';
-import { resolveTaskWorkDir } from '../worktrees/utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 export async function createLocalProvider(
@@ -82,18 +76,24 @@ export async function createLocalProvider(
   ): Promise<ProvisionResult> {
     log.debug('LocalProjectProvider: doProvisionTask START', { taskId: task.id });
 
-    const projectSettings = await settings.get();
-    const useSsh =
-      task.workspaceProvider != null
-        ? task.workspaceProvider === 'ssh'
-        : projectSettings.workspaceProvider?.type === 'script';
-    if (useSsh && projectSettings.workspaceProvider?.type === 'script') {
-      return doProvisionRemoteTask(
+    if (task.workspaceProvider === 'byoi') {
+      const projectSettings = await settings.get();
+      if (projectSettings.workspaceProvider?.type !== 'script') {
+        throw new Error(
+          'Task has workspaceProvider=byoi but project has no script provider configured'
+        );
+      }
+      return provisionBYOITask({
         task,
         conversations,
         terminals,
-        projectSettings.workspaceProvider
-      );
+        wpConfig: projectSettings.workspaceProvider,
+        execFn: localExec,
+        projectId: project.id,
+        projectPath: project.path,
+        settings,
+        logPrefix: 'LocalProjectProvider[byoi]',
+      });
     }
 
     void gitFetchService.fetch();
@@ -101,188 +101,26 @@ export async function createLocalProvider(
 
     const workspaceId = localWorkspaceId(project.id, task.taskBranch);
 
-    events.emit(taskProvisionProgressChannel, {
-      taskId: task.id,
-      projectId: project.id,
-      step: 'resolving-worktree',
-      message: 'Resolving worktree…',
-    });
-    const workDir = await resolveTaskWorkDir(task, project.path, worktreeService);
-
-    events.emit(taskProvisionProgressChannel, {
-      taskId: task.id,
-      projectId: project.id,
-      step: 'initialising-workspace',
-      message: 'Initialising workspace…',
-    });
-    const workspace = await workspaceRegistry.acquire(
+    const { provisionResult, workspace } = await provisionLocalTask({
+      task,
+      conversations,
+      terminals,
       workspaceId,
-      project.id,
-      createWorkspaceFactory(
-        workspaceId,
-        { kind: 'local' },
-        {
-          task,
-          workDir,
-          projectId: project.id,
-          projectPath: project.path,
-          settings,
-          logPrefix: 'LocalProjectProvider',
-          repository,
-          fetchService: gitFetchService,
-          extraHooks: {
-            onCreate: async (ws) => {
-              const mainDotGitAbs = path.resolve(project.path, '.git');
-              const relativeGitDir = await ws.git.getWorktreeGitDir(mainDotGitAbs);
-              gitWatcher.registerWorktree(workspaceId, relativeGitDir);
-            },
-            onDestroy: async () => gitWatcher.unregisterWorktree(workspaceId),
-          },
-        }
-      )
-    );
-
-    let provisionSucceeded = false;
-    try {
-      events.emit(taskProvisionProgressChannel, {
-        taskId: task.id,
-        projectId: project.id,
-        step: 'starting-sessions',
-        message: 'Starting sessions…',
-      });
-      const { taskProvider } = await buildTaskFromWorkspace(
-        task,
-        workspace,
-        { kind: 'local' },
-        project.id,
-        project.path,
-        settings,
-        { conversations, terminals },
-        'LocalProjectProvider'
-      );
-      log.debug('LocalProjectProvider: doProvisionTask DONE', { taskId: task.id });
-      provisionSucceeded = true;
-      return { taskProvider, persistData: { workspaceId: workspace.id } };
-    } finally {
-      if (!provisionSucceeded) {
-        await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
-      }
-    }
-  }
-
-  async function doProvisionRemoteTask(
-    task: Task,
-    conversations: Conversation[],
-    terminals: Terminal[],
-    wpConfig: NonNullable<ProjectSettings['workspaceProvider']>
-  ): Promise<ProvisionResult> {
-    events.emit(taskProvisionProgressChannel, {
-      taskId: task.id,
+      type: { kind: 'local' },
       projectId: project.id,
-      step: 'running-provision-script',
-      message: 'Running provision script…',
+      projectPath: project.path,
+      settings,
+      worktreeService,
+      fetchService: gitFetchService,
+      repository,
+      logPrefix: 'LocalProjectProvider',
     });
 
-    const { stdout } = await localExec('/bin/sh', ['-c', wpConfig.provisionCommand], {
-      cwd: project.path,
-    });
+    const mainDotGitAbs = path.resolve(project.path, '.git');
+    const relativeGitDir = await workspace.git.getWorktreeGitDir(mainDotGitAbs);
+    gitWatcher.registerWorktree(workspaceId, relativeGitDir);
 
-    const parseResult = parseProvisionOutput(stdout);
-    if (!parseResult.success) {
-      throw new Error(parseResult.error.message);
-    }
-    const output = parseResult.data;
-
-    events.emit(taskProvisionProgressChannel, {
-      taskId: task.id,
-      projectId: project.id,
-      step: 'connecting',
-      message: `Connecting to ${output.host}…`,
-    });
-
-    const connectionId = `task:${task.id}`;
-    const proxy = await sshConnectionManager.connectFromConfig(connectionId, {
-      host: output.host,
-      port: output.port ?? 22,
-      username: output.username ?? process.env['USER'],
-      ...(output.password
-        ? { password: output.password }
-        : { agent: process.env['SSH_AUTH_SOCK'] }),
-    });
-
-    events.emit(taskProvisionProgressChannel, {
-      taskId: task.id,
-      projectId: project.id,
-      step: 'setting-up-workspace',
-      message: 'Setting up workspace…',
-    });
-
-    const workDir = output.worktreePath ?? project.path;
-    const workspaceId = remoteTaskWorkspaceId(output.id ?? task.id);
-
-    const workspace = await workspaceRegistry.acquire(
-      workspaceId,
-      project.id,
-      createWorkspaceFactory(
-        workspaceId,
-        { kind: 'ssh', proxy },
-        {
-          task,
-          workDir,
-          projectId: project.id,
-          projectPath: project.path,
-          settings,
-          logPrefix: 'LocalProjectProvider[remote]',
-          extraHooks: {
-            onDestroy: async () => {
-              const cmd = output.id
-                ? `REMOTE_WORKSPACE_ID=${quoteShellArg(output.id)} ${wpConfig.terminateCommand}`
-                : wpConfig.terminateCommand;
-              await localExec('/bin/sh', ['-c', cmd], { cwd: project.path }).catch((e) => {
-                log.warn('LocalProjectProvider: terminate command failed', { error: String(e) });
-              });
-              await sshConnectionManager.disconnect(connectionId);
-            },
-            onDetach: async () => {
-              await sshConnectionManager.disconnect(connectionId);
-            },
-          },
-        }
-      )
-    );
-
-    let provisionSucceeded = false;
-    try {
-      events.emit(taskProvisionProgressChannel, {
-        taskId: task.id,
-        projectId: project.id,
-        step: 'starting-sessions',
-        message: 'Starting sessions…',
-      });
-      const { taskProvider } = await buildTaskFromWorkspace(
-        task,
-        workspace,
-        { kind: 'ssh', proxy },
-        project.id,
-        project.path,
-        settings,
-        { conversations, terminals },
-        'LocalProjectProvider[remote]'
-      );
-      log.debug('LocalProjectProvider: doProvisionRemoteTask DONE', { taskId: task.id });
-      provisionSucceeded = true;
-      return {
-        taskProvider,
-        persistData: {
-          workspaceId: workspace.id,
-          workspaceProviderData: { ...wpConfig, remoteWorkspaceId: output.id },
-        },
-      };
-    } finally {
-      if (!provisionSucceeded) {
-        await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
-      }
-    }
+    return provisionResult;
   }
 
   async function doTeardownTask(
@@ -298,6 +136,7 @@ export async function createLocalProvider(
       await task.terminals.destroyAll();
     }
     await workspaceRegistry.release(workspaceId, mode);
+    gitWatcher.unregisterWorktree(workspaceId);
   }
 
   async function cleanupDetachedTmuxSessions(taskId: string): Promise<void> {

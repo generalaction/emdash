@@ -35,7 +35,7 @@ export type Task = {
   isPinned: boolean;
   prs: PullRequest[];
   conversations: Record<string, number>;
-  workspaceProvider?: 'local' | 'ssh';
+  workspaceProvider?: 'byoi';
   workspaceId?: string;
   workspaceProviderData?: string; // JSON, BYOI only
 };
@@ -74,7 +74,7 @@ export type CreateTaskParams = {
   /**  */
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
-  workspaceProvider?: 'local' | 'ssh';
+  workspaceProvider?: 'byoi';
 };
 
 export type CreateTaskError =

@@ -2,7 +2,7 @@ import type { ProvisionTaskError, TeardownTaskError } from './project-provider';
 import { TimeoutSignal } from './utils';
 import type { ServeWorktreeError } from './worktrees/worktree-service';
 
-export const TASK_TIMEOUT_MS = 60_000;
+export const TASK_TIMEOUT_MS = 600000;
 export const TEARDOWN_SCRIPT_WAIT_MS = 10_000;
 
 export function toProvisionError(e: unknown): ProvisionTaskError {
