@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ensureUserBinDirsInPath } from './userEnv';
+import { ensureUserBinDirsInPath, ensureWindowsNpmGlobalBinInPath } from './userEnv';
 
 const originalPath = process.env.PATH;
 
@@ -29,5 +29,19 @@ describe('ensureUserBinDirsInPath', () => {
 
     expect(added).toEqual([]);
     expect(process.env.PATH).toBe([dir, '/usr/bin'].join(path.delimiter));
+  });
+});
+
+describe('ensureWindowsNpmGlobalBinInPath', () => {
+  it('uses APPDATA case-insensitively when prepending npm global bin', () => {
+    const env: NodeJS.ProcessEnv = {
+      appdata: 'C:\\Users\\test\\AppData\\Roaming',
+      Path: 'C:\\Windows\\System32',
+    };
+
+    const added = ensureWindowsNpmGlobalBinInPath(env);
+
+    expect(added).toBe('C:\\Users\\test\\AppData\\Roaming\\npm');
+    expect(env.Path).toBe('C:\\Users\\test\\AppData\\Roaming\\npm;C:\\Windows\\System32');
   });
 });

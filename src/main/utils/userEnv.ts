@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { log } from '@main/lib/logger';
-import { prependWindowsPathEntry } from './windows-env';
+import { getWindowsEnvValue, prependWindowsPathEntry } from './windows-env';
 
 /**
  * Keys that must never be overwritten from the shell env capture.
@@ -84,7 +84,7 @@ export function ensureUserBinDirsInPath(candidates: string[] = USER_BIN_DIRS): s
 export function ensureWindowsNpmGlobalBinInPath(
   env: NodeJS.ProcessEnv = process.env
 ): string | null {
-  const appData = env.APPDATA;
+  const appData = getWindowsEnvValue(env, 'APPDATA');
   if (!appData) return null;
 
   const npmPath = path.win32.join(appData, 'npm');
