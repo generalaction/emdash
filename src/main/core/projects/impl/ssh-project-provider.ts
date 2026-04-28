@@ -21,7 +21,10 @@ import { githubConnectionService } from '@main/core/github/services/github-conne
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { type SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import { type SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import {
+  sshConnectionManager,
+  type SshConnectionEvent,
+} from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';

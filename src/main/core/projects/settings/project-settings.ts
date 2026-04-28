@@ -16,7 +16,6 @@ import {
   type ProjectSettingsProvider,
 } from './schema';
 import {
-  defaultLocalWorktreeFs,
   normalizeWorktreeDirectory,
   resolveAndValidateWorktreeDirectory,
 } from './worktree-directory';
@@ -57,7 +56,12 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
       {
         projectPath: this.projectPath,
         pathApi: path,
-        fs: defaultLocalWorktreeFs,
+        fs: {
+          mkdir: async (p, options) => {
+            await fs.promises.mkdir(p, options);
+          },
+          realPath: async (p) => fs.promises.realpath(p),
+        },
         homeDirectory: os.homedir(),
       }
     );
