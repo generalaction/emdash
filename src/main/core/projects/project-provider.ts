@@ -1,14 +1,14 @@
-import { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/conversations';
 import type { Branch, FetchError } from '@shared/git';
 import type { Result } from '@shared/result';
-import { Task, TaskBootstrapStatus } from '@shared/tasks';
-import { Terminal } from '@shared/terminals';
+import type { Task, TaskBootstrapStatus } from '@shared/tasks';
+import type { Terminal } from '@shared/terminals';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import { ConversationProvider } from '../conversations/types';
+import type { ConversationProvider } from '../conversations/types';
 import type { GitRepositoryService } from '../git/repository-service';
-import { TerminalProvider } from '../terminals/terminal-provider';
+import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { Workspace } from '../workspaces/workspace';
-import { ProjectSettingsProvider } from './settings/schema';
+import type { ProjectSettingsProvider } from './settings/schema';
 
 export type BaseTaskProvisionArgs = {
   taskId: string;

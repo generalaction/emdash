@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
-import { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/conversations';
 import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { SshProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
-import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { Terminal } from '@shared/terminals';
+import type { Task, TaskBootstrapStatus } from '@shared/tasks';
+import type { Terminal } from '@shared/terminals';
 import { workspaceKey } from '@shared/workspace-key';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -20,8 +20,11 @@ import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
-import { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import { SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import {
+  sshConnectionManager,
+  type SshConnectionEvent,
+} from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';

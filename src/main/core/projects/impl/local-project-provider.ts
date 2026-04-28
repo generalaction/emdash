@@ -1,14 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/conversations';
 import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
-import { LocalProject } from '@shared/projects';
+import type { LocalProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
-import { Task, type TaskBootstrapStatus } from '@shared/tasks';
+import { type Task, type TaskBootstrapStatus } from '@shared/tasks';
 import { type Terminal } from '@shared/terminals';
 import { workspaceKey } from '@shared/workspace-key';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
@@ -388,9 +388,7 @@ export class LocalProjectProvider implements ProjectProvider {
     return promise;
   }
 
-  getWorkspace(
-    workspaceId: string
-  ): import('@main/core/workspaces/workspace').Workspace | undefined {
+  getWorkspace(workspaceId: string): Workspace | undefined {
     return this.workspaceRegistry.get(workspaceId);
   }
 
