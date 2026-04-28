@@ -34,6 +34,7 @@ type FormState = {
   worktreeDirectory: string;
   defaultBranch: Branch | null;
   remote: string;
+  pushRemote: string;
 };
 
 function normalizeScript(val: string | string[] | undefined): string {
@@ -72,10 +73,11 @@ export function settingsToForm(
     worktreeDirectory: s.worktreeDirectory ?? '',
     defaultBranch,
     remote: s.remote ?? '',
+    pushRemote: s.pushRemote ?? '',
   };
 }
 
-export function formToSettings(f: FormState): ProjectSettings {
+export function formToSettings(f: FormState, original: ProjectSettings): ProjectSettings {
   let defaultBranch: ProjectSettings['defaultBranch'];
   if (f.defaultBranch) {
     defaultBranch =
@@ -84,6 +86,7 @@ export function formToSettings(f: FormState): ProjectSettings {
         : f.defaultBranch.branch;
   }
   return {
+    ...original,
     preservePatterns: f.preservePatterns
       .split('\n')
       .map((p) => p.trim())
@@ -98,6 +101,7 @@ export function formToSettings(f: FormState): ProjectSettings {
     worktreeDirectory: f.worktreeDirectory || undefined,
     defaultBranch,
     remote: f.remote || undefined,
+    pushRemote: f.pushRemote || undefined,
   };
 }
 
@@ -123,7 +127,6 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 
   const baseline = useMemo(
     () => settingsToForm(initial, configuredRemote, remotes),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [initial, configuredRemote, remotes]
   );
   const [form, setForm] = useState<FormState>(baseline);
@@ -150,7 +153,9 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
     const formAtSubmit = form;
     setSaveStatus('saving');
 
-    const result = await save(formToSettings(formAtSubmit)).catch(() => err({ type: 'error' }));
+    const result = await save(formToSettings(formAtSubmit, initial)).catch(() =>
+      err({ type: 'error' })
+    );
 
     if (result.success) {
       setWorktreeDirectoryError(null);
@@ -257,6 +262,33 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
               </SelectContent>
             </Select>
           </Field>
+
+          {remotes.length >= 2 && (
+            <Field>
+              <FieldTitle>Push remote</FieldTitle>
+              <FieldDescription>
+                The remote where branches are pushed and published. Defaults to the fetch remote
+                above.
+              </FieldDescription>
+              <Select
+                value={form.pushRemote || ''}
+                onValueChange={(value) => update('pushRemote', value ?? '')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Same as fetch remote" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Same as fetch remote</SelectItem>
+                  {remotes.map((r) => (
+                    <SelectItem key={r.name} value={r.name}>
+                      {r.name}
+                      <span className="ml-2 text-xs text-muted-foreground">{r.url}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
 
           <Separator />
 

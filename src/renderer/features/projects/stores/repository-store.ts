@@ -7,7 +7,12 @@ import type {
   RemoteBranch,
   RemoteBranchesPayload,
 } from '@shared/git';
-import { bareRefName, computeDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import {
+  bareRefName,
+  computeDefaultBranch,
+  selectPreferredPushRemote,
+  selectPreferredRemote,
+} from '@shared/git-utils';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { isGitHubUrl, normalizeGitHubUrl } from '@renderer/utils/github/utils';
@@ -63,7 +68,11 @@ export class RepositoryStore {
 
     // Invalidate remote data when settings that affect remote resolution change.
     this._settingsDisposer = reaction(
-      () => [settingsStore.settings?.remote, settingsStore.settings?.defaultBranch],
+      () => [
+        settingsStore.settings?.remote,
+        settingsStore.settings?.pushRemote,
+        settingsStore.settings?.defaultBranch,
+      ],
       () => this.remoteData.invalidate()
     );
 
@@ -74,6 +83,8 @@ export class RepositoryStore {
       localBranches: computed,
       remoteBranches: computed,
       configuredRemote: computed,
+      configuredPushRemote: computed,
+      pushRepositoryUrl: computed,
       defaultBranchName: computed,
       defaultBranch: computed,
       remotes: computed,
@@ -115,6 +126,19 @@ export class RepositoryStore {
     const setting = this.settingsStore.settings?.remote;
     const remotes = this.remoteData.data?.remotes ?? [];
     return selectPreferredRemote(setting, remotes);
+  }
+
+  get configuredPushRemote(): Remote {
+    const pushSetting = this.settingsStore.settings?.pushRemote;
+    const fetchSetting = this.settingsStore.settings?.remote;
+    const remotes = this.remoteData.data?.remotes ?? [];
+    return selectPreferredPushRemote(pushSetting, fetchSetting, remotes);
+  }
+
+  get pushRepositoryUrl(): string | null {
+    const url = this.configuredPushRemote.url;
+    if (!url || !isGitHubUrl(url)) return null;
+    return normalizeGitHubUrl(url);
   }
 
   get remotes(): Remote[] {
@@ -172,7 +196,7 @@ export class RepositoryStore {
   }
 
   isBranchOnRemote(branchName: string): boolean {
-    const remoteName = this.configuredRemote.name;
+    const remoteName = this.configuredPushRemote.name;
     return this.remoteBranches.some((b) => b.branch === branchName && b.remote.name === remoteName);
   }
 

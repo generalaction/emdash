@@ -99,6 +99,12 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
     return settings.remote ?? 'origin';
   }
 
+  async getPushRemote(): Promise<string> {
+    const settings = await this.get();
+    if (settings.pushRemote) return settings.pushRemote;
+    return this.getRemote();
+  }
+
   async getWorktreeDirectory(): Promise<string> {
     const settings = await this.get();
     const defaultWorktreeDirectory = (await appSettingsService.get('localProject'))
@@ -213,6 +219,12 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
   async getRemote(): Promise<string> {
     const settings = await this.get();
     return settings.remote ?? 'origin';
+  }
+
+  async getPushRemote(): Promise<string> {
+    const settings = await this.get();
+    if (settings.pushRemote) return settings.pushRemote;
+    return this.getRemote();
   }
 
   async getWorktreeDirectory(): Promise<string> {
