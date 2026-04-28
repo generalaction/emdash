@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
+import { basename } from 'node:path';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
+import { workspaceKey } from '@shared/workspace-key';
 import { log } from '@main/lib/logger';
-import type { SshProjectProvider } from '../projects/impl/ssh-project-provider';
 import { projectManager } from '../projects/project-manager';
 import { ptySessionRegistry } from './pty-session-registry';
 
@@ -65,18 +67,21 @@ export const ptyController = createRPCController({
   uploadFiles: async (args: { sessionId: string; localPaths: string[] }) => {
     try {
       const [projectId, scopeId] = args.sessionId.split(':');
-      if (!projectId || !scopeId) {
-        return err({ type: 'invalid_session' as const });
-      }
+      if (!projectId || !scopeId) return err({ type: 'invalid_session' as const });
 
       const provider = projectManager.getProject(projectId);
-      if (!provider || provider.type !== 'ssh') {
-        return err({ type: 'not_ssh' as const });
-      }
+      if (!provider) return err({ type: 'not_ssh' as const });
 
-      const remotePaths = await (provider as SshProjectProvider).uploadFiles(
-        scopeId,
-        args.localPaths
+      const wsId = workspaceKey(scopeId);
+      const workspace = provider.getWorkspace(wsId);
+      if (!workspace?.fs.copyLocalFile) return err({ type: 'not_ssh' as const });
+
+      const remotePaths = await Promise.all(
+        args.localPaths.map(async (localPath) => {
+          const remoteName = `${randomUUID()}-${basename(localPath)}`;
+          await workspace.fs.copyLocalFile!(localPath, remoteName);
+          return `${workspace.path}/${remoteName}`;
+        })
       );
       return ok({ remotePaths });
     } catch (e: unknown) {

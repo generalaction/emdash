@@ -190,7 +190,7 @@ export async function createTask(
       status: initialStatus,
       sourceBranch: toStoredBranch(dbSourceBranch),
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
-      workspaceProvider: params.workspaceProvider ?? 'local',
+      workspaceProvider: params.workspaceProvider ?? null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,
@@ -211,7 +211,7 @@ export async function createTask(
 
   const task = mapTaskRowToTask(taskRow, prs);
 
-  const provisionResult = await project.provisionTask(task, [], []);
+  const provisionResult = await project.tasks.provisionTask(task, [], []);
   if (!provisionResult.success) {
     return err(mapProvisionError(provisionResult.error));
   }

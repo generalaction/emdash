@@ -1,7 +1,7 @@
 import { projectManager } from './project-manager';
 
 export function resolveTask(projectId: string, taskId: string) {
-  return projectManager.getProject(projectId)?.getTask(taskId) ?? null;
+  return projectManager.getProject(projectId)?.tasks.getTask(taskId) ?? null;
 }
 
 export function resolveWorkspace(projectId: string, workspaceId: string) {

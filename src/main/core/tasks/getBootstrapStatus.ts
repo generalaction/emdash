@@ -9,7 +9,7 @@ export async function getBootstrapStatus(
   const project = projectManager.getProject(projectId);
   if (!project) throw new Error(`Project not found: ${projectId}`);
 
-  const status = project.getTaskBootstrapStatus(taskId);
+  const status = project.tasks.getTaskBootstrapStatus(taskId);
   log.debug('getBootstrapStatus', { taskId, status: status.status });
   return status;
 }

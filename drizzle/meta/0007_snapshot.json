@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c679c995-005e-4295-9241-bccec75aadd9",
+  "id": "d6fa5a7a-51ad-49fb-8c73-7b3c35e074a3",
   "prevId": "79109ea2-737d-48d0-b5c6-ec2ceb4b0d3c",
   "tables": {
     "app_secrets": {
@@ -1153,9 +1153,8 @@
           "name": "workspace_provider",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'local'"
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {

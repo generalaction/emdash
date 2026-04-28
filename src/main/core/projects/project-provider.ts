@@ -1,21 +1,13 @@
-import type { Conversation } from '@shared/conversations';
 import type { Branch, FetchError } from '@shared/git';
 import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
-import type { Task, TaskBootstrapStatus } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { ConversationProvider } from '../conversations/types';
 import type { GitRepositoryService } from '../git/repository-service';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { Workspace } from '../workspaces/workspace';
 import type { ProjectSettingsProvider } from './settings/schema';
-
-export type BaseTaskProvisionArgs = {
-  taskId: string;
-  conversations: Conversation[];
-  terminals: Terminal[];
-};
+import type { TaskProvisionManager } from './task-provision-manager';
 
 export type ProvisionTaskError =
   | { type: 'timeout'; message: string; timeout: number }
@@ -41,16 +33,9 @@ export interface ProjectProvider {
   readonly settings: ProjectSettingsProvider;
   readonly repository: GitRepositoryService;
   readonly fs: FileSystemProvider;
+  readonly tasks: TaskProvisionManager;
   getRemoteState(): Promise<ProjectRemoteState>;
   getWorkspace(workspaceId: string): Workspace | undefined;
-  provisionTask(
-    args: Task,
-    conversations: Conversation[],
-    terminals: Terminal[]
-  ): Promise<Result<TaskProvider, ProvisionTaskError>>;
-  getTask(taskId: string): TaskProvider | undefined;
-  getTaskBootstrapStatus(taskId: string): TaskBootstrapStatus;
-  teardownTask(taskId: string): Promise<Result<void, TeardownTaskError>>;
   getWorktreeForBranch(branchName: string): Promise<string | undefined>;
   removeTaskWorktree(taskBranch: string): Promise<void>;
   fetch(): Promise<Result<void, FetchError>>;

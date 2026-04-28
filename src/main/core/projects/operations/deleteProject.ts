@@ -12,7 +12,7 @@ export async function deleteProject(id: string): Promise<void> {
   if (provider) {
     const projectTasks = await getTasks(id);
     await Promise.allSettled([
-      ...projectTasks.map((t) => provider.teardownTask(t.id)),
+      ...projectTasks.map((t) => provider.tasks.teardownTask(t.id)),
       ...projectTasks.map((t) => viewStateService.del(`task:${t.id}`)),
     ]);
   }

@@ -17,7 +17,7 @@ export async function provisionTask(taskId: string) {
   const project = projectManager.getProject(task.projectId);
   if (!project) throw new Error(`Project not found: ${task.projectId}`);
 
-  const existingTask = project.getTask(taskId);
+  const existingTask = project.tasks.getTask(taskId);
 
   if (existingTask) {
     const wsId = workspaceKey(existingTask.taskBranch);
@@ -37,7 +37,7 @@ export async function provisionTask(taskId: string) {
       .then((rows) => rows.map((r) => mapConversationRowToConversation(r, true))),
   ]);
 
-  const result = await project.provisionTask(task, existingConversations, existingTerminals);
+  const result = await project.tasks.provisionTask(task, existingConversations, existingTerminals);
   if (!result.success) {
     throw new Error(`Failed to provision task: ${formatProvisionTaskError(result.error)}`);
   }

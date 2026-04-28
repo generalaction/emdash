@@ -5,9 +5,9 @@
 
 import type { SFTPWrapper } from 'ssh2';
 import type { FileWatchEvent } from '@shared/fs';
+import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
-import { quoteShellArg } from '../../../utils/shellEscape';
-import type { SshClientProxy } from '../../ssh/ssh-client-proxy';
+import { quoteShellArg } from '@main/utils/shellEscape';
 import {
   DEFAULT_EMDASH_CONFIG,
   FileSystemError,
@@ -481,6 +481,14 @@ export class SshFileSystem implements FileSystemProvider {
     } catch {
       return [];
     }
+  }
+
+  async copyLocalFile(localAbsPath: string, destRelPath: string): Promise<void> {
+    const sftp = await this.getSftp();
+    const remoteFull = this.resolveRemotePath(destRelPath);
+    await new Promise<void>((resolve, reject) => {
+      sftp.fastPut(localAbsPath, remoteFull, (e) => (e ? reject(e) : resolve()));
+    });
   }
 
   async copyFile(src: string, dest: string): Promise<void> {

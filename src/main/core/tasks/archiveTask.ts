@@ -24,7 +24,7 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
 
   if (!project) return;
 
-  void project
+  void project.tasks
     .teardownTask(taskId)
     .then((teardownResult) => {
       if (!teardownResult.success) {
