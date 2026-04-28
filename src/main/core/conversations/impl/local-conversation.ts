@@ -1,7 +1,6 @@
 import { homedir } from 'node:os';
 import { getProvider } from '@shared/agent-provider-registry';
-import type { AgentSessionConfig } from '@shared/agent-session';
-import { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -12,10 +11,10 @@ import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
-import { Pty } from '@main/core/pty/pty';
+import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import type { ExecFn } from '@main/core/utils/exec';
@@ -100,29 +99,31 @@ export class LocalConversationProvider implements ConversationProvider {
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
-    const cfg: AgentSessionConfig = {
-      taskId: this.taskId,
-      conversationId: conversation.id,
-      providerId: conversation.providerId,
-      command,
-      args,
-      cwd: this.taskPath,
-      shellSetup: this.shellSetup,
-      tmuxSessionName,
-      autoApprove: conversation.autoApprove ?? false,
-      resume: isResuming,
-    };
+    const resolved = resolveLocalPtySpawn({
+      platform: process.platform,
+      env: process.env,
+      intent: {
+        kind: 'run-command',
+        cwd: this.taskPath,
+        command: { kind: 'argv', command, args },
+        shellSetup: this.shellSetup,
+        tmuxSessionName,
+      },
+    });
 
-    const spawnParams = resolveSpawnParams('agent', cfg);
+    logLocalPtySpawnWarnings('LocalConversationProvider', resolved.warnings, {
+      conversationId: conversation.id,
+      sessionId,
+    });
 
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
     const pty = spawnLocalPty({
       id: sessionId,
-      command: spawnParams.command,
-      args: spawnParams.args,
-      cwd: this.taskPath,
+      command: resolved.command,
+      args: resolved.args,
+      cwd: resolved.cwd,
       env: {
         ...buildAgentEnv({
           hook: port > 0 ? { port, ptyId, token } : undefined,

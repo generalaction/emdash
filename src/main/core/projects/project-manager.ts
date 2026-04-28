@@ -6,7 +6,6 @@ import type {
 } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { log } from '@main/lib/logger';
-import { LocalFileSystem } from '../fs/impl/local-fs';
 import { SshFileSystem } from '../fs/impl/ssh-fs';
 import { getProjectById, getProjects } from '../projects/operations/getProjects';
 import { sshConnectionManager } from '../ssh/ssh-connection-manager';
@@ -172,8 +171,7 @@ async function createProvider(project: LocalProject | SshProject): Promise<Proje
     const rootFs = new SshFileSystem(proxy, '/');
     return createSshProvider(project, rootFs, proxy);
   }
-  const rootFs = new LocalFileSystem('/');
-  return createLocalProvider(project, rootFs);
+  return createLocalProvider(project);
 }
 
 export const projectManager = new ProjectManager();

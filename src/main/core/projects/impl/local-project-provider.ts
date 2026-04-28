@@ -1,15 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/conversations';
 import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
-import { LocalProject } from '@shared/projects';
+import type { LocalProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
-import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { type Terminal } from '@shared/terminals';
+import type { Task, TaskBootstrapStatus } from '@shared/tasks';
+import type { Terminal } from '@shared/terminals';
 import { workspaceKey } from '@shared/workspace-key';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -45,6 +45,8 @@ import { LocalProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import { getEffectiveTaskSettings } from '../settings/task-settings';
 import { TimeoutSignal, withTimeout } from '../utils';
+import { LocalWorktreeHost } from '../worktrees/hosts/local-worktree-host';
+import type { WorktreeHost } from '../worktrees/hosts/worktree-host';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 const TASK_TIMEOUT_MS = 60_000;
@@ -61,20 +63,25 @@ function toTeardownError(e: unknown): TeardownTaskError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-export async function createLocalProvider(
-  project: LocalProject,
-  rootFs: FileSystemProvider
-): Promise<LocalProjectProvider> {
-  const settings = new LocalProjectSettingsProvider(
-    project.path,
-    bareRefName(project.baseRef),
-    rootFs
-  );
-  const worktreePoolPath = path.join(await settings.getWorktreeDirectory(), project.name);
+export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
+  const settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
+  const worktreeDirectory = await settings.getWorktreeDirectory();
+  await fs.promises.mkdir(worktreeDirectory, { recursive: true });
 
-  await fs.promises.mkdir(worktreePoolPath, { recursive: true });
+  const projectFs = new LocalFileSystem(project.path);
+  const worktreeHost = await LocalWorktreeHost.create({
+    allowedRoots: [project.path, worktreeDirectory],
+  });
+  const worktreePoolPath = path.join(worktreeDirectory, project.name);
 
-  return new LocalProjectProvider(project, rootFs, { settings, worktreePoolPath });
+  await worktreeHost.mkdirAbsolute(worktreePoolPath, { recursive: true });
+
+  return new LocalProjectProvider(project, {
+    projectFs,
+    worktreeHost,
+    settings,
+    worktreePoolPath,
+  });
 }
 
 export class LocalProjectProvider implements ProjectProvider {
@@ -96,14 +103,15 @@ export class LocalProjectProvider implements ProjectProvider {
 
   constructor(
     private readonly project: LocalProject,
-    readonly rootFs: FileSystemProvider,
     options: {
+      projectFs: FileSystemProvider;
+      worktreeHost: WorktreeHost;
       settings: ProjectSettingsProvider;
       worktreePoolPath: string;
     }
   ) {
     this.settings = options.settings;
-    this.fs = new LocalFileSystem(project.path);
+    this.fs = options.projectFs;
     const gitExec = getGitLocalExec(() => githubConnectionService.getToken());
     const repoGit = new GitService(project.path, gitExec, this.fs);
     this.repository = new GitRepositoryService(repoGit, this.settings);
@@ -112,7 +120,7 @@ export class LocalProjectProvider implements ProjectProvider {
       repoPath: project.path,
       projectSettings: this.settings,
       exec: gitExec,
-      rootFs: rootFs,
+      host: options.worktreeHost,
     });
     this._gitWatcher = new GitWatcherService(project.id, project.path);
     void this._gitWatcher.start();
