@@ -41,6 +41,7 @@ import { LocalProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import { withTimeout } from '../utils';
 import { buildTaskProviders, createWorkspaceFactory, resolveTaskEnv } from '../workspace-factory';
+import { resolveTaskWorkDir } from '../worktrees/utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 export async function createLocalProvider(
@@ -164,6 +165,7 @@ export class LocalProjectProvider implements ProjectProvider {
     void prSyncScheduler.onTaskProvisioned(this.project.id, task.taskBranch);
 
     const workspaceId = workspaceKey(task.taskBranch);
+    const workDir = await resolveTaskWorkDir(task, this.project.path, this.worktreeService);
     const workspace = await this.workspaceRegistry.acquire(
       workspaceId,
       createWorkspaceFactory(
@@ -171,10 +173,10 @@ export class LocalProjectProvider implements ProjectProvider {
         { kind: 'local' },
         {
           task,
+          workDir,
           projectId: this.project.id,
           projectPath: this.project.path,
           settings: this.settings,
-          worktreeService: this.worktreeService,
           logPrefix: 'LocalProjectProvider',
           extraHooks: {
             onCreate: async (ws) => {

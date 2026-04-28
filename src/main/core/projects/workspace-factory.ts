@@ -20,17 +20,15 @@ import { TEARDOWN_SCRIPT_WAIT_MS } from './provision-task-error';
 import type { ProjectSettingsProvider } from './settings/schema';
 import { getEffectiveTaskSettings } from './settings/task-settings';
 import { TimeoutSignal, withTimeout } from './utils';
-import { resolveTaskWorkDir } from './worktrees/utils';
-import type { WorktreeService } from './worktrees/worktree-service';
 
 export type WorkspaceType = { kind: 'local' } | { kind: 'ssh'; proxy: SshClientProxy };
 
 type WorkspaceFactoryContext = {
-  task: Pick<Task, 'id' | 'name' | 'taskBranch' | 'sourceBranch'>;
+  task: Pick<Task, 'id' | 'name'>;
+  workDir: string;
   projectId: string;
   projectPath: string;
   settings: ProjectSettingsProvider;
-  worktreeService: WorktreeService;
   logPrefix: string;
   extraHooks?: {
     onCreate?: (ws: Workspace) => Promise<void>;
@@ -49,11 +47,7 @@ export function createWorkspaceFactory(
   context: WorkspaceFactoryContext
 ): () => Promise<WorkspaceFactoryResult> {
   return async () => {
-    const workDir = await resolveTaskWorkDir(
-      context.task,
-      context.projectPath,
-      context.worktreeService
-    );
+    const workDir = context.workDir;
 
     // Transport-specific FS, exec, and git exec
     const workspaceFs =
