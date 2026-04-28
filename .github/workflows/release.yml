@@ -1,9 +1,6 @@
-name: Release
+name: Release (v0)
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       arch:
@@ -257,7 +254,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --draft=false --prerelease=false
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
+            gh release create "$TAG" --title "$TAG" --generate-notes --latest=false || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           # Upload Linux packages and metadata
           FILES=(release/emdash-*.AppImage release/emdash-*.deb release/emdash-*.rpm)
@@ -424,7 +421,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --draft=false --prerelease=false
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
+            gh release create "$TAG" --title "$TAG" --generate-notes --latest=false || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           FILES=(release/emdash-*.exe release/emdash-*.msi)
           if ls release/*.blockmap >/dev/null 2>&1; then FILES+=(release/*.blockmap); fi
@@ -758,7 +755,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --draft=false --prerelease=false
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --latest || gh release edit "$TAG" --draft=false --prerelease=false
+            gh release create "$TAG" --title "$TAG" --generate-notes --latest=false || gh release edit "$TAG" --draft=false --prerelease=false
           fi
           # Upload stapled DMGs, ZIPs (for auto-update), and update files
           FILES=(release/emdash-*.dmg release/emdash-*.zip)
