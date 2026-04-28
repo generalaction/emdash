@@ -2,6 +2,7 @@ import * as nodePty from 'node-pty';
 import type { IPty } from 'node-pty';
 import { log } from '@main/lib/logger';
 import { normalizeSignal } from './exit-signals';
+import { suppressExpectedNodePtyErrors } from './node-pty-errors';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
 
 export interface LocalSpawnOptions extends PtyDimensions {
@@ -35,6 +36,7 @@ export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
       cwd,
       env,
     });
+    suppressExpectedNodePtyErrors(proc);
     return new LocalPtySession(id, proc);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
