@@ -1,5 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import type { ExecFn } from '@main/core/utils/exec';
 import { conversations, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { readLegacyRows, toIsoTimestamp, toTrimmedString } from './helpers';
@@ -9,6 +12,8 @@ import { createPortSummary, type PortContext, type PortSummary } from './types';
 const LEGACY_PTY_SESSION_MAP_FILE = 'pty-session-map.json';
 const LEGACY_CLAUDE_CHAT_PREFIX = 'claude-chat-';
 const LEGACY_CLAUDE_MAIN_PREFIX = 'claude-main-';
+const LEGACY_CHAT_SEPARATOR = '-chat-';
+const LEGACY_MAIN_SEPARATOR = '-main-';
 const LEGACY_OPTIMISTIC_TASK_PREFIX = 'optimistic-';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONVERSATION_ID_TIMESTAMP_PATTERN = /-(\d{10,})$/;
@@ -19,10 +24,17 @@ type LegacyPtySessionMapEntry = {
   resumeTarget?: unknown;
 };
 
-type LegacyClaudeResumeTargets = {
+type LegacyPtySessionTargets = {
   chatConversationIdToUuid: Map<string, string>;
   mainTaskIdToUuid: Map<string, string>;
   optimisticMainByTimestamp: Array<{ timestampMs: number; resumeUuid: string }>;
+  chatPtyIdByProviderAndConversationId: Map<string, string>;
+  mainPtyIdByProviderAndTaskId: Map<string, string>;
+  optimisticMainPtyByProviderAndTimestamp: Array<{
+    providerId: string;
+    timestampMs: number;
+    legacyPtyId: string;
+  }>;
 };
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -33,11 +45,14 @@ function isValidResumeUuid(value: string): boolean {
   return UUID_PATTERN.test(value);
 }
 
-function readLegacyClaudeResumeTargets(userDataPath?: string): LegacyClaudeResumeTargets {
-  const targets: LegacyClaudeResumeTargets = {
+function readLegacyPtySessionTargets(userDataPath?: string): LegacyPtySessionTargets {
+  const targets: LegacyPtySessionTargets = {
     chatConversationIdToUuid: new Map<string, string>(),
     mainTaskIdToUuid: new Map<string, string>(),
     optimisticMainByTimestamp: [],
+    chatPtyIdByProviderAndConversationId: new Map<string, string>(),
+    mainPtyIdByProviderAndTaskId: new Map<string, string>(),
+    optimisticMainPtyByProviderAndTimestamp: [],
   };
 
   if (!userDataPath) return targets;
@@ -59,6 +74,36 @@ function readLegacyClaudeResumeTargets(userDataPath?: string): LegacyClaudeResum
   if (!isPlainRecord(rawJson)) return targets;
 
   for (const [ptyKey, rawEntry] of Object.entries(rawJson)) {
+    const parsedPtyKey = parseLegacyPtyKey(ptyKey);
+    if (parsedPtyKey) {
+      const providerId = parsedPtyKey.providerId.toLowerCase();
+      const lookupKey = legacyPtyLookupKey(providerId, parsedPtyKey.suffix);
+
+      if (parsedPtyKey.kind === 'chat') {
+        if (!targets.chatPtyIdByProviderAndConversationId.has(lookupKey)) {
+          targets.chatPtyIdByProviderAndConversationId.set(lookupKey, ptyKey);
+        }
+      } else {
+        if (!targets.mainPtyIdByProviderAndTaskId.has(lookupKey)) {
+          targets.mainPtyIdByProviderAndTaskId.set(lookupKey, ptyKey);
+        }
+
+        if (parsedPtyKey.suffix.startsWith(LEGACY_OPTIMISTIC_TASK_PREFIX)) {
+          const optimisticTimestampPart = toTrimmedString(
+            parsedPtyKey.suffix.slice(LEGACY_OPTIMISTIC_TASK_PREFIX.length)
+          );
+          const optimisticTimestampMs = Number.parseInt(optimisticTimestampPart ?? '', 10);
+          if (Number.isFinite(optimisticTimestampMs)) {
+            targets.optimisticMainPtyByProviderAndTimestamp.push({
+              providerId,
+              timestampMs: optimisticTimestampMs,
+              legacyPtyId: ptyKey,
+            });
+          }
+        }
+      }
+    }
+
     if (!isPlainRecord(rawEntry)) continue;
 
     const entry = rawEntry as LegacyPtySessionMapEntry;
@@ -99,8 +144,45 @@ function readLegacyClaudeResumeTargets(userDataPath?: string): LegacyClaudeResum
   }
 
   targets.optimisticMainByTimestamp.sort((a, b) => a.timestampMs - b.timestampMs);
+  targets.optimisticMainPtyByProviderAndTimestamp.sort((a, b) => a.timestampMs - b.timestampMs);
 
   return targets;
+}
+
+function parseLegacyPtyKey(
+  ptyKey: string
+): { providerId: string; kind: 'main' | 'chat'; suffix: string } | undefined {
+  const chatIndex = ptyKey.indexOf(LEGACY_CHAT_SEPARATOR);
+  if (chatIndex > 0) {
+    const suffix = toTrimmedString(ptyKey.slice(chatIndex + LEGACY_CHAT_SEPARATOR.length));
+    if (!suffix) return undefined;
+    return {
+      providerId: ptyKey.slice(0, chatIndex),
+      kind: 'chat',
+      suffix,
+    };
+  }
+
+  const mainIndex = ptyKey.indexOf(LEGACY_MAIN_SEPARATOR);
+  if (mainIndex > 0) {
+    const suffix = toTrimmedString(ptyKey.slice(mainIndex + LEGACY_MAIN_SEPARATOR.length));
+    if (!suffix) return undefined;
+    return {
+      providerId: ptyKey.slice(0, mainIndex),
+      kind: 'main',
+      suffix,
+    };
+  }
+
+  return undefined;
+}
+
+function legacyPtyLookupKey(providerId: string, suffix: string): string {
+  return `${providerId}:${suffix}`;
+}
+
+function makeLegacyTmuxSessionName(legacyPtyId: string): string {
+  return `emdash-${legacyPtyId.replace(/[^a-zA-Z0-9._-]/g, '-')}`;
 }
 
 function parseConversationTimestampMs(conversationId: string): number | undefined {
@@ -124,7 +206,7 @@ function parseTaskIdFromConversationId(conversationId: string): string | undefin
 
 function findOptimisticMainResumeUuidForConversation(
   conversationId: string,
-  targets: LegacyClaudeResumeTargets
+  targets: LegacyPtySessionTargets
 ): string | undefined {
   const conversationTimestampMs = parseConversationTimestampMs(conversationId);
   if (!conversationTimestampMs || targets.optimisticMainByTimestamp.length === 0) {
@@ -158,19 +240,132 @@ function findOptimisticMainResumeUuidForConversation(
   return bestMatch.resumeUuid;
 }
 
+function findOptimisticMainPtyIdForConversation(
+  conversationId: string,
+  providerId: string,
+  targets: LegacyPtySessionTargets
+): string | undefined {
+  const conversationTimestampMs = parseConversationTimestampMs(conversationId);
+  if (!conversationTimestampMs || targets.optimisticMainPtyByProviderAndTimestamp.length === 0) {
+    return undefined;
+  }
+
+  let bestMatch: { distanceMs: number; legacyPtyId: string } | undefined;
+  let secondBestDistanceMs: number | undefined;
+
+  for (const candidate of targets.optimisticMainPtyByProviderAndTimestamp) {
+    if (candidate.providerId !== providerId) continue;
+
+    const distanceMs = Math.abs(candidate.timestampMs - conversationTimestampMs);
+    if (distanceMs > MAX_OPTIMISTIC_MAIN_TIMESTAMP_DRIFT_MS) continue;
+
+    if (!bestMatch || distanceMs < bestMatch.distanceMs) {
+      secondBestDistanceMs = bestMatch?.distanceMs;
+      bestMatch = { distanceMs, legacyPtyId: candidate.legacyPtyId };
+      continue;
+    }
+
+    if (secondBestDistanceMs === undefined || distanceMs < secondBestDistanceMs) {
+      secondBestDistanceMs = distanceMs;
+    }
+  }
+
+  if (!bestMatch) return undefined;
+
+  if (secondBestDistanceMs !== undefined && secondBestDistanceMs === bestMatch.distanceMs) {
+    return undefined;
+  }
+
+  return bestMatch.legacyPtyId;
+}
+
+function pickLegacyPtyIdForConversation(params: {
+  legacyConversationId: string;
+  legacyTaskId: string;
+  legacyProvider: string | null;
+  legacyPtySessionTargets: LegacyPtySessionTargets;
+}): string | undefined {
+  const { legacyConversationId, legacyTaskId, legacyProvider, legacyPtySessionTargets } = params;
+  const providerId = legacyProvider?.toLowerCase();
+  if (!providerId) return undefined;
+
+  return (
+    legacyPtySessionTargets.chatPtyIdByProviderAndConversationId.get(
+      legacyPtyLookupKey(providerId, legacyConversationId)
+    ) ??
+    legacyPtySessionTargets.mainPtyIdByProviderAndTaskId.get(
+      legacyPtyLookupKey(providerId, legacyTaskId)
+    ) ??
+    (() => {
+      const taskIdFromConversationId = parseTaskIdFromConversationId(legacyConversationId);
+      return taskIdFromConversationId
+        ? legacyPtySessionTargets.mainPtyIdByProviderAndTaskId.get(
+            legacyPtyLookupKey(providerId, taskIdFromConversationId)
+          )
+        : undefined;
+    })() ??
+    findOptimisticMainPtyIdForConversation(
+      legacyConversationId,
+      providerId,
+      legacyPtySessionTargets
+    )
+  );
+}
+
+async function renameLegacyTmuxSession(params: {
+  tmuxExec: ExecFn | undefined;
+  legacyPtyId: string | undefined;
+  mappedProjectId: string;
+  mappedTaskId: string;
+  conversationId: string;
+}): Promise<void> {
+  const { tmuxExec, legacyPtyId, mappedProjectId, mappedTaskId, conversationId } = params;
+  if (!tmuxExec || !legacyPtyId) return;
+
+  const oldName = makeLegacyTmuxSessionName(legacyPtyId);
+  const newName = makeTmuxSessionName(
+    makePtySessionId(mappedProjectId, mappedTaskId, conversationId)
+  );
+  if (oldName === newName) return;
+
+  try {
+    await tmuxExec('tmux', ['has-session', '-t', oldName]);
+  } catch {
+    return;
+  }
+
+  try {
+    await tmuxExec('tmux', ['has-session', '-t', newName]);
+    return;
+  } catch {
+    // Expected when the v1 session name has not been created yet.
+  }
+
+  try {
+    await tmuxExec('tmux', ['rename-session', '-t', oldName, newName]);
+  } catch (error) {
+    log.debug('legacy-port: conversations: failed to rename legacy tmux session', {
+      legacyPtyId,
+      oldName,
+      newName,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 function pickConversationIdForInsert(params: {
   legacyConversationId: string;
   legacyTaskId: string;
   legacyProvider: string | null;
   conversationIds: Set<string>;
-  claudeResumeTargets: LegacyClaudeResumeTargets;
+  legacyPtySessionTargets: LegacyPtySessionTargets;
 }): string {
   const {
     legacyConversationId,
     legacyTaskId,
     legacyProvider,
     conversationIds,
-    claudeResumeTargets,
+    legacyPtySessionTargets,
   } = params;
 
   if (legacyProvider?.toLowerCase() !== 'claude') {
@@ -178,15 +373,15 @@ function pickConversationIdForInsert(params: {
   }
 
   const candidateResumeUuid =
-    claudeResumeTargets.chatConversationIdToUuid.get(legacyConversationId) ??
-    claudeResumeTargets.mainTaskIdToUuid.get(legacyTaskId) ??
+    legacyPtySessionTargets.chatConversationIdToUuid.get(legacyConversationId) ??
+    legacyPtySessionTargets.mainTaskIdToUuid.get(legacyTaskId) ??
     (() => {
       const taskIdFromConversationId = parseTaskIdFromConversationId(legacyConversationId);
       return taskIdFromConversationId
-        ? claudeResumeTargets.mainTaskIdToUuid.get(taskIdFromConversationId)
+        ? legacyPtySessionTargets.mainTaskIdToUuid.get(taskIdFromConversationId)
         : undefined;
     })() ??
-    findOptimisticMainResumeUuidForConversation(legacyConversationId, claudeResumeTargets);
+    findOptimisticMainResumeUuidForConversation(legacyConversationId, legacyPtySessionTargets);
 
   if (!candidateResumeUuid || !isValidResumeUuid(candidateResumeUuid)) {
     return legacyConversationId;
@@ -210,13 +405,15 @@ export async function portConversations({
   remap,
   mergedLegacyTaskIds,
   userDataPath,
+  tmuxExec,
 }: PortContext & {
   mergedLegacyTaskIds: Set<string>;
   userDataPath?: string;
+  tmuxExec?: ExecFn;
 }): Promise<PortSummary> {
   const summary = createPortSummary('conversations');
   const nowIso = new Date().toISOString();
-  const claudeResumeTargets = readLegacyClaudeResumeTargets(userDataPath);
+  const legacyPtySessionTargets = readLegacyPtySessionTargets(userDataPath);
 
   const taskRows = await appDb
     .select({
@@ -280,7 +477,13 @@ export async function portConversations({
       legacyTaskId,
       legacyProvider,
       conversationIds,
-      claudeResumeTargets,
+      legacyPtySessionTargets,
+    });
+    const legacyPtyId = pickLegacyPtyIdForConversation({
+      legacyConversationId,
+      legacyTaskId,
+      legacyProvider,
+      legacyPtySessionTargets,
     });
 
     const insertValues = {
@@ -316,6 +519,14 @@ export async function portConversations({
       });
       continue;
     }
+
+    await renameLegacyTmuxSession({
+      tmuxExec,
+      legacyPtyId,
+      mappedProjectId,
+      mappedTaskId,
+      conversationId: insertResult.id,
+    });
 
     conversationIds.add(insertResult.id);
     summary.inserted += 1;
