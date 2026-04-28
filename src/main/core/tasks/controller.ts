@@ -11,6 +11,7 @@ import { renameTask } from './renameTask';
 import { restoreTask } from './restoreTask';
 import { setTaskPinned } from './setTaskPinned';
 import { teardownTask } from './teardownTask';
+import { tryAutoRenameFromPrompt } from './tryAutoRenameFromPrompt';
 import { updateLinkedIssue } from './updateLinkedIssue';
 import { updateTaskStatus } from './updateTaskStatus';
 
@@ -24,6 +25,7 @@ export const taskController = createRPCController({
   renameTask,
   provisionTask,
   teardownTask,
+  tryAutoRenameFromPrompt,
   getBootstrapStatus,
   getWorkspaceSettings,
   updateLinkedIssue,

@@ -19,7 +19,7 @@ type Props = {
   remoteConnectionId?: string;
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
-  onFirstMessage?: (message: string) => void;
+  onFirstUserPrompt?: (message: string) => void;
   onEnterPress?: (message: string) => void;
   onInterruptPress?: () => void;
 };
@@ -36,7 +36,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
       remoteConnectionId,
       onActivity,
       onExit,
-      onFirstMessage,
+      onFirstUserPrompt,
       onEnterPress,
       onInterruptPress,
     },
@@ -54,7 +54,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
         mapShiftEnterToCtrlJ,
         onActivity,
         onExit,
-        onFirstMessage,
+        onFirstUserPrompt,
         onEnterPress,
         onInterruptPress,
       },

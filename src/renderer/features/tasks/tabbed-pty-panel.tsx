@@ -2,10 +2,10 @@ import { observer } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
-import { PtySession } from '@renderer/lib/pty/pty-session';
+import { type PtySession } from '@renderer/lib/pty/pty-session';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
-import { TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import { cn } from '@renderer/utils/utils';
 import { getTabbedPtySessionIds } from './tabbed-pty-panel-sessions';
 
@@ -18,6 +18,7 @@ export interface TabbedPtyPanelProps<TEntity> {
   autoFocus?: boolean;
   onFocusChange?: (focused: boolean) => void;
   onEnterPress?: (entity: TEntity) => void;
+  onFirstUserPrompt?: (entity: TEntity, message: string) => void;
   onInterruptPress?: (entity: TEntity) => void;
   mapShiftEnterToCtrlJ?: boolean;
   remoteConnectionId?: string;
@@ -32,6 +33,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   autoFocus,
   onFocusChange,
   onEnterPress,
+  onFirstUserPrompt,
   onInterruptPress,
   mapShiftEnterToCtrlJ,
   remoteConnectionId,
@@ -41,13 +43,17 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
 
   const allSessionIds = useMemo(
     () => getTabbedPtySessionIds(tabs, getSession),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [tabs, getSession]
   );
 
   const activeSession = activeTab ? getSession(activeTab) : null;
   const activeSessionId = activeSession?.sessionId ?? null;
   const activeOnEnterPress = activeTab && onEnterPress ? () => onEnterPress(activeTab) : undefined;
+  const activeOnFirstUserPrompt =
+    activeTab && onFirstUserPrompt
+      ? (message: string) => onFirstUserPrompt(activeTab, message)
+      : undefined;
   const activeOnInterruptPress =
     activeTab && onInterruptPress ? () => onInterruptPress(activeTab) : undefined;
 
@@ -132,6 +138,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
                   pty={activeSession.pty}
                   className="h-full w-full"
                   onEnterPress={activeOnEnterPress}
+                  onFirstUserPrompt={activeOnFirstUserPrompt}
                   onInterruptPress={activeOnInterruptPress}
                   mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
                   remoteConnectionId={remoteConnectionId}

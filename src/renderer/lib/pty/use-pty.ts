@@ -1,4 +1,4 @@
-import { Terminal } from '@xterm/xterm';
+import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
@@ -65,7 +65,7 @@ export interface UsePtyOptions {
   mapShiftEnterToCtrlJ?: boolean;
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
-  onFirstMessage?: (message: string) => void;
+  onFirstUserPrompt?: (message: string) => void;
   onEnterPress?: (message: string) => void;
   onInterruptPress?: () => void;
 }
@@ -105,7 +105,7 @@ export function usePty(
     mapShiftEnterToCtrlJ,
     onActivity,
     onExit,
-    onFirstMessage,
+    onFirstUserPrompt,
     onEnterPress,
     onInterruptPress,
   } = options;
@@ -115,8 +115,8 @@ export function usePty(
   onActivityRef.current = onActivity;
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
-  const onFirstMessageRef = useRef(onFirstMessage);
-  onFirstMessageRef.current = onFirstMessage;
+  const onFirstUserPromptRef = useRef(onFirstUserPrompt);
+  onFirstUserPromptRef.current = onFirstUserPrompt;
   const onEnterPressRef = useRef(onEnterPress);
   onEnterPressRef.current = onEnterPress;
   const onInterruptPressRef = useRef(onInterruptPress);
@@ -150,9 +150,8 @@ export function usePty(
   const pendingResizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSentResizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
-  // First-message capture state.
-  const firstMessageSentRef = useRef(false);
-  const inputBufferRef = useRef('');
+  // Fires the onFirstUserPrompt callback exactly once per session-mount.
+  const firstUserPromptSentRef = useRef(false);
 
   // Tracks submitted user input while filtering terminal control traffic.
   const submittedInputBufferRef = useRef(new SubmittedInputBuffer());
@@ -276,6 +275,10 @@ export function usePty(
         for (const message of submittedMessages) {
           if (isRealTaskInput(message)) {
             onEnterPressRef.current?.(message);
+            if (!firstUserPromptSentRef.current) {
+              firstUserPromptSentRef.current = true;
+              onFirstUserPromptRef.current?.(message);
+            }
           }
         }
       }
@@ -464,17 +467,6 @@ export function usePty(
         }
         if (!filtered) return;
 
-        // First-message capture
-        if (!firstMessageSentRef.current && onFirstMessageRef.current) {
-          inputBufferRef.current += filtered;
-          const newlineIndex = inputBufferRef.current.indexOf('\r');
-          if (newlineIndex !== -1) {
-            const message = inputBufferRef.current.slice(0, newlineIndex);
-            onFirstMessageRef.current(message);
-            firstMessageSentRef.current = true;
-          }
-        }
-
         sendInput(filtered);
       };
 
@@ -574,8 +566,7 @@ export function usePty(
       pty.unmount();
       termRef.current = null;
       ptyStartedRef.current = false;
-      firstMessageSentRef.current = false;
-      inputBufferRef.current = '';
+      firstUserPromptSentRef.current = false;
       submittedInputBufferRef.current = new SubmittedInputBuffer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

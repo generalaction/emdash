@@ -1,7 +1,7 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
-import { taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import { taskRenamedChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -92,6 +92,19 @@ export class TaskManagerStore {
       if (store && isProvisioned(store)) {
         runInAction(() => {
           store.data.status = status as TaskLifecycleStatus;
+        });
+      }
+    });
+
+    events.on(taskRenamedChannel, ({ taskId, projectId: evtProjectId, name, taskBranch }) => {
+      if (evtProjectId !== this.projectId) return;
+      const store = this.tasks.get(taskId);
+      if (store && isProvisioned(store)) {
+        runInAction(() => {
+          store.data.name = name;
+          if (taskBranch !== null) {
+            store.data.taskBranch = taskBranch;
+          }
         });
       }
     });
