@@ -3,10 +3,11 @@ import { err, ok, type Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import { log } from '@main/lib/logger';
+import type { TeardownMode } from '../workspaces/workspace-registry';
 import type {
+  ProvisionResult,
   ProvisionTaskError,
   TaskProvider,
-  TeardownMode,
   TeardownTaskError,
 } from './project-provider';
 import {
@@ -21,9 +22,9 @@ type ProvisionFn = (
   task: Task,
   conversations: Conversation[],
   terminals: Terminal[]
-) => Promise<TaskProvider>;
+) => Promise<ProvisionResult>;
 
-type TeardownFn = (task: TaskProvider, mode: TeardownMode) => Promise<void>;
+type TeardownFn = (task: TaskProvider, workspaceId: string, mode: TeardownMode) => Promise<void>;
 
 type DetachedCleanupFn = (taskId: string) => Promise<void>;
 
@@ -31,9 +32,10 @@ export type TeardownAllOpts = { mode: TeardownMode };
 
 export class TaskProvisionManager {
   private readonly _tasks = new Map<string, TaskProvider>();
+  private readonly _workspaceIds = new Map<string, string>();
   private readonly _provisioningTasks = new Map<
     string,
-    Promise<Result<TaskProvider, ProvisionTaskError>>
+    Promise<Result<ProvisionResult, ProvisionTaskError>>
   >();
   private readonly _tearingDownTasks = new Map<string, Promise<Result<void, TeardownTaskError>>>();
   private readonly _bootstrapErrors = new Map<string, ProvisionTaskError>();
@@ -50,18 +52,22 @@ export class TaskProvisionManager {
     task: Task,
     conversations: Conversation[],
     terminals: Terminal[]
-  ): Promise<Result<TaskProvider, ProvisionTaskError>> {
+  ): Promise<Result<ProvisionResult, ProvisionTaskError>> {
     const existing = this._tasks.get(task.id);
-    if (existing) return ok(existing);
+    if (existing) {
+      const workspaceId = this._workspaceIds.get(task.id) ?? '';
+      return ok({ taskProvider: existing, persistData: { workspaceId } });
+    }
 
     const inFlight = this._provisioningTasks.get(task.id);
     if (inFlight) return inFlight;
 
     const promise = withTimeout(this.provisionFn(task, conversations, terminals), TASK_TIMEOUT_MS)
-      .then((taskEnv) => {
-        this._tasks.set(task.id, taskEnv);
+      .then(({ taskProvider, persistData }) => {
+        this._tasks.set(task.id, taskProvider);
+        this._workspaceIds.set(task.id, persistData.workspaceId);
         this._provisioningTasks.delete(task.id);
-        return ok(taskEnv);
+        return ok({ taskProvider, persistData });
       })
       .catch((e) => {
         const provisionError = toProvisionError(e);
@@ -80,6 +86,10 @@ export class TaskProvisionManager {
 
   getTask(taskId: string): TaskProvider | undefined {
     return this._tasks.get(taskId);
+  }
+
+  getWorkspaceId(taskId: string): string | undefined {
+    return this._workspaceIds.get(taskId);
   }
 
   getTaskBootstrapStatus(taskId: string): TaskBootstrapStatus {
@@ -104,7 +114,8 @@ export class TaskProvisionManager {
       return ok();
     }
 
-    const promise = withTimeout(this.teardownFn(task, mode), TASK_TIMEOUT_MS)
+    const workspaceId = this._workspaceIds.get(taskId) ?? '';
+    const promise = withTimeout(this.teardownFn(task, workspaceId, mode), TASK_TIMEOUT_MS)
       .then(() => ok<void>())
       .catch(async (e) => {
         log.error(`${this.logPrefix}: failed to teardown task`, {
@@ -121,6 +132,7 @@ export class TaskProvisionManager {
       })
       .finally(() => {
         this._tasks.delete(taskId);
+        this._workspaceIds.delete(taskId);
         this._tearingDownTasks.delete(taskId);
         this.onTeardownFinally?.(taskId);
       });
@@ -137,6 +149,7 @@ export class TaskProvisionManager {
         )
       );
       this._tasks.clear();
+      this._workspaceIds.clear();
     } else {
       await Promise.all(
         Array.from(this._tasks.keys()).map((id) => this.teardownTask(id, 'terminate'))

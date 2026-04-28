@@ -21,11 +21,11 @@ import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
 import { localWorkspaceId, remoteTaskWorkspaceId } from '@main/core/workspaces/workspace-id';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
-import { type ProjectProvider, type TaskProvider, type TeardownMode } from '../project-provider';
+import type { ProjectProvider, ProvisionResult, TaskProvider } from '../project-provider';
 import { parseProvisionOutput } from '../provision-output';
 import { LocalProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettings } from '../settings/schema';
@@ -79,7 +79,7 @@ export async function createLocalProvider(
     task: Task,
     conversations: Conversation[],
     terminals: Terminal[]
-  ): Promise<TaskProvider> {
+  ): Promise<ProvisionResult> {
     log.debug('LocalProjectProvider: doProvisionTask START', { taskId: task.id });
 
     const projectSettings = await settings.get();
@@ -162,7 +162,7 @@ export async function createLocalProvider(
       );
       log.debug('LocalProjectProvider: doProvisionTask DONE', { taskId: task.id });
       provisionSucceeded = true;
-      return taskProvider;
+      return { taskProvider, persistData: { workspaceId: workspace.id } };
     } finally {
       if (!provisionSucceeded) {
         await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
@@ -175,7 +175,7 @@ export async function createLocalProvider(
     conversations: Conversation[],
     terminals: Terminal[],
     wpConfig: NonNullable<ProjectSettings['workspaceProvider']>
-  ): Promise<TaskProvider> {
+  ): Promise<ProvisionResult> {
     events.emit(taskProvisionProgressChannel, {
       taskId: task.id,
       projectId: project.id,
@@ -257,7 +257,7 @@ export async function createLocalProvider(
         step: 'starting-sessions',
         message: 'Starting sessions…',
       });
-      const { taskProvider: baseTaskProvider } = await buildTaskFromWorkspace(
+      const { taskProvider } = await buildTaskFromWorkspace(
         task,
         workspace,
         { kind: 'ssh', proxy },
@@ -267,13 +267,15 @@ export async function createLocalProvider(
         { conversations, terminals },
         'LocalProjectProvider[remote]'
       );
-      const taskProvider: TaskProvider = {
-        ...baseTaskProvider,
-        workspaceProviderData: JSON.stringify({ ...wpConfig, remoteWorkspaceId: output.id }),
-      };
       log.debug('LocalProjectProvider: doProvisionRemoteTask DONE', { taskId: task.id });
       provisionSucceeded = true;
-      return taskProvider;
+      return {
+        taskProvider,
+        persistData: {
+          workspaceId: workspace.id,
+          workspaceProviderData: { ...wpConfig, remoteWorkspaceId: output.id },
+        },
+      };
     } finally {
       if (!provisionSucceeded) {
         await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
@@ -281,7 +283,11 @@ export async function createLocalProvider(
     }
   }
 
-  async function doTeardownTask(task: TaskProvider, mode: TeardownMode): Promise<void> {
+  async function doTeardownTask(
+    task: TaskProvider,
+    workspaceId: string,
+    mode: TeardownMode
+  ): Promise<void> {
     if (mode === 'detach') {
       await task.conversations.detachAll();
       await task.terminals.detachAll();
@@ -289,7 +295,7 @@ export async function createLocalProvider(
       await task.conversations.destroyAll();
       await task.terminals.destroyAll();
     }
-    await workspaceRegistry.release(task.workspaceId, mode);
+    await workspaceRegistry.release(workspaceId, mode);
   }
 
   async function cleanupDetachedTmuxSessions(taskId: string): Promise<void> {

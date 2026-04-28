@@ -24,10 +24,10 @@ import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import { sshWorkspaceId } from '@main/core/workspaces/workspace-id';
-import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { type ProjectProvider, type TaskProvider, type TeardownMode } from '../project-provider';
+import { type ProjectProvider, type ProvisionResult, type TaskProvider } from '../project-provider';
 import { SshProjectSettingsProvider } from '../settings/project-settings';
 import { buildTaskFromWorkspace } from '../task-builder';
 import { TaskProvisionManager } from '../task-provision-manager';
@@ -77,7 +77,7 @@ export async function createSshProvider(
       task: Task,
       conversations: Conversation[],
       terminals: Terminal[]
-    ): Promise<TaskProvider> {
+    ): Promise<ProvisionResult> {
       log.debug('SshProjectProvider: doProvisionTask START', { taskId: task.id });
 
       void gitFetchService.fetch();
@@ -142,7 +142,7 @@ export async function createSshProvider(
         conversationProviders.set(task.id, conversationProvider as SshConversationProvider);
         log.debug('SshProjectProvider: doProvisionTask DONE', { taskId: task.id });
         provisionSucceeded = true;
-        return taskProvider;
+        return { taskProvider, persistData: { workspaceId: workspace.id } };
       } finally {
         if (!provisionSucceeded) {
           await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
@@ -150,7 +150,11 @@ export async function createSshProvider(
       }
     }
 
-    async function doTeardownTask(task: TaskProvider, mode: TeardownMode): Promise<void> {
+    async function doTeardownTask(
+      task: TaskProvider,
+      workspaceId: string,
+      mode: TeardownMode
+    ): Promise<void> {
       if (mode === 'detach') {
         await task.conversations.detachAll();
         await task.terminals.detachAll();
@@ -158,7 +162,7 @@ export async function createSshProvider(
         await task.conversations.destroyAll();
         await task.terminals.destroyAll();
       }
-      await workspaceRegistry.release(task.workspaceId, mode);
+      await workspaceRegistry.release(workspaceId, mode);
     }
 
     async function cleanupDetachedTmuxSessions(taskId: string): Promise<void> {

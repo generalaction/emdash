@@ -75,7 +75,8 @@ export const ptyController = createRPCController({
       const taskProvider = provider.tasks.getTask(scopeId);
       if (!taskProvider) return err({ type: 'not_ssh' as const });
 
-      const workspace = workspaceRegistry.get(taskProvider.workspaceId);
+      const workspaceId = provider.tasks.getWorkspaceId(scopeId) ?? '';
+      const workspace = workspaceRegistry.get(workspaceId);
       if (!workspace?.fs.copyLocalFile) return err({ type: 'not_ssh' as const });
 
       const remotePaths = await Promise.all(

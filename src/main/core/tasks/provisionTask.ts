@@ -20,7 +20,7 @@ export async function provisionTask(taskId: string) {
   const existingTask = project.tasks.getTask(taskId);
 
   if (existingTask) {
-    const wsId = existingTask.workspaceId;
+    const wsId = project.tasks.getWorkspaceId(taskId) ?? '';
     return { path: workspaceRegistry.get(wsId)?.path ?? '', workspaceId: wsId };
   }
 
@@ -42,14 +42,16 @@ export async function provisionTask(taskId: string) {
     throw new Error(`Failed to provision task: ${formatProvisionTaskError(result.error)}`);
   }
 
-  const wsId = result.data.workspaceId;
+  const { persistData } = result.data;
 
   await db
     .update(tasks)
     .set({
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,
-      workspaceId: wsId,
-      workspaceProviderData: result.data.workspaceProviderData ?? null,
+      workspaceId: persistData.workspaceId,
+      workspaceProviderData: persistData.workspaceProviderData
+        ? JSON.stringify(persistData.workspaceProviderData)
+        : null,
     })
     .where(eq(tasks.id, taskId));
   capture('task_provisioned', {
@@ -57,5 +59,8 @@ export async function provisionTask(taskId: string) {
     task_id: task.id,
   });
 
-  return { path: workspaceRegistry.get(wsId)?.path ?? '', workspaceId: wsId };
+  return {
+    path: workspaceRegistry.get(persistData.workspaceId)?.path ?? '',
+    workspaceId: persistData.workspaceId,
+  };
 }

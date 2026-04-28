@@ -8,8 +8,6 @@ import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { ProjectSettingsProvider } from './settings/schema';
 import type { TaskProvisionManager } from './task-provision-manager';
 
-export type { TeardownMode } from '../workspaces/workspace-registry';
-
 export type ProvisionTaskError =
   | { type: 'timeout'; message: string; timeout: number }
   | { type: 'branch-not-found'; branch: string }
@@ -20,15 +18,27 @@ export type TeardownTaskError =
   | { type: 'timeout'; message: string; timeout: number }
   | { type: 'error'; message: string };
 
+export type WorkspaceProviderData = {
+  provisionCommand: string;
+  terminateCommand: string;
+  remoteWorkspaceId?: string;
+};
+
+export type ProvisionResult = {
+  taskProvider: TaskProvider;
+  persistData: {
+    workspaceId: string;
+    workspaceProviderData?: WorkspaceProviderData;
+  };
+};
+
 export interface TaskProvider {
   readonly taskId: string;
-  readonly workspaceId: string;
   readonly taskBranch: string | undefined;
   readonly sourceBranch: Branch | undefined;
   readonly taskEnvVars: Record<string, string>;
   readonly conversations: ConversationProvider;
   readonly terminals: TerminalProvider;
-  readonly workspaceProviderData?: string; // JSON, BYOI only; written to DB after provision
 }
 
 export interface ProjectProvider {

@@ -1,16 +1,20 @@
+import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/task-settings';
-import { resolveTask } from '@main/core/projects/utils';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 
 export async function getTaskSettings(projectId: string, taskId: string): Promise<ProjectSettings> {
-  const task = resolveTask(projectId, taskId);
-  if (!task) {
+  const project = projectManager.getProject(projectId);
+  if (!project?.tasks.getTask(taskId)) {
     throw new Error(`Task ${taskId} not found or not provisioned`);
   }
-  const workspace = workspaceRegistry.get(task.workspaceId);
+  const workspaceId = project.tasks.getWorkspaceId(taskId);
+  if (!workspaceId) {
+    throw new Error(`Workspace ID for task ${taskId} not found`);
+  }
+  const workspace = workspaceRegistry.get(workspaceId);
   if (!workspace) {
-    throw new Error(`Workspace ${task.workspaceId} not found`);
+    throw new Error(`Workspace ${workspaceId} not found`);
   }
 
   return getEffectiveTaskSettings({
