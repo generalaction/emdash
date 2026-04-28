@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { ExecFn } from '@main/core/utils/exec';
 import { LocalProjectSettingsProvider, SshProjectSettingsProvider } from './project-settings';
 
@@ -32,36 +32,27 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('normalizes and canonicalizes local worktreeDirectory on update', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(undefined),
-      realPath: vi.fn().mockResolvedValue('/canonical/worktrees'),
-    };
 
-    const provider = new LocalProjectSettingsProvider(projectPath, 'main', rootFs);
+    const provider = new LocalProjectSettingsProvider(projectPath, 'main');
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
     expect(result.success).toBe(true);
 
-    expect(rootFs.mkdir).toHaveBeenCalledWith(path.resolve(projectPath, 'worktrees'), {
-      recursive: true,
-    });
-    expect(rootFs.realPath).toHaveBeenCalledWith(path.resolve(projectPath, 'worktrees'));
+    const expectedPath = path.resolve(projectPath, 'worktrees');
+    expect(fs.existsSync(expectedPath)).toBe(true);
 
     const persisted = JSON.parse(fs.readFileSync(path.join(projectPath, '.emdash.json'), 'utf8'));
-    expect(persisted.worktreeDirectory).toBe('/canonical/worktrees');
+    expect(persisted.worktreeDirectory).toBe(fs.realpathSync(expectedPath));
   });
 
   it('surfaces local worktreeDirectory validation errors', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const rootFs = {
-      mkdir: vi.fn().mockRejectedValue(new Error('EACCES')),
-      realPath: vi.fn(),
-    };
+    fs.writeFileSync(path.join(projectPath, 'not-a-directory'), 'file');
 
-    const provider = new LocalProjectSettingsProvider(projectPath, 'main', rootFs);
+    const provider = new LocalProjectSettingsProvider(projectPath, 'main');
     const result = await provider.update({
       preservePatterns: [],
-      worktreeDirectory: '/restricted',
+      worktreeDirectory: path.join(projectPath, 'not-a-directory', 'worktrees'),
     });
     expect(result).toEqual({
       success: false,
@@ -72,16 +63,11 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('clears blank local worktreeDirectory values', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const rootFs = {
-      mkdir: vi.fn().mockResolvedValue(undefined),
-      realPath: vi.fn().mockResolvedValue('/unused'),
-    };
 
-    const provider = new LocalProjectSettingsProvider(projectPath, 'main', rootFs);
+    const provider = new LocalProjectSettingsProvider(projectPath, 'main');
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: '   ' });
     expect(result.success).toBe(true);
 
-    expect(rootFs.mkdir).not.toHaveBeenCalled();
     const persisted = JSON.parse(fs.readFileSync(path.join(projectPath, '.emdash.json'), 'utf8'));
     expect(persisted.worktreeDirectory).toBeUndefined();
   });

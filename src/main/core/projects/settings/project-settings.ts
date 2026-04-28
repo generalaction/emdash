@@ -3,14 +3,18 @@ import os from 'node:os';
 import path from 'node:path';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';
 import { resolveRemoteHome } from '@main/core/ssh/utils';
 import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-import { ProjectSettings, ProjectSettingsProvider, projectSettingsSchema } from './schema';
+import {
+  projectSettingsSchema,
+  type ProjectSettings,
+  type ProjectSettingsProvider,
+} from './schema';
 import {
   defaultLocalWorktreeFs,
   normalizeWorktreeDirectory,
@@ -31,8 +35,7 @@ function parseSettingsOrDefault(raw: string, source: string): ProjectSettings {
 export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
   constructor(
     private readonly projectPath: string,
-    private readonly defaultBranchFallback: string = 'main',
-    private readonly rootFs?: Pick<FileSystemProvider, 'mkdir' | 'realPath'>
+    private readonly defaultBranchFallback: string = 'main'
   ) {}
 
   async get(): Promise<ProjectSettings> {
@@ -54,7 +57,7 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
       {
         projectPath: this.projectPath,
         pathApi: path,
-        fs: this.rootFs ?? defaultLocalWorktreeFs,
+        fs: defaultLocalWorktreeFs,
         homeDirectory: os.homedir(),
       }
     );
