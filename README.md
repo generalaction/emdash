@@ -58,16 +58,16 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 # Installation
 
 ### macOS
-- Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg
-- Intel x64: https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg
+- Apple Silicon: https://releases.emdash.sh/emdash-arm64.dmg
+- Intel x64: https://releases.emdash.sh/emdash-x64.dmg
 
 ### Windows
-- Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi
-- Portable (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe
+- Installer (x64): https://releases.emdash.sh/emdash-x64.msi
+- Portable (x64): https://releases.emdash.sh/emdash-x64.exe
 
 ### Linux
-- AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage
-- Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb
+- AppImage (x64): https://releases.emdash.sh/emdash-x86_64.AppImage
+- Debian package (x64): https://releases.emdash.sh/emdash-amd64.deb
 
 ### Release Overview
 
