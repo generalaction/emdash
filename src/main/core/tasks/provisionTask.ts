@@ -1,9 +1,9 @@
 import { eq, sql } from 'drizzle-orm';
-import { workspaceKey } from '@shared/workspace-key';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { formatProvisionTaskError } from '@main/core/projects/provision-task-error';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
+import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { conversations, tasks, terminals } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';
@@ -20,8 +20,8 @@ export async function provisionTask(taskId: string) {
   const existingTask = project.tasks.getTask(taskId);
 
   if (existingTask) {
-    const wsId = workspaceKey(existingTask.taskBranch);
-    return { path: project.getWorkspace(wsId)?.path ?? '', workspaceId: wsId };
+    const wsId = existingTask.workspaceId;
+    return { path: workspaceRegistry.get(wsId)?.path ?? '', workspaceId: wsId };
   }
 
   const [existingTerminals, existingConversations] = await Promise.all([
@@ -42,15 +42,20 @@ export async function provisionTask(taskId: string) {
     throw new Error(`Failed to provision task: ${formatProvisionTaskError(result.error)}`);
   }
 
+  const wsId = result.data.workspaceId;
+
   await db
     .update(tasks)
-    .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP` })
+    .set({
+      lastInteractedAt: sql`CURRENT_TIMESTAMP`,
+      workspaceId: wsId,
+      workspaceProviderData: result.data.workspaceProviderData ?? null,
+    })
     .where(eq(tasks.id, taskId));
   capture('task_provisioned', {
     project_id: task.projectId,
     task_id: task.id,
   });
 
-  const wsId = workspaceKey(task.taskBranch);
-  return { path: project.getWorkspace(wsId)?.path ?? '', workspaceId: wsId };
+  return { path: workspaceRegistry.get(wsId)?.path ?? '', workspaceId: wsId };
 }

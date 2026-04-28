@@ -26,5 +26,7 @@ export function mapTaskRowToTask(
     statusChangedAt: row.statusChangedAt,
     isPinned: row.isPinned === 1,
     workspaceProvider: (row.workspaceProvider as 'local' | 'ssh') ?? undefined,
+    workspaceId: row.workspaceId ?? undefined,
+    workspaceProviderData: row.workspaceProviderData ?? undefined,
   };
 }

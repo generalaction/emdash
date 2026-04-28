@@ -53,6 +53,7 @@ export async function buildTaskFromWorkspace(
 
   const taskProvider: TaskProvider = {
     taskId: task.id,
+    workspaceId: workspace.id,
     taskBranch: task.taskBranch,
     sourceBranch: task.sourceBranch,
     taskEnvVars,

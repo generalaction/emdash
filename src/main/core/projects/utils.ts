@@ -1,11 +1,12 @@
+import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { projectManager } from './project-manager';
 
 export function resolveTask(projectId: string, taskId: string) {
   return projectManager.getProject(projectId)?.tasks.getTask(taskId) ?? null;
 }
 
-export function resolveWorkspace(projectId: string, workspaceId: string) {
-  return projectManager.getProject(projectId)?.getWorkspace(workspaceId) ?? null;
+export function resolveWorkspace(_projectId: string, workspaceId: string) {
+  return workspaceRegistry.get(workspaceId) ?? null;
 }
 
 export class TimeoutSignal extends Error {

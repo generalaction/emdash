@@ -3,7 +3,12 @@ import { err, ok, type Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import { log } from '@main/lib/logger';
-import type { ProvisionTaskError, TaskProvider, TeardownTaskError } from './project-provider';
+import type {
+  ProvisionTaskError,
+  TaskProvider,
+  TeardownMode,
+  TeardownTaskError,
+} from './project-provider';
 import {
   formatProvisionTaskError,
   TASK_TIMEOUT_MS,
@@ -18,11 +23,11 @@ type ProvisionFn = (
   terminals: Terminal[]
 ) => Promise<TaskProvider>;
 
-type TeardownFn = (task: TaskProvider) => Promise<void>;
+type TeardownFn = (task: TaskProvider, mode: TeardownMode) => Promise<void>;
 
 type DetachedCleanupFn = (taskId: string) => Promise<void>;
 
-export type TeardownAllOpts = { tmux: boolean };
+export type TeardownAllOpts = { mode: TeardownMode };
 
 export class TaskProvisionManager {
   private readonly _tasks = new Map<string, TaskProvider>();
@@ -86,7 +91,10 @@ export class TaskProvisionManager {
     return { status: 'not-started' };
   }
 
-  async teardownTask(taskId: string): Promise<Result<void, TeardownTaskError>> {
+  async teardownTask(
+    taskId: string,
+    mode: TeardownMode = 'terminate'
+  ): Promise<Result<void, TeardownTaskError>> {
     const inFlight = this._tearingDownTasks.get(taskId);
     if (inFlight) return inFlight;
 
@@ -96,7 +104,7 @@ export class TaskProvisionManager {
       return ok();
     }
 
-    const promise = withTimeout(this.teardownFn(task), TASK_TIMEOUT_MS)
+    const promise = withTimeout(this.teardownFn(task, mode), TASK_TIMEOUT_MS)
       .then(() => ok<void>())
       .catch(async (e) => {
         log.error(`${this.logPrefix}: failed to teardown task`, {
@@ -122,7 +130,7 @@ export class TaskProvisionManager {
   }
 
   async teardownAll(opts: TeardownAllOpts): Promise<void> {
-    if (opts.tmux) {
+    if (opts.mode === 'detach') {
       await Promise.all(
         Array.from(this._tasks.values()).map((task) =>
           Promise.all([task.conversations.detachAll(), task.terminals.detachAll()])
@@ -130,7 +138,9 @@ export class TaskProvisionManager {
       );
       this._tasks.clear();
     } else {
-      await Promise.all(Array.from(this._tasks.keys()).map((id) => this.teardownTask(id)));
+      await Promise.all(
+        Array.from(this._tasks.keys()).map((id) => this.teardownTask(id, 'terminate'))
+      );
     }
   }
 }

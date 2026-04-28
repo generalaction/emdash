@@ -2,8 +2,8 @@ import z from 'zod';
 import { err, ok, type Result } from '@shared/result';
 
 const provisionOutputSchema = z.object({
-  host: z.string().min(1, 'Provisioner output must contain a non-empty "host" field').trim(),
   id: z.string().optional(),
+  host: z.string().min(1, 'Provisioner output must contain a non-empty "host" field').trim(),
   port: z.number().optional(),
   username: z.string().optional(),
   worktreePath: z.string().optional(),

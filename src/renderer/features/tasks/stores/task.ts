@@ -1,7 +1,6 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { workspaceKey } from '@shared/workspace-key';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
@@ -61,6 +60,7 @@ export class ProvisionedTask {
   constructor(
     taskStore: TaskStore,
     path: string,
+    workspaceId: string,
     settingsStore: ProjectSettingsStore,
     baseRef: string,
     savedSnapshot?: TaskViewSnapshot
@@ -69,7 +69,7 @@ export class ProvisionedTask {
     const taskData = taskStore.data as Task;
     this._taskData = taskData;
     this.path = path;
-    this.workspaceId = workspaceKey(taskData.taskBranch);
+    this.workspaceId = workspaceId;
 
     this.workspace = workspaceRegistry.acquire(
       taskData.projectId,
@@ -165,12 +165,20 @@ export class TaskStore {
   transitionToProvisioned(
     data: Task,
     path: string,
+    workspaceId: string,
     settingsStore: ProjectSettingsStore,
     baseRef: string,
     savedSnapshot?: TaskViewSnapshot
   ): void {
     this.data = data;
-    this.provisionedTask = new ProvisionedTask(this, path, settingsStore, baseRef, savedSnapshot);
+    this.provisionedTask = new ProvisionedTask(
+      this,
+      path,
+      workspaceId,
+      settingsStore,
+      baseRef,
+      savedSnapshot
+    );
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;

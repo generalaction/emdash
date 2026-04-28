@@ -111,6 +111,8 @@ export const tasks = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
     isPinned: integer('is_pinned').notNull().default(0), // boolean, 0=false, 1=true
     workspaceProvider: text('workspace_provider'), // 'local' | 'ssh' | null (null = inherit from project settings)
+    workspaceId: text('workspace_id'),
+    workspaceProviderData: text('workspace_provider_data'), // JSON, BYOI only
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),

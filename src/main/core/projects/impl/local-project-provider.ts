@@ -8,7 +8,6 @@ import type { LocalProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
-import { workspaceKey } from '@shared/workspace-key';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
@@ -21,11 +20,12 @@ import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
-import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { localWorkspaceId, remoteTaskWorkspaceId } from '@main/core/workspaces/workspace-id';
+import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
-import { type ProjectProvider, type TaskProvider } from '../project-provider';
+import { type ProjectProvider, type TaskProvider, type TeardownMode } from '../project-provider';
 import { parseProvisionOutput } from '../provision-output';
 import { LocalProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettings } from '../settings/schema';
@@ -73,12 +73,7 @@ export async function createLocalProvider(
     }
   });
 
-  const workspaceRegistry = new WorkspaceRegistry();
   const localExec = getLocalExec();
-  const remoteHandles = new Map<
-    string,
-    { terminationId: string | undefined; terminateCommand: string }
-  >();
 
   async function doProvisionTask(
     task: Task,
@@ -104,7 +99,7 @@ export async function createLocalProvider(
     void gitFetchService.fetch();
     void prSyncScheduler.onTaskProvisioned(project.id, task.taskBranch);
 
-    const workspaceId = workspaceKey(task.taskBranch);
+    const workspaceId = localWorkspaceId(project.id, task.taskBranch);
 
     events.emit(taskProvisionProgressChannel, {
       taskId: task.id,
@@ -122,6 +117,7 @@ export async function createLocalProvider(
     });
     const workspace = await workspaceRegistry.acquire(
       workspaceId,
+      project.id,
       createWorkspaceFactory(
         workspaceId,
         { kind: 'local' },
@@ -169,7 +165,7 @@ export async function createLocalProvider(
       return taskProvider;
     } finally {
       if (!provisionSucceeded) {
-        await workspaceRegistry.release(workspace.id).catch(() => {});
+        await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
       }
     }
   }
@@ -212,11 +208,6 @@ export async function createLocalProvider(
       agent: process.env['SSH_AUTH_SOCK'],
     });
 
-    remoteHandles.set(task.id, {
-      terminationId: output.id,
-      terminateCommand: wpConfig.terminateCommand,
-    });
-
     events.emit(taskProvisionProgressChannel, {
       taskId: task.id,
       projectId: project.id,
@@ -225,10 +216,11 @@ export async function createLocalProvider(
     });
 
     const workDir = output.worktreePath ?? project.path;
-    const workspaceId = workspaceKey(task.taskBranch);
+    const workspaceId = remoteTaskWorkspaceId(output.id ?? task.id);
 
     const workspace = await workspaceRegistry.acquire(
       workspaceId,
+      project.id,
       createWorkspaceFactory(
         workspaceId,
         { kind: 'ssh', proxy },
@@ -241,6 +233,15 @@ export async function createLocalProvider(
           logPrefix: 'LocalProjectProvider[remote]',
           extraHooks: {
             onDestroy: async () => {
+              const cmd = output.id
+                ? `REMOTE_WORKSPACE_ID=${quoteShellArg(output.id)} ${wpConfig.terminateCommand}`
+                : wpConfig.terminateCommand;
+              await localExec('/bin/sh', ['-c', cmd], { cwd: project.path }).catch((e) => {
+                log.warn('LocalProjectProvider: terminate command failed', { error: String(e) });
+              });
+              await sshConnectionManager.disconnect(connectionId);
+            },
+            onDetach: async () => {
               await sshConnectionManager.disconnect(connectionId);
             },
           },
@@ -256,7 +257,7 @@ export async function createLocalProvider(
         step: 'starting-sessions',
         message: 'Starting sessions…',
       });
-      const { taskProvider } = await buildTaskFromWorkspace(
+      const { taskProvider: baseTaskProvider } = await buildTaskFromWorkspace(
         task,
         workspace,
         { kind: 'ssh', proxy },
@@ -266,31 +267,29 @@ export async function createLocalProvider(
         { conversations, terminals },
         'LocalProjectProvider[remote]'
       );
+      const taskProvider: TaskProvider = {
+        ...baseTaskProvider,
+        workspaceProviderData: JSON.stringify({ ...wpConfig, remoteWorkspaceId: output.id }),
+      };
       log.debug('LocalProjectProvider: doProvisionRemoteTask DONE', { taskId: task.id });
       provisionSucceeded = true;
       return taskProvider;
     } finally {
       if (!provisionSucceeded) {
-        await workspaceRegistry.release(workspace.id).catch(() => {});
+        await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
       }
     }
   }
 
-  async function doTeardownTask(task: TaskProvider): Promise<void> {
-    await task.conversations.destroyAll();
-    await task.terminals.destroyAll();
-    await workspaceRegistry.release(workspaceKey(task.taskBranch));
-
-    const handle = remoteHandles.get(task.taskId);
-    if (handle) {
-      const cmd = handle.terminationId
-        ? `REMOTE_WORKSPACE_ID=${quoteShellArg(handle.terminationId)} ${handle.terminateCommand}`
-        : handle.terminateCommand;
-      await localExec('/bin/sh', ['-c', cmd], { cwd: project.path }).catch((e) => {
-        log.warn('LocalProjectProvider: terminate command failed', { error: String(e) });
-      });
-      remoteHandles.delete(task.taskId);
+  async function doTeardownTask(task: TaskProvider, mode: TeardownMode): Promise<void> {
+    if (mode === 'detach') {
+      await task.conversations.detachAll();
+      await task.terminals.detachAll();
+    } else {
+      await task.conversations.destroyAll();
+      await task.terminals.destroyAll();
     }
+    await workspaceRegistry.release(task.workspaceId, mode);
   }
 
   async function cleanupDetachedTmuxSessions(taskId: string): Promise<void> {
@@ -316,7 +315,6 @@ export async function createLocalProvider(
     repository,
     fs: localFs,
     tasks: taskManager,
-    getWorkspace: (id) => workspaceRegistry.get(id),
     getWorktreeForBranch: (branch) => worktreeService.getWorktree(branch),
     removeTaskWorktree: async (taskBranch) => {
       const worktreePath = await worktreeService.getWorktree(taskBranch);
@@ -331,8 +329,9 @@ export async function createLocalProvider(
       gitFetchService.stop();
       await gitWatcher.stop();
       const projectSettings = await settings.get();
-      await taskManager.teardownAll({ tmux: projectSettings.tmux ?? false });
-      await workspaceRegistry.releaseAll();
+      const mode = projectSettings.tmux ? 'detach' : 'terminate';
+      await taskManager.teardownAll({ mode });
+      await workspaceRegistry.releaseAllForProject(project.id, mode);
     },
   };
 }

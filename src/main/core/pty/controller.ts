@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
-import { workspaceKey } from '@shared/workspace-key';
 import { log } from '@main/lib/logger';
 import { projectManager } from '../projects/project-manager';
+import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { ptySessionRegistry } from './pty-session-registry';
 
 export const ptyController = createRPCController({
@@ -72,8 +72,10 @@ export const ptyController = createRPCController({
       const provider = projectManager.getProject(projectId);
       if (!provider) return err({ type: 'not_ssh' as const });
 
-      const wsId = workspaceKey(scopeId);
-      const workspace = provider.getWorkspace(wsId);
+      const taskProvider = provider.tasks.getTask(scopeId);
+      if (!taskProvider) return err({ type: 'not_ssh' as const });
+
+      const workspace = workspaceRegistry.get(taskProvider.workspaceId);
       if (!workspace?.fs.copyLocalFile) return err({ type: 'not_ssh' as const });
 
       const remotePaths = await Promise.all(

@@ -41,6 +41,7 @@ type WorkspaceFactoryContext = {
   extraHooks?: {
     onCreate?: (ws: Workspace) => Promise<void>;
     onDestroy?: (ws: Workspace) => Promise<void>;
+    onDetach?: (ws: Workspace) => Promise<void>;
   };
 };
 
@@ -204,6 +205,10 @@ export function createWorkspaceFactory(
         }
         await context.extraHooks?.onDestroy?.(ws);
       },
+
+      onDetach: context.extraHooks?.onDetach
+        ? (ws) => context.extraHooks!.onDetach!(ws)
+        : undefined,
     };
   };
 }

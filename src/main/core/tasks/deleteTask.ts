@@ -14,7 +14,7 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
   const project = projectManager.getProject(projectId);
 
   if (project) {
-    const teardownResult = await project.tasks.teardownTask(taskId).catch((e) => {
+    const teardownResult = await project.tasks.teardownTask(taskId, 'terminate').catch((e) => {
       log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
       return null;
     });

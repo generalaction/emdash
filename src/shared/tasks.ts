@@ -36,6 +36,8 @@ export type Task = {
   prs: PullRequest[];
   conversations: Record<string, number>;
   workspaceProvider?: 'local' | 'ssh';
+  workspaceId?: string;
+  workspaceProviderData?: string; // JSON, BYOI only
 };
 
 export type TaskBootstrapStatus =

@@ -6,7 +6,6 @@ import type { SshProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
-import { workspaceKey } from '@shared/workspace-key';
 import type { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -24,10 +23,11 @@ import {
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
-import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { sshWorkspaceId } from '@main/core/workspaces/workspace-id';
+import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { type ProjectProvider, type TaskProvider } from '../project-provider';
+import { type ProjectProvider, type TaskProvider, type TeardownMode } from '../project-provider';
 import { SshProjectSettingsProvider } from '../settings/project-settings';
 import { buildTaskFromWorkspace } from '../task-builder';
 import { TaskProvisionManager } from '../task-provision-manager';
@@ -70,7 +70,6 @@ export async function createSshProvider(
     );
     gitFetchService.start();
 
-    const workspaceRegistry = new WorkspaceRegistry();
     const conversationProviders = new Map<string, SshConversationProvider>();
     const terminalProviders = new Map<string, SshTerminalProvider>();
 
@@ -84,7 +83,7 @@ export async function createSshProvider(
       void gitFetchService.fetch();
       void prSyncScheduler.onTaskProvisioned(project.id, task.taskBranch);
 
-      const workspaceId = workspaceKey(task.taskBranch);
+      const workspaceId = sshWorkspaceId(project.id, task.taskBranch);
 
       events.emit(taskProvisionProgressChannel, {
         taskId: task.id,
@@ -102,6 +101,7 @@ export async function createSshProvider(
       });
       const workspace = await workspaceRegistry.acquire(
         workspaceId,
+        project.id,
         createWorkspaceFactory(
           workspaceId,
           { kind: 'ssh', proxy },
@@ -145,15 +145,20 @@ export async function createSshProvider(
         return taskProvider;
       } finally {
         if (!provisionSucceeded) {
-          await workspaceRegistry.release(workspace.id).catch(() => {});
+          await workspaceRegistry.release(workspace.id, 'terminate').catch(() => {});
         }
       }
     }
 
-    async function doTeardownTask(task: TaskProvider): Promise<void> {
-      await task.conversations.destroyAll();
-      await task.terminals.destroyAll();
-      await workspaceRegistry.release(workspaceKey(task.taskBranch));
+    async function doTeardownTask(task: TaskProvider, mode: TeardownMode): Promise<void> {
+      if (mode === 'detach') {
+        await task.conversations.detachAll();
+        await task.terminals.detachAll();
+      } else {
+        await task.conversations.destroyAll();
+        await task.terminals.destroyAll();
+      }
+      await workspaceRegistry.release(task.workspaceId, mode);
     }
 
     async function cleanupDetachedTmuxSessions(taskId: string): Promise<void> {
@@ -211,7 +216,6 @@ export async function createSshProvider(
       repository,
       fs: projectFs,
       tasks: taskManager,
-      getWorkspace: (id) => workspaceRegistry.get(id),
       getWorktreeForBranch: (branch) => worktreeService.getWorktree(branch),
       removeTaskWorktree: async (taskBranch) => {
         const worktreePath = await worktreeService.getWorktree(taskBranch);
@@ -225,8 +229,9 @@ export async function createSshProvider(
         gitFetchService.stop();
         sshConnectionManager.off('connection-event', handleConnectionEvent);
         const projectSettings = await settings.get();
-        await taskManager.teardownAll({ tmux: projectSettings.tmux ?? false });
-        await workspaceRegistry.releaseAll();
+        const mode = projectSettings.tmux ? 'detach' : 'terminate';
+        await taskManager.teardownAll({ mode });
+        await workspaceRegistry.releaseAllForProject(project.id, mode);
       },
     };
   } catch (error) {

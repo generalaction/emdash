@@ -6,12 +6,13 @@ import { events } from '@main/lib/events';
 import { capture } from '@main/lib/telemetry';
 import type { GitRepositoryService } from '../git/repository-service';
 import { projectManager } from '../projects/project-manager';
+import { workspaceRegistry } from '../workspaces/workspace-registry';
 
 function resolveRepository(projectId: string, workspaceId?: string): GitRepositoryService {
   const project = projectManager.getProject(projectId);
   if (!project) throw new Error('Project not found');
   if (workspaceId) {
-    const ws = project.getWorkspace(workspaceId);
+    const ws = workspaceRegistry.get(workspaceId);
     if (ws) return ws.repository;
   }
   return project.repository;
@@ -73,7 +74,7 @@ export const repositoryController = createRPCController({
 
     let result;
     if (workspaceId) {
-      const ws = project.getWorkspace(workspaceId);
+      const ws = workspaceRegistry.get(workspaceId);
       result = ws ? await ws.fetchService.fetch() : await project.fetch();
     } else {
       result = await project.fetch();

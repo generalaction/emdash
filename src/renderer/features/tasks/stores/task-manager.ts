@@ -281,6 +281,7 @@ export class TaskManagerStore {
             current.transitionToProvisioned(
               { ...current.data, lastInteractedAt: new Date().toISOString() },
               result.path,
+              result.workspaceId,
               this._settingsStore,
               this._baseRef,
               savedSnapshot as TaskViewSnapshot | undefined
