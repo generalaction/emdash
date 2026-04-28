@@ -20,6 +20,21 @@ export function normalizeGitHubUrl(url: string): string {
   return url.replace(/\.git$/, '');
 }
 
+/**
+ * Extracts the owner (user or org) from a GitHub remote URL.
+ * Handles HTTPS (`https://github.com/owner/repo.git?...`),
+ * SSH (`git@github.com:owner/repo.git`), and explicit SSH
+ * (`ssh://git@github.com/owner/repo`) formats.
+ * Returns `null` for non-GitHub URLs or unparseable input.
+ */
+export function extractOwner(remoteUrl: string): string | null {
+  const https = /github\.com\/([^/]+)\/[^/?#]+/.exec(remoteUrl);
+  if (https) return https[1];
+  const ssh = /github\.com:([^/]+)\//.exec(remoteUrl);
+  if (ssh) return ssh[1];
+  return null;
+}
+
 export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
 
 /** Derive a display bucket from a check's raw status and conclusion fields. */

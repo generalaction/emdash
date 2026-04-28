@@ -23,11 +23,13 @@ import { Input } from '@renderer/lib/ui/input';
 import { Separator } from '@renderer/lib/ui/separator';
 import { SplitButton } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { extractOwner } from '@renderer/utils/github/utils';
 import { log } from '@renderer/utils/logger';
-import { resolveInitialBaseBranch } from './base-branch';
+import { resolveEffectiveHead, resolveInitialBaseBranch } from './base-branch';
 
 export type CreatePrModalArgs = {
   nameWithOwner: string; // kept as-is for modal registry compatibility; value is a repositoryUrl
+  pushRepositoryUrl: string | null;
   branchName: string;
   draft: boolean;
   workspaceId: string;
@@ -37,12 +39,24 @@ type Props = BaseModalProps<void> & CreatePrModalArgs;
 
 export const CreatePrModal = observer(function CreatePrModal({
   nameWithOwner: repositoryUrl,
+  pushRepositoryUrl,
   branchName,
   draft,
   workspaceId,
   onSuccess,
 }: Props) {
   const { projectId, taskId } = useTaskViewContext();
+  const isCrossFork = Boolean(
+    pushRepositoryUrl && repositoryUrl && pushRepositoryUrl !== repositoryUrl
+  );
+  const defaultForkOwner = pushRepositoryUrl ? extractOwner(pushRepositoryUrl) : null;
+  const [headOverride, setHeadOverride] = useState<string | null>(null);
+  const effectiveHead = resolveEffectiveHead(
+    branchName,
+    isCrossFork,
+    headOverride,
+    defaultForkOwner
+  );
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<Branch | undefined>();
@@ -65,16 +79,13 @@ export const CreatePrModal = observer(function CreatePrModal({
     );
 
   const doCreate = async (push: boolean) => {
-    if (!title.trim() || !repositoryUrl || !selectedBase?.branch) return;
+    if (!title.trim() || !repositoryUrl || !selectedBase?.branch || !effectiveHead.trim()) return;
     setError(null);
     setIsCreating(true);
     try {
       if (push) {
-        const pushResult = await rpc.git.push(
-          projectId,
-          workspaceId,
-          repo?.configuredRemote.name ?? 'origin'
-        );
+        const pushRemoteName = repo?.configuredPushRemote.name ?? 'origin';
+        const pushResult = await rpc.git.push(projectId, workspaceId, pushRemoteName);
         if (!pushResult.success) {
           log.error('Failed to push branch:', pushResult.error);
           setError(
@@ -86,7 +97,7 @@ export const CreatePrModal = observer(function CreatePrModal({
 
       const result = await rpc.pullRequests.createPullRequest({
         repositoryUrl,
-        head: branchName,
+        head: effectiveHead,
         base: selectedBase.branch,
         title: title.trim(),
         body: description.trim() || undefined,
@@ -143,6 +154,22 @@ export const CreatePrModal = observer(function CreatePrModal({
             }
           />
         </div>
+        {isCrossFork && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              From <code className="font-mono">{pushRepositoryUrl}</code> →{' '}
+              <code className="font-mono">{repositoryUrl}</code>
+            </p>
+            <Field>
+              <FieldLabel>Head</FieldLabel>
+              <Input
+                value={effectiveHead}
+                onChange={(e) => setHeadOverride(e.target.value)}
+                placeholder={`${defaultForkOwner}:${branchName}`}
+              />
+            </Field>
+          </div>
+        )}
         <Separator />
         <FieldGroup>
           <Field>
@@ -179,7 +206,9 @@ export const CreatePrModal = observer(function CreatePrModal({
             size="sm"
             loading={isCreating}
             loadingLabel="Creating..."
-            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim()}
+            disabled={
+              !hasGitHubRemote || !selectedBase?.branch || !title.trim() || !effectiveHead.trim()
+            }
             actions={[
               {
                 value: 'push-and-create',
@@ -198,7 +227,13 @@ export const CreatePrModal = observer(function CreatePrModal({
           <ConfirmButton
             size="sm"
             onClick={() => void doCreate(false)}
-            disabled={!hasGitHubRemote || !selectedBase?.branch || !title.trim() || isCreating}
+            disabled={
+              !hasGitHubRemote ||
+              !selectedBase?.branch ||
+              !title.trim() ||
+              !effectiveHead.trim() ||
+              isCreating
+            }
           >
             {isCreating ? 'Creating...' : draft ? 'Create Draft' : 'Create PR'}
           </ConfirmButton>
