@@ -4,7 +4,7 @@ import type { Conversation } from '@shared/conversations';
 import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
-import type { LocalProject } from '@shared/projects';
+import type { LocalProject, ProjectRemoteState } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
@@ -31,35 +31,23 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import {
   type ProjectProvider,
-  type ProjectRemoteState,
   type ProvisionTaskError,
   type TaskProvider,
   type TeardownTaskError,
 } from '../project-provider';
 import {
   formatProvisionTaskError,
-  isProvisionTaskError,
-  mapWorktreeErrorToProvisionError,
+  TASK_TIMEOUT_MS,
+  TEARDOWN_SCRIPT_WAIT_MS,
+  toProvisionError,
+  toTeardownError,
 } from '../provision-task-error';
 import { LocalProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import { getEffectiveTaskSettings } from '../settings/task-settings';
 import { TimeoutSignal, withTimeout } from '../utils';
+import { resolveTaskWorkDir } from '../worktrees/utils';
 import { WorktreeService } from '../worktrees/worktree-service';
-
-const TASK_TIMEOUT_MS = 60_000;
-const TEARDOWN_SCRIPT_WAIT_MS = 10_000;
-
-function toProvisionError(e: unknown): ProvisionTaskError {
-  if (isProvisionTaskError(e)) return e;
-  if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
-  return { type: 'error', message: e instanceof Error ? e.message : String(e) };
-}
-
-function toTeardownError(e: unknown): TeardownTaskError {
-  if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
-  return { type: 'error', message: e instanceof Error ? e.message : String(e) };
-}
 
 export async function createLocalProvider(
   project: LocalProject,
@@ -183,7 +171,7 @@ export class LocalProjectProvider implements ProjectProvider {
 
     const workspaceId = workspaceKey(task.taskBranch);
     const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
-      const workDir = await this.resolveTaskWorkDir(task);
+      const workDir = await resolveTaskWorkDir(task, this.project.path, this.worktreeService);
       const exec = getGitLocalExec(() => githubConnectionService.getToken());
       const workspaceFs = new LocalFileSystem(workDir);
 
@@ -480,42 +468,7 @@ export class LocalProjectProvider implements ProjectProvider {
     }
   }
 
-  private async resolveTaskWorkDir(task: Task): Promise<string> {
-    if (!task.taskBranch) {
-      return this.project.path;
-    }
-
-    const existing = await this.worktreeService.getWorktree(task.taskBranch);
-    if (existing) {
-      return existing;
-    }
-
-    if (!task.sourceBranch || task.taskBranch === task.sourceBranch.branch) {
-      const result = await this.worktreeService.checkoutExistingBranch(task.taskBranch);
-      if (!result.success) {
-        throw mapWorktreeErrorToProvisionError(task.taskBranch, result.error);
-      }
-      return result.data;
-    }
-
-    const result = await this.worktreeService.checkoutBranchWorktree(
-      task.sourceBranch,
-      task.taskBranch
-    );
-    if (!result.success) {
-      throw mapWorktreeErrorToProvisionError(task.taskBranch, result.error);
-    }
-    return result.data;
-  }
-
-  async getRemoteState(): Promise<ProjectRemoteState> {
-    try {
-      const remotes = await this.repository.getRemotes();
-      const remoteName = await this.repository.getConfiguredRemote();
-      const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
-      return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
-    } catch {
-      return { hasRemote: false, selectedRemoteUrl: null };
-    }
+  getRemoteState(): Promise<ProjectRemoteState> {
+    return this.repository.getRemoteState();
   }
 }

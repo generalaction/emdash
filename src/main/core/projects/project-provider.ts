@@ -1,5 +1,6 @@
 import type { Conversation } from '@shared/conversations';
 import type { Branch, FetchError } from '@shared/git';
+import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
@@ -25,11 +26,6 @@ export type ProvisionTaskError =
 export type TeardownTaskError =
   | { type: 'timeout'; message: string; timeout: number }
   | { type: 'error'; message: string };
-
-export type ProjectRemoteState = {
-  hasRemote: boolean;
-  selectedRemoteUrl: string | null;
-};
 
 export interface TaskProvider {
   readonly taskId: string;
