@@ -1,6 +1,6 @@
 import { makeObservable, observable, runInAction } from 'mobx';
 import { sshConnectionEventChannel } from '@shared/events/sshEvents';
-import { LocalProject, SshProject } from '@shared/projects';
+import { type LocalProject, type SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -11,8 +11,8 @@ import {
   isMountedProject,
   isUnmountedProject,
   isUnregisteredProject,
-  ProjectStore,
-  UnregisteredProjectPhase,
+  type ProjectStore,
+  type UnregisteredProjectPhase,
 } from './project';
 
 interface BaseModeData {
@@ -335,6 +335,28 @@ export class ProjectManagerStore {
 
     this._projectMountPromises.set(projectId, promise);
     return promise;
+  }
+
+  async renameProject(projectId: string, newName: string): Promise<void> {
+    const trimmed = newName.trim();
+    if (!trimmed) throw new Error('Project name cannot be empty');
+
+    const store = this.projects.get(projectId);
+    if (!store) throw new Error(`Project ${projectId} not found`);
+
+    const previousName = store.name;
+    if (previousName === trimmed) return;
+
+    runInAction(() => store.setName(trimmed));
+
+    try {
+      await rpc.projects.renameProject(projectId, trimmed);
+    } catch (err) {
+      runInAction(() => {
+        if (previousName !== null) store.setName(previousName);
+      });
+      throw err;
+    }
   }
 
   async deleteProject(projectId: string): Promise<void> {

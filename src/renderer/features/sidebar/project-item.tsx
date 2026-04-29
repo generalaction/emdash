@@ -4,6 +4,7 @@ import {
   FolderClosed,
   FolderInput,
   Loader2,
+  Pencil,
   Plus,
   RotateCcw,
   Trash2,
@@ -13,7 +14,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
 import {
   isUnregisteredProject,
-  UnregisteredProject,
+  type UnregisteredProject,
 } from '@renderer/features/projects/stores/project';
 import {
   getProjectManagerStore,
@@ -58,6 +59,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const showCreateTaskModal = useShowModal('taskModal');
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
   const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
+  const showRenameProjectModal = useShowModal('renameProjectModal');
 
   const project = getProjectStore(projectId);
 
@@ -218,6 +220,16 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             <ContextMenuSeparator />
           </>
         )}
+        <ContextMenuItem
+          disabled={project.state === 'unregistered' || !project.name}
+          onClick={() => {
+            if (!project.name) return;
+            showRenameProjectModal({ projectId, currentName: project.name });
+          }}
+        >
+          <Pencil className="size-4" />
+          Rename Project
+        </ContextMenuItem>
         <ContextMenuItem
           variant="destructive"
           onClick={() => {
