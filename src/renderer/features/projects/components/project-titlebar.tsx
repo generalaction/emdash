@@ -69,10 +69,9 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
           <DropdownMenuItem
             className="flex items-center gap-2"
             disabled={!displayName}
-            onClick={() => {
-              if (!displayName) return;
-              showRenameProjectModal({ projectId, currentName: displayName });
-            }}
+            onClick={() =>
+              displayName && showRenameProjectModal({ projectId, currentName: displayName })
+            }
           >
             <Pencil className="size-4" />
             Rename Project

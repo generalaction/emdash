@@ -129,6 +129,7 @@ export class ProjectStore {
   }
 
   setName(name: string): void {
+    if (this.name === name) return;
     this.name = name;
     if (this.data) this.data = { ...this.data, name };
     if (this.mountedProject) {

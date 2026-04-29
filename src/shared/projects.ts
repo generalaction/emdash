@@ -1,3 +1,5 @@
+export const MAX_PROJECT_NAME_LENGTH = 100;
+
 export type ProjectBootstrapStatus =
   | { status: 'ready' }
   | { status: 'bootstrapping' }

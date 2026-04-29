@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
+import { MAX_PROJECT_NAME_LENGTH } from '@shared/projects';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -12,8 +13,6 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
-
-const MAX_PROJECT_NAME_LENGTH = 100;
 
 type RenameProjectModalArgs = {
   projectId: string;

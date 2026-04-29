@@ -222,10 +222,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         )}
         <ContextMenuItem
           disabled={project.state === 'unregistered' || !project.name}
-          onClick={() => {
-            if (!project.name) return;
-            showRenameProjectModal({ projectId, currentName: project.name });
-          }}
+          onClick={() =>
+            project.name && showRenameProjectModal({ projectId, currentName: project.name })
+          }
         >
           <Pencil className="size-4" />
           Rename Project

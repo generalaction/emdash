@@ -52,6 +52,7 @@ export type TelemetryEventProperties = {
 
   project_added: { type: 'local' | 'ssh'; strategy: 'open' | 'create' | 'clone'; success: boolean };
   project_deleted: EmptyProps;
+  project_renamed: EmptyProps;
 
   task_created: {
     strategy: 'blank' | 'branch' | 'issue' | 'pr';
