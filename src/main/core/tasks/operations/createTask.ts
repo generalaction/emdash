@@ -31,6 +31,8 @@ function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
         branch: error.branch,
         message: error.message,
       };
+    case 'timeout':
+      return { type: 'provision-timeout', timeoutMs: error.timeout, step: error.step };
     default:
       return { type: 'provision-failed', message: error.message };
   }

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { Conversation } from '@shared/conversations';
+import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/events/taskEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
@@ -10,6 +11,7 @@ import type { ExecFn } from '@main/core/utils/exec';
 import { provisionBYOITask } from '@main/core/workspaces/byoi/provision-byoi-task';
 import { localWorkspaceId, sshWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
+import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
@@ -151,6 +153,10 @@ class TaskManager {
     terminals: Terminal[]
   ): Promise<Result<ProvisionResult, ProvisionTaskError>> {
     return this._lifecycle.provision(task.id, async () => {
+      let lastStep: ProvisionStep | null = null;
+      const unsubscribe = events.on(taskProvisionProgressChannel, (progress) => {
+        if (progress.taskId === task.id) lastStep = progress.step;
+      });
       try {
         const result = await withTimeout(
           executeProvision(provider, task, conversations, terminals),
@@ -176,13 +182,15 @@ class TaskManager {
 
         return ok(stored);
       } catch (e) {
-        const provisionError = toProvisionError(e);
+        const provisionError = toProvisionError(e, lastStep);
         log.error('TaskManager: failed to provision task', {
           taskId: task.id,
           projectId: provider.projectId,
           error: String(e),
         });
         return err(provisionError);
+      } finally {
+        unsubscribe();
       }
     });
   }
