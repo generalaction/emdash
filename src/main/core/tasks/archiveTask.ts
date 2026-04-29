@@ -1,5 +1,6 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { taskManager } from '@main/core/projects/task-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -24,14 +25,14 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
 
   if (!project) return;
 
-  void project.tasks
+  void taskManager
     .teardownTask(taskId, 'terminate')
     .then((teardownResult) => {
       if (!teardownResult.success) {
         log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
       }
     })
-    .catch((e) => {
+    .catch((e: unknown) => {
       log.warn('archiveTask: teardown failed', { taskId, error: String(e) });
     });
 

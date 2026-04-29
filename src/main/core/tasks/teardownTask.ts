@@ -1,7 +1,5 @@
-import { projectManager } from '../projects/project-manager';
+import { taskManager } from '../projects/task-manager';
 
-export async function teardownTask(projectId: string, taskId: string) {
-  const project = projectManager.getProject(projectId);
-  if (!project) throw new Error(`Project not found: ${projectId}`);
-  return await project.tasks.teardownTask(taskId, 'terminate');
+export async function teardownTask(_projectId: string, taskId: string) {
+  return await taskManager.teardownTask(taskId, 'terminate');
 }

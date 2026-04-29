@@ -9,6 +9,7 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
+import { taskManager } from '@main/core/projects/task-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';
@@ -211,7 +212,7 @@ export async function createTask(
 
   const task = mapTaskRowToTask(taskRow, prs);
 
-  const provisionResult = await project.tasks.provisionTask(task, [], []);
+  const provisionResult = await taskManager.provisionTask(project, task, [], []);
   if (!provisionResult.success) {
     return err(mapProvisionError(provisionResult.error));
   }

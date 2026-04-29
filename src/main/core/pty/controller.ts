@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
 import { log } from '@main/lib/logger';
-import { projectManager } from '../projects/project-manager';
+import { taskManager } from '../projects/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { ptySessionRegistry } from './pty-session-registry';
 
@@ -69,13 +69,10 @@ export const ptyController = createRPCController({
       const [projectId, scopeId] = args.sessionId.split(':');
       if (!projectId || !scopeId) return err({ type: 'invalid_session' as const });
 
-      const provider = projectManager.getProject(projectId);
-      if (!provider) return err({ type: 'not_ssh' as const });
-
-      const taskProvider = provider.tasks.getTask(scopeId);
+      const taskProvider = taskManager.getTask(scopeId);
       if (!taskProvider) return err({ type: 'not_ssh' as const });
 
-      const workspaceId = provider.tasks.getWorkspaceId(scopeId) ?? '';
+      const workspaceId = taskManager.getWorkspaceId(scopeId) ?? '';
       const workspace = workspaceRegistry.get(workspaceId);
       if (!workspace?.fs.copyLocalFile) return err({ type: 'not_ssh' as const });
 

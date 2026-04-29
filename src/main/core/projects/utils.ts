@@ -1,8 +1,8 @@
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
-import { projectManager } from './project-manager';
+import { taskManager } from './task-manager';
 
-export function resolveTask(projectId: string, taskId: string) {
-  return projectManager.getProject(projectId)?.tasks.getTask(taskId) ?? null;
+export function resolveTask(_projectId: string, taskId: string) {
+  return taskManager.getTask(taskId) ?? null;
 }
 
 export function resolveWorkspace(_projectId: string, workspaceId: string) {

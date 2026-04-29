@@ -1,15 +1,12 @@
 import type { TaskBootstrapStatus } from '@shared/tasks';
-import { projectManager } from '@main/core/projects/project-manager';
+import { taskManager } from '@main/core/projects/task-manager';
 import { log } from '@main/lib/logger';
 
 export async function getBootstrapStatus(
-  projectId: string,
+  _projectId: string,
   taskId: string
 ): Promise<TaskBootstrapStatus> {
-  const project = projectManager.getProject(projectId);
-  if (!project) throw new Error(`Project not found: ${projectId}`);
-
-  const status = project.tasks.getTaskBootstrapStatus(taskId);
+  const status = taskManager.getBootstrapStatus(taskId);
   log.debug('getBootstrapStatus', { taskId, status: status.status });
   return status;
 }

@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { formatProvisionTaskError } from '@main/core/projects/provision-task-error';
+import { taskManager } from '@main/core/projects/task-manager';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
@@ -17,10 +18,10 @@ export async function provisionTask(taskId: string) {
   const project = projectManager.getProject(task.projectId);
   if (!project) throw new Error(`Project not found: ${task.projectId}`);
 
-  const existingTask = project.tasks.getTask(taskId);
+  const existingTask = taskManager.getTask(taskId);
 
   if (existingTask) {
-    const wsId = project.tasks.getWorkspaceId(taskId) ?? '';
+    const wsId = taskManager.getWorkspaceId(taskId) ?? '';
     return {
       path: workspaceRegistry.get(wsId)?.path ?? '',
       workspaceId: wsId,
@@ -41,7 +42,12 @@ export async function provisionTask(taskId: string) {
       .then((rows) => rows.map((r) => mapConversationRowToConversation(r, true))),
   ]);
 
-  const result = await project.tasks.provisionTask(task, existingConversations, existingTerminals);
+  const result = await taskManager.provisionTask(
+    project,
+    task,
+    existingConversations,
+    existingTerminals
+  );
   if (!result.success) {
     throw new Error(`Failed to provision task: ${formatProvisionTaskError(result.error)}`);
   }

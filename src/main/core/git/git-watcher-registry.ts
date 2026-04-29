@@ -1,4 +1,5 @@
 import { projectManager } from '../projects/project-manager';
+import { taskManager } from '../projects/task-manager';
 import { GitWatcherService } from './git-watcher-service';
 
 export class GitWatcherRegistry {
@@ -16,6 +17,13 @@ export class GitWatcherRegistry {
       if (!watcher) return;
       void watcher.stop();
       this._watchers.delete(projectId);
+    });
+    taskManager.hooks.on('task:provisioned', ({ projectId, workspaceId, worktreeGitDir }) => {
+      if (!worktreeGitDir) return;
+      this._watchers.get(projectId)?.registerWorktree(workspaceId, worktreeGitDir);
+    });
+    taskManager.hooks.on('task:torn-down', ({ projectId, workspaceId }) => {
+      this._watchers.get(projectId)?.unregisterWorktree(workspaceId);
     });
   }
 
