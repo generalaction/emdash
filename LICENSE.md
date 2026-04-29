@@ -1,3 +1,5 @@
+Copyright 2026 General Action, Inc.
+
 
                                  Apache License
                            Version 2.0, January 2004
