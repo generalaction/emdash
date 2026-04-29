@@ -6,6 +6,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { useAutomations } from '../useAutomations';
 import { AutomationCard } from './AutomationCard';
+import { AutomationRow } from './AutomationRow';
 import { AutomationRunsDrawer } from './AutomationRunsDrawer';
 import { CreateAutomationPanel } from './CreateAutomationPanel';
 
@@ -21,7 +22,7 @@ export function AutomationsView() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelSeed, setPanelSeed] = useState<PanelSeed>({ kind: 'new' });
 
-  const automationItems = useMemo(() => automations.data ?? [], [automations.data]);
+  const automationItems = automations.data ?? [];
   const usedTemplateIds = useMemo(
     () => new Set(automationItems.map((item) => item.builtinTemplateId).filter(Boolean)),
     [automationItems]
@@ -30,6 +31,9 @@ export function AutomationsView() {
     () => (catalog.data ?? []).filter((template) => !usedTemplateIds.has(template.id)),
     [catalog.data, usedTemplateIds]
   );
+  const popularTemplates = recommendedTemplates.slice(0, 4);
+  const moreTemplates = recommendedTemplates.slice(4);
+  const isEmpty = automationItems.length === 0 && recommendedTemplates.length === 0;
 
   function openTemplate(template: BuiltinAutomationTemplate) {
     setPanelSeed({ kind: 'template', template });
@@ -93,9 +97,9 @@ export function AutomationsView() {
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.span
                 key={panelOpen ? 'close' : 'open'}
-                initial={{ y: 12, opacity: 0, filter: 'blur(4px)' }}
-                animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
-                exit={{ y: -12, opacity: 0, filter: 'blur(4px)' }}
+                initial={{ y: 12, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -12, opacity: 0 }}
                 transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
                 className="inline-flex items-center"
               >
@@ -123,45 +127,63 @@ export function AutomationsView() {
         />
 
         {automationItems.length > 0 && (
-          <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">Active</h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {automationItems.map((automation) => (
-                <AutomationCard
-                  key={automation.id}
-                  kind="automation"
-                  automation={automation}
-                  busy={runNow.isPending}
-                  onEdit={openEditAutomation}
-                  onDelete={deleteAutomation}
-                  onRunNow={(item) => runNow.mutate(item.id)}
-                  onSetEnabled={(item, enabled) => setEnabled.mutate({ id: item.id, enabled })}
-                  onShowRuns={setRunsAutomation}
-                />
-              ))}
-            </div>
+          <div className="mb-6 overflow-hidden rounded-lg border border-border bg-muted/10">
+            {automationItems.map((automation) => (
+              <AutomationRow
+                key={automation.id}
+                automation={automation}
+                busy={runNow.isPending}
+                onEdit={openEditAutomation}
+                onDelete={deleteAutomation}
+                onRunNow={(item) => runNow.mutate(item.id)}
+                onSetEnabled={(item, enabled) => setEnabled.mutate({ id: item.id, enabled })}
+                onShowRuns={setRunsAutomation}
+              />
+            ))}
           </div>
         )}
 
         {recommendedTemplates.length > 0 && (
-          <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-              {automationItems.length > 0 ? 'Add another' : 'Get started'}
-            </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {recommendedTemplates.map((template) => (
-                <AutomationCard
-                  key={template.id}
-                  kind="template"
-                  template={template}
-                  onUse={openTemplate}
-                />
-              ))}
-            </div>
+          <div className="mb-6 space-y-6">
+            {popularTemplates.length > 0 && (
+              <section>
+                <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
+                  Most popular automations
+                </h2>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {popularTemplates.map((template) => (
+                    <AutomationCard
+                      key={template.id}
+                      kind="template"
+                      template={template}
+                      onUse={openTemplate}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {moreTemplates.length > 0 && (
+              <section>
+                <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
+                  More automation templates
+                </h2>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {moreTemplates.map((template) => (
+                    <AutomationCard
+                      key={template.id}
+                      kind="template"
+                      template={template}
+                      onUse={openTemplate}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
 
-        {automationItems.length === 0 && recommendedTemplates.length === 0 && (
+        {isEmpty && (
           <div className="py-12 text-center">
             <p className="text-sm text-muted-foreground">No automations available.</p>
           </div>

@@ -7,6 +7,7 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Badge } from '@renderer/lib/ui/badge';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
@@ -63,10 +64,15 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               isActive={isCurrentView(currentView, 'automations')}
               onClick={() => navigate('automations')}
               aria-label="Automations"
-              className="w-full justify-start"
+              className="w-full justify-between"
             >
-              <Clock className="h-5 w-5 sm:h-4 sm:w-4" />
-              Automations
+              <span className="flex items-center gap-2 min-w-0">
+                <Clock className="h-5 w-5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate">Automations</span>
+              </span>
+              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] uppercase tracking-wide">
+                Beta
+              </Badge>
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'skills')}
