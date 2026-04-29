@@ -1,13 +1,20 @@
 import { app, Menu, shell } from 'electron';
 import {
-  menuCheckForUpdatesChannel,
   menuCloseTabChannel,
   menuOpenSettingsChannel,
   menuRedoChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
 import { EMDASH_DOCS_URL, EMDASH_RELEASES_URL } from '@shared/urls';
+import { updateService } from '@main/core/updates/update-service';
 import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
+
+function triggerUserInitiatedUpdateCheck(): void {
+  updateService.checkForUpdatesUserInitiated().catch((error) => {
+    log.error('User-initiated update check failed:', error);
+  });
+}
 
 export function setupApplicationMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -31,7 +38,7 @@ export function setupApplicationMenu(): void {
               },
               {
                 label: 'Check for Updates\u2026',
-                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
+                click: triggerUserInitiatedUpdateCheck,
               },
               { type: 'separator' as const },
               { role: 'services' as const },
@@ -130,7 +137,7 @@ export function setupApplicationMenu(): void {
               { type: 'separator' as const },
               {
                 label: 'Check for Updates\u2026',
-                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
+                click: triggerUserInitiatedUpdateCheck,
               },
             ]
           : []),

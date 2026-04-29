@@ -1,6 +1,6 @@
 import { runInAction } from 'mobx';
 import {
-  ComponentType,
+  type ComponentType,
   Fragment,
   useCallback,
   useEffect,
@@ -9,12 +9,14 @@ import {
   useTransition,
   type ReactNode,
 } from 'react';
+import { menuOpenSettingsChannel } from '@shared/events/appEvents';
 import {
   views,
   type ViewDefinition,
   type ViewId,
   type WrapParams,
 } from '@renderer/app/view-registry';
+import { events } from '@renderer/lib/ipc';
 import { useModalContext } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
@@ -131,6 +133,12 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
     },
     [closeModal, currentViewId]
   ) as NavigateFnTyped;
+
+  useEffect(() => {
+    return events.on(menuOpenSettingsChannel, () => {
+      navigate('settings');
+    });
+  }, [navigate]);
 
   const updateViewParams = useCallback(
     <TId extends ViewId>(
