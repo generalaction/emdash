@@ -23,12 +23,12 @@ export async function autoRenameTaskFromPrompt(
   const trimmed = params.initialPrompt?.trim();
   if (!trimmed) return;
   if (renamedTaskIds.has(params.taskId)) return;
-  renamedTaskIds.add(params.taskId);
   try {
     const taskSettings = await appSettingsService.get('tasks');
     if (!taskSettings.autoRenameFromFirstPrompt) return;
     const newName = generateTaskName({ title: trimmed });
     if (!newName) return;
+    renamedTaskIds.add(params.taskId);
     await renameTask(params.projectId, params.taskId, newName);
   } catch (err) {
     log.warn('Failed to auto-rename task from first prompt', err);

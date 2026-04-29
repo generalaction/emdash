@@ -115,6 +115,28 @@ describe('autoRenameTaskFromPrompt', () => {
     expect(mocks.logWarnMock.mock.calls[0][0]).toMatch(/auto-rename/i);
   });
 
+  it('does not consume the dedup slot when the toggle is off', async () => {
+    mocks.getMock.mockResolvedValueOnce({ autoRenameFromFirstPrompt: false });
+
+    await autoRenameTaskFromPrompt({
+      projectId: 'p1',
+      taskId: 't1',
+      isFirstInTask: true,
+      initialPrompt: 'first prompt',
+    });
+    expect(mocks.renameTaskMock).not.toHaveBeenCalled();
+
+    mocks.getMock.mockResolvedValueOnce({ autoRenameFromFirstPrompt: true });
+
+    await autoRenameTaskFromPrompt({
+      projectId: 'p1',
+      taskId: 't1',
+      isFirstInTask: true,
+      initialPrompt: 'second prompt after toggling on',
+    });
+    expect(mocks.renameTaskMock).toHaveBeenCalledTimes(1);
+  });
+
   it('only renames the same task once per app session', async () => {
     await autoRenameTaskFromPrompt({
       projectId: 'p1',
