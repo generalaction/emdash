@@ -1,12 +1,13 @@
 import { runInAction } from 'mobx';
 import {
-  type ComponentType,
   Fragment,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
+  type ComponentType,
   type ReactNode,
 } from 'react';
 import { menuOpenSettingsChannel } from '@shared/events/appEvents';
@@ -134,11 +135,17 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
     [closeModal, currentViewId]
   ) as NavigateFnTyped;
 
+  const navigateRef = useRef(navigate);
+
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
+
   useEffect(() => {
     return events.on(menuOpenSettingsChannel, () => {
-      navigate('settings');
+      navigateRef.current('settings');
     });
-  }, [navigate]);
+  }, []);
 
   const updateViewParams = useCallback(
     <TId extends ViewId>(

@@ -217,6 +217,14 @@ class UpdateService {
 
         if (info) {
           await this.presentUpdateAvailable(info.version);
+        } else if (
+          this.updateState.status === 'available' ||
+          this.updateState.status === 'downloading' ||
+          this.updateState.status === 'downloaded'
+        ) {
+          await this.presentUpdateAvailable(
+            this.updateState.availableVersion ?? this.updateState.currentVersion
+          );
         } else if (this.updateState.status === 'error') {
           await this.presentUpdateError(this.updateState.error ?? 'An unknown error occurred.');
         } else {
