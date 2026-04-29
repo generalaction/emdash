@@ -6,6 +6,9 @@ import type { SshClientProxy } from '../ssh/ssh-client-proxy';
 
 const execFileAsync = promisify(execFile);
 
+// Default timeout for git operations (30 seconds)
+const DEFAULT_GIT_TIMEOUT_MS = 30_000;
+
 function resolveGitBin(): string {
   const candidates = [
     (process.env.GIT_PATH || '').trim(),
@@ -37,7 +40,13 @@ export function getLocalExec(): ExecFn {
     options: { cwd?: string; timeout?: number; maxBuffer?: number } = {}
   ) => {
     const bin = command === 'git' ? GIT_EXECUTABLE : command;
-    return execFileAsync(bin, args, options);
+    // Prevent git from prompting for credentials (which can hang indefinitely on Windows)
+    // GIT_TERMINAL_PROMPT=0 causes git to fail immediately if it needs credentials
+    const env = command === 'git' ? { ...process.env, GIT_TERMINAL_PROMPT: '0' } : process.env;
+    // Apply default timeout for git operations if not specified
+    const timeout =
+      command === 'git' ? (options.timeout ?? DEFAULT_GIT_TIMEOUT_MS) : options.timeout;
+    return execFileAsync(bin, args, { ...options, env, timeout });
   };
 }
 
@@ -73,7 +82,8 @@ export function getSshExec(proxy: SshClientProxy): ExecFn {
     const escaped = args.map(quoteShellArg).join(' ');
     const inner = args.length ? `${command} ${escaped}` : command;
     const withCwd = cwd ? `cd ${quoteShellArg(cwd)} && ${inner}` : inner;
-    const full = `bash -l -c ${quoteShellArg(withCwd)}`;
+    const envPrefix = command === 'git' ? 'export GIT_TERMINAL_PROMPT=0 && ' : '';
+    const full = `bash -l -c ${quoteShellArg(envPrefix + withCwd)}`;
 
     return new Promise((resolve, reject) => {
       proxy.client.exec(full, (execErr, stream) => {

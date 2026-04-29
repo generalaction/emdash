@@ -33,6 +33,10 @@ export class WorktreeService {
     this.rootFs = args.rootFs;
 
     this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
+    // Enable long paths on Windows to avoid MAX_PATH (260 char) limit
+    if (process.platform === 'win32') {
+      this.exec('git', ['config', 'core.longpaths', 'true'], { cwd: this.repoPath }).catch(() => {});
+    }
   }
 
   private enqueueGitOp<T>(fn: () => Promise<T>): Promise<T> {
@@ -178,8 +182,13 @@ export class WorktreeService {
 
       await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
       await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
+      // Enable long paths on Windows before worktree add
+      if (process.platform === 'win32') {
+        await this.exec('git', ['config', 'core.longpaths', 'true'], { cwd: this.repoPath });
+      }
       await this.exec('git', ['worktree', 'add', targetPath, branchName], {
         cwd: this.repoPath,
+        timeout: 300_000,
       });
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause });
@@ -258,8 +267,13 @@ export class WorktreeService {
       }
 
       await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
+      // Enable long paths on Windows before worktree add
+      if (process.platform === 'win32') {
+        await this.exec('git', ['config', 'core.longpaths', 'true'], { cwd: this.repoPath });
+      }
       await this.exec('git', ['worktree', 'add', targetPath, branchName], {
         cwd: this.repoPath,
+        timeout: 300_000,
       });
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause });

@@ -16,7 +16,7 @@ import { createSshProvider } from './impl/ssh-project-provider';
 import type { ProjectProvider } from './project-provider';
 import { TimeoutSignal, withTimeout } from './utils';
 
-const PROVIDER_TIMEOUT_MS = 60_000;
+const PROVIDER_TIMEOUT_MS = 300_000;
 
 type ProjectLifecycleHook = (projectId: string) => void | Promise<void>;
 

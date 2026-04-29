@@ -47,7 +47,7 @@ import { getEffectiveTaskSettings } from '../settings/task-settings';
 import { TimeoutSignal, withTimeout } from '../utils';
 import { WorktreeService } from '../worktrees/worktree-service';
 
-const TASK_TIMEOUT_MS = 60_000;
+const TASK_TIMEOUT_MS = 300_000;
 const TEARDOWN_SCRIPT_WAIT_MS = 10_000;
 
 function toProvisionError(e: unknown): ProvisionTaskError {

@@ -165,25 +165,57 @@ export class LocalFileSystem implements FileSystemProvider {
    * Resolve and validate a relative path, ensuring it doesn't escape the project root
    */
   private resolvePath(relPath: string): string {
-    // Normalize the path and resolve it against project root
-    const normalizedRelPath = relPath.replace(/\\/g, '/').replace(/^\//, '');
-    const fullPath = resolve(join(this.projectPath, normalizedRelPath));
+    // Normalize backslashes to forward slashes
+    const normalized = relPath.replace(/\\/g, '/');
 
-    // Security: ensure path is within projectPath (handle trailing separator edge cases)
-    const projectPathWithSep = this.projectPath.endsWith(sep)
-      ? this.projectPath
-      : this.projectPath + sep;
-    const fullPathWithSep = fullPath.endsWith(sep) ? fullPath : fullPath + sep;
+    // On Windows, detect truly absolute paths with drive letters (C:/...)
+    // or UNC paths (//server/share/...). These should not be joined with projectPath.
+    // Note: paths like /foo or //foo on Unix are handled by join() which treats
+    // them as relative-ish after normalization.
+    const isWindowsDrivePath = /^[A-Za-z]:/.test(normalized);
+    const isUncPath = /^\/\/[^/]+\/[^/]+/.test(normalized);
 
-    if (!fullPathWithSep.startsWith(projectPathWithSep) && fullPath !== this.projectPath) {
-      throw new FileSystemError(
-        `Path traversal detected: ${relPath}`,
-        FileSystemErrorCodes.PATH_ESCAPE,
-        relPath
-      );
+    let fullPath: string;
+    if (isWindowsDrivePath || isUncPath) {
+      // Truly absolute Windows path - resolve directly without joining
+      fullPath = resolve(relPath);
+    } else {
+      // Normalize the path and resolve it against project root
+      // Strip leading slash for paths like /foo or //foo (POSIX legacy)
+      const normalizedRelPath = normalized.replace(/^\//, '');
+      fullPath = resolve(join(this.projectPath, normalizedRelPath));
+    }
+
+    // Security: ensure path is within projectPath
+    // Skip check for filesystem root (e.g., "/" on Unix, "D:\" on Windows)
+    // since root filesystems should be able to access any path
+    if (!this.isFileSystemRoot()) {
+      const projectPathWithSep = this.projectPath.endsWith(sep)
+        ? this.projectPath
+        : this.projectPath + sep;
+      const fullPathWithSep = fullPath.endsWith(sep) ? fullPath : fullPath + sep;
+
+      if (!fullPathWithSep.startsWith(projectPathWithSep) && fullPath !== this.projectPath) {
+        throw new FileSystemError(
+          `Path traversal detected: ${relPath}`,
+          FileSystemErrorCodes.PATH_ESCAPE,
+          relPath
+        );
+      }
     }
 
     return fullPath;
+  }
+
+  /**
+   * Check if projectPath is a filesystem root (e.g., "/" on Unix, "C:\" on Windows)
+   */
+  private isFileSystemRoot(): boolean {
+    // Unix root: "/"
+    if (this.projectPath === '/') return true;
+    // Windows drive root: "C:\", "D:\", etc.
+    if (/^[A-Za-z]:\\$/.test(this.projectPath)) return true;
+    return false;
   }
 
   /**
