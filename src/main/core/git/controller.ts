@@ -408,7 +408,8 @@ export const gitController = createRPCController({
     skip?: number,
     knownAheadCount?: number,
     remote?: string,
-    base?: GitObjectRef
+    base?: GitObjectRef,
+    head?: GitObjectRef
   ) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);
@@ -419,6 +420,7 @@ export const gitController = createRPCController({
         knownAheadCount,
         preferredRemote: remote,
         base,
+        head,
       });
       return ok({ commits: result.commits, aheadCount: result.aheadCount });
     } catch (e) {

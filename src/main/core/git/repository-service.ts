@@ -4,7 +4,7 @@ import type {
   CreateBranchError,
   DeleteBranchError,
   FetchError,
-  FetchPrRefError,
+  FetchPrForReviewError,
   LocalBranch,
   LocalBranchesPayload,
   PushError,
@@ -101,12 +101,22 @@ export class GitRepositoryService {
     return this.git.deleteBranch(branch, force);
   }
 
-  async fetchPrRef(
+  async fetchPrForReview(
     prNumber: number,
-    localBranchName: string,
+    headRefName: string,
+    headRepositoryUrl: string,
+    localBranch: string,
+    isFork: boolean,
     remote?: string
-  ): Promise<Result<void, FetchPrRefError>> {
-    return this.git.fetchPrRef(prNumber, localBranchName, remote);
+  ): Promise<Result<void, FetchPrForReviewError>> {
+    return this.git.fetchPrForReview(
+      prNumber,
+      headRefName,
+      headRepositoryUrl,
+      localBranch,
+      isFork,
+      remote
+    );
   }
 
   async fetch(remote?: string): Promise<Result<void, FetchError>> {

@@ -20,9 +20,12 @@ export const notificationSettingsSchema = z.object({
 
 export const taskSettingsSchema = z.object({
   autoGenerateName: z.boolean(),
-  autoApproveByDefault: z.boolean(),
   autoTrustWorktrees: z.boolean(),
 });
+
+export const agentAutoApproveDefaultsSchema = z
+  .partialRecord(z.enum(AGENT_PROVIDER_IDS), z.boolean())
+  .default({});
 
 export const terminalSettingsSchema = z.object({
   fontFamily: z.string().optional(),
@@ -109,6 +112,7 @@ export const openInSettingsSchema = z.object({
 export const APP_SETTINGS_SCHEMA_MAP = {
   localProject: localProjectSettingsSchema,
   tasks: taskSettingsSchema,
+  agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
   reviewPrompt: reviewPromptSchema,
   keyboard: keyboardSettingsSchema,
@@ -123,6 +127,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
 export const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
   tasks: taskSettingsSchema,
+  agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
   reviewPrompt: reviewPromptSchema,
   keyboard: keyboardSettingsSchema,

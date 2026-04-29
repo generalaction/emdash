@@ -186,16 +186,22 @@
     --status-cancelled: color(display-p3 0.553 0.553 0.553);
 
     /* Monaco editor */
-    --monaco-bg: #f8fafc;
-    --monaco-fg: #1e293b;
-    --monaco-line-highlight: #f1f5f9;
-    --monaco-line-number: #94a3b8;
-    --monaco-gutter: #f8fafc;
-    --monaco-inserted-text-bg: #10b98140;
-    --monaco-inserted-line-bg: #ecfdf580;
-    --monaco-removed-text-bg: #f43f5e40;
-    --monaco-removed-line-bg: #fff1f280;
-    --monaco-unchanged-region-bg: #e2e8f0;
+    --monaco-bg: var(--background);
+    --monaco-fg: var(--foreground);
+    --monaco-error-fg: var(--foreground-destructive);
+
+    --monaco-line-highlight: var(--background-2);
+    --monaco-line-number: var(--foreground-passive);
+    --monaco-gutter: var(--monaco-bg);
+    --monaco-inserted-text-bg: color(display-p3 0.063 0.725 0.506 / 0.251);
+    --monaco-inserted-line-bg: color(display-p3 0.925 0.992 0.961 / 0.502);
+    --monaco-removed-text-bg: color(display-p3 0.957 0.247 0.369 / 0.251);
+    --monaco-removed-line-bg: color(display-p3 1 0.945 0.949 / 0.502);
+    --monaco-unchanged-region-bg: color(display-p3 0.886 0.91 0.941);
+    --monaco-diff-diagonal-fill: var(--background-2);
+    --monaco-selection-bg: var(--selection);
+    --monaco-selection-fg: var(--selection-foreground);
+    --monaco-inactive-selection-bg: color-mix(in srgb, var(--selection) 15.3%, transparent);
 
     /* xterm terminals */
     --xterm-bg: var(--background);
@@ -276,25 +282,25 @@
     --status-cancelled: color(display-p3 0.553 0.553 0.553);
 
     /* Monaco editor */
-    --monaco-bg: #191919;
-    --monaco-fg: #b4b4b4;
-    --monaco-error-fg: #ff977d;
+    --monaco-bg: color(display-p3 0.098 0.098 0.098);
+    --monaco-fg: color(display-p3 0.706 0.706 0.706);
+    --monaco-error-fg: color(display-p3 1 0.592 0.49);
 
-    --monaco-line-highlight: #313131;
-    --monaco-line-number: #3a3a3a;
-    --monaco-gutter: #f8fafc;
-    --monaco-inserted-text-bg: #25482d;
-    --monaco-inserted-line-bg: #1b2a1e;
-    --monaco-inserted-text-border: #25482d;
-    --monaco-removed-text-bg: #611623;
-    --monaco-removed-line-bg: #3b1219;
-    --monaco-removed-text-border: #611623;
-    --monaco-unchanged-region-bg: #2a2a2a;
-    --monaco-diff-border: #3a3a3a;
-    --monaco-diff-diagonal-fill: #2a2a2a;
-    --monaco-selection-bg: #003362;
-    --monaco-selection-fg: #70b8ff;
-    --monaco-inactive-selection-bg: #ffffff22;
+    --monaco-line-highlight: color(display-p3 0.192 0.192 0.192);
+    --monaco-line-number: color(display-p3 0.227 0.227 0.227);
+    --monaco-gutter: var(--monaco-bg);
+    --monaco-inserted-text-bg: color(display-p3 0.145 0.282 0.176);
+    --monaco-inserted-line-bg: color(display-p3 0.106 0.165 0.118);
+    --monaco-inserted-text-border: color(display-p3 0.145 0.282 0.176);
+    --monaco-removed-text-bg: color(display-p3 0.38 0.086 0.137);
+    --monaco-removed-line-bg: color(display-p3 0.231 0.071 0.098);
+    --monaco-removed-text-border: color(display-p3 0.38 0.086 0.137);
+    --monaco-unchanged-region-bg: color(display-p3 0.165 0.165 0.165);
+    --monaco-diff-border: color(display-p3 0.227 0.227 0.227);
+    --monaco-diff-diagonal-fill: color(display-p3 0.165 0.165 0.165);
+    --monaco-selection-bg: color(display-p3 0 0.2 0.384);
+    --monaco-selection-fg: color(display-p3 0.439 0.722 1);
+    --monaco-inactive-selection-bg: color(display-p3 1 1 1 / 0.133);
 
     /* xterm terminals */
     --xterm-bg: var(--background-1);
@@ -307,122 +313,6 @@
     --foreground-diff-added: color(display-p3 0.426 0.694 0.426);
     --foreground-diff-modified: color(display-p3 1 0.77 0.26);
     --foreground-diff-deleted: color(display-p3 0.83 0.329 0.324);
-  }
-
-  .dark {
-    --background: hsl(215 28% 17%); /* gray-800: #1f2937 */
-    --foreground: hsl(220 9% 96%); /* gray-100: #f3f4f6 */
-    --card: hsl(215 28% 17%); /* gray-800: #1f2937 */
-    --card-foreground: hsl(220 9% 96%);
-    --popover: hsl(220 24% 21%); /* gray-750: slightly lighter than bg */
-    --popover-foreground: hsl(220 9% 96%);
-    --primary: hsl(220 9% 96%);
-    --primary-foreground: hsl(215 28% 17%);
-    --secondary: hsl(217 23% 27%); /* gray-700: #374151 */
-    --secondary-foreground: hsl(220 9% 96%);
-    --muted: hsl(217 23% 27%); /* gray-700: #374151 */
-    --muted-foreground: hsl(220 9% 70%); /* gray-400: #9ca3af */
-    --accent: hsl(217 23% 27%);
-    --accent-foreground: hsl(220 9% 96%);
-    --destructive: hsl(0 62.8% 50%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(217 17% 32%); /* gray-650: between 700 and 600 */
-    --input: hsl(217 17% 32%);
-    --ring: hsl(220 9% 70%);
-    --chart-1: hsl(220 70% 50%);
-    --chart-2: hsl(160 60% 45%);
-    --chart-3: hsl(30 80% 55%);
-    --chart-4: hsl(280 65% 60%);
-    --chart-5: hsl(340 75% 55%);
-    --selection: hsl(217 92% 80%);
-    --selection-foreground: hsl(0 0% 98%);
-
-    /* Monaco editor */
-    --monaco-bg: #1f2937;
-    --monaco-fg: #e2e8f0;
-    --monaco-line-highlight: #334155;
-    --monaco-line-number: #64748b;
-    --monaco-gutter: #1f2937;
-    --monaco-inserted-text-bg: #064e3b4d;
-    --monaco-inserted-line-bg: #064e3b66;
-    --monaco-removed-text-bg: #8813374d;
-    --monaco-removed-line-bg: #88133766;
-    --monaco-unchanged-region-bg: #1a2332;
-
-    /* xterm terminals */
-    --xterm-bg: #1f2937;
-    --xterm-fg: #e5e7eb;
-    --xterm-cursor: #e2e8f0;
-    --xterm-cursor-accent: #1f2937;
-    --xterm-selection-bg: rgba(96, 165, 250, 0.35);
-    --xterm-selection-fg: #f9fafb;
-    --xterm-bg-mistral: #202938;
-
-    /* Diff decorations */
-    --diff-added: #10b981;
-    --diff-modified: #3b82f6;
-    --diff-deleted: #ef4444;
-    --diff-added-bg: rgba(16, 185, 129, 0.05);
-    --diff-modified-bg: rgba(59, 130, 246, 0.05);
-    --diff-deleted-bg: rgba(239, 68, 68, 0.05);
-  }
-
-  .dark-black {
-    --background: hsl(0 0% 0%); /* pure black #000000 */
-    --foreground: hsl(0 0% 95%); /* near white #f2f2f2 */
-    --card: hsl(0 0% 4%); /* very dark gray #0a0a0a */
-    --card-foreground: hsl(0 0% 95%);
-    --popover: hsl(0 0% 8%); /* slightly lighter gray #141414 */
-    --popover-foreground: hsl(0 0% 95%);
-    --primary: hsl(0 0% 95%);
-    --primary-foreground: hsl(0 0% 0%);
-    --secondary: hsl(0 0% 12%); /* dark gray #1f1f1f */
-    --secondary-foreground: hsl(0 0% 95%);
-    --muted: hsl(0 0% 15%); /* muted gray #262626 */
-    --muted-foreground: hsl(0 0% 65%); /* lighter muted text #a6a6a6 */
-    --accent: hsl(0 0% 15%);
-    --accent-foreground: hsl(0 0% 95%);
-    --destructive: hsl(0 62.8% 50%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 20%); /* border gray #333333 */
-    --input: hsl(0 0% 20%);
-    --ring: hsl(0 0% 60%);
-    --chart-1: hsl(220 70% 50%);
-    --chart-2: hsl(160 60% 45%);
-    --chart-3: hsl(30 80% 55%);
-    --chart-4: hsl(280 65% 60%);
-    --chart-5: hsl(340 75% 55%);
-    --selection: hsl(217 92% 70%);
-    --selection-foreground: hsl(0 0% 95%);
-
-    /* Monaco editor */
-    --monaco-bg: #000000;
-    --monaco-fg: #f2f2f2;
-    --monaco-line-highlight: #1a1a1a;
-    --monaco-line-number: #666666;
-    --monaco-gutter: #000000;
-    --monaco-inserted-text-bg: #064e3b5c;
-    --monaco-inserted-line-bg: #064e3b73;
-    --monaco-removed-text-bg: #8813375c;
-    --monaco-removed-line-bg: #88133773;
-    --monaco-unchanged-region-bg: #0a0a0a;
-
-    /* xterm terminals */
-    --xterm-bg: #000000;
-    --xterm-fg: #f2f2f2;
-    --xterm-cursor: #f2f2f2;
-    --xterm-cursor-accent: #000000;
-    --xterm-selection-bg: rgba(96, 165, 250, 0.35);
-    --xterm-selection-fg: #f9fafb;
-    --xterm-bg-mistral: #141820;
-
-    /* Diff decorations */
-    --diff-added: #10b981;
-    --diff-modified: #3b82f6;
-    --diff-deleted: #ef4444;
-    --diff-added-bg: rgba(16, 185, 129, 0.05);
-    --diff-modified-bg: rgba(59, 130, 246, 0.05);
-    --diff-deleted-bg: rgba(239, 68, 68, 0.05);
   }
 }
 
@@ -625,13 +515,69 @@
     background-color: var(--diff-deleted-bg);
   }
 
-  /* Override Monaco's default glyph margin styles for better visibility */
-  .monaco-editor .margin-view-overlays .glyph-margin {
+  /* Monaco diff comment UI */
+  .file-diff-view .monaco-editor .margin-view-overlays .glyph-margin {
     width: 20px !important;
   }
 
-  /* Ensure glyph margin is visible */
-  .monaco-editor .margin {
+  .file-diff-view .monaco-editor .margin {
     background-color: transparent !important;
+  }
+
+  .file-diff-view .comment-hover-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin: 1px auto;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .file-diff-view .comment-hover-icon::before {
+    content: '';
+    display: block;
+    width: 12px;
+    height: 12px;
+    background-color: currentColor;
+    color: var(--foreground-muted);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  .file-diff-view .comment-hover-icon:hover,
+  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned {
+    background-color: var(--background-2);
+    border-color: var(--border);
+  }
+
+  .file-diff-view .comment-hover-icon:hover::before,
+  .file-diff-view .comment-hover-icon.comment-hover-icon-pinned::before {
+    color: var(--foreground);
+  }
+
+  .file-diff-view .monaco-editor .glyph-margin > div {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .file-diff-view .monaco-editor .view-zones,
+  .file-diff-view .monaco-editor .view-zone,
+  .file-diff-view .comment-view-zone {
+    pointer-events: auto !important;
   }
 }

@@ -16,7 +16,7 @@ export function FromPrContent({ state, projectId, nameWithOwner, disabled }: Fro
       <PrPickerField
         state={state}
         projectId={projectId}
-        nameWithOwner={nameWithOwner}
+        repositoryUrl={nameWithOwner}
         disabled={disabled}
       />
       <CheckoutModeGroup

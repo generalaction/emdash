@@ -1,13 +1,15 @@
+import type { UpdateProjectSettingsError } from '@shared/projects';
+import { err, type Result } from '@shared/result';
 import { projectManager } from '../project-manager';
 import { ProjectSettings } from '../settings/schema';
 
 export async function updateProjectSettings(
   projectId: string,
   settings: ProjectSettings
-): Promise<void> {
+): Promise<Result<void, UpdateProjectSettingsError>> {
   const project = projectManager.getProject(projectId);
   if (!project) {
-    throw new Error(`Project ${projectId} not found`);
+    return err({ type: 'project-not-found' });
   }
-  await project.settings.update(settings);
+  return project.settings.update(settings);
 }

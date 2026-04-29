@@ -108,6 +108,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: Stac
         type: slot.diffType === 'disk' ? 'disk' : 'git',
         group: slot.diffType,
         originalRef: slot.originalRef,
+        modifiedRef: slot.diffType === 'pr' ? slot.modifiedRef : undefined,
       });
     }, 150);
   }
@@ -149,7 +150,8 @@ const StackedFileSlot = observer(function StackedFileSlot({
   const [contentHeight, setContentHeight] = useState<number | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  const { file, originalUri, modifiedUri, language, isBinary, diffType, originalRef } = slotStore;
+  const { file, originalUri, modifiedUri, language, isBinary, diffType, originalRef, modifiedRef } =
+    slotStore;
   const isImage = file ? isImagePreviewableForDiff(file.path) : false;
 
   // Register/unregister models whenever URIs change (group switch, file change at slot).
@@ -167,11 +169,20 @@ const StackedFileSlot = observer(function StackedFileSlot({
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
         .catch(() => {});
     } else if (diffType === 'git' || diffType === 'pr') {
+      const effectiveModifiedRef = diffType === 'pr' ? modifiedRef : HEAD_REF;
       void modelRegistry
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
         .catch(() => {});
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'git', HEAD_REF)
+        .registerModel(
+          projectId,
+          workspaceId,
+          root,
+          file.path,
+          language,
+          'git',
+          effectiveModifiedRef
+        )
         .catch(() => {});
     } else {
       void modelRegistry
@@ -185,7 +196,17 @@ const StackedFileSlot = observer(function StackedFileSlot({
       modelRegistry.unregisterModel(originalUri);
       modelRegistry.unregisterModel(modifiedUri);
     };
-  }, [isBinary, originalUri, modifiedUri, language, diffType, originalRef, file, slotStore]);
+  }, [
+    isBinary,
+    originalUri,
+    modifiedUri,
+    language,
+    diffType,
+    originalRef,
+    modifiedRef,
+    file,
+    slotStore,
+  ]);
 
   if (!file) return null;
 
@@ -248,6 +269,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
               filePath={file.path}
               diffType={diffType}
               originalRef={originalRef}
+              modifiedRef={modifiedRef}
             />
           ) : isBinary ? (
             <div className="flex h-full items-center justify-center text-sm text-foreground-passive">

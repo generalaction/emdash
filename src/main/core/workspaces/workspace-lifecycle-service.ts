@@ -17,6 +17,7 @@ export class WorkspaceLifecycleService {
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;
+  private disposed = false;
 
   constructor({
     projectId,
@@ -95,6 +96,13 @@ export class WorkspaceLifecycleService {
       );
     }
 
+    if (exit && !waitForExit) {
+      pty.onExit(() => {
+        if (this.disposed) return;
+        this.prepareLifecycleScript(script, { initialSize });
+      });
+    }
+
     const exitPromise = waitForExit
       ? new Promise<void>((resolve) => {
           events.once(ptyExitChannel, () => resolve(), sessionId);
@@ -123,6 +131,7 @@ export class WorkspaceLifecycleService {
   }
 
   async dispose(): Promise<void> {
+    this.disposed = true;
     await this.terminals.destroyAll();
   }
 }

@@ -1,4 +1,5 @@
 import {
+  CableIcon,
   ChevronRight,
   FolderClosed,
   FolderInput,
@@ -6,6 +7,7 @@ import {
   Plus,
   RotateCcw,
   Trash2,
+  TriangleAlert,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
@@ -55,6 +57,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const { params: taskParams } = useParams('task');
   const showCreateTaskModal = useShowModal('taskModal');
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
+  const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
 
   const project = getProjectStore(projectId);
 
@@ -161,7 +164,17 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                   />
                 </span>
               ) : (
-                project.name
+                <span className="min-w-0 flex items-center gap-1.5">
+                  <span className="truncate">{project.name}</span>
+                  {projectViewKind(project) === 'path_not_found' && (
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-foreground-destructive" />
+                      </TooltipTrigger>
+                      <TooltipContent>Project not found at path</TooltipContent>
+                    </Tooltip>
+                  )}
+                </span>
               )}
             </span>
           </div>
@@ -190,6 +203,17 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <RotateCcw className="size-4" />
               Reconnect
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => {
+                showChangeConnectionModal({
+                  projectId,
+                  currentConnectionId: sshConnectionId,
+                });
+              }}
+            >
+              <CableIcon className="size-4" />
+              Change SSH Connection
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>

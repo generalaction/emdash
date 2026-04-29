@@ -1,6 +1,7 @@
-import { makeObservable, observable, runInAction, toJS } from 'mobx';
+import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
-import { taskPrUpdatedChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
+import { taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -19,7 +20,7 @@ import {
   isRegistered,
   isUnprovisioned,
   isUnregistered,
-  TaskStore,
+  type TaskStore,
 } from './task';
 
 function formatCreateTaskError(error: CreateTaskError): string {
@@ -36,7 +37,7 @@ function formatCreateTaskError(error: CreateTaskError): string {
           return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
           return `Branch "${error.error.name}" is not a valid branch name.`;
-        case 'error':
+        default:
           return `Could not create branch "${error.branch}": ${error.error.message}`;
       }
     }
@@ -74,6 +75,10 @@ export class TaskManagerStore {
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
 
+  private _unsubPrUpdated: (() => void) | null = null;
+  private _unsubPrSyncProgress: (() => void) | null = null;
+  private _disposeRepositoryReaction: (() => void) | null = null;
+
   tasks = observable.map<string, TaskStore>();
 
   constructor(projectId: string, repository: RepositoryStore) {
@@ -91,26 +96,81 @@ export class TaskManagerStore {
       }
     });
 
-    events.on(taskPrUpdatedChannel, ({ taskId, projectId: evtProjectId, prs }) => {
-      if (evtProjectId !== this.projectId) return;
-      const store = this.tasks.get(taskId);
-      if (store && isRegistered(store)) {
-        runInAction(() => {
-          (store.data as Task).prs = prs;
-        });
+    this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
+      const repoUrl = this._repository.repositoryUrl;
+      if (!repoUrl) return;
+      for (const pr of prs) {
+        if (pr.repositoryUrl !== repoUrl) continue;
+        for (const [, store] of this.tasks) {
+          if (!isRegistered(store)) continue;
+          const task = store.data as Task;
+          if (task.taskBranch !== pr.headRefName) continue;
+          runInAction(() => {
+            const idx = task.prs.findIndex((p) => p.url === pr.url);
+            if (idx >= 0) {
+              task.prs.splice(idx, 1, pr);
+            } else {
+              task.prs.push(pr);
+            }
+          });
+        }
+      }
+    });
+
+    this._unsubPrSyncProgress = events.on(prSyncProgressChannel, (progress) => {
+      if (progress.status !== 'done') return;
+      const repoUrl = this._repository.repositoryUrl;
+      if (!repoUrl || progress.remoteUrl !== repoUrl) return;
+      for (const [, store] of this.tasks) {
+        if (isRegistered(store)) {
+          void this._reloadPrsForTask(store);
+        }
+      }
+    });
+
+    this._disposeRepositoryReaction = reaction(
+      () => this._repository.repositoryUrl,
+      () => {
+        for (const [, store] of this.tasks) {
+          if (isRegistered(store)) {
+            void this._reloadPrsForTask(store);
+          }
+        }
+      }
+    );
+  }
+
+  private async _reloadPrsForTask(store: TaskStore): Promise<void> {
+    if (!isRegistered(store)) return;
+    const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, store.data.id);
+    if (!result.success) return;
+    const prs = result.prs ?? [];
+    runInAction(() => {
+      if (isRegistered(store)) {
+        (store.data as Task).prs = prs;
       }
     });
   }
 
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
-      this._loadPromise = rpc.tasks.getTasks(this.projectId).then((tasks) => {
-        runInAction(() => {
-          for (const t of tasks) {
-            this.tasks.set(t.id, createUnprovisionedTask(t));
-          }
+      this._loadPromise = rpc.tasks
+        .getTasks(this.projectId)
+        .then((tasks) => {
+          runInAction(() => {
+            for (const t of tasks) {
+              this.tasks.set(t.id, createUnprovisionedTask(t));
+            }
+          });
+          const reloadPromises = tasks.flatMap((t) => {
+            const store = this.tasks.get(t.id);
+            return store && isRegistered(store) ? [this._reloadPrsForTask(store)] : [];
+          });
+          void Promise.all(reloadPromises);
+        })
+        .catch((e) => {
+          console.error('Error loading tasks', e);
         });
-      });
     }
     return this._loadPromise;
   }
@@ -338,5 +398,14 @@ export class TaskManagerStore {
       });
       throw e;
     }
+  }
+
+  dispose(): void {
+    this._unsubPrUpdated?.();
+    this._unsubPrUpdated = null;
+    this._unsubPrSyncProgress?.();
+    this._unsubPrSyncProgress = null;
+    this._disposeRepositoryReaction?.();
+    this._disposeRepositoryReaction = null;
   }
 }

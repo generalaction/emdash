@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
-import { Conversation } from '@shared/conversations';
+import { type Conversation } from '@shared/conversations';
 import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { SshProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
-import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { Terminal } from '@shared/terminals';
+import { type Task, type TaskBootstrapStatus } from '@shared/tasks';
+import { type Terminal } from '@shared/terminals';
 import { workspaceKey } from '@shared/workspace-key';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -19,8 +19,12 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import { SshConnectionEvent, sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
+import { type SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import {
+  sshConnectionManager,
+  type SshConnectionEvent,
+} from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
@@ -44,6 +48,8 @@ import { SshProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import { getEffectiveTaskSettings } from '../settings/task-settings';
 import { TimeoutSignal, withTimeout } from '../utils';
+import { SshWorktreeHost } from '../worktrees/hosts/ssh-worktree-host';
+import type { WorktreeHost } from '../worktrees/hosts/worktree-host';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 const TASK_TIMEOUT_MS = 60_000;
@@ -66,10 +72,25 @@ export async function createSshProvider(
   proxy: SshClientProxy
 ): Promise<SshProjectProvider> {
   try {
-    // hardcoded to next to project path, TODO: let user configure path
-    const worktreePoolPath = path.join(path.dirname(project.path), 'worktrees', project.name);
-    return new SshProjectProvider(project, rootFs, proxy, {
-      worktreePoolPath: worktreePoolPath,
+    const projectFs = new SshFileSystem(proxy, project.path);
+    const exec = getSshExec(proxy);
+
+    const settings = new SshProjectSettingsProvider(
+      projectFs,
+      bareRefName(project.baseRef),
+      rootFs,
+      project.path,
+      exec
+    );
+    const worktreePoolPath = path.posix.join(await settings.getWorktreeDirectory(), project.name);
+    const worktreeHost = new SshWorktreeHost(rootFs);
+    await worktreeHost.mkdirAbsolute(worktreePoolPath, { recursive: true });
+
+    return new SshProjectProvider(project, proxy, {
+      fs: projectFs,
+      worktreeHost,
+      settings,
+      worktreePoolPath,
     });
   } catch (error) {
     log.warn('createSshProvider: SSH connection failed', {
@@ -99,14 +120,16 @@ export class SshProjectProvider implements ProjectProvider {
 
   constructor(
     private readonly project: SshProject,
-    rootFs: FileSystemProvider,
     private readonly proxy: SshClientProxy,
     options: {
+      fs: SshFileSystem;
+      worktreeHost: WorktreeHost;
+      settings: ProjectSettingsProvider;
       worktreePoolPath: string;
     }
   ) {
-    this.fs = new SshFileSystem(this.proxy, project.path);
-    this.settings = new SshProjectSettingsProvider(this.fs, bareRefName(project.baseRef));
+    this.fs = options.fs;
+    this.settings = options.settings;
     const gitExec = getGitSshExec(this.proxy, () => githubConnectionService.getToken());
     const repoGit = new GitService(project.path, gitExec, this.fs, false);
     this.repository = new GitRepositoryService(repoGit, this.settings);
@@ -115,9 +138,12 @@ export class SshProjectProvider implements ProjectProvider {
       repoPath: project.path,
       projectSettings: this.settings,
       exec: gitExec,
-      rootFs: rootFs,
+      host: options.worktreeHost,
     });
-    this._gitFetchService = new GitFetchService(repoGit);
+    this._gitFetchService = new GitFetchService(
+      repoGit,
+      async () => (await githubConnectionService.getToken()) !== null
+    );
     this._gitFetchService.start();
     sshConnectionManager.on('connection-event', this.handleConnectionEvent);
   }
@@ -196,6 +222,9 @@ export class SshProjectProvider implements ProjectProvider {
     // possible during the lifetime of this task. Non-blocking — provision
     // continues without waiting for the network round-trip.
     void this._gitFetchService.fetch();
+
+    // Sync PRs for this task's branch in the background.
+    void prSyncScheduler.onTaskProvisioned(this.project.id, task.taskBranch);
 
     const workspaceId = workspaceKey(task.taskBranch);
     const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
@@ -458,6 +487,10 @@ export class SshProjectProvider implements ProjectProvider {
     );
   }
 
+  async getWorktreeForBranch(branchName: string): Promise<string | undefined> {
+    return this.worktreeService.getWorktree(branchName);
+  }
+
   async removeTaskWorktree(taskBranch: string): Promise<void> {
     const worktreePath = await this.worktreeService.getWorktree(taskBranch);
     if (worktreePath) {
@@ -552,7 +585,7 @@ export class SshProjectProvider implements ProjectProvider {
       return existing;
     }
 
-    if (task.taskBranch === task.sourceBranch.branch) {
+    if (!task.sourceBranch || task.taskBranch === task.sourceBranch.branch) {
       const result = await this.worktreeService.checkoutExistingBranch(task.taskBranch);
       if (!result.success) {
         throw mapWorktreeErrorToProvisionError(task.taskBranch, result.error);

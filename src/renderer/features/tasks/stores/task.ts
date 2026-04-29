@@ -4,6 +4,7 @@ import type { TaskViewSnapshot } from '@shared/view-state';
 import { workspaceKey } from '@shared/workspace-key';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
+import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
 import { TaskViewStore } from '@renderer/features/tasks/stores/task-view';
 import type { WorkspaceStore } from '@renderer/features/tasks/stores/workspace';
@@ -37,12 +38,15 @@ export class ProvisionedTask {
   readonly devServers: DevServerStore;
   readonly conversations: ConversationManagerStore;
   readonly terminals: TerminalManagerStore;
+  readonly draftComments: DraftCommentsStore;
   readonly taskView: TaskViewStore;
+  readonly repositoryStore: RepositoryStore;
 
   readonly _taskData: Task;
   readonly path: string;
   readonly workspaceId: string;
 
+  private readonly _taskStore: TaskStore;
   private _snapshotDisposer: (() => void) | null = null;
 
   get snapshot(): TaskViewSnapshot {
@@ -54,24 +58,28 @@ export class ProvisionedTask {
   }
 
   constructor(
-    taskData: Task,
+    taskStore: TaskStore,
     path: string,
     repositoryStore: RepositoryStore,
     savedSnapshot?: TaskViewSnapshot
   ) {
+    this._taskStore = taskStore;
+    const taskData = taskStore.data as Task;
     this._taskData = taskData;
     this.path = path;
     this.workspaceId = workspaceKey(taskData.taskBranch);
+    this.repositoryStore = repositoryStore;
 
     this.workspace = workspaceRegistry.acquire(
       taskData.projectId,
       this.workspaceId,
-      repositoryStore,
-      () => (this._taskData as Task).prs ?? []
+      taskStore,
+      repositoryStore
     );
     this.devServers = new DevServerStore(taskData.id, this.workspaceId);
     this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
     this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
+    this.draftComments = new DraftCommentsStore(taskData.id);
     this.taskView = new TaskViewStore(
       {
         conversations: this.conversations,
@@ -89,6 +97,7 @@ export class ProvisionedTask {
       devServers: false,
       conversations: false,
       terminals: false,
+      draftComments: false,
       taskView: false,
       /** Owned by TaskStore.data — do not attach a second observable tree here */
       _taskData: false,
@@ -104,8 +113,9 @@ export class ProvisionedTask {
   dispose(): void {
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
-    workspaceRegistry.release(this._taskData.projectId, this.workspaceId);
+    workspaceRegistry.release(this._taskData.projectId, this.workspaceId, this._taskStore);
     this.devServers.dispose();
+    this.draftComments.dispose();
     this.taskView.dispose();
     this.conversations.dispose();
     for (const term of this.terminals.terminals.values()) {
@@ -155,12 +165,7 @@ export class TaskStore {
     savedSnapshot?: TaskViewSnapshot
   ): void {
     this.data = data;
-    this.provisionedTask = new ProvisionedTask(
-      this.data as Task,
-      path,
-      repositoryStore,
-      savedSnapshot
-    );
+    this.provisionedTask = new ProvisionedTask(this, path, repositoryStore, savedSnapshot);
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;

@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, GitBranch, RefreshCcw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
   getProjectStore,
+  getRepositoryStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
 import {
@@ -11,7 +12,6 @@ import {
 } from '@renderer/features/tasks/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { useGitActions } from '@renderer/features/tasks/use-git-actions';
-import { useNameWithOwner } from '@renderer/lib/hooks/useNameWithOwner';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -22,7 +22,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const workspaceId = asProvisioned(getTaskStore(projectId, taskId))?.workspaceId;
   const branchName = getTaskGitStore(projectId, taskId)?.branchName;
   const projectName = projectDisplayName(getProjectStore(projectId)) ?? 'repository';
-  const { data: remoteState } = useNameWithOwner(projectId);
+  const repositoryStore = getRepositoryStore(projectId);
   const showAddRemoteModal = useShowModal('addRemoteModal');
 
   const {
@@ -38,7 +38,7 @@ export const GitStatusSection = observer(function GitStatusSection() {
     isPulling,
     isPushing,
   } = useGitActions(projectId, taskId);
-  const shouldOfferAddRemote = remoteState?.status === 'no_remote';
+  const shouldOfferAddRemote = (repositoryStore?.remotes.length ?? 0) === 0;
 
   const handlePublishClick = () => {
     if (!branchName || !workspaceId) return;

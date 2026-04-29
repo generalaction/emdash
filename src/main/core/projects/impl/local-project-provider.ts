@@ -1,14 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/conversations';
+import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import type { FetchError } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
-import { LocalProject } from '@shared/projects';
+import type { LocalProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import { getTaskEnvVars } from '@shared/task/envVars';
-import { Task, type TaskBootstrapStatus } from '@shared/tasks';
-import { type Terminal } from '@shared/terminals';
+import type { Task, TaskBootstrapStatus } from '@shared/tasks';
+import type { Terminal } from '@shared/terminals';
 import { workspaceKey } from '@shared/workspace-key';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -19,13 +20,14 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { appSettingsService } from '@main/core/settings/settings-service';
+import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { WorkspaceLifecycleService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import {
   type ProjectProvider,
@@ -43,6 +45,8 @@ import { LocalProjectSettingsProvider } from '../settings/project-settings';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import { getEffectiveTaskSettings } from '../settings/task-settings';
 import { TimeoutSignal, withTimeout } from '../utils';
+import { LocalWorktreeHost } from '../worktrees/hosts/local-worktree-host';
+import type { WorktreeHost } from '../worktrees/hosts/worktree-host';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 const TASK_TIMEOUT_MS = 60_000;
@@ -59,17 +63,25 @@ function toTeardownError(e: unknown): TeardownTaskError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-export async function createLocalProvider(
-  project: LocalProject,
-  rootFs: FileSystemProvider
-): Promise<LocalProjectProvider> {
-  const defaultWorktreeDirectory = (await appSettingsService.get('localProject'))
-    .defaultWorktreeDirectory;
-  const worktreePoolPath = path.join(defaultWorktreeDirectory, project.name);
+export async function createLocalProvider(project: LocalProject): Promise<LocalProjectProvider> {
+  const settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
+  const worktreeDirectory = await settings.getWorktreeDirectory();
+  await fs.promises.mkdir(worktreeDirectory, { recursive: true });
 
-  await fs.promises.mkdir(worktreePoolPath, { recursive: true });
+  const projectFs = new LocalFileSystem(project.path);
+  const worktreeHost = await LocalWorktreeHost.create({
+    allowedRoots: [project.path, worktreeDirectory],
+  });
+  const worktreePoolPath = path.join(worktreeDirectory, project.name);
 
-  return new LocalProjectProvider(project, rootFs, { worktreePoolPath });
+  await worktreeHost.mkdirAbsolute(worktreePoolPath, { recursive: true });
+
+  return new LocalProjectProvider(project, {
+    projectFs,
+    worktreeHost,
+    settings,
+    worktreePoolPath,
+  });
 }
 
 export class LocalProjectProvider implements ProjectProvider {
@@ -87,16 +99,19 @@ export class LocalProjectProvider implements ProjectProvider {
   private readonly localExec = getLocalExec();
   private readonly _gitWatcher: GitWatcherService;
   private readonly _gitFetchService: GitFetchService;
+  private _configChangeUnsubscribe: (() => void) | undefined;
 
   constructor(
     private readonly project: LocalProject,
-    readonly rootFs: FileSystemProvider,
     options: {
+      projectFs: FileSystemProvider;
+      worktreeHost: WorktreeHost;
+      settings: ProjectSettingsProvider;
       worktreePoolPath: string;
     }
   ) {
-    this.settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
-    this.fs = new LocalFileSystem(project.path);
+    this.settings = options.settings;
+    this.fs = options.projectFs;
     const gitExec = getGitLocalExec(() => githubConnectionService.getToken());
     const repoGit = new GitService(project.path, gitExec, this.fs);
     this.repository = new GitRepositoryService(repoGit, this.settings);
@@ -105,13 +120,23 @@ export class LocalProjectProvider implements ProjectProvider {
       repoPath: project.path,
       projectSettings: this.settings,
       exec: gitExec,
-      rootFs: rootFs,
+      host: options.worktreeHost,
     });
     this._gitWatcher = new GitWatcherService(project.id, project.path);
     void this._gitWatcher.start();
 
-    this._gitFetchService = new GitFetchService(repoGit);
+    this._gitFetchService = new GitFetchService(
+      repoGit,
+      async () => (await githubConnectionService.getToken()) !== null
+    );
     this._gitFetchService.start();
+
+    // Re-sync remotes whenever .git/config changes (remote added/removed/changed)
+    this._configChangeUnsubscribe = events.on(gitRefChangedChannel, (p) => {
+      if (p.projectId === project.id && p.kind === 'config') {
+        void prSyncScheduler.onRemoteChanged(project.id);
+      }
+    });
   }
 
   async provisionTask(
@@ -160,6 +185,9 @@ export class LocalProjectProvider implements ProjectProvider {
     // possible during the lifetime of this task. Non-blocking — provision
     // continues without waiting for the network round-trip.
     void this._gitFetchService.fetch();
+
+    // Sync PRs for this task's branch in the background.
+    void prSyncScheduler.onTaskProvisioned(this.project.id, task.taskBranch);
 
     const workspaceId = workspaceKey(task.taskBranch);
     const workspace = await this.workspaceRegistry.acquire(workspaceId, async () => {
@@ -426,6 +454,10 @@ export class LocalProjectProvider implements ProjectProvider {
     );
   }
 
+  async getWorktreeForBranch(branchName: string): Promise<string | undefined> {
+    return this.worktreeService.getWorktree(branchName);
+  }
+
   async removeTaskWorktree(taskBranch: string): Promise<void> {
     const worktreePath = await this.worktreeService.getWorktree(taskBranch);
     if (worktreePath) {
@@ -438,6 +470,7 @@ export class LocalProjectProvider implements ProjectProvider {
   }
 
   async cleanup(): Promise<void> {
+    this._configChangeUnsubscribe?.();
     this._gitFetchService.stop();
     await this._gitWatcher.stop();
 
@@ -467,7 +500,7 @@ export class LocalProjectProvider implements ProjectProvider {
       return existing;
     }
 
-    if (task.taskBranch === task.sourceBranch.branch) {
+    if (!task.sourceBranch || task.taskBranch === task.sourceBranch.branch) {
       const result = await this.worktreeService.checkoutExistingBranch(task.taskBranch);
       if (!result.success) {
         throw mapWorktreeErrorToProvisionError(task.taskBranch, result.error);

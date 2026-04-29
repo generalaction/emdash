@@ -7,7 +7,6 @@ export type GitChange = {
   status: GitChangeStatus;
   additions: number;
   deletions: number;
-  isStaged: boolean;
 };
 
 /** Result of a single coalesced workspace status refresh (staged + unstaged + branch). */
@@ -239,6 +238,10 @@ export type FetchError =
   | { type: 'error'; message: string };
 
 export type FetchPrRefError =
+  | { type: 'not_found'; prNumber: number }
+  | { type: 'error'; message: string };
+
+export type FetchPrForReviewError =
   | { type: 'not_found'; prNumber: number }
   | { type: 'error'; message: string };
 

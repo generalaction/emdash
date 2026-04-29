@@ -17,6 +17,13 @@ export function getDiffImageMimeType(filePath: string): string | null {
   return DIFF_IMAGE_MIME_TYPES[ext] ?? null;
 }
 
+/**
+ * Maximum bytes for ref-listing / fetch output. Repos with many thousands of refs
+ * (e.g. monorepos) easily exceed Node's 1 MB default `maxBuffer`, which would otherwise
+ * cause `git branch -a` and `git fetch` to fail silently with no branches surfaced.
+ */
+export const MAX_REF_LIST_BYTES = 64 * 1024 * 1024;
+
 /** Headers emitted by `git diff` that should be skipped when parsing hunks. */
 const DIFF_HEADER_PREFIXES = [
   'diff ',

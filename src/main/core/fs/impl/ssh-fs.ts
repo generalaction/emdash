@@ -5,21 +5,22 @@
 
 import type { SFTPWrapper } from 'ssh2';
 import type { FileWatchEvent } from '@shared/fs';
+import { log } from '@main/lib/logger';
 import { quoteShellArg } from '../../../utils/shellEscape';
 import type { SshClientProxy } from '../../ssh/ssh-client-proxy';
 import {
   DEFAULT_EMDASH_CONFIG,
-  FileEntry,
-  FileListResult,
   FileSystemError,
   FileSystemErrorCodes,
-  FileSystemProvider,
-  FileWatcher,
-  ListOptions,
-  ReadResult,
-  SearchOptions,
-  SearchResult,
-  WriteResult,
+  type FileEntry,
+  type FileListResult,
+  type FileSystemProvider,
+  type FileWatcher,
+  type ListOptions,
+  type ReadResult,
+  type SearchOptions,
+  type SearchResult,
+  type WriteResult,
 } from '../types';
 
 const SFTP_STATUS = {
@@ -612,6 +613,7 @@ export class SshFileSystem implements FileSystemProvider {
         filesSearched: seenFiles.size,
       };
     } catch (error) {
+      log.error('Failed to search', { query, options, error });
       // If command execution fails, return empty results
       return { matches: [], total: 0, filesSearched: 0 };
     }
@@ -886,6 +888,7 @@ export class SshFileSystem implements FileSystemProvider {
           msg.includes('already exists') ||
           msg.includes('File exists') ||
           (code === SFTP_STATUS.FAILURE && (msg === 'Failure' || msg === ''));
+        const isMissingParent = code === SFTP_STATUS.NO_SUCH_FILE || msg.includes('No such file');
 
         if (isAlreadyExists) {
           resolve();
@@ -893,7 +896,12 @@ export class SshFileSystem implements FileSystemProvider {
         }
 
         const parentPath = dirPath.substring(0, dirPath.lastIndexOf('/'));
-        if (parentPath && parentPath !== dirPath && parentPath.length >= this.remotePath.length) {
+        if (
+          isMissingParent &&
+          parentPath &&
+          parentPath !== dirPath &&
+          parentPath.length >= this.remotePath.length
+        ) {
           this.ensureRemoteDir(sftp, parentPath)
             .then(() => this.ensureRemoteDir(sftp, dirPath))
             .then(resolve)

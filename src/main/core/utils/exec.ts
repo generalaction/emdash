@@ -30,6 +30,13 @@ export type ExecFn = (
   options?: { cwd?: string; timeout?: number; maxBuffer?: number }
 ) => Promise<{ stdout: string; stderr: string }>;
 
+function shouldUseHttpRemote(args: string[]): boolean {
+  const subcommand = args[0];
+  if (!subcommand) return false;
+  if (['clone', 'fetch', 'pull', 'push', 'ls-remote'].includes(subcommand)) return true;
+  return subcommand === 'remote' && args[1] === 'show';
+}
+
 export function getLocalExec(): ExecFn {
   return (
     command: string,
@@ -41,7 +48,7 @@ export function getLocalExec(): ExecFn {
   };
 }
 
-async function addGithubTokenHeader(
+export async function addGitHubAuthConfig(
   args: string[],
   getToken: () => Promise<string | null>
 ): Promise<string[]> {
@@ -51,14 +58,27 @@ async function addGithubTokenHeader(
   const token = Buffer.from(`x-access-token:${rawToken}`).toString('base64');
   if (!token) return args;
 
-  return ['-c', `http.https://github.com/.extraHeader=Authorization: Basic ${token}`, ...args];
+  const withAuth = ['-c', `http.https://github.com/.extraHeader=Authorization: Basic ${token}`];
+
+  if (shouldUseHttpRemote(args)) {
+    withAuth.push(
+      '-c',
+      'url.https://github.com/.insteadOf=git@github.com:',
+      '-c',
+      'url.https://github.com/.insteadOf=ssh://git@github.com:',
+      '-c',
+      'url.https://github.com/.insteadOf=ssh://git@github.com/'
+    );
+  }
+
+  return [...withAuth, ...args];
 }
 
 export function getGitLocalExec(getToken: () => Promise<string | null>): ExecFn {
   const baseExec = getLocalExec();
   return async (command, args = [], options = {}) => {
     if (command === 'git') {
-      args = await addGithubTokenHeader(args, getToken);
+      args = await addGitHubAuthConfig(args, getToken);
     }
     return baseExec(command, args, options);
   };
@@ -110,7 +130,7 @@ export function getGitSshExec(
   const baseExec = getSshExec(proxy);
   return async (command, args = [], options = {}) => {
     if (command === 'git') {
-      args = await addGithubTokenHeader(args, getToken);
+      args = await addGitHubAuthConfig(args, getToken);
     }
     return baseExec(command, args, options);
   };

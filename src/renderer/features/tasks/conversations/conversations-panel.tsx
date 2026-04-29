@@ -2,7 +2,6 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
@@ -39,6 +38,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
 
   const handleCreate = () =>
     showCreateConversationModal({
+      connectionId: remoteConnectionId,
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {
@@ -70,7 +70,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           }}
           store={conversationTabs}
           paneId="conversations"
-          getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
           getSession={(s) => s.session}
           onEnterPress={shouldSetWorkingOnEnter ? (s) => s.setWorking() : undefined}
           onInterruptPress={(s) => s.clearWorking()}

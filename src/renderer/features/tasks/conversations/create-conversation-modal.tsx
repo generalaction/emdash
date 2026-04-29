@@ -5,8 +5,8 @@ import {
   AgentProviderId,
   isValidProviderId,
 } from '@shared/agent-provider-registry';
-import { getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -31,10 +31,12 @@ function getConversationsPaneSize() {
 }
 
 export const CreateConversationModal = observer(function CreateConversationModal({
+  connectionId,
   onSuccess,
   projectId,
   taskId,
 }: BaseModalProps<{ conversationId: string }> & {
+  connectionId?: string;
   projectId: string;
   taskId: string;
 }) {
@@ -44,8 +46,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
     ? defaultAgentValue
     : 'claude';
 
-  const projectData = getProjectStore(projectId)?.data;
-  const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
   const dependencyResource = connectionId
     ? appState.dependencies.getRemote(connectionId)
     : appState.dependencies.local;
@@ -60,12 +60,8 @@ export const CreateConversationModal = observer(function CreateConversationModal
     availabilityKnown,
   });
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
-  const { value: taskSettings } = useAppSettingsKey('tasks');
-  const defaultSkipPermissions = taskSettings?.autoApproveByDefault ?? false;
-  const [skipPermissionsOverride, setSkipPermissionsOverride] = useState<boolean | undefined>(
-    undefined
-  );
-  const skipPermissions = skipPermissionsOverride ?? defaultSkipPermissions;
+  const autoApproveDefaults = useAgentAutoApproveDefaults();
+  const skipPermissions = providerId ? autoApproveDefaults.getDefault(providerId) : false;
   const titleProviderId = providerId ?? defaultProviderId;
   const title = nextDefaultConversationTitle(
     titleProviderId,
@@ -113,7 +109,13 @@ export const CreateConversationModal = observer(function CreateConversationModal
           </Field>
           <Field>
             <div className="flex items-center gap-2">
-              <Switch checked={skipPermissions} onCheckedChange={setSkipPermissionsOverride} />
+              <Switch
+                checked={skipPermissions}
+                disabled={!providerId || autoApproveDefaults.loading || autoApproveDefaults.saving}
+                onCheckedChange={(checked) => {
+                  if (providerId) autoApproveDefaults.setDefault(providerId, checked);
+                }}
+              />
               <FieldLabel>Dangerously skip permissions</FieldLabel>
             </div>
           </Field>

@@ -9,7 +9,7 @@ import { computeDelta, computeTrueOverrides, isDeepEqual, isPlainObject, mergeDe
 export type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 export { AppSettingsKeys } from '@shared/app-settings';
 
-class Settings {
+export class SettingsStore {
   private cache: Partial<AppSettings> = {};
 
   private async readRaw(key: AppSettingsKey): Promise<unknown> {
@@ -139,4 +139,4 @@ class Settings {
   }
 }
 
-export const appSettingsService = new Settings();
+export const appSettingsService = new SettingsStore();

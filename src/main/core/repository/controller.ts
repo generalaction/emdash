@@ -64,4 +64,24 @@ export const repositoryController = createRPCController({
     if (!result.success) return err(result.error);
     return ok();
   },
+
+  fetchPrForReview: async (
+    projectId: string,
+    prNumber: number,
+    headRefName: string,
+    headRepositoryUrl: string,
+    isFork: boolean
+  ) => {
+    const project = projectManager.getProject(projectId);
+    if (!project) return err({ type: 'not_found' as const });
+    const result = await project.repository.fetchPrForReview(
+      prNumber,
+      headRefName,
+      headRepositoryUrl,
+      headRefName,
+      isFork
+    );
+    if (!result.success) return err(result.error);
+    return ok({ localBranch: headRefName });
+  },
 });

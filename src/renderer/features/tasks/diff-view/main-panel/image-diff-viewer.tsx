@@ -18,6 +18,7 @@ interface ImageDiffViewerProps {
   filePath: string;
   diffType: ImageDiffType;
   originalRef: GitRef;
+  modifiedRef?: GitRef;
   className?: string;
 }
 
@@ -27,6 +28,7 @@ export function ImageDiffViewer({
   filePath,
   diffType,
   originalRef,
+  modifiedRef,
   className,
 }: ImageDiffViewerProps) {
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ export function ImageDiffViewer({
       try {
         [originalSide, modifiedSide] = await Promise.all([
           loadOriginalImage(projectId, workspaceId, filePath, diffType, originalRef),
-          loadModifiedImage(projectId, workspaceId, filePath, diffType),
+          loadModifiedImage(projectId, workspaceId, filePath, diffType, modifiedRef),
         ]);
       } catch {
         originalSide = { label: 'Before', dataUrl: null, error: 'Image unavailable' };
@@ -67,7 +69,7 @@ export function ImageDiffViewer({
     return () => {
       cancelled = true;
     };
-  }, [projectId, workspaceId, filePath, diffType, originalRef]);
+  }, [projectId, workspaceId, filePath, diffType, originalRef, modifiedRef]);
 
   if (loading) {
     return (
@@ -135,7 +137,8 @@ async function loadModifiedImage(
   projectId: string,
   workspaceId: string,
   filePath: string,
-  diffType: ImageDiffType
+  diffType: ImageDiffType,
+  modifiedRef?: GitRef
 ): Promise<ImageSide> {
   if (diffType === 'staged') {
     const result = await rpc.git.getImageAtIndex(projectId, workspaceId, filePath);
@@ -143,7 +146,13 @@ async function loadModifiedImage(
   }
 
   if (diffType === 'git' || diffType === 'pr') {
-    const result = await rpc.git.getImageAtRef(projectId, workspaceId, filePath, 'HEAD');
+    const ref = diffType === 'pr' && modifiedRef ? modifiedRef : HEAD_REF;
+    const result = await rpc.git.getImageAtRef(
+      projectId,
+      workspaceId,
+      filePath,
+      gitRefToString(ref)
+    );
     return imageSideFromResult('After', result, 'No current image');
   }
 

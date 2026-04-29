@@ -1,14 +1,13 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import type { PullRequest } from '@shared/pull-requests';
+import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   getProjectManagerStore,
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
-import { useNameWithOwner } from '@renderer/lib/hooks/useNameWithOwner';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -72,8 +71,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
     : null;
-  const { data: remoteState } = useNameWithOwner(selectedProjectId);
-  const nameWithOwner = remoteState?.status === 'ready' ? remoteState.nameWithOwner : undefined;
+  const nameWithOwner = selectedProjectId
+    ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
+    : undefined;
 
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
@@ -131,10 +131,13 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       }
       case 'from-pull-request': {
         if (!fromPR.linkedPR) return;
+        const reviewBranch = fromPR.linkedPR.headRefName;
         const taskStrategy = resolvePullRequestTaskStrategy({
           checkoutMode: fromPR.checkoutMode,
-          prNumber: fromPR.linkedPR.metadata.number,
-          headBranch: fromPR.linkedPR.metadata.headRefName,
+          prNumber: getPrNumber(fromPR.linkedPR) ?? 0,
+          headBranch: reviewBranch,
+          headRepositoryUrl: fromPR.linkedPR.headRepositoryUrl,
+          isFork: isForkPr(fromPR.linkedPR),
           taskBranch: fromPR.taskName,
           pushBranch: fromPR.branchSelection.pushBranch,
         });
@@ -142,7 +145,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromPR.taskName,
-          sourceBranch: { type: 'local', branch: fromPR.linkedPR.metadata.headRefName },
+          sourceBranch: { type: 'local', branch: reviewBranch },
           initialStatus:
             fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
           strategy: taskStrategy,
@@ -224,9 +227,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             <div className="flex flex-col gap-3">
               {!nameWithOwner && (
                 <p className="text-sm text-muted-foreground">
-                  {remoteState?.status === 'no_remote'
-                    ? 'No remote is configured for this project.'
-                    : 'Pull requests are currently available only for GitHub remotes.'}
+                  Pull requests are currently available only for configured GitHub remotes.
                 </p>
               )}
               <FromPrContent

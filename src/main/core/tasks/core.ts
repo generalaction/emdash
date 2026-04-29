@@ -8,7 +8,7 @@ export function mapTaskRowToTask(
   prs: PullRequest[] = [],
   conversations: Record<string, number> = {}
 ): Task {
-  const sourceBranch = fromStoredBranch(row.sourceBranch);
+  const sourceBranch = row.sourceBranch ? fromStoredBranch(row.sourceBranch) : undefined;
   return {
     id: row.id,
     projectId: row.projectId,

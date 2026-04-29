@@ -140,12 +140,14 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <GitBranch className="size-3.5" />
                   <span>{provisionedTask.workspace.git.branchName}</span>
                 </span>
-                <span className="flex items-center gap-2 text-foreground-passive">
-                  Created from
-                  <span className="flex items-center gap-1 text-foreground-muted">
-                    <GitBranch className="size-3.5" /> {taskPayload.sourceBranch.branch}
+                {taskPayload.sourceBranch && (
+                  <span className="flex items-center gap-2 text-foreground-passive">
+                    Created from
+                    <span className="flex items-center gap-1 text-foreground-muted">
+                      <GitBranch className="size-3.5" /> {taskPayload.sourceBranch.branch}
+                    </span>
                   </span>
-                </span>
+                )}
                 <div className="flex items-center gap-1 w-full">
                   {hasUpstream ? (
                     <>
@@ -254,7 +256,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                nameWithOwner={''}
+                nameWithOwner={provisionedTask.repositoryStore.repositoryUrl ?? ''}
                 projectPath={provisionedTask.path}
               />
             </PopoverContent>

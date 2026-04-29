@@ -22,6 +22,34 @@
       "when": 1776700840315,
       "tag": "0002_noisy_maestro",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1776845763296,
+      "tag": "0003_even_vampiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1776862823258,
+      "tag": "0004_material_flatman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1776938559947,
+      "tag": "0005_add_pull_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1776959681864,
+      "tag": "0006_bumpy_gamma_corps",
+      "breakpoints": true
     }
   ]
 }

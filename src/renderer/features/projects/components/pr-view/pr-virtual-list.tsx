@@ -2,6 +2,7 @@ import type { FetchNextPageOptions, InfiniteQueryObserverResult } from '@tanstac
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useRef } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
+import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { cn } from '@renderer/utils/utils';
 import { PrRow } from './pr-row';
 
@@ -50,7 +51,10 @@ export function PrVirtualList({
 
   if (prs.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-4">No PRs match this filter.</p>
+      <EmptyState
+        label="No pull requests"
+        description="No pull requests available or none that match this filter"
+      />
     );
   }
 
