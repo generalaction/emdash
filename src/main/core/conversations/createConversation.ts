@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { Conversation, CreateConversationParams } from '@shared/conversations';
+import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
+import { autoRenameTaskFromPrompt } from './autoRenameTaskFromPrompt';
 import { mapConversationRowToConversation } from './utils';
 
 export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
@@ -47,6 +48,14 @@ export async function createConversation(params: CreateConversationParams): Prom
     false,
     params.initialPrompt
   );
+
+  await autoRenameTaskFromPrompt({
+    projectId: params.projectId,
+    taskId: params.taskId,
+    isFirstInTask: existingConversation === undefined,
+    initialPrompt: params.initialPrompt,
+  });
+
   capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,

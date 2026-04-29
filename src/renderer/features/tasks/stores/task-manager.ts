@@ -1,7 +1,7 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
-import { taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import { taskRenamedChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -77,6 +77,8 @@ export class TaskManagerStore {
 
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
+  private _unsubTaskStatusUpdated: (() => void) | null = null;
+  private _unsubTaskRenamed: (() => void) | null = null;
   private _disposeRepositoryReaction: (() => void) | null = null;
 
   tasks = observable.map<string, TaskStore>();
@@ -86,15 +88,34 @@ export class TaskManagerStore {
     this._repository = repository;
     makeObservable(this, { tasks: observable });
 
-    events.on(taskStatusUpdatedChannel, ({ taskId, projectId: evtProjectId, status }) => {
-      if (evtProjectId !== this.projectId) return;
-      const store = this.tasks.get(taskId);
-      if (store && isProvisioned(store)) {
-        runInAction(() => {
-          store.data.status = status as TaskLifecycleStatus;
-        });
+    this._unsubTaskStatusUpdated = events.on(
+      taskStatusUpdatedChannel,
+      ({ taskId, projectId: evtProjectId, status }) => {
+        if (evtProjectId !== this.projectId) return;
+        const store = this.tasks.get(taskId);
+        if (store && isProvisioned(store)) {
+          runInAction(() => {
+            store.data.status = status as TaskLifecycleStatus;
+          });
+        }
       }
-    });
+    );
+
+    this._unsubTaskRenamed = events.on(
+      taskRenamedChannel,
+      ({ taskId, projectId: evtProjectId, name, taskBranch }) => {
+        if (evtProjectId !== this.projectId) return;
+        const store = this.tasks.get(taskId);
+        if (store && isProvisioned(store)) {
+          runInAction(() => {
+            store.data.name = name;
+            if (taskBranch !== null) {
+              store.data.taskBranch = taskBranch;
+            }
+          });
+        }
+      }
+    );
 
     this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
       const repoUrl = this._repository.repositoryUrl;
@@ -405,6 +426,10 @@ export class TaskManagerStore {
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
     this._unsubPrSyncProgress = null;
+    this._unsubTaskStatusUpdated?.();
+    this._unsubTaskStatusUpdated = null;
+    this._unsubTaskRenamed?.();
+    this._unsubTaskRenamed = null;
     this._disposeRepositoryReaction?.();
     this._disposeRepositoryReaction = null;
   }

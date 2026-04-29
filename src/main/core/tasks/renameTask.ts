@@ -1,7 +1,9 @@
 import { and, eq, sql } from 'drizzle-orm';
+import { taskRenamedChannel } from '@shared/events/taskEvents';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { appSettingsService } from '../settings/settings-service';
 
 export async function renameTask(
@@ -45,4 +47,11 @@ export async function renameTask(
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(tasks.id, taskId));
+
+  events.emit(taskRenamedChannel, {
+    taskId,
+    projectId: row.projectId,
+    name: newName,
+    taskBranch: newBranch ?? row.taskBranch,
+  });
 }

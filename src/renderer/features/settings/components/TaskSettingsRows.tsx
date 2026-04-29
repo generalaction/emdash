@@ -53,6 +53,32 @@ export const AutoGenerateTaskNamesRow: React.FC = () => {
   );
 };
 
+export const AutoRenameFromFirstPromptRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Auto-rename task from first prompt"
+      description="After you send the first prompt in a new task, replace the auto-generated name with one derived from the prompt."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('autoRenameFromFirstPrompt')}
+            defaultLabel="on"
+            onReset={taskSettings.resetAutoRenameFromFirstPrompt}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.autoRenameFromFirstPrompt}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateAutoRenameFromFirstPrompt}
+          />
+        </>
+      }
+    />
+  );
+};
+
 export const AutoTrustWorktreesRow: React.FC = () => {
   const taskSettings = useTaskSettings();
 

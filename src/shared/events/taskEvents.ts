@@ -7,6 +7,13 @@ export const taskStatusUpdatedChannel = defineEvent<{
   status: string;
 }>('task:status-updated');
 
+export const taskRenamedChannel = defineEvent<{
+  taskId: string;
+  projectId: string;
+  name: string;
+  taskBranch: string | null;
+}>('task:renamed');
+
 export const taskPrUpdatedChannel = defineEvent<{
   taskId: string;
   projectId: string;

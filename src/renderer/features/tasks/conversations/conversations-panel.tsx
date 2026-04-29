@@ -12,12 +12,13 @@ import {
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
+import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { ContextBar } from './context-bar';
-import { ConversationStore } from './conversation-manager';
+import { type ConversationStore } from './conversation-manager';
 import { ConversationsTabs } from './conversation-tabs';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
@@ -72,6 +73,9 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           paneId="conversations"
           getSession={(s) => s.session}
           onEnterPress={shouldSetWorkingOnEnter ? (s) => s.setWorking() : undefined}
+          onFirstUserPrompt={(_s, message) => {
+            void rpc.tasks.tryAutoRenameFromPrompt(projectId, taskId, message);
+          }}
           onInterruptPress={(s) => s.clearWorking()}
           mapShiftEnterToCtrlJ
           remoteConnectionId={remoteConnectionId}
