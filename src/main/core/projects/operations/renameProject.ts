@@ -11,13 +11,12 @@ export async function renameProject(projectId: string, newName: string): Promise
     throw new Error(`Project name must be ${MAX_PROJECT_NAME_LENGTH} characters or fewer`);
   }
 
-  const [row] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-  if (!row) throw new Error(`Project not found: ${projectId}`);
-
-  await db
+  const result = await db
     .update(projects)
     .set({ name: trimmed, updatedAt: sql`CURRENT_TIMESTAMP` })
     .where(eq(projects.id, projectId));
+
+  if (result.changes === 0) throw new Error(`Project not found: ${projectId}`);
 
   capture('project_renamed', { project_id: projectId });
 }
