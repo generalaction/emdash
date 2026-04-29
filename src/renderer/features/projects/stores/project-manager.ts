@@ -380,6 +380,24 @@ export class ProjectManagerStore {
     this.mountProject(projectId).catch(() => {});
   }
 
+  applyProjectIconUpdate(projectId: string, iconDataUrl: string | null): void {
+    runInAction(() => {
+      const store = this.projects.get(projectId);
+      if (!store || !store.data) return;
+      // ProjectStore and MountedProject each pass `data` through their own
+      // makeAutoObservable wrapper, producing independent observable proxies
+      // over the same underlying object. A mutation through one proxy does
+      // not notify the other proxy's observers, so write through both. The
+      // field assignment is type-safe even though MountedProject.data is
+      // declared `readonly` — `readonly` blocks reassigning the reference,
+      // not mutating fields whose own type isn't readonly.
+      store.data.iconDataUrl = iconDataUrl;
+      if (store.mountedProject) {
+        store.mountedProject.data.iconDataUrl = iconDataUrl;
+      }
+    });
+  }
+
   removeUnregisteredProject(projectId: string): void {
     runInAction(() => {
       const store = this.projects.get(projectId);

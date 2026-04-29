@@ -1,3 +1,5 @@
+export const MAX_PROJECT_ICON_BYTES = 2 * 1024 * 1024;
+
 export type ProjectBootstrapStatus =
   | { status: 'ready' }
   | { status: 'bootstrapping' }
@@ -15,6 +17,7 @@ export type LocalProject = {
   name: string;
   path: string;
   baseRef: string;
+  iconDataUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -26,6 +29,7 @@ export type SshProject = {
   path: string;
   baseRef: string;
   connectionId: string;
+  iconDataUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };

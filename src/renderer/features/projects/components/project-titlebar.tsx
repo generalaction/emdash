@@ -1,5 +1,6 @@
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { ProjectAvatar } from '@renderer/features/projects/components/project-avatar';
 import {
   asMounted,
   getProjectManagerStore,
@@ -30,7 +31,9 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
 }) {
   const { navigate } = useNavigate();
   const store = getProjectStore(projectId);
+  const mounted = asMounted(store);
   const displayName = projectDisplayName(store);
+  const iconDataUrl = mounted?.data.iconDataUrl ?? null;
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
 
   const repo = getRepositoryStore(projectId);
@@ -49,6 +52,9 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
         <DropdownMenuTrigger
           render={
             <button className="flex items-center gap-1.5 text-foreground-muted text-sm hover:text-foreground group">
+              {iconDataUrl ? (
+                <ProjectAvatar iconDataUrl={iconDataUrl} className="h-4 w-4 rounded-sm" />
+              ) : null}
               <span className="text-sm">{displayName}</span>
               <ChevronDown className="size-3.5" />
             </button>

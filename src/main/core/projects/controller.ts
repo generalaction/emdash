@@ -1,4 +1,5 @@
 import { createRPCController } from '@shared/ipc/rpc';
+import { clearProjectIcon } from './operations/clearProjectIcon';
 import {
   createLocalProject,
   createSshProject,
@@ -10,6 +11,7 @@ import { getProjectBootstrapStatus } from './operations/getProjectBootstrapStatu
 import { getLocalProjectByPath, getProjects, getSshProjectByPath } from './operations/getProjects';
 import { getProjectSettings } from './operations/getProjectSettings';
 import { openProject } from './operations/openProject';
+import { setProjectIcon } from './operations/setProjectIcon';
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { updateProjectSettings } from './operations/updateProjectSettings';
 
@@ -27,4 +29,6 @@ export const projectController = createRPCController({
   updateProjectConnection,
   getProjectBootstrapStatus,
   openProject,
+  setProjectIcon,
+  clearProjectIcon,
 });
