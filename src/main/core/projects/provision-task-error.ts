@@ -1,9 +1,18 @@
-import type { ProvisionTaskError, TeardownTaskError } from './project-provider';
 import { TimeoutSignal } from './utils';
 import type { ServeWorktreeError } from './worktrees/worktree-service';
 
 export const TASK_TIMEOUT_MS = 600000;
 export const TEARDOWN_SCRIPT_WAIT_MS = 10_000;
+
+export type ProvisionTaskError =
+  | { type: 'timeout'; message: string; timeout: number }
+  | { type: 'branch-not-found'; branch: string }
+  | { type: 'worktree-setup-failed'; branch: string; message?: string }
+  | { type: 'error'; message: string };
+
+export type TeardownTaskError =
+  | { type: 'timeout'; message: string; timeout: number }
+  | { type: 'error'; message: string };
 
 export function toProvisionError(e: unknown): ProvisionTaskError {
   if (isProvisionTaskError(e)) return e;

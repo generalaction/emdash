@@ -14,18 +14,14 @@ import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/work
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
-import type {
-  ProjectProvider,
-  ProvisionResult,
-  ProvisionTaskError,
-  TaskProvider,
-  TeardownTaskError,
-} from './project-provider';
+import type { ProjectProvider, ProvisionResult, TaskProvider } from './project-provider';
 import {
   formatProvisionTaskError,
   TASK_TIMEOUT_MS,
   toProvisionError,
   toTeardownError,
+  type ProvisionTaskError,
+  type TeardownTaskError,
 } from './provision-task-error';
 import { provisionLocalTask } from './task-builder';
 import { withTimeout } from './utils';
@@ -76,7 +72,7 @@ async function executeProvision(
   void prSyncScheduler.onTaskProvisioned(provider.projectId, task.taskBranch);
 
   const workspaceId =
-    provider.workspaceType.kind === 'local'
+    provider.defaultWorkspaceType.kind === 'local'
       ? localWorkspaceId(provider.projectId, task.taskBranch)
       : sshWorkspaceId(provider.projectId, task.taskBranch);
 
@@ -85,7 +81,7 @@ async function executeProvision(
     conversations,
     terminals,
     workspaceId,
-    type: provider.workspaceType,
+    type: provider.defaultWorkspaceType,
     projectId: provider.projectId,
     projectPath: provider.repoPath,
     settings: provider.settings,
@@ -95,7 +91,7 @@ async function executeProvision(
     logPrefix: `${provider.type}ProjectProvider`,
   });
 
-  if (provider.workspaceType.kind === 'local') {
+  if (provider.defaultWorkspaceType.kind === 'local') {
     const mainDotGitAbs = path.resolve(provider.repoPath, '.git');
     const worktreeGitDir = await workspace.git.getWorktreeGitDir(mainDotGitAbs);
     return {
@@ -108,7 +104,7 @@ async function executeProvision(
     ...provisionResult,
     persistData: {
       ...provisionResult.persistData,
-      sshConnectionId: provider.workspaceType.connectionId,
+      sshConnectionId: provider.defaultWorkspaceType.connectionId,
     },
   };
 }

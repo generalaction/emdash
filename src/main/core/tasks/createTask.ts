@@ -14,7 +14,7 @@ import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';
 import { createConversation } from '../conversations/createConversation';
-import type { ProvisionTaskError } from '../projects/project-provider';
+import type { ProvisionTaskError } from '../projects/provision-task-error';
 import { prQueryService } from '../pull-requests/pr-query-service';
 import { appSettingsService } from '../settings/settings-service';
 import { mapTaskRowToTask } from './core';
