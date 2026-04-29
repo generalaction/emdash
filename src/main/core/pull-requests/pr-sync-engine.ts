@@ -61,6 +61,11 @@ type PrKvSchema = {
   [key: string]: FullSyncCursor | IncrementalSyncCursor | string;
 };
 
+type RepositoryForkInfo = {
+  fork?: boolean;
+  parent?: { html_url?: string | null } | null;
+};
+
 // ---------------------------------------------------------------------------
 // GQL node shapes
 // ---------------------------------------------------------------------------
@@ -195,6 +200,40 @@ export class PrSyncEngine {
       ctrl.abort();
       this._controllers.delete(repositoryUrl);
       this._inflight.delete(`sync:${repositoryUrl}`);
+    }
+  }
+
+  async getRelatedRepositoryUrls(repositoryUrl: string): Promise<string[]> {
+    const normalizedUrl = normalizeGitHubUrl(repositoryUrl);
+    const parentUrl = await this.getForkParentRepositoryUrl(normalizedUrl);
+    if (!parentUrl || parentUrl === normalizedUrl) return [normalizedUrl];
+    return [normalizedUrl, parentUrl];
+  }
+
+  async getForkParentRepositoryUrl(repositoryUrl: string): Promise<string | null> {
+    if (!isGitHubUrl(repositoryUrl)) return null;
+
+    const normalizedUrl = normalizeGitHubUrl(repositoryUrl);
+    const cached = (await this.kv.get(`fork-parent:${normalizedUrl}`)) as string | null;
+    if (cached != null) return cached.length > 0 ? cached : null;
+
+    const { owner, repo } = splitNormalizedUrl(normalizedUrl);
+    try {
+      const octokit = await this.getOctokit();
+      const { data } = await octokit.rest.repos.get({ owner, repo });
+      const forkInfo = data as RepositoryForkInfo;
+      const parentUrl =
+        forkInfo.fork && forkInfo.parent?.html_url
+          ? normalizeGitHubUrl(forkInfo.parent.html_url)
+          : null;
+      await this.kv.set(`fork-parent:${normalizedUrl}`, parentUrl ?? '');
+      return parentUrl;
+    } catch (error) {
+      log.warn('PrSyncEngine: failed to resolve fork parent', {
+        repositoryUrl: normalizedUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
     }
   }
 

@@ -103,7 +103,14 @@ export class PrQueryService {
       repositoryUrls = remoteRows.map((r) => r.remoteUrl);
     }
 
-    const conditions = [inArray(pullRequests.repositoryUrl, repositoryUrls)];
+    const conditions = [
+      options.repositoryUrl
+        ? eq(pullRequests.repositoryUrl, options.repositoryUrl)
+        : or(
+            inArray(pullRequests.repositoryUrl, repositoryUrls),
+            inArray(pullRequests.headRepositoryUrl, repositoryUrls)
+          )!,
+    ];
 
     const filters = options.filters;
     if (filters?.status && filters.status !== 'all') {
@@ -170,7 +177,13 @@ export class PrQueryService {
       .select()
       .from(pullRequests)
       .where(
-        and(eq(pullRequests.headRefName, taskBranch), eq(pullRequests.repositoryUrl, repositoryUrl))
+        and(
+          eq(pullRequests.headRefName, taskBranch),
+          or(
+            eq(pullRequests.repositoryUrl, repositoryUrl),
+            eq(pullRequests.headRepositoryUrl, repositoryUrl)
+          )!
+        )
       );
 
     return fetchRelated(rows);
@@ -190,7 +203,12 @@ export class PrQueryService {
     const prUrlsSub = db
       .select({ url: pullRequests.url })
       .from(pullRequests)
-      .where(inArray(pullRequests.repositoryUrl, repositoryUrls));
+      .where(
+        or(
+          inArray(pullRequests.repositoryUrl, repositoryUrls),
+          inArray(pullRequests.headRepositoryUrl, repositoryUrls)
+        )!
+      );
 
     const authorUserIdsSub = db
       .select({ userId: pullRequests.authorUserId })

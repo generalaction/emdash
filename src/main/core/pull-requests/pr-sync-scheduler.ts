@@ -74,9 +74,10 @@ export class PrSyncScheduler {
   async onTaskProvisioned(projectId: string, taskBranch: string | undefined): Promise<void> {
     if (!taskBranch) return;
 
-    const remoteUrls = await this._getGitHubRemoteUrls(projectId);
+    const projectRemoteUrls = await this._getStoredGitHubRemoteUrls(projectId);
+    const remoteUrls = await this._expandWithForkParents(projectRemoteUrls);
     for (const url of remoteUrls) {
-      const prNumber = await this._findPrNumberForBranch(url, taskBranch);
+      const prNumber = await this._findPrNumberForBranch(url, taskBranch, projectRemoteUrls);
       if (prNumber !== null) {
         void prSyncEngine.syncSingle(url, prNumber);
       }
@@ -132,7 +133,10 @@ export class PrSyncScheduler {
     try {
       const remotes = await project.repository.getRemotes();
       await syncProjectRemotes(projectId, remotes);
-      return remotes.filter((r) => isGitHubUrl(r.url)).map((r) => normalizeGitHubUrl(r.url));
+      const githubUrls = remotes
+        .filter((r) => isGitHubUrl(r.url))
+        .map((r) => normalizeGitHubUrl(r.url));
+      return this._expandWithForkParents(githubUrls);
     } catch (e) {
       log.warn('PrSyncScheduler: failed to sync project remotes', { projectId, error: String(e) });
       return [];
@@ -143,6 +147,11 @@ export class PrSyncScheduler {
     const cached = this._projectRemoteUrls.get(projectId);
     if (cached) return cached;
 
+    const githubUrls = await this._getStoredGitHubRemoteUrls(projectId);
+    return this._expandWithForkParents(githubUrls);
+  }
+
+  private async _getStoredGitHubRemoteUrls(projectId: string): Promise<string[]> {
     const rows = await db
       .select({ remoteUrl: projectRemotes.remoteUrl })
       .from(projectRemotes)
@@ -151,19 +160,28 @@ export class PrSyncScheduler {
     return rows.filter((r) => isGitHubUrl(r.remoteUrl)).map((r) => normalizeGitHubUrl(r.remoteUrl));
   }
 
+  private async _expandWithForkParents(repositoryUrls: string[]): Promise<string[]> {
+    const expanded = await Promise.all(
+      repositoryUrls.map((url) => prSyncEngine.getRelatedRepositoryUrls(url))
+    );
+    return [...new Set(expanded.flat())];
+  }
+
   private async _findPrNumberForBranch(
     repositoryUrl: string,
-    taskBranch: string
+    taskBranch: string,
+    headRepositoryUrls: string[]
   ): Promise<number | null> {
     const { pullRequests } = await import('@main/db/schema');
-    const { and, eq: deq } = await import('drizzle-orm');
+    const { and, eq: deq, inArray: dinArray } = await import('drizzle-orm');
     const rows = await db
       .select({ identifier: pullRequests.identifier })
       .from(pullRequests)
       .where(
         and(
           deq(pullRequests.repositoryUrl, repositoryUrl),
-          deq(pullRequests.headRefName, taskBranch)
+          deq(pullRequests.headRefName, taskBranch),
+          dinArray(pullRequests.headRepositoryUrl, headRepositoryUrls)
         )
       )
       .limit(1);
