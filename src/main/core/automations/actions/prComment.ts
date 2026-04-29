@@ -1,14 +1,15 @@
 import type { PrCommentAction } from '@shared/automations/actions';
 import { err } from '@shared/result';
 import { postScmComment } from './scm-comment';
-import { applyTemplate } from './template';
+import { applyAutomationTemplate, eventPrRef } from './template';
 import type { ActionExecutor } from './types';
 
 export const executePrComment: ActionExecutor<PrCommentAction> = async (action, ctx) => {
-  const body = applyTemplate(action.body, ctx.event);
+  const body = applyAutomationTemplate(action.body, ctx.event);
   if (!body.trim()) return err('pr_comment_body_empty');
 
-  const ref = applyTemplate(action.prRef, ctx.event).trim();
+  const ref =
+    applyAutomationTemplate(action.prRef, ctx.event).trim() || eventPrRef(ctx.event) || '';
   if (!ref) return err('pr_comment_ref_empty');
 
   try {

@@ -3,15 +3,15 @@ import type { NotificationSendAction } from '@shared/automations/actions';
 import { err, ok } from '@shared/result';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
-import { applyTemplate } from './template';
+import { applyAutomationTemplate } from './template';
 import type { ActionExecutor } from './types';
 
 export const executeNotificationSend: ActionExecutor<NotificationSendAction> = async (
   action,
   ctx
 ) => {
-  const title = applyTemplate(action.title, ctx.event).trim() || ctx.automation.name;
-  const body = applyTemplate(action.body, ctx.event).trim();
+  const title = applyAutomationTemplate(action.title, ctx.event).trim() || ctx.automation.name;
+  const body = applyAutomationTemplate(action.body, ctx.event).trim();
 
   const { enabled, osNotifications } = await appSettingsService.get('notifications');
   if (!enabled || !osNotifications) {

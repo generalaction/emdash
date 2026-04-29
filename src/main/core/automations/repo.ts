@@ -29,23 +29,25 @@ import { log } from '@main/lib/logger';
 
 const DEFAULT_TZ = 'UTC';
 
-function parseActions(raw: string, fallbackPrompt: string | null): ActionSpec[] {
-  if (raw && raw !== '[]') {
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed as ActionSpec[];
-      }
-    } catch (error) {
-      log.warn('automations.repo: failed to parse actions JSON, falling back', {
-        error: String(error),
-      });
-    }
+function fallbackActions(promptTemplate: string): ActionSpec[] {
+  const prompt = promptTemplate.trim();
+  return prompt ? [{ kind: 'task.create', prompt }] : [];
+}
+
+function parseActions(raw: string, promptTemplate: string): ActionSpec[] {
+  if (!raw || raw === '[]') return fallbackActions(promptTemplate);
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return fallbackActions(promptTemplate);
+    return parsed.every((item) => item && typeof item === 'object' && 'kind' in item)
+      ? (parsed as ActionSpec[])
+      : fallbackActions(promptTemplate);
+  } catch (error) {
+    log.warn('automations.repo: failed to parse actions JSON', {
+      error: String(error),
+    });
+    return fallbackActions(promptTemplate);
   }
-  if (fallbackPrompt && fallbackPrompt.trim().length > 0) {
-    return [{ kind: 'task.create', prompt: fallbackPrompt }];
-  }
-  return [];
 }
 
 function firstTaskCreatePrompt(actions: ActionSpec[]): string {

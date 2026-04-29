@@ -9,12 +9,12 @@ import { jiraConnectionService } from '@main/core/jira/jira-connection-service';
 import { jiraPostJson, plainTextToAdf } from '@main/core/jira/jira-http';
 import { linearConnectionService } from '@main/core/linear/linear-connection-service';
 import { resolveScmTarget } from './scm-ref';
-import { applyTemplate } from './template';
+import { applyAutomationTemplate } from './template';
 import type { ActionContext, ActionExecutor, ActionOutcome } from './types';
 
 export const executeIssueCreate: ActionExecutor<IssueCreateAction> = async (action, ctx) => {
-  const title = applyTemplate(action.title, ctx.event).trim();
-  const body = applyTemplate(action.body, ctx.event);
+  const title = applyAutomationTemplate(action.title, ctx.event).trim();
+  const body = applyAutomationTemplate(action.body, ctx.event);
   if (!title) return err('issue_create_title_empty');
 
   try {

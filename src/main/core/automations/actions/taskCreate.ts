@@ -3,11 +3,13 @@ import type { TaskCreateAction } from '@shared/automations/actions';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import { type CreateTaskError } from '@shared/tasks';
+import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { createTask } from '@main/core/tasks/createTask';
-import { generateTaskName } from '@main/core/tasks/generateTaskName';
-import { applyTemplate } from './template';
+import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
+import { createTask } from '@main/core/tasks/operations/createTask';
+import { appendAutomationEventContext } from './eventContext';
+import { applyAutomationTemplate } from './template';
 import type { ActionExecutor } from './types';
 
 function stringifyCreateTaskError(error: CreateTaskError): string {
@@ -26,11 +28,13 @@ function stringifyCreateTaskError(error: CreateTaskError): string {
       return error.message ?? `worktree_setup_failed:${error.branch}`;
     case 'provision-failed':
       return error.message;
+    case 'provision-timeout':
+      return `provisioning timed out after ${error.timeoutMs}ms at step ${error.step ?? 'unknown'}`;
   }
 }
 
 async function sourceBranchForAutomation(projectId: string) {
-  const openResult = await projectManager.openProjectById(projectId);
+  const openResult = await openProject(projectId);
   if (!openResult.success) {
     const message =
       openResult.error.type === 'path-not-found'
@@ -53,7 +57,10 @@ async function sourceBranchForAutomation(projectId: string) {
 }
 
 export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action, ctx) => {
-  const prompt = applyTemplate(action.prompt, ctx.event).trim();
+  const prompt = appendAutomationEventContext(
+    applyAutomationTemplate(action.prompt, ctx.event),
+    ctx.event
+  ).trim();
   if (!prompt) return err('task_create_prompt_empty');
 
   try {
