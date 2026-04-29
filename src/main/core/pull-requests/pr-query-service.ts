@@ -19,6 +19,14 @@ export type ProjectRemoteCapability =
   | { status: 'no_remote' }
   | { status: 'unsupported_remote' };
 
+/** Match a PR by either its base or head repository URL. */
+function matchesAnyRepoSide(repositoryUrls: string[]) {
+  return or(
+    inArray(pullRequests.repositoryUrl, repositoryUrls),
+    inArray(pullRequests.headRepositoryUrl, repositoryUrls)
+  )!;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -106,10 +114,7 @@ export class PrQueryService {
     const conditions = [
       options.repositoryUrl
         ? eq(pullRequests.repositoryUrl, options.repositoryUrl)
-        : or(
-            inArray(pullRequests.repositoryUrl, repositoryUrls),
-            inArray(pullRequests.headRepositoryUrl, repositoryUrls)
-          )!,
+        : matchesAnyRepoSide(repositoryUrls),
     ];
 
     const filters = options.filters;
@@ -176,15 +181,7 @@ export class PrQueryService {
     const rows = await db
       .select()
       .from(pullRequests)
-      .where(
-        and(
-          eq(pullRequests.headRefName, taskBranch),
-          or(
-            eq(pullRequests.repositoryUrl, repositoryUrl),
-            eq(pullRequests.headRepositoryUrl, repositoryUrl)
-          )!
-        )
-      );
+      .where(and(eq(pullRequests.headRefName, taskBranch), matchesAnyRepoSide([repositoryUrl])));
 
     return fetchRelated(rows);
   }
@@ -203,12 +200,7 @@ export class PrQueryService {
     const prUrlsSub = db
       .select({ url: pullRequests.url })
       .from(pullRequests)
-      .where(
-        or(
-          inArray(pullRequests.repositoryUrl, repositoryUrls),
-          inArray(pullRequests.headRepositoryUrl, repositoryUrls)
-        )!
-      );
+      .where(matchesAnyRepoSide(repositoryUrls));
 
     const authorUserIdsSub = db
       .select({ userId: pullRequests.authorUserId })

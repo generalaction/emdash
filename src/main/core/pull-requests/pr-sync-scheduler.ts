@@ -1,8 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { isGitHubUrl, normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
-import { projectRemotes } from '@main/db/schema';
+import { projectRemotes, pullRequests } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';
@@ -75,11 +75,28 @@ export class PrSyncScheduler {
     if (!taskBranch) return;
 
     const projectRemoteUrls = await this._getStoredGitHubRemoteUrls(projectId);
-    const remoteUrls = await this._expandWithForkParents(projectRemoteUrls);
-    for (const url of remoteUrls) {
-      const prNumber = await this._findPrNumberForBranch(url, taskBranch, projectRemoteUrls);
+    if (projectRemoteUrls.length === 0) return;
+
+    const allRepositoryUrls = await this._expandWithForkParents(projectRemoteUrls);
+
+    const rows = await db
+      .select({
+        identifier: pullRequests.identifier,
+        repositoryUrl: pullRequests.repositoryUrl,
+      })
+      .from(pullRequests)
+      .where(
+        and(
+          eq(pullRequests.headRefName, taskBranch),
+          inArray(pullRequests.repositoryUrl, allRepositoryUrls),
+          inArray(pullRequests.headRepositoryUrl, projectRemoteUrls)
+        )
+      );
+
+    for (const row of rows) {
+      const prNumber = parsePrNumber(row.identifier);
       if (prNumber !== null) {
-        void prSyncEngine.syncSingle(url, prNumber);
+        void prSyncEngine.syncSingle(row.repositoryUrl, prNumber);
       }
     }
   }
@@ -143,14 +160,6 @@ export class PrSyncScheduler {
     }
   }
 
-  private async _getGitHubRemoteUrls(projectId: string): Promise<string[]> {
-    const cached = this._projectRemoteUrls.get(projectId);
-    if (cached) return cached;
-
-    const githubUrls = await this._getStoredGitHubRemoteUrls(projectId);
-    return this._expandWithForkParents(githubUrls);
-  }
-
   private async _getStoredGitHubRemoteUrls(projectId: string): Promise<string[]> {
     const rows = await db
       .select({ remoteUrl: projectRemotes.remoteUrl })
@@ -166,30 +175,12 @@ export class PrSyncScheduler {
     );
     return [...new Set(expanded.flat())];
   }
+}
 
-  private async _findPrNumberForBranch(
-    repositoryUrl: string,
-    taskBranch: string,
-    headRepositoryUrls: string[]
-  ): Promise<number | null> {
-    const { pullRequests } = await import('@main/db/schema');
-    const { and, eq: deq, inArray: dinArray } = await import('drizzle-orm');
-    const rows = await db
-      .select({ identifier: pullRequests.identifier })
-      .from(pullRequests)
-      .where(
-        and(
-          deq(pullRequests.repositoryUrl, repositoryUrl),
-          deq(pullRequests.headRefName, taskBranch),
-          dinArray(pullRequests.headRepositoryUrl, headRepositoryUrls)
-        )
-      )
-      .limit(1);
-
-    if (!rows[0]?.identifier) return null;
-    const n = parseInt(rows[0].identifier.replace('#', ''), 10);
-    return isNaN(n) ? null : n;
-  }
+function parsePrNumber(identifier: string | null): number | null {
+  if (!identifier) return null;
+  const n = parseInt(identifier.replace('#', ''), 10);
+  return Number.isNaN(n) ? null : n;
 }
 
 export const prSyncScheduler = new PrSyncScheduler();

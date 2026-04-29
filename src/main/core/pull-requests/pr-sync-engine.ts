@@ -61,11 +61,6 @@ type PrKvSchema = {
   [key: string]: FullSyncCursor | IncrementalSyncCursor | string;
 };
 
-type RepositoryForkInfo = {
-  fork?: boolean;
-  parent?: { html_url?: string | null } | null;
-};
-
 // ---------------------------------------------------------------------------
 // GQL node shapes
 // ---------------------------------------------------------------------------
@@ -145,6 +140,9 @@ export class PrSyncEngine {
   // Per-operation deduplication for single-PR and check-run syncs
   private readonly _singleInflight = new Map<string, Promise<void>>();
   private readonly _checksInflight = new Map<string, Promise<void>>();
+  // Process-lifetime cache for fork-parent lookups, keyed by normalized URL.
+  // Avoids hitting SQLite KV on every sync trigger.
+  private readonly _forkParentMemCache = new Map<string, string | null>();
 
   constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
@@ -204,29 +202,41 @@ export class PrSyncEngine {
   }
 
   async getRelatedRepositoryUrls(repositoryUrl: string): Promise<string[]> {
+    if (!isGitHubUrl(repositoryUrl)) return [repositoryUrl];
     const normalizedUrl = normalizeGitHubUrl(repositoryUrl);
-    const parentUrl = await this.getForkParentRepositoryUrl(normalizedUrl);
+    const parentUrl = await this._getForkParentNormalized(normalizedUrl);
     if (!parentUrl || parentUrl === normalizedUrl) return [normalizedUrl];
     return [normalizedUrl, parentUrl];
   }
 
   async getForkParentRepositoryUrl(repositoryUrl: string): Promise<string | null> {
     if (!isGitHubUrl(repositoryUrl)) return null;
+    return this._getForkParentNormalized(normalizeGitHubUrl(repositoryUrl));
+  }
 
-    const normalizedUrl = normalizeGitHubUrl(repositoryUrl);
-    const cached = (await this.kv.get(`fork-parent:${normalizedUrl}`)) as string | null;
-    if (cached != null) return cached.length > 0 ? cached : null;
+  private async _getForkParentNormalized(normalizedUrl: string): Promise<string | null> {
+    const memCached = this._forkParentMemCache.get(normalizedUrl);
+    if (memCached !== undefined) return memCached;
+
+    const persisted = (await this.kv.get(`fork-parent:${normalizedUrl}`)) as string | null;
+    if (persisted != null) {
+      const value = persisted.length > 0 ? persisted : null;
+      this._forkParentMemCache.set(normalizedUrl, value);
+      return value;
+    }
 
     const { owner, repo } = splitNormalizedUrl(normalizedUrl);
     try {
-      const octokit = await this.getOctokit();
-      const { data } = await octokit.rest.repos.get({ owner, repo });
-      const forkInfo = data as RepositoryForkInfo;
+      const { data } = await withRetry(() =>
+        githubRateLimiter
+          .acquire()
+          .then(() => this.getOctokit())
+          .then((octokit) => octokit.rest.repos.get({ owner, repo }))
+      );
       const parentUrl =
-        forkInfo.fork && forkInfo.parent?.html_url
-          ? normalizeGitHubUrl(forkInfo.parent.html_url)
-          : null;
+        data.fork && data.parent?.html_url ? normalizeGitHubUrl(data.parent.html_url) : null;
       await this.kv.set(`fork-parent:${normalizedUrl}`, parentUrl ?? '');
+      this._forkParentMemCache.set(normalizedUrl, parentUrl);
       return parentUrl;
     } catch (error) {
       log.warn('PrSyncEngine: failed to resolve fork parent', {
@@ -271,7 +281,9 @@ export class PrSyncEngine {
         this.kv.del(`fullsync:${url}`),
         this.kv.del(`incrementalsync:${url}`),
         this.kv.del(`users-synced-at:${url}`),
+        this.kv.del(`fork-parent:${url}`),
       ]);
+      this._forkParentMemCache.delete(url);
     }
   }
 
