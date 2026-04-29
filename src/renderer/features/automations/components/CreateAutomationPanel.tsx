@@ -7,6 +7,7 @@ import {
   GitBranch,
   Github,
   Loader2,
+  Webhook,
   Zap,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
@@ -280,7 +281,7 @@ function PanelBody({ template, automation, onClose, onSaved }: PanelBodyProps) {
           className={cn(
             'block w-full resize-none bg-transparent px-2 pt-2 pb-1 text-sm',
             'placeholder:text-muted-foreground outline-none',
-            'min-h-12 field-sizing-content'
+            'min-h-24 field-sizing-content'
           )}
         />
 
@@ -295,7 +296,7 @@ function PanelBody({ template, automation, onClose, onSaved }: PanelBodyProps) {
                 items={GITHUB_EVENT_ITEMS}
                 value={githubEvent}
                 onChange={setGithubEvent}
-                triggerIcon={<Github className="size-3.5 shrink-0" />}
+                triggerIcon={<Webhook className="size-3.5 shrink-0" />}
                 triggerLabel={eventLabel}
               />
             )}
