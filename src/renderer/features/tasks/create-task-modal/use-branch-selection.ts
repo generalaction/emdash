@@ -35,6 +35,7 @@ export function useBranchSelection(
 
   const setSelectedBranch = useCallback(
     (branch: Branch | undefined) => {
+      setPullFreshFromSource(false);
       if (!selectedProjectId || !branch) {
         setBranchOverride(undefined);
         return;

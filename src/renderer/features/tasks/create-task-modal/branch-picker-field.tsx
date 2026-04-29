@@ -1,4 +1,6 @@
 import { ChevronDown, GitBranch } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
@@ -17,7 +19,7 @@ interface BranchPickerFieldProps {
   isUnborn?: boolean;
 }
 
-export function BranchPickerField({
+export const BranchPickerField = observer(function BranchPickerField({
   state,
   projectId,
   currentBranch,
@@ -33,7 +35,12 @@ export function BranchPickerField({
     pullFreshFromSource,
     setPullFreshFromSource,
   } = state;
-  const sourceBranchName = state.selectedBranch?.branch;
+  const sourceBranch = state.selectedBranch;
+  const sourceBranchName = sourceBranch?.branch;
+  const repo = projectId ? getRepositoryStore(projectId) : undefined;
+  const canPullFreshFromSource =
+    sourceBranch?.type === 'remote' ||
+    (sourceBranch?.type === 'local' && repo?.isBranchOnRemote(sourceBranch.branch) === true);
 
   return (
     <div className={cn('border border-border rounded-md overflow-hidden', className)}>
@@ -84,7 +91,7 @@ export function BranchPickerField({
                   <FieldLabel>Push branch to remote</FieldLabel>
                 </Field>
               )}
-              {createBranchAndWorktree && (
+              {createBranchAndWorktree && canPullFreshFromSource && (
                 <Field orientation="horizontal">
                   <Switch checked={pullFreshFromSource} onCheckedChange={setPullFreshFromSource} />
                   <FieldLabel>
@@ -105,4 +112,4 @@ export function BranchPickerField({
       )}
     </div>
   );
-}
+});
