@@ -10,6 +10,7 @@ import { err, ok } from '@shared/result';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getLocalExec, getSshExec, type ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
+import type { IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import {
   createSshInstallCommandRunner,
@@ -73,7 +74,7 @@ function dependencyStateFromProbeResult(
   };
 }
 
-export class DependencyManager {
+export class DependencyManager implements IInitializable {
   private state = new Map<DependencyId, DependencyState>();
   private readonly exec: ExecFn;
   private readonly emitEvents: boolean;

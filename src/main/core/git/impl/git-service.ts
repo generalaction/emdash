@@ -33,6 +33,7 @@ import { ownerFromUrl } from '@shared/pull-requests';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE, type ExecFn } from '@main/core/utils/exec';
+import type { IDisposable } from '@main/lib/lifecycle';
 import { type GitProvider } from '../types';
 import { CatFileBatch } from './cat-file-batch';
 import {
@@ -51,7 +52,7 @@ import {
   type IFileStatus,
 } from './status-parser';
 
-export class GitService implements GitProvider {
+export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
 

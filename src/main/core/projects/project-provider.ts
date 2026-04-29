@@ -6,6 +6,7 @@ import type { GitFetchService } from '@main/core/git/git-fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository-service';
 import type { ExecFn } from '@main/core/utils/exec';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
+import type { IDisposable } from '@main/lib/lifecycle';
 import type { ConversationProvider } from '../conversations/types';
 import { taskManager } from '../tasks/task-manager';
 import type { TerminalProvider } from '../terminals/terminal-provider';
@@ -55,7 +56,7 @@ export type ProjectProviderTransport = {
   readonly worktreePoolPath: string;
 };
 
-export class ProjectProvider {
+export class ProjectProvider implements IDisposable {
   readonly type: string;
   readonly projectId: string;
   readonly repoPath: string;
@@ -108,7 +109,7 @@ export class ProjectProvider {
     return this.gitFetchService.fetch();
   }
 
-  async cleanup(): Promise<void> {
+  async dispose(): Promise<void> {
     this._dispose();
     this.gitFetchService.stop();
     const projectSettings = await this.settings.get();

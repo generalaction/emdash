@@ -92,9 +92,9 @@ app.whenReady().then(async () => {
   gitWatcherRegistry.initialize();
   prSyncScheduler.initialize();
   appService.initialize();
-  appSettingsService.initialize();
+  await appSettingsService.initialize();
 
-  agentHookService.start().catch((e) => {
+  agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
 
@@ -127,9 +127,11 @@ app.on('before-quit', () => {
   telemetry.capture('app_closed');
   telemetry.shutdown();
 
-  agentHookService.stop();
-  updateService.shutdown();
-  projectManager.shutdown().catch((e) => {
+  agentHookService.dispose();
+  updateService.dispose();
+  prSyncScheduler.dispose();
+  void gitWatcherRegistry.dispose();
+  projectManager.dispose().catch((e) => {
     log.error('Failed to shutdown project manager:', e);
   });
 });
