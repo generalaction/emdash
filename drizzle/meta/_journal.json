@@ -78,6 +78,27 @@
       "when": 1778265683858,
       "tag": "0010_unique_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1777395662211,
+      "tag": "0011_warm_magneto",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1777403058107,
+      "tag": "0012_automations_actions_and_cursors",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1777452787579,
+      "tag": "0013_late_sabra",
+      "breakpoints": true
     }
   ]
 }

@@ -11,6 +11,12 @@ import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
+import { automationScheduler } from './core/automations/automation-scheduler';
+import { automationEventPoller } from './core/automations/automationEventPoller';
+import {
+  startInternalEventBridge,
+  stopInternalEventBridge,
+} from './core/automations/internalEventBridge';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
@@ -112,6 +118,8 @@ void app.whenReady().then(async () => {
 
   gitWatcherRegistry.initialize();
   prSyncScheduler.initialize();
+  automationScheduler.start();
+  startInternalEventBridge();
   appService.initialize();
   await appSettingsService.initialize();
 
@@ -137,6 +145,8 @@ void app.whenReady().then(async () => {
   setupApplicationMenu();
   createMainWindow();
 
+  setImmediate(() => automationEventPoller.start());
+
   try {
     await updateService.initialize();
   } catch (error) {
@@ -150,6 +160,9 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
+    automationEventPoller.stop();
+    automationScheduler.stop();
+    stopInternalEventBridge();
     agentHookService.dispose();
     stopResourceSampler();
     updateService.dispose();
