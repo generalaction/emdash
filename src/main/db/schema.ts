@@ -232,6 +232,83 @@ export const pullRequestChecks = sqliteTable(
   })
 );
 
+export const automations = sqliteTable(
+  'automations',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    category: text('category').notNull(),
+    triggerType: text('trigger_type').notNull(),
+    cronExpr: text('cron_expr'),
+    cronTz: text('cron_tz'),
+    eventType: text('event_type'),
+    eventProvider: text('event_provider'),
+    promptTemplate: text('prompt_template').notNull().default(''),
+    actions: text('actions').notNull().default('[]'),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    enabled: integer('enabled').notNull().default(1),
+    lastRunAt: integer('last_run_at'),
+    nextRunAt: integer('next_run_at'),
+    builtinTemplateId: text('builtin_template_id'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => ({
+    enabledNextRunIdx: index('idx_automations_enabled_next_run').on(table.enabled, table.nextRunAt),
+    enabledTriggerEventIdx: index('idx_automations_enabled_trigger_event').on(
+      table.enabled,
+      table.triggerType,
+      table.eventType
+    ),
+    projectIdIdx: index('idx_automations_project_id').on(table.projectId),
+  })
+);
+
+export const automationEventCursors = sqliteTable(
+  'automation_event_cursors',
+  {
+    provider: text('provider').notNull(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    lastPolledAt: integer('last_polled_at').notNull(),
+    cursor: text('cursor'),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.provider, table.projectId] }),
+    projectIdx: index('idx_automation_event_cursors_project').on(table.projectId),
+  })
+);
+
+export const automationRuns = sqliteTable(
+  'automation_runs',
+  {
+    id: text('id').primaryKey(),
+    automationId: text('automation_id')
+      .notNull()
+      .references(() => automations.id, { onDelete: 'cascade' }),
+    startedAt: integer('started_at').notNull(),
+    finishedAt: integer('finished_at'),
+    status: text('status').notNull(),
+    taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+    error: text('error'),
+    triggerKind: text('trigger_kind').notNull(),
+  },
+  (table) => ({
+    automationStartedIdx: index('idx_automation_runs_automation_started').on(
+      table.automationId,
+      table.startedAt
+    ),
+    automationStatusIdx: index('idx_automation_runs_automation_status').on(
+      table.automationId,
+      table.status
+    ),
+  })
+);
+
 export const conversations = sqliteTable(
   'conversations',
   {
@@ -357,6 +434,7 @@ export const sshConnectionsRelations = relations(sshConnections, ({ many }) => (
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   tasks: many(tasks),
+  automations: many(automations),
   sshConnection: one(sshConnections, {
     fields: [projects.sshConnectionId],
     references: [sshConnections.id],
@@ -369,6 +447,26 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
     references: [projects.id],
   }),
   conversations: many(conversations),
+  automationRuns: many(automationRuns),
+}));
+
+export const automationsRelations = relations(automations, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [automations.projectId],
+    references: [projects.id],
+  }),
+  runs: many(automationRuns),
+}));
+
+export const automationRunsRelations = relations(automationRuns, ({ one }) => ({
+  automation: one(automations, {
+    fields: [automationRuns.automationId],
+    references: [automations.id],
+  }),
+  task: one(tasks, {
+    fields: [automationRuns.taskId],
+    references: [tasks.id],
+  }),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -389,6 +487,9 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
+export type AutomationRow = typeof automations.$inferSelect;
+export type AutomationRunRow = typeof automationRuns.$inferSelect;
+export type AutomationEventCursorRow = typeof automationEventCursors.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type TerminalRow = typeof terminals.$inferSelect;

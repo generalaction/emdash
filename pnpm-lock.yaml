@@ -161,6 +161,9 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      croner:
+        specifier: ^10.0.1
+        version: 10.0.1
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -3333,6 +3336,10 @@ packages:
 
   crc@3.8.0:
     resolution: {integrity: sha512-iX3mfgcTMIq3ZKLIsVFAbv7+Mc10kxabAGQb8HvjA1o3T1PIYprbakQ65d3I+2HGHt6nSKkM9PYjgoJO2KcFBQ==}
+
+  croner@10.0.1:
+    resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
+    engines: {node: '>=18.0'}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -6969,7 +6976,7 @@ snapshots:
       debug: 4.4.3
       dir-compare: 3.3.0
       fs-extra: 9.1.0
-      minimatch: 3.1.2
+      minimatch: 3.1.5
       plist: 3.1.0
     transitivePeerDependencies:
       - supports-color
@@ -9649,6 +9656,8 @@ snapshots:
       buffer: 5.7.1
     optional: true
 
+  croner@10.0.1: {}
+
   cross-spawn@7.0.6:
     dependencies:
       path-key: 3.1.1
@@ -9928,7 +9937,7 @@ snapshots:
   dir-compare@3.3.0:
     dependencies:
       buffer-equal: 1.0.1
-      minimatch: 3.1.2
+      minimatch: 3.1.5
 
   dir-compare@4.2.0:
     dependencies:
