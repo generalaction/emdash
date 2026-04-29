@@ -30,5 +30,10 @@ describe('path-name helpers', () => {
     it('falls back when no safe segment remains', () => {
       expect(safePathSegment('///', 'project-id')).toBe('project-id');
     });
+
+    it('falls back for Windows reserved device names', () => {
+      expect(safePathSegment('NUL', 'project-id')).toBe('project-id');
+      expect(safePathSegment('com1', 'project-id')).toBe('project-id');
+    });
   });
 });
