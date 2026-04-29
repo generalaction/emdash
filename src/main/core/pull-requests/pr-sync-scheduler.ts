@@ -18,10 +18,18 @@ export class PrSyncScheduler {
   private readonly _intervals = new Map<string, ReturnType<typeof setInterval>[]>();
   /** Per-project set of known GitHub remote URLs (for cleanup on unmount). */
   private readonly _projectRemoteUrls = new Map<string, string[]>();
+  private _unsubscribes: Array<() => void> = [];
 
   initialize(): void {
-    projectManager.registerOnProjectOpened((id) => this.onProjectMounted(id));
-    projectManager.registerOnProjectClosed((id) => this.onProjectUnmounted(id));
+    this._unsubscribes = [
+      projectManager.on('projectOpened', (id) => this.onProjectMounted(id)),
+      projectManager.on('projectClosed', (id) => this.onProjectUnmounted(id)),
+    ];
+  }
+
+  dispose(): void {
+    for (const unsub of this._unsubscribes) unsub();
+    this._unsubscribes = [];
   }
 
   // ── Project lifecycle ──────────────────────────────────────────────────────

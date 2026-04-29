@@ -30,6 +30,7 @@ import { type ProjectProvider, type ProvisionResult, type TaskProvider } from '.
 import { SshProjectSettingsProvider } from '../settings/project-settings';
 import { provisionLocalTask } from '../task-builder';
 import { TaskProvisionManager } from '../task-provision-manager';
+import { SshWorktreeHost } from '../worktrees/hosts/ssh-worktree-host';
 import { WorktreeService } from '../worktrees/worktree-service';
 
 export async function createSshProvider(
@@ -60,7 +61,7 @@ export async function createSshProvider(
       repoPath: project.path,
       projectSettings: settings,
       exec: gitExec,
-      rootFs,
+      host: worktreeHost,
     });
     const gitFetchService = new GitFetchService(
       repoGit,

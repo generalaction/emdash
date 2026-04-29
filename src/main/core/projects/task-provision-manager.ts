@@ -2,6 +2,7 @@ import type { Conversation } from '@shared/conversations';
 import { err, ok, type Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
+import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
 import type { TeardownMode } from '../workspaces/workspace-registry';
 import type {
@@ -31,14 +32,7 @@ type DetachedCleanupFn = (taskId: string) => Promise<void>;
 export type TeardownAllOpts = { mode: TeardownMode };
 
 export class TaskProvisionManager {
-  private readonly _tasks = new Map<string, TaskProvider>();
-  private readonly _workspaceIds = new Map<string, string>();
-  private readonly _provisioningTasks = new Map<
-    string,
-    Promise<Result<ProvisionResult, ProvisionTaskError>>
-  >();
-  private readonly _tearingDownTasks = new Map<string, Promise<Result<void, TeardownTaskError>>>();
-  private readonly _bootstrapErrors = new Map<string, ProvisionTaskError>();
+  private readonly _lifecycle = new LifecycleMap<ProvisionResult, ProvisionTaskError>();
 
   constructor(
     private readonly logPrefix: string,
@@ -53,106 +47,84 @@ export class TaskProvisionManager {
     conversations: Conversation[],
     terminals: Terminal[]
   ): Promise<Result<ProvisionResult, ProvisionTaskError>> {
-    const existing = this._tasks.get(task.id);
-    if (existing) {
-      const workspaceId = this._workspaceIds.get(task.id) ?? '';
-      return ok({ taskProvider: existing, persistData: { workspaceId } });
-    }
-
-    const inFlight = this._provisioningTasks.get(task.id);
-    if (inFlight) return inFlight;
-
-    const promise = withTimeout(this.provisionFn(task, conversations, terminals), TASK_TIMEOUT_MS)
-      .then(({ taskProvider, persistData }) => {
-        this._tasks.set(task.id, taskProvider);
-        this._workspaceIds.set(task.id, persistData.workspaceId);
-        this._provisioningTasks.delete(task.id);
-        return ok({ taskProvider, persistData });
-      })
-      .catch((e) => {
+    return this._lifecycle.provision(task.id, async () => {
+      try {
+        const result = await withTimeout(
+          this.provisionFn(task, conversations, terminals),
+          TASK_TIMEOUT_MS
+        );
+        return ok(result);
+      } catch (e) {
         const provisionError = toProvisionError(e);
-        this._bootstrapErrors.set(task.id, provisionError);
-        this._provisioningTasks.delete(task.id);
         log.error(`${this.logPrefix}: failed to provision task`, {
           taskId: task.id,
           error: String(e),
         });
         return err(provisionError);
-      });
-
-    this._provisioningTasks.set(task.id, promise);
-    return promise;
+      }
+    });
   }
 
   getTask(taskId: string): TaskProvider | undefined {
-    return this._tasks.get(taskId);
+    return this._lifecycle.get(taskId)?.taskProvider;
   }
 
   getWorkspaceId(taskId: string): string | undefined {
-    return this._workspaceIds.get(taskId);
+    return this._lifecycle.get(taskId)?.persistData.workspaceId;
   }
 
   getTaskBootstrapStatus(taskId: string): TaskBootstrapStatus {
-    if (this._tasks.has(taskId)) return { status: 'ready' };
-    if (this._provisioningTasks.has(taskId)) return { status: 'bootstrapping' };
-    const bootstrapError = this._bootstrapErrors.get(taskId);
-    if (bootstrapError)
-      return { status: 'error', message: formatProvisionTaskError(bootstrapError) };
-    return { status: 'not-started' };
+    return this._lifecycle.bootstrapStatus(taskId, formatProvisionTaskError);
   }
 
   async teardownTask(
     taskId: string,
     mode: TeardownMode = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
-    const inFlight = this._tearingDownTasks.get(taskId);
-    if (inFlight) return inFlight;
-
-    const task = this._tasks.get(taskId);
-    if (!task) {
-      await this.detachedCleanupFn(taskId);
-      return ok();
-    }
-
-    const workspaceId = this._workspaceIds.get(taskId) ?? '';
-    const promise = withTimeout(this.teardownFn(task, workspaceId, mode), TASK_TIMEOUT_MS)
-      .then(() => ok<void>())
-      .catch(async (e) => {
-        log.error(`${this.logPrefix}: failed to teardown task`, {
-          taskId,
-          error: String(e),
-        });
-        await this.detachedCleanupFn(taskId).catch((cleanupError) => {
-          log.warn(`${this.logPrefix}: fallback cleanup failed`, {
-            taskId,
-            error: String(cleanupError),
-          });
-        });
-        return err<TeardownTaskError>(toTeardownError(e));
-      })
-      .finally(() => {
-        this._tasks.delete(taskId);
-        this._workspaceIds.delete(taskId);
-        this._tearingDownTasks.delete(taskId);
-        this.onTeardownFinally?.(taskId);
-      });
-
-    this._tearingDownTasks.set(taskId, promise);
-    return promise;
+    return (
+      this._lifecycle.teardown(
+        taskId,
+        async (provisionResult) => {
+          const { taskProvider, persistData } = provisionResult;
+          try {
+            await withTimeout(
+              this.teardownFn(taskProvider, persistData.workspaceId, mode),
+              TASK_TIMEOUT_MS
+            );
+            return ok();
+          } catch (e) {
+            log.error(`${this.logPrefix}: failed to teardown task`, {
+              taskId,
+              error: String(e),
+            });
+            await this.detachedCleanupFn(taskId).catch((cleanupError) => {
+              log.warn(`${this.logPrefix}: fallback cleanup failed`, {
+                taskId,
+                error: String(cleanupError),
+              });
+            });
+            return err<TeardownTaskError>(toTeardownError(e));
+          }
+        },
+        () => this.onTeardownFinally?.(taskId)
+      ) ?? (await this.detachedCleanupFn(taskId).then(() => ok()))
+    );
   }
 
   async teardownAll(opts: TeardownAllOpts): Promise<void> {
     if (opts.mode === 'detach') {
       await Promise.all(
-        Array.from(this._tasks.values()).map((task) =>
-          Promise.all([task.conversations.detachAll(), task.terminals.detachAll()])
+        Array.from(this._lifecycle.values()).map((r) =>
+          Promise.all([
+            r.taskProvider.conversations.detachAll(),
+            r.taskProvider.terminals.detachAll(),
+          ])
         )
       );
-      this._tasks.clear();
-      this._workspaceIds.clear();
+      this._lifecycle.clearActive();
     } else {
       await Promise.all(
-        Array.from(this._tasks.keys()).map((id) => this.teardownTask(id, 'terminate'))
+        Array.from(this._lifecycle.keys()).map((id) => this.teardownTask(id, 'terminate'))
       );
     }
   }

@@ -8,7 +8,6 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
-import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitWatcherService } from '@main/core/git/git-watcher-service';
 import { GitService } from '@main/core/git/impl/git-service';
@@ -32,18 +31,14 @@ import { localWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { LocalWorktreeHost } from '../worktrees/hosts/local-worktree-host';
 
-export async function createLocalProvider(
-  project: LocalProject,
-  rootFs: FileSystemProvider
-): Promise<ProjectProvider> {
-  const settings = new LocalProjectSettingsProvider(
-    project.path,
-    bareRefName(project.baseRef),
-    rootFs
-  );
+export async function createLocalProvider(project: LocalProject): Promise<ProjectProvider> {
+  const settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
   const worktreePoolPath = path.join(await settings.getWorktreeDirectory(), project.name);
   await fs.promises.mkdir(worktreePoolPath, { recursive: true });
+
+  const worktreeHost = await LocalWorktreeHost.create({ allowedRoots: [project.path] });
 
   const localFs = new LocalFileSystem(project.path);
   const gitExec = getGitLocalExec(() => githubConnectionService.getToken());
@@ -54,7 +49,7 @@ export async function createLocalProvider(
     repoPath: project.path,
     projectSettings: settings,
     exec: gitExec,
-    rootFs,
+    host: worktreeHost,
   });
   const gitWatcher = new GitWatcherService(project.id, project.path);
   void gitWatcher.start();
