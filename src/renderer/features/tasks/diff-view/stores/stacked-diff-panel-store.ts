@@ -56,7 +56,7 @@ export class DiffSlotStore {
     if (this.diffType === 'git' || this.diffType === 'pr') {
       return modelRegistry.toGitUri(this.uri, HEAD_REF);
     }
-    return modelRegistry.toDiskUri(this.uri);
+    return this.uri;
   }
 
   get language(): string {
