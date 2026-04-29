@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import { bareRefName } from '@shared/git-utils';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -9,13 +8,11 @@ import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
-import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import {
   sshConnectionManager,
   type SshConnectionEvent,
 } from '@main/core/ssh/ssh-connection-manager';
 import { getGitLocalExec, getGitSshExec, getLocalExec, getSshExec } from '@main/core/utils/exec';
-import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { ProjectProvider } from './project-provider';
 import {
@@ -68,12 +65,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   const gitFetchService = new GitFetchService(repoGit, hasGitHubToken);
   gitFetchService.start();
 
-  const unsub = events.on(gitRefChangedChannel, (p) => {
-    if (p.projectId === project.id && p.kind === 'config') {
-      void prSyncScheduler.onRemoteChanged(project.id);
-    }
-  });
-  const dispose = () => unsub();
+  const dispose = () => {};
 
   return new ProjectProvider(
     project.id,

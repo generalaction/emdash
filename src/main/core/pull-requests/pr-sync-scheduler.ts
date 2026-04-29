@@ -1,6 +1,8 @@
 import { eq } from 'drizzle-orm';
+import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { isGitHubUrl, normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
+import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -24,6 +26,12 @@ export class PrSyncScheduler {
     this._unsubscribes = [
       projectManager.on('projectOpened', (id) => this.onProjectMounted(id)),
       projectManager.on('projectClosed', (id) => this.onProjectUnmounted(id)),
+      taskManager.hooks.on('task:provisioned', ({ projectId, taskBranch }) => {
+        void this.onTaskProvisioned(projectId, taskBranch);
+      }),
+      gitWatcherRegistry.on('ref:changed', (p) => {
+        if (p.kind === 'config') void this.onRemoteChanged(p.projectId);
+      }),
     ];
   }
 
@@ -31,8 +39,6 @@ export class PrSyncScheduler {
     for (const unsub of this._unsubscribes) unsub();
     this._unsubscribes = [];
   }
-
-  // ── Project lifecycle ──────────────────────────────────────────────────────
 
   async onProjectMounted(projectId: string): Promise<void> {
     log.info('PrSyncScheduler: onProjectMounted', { projectId });
@@ -89,10 +95,6 @@ export class PrSyncScheduler {
         void prSyncEngine.syncSingle(url, prNumber);
       }
     }
-  }
-
-  async onPushCompleted(projectId: string, taskBranch: string): Promise<void> {
-    return this.onTaskProvisioned(projectId, taskBranch);
   }
 
   // ── Remote config change ───────────────────────────────────────────────────
@@ -177,8 +179,8 @@ export class PrSyncScheduler {
       .limit(1);
 
     if (!rows[0]?.identifier) return null;
-    const n = parseInt(rows[0].identifier.replace('#', ''), 10);
-    return isNaN(n) ? null : n;
+    const n = Number.parseInt(rows[0].identifier.replace('#', ''), 10);
+    return Number.isNaN(n) ? null : n;
   }
 }
 

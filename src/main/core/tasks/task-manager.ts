@@ -5,7 +5,6 @@ import { err, ok, type Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { ExecFn } from '@main/core/utils/exec';
 import { provisionBYOITask } from '@main/core/workspaces/byoi/provision-byoi-task';
@@ -32,6 +31,7 @@ export type TaskManagerHooks = {
   'task:provisioned': (info: {
     projectId: string;
     taskId: string;
+    taskBranch: string | undefined;
     workspaceId: string;
     worktreeGitDir?: string;
   }) => void | Promise<void>;
@@ -67,9 +67,6 @@ async function executeProvision(
       logPrefix: `${provider.type}ProjectProvider[byoi]`,
     });
   }
-
-  void provider.gitFetchService.fetch();
-  void prSyncScheduler.onTaskProvisioned(provider.projectId, task.taskBranch);
 
   const workspaceId =
     provider.defaultWorkspaceType.kind === 'local'
@@ -172,6 +169,7 @@ class TaskManager {
         this._hooks.callHookBackground('task:provisioned', {
           projectId: provider.projectId,
           taskId: task.id,
+          taskBranch: task.taskBranch,
           workspaceId: result.persistData.workspaceId,
           worktreeGitDir: result.persistData.worktreeGitDir,
         });
