@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { clearStoredProjectIconForProject } from '@main/core/projects/icons/storage';
 import { projectManager } from '@main/core/projects/project-manager';
 import { prSyncEngine } from '@main/core/pull-requests/pr-sync-engine';
 import { getTasks } from '@main/core/tasks/getTasks';
@@ -20,6 +21,7 @@ export async function deleteProject(id: string): Promise<void> {
   await prSyncEngine.deleteProjectData(id);
 
   await db.delete(projects).where(eq(projects.id, id));
+  await clearStoredProjectIconForProject(id).catch(() => undefined);
   void viewStateService.del(`project:${id}`);
   await projectManager.closeProject(id);
   capture('project_deleted', { project_id: id });

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
+import { ProjectAvatar } from '@renderer/features/projects/components/project-avatar';
 import {
   isUnregisteredProject,
   UnregisteredProject,
@@ -92,6 +93,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     : null;
   const canReconnect = sshConnectionState !== 'connected';
   const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
+  const iconDataUrl = project.data?.iconDataUrl ?? null;
   const isReconnecting =
     sshConnectionState === 'connecting' || sshConnectionState === 'reconnecting';
   const sshStateDotClass =
@@ -138,7 +140,14 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                   sidebarStore.toggleProjectExpanded(projectId);
                 }}
               >
-                <ProjectIcon className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
+                {iconDataUrl ? (
+                  <ProjectAvatar
+                    iconDataUrl={iconDataUrl}
+                    className="absolute h-4 w-4 rounded-sm transition-opacity duration-150 opacity-100 group-hover/row:opacity-0"
+                  />
+                ) : (
+                  <ProjectIcon className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
+                )}
                 <ChevronRight
                   className={cn(
                     'absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100',

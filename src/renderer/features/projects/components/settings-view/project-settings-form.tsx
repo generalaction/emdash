@@ -1,11 +1,16 @@
-import { Check, Loader2, Undo2 } from 'lucide-react';
+import { Check, FolderClosed, Image as ImageIcon, Loader2, Trash2, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Branch } from '@shared/git';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+import { MAX_PROJECT_ICON_BYTES, type UpdateProjectSettingsError } from '@shared/projects';
 import { err, type Result } from '@shared/result';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { ProjectAvatar } from '@renderer/features/projects/components/project-avatar';
+import {
+  getProjectManagerStore,
+  getProjectStore,
+  getRepositoryStore,
+} from '@renderer/features/projects/stores/project-selectors';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
@@ -111,6 +116,8 @@ export interface ProjectSettingsFormProps {
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 const EMPTY_REMOTES: { name: string; url: string }[] = [];
 
+type IconDraft = { kind: 'set'; sourcePath: string; previewUrl: string } | { kind: 'clear' } | null;
+
 export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
   initial,
@@ -120,6 +127,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   const repo = getRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
   const configuredRemote = repo?.configuredRemote.name ?? 'origin';
+  const persistedIconDataUrl = getProjectStore(projectId)?.data?.iconDataUrl ?? null;
 
   const baseline = useMemo(
     () => settingsToForm(initial, configuredRemote, remotes),
@@ -130,13 +138,34 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   const [savedForm, setSavedForm] = useState<FormState>(baseline);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [worktreeDirectoryError, setWorktreeDirectoryError] = useState<string | null>(null);
+  const [iconDraft, setIconDraft] = useState<IconDraft>(null);
+  const [iconError, setIconError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Revoke blob URLs when the draft changes or the form unmounts so a long
+  // session doesn't accumulate held-over preview images.
+  useEffect(() => {
+    return () => {
+      if (iconDraft?.kind === 'set') URL.revokeObjectURL(iconDraft.previewUrl);
+    };
+  }, [iconDraft]);
 
   const formSnapshot = useMemo(() => JSON.stringify(form), [form]);
   const savedSnapshot = useMemo(() => JSON.stringify(savedForm), [savedForm]);
-  const dirty = formSnapshot !== savedSnapshot;
+  const formDirty = formSnapshot !== savedSnapshot;
+  const iconDirty = iconDraft !== null;
+  const dirty = formDirty || iconDirty;
   const saving = saveStatus === 'saving';
   const saved = saveStatus === 'saved' && !dirty;
   const saveDisabled = saving || !dirty;
+
+  // Avatar source: pending preview > pending clear > persisted icon.
+  const previewIconDataUrl =
+    iconDraft?.kind === 'set'
+      ? iconDraft.previewUrl
+      : iconDraft?.kind === 'clear'
+        ? null
+        : persistedIconDataUrl;
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -146,28 +175,94 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
     }
   }
 
-  async function handleSave() {
-    const formAtSubmit = form;
-    setSaveStatus('saving');
-
-    const result = await save(formToSettings(formAtSubmit)).catch(() => err({ type: 'error' }));
-
-    if (result.success) {
-      setWorktreeDirectoryError(null);
-      setSavedForm(formAtSubmit);
-      setSaveStatus('saved');
-      onSuccess();
+  function handleFilePick(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Reset the input value so picking the same file twice in a row still fires onChange.
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > MAX_PROJECT_ICON_BYTES) {
+      setIconError('Project icon must be 2MB or smaller.');
       return;
     }
-
-    if (result.error.type === 'invalid-worktree-directory') {
-      setWorktreeDirectoryError('Invalid worktree directory');
-      setSaveStatus('idle');
+    const sourcePath = window.electronAPI.getPathForFile(file);
+    if (!sourcePath) {
+      setIconError('Could not resolve the selected file path.');
       return;
+    }
+    setIconError(null);
+    setSaveStatus((current) => (current === 'idle' ? current : 'idle'));
+    setIconDraft({ kind: 'set', sourcePath, previewUrl: URL.createObjectURL(file) });
+  }
+
+  function handleClearIcon() {
+    setIconError(null);
+    setSaveStatus((current) => (current === 'idle' ? current : 'idle'));
+    if (persistedIconDataUrl) {
+      setIconDraft({ kind: 'clear' });
+    } else {
+      // Nothing persisted; just discard any pending pick.
+      setIconDraft(null);
+    }
+  }
+
+  function resetForm() {
+    setForm(savedForm);
+    setIconDraft(null);
+    setIconError(null);
+    setWorktreeDirectoryError(null);
+    if (saveStatus === 'error') setSaveStatus('idle');
+  }
+
+  async function handleSave() {
+    const formAtSubmit = form;
+    // Capturing the icon draft is safe because the Replace/Remove/Save
+    // buttons are all `disabled={saving}` — the user cannot mutate iconDraft
+    // mid-flight, so this captured value still equals iconDraft on completion.
+    const iconDraftAtSubmit = iconDraft;
+    setSaveStatus('saving');
+
+    if (formDirty) {
+      const result = await save(formToSettings(formAtSubmit)).catch(() => err({ type: 'error' }));
+
+      if (!result.success) {
+        if (result.error.type === 'invalid-worktree-directory') {
+          setWorktreeDirectoryError('Invalid worktree directory');
+          setSaveStatus('idle');
+          return;
+        }
+        setWorktreeDirectoryError(null);
+        setSaveStatus('error');
+        return;
+      }
+      // Commit the form baseline as soon as the JSON write succeeds, so a
+      // retry after a downstream icon failure doesn't re-write .emdash.json.
+      setSavedForm(formAtSubmit);
+    }
+
+    if (iconDraftAtSubmit) {
+      try {
+        if (iconDraftAtSubmit.kind === 'set') {
+          const { iconDataUrl: nextDataUrl } = await rpc.projects.setProjectIcon(
+            projectId,
+            iconDraftAtSubmit.sourcePath
+          );
+          getProjectManagerStore().applyProjectIconUpdate(projectId, nextDataUrl);
+        } else {
+          await rpc.projects.clearProjectIcon(projectId);
+          getProjectManagerStore().applyProjectIconUpdate(projectId, null);
+        }
+        setIconDraft(null);
+        setIconError(null);
+      } catch (e) {
+        setIconError(e instanceof Error ? e.message : 'Failed to save project icon');
+        setSaveStatus('error');
+        return;
+      }
     }
 
     setWorktreeDirectoryError(null);
-    setSaveStatus('error');
+    setSaveStatus('saved');
+    onSuccess();
   }
 
   return (
@@ -342,18 +437,67 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
               />
             </Field>
           </div>
+
+          <Separator />
+
+          <Field>
+            <FieldTitle>Project icon</FieldTitle>
+            <FieldDescription>
+              Local only. Stored in Emdash app data, not committed to the repo. PNG, JPG, or WEBP up
+              to 2MB. Center-cropped and resized to 256×256.
+            </FieldDescription>
+            <div className="flex items-center gap-4 rounded-md border p-3">
+              {previewIconDataUrl ? (
+                <ProjectAvatar
+                  iconDataUrl={previewIconDataUrl}
+                  size="md"
+                  className="shadow-sm shadow-black/5"
+                />
+              ) : (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/30 text-muted-foreground">
+                  <FolderClosed className="h-4 w-4" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1 space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleFilePick}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={saving}
+                  >
+                    <ImageIcon />
+                    {previewIconDataUrl ? 'Replace icon' : 'Upload icon'}
+                  </Button>
+                  {previewIconDataUrl ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearIcon}
+                      disabled={saving}
+                    >
+                      <Trash2 />
+                      Remove icon
+                    </Button>
+                  ) : null}
+                </div>
+                {iconError ? <p className="text-xs text-red-500">{iconError}</p> : null}
+              </div>
+            </div>
+          </Field>
         </FieldGroup>
       </div>
       <div className="flex justify-end gap-2 pt-5 pb-10">
-        <Button
-          variant="outline"
-          onClick={() => {
-            setForm(savedForm);
-            setWorktreeDirectoryError(null);
-            if (saveStatus === 'error') setSaveStatus('idle');
-          }}
-          disabled={!dirty || saving}
-        >
+        <Button variant="outline" onClick={resetForm} disabled={!dirty || saving}>
           <Undo2 />
         </Button>
         <ConfirmButton onClick={() => void handleSave()} disabled={saveDisabled}>

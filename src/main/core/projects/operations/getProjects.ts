@@ -1,5 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
 import type { LocalProject, SshProject } from '@shared/projects';
+import { getStoredProjectIconDataUrl } from '@main/core/projects/icons/storage';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 
@@ -13,6 +14,7 @@ export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
           name: row.name,
           path: row.path,
           baseRef: row.baseRef ?? 'main',
+          iconDataUrl: getStoredProjectIconDataUrl(row.id),
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         }
@@ -23,6 +25,7 @@ export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
           path: row.path,
           baseRef: row.baseRef ?? 'main',
           connectionId: row.sshConnectionId!,
+          iconDataUrl: getStoredProjectIconDataUrl(row.id),
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         }
@@ -41,6 +44,7 @@ export async function getProjectById(
       name: row.name,
       path: row.path,
       baseRef: row.baseRef ?? 'main',
+      iconDataUrl: getStoredProjectIconDataUrl(row.id),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -52,6 +56,7 @@ export async function getProjectById(
     path: row.path,
     baseRef: row.baseRef ?? 'main',
     connectionId: row.sshConnectionId!,
+    iconDataUrl: getStoredProjectIconDataUrl(row.id),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -66,6 +71,7 @@ export async function getLocalProjectByPath(path: string): Promise<LocalProject 
     name: row.name,
     path: row.path,
     baseRef: row.baseRef ?? 'main',
+    iconDataUrl: getStoredProjectIconDataUrl(row.id),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -88,6 +94,7 @@ export async function getSshProjectByPath(
     path: row.path,
     baseRef: row.baseRef ?? 'main',
     connectionId: row.sshConnectionId!,
+    iconDataUrl: getStoredProjectIconDataUrl(row.id),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
