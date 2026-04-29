@@ -111,11 +111,7 @@ export class PrQueryService {
       repositoryUrls = remoteRows.map((r) => r.remoteUrl);
     }
 
-    const conditions = [
-      options.repositoryUrl
-        ? eq(pullRequests.repositoryUrl, options.repositoryUrl)
-        : matchesAnyRepoSide(repositoryUrls),
-    ];
+    const conditions = [matchesAnyRepoSide(repositoryUrls)];
 
     const filters = options.filters;
     if (filters?.status && filters.status !== 'all') {
