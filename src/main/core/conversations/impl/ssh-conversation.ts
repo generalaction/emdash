@@ -1,12 +1,12 @@
 import type { AgentSessionConfig } from '@shared/agent-session';
-import { Conversation } from '@shared/conversations';
+import { type Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { Pty } from '@main/core/pty/pty';
+import { type Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
@@ -92,6 +92,7 @@ export class SshConversationProvider implements ConversationProvider {
       sessionId: conversation.id,
       isResuming,
       initialPrompt,
+      exec: this.exec,
     });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;

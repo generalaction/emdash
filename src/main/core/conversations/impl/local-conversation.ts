@@ -95,6 +95,7 @@ export class LocalConversationProvider implements ConversationProvider {
       sessionId: conversation.id,
       isResuming,
       initialPrompt,
+      exec: this.exec,
     });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
