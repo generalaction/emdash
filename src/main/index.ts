@@ -12,6 +12,7 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
+import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
@@ -88,6 +89,7 @@ app.whenReady().then(async () => {
     log.warn('telemetry init failed:', e);
   }
 
+  gitWatcherRegistry.initialize();
   prSyncScheduler.initialize();
   appService.initialize();
   appSettingsService.initialize();

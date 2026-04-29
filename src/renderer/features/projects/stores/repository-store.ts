@@ -22,17 +22,20 @@ export class RepositoryStore {
   constructor(
     private readonly projectId: string,
     private readonly settingsStore: ProjectSettingsStore,
-    private readonly baseRef: string
+    private readonly baseRef: string,
+    private readonly workspaceId?: string
   ) {
     this.localData = new Resource<LocalBranchesPayload, GitRefChange>(
-      () => rpc.repository.getLocalBranches(projectId),
+      () => rpc.repository.getLocalBranches(projectId, workspaceId),
       [
         { kind: 'demand' },
         {
           kind: 'event',
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
-              if (p.projectId === projectId && p.kind === 'local-refs') handler(p);
+              if (p.projectId !== projectId) return;
+              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.kind === 'local-refs') handler(p);
             }),
           onEvent: 'reload',
           debounceMs: 200,
@@ -41,15 +44,16 @@ export class RepositoryStore {
     );
 
     this.remoteData = new Resource<RemoteBranchesPayload, GitRefChange>(
-      () => rpc.repository.getRemoteBranches(projectId),
+      () => rpc.repository.getRemoteBranches(projectId, workspaceId),
       [
         { kind: 'demand' },
         {
           kind: 'event',
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
-              if (p.projectId === projectId && (p.kind === 'remote-refs' || p.kind === 'config'))
-                handler(p);
+              if (p.projectId !== projectId) return;
+              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.kind === 'remote-refs' || p.kind === 'config') handler(p);
             }),
           onEvent: 'reload',
           debounceMs: 300,

@@ -9,16 +9,17 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
+import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';
-import { createConversation } from '../conversations/createConversation';
-import type { ProvisionTaskError } from '../projects/project-provider';
-import { prQueryService } from '../pull-requests/pr-query-service';
-import { appSettingsService } from '../settings/settings-service';
-import { mapTaskRowToTask } from './core';
-import { resolveTaskBranchName } from './resolveTaskBranchName';
-import { toStoredBranch } from './stored-branch';
+import { createConversation } from '../../conversations/createConversation';
+import { prQueryService } from '../../pull-requests/pr-query-service';
+import { appSettingsService } from '../../settings/settings-service';
+import type { ProvisionTaskError } from '../provision-task-error';
+import { resolveTaskBranchName } from '../resolveTaskBranchName';
+import { toStoredBranch } from '../stored-branch';
+import { mapTaskRowToTask } from '../utils/utils';
 
 function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
   switch (error.type) {
@@ -30,6 +31,8 @@ function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
         branch: error.branch,
         message: error.message,
       };
+    case 'timeout':
+      return { type: 'provision-timeout', timeoutMs: error.timeout, step: error.step };
     default:
       return { type: 'provision-failed', message: error.message };
   }
@@ -194,6 +197,7 @@ export async function createTask(
       status: initialStatus,
       sourceBranch: toStoredBranch(dbSourceBranch),
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
+      workspaceProvider: params.workspaceProvider ?? null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,
@@ -214,7 +218,7 @@ export async function createTask(
 
   const task = mapTaskRowToTask(taskRow, prs);
 
-  const provisionResult = await project.provisionTask(task, [], []);
+  const provisionResult = await taskManager.provisionTask(project, task, [], []);
   if (!provisionResult.success) {
     return err(mapProvisionError(provisionResult.error));
   }
