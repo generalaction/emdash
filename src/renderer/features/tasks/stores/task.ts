@@ -1,7 +1,7 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
-import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
+import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { workspaceKey } from '@shared/workspace-key';
+import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
@@ -60,22 +60,27 @@ export class ProvisionedTask {
   constructor(
     taskStore: TaskStore,
     path: string,
-    repositoryStore: RepositoryStore,
-    savedSnapshot?: TaskViewSnapshot
+    workspaceId: string,
+    settingsStore: ProjectSettingsStore,
+    baseRef: string,
+    savedSnapshot?: TaskViewSnapshot,
+    sshConnectionId?: string
   ) {
     this._taskStore = taskStore;
     const taskData = taskStore.data as Task;
     this._taskData = taskData;
     this.path = path;
-    this.workspaceId = workspaceKey(taskData.taskBranch);
-    this.repositoryStore = repositoryStore;
+    this.workspaceId = workspaceId;
 
     this.workspace = workspaceRegistry.acquire(
       taskData.projectId,
       this.workspaceId,
       taskStore,
-      repositoryStore
+      settingsStore,
+      baseRef,
+      sshConnectionId
     );
+    this.repositoryStore = this.workspace.repository;
     this.devServers = new DevServerStore(taskData.id, this.workspaceId);
     this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
     this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
@@ -130,6 +135,7 @@ export class TaskStore {
   phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
   errorMessage: string | undefined = undefined;
   provisionedTask: ProvisionedTask | null = null;
+  provisionProgressMessage: string | null = null;
 
   get displayName(): string {
     return this.data.name;
@@ -161,14 +167,26 @@ export class TaskStore {
   transitionToProvisioned(
     data: Task,
     path: string,
-    repositoryStore: RepositoryStore,
-    savedSnapshot?: TaskViewSnapshot
+    workspaceId: string,
+    settingsStore: ProjectSettingsStore,
+    baseRef: string,
+    savedSnapshot?: TaskViewSnapshot,
+    sshConnectionId?: string
   ): void {
     this.data = data;
-    this.provisionedTask = new ProvisionedTask(this, path, repositoryStore, savedSnapshot);
+    this.provisionedTask = new ProvisionedTask(
+      this,
+      path,
+      workspaceId,
+      settingsStore,
+      baseRef,
+      savedSnapshot,
+      sshConnectionId
+    );
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
+    this.provisionProgressMessage = null;
   }
 
   transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
@@ -178,6 +196,7 @@ export class TaskStore {
     this.state = 'unprovisioned';
     this.phase = phase;
     this.errorMessage = undefined;
+    this.provisionProgressMessage = null;
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {

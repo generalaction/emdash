@@ -2,7 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
-import { appSettingsService } from '../settings/settings-service';
+import { appSettingsService } from '../../settings/settings-service';
 
 export async function renameTask(
   projectId: string,

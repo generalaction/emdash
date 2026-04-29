@@ -54,22 +54,8 @@
     {
       "idx": 7,
       "version": "6",
-      "when": 1777395662211,
-      "tag": "0007_warm_magneto",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1777403058107,
-      "tag": "0008_automations_actions_and_cursors",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1777452787579,
-      "tag": "0009_late_sabra",
+      "when": 1777399834705,
+      "tag": "0007_bent_spitfire",
       "breakpoints": true
     }
   ]
