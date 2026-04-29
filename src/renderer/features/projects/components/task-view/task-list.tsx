@@ -1,4 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { AnimatePresence } from 'framer-motion';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
@@ -13,7 +14,7 @@ import { SearchInput } from '@renderer/lib/ui/search-input';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
-import { ReadyTask, TaskRow } from './task-row';
+import { type ReadyTask, TaskRow } from './task-row';
 
 function TaskVirtualList({
   tasks,
@@ -92,8 +93,6 @@ function SelectionBar({
   onRestore: () => void;
   onDelete: () => void;
 }) {
-  if (count === 0) return null;
-
   return (
     <ListPopoverCard className="justify-between">
       <span className="text-foreground-muted whitespace-nowrap">{count} selected</span>
@@ -211,14 +210,18 @@ export const TaskList = observer(function TaskList() {
         onToggleSelect={(id) => taskView.toggleSelect(id)}
       />
 
-      <SelectionBar
-        count={taskView.selectedIds.size}
-        tab={taskView.tab}
-        onClear={clearSelection}
-        onArchive={bulkArchive}
-        onRestore={bulkRestore}
-        onDelete={bulkDelete}
-      />
+      <AnimatePresence>
+        {taskView.selectedIds.size > 0 && (
+          <SelectionBar
+            count={taskView.selectedIds.size}
+            tab={taskView.tab}
+            onClear={clearSelection}
+            onArchive={bulkArchive}
+            onRestore={bulkRestore}
+            onDelete={bulkDelete}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 });
