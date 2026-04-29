@@ -51,7 +51,7 @@ export const ModalRenderer = observer(function ModalRenderer() {
       const isPassiveDismiss =
         eventDetails.reason === 'outside-press' || eventDetails.reason === 'escape-key';
       if (modalStore.closeGuardActive && isPassiveDismiss) return;
-      modalStore.closeModal();
+      modalStore.activeModalArgs?.onClose?.();
     }
   };
 

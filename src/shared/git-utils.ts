@@ -16,6 +16,24 @@ export function selectPreferredRemote(
 }
 
 /**
+ * Resolves the preferred remote for push operations.
+ *
+ * Fallback chain: pushRemoteSetting → fetchRemoteSetting → "origin" → first remote.
+ */
+export function selectPreferredPushRemote(
+  pushRemoteSetting: string | undefined,
+  fetchRemoteSetting: string | undefined,
+  remotes: ReadonlyArray<Remote>
+): Remote {
+  const preferred = pushRemoteSetting?.trim();
+  if (preferred) {
+    const found = remotes.find((r) => r.name === preferred);
+    if (found) return found;
+  }
+  return selectPreferredRemote(fetchRemoteSetting, remotes);
+}
+
+/**
  * Strips the remote prefix from a fully-qualified remote tracking ref.
  * e.g. "origin/main" → "main", "main" → "main"
  */

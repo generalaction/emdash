@@ -4,6 +4,7 @@ import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
 import { Onboarding } from './features/onboarding/onboarding';
+import { ForkDetectionListener } from './features/projects/components/fork-detection-listener';
 import { useAccountSession } from './lib/hooks/useAccount';
 import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
@@ -72,6 +73,7 @@ function AppContent() {
   return (
     <TooltipProvider delay={300}>
       <ModalProvider>
+        <ForkDetectionListener />
         <WorkspaceLayoutContextProvider>
           <TerminalPoolProvider>
             <GithubContextProvider>

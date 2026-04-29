@@ -1,8 +1,11 @@
 import { eq } from 'drizzle-orm';
+import { forkDetectedChannel } from '@shared/events/forkEvents';
+import { detectForkRelationship } from '@main/core/github/services/fork-detection-service';
 import { isGitHubUrl, normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';
@@ -18,6 +21,8 @@ export class PrSyncScheduler {
   private readonly _intervals = new Map<string, ReturnType<typeof setInterval>[]>();
   /** Per-project set of known GitHub remote URLs (for cleanup on unmount). */
   private readonly _projectRemoteUrls = new Map<string, string[]>();
+  /** Projects already checked for fork relationship in this session. */
+  private readonly _forkChecked = new Set<string>();
 
   initialize(): void {
     projectManager.registerOnProjectOpened((id) => this.onProjectMounted(id));
@@ -29,6 +34,7 @@ export class PrSyncScheduler {
   async onProjectMounted(projectId: string): Promise<void> {
     log.info('PrSyncScheduler: onProjectMounted', { projectId });
     const remoteUrls = await this._syncAndGetGitHubRemotes(projectId);
+    void this._detectForkIfNeeded(projectId);
     if (remoteUrls.length === 0) {
       log.info('PrSyncScheduler: no GitHub remotes found, skipping sync', { projectId });
       return;
@@ -67,6 +73,7 @@ export class PrSyncScheduler {
       prSyncEngine.cancel(url);
     }
     this._projectRemoteUrls.delete(projectId);
+    this._forkChecked.delete(projectId);
   }
 
   // ── Task lifecycle ─────────────────────────────────────────────────────────
@@ -124,6 +131,34 @@ export class PrSyncScheduler {
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
+
+  private async _detectForkIfNeeded(projectId: string): Promise<void> {
+    if (this._forkChecked.has(projectId)) return;
+    this._forkChecked.add(projectId);
+
+    try {
+      const project = projectManager.getProject(projectId);
+      if (!project) return;
+
+      const settings = await project.settings.get();
+      if (settings.pushRemote || settings.forkDetectionDismissed) return;
+
+      const remotes = await project.repository.getRemotes();
+      const result = await detectForkRelationship(remotes);
+      if (!result) return;
+
+      log.info('PrSyncScheduler: fork detected', { projectId, ...result });
+
+      events.emit(forkDetectedChannel, {
+        projectId,
+        forkRemoteName: result.forkRemoteName,
+        upstreamRemoteName: result.upstreamRemoteName,
+        upstreamOwnerRepo: result.upstreamOwnerRepo,
+      });
+    } catch (e) {
+      log.warn('PrSyncScheduler: fork detection error', { projectId, error: String(e) });
+    }
+  }
 
   private async _syncAndGetGitHubRemotes(projectId: string): Promise<string[]> {
     const project = projectManager.getProject(projectId);

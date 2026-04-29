@@ -31,6 +31,17 @@ export function toShortBranchName(
   return trimmed;
 }
 
+export function resolveEffectiveHead(
+  branchName: string,
+  isCrossFork: boolean,
+  headOverride: string | null,
+  defaultForkOwner: string | null
+): string {
+  if (!isCrossFork) return branchName;
+  if (headOverride) return headOverride;
+  return defaultForkOwner ? `${defaultForkOwner}:${branchName}` : branchName;
+}
+
 export function resolveInitialBaseBranch(
   branches: Branch[],
   preferredBaseRef: string | undefined,

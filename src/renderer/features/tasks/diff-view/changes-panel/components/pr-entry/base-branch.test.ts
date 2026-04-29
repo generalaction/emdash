@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Branch } from '@shared/git';
-import { resolveInitialBaseBranch, toShortBranchName } from './base-branch';
+import { resolveEffectiveHead, resolveInitialBaseBranch, toShortBranchName } from './base-branch';
 
 const originRemote = { name: 'origin', url: 'git@github.com:owner/repo.git' };
 
@@ -51,5 +51,35 @@ describe('resolveInitialBaseBranch', () => {
     const branches: Branch[] = [{ type: 'remote', remote: originRemote, branch: 'main' }];
 
     expect(resolveInitialBaseBranch(branches, undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe('resolveEffectiveHead', () => {
+  it('returns branch name when not cross-fork', () => {
+    expect(resolveEffectiveHead('feature-x', false, null, null)).toBe('feature-x');
+  });
+
+  it('returns branch name when not cross-fork even with override set', () => {
+    expect(resolveEffectiveHead('feature-x', false, 'myuser:feature-x', 'myuser')).toBe(
+      'feature-x'
+    );
+  });
+
+  it('returns owner:branch in cross-fork mode with no override', () => {
+    expect(resolveEffectiveHead('feature-x', true, null, 'myuser')).toBe('myuser:feature-x');
+  });
+
+  it('returns override when set in cross-fork mode', () => {
+    expect(resolveEffectiveHead('feature-x', true, 'other:feature-x', 'myuser')).toBe(
+      'other:feature-x'
+    );
+  });
+
+  it('falls back to default when override is empty string', () => {
+    expect(resolveEffectiveHead('feature-x', true, '', 'myuser')).toBe('myuser:feature-x');
+  });
+
+  it('returns plain branch name in cross-fork mode when no owner available', () => {
+    expect(resolveEffectiveHead('feature-x', true, null, null)).toBe('feature-x');
   });
 });
