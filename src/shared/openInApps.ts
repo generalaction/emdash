@@ -34,6 +34,7 @@ const ICON_PATHS = {
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
+  kitty: 'kitty.png',
   zed: 'zed.png',
   'intellij-idea': 'intellij-idea.svg',
   webstorm: 'webstorm.svg',
@@ -179,6 +180,26 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['ghostty --working-directory={{path}}'],
         checkCommands: ['ghostty'],
+      },
+    },
+  },
+  kitty: {
+    id: 'kitty',
+    label: 'Kitty',
+    iconPath: ICON_PATHS.kitty,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'open -n -b net.kovidgoyal.kitty --args --directory {{path}}',
+          'open -na "kitty" --args --directory {{path}}',
+        ],
+        bundleIds: ['net.kovidgoyal.kitty'],
+        appNames: ['kitty'],
+      },
+      linux: {
+        openCommands: ['kitty --directory {{path}}'],
+        checkCommands: ['kitty'],
       },
     },
   },
