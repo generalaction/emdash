@@ -36,6 +36,14 @@ export function createPiClassifier() {
       };
     }
 
+    // JSON mode emits lifecycle events as JSON lines.
+    if (/"type"\s*:\s*"agent_end"/i.test(tail)) {
+      return {
+        type: 'stop',
+        message: 'Task completed',
+      };
+    }
+
     // Error detection
     if (/error:|fatal:|exception|failed/i.test(text)) {
       return {

@@ -10,6 +10,7 @@ const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
+const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 
@@ -60,6 +61,13 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writePiExtension(): Promise<boolean> {
+    if (!(await resolveCommandPath('pi', this.exec))) return false;
+
+    await this.fs.write(PI_EMDASH_EXTENSION_PATH, PI_EMDASH_EXTENSION);
+    return true;
+  }
+
   async writeForProvider(
     providerId: AgentProviderId,
     options: HookConfigWriteOptions = {}
@@ -79,12 +87,20 @@ export class HookConfigWriter {
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([CODEX_CONFIG_PATH]);
       }
+      return;
+    }
+
+    if (providerId === 'pi') {
+      const wroteConfig = await this.writePiExtension();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([PI_EMDASH_EXTENSION_PATH]);
+      }
     }
   }
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex'] as const).map((providerId) =>
+      (['claude', 'codex', 'pi'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })
@@ -136,3 +152,35 @@ export class HookConfigWriter {
     });
   }
 }
+
+const PI_EMDASH_EXTENSION = `import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
+
+async function notifyEmdash(eventType: 'stop' | 'error' | 'notification', body: Record<string, unknown> = {}) {
+  const port = process.env.EMDASH_HOOK_PORT;
+  const token = process.env.EMDASH_HOOK_TOKEN;
+  const ptyId = process.env.EMDASH_PTY_ID;
+
+  if (!port || !token || !ptyId) return;
+
+  try {
+    await fetch(\`http://127.0.0.1:\${port}/hook\`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Emdash-Token': token,
+        'X-Emdash-Pty-Id': ptyId,
+        'X-Emdash-Event-Type': eventType,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    // Emdash may not be running when pi is launched directly; ignore hook failures.
+  }
+}
+
+export default function (pi: ExtensionAPI) {
+  pi.on('agent_end', async () => {
+    await notifyEmdash('stop', { message: 'Task completed' });
+  });
+}
+`;
