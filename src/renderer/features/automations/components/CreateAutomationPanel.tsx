@@ -162,12 +162,11 @@ export function CreateAutomationPanel({
       {open && (
         <motion.div
           key="create-automation-panel"
-          initial={{ height: 0, opacity: 0, filter: 'blur(12px)', y: 12 }}
-          animate={{ height: 'auto', opacity: 1, filter: 'blur(0px)', y: 0 }}
-          exit={{ height: 0, opacity: 0, filter: 'blur(8px)', y: 6 }}
+          initial={{ height: 0, opacity: 0, y: 12 }}
+          animate={{ height: 'auto', opacity: 1, y: 0 }}
+          exit={{ height: 0, opacity: 0, y: 6 }}
           transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
           style={{ overflow: 'hidden' }}
-          className="will-change-[filter,transform,opacity]"
         >
           <PanelBody
             key={seedKey}
