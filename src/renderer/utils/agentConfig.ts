@@ -14,6 +14,7 @@ import factoryLogoSvg from '../../assets/images/droid.svg?raw';
 import geminiLogo from '../../assets/images/gemini.png';
 import copilotLogoSvg from '../../assets/images/gh-copilot.svg?raw';
 import gooseLogo from '../../assets/images/goose.png';
+import hermesLogo from '../../assets/images/hermesagent.jpg';
 import kilocodeLogo from '../../assets/images/kilocode.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import kiroLogo from '../../assets/images/kiro.png';
@@ -44,6 +45,7 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
   autohand: { name: 'Autohand Code', logo: autohandLogoSvg, alt: 'Autohand Code CLI', isSvg: true },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode', invertInDark: true },
+  hermes: { name: 'Hermes Agent', logo: hermesLogo, alt: 'Hermes Agent CLI' },
   auggie: { name: 'Auggie', logo: augmentLogoSvg, alt: 'Auggie CLI', isSvg: true },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },

@@ -41,7 +41,7 @@
 
 Emdash is a provider-agnostic desktop app that lets you run multiple coding agents in parallel, each isolated in its own git worktree, either locally or over SSH on a remote machine. We call it an Agentic Development Environment (ADE).
 
-Emdash supports 23 CLI agents, including Claude Code, Qwen Code, Devin, Amp, and Codex. Users can directly pass issues and tickets from Linear, GitHub, Jira, GitLab, Forgejo, or Plain to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge.
+Emdash supports 24 CLI agents, including Claude Code, Codex, OpenCode, Gemini and Amp. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge.
 
 **Develop on remote servers via SSH**
 
@@ -79,7 +79,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 ### Supported CLI Providers
 
-Emdash currently supports 23 CLI providers, and we are adding new ones regularly. If you miss one, let us know or create a PR.
+Emdash currently supports 24 CLI providers, and we are adding new ones regularly. If you miss one, let us know or create a PR.
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
