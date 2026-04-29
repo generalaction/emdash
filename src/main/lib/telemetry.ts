@@ -250,7 +250,7 @@ async function checkDailyActiveUser(): Promise<void> {
     });
 
     lastActiveDate = today;
-    telemetryKV.set('lastActiveDate', today);
+    void telemetryKV.set('lastActiveDate', today);
   } catch {
     // Never let telemetry errors crash the app
   }
@@ -304,7 +304,7 @@ export async function init(options?: InitOptions): Promise<void> {
 
   instanceId = storedInstanceId ?? (randomUUID().toString() as string);
   if (!storedInstanceId) {
-    telemetryKV.set('instanceId', instanceId);
+    void telemetryKV.set('instanceId', instanceId);
   }
 
   userOptOut = storedEnabled === 'false' ? true : undefined;
@@ -339,7 +339,7 @@ export async function init(options?: InitOptions): Promise<void> {
   // Heartbeat: write lastHeartbeatTs to KV every 60 s so crash recovery can
   // estimate session duration without firing any PostHog events.
   heartbeatInterval = setInterval(() => {
-    telemetryKV.set('lastHeartbeatTs', new Date().toISOString());
+    void telemetryKV.set('lastHeartbeatTs', new Date().toISOString());
   }, 60_000);
 }
 
@@ -418,17 +418,18 @@ export function getTelemetryStatus() {
     hasKeyAndHost: !!apiKey && !!host,
     onboardingSeen,
     session_id: sessionId ?? null,
+    instance_id: instanceId ?? null,
   };
 }
 
 export function setTelemetryEnabledViaUser(enabledFlag: boolean): void {
   userOptOut = !enabledFlag;
-  telemetryKV.set('enabled', String(enabledFlag));
+  void telemetryKV.set('enabled', String(enabledFlag));
 }
 
 export function setOnboardingSeen(flag: boolean): void {
   onboardingSeen = Boolean(flag);
-  telemetryKV.set('onboardingSeen', String(onboardingSeen));
+  void telemetryKV.set('onboardingSeen', String(onboardingSeen));
 }
 
 export async function checkAndReportDailyActiveUser(): Promise<void> {
