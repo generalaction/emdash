@@ -15,6 +15,7 @@ export function useBranchSelection(
 
   const [createBranchAndWorktreePreference, setCreateBranchAndWorktreePreference] = useState(true);
   const [pushBranchOverride, setPushBranchOverride] = useState<boolean | undefined>(undefined);
+  const [pullFreshFromSource, setPullFreshFromSource] = useState(false);
   const pushBranch = pushBranchOverride ?? pushOnCreateByDefault;
   const createBranchAndWorktree = isUnborn ? false : createBranchAndWorktreePreference;
 
@@ -60,5 +61,7 @@ export function useBranchSelection(
     setCreateBranchAndWorktree,
     pushBranch,
     setPushBranch,
+    pullFreshFromSource,
+    setPullFreshFromSource,
   };
 }

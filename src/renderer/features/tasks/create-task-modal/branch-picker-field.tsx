@@ -6,7 +6,7 @@ import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
-import { BranchSelectionState } from './use-branch-selection';
+import { type BranchSelectionState } from './use-branch-selection';
 
 interface BranchPickerFieldProps {
   state: BranchSelectionState;
@@ -25,7 +25,15 @@ export function BranchPickerField({
   className,
   isUnborn = false,
 }: BranchPickerFieldProps) {
-  const { createBranchAndWorktree, setCreateBranchAndWorktree, pushBranch, setPushBranch } = state;
+  const {
+    createBranchAndWorktree,
+    setCreateBranchAndWorktree,
+    pushBranch,
+    setPushBranch,
+    pullFreshFromSource,
+    setPullFreshFromSource,
+  } = state;
+  const sourceBranchName = state.selectedBranch?.branch;
 
   return (
     <div className={cn('border border-border rounded-md overflow-hidden', className)}>
@@ -74,6 +82,16 @@ export function BranchPickerField({
                 <Field orientation="horizontal">
                   <Switch checked={pushBranch} onCheckedChange={setPushBranch} />
                   <FieldLabel>Push branch to remote</FieldLabel>
+                </Field>
+              )}
+              {createBranchAndWorktree && (
+                <Field orientation="horizontal">
+                  <Switch checked={pullFreshFromSource} onCheckedChange={setPullFreshFromSource} />
+                  <FieldLabel>
+                    {sourceBranchName
+                      ? `Base on latest ${sourceBranchName} from remote`
+                      : 'Base on latest from remote'}
+                  </FieldLabel>
                 </Field>
               )}
             </div>

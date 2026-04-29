@@ -12,11 +12,30 @@ describe('resolveBranchLikeTaskStrategy', () => {
         createBranchAndWorktree: true,
         taskBranch: 'issue-task',
         pushBranch: false,
+        pullFreshFromSource: false,
       })
     ).toEqual({
       kind: 'new-branch',
       taskBranch: 'issue-task',
       pushBranch: false,
+      pullFreshFromSource: false,
+    });
+  });
+
+  it('passes pullFreshFromSource through in new-branch mode', () => {
+    expect(
+      resolveBranchLikeTaskStrategy({
+        isUnborn: false,
+        createBranchAndWorktree: true,
+        taskBranch: 'issue-task',
+        pushBranch: true,
+        pullFreshFromSource: true,
+      })
+    ).toEqual({
+      kind: 'new-branch',
+      taskBranch: 'issue-task',
+      pushBranch: true,
+      pullFreshFromSource: true,
     });
   });
 
@@ -27,6 +46,7 @@ describe('resolveBranchLikeTaskStrategy', () => {
         createBranchAndWorktree: false,
         taskBranch: 'issue-task',
         pushBranch: true,
+        pullFreshFromSource: true,
       })
     ).toEqual({ kind: 'no-worktree' });
   });
@@ -38,6 +58,7 @@ describe('resolveBranchLikeTaskStrategy', () => {
         createBranchAndWorktree: true,
         taskBranch: 'issue-task',
         pushBranch: true,
+        pullFreshFromSource: false,
       })
     ).toEqual({ kind: 'no-worktree' });
   });

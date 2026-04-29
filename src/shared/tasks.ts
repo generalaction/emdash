@@ -44,7 +44,12 @@ export type TaskBootstrapStatus =
   | { status: 'not-started' };
 
 export type CreateTaskStrategy =
-  | { kind: 'new-branch'; taskBranch: string; pushBranch?: boolean }
+  | {
+      kind: 'new-branch';
+      taskBranch: string;
+      pushBranch?: boolean;
+      pullFreshFromSource?: boolean;
+    }
   | { kind: 'checkout-existing' }
   | {
       kind: 'from-pull-request';

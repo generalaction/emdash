@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
-import { err, ok, Result } from '@shared/result';
+import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -74,11 +74,15 @@ export async function createTask(
           branch: repoInfo.currentBranch ?? params.sourceBranch.branch,
         });
       }
+      const syncWithRemote =
+        params.sourceBranch.type === 'remote' || Boolean(strategy.pullFreshFromSource);
+      const remote =
+        params.sourceBranch.type === 'remote' ? params.sourceBranch.remote.name : configuredRemote;
       const createResult = await project.repository.createBranch(
         taskBranch,
         params.sourceBranch.branch,
-        params.sourceBranch.type === 'remote',
-        params.sourceBranch.type === 'remote' ? params.sourceBranch.remote.name : undefined
+        syncWithRemote,
+        remote
       );
       if (!createResult.success) {
         return err({ type: 'branch-create-failed', branch: taskBranch, error: createResult.error });

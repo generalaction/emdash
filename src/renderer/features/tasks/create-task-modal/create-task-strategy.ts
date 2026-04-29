@@ -8,6 +8,7 @@ export function resolveBranchLikeTaskStrategy(input: {
   createBranchAndWorktree: boolean;
   taskBranch: string;
   pushBranch: boolean;
+  pullFreshFromSource: boolean;
 }): BranchLikeTaskStrategy {
   if (input.isUnborn || !input.createBranchAndWorktree) {
     return { kind: 'no-worktree' };
@@ -17,6 +18,7 @@ export function resolveBranchLikeTaskStrategy(input: {
     kind: 'new-branch',
     taskBranch: input.taskBranch,
     pushBranch: input.pushBranch,
+    pullFreshFromSource: input.pullFreshFromSource,
   };
 }
 

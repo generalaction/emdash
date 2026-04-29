@@ -9,7 +9,7 @@ import {
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -101,6 +101,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           createBranchAndWorktree: fromBranch.createBranchAndWorktree,
           taskBranch: fromBranch.taskName,
           pushBranch: fromBranch.pushBranch,
+          pullFreshFromSource: fromBranch.pullFreshFromSource,
         });
         void projectStore.mountedProject!.taskManager.createTask({
           id,
@@ -118,6 +119,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           createBranchAndWorktree: fromIssue.createBranchAndWorktree,
           taskBranch: fromIssue.taskName,
           pushBranch: fromIssue.pushBranch,
+          pullFreshFromSource: fromIssue.pullFreshFromSource,
         });
         void projectStore.mountedProject!.taskManager.createTask({
           id,
