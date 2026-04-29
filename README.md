@@ -41,7 +41,7 @@
 
 Emdash is a provider-agnostic desktop app that lets you run multiple coding agents in parallel, each isolated in its own git worktree, either locally or over SSH on a remote machine. We call it an Agentic Development Environment (ADE).
 
-Emdash supports 23 CLI agents, including Claude Code, Qwen Code, Hermes Agent, Amp, and Codex. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge. 
+Emdash supports 23 CLI agents, including Claude Code, Qwen Code, Devin, Amp, and Codex. Users can directly pass issues and tickets from Linear, GitHub, Jira, GitLab, Forgejo, or Plain to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge.
 
 **Develop on remote servers via SSH**
 
@@ -93,11 +93,11 @@ Emdash currently supports 23 CLI providers, and we are adding new ones regularly
 | [Codex](https://github.com/openai/codex) | ✅ Supported | <code>npm install -g @openai/codex</code> |
 | [Continue](https://docs.continue.dev/guides/cli) | ✅ Supported | <code>npm i -g @continuedev/cli</code> |
 | [Cursor](https://cursor.com/cli) | ✅ Supported | <code>curl https://cursor.com/install -fsS &#124; bash</code> |
+| [Devin](https://cli.devin.ai/docs) | ✅ Supported | <code>curl -fsSL https://cli.devin.ai/install.sh &#124; bash</code> |
 | [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | ✅ Supported | <code>curl -fsSL https://app.factory.ai/cli &#124; sh</code> |
 | [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | <code>npm install -g @google/gemini-cli</code> |
 | [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) | ✅ Supported | <code>npm install -g @github/copilot</code> |
 | [Goose](https://block.github.io/goose/docs/quickstart/) | ✅ Supported | <code>curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh &#124; bash</code> |
-| [Hermes Agent](https://hermes-agent.nousresearch.com/docs/) | ✅ Supported | <code>curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh &#124; bash</code> |
 | [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | <code>npm install -g @kilocode/cli</code> |
 | [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | <code>uv tool install kimi-cli</code> |
 | [Kiro (AWS)](https://kiro.dev/docs/cli/) | ✅ Supported | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
@@ -109,13 +109,16 @@ Emdash currently supports 23 CLI providers, and we are adding new ones regularly
 
 ### Issues
 
-Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your coding agent. 
+Emdash allows you to pass issues, tickets, and support threads straight to your coding agent.
 
 | Tool | Status | Authentication |
 | ----------- | ------ | ----------- |
 | [Linear](https://linear.app) | ✅ Supported | Connect with a Linear API key. |
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
-| [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
+| [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Connect your GitHub account or authenticate via GitHub CLI (`gh auth login`). |
+| [GitLab Issues](https://docs.gitlab.com/user/project/issues/) | ✅ Supported | Provide your GitLab instance URL and a personal access token with `read_api` scope. |
+| [Forgejo Issues](https://forgejo.org/) | ✅ Supported | Provide your Forgejo instance URL and API token. |
+| [Plain Threads](https://www.plain.com/) | ✅ Supported | Connect with a Plain API key. |
 
 # Contributing
 
