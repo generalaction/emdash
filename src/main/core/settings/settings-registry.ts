@@ -23,6 +23,7 @@ export const SETTINGS_DEFAULTS = {
   tasks: {
     autoGenerateName: true,
     autoTrustWorktrees: true,
+    keepAwakeWhileRunning: false,
   },
   agentAutoApproveDefaults: {},
   notifications: {

@@ -9,8 +9,22 @@ import { computeDelta, computeTrueOverrides, isDeepEqual, isPlainObject, mergeDe
 export type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 export { AppSettingsKeys } from '@shared/app-settings';
 
+type SettingsChangeListener = <K extends AppSettingsKey>(key: K) => void;
+
 export class SettingsStore {
   private cache: Partial<AppSettings> = {};
+  private changeListeners: Set<SettingsChangeListener> = new Set();
+
+  onChange(listener: SettingsChangeListener): () => void {
+    this.changeListeners.add(listener);
+    return () => {
+      this.changeListeners.delete(listener);
+    };
+  }
+
+  private notifyChanged(key: AppSettingsKey): void {
+    for (const listener of this.changeListeners) listener(key);
+  }
 
   private async readRaw(key: AppSettingsKey): Promise<unknown> {
     const [row] = await db.select().from(appSettings).where(eq(appSettings.key, key)).execute();
@@ -105,11 +119,13 @@ export class SettingsStore {
     }
 
     delete this.cache[key];
+    this.notifyChanged(key);
   }
 
   async reset<K extends AppSettingsKey>(key: K): Promise<void> {
     await this.deleteRow(key);
     delete this.cache[key];
+    this.notifyChanged(key);
   }
 
   async resetField<K extends AppSettingsKey>(key: K, field: keyof AppSettings[K]): Promise<void> {
@@ -125,6 +141,7 @@ export class SettingsStore {
       await this.storeRaw(key, delta);
     }
     delete this.cache[key];
+    this.notifyChanged(key);
   }
 
   async getAll(): Promise<AppSettings> {

@@ -5,11 +5,32 @@ import type { Pty } from './pty';
 const FLUSH_INTERVAL_MS = 16; // ~60 fps
 const RING_BUFFER_CAP = 64 * 1024; // 64 KB per session
 
+type ActiveSessionListener = (activeCount: number) => void;
+
 export class PtySessionRegistry {
   private ptyMap: Map<string, Pty> = new Map();
   private ptyInputSubscriptions: Map<string, () => void> = new Map();
   private ringBuffers: Map<string, string> = new Map();
   private activeConsumers: Set<string> = new Set();
+  private activeSessionListeners: Set<ActiveSessionListener> = new Set();
+
+  onActiveSessionsChange(listener: ActiveSessionListener): () => void {
+    this.activeSessionListeners.add(listener);
+    return () => {
+      this.activeSessionListeners.delete(listener);
+    };
+  }
+
+  getActiveSessionCount(): number {
+    return this.ptyMap.size;
+  }
+
+  private notifyActiveSessionsChanged(): void {
+    const count = this.ptyMap.size;
+    for (const listener of this.activeSessionListeners) {
+      listener(count);
+    }
+  }
 
   register(sessionId: string, pty: Pty, options?: { preserveBufferOnExit?: boolean }): void {
     const preserveBufferOnExit = options?.preserveBufferOnExit ?? false;
@@ -18,7 +39,9 @@ export class PtySessionRegistry {
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
 
+    const hadSession = this.ptyMap.has(sessionId);
     this.ptyMap.set(sessionId, pty);
+    if (!hadSession) this.notifyActiveSessionsChanged();
 
     let buffer = '';
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -51,9 +74,10 @@ export class PtySessionRegistry {
       events.emit(ptyExitChannel, info, sessionId);
       if (preserveBufferOnExit) {
         // Partial cleanup: keep ring buffer so late-connecting renderers can replay output
-        this.ptyMap.delete(sessionId);
+        const removed = this.ptyMap.delete(sessionId);
         this.ptyInputSubscriptions.get(sessionId)?.();
         this.ptyInputSubscriptions.delete(sessionId);
+        if (removed) this.notifyActiveSessionsChanged();
       } else {
         this.unregister(sessionId);
       }
@@ -71,11 +95,12 @@ export class PtySessionRegistry {
   }
 
   unregister(sessionId: string): void {
-    this.ptyMap.delete(sessionId);
+    const removed = this.ptyMap.delete(sessionId);
     this.ptyInputSubscriptions.get(sessionId)?.();
     this.ptyInputSubscriptions.delete(sessionId);
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
+    if (removed) this.notifyActiveSessionsChanged();
   }
 
   get(sessionId: string): Pty | undefined {
