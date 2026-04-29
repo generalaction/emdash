@@ -11,6 +11,6 @@ describe('getPrMergeLineActionText', () => {
   });
 
   it('distinguishes closed unmerged PRs from merged PRs', () => {
-    expect(getPrMergeLineActionText('closed')).toBe('was closed without merging into');
+    expect(getPrMergeLineActionText('closed')).toBe('closed without merging into');
   });
 });
