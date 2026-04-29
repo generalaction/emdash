@@ -1,12 +1,19 @@
 import { useMemo } from 'react';
 import { OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
+import { filterByQuery } from '@renderer/features/settings/settings-search-index';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import IntegrationRow from './IntegrationRow';
 
-export default function HiddenToolsSettingsCard() {
+interface HiddenToolsSettingsCardProps {
+  filterQuery?: string;
+}
+
+export default function HiddenToolsSettingsCard({
+  filterQuery = '',
+}: HiddenToolsSettingsCardProps) {
   const { value: openIn, update, isLoading, isSaving } = useAppSettingsKey('openIn');
   const { icons, labels, availability } = useOpenInApps();
 
@@ -18,14 +25,15 @@ export default function HiddenToolsSettingsCard() {
   };
 
   const sortedApps = useMemo(() => {
-    return Object.values(OPEN_IN_APPS).sort((a, b) => {
+    const sorted = Object.values(OPEN_IN_APPS).sort((a, b) => {
       const aDetected = availability[a.id] ?? a.alwaysAvailable ?? false;
       const bDetected = availability[b.id] ?? b.alwaysAvailable ?? false;
       if (aDetected && !bDetected) return -1;
       if (!aDetected && bDetected) return 1;
       return (labels[a.id] ?? a.label).localeCompare(labels[b.id] ?? b.label);
     });
-  }, [availability, labels]);
+    return filterByQuery(sorted, filterQuery, (app) => [app.id, labels[app.id] ?? app.label]);
+  }, [availability, labels, filterQuery]);
 
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
