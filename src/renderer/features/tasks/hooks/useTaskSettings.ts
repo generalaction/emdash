@@ -1,6 +1,7 @@
+import type { TaskSettings } from '@shared/app-settings';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 
-export type TaskSettingsField = 'autoGenerateName' | 'autoTrustWorktrees' | 'keepAwakeWhileRunning';
+export type TaskSettingsField = keyof TaskSettings;
 
 export interface TaskSettingsModel {
   autoGenerateName: boolean;

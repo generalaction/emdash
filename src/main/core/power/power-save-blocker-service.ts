@@ -8,7 +8,6 @@ const BLOCKER_KIND = 'prevent-display-sleep';
 class PowerSaveBlockerService {
   private blockerId: number | null = null;
   private enabled = false;
-  private activeSessions = 0;
   private disposers: Array<() => void> = [];
   private started = false;
 
@@ -24,14 +23,7 @@ class PowerSaveBlockerService {
       this.enabled = false;
     }
 
-    this.activeSessions = ptySessionRegistry.getActiveSessionCount();
-
-    this.disposers.push(
-      ptySessionRegistry.onActiveSessionsChange((count) => {
-        this.activeSessions = count;
-        this.reconcile();
-      })
-    );
+    this.disposers.push(ptySessionRegistry.onActiveSessionsChange(() => this.reconcile()));
 
     this.disposers.push(
       appSettingsService.onChange((key) => {
@@ -61,7 +53,7 @@ class PowerSaveBlockerService {
   }
 
   private reconcile(): void {
-    const shouldBlock = this.enabled && this.activeSessions > 0;
+    const shouldBlock = this.enabled && ptySessionRegistry.getActiveSessionCount() > 0;
     if (shouldBlock) {
       this.startBlocker();
     } else {
@@ -70,7 +62,7 @@ class PowerSaveBlockerService {
   }
 
   private startBlocker(): void {
-    if (this.blockerId !== null && powerSaveBlocker.isStarted(this.blockerId)) return;
+    if (this.blockerId !== null) return;
     try {
       this.blockerId = powerSaveBlocker.start(BLOCKER_KIND);
       log.info(`PowerSaveBlocker: started (${BLOCKER_KIND}, id=${this.blockerId})`);
@@ -83,10 +75,8 @@ class PowerSaveBlockerService {
   private stopBlocker(): void {
     if (this.blockerId === null) return;
     try {
-      if (powerSaveBlocker.isStarted(this.blockerId)) {
-        powerSaveBlocker.stop(this.blockerId);
-        log.info(`PowerSaveBlocker: stopped (id=${this.blockerId})`);
-      }
+      powerSaveBlocker.stop(this.blockerId);
+      log.info(`PowerSaveBlocker: stopped (id=${this.blockerId})`);
     } catch (err) {
       log.warn('PowerSaveBlocker: failed to stop:', err);
     }

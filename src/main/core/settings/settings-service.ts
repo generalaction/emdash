@@ -9,7 +9,7 @@ import { computeDelta, computeTrueOverrides, isDeepEqual, isPlainObject, mergeDe
 export type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 export { AppSettingsKeys } from '@shared/app-settings';
 
-type SettingsChangeListener = <K extends AppSettingsKey>(key: K) => void;
+type SettingsChangeListener = (key: AppSettingsKey) => void;
 
 export class SettingsStore {
   private cache: Partial<AppSettings> = {};
