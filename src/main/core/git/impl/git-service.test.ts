@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { ExecFn } from '@main/core/utils/exec';
 import { GitService } from './git-service';
 import { computeBaseRef } from './git-utils';
 
@@ -8,11 +8,13 @@ import { computeBaseRef } from './git-utils';
 // Helpers
 // ---------------------------------------------------------------------------
 
+type MockExec = (cmd: string, args?: string[]) => Promise<{ stdout: string; stderr: string }>;
+
 /**
- * Builds an ExecFn that returns pre-baked responses keyed by the joined args
+ * Builds a mock exec that returns pre-baked responses keyed by the joined args
  * string. Throws for any unmapped key (surfaces missing mocks early).
  */
-function makeExec(map: Record<string, string>): ExecFn {
+function makeExec(map: Record<string, string>): MockExec {
   return async (_cmd: string, args: string[] = []) => {
     const key = args.join(' ');
     if (key in map) {
@@ -30,7 +32,7 @@ function makeExec(map: Record<string, string>): ExecFn {
  * Like makeExec but silently returns '' for unmapped keys. Useful when a
  * method makes optional/fallback calls that aren't relevant to the test.
  */
-function makePermissiveExec(map: Record<string, string>): ExecFn {
+function makePermissiveExec(map: Record<string, string>): MockExec {
   return async (_cmd: string, args: string[] = []) => ({
     stdout: map[args.join(' ')] ?? '',
     stderr: '',
@@ -42,8 +44,20 @@ const BRANCH_FORMAT =
 
 const stubFs = {} as FileSystemProvider;
 
-function makeService(exec: ExecFn): GitService {
-  return new GitService('/repo', exec, stubFs);
+function makeContext(exec: MockExec, root = '/repo'): IExecutionContext {
+  return {
+    root,
+    supportsLocalSpawn: false,
+    exec: (_cmd, args = [], _opts) => exec(_cmd, args),
+    execStreaming: async (_cmd, _args, onChunk) => {
+      onChunk('');
+    },
+    dispose: () => {},
+  };
+}
+
+function makeService(exec: MockExec): GitService {
+  return new GitService(makeContext(exec), stubFs);
 }
 
 // ---------------------------------------------------------------------------
@@ -239,7 +253,11 @@ describe('GitService.getDefaultBranch', () => {
   });
 
   it('falls back to local branch candidate "main" when symbolic-ref fails', async () => {
-    const exec: ExecFn = async (_cmd, args = []) => {
+    const exec = makeExec({
+      'rev-parse --verify refs/heads/main': 'abc123',
+    });
+    // Override to throw for the first two heuristics
+    const overriddenExec: MockExec = async (_cmd, args = []) => {
       const key = args.join(' ');
       if (key === 'symbolic-ref refs/remotes/origin/HEAD --short') {
         throw Object.assign(new Error('no HEAD'), { code: 128 });
@@ -247,20 +265,16 @@ describe('GitService.getDefaultBranch', () => {
       if (key === 'remote show origin') {
         throw Object.assign(new Error('no remote'), { code: 128 });
       }
-      // heuristic 3: "main" exists locally
-      if (key === 'rev-parse --verify refs/heads/main') {
-        return { stdout: 'abc123', stderr: '' };
-      }
-      throw Object.assign(new Error('unexpected'), { code: 128 });
+      return exec(_cmd, args);
     };
-    expect(await makeService(exec).getDefaultBranch()).toBe('main');
+    expect(await makeService(overriddenExec).getDefaultBranch()).toBe('main');
   });
 
   it('falls back to "main" convention when no heuristic resolves', async () => {
-    const exec: ExecFn = async () => {
+    const failingExec: MockExec = async () => {
       throw Object.assign(new Error('nothing works'), { code: 128 });
     };
-    expect(await makeService(exec).getDefaultBranch()).toBe('main');
+    expect(await makeService(failingExec).getDefaultBranch()).toBe('main');
   });
 });
 

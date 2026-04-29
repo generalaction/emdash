@@ -1,10 +1,10 @@
 import type { Branch, FetchError } from '@shared/git';
 import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitFetchService } from '@main/core/git/git-fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository-service';
-import type { ExecFn } from '@main/core/utils/exec';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { IDisposable } from '@main/lib/lifecycle';
 import type { ConversationProvider } from '../conversations/types';
@@ -47,9 +47,7 @@ export interface TaskProvider {
 export type ProjectProviderTransport = {
   readonly kind: string;
   readonly defaultWorkspaceType: WorkspaceType;
-  readonly exec: ExecFn;
-  /** Used by WorktreeService and GitService construction in create-provider.ts. */
-  readonly gitExec: ExecFn;
+  readonly ctx: IExecutionContext;
   readonly fs: FileSystemProvider;
   readonly settings: ProjectSettingsProvider;
   readonly worktreeHost: WorktreeHost;
@@ -60,7 +58,6 @@ export class ProjectProvider implements IDisposable {
   readonly type: string;
   readonly projectId: string;
   readonly repoPath: string;
-  readonly exec: ExecFn;
   readonly settings: ProjectSettingsProvider;
   readonly repository: GitRepositoryService;
   readonly fs: FileSystemProvider;
@@ -68,6 +65,8 @@ export class ProjectProvider implements IDisposable {
   readonly gitFetchService: GitFetchService;
   /** Workspace type for standard worktree tasks. BYOI tasks use their own remote workspace type. */
   readonly defaultWorkspaceType: WorkspaceType;
+
+  private readonly _ctx: IExecutionContext;
 
   constructor(
     projectId: string,
@@ -81,13 +80,17 @@ export class ProjectProvider implements IDisposable {
     this.type = transport.kind;
     this.projectId = projectId;
     this.repoPath = repoPath;
-    this.exec = transport.exec;
+    this._ctx = transport.ctx;
     this.settings = transport.settings;
     this.fs = transport.fs;
     this.repository = repository;
     this.worktreeService = worktreeService;
     this.gitFetchService = gitFetchService;
     this.defaultWorkspaceType = transport.defaultWorkspaceType;
+  }
+
+  get ctx(): IExecutionContext {
+    return this._ctx;
   }
 
   getRemoteState(): Promise<ProjectRemoteState> {

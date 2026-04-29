@@ -7,8 +7,10 @@ import type {
 } from '@shared/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { err, ok } from '@shared/result';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { getLocalExec, getSshExec, type ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import type { IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
@@ -76,13 +78,13 @@ function dependencyStateFromProbeResult(
 
 export class DependencyManager implements IInitializable {
   private state = new Map<DependencyId, DependencyState>();
-  private readonly exec: ExecFn;
+  private readonly ctx: IExecutionContext;
   private readonly emitEvents: boolean;
   private readonly runInstallCommand: InstallCommandRunner;
   private readonly connectionId: string | undefined;
 
   constructor(
-    exec: ExecFn,
+    ctx: IExecutionContext,
     {
       emitEvents = true,
       runInstallCommand = runLocalInstallCommand,
@@ -93,7 +95,7 @@ export class DependencyManager implements IInitializable {
       connectionId?: string;
     } = {}
   ) {
-    this.exec = exec;
+    this.ctx = ctx;
     this.emitEvents = emitEvents;
     this.runInstallCommand = runInstallCommand;
     this.connectionId = connectionId;
@@ -148,7 +150,7 @@ export class DependencyManager implements IInitializable {
       descriptor.commands[0] ?? id,
       resolvedPath,
       versionArgs,
-      this.exec
+      this.ctx
     );
     const fullState = dependencyStateFromProbeResult(descriptor, resolvedPath, probeResult);
     this.updateState(fullState);
@@ -207,7 +209,7 @@ export class DependencyManager implements IInitializable {
 
   private async resolveFirstPath(descriptor: DependencyDescriptor): Promise<string | null> {
     for (const command of descriptor.commands) {
-      const path = await resolveCommandPath(command, this.exec);
+      const path = await resolveCommandPath(command, this.ctx);
       if (path) return path;
     }
     return null;
@@ -225,7 +227,7 @@ export class DependencyManager implements IInitializable {
   }
 }
 
-export const localDependencyManager = new DependencyManager(getLocalExec());
+export const localDependencyManager = new DependencyManager(new LocalExecutionContext());
 
 const sshManagers = new Map<string, DependencyManager>();
 
@@ -234,7 +236,7 @@ export async function getDependencyManager(connectionId?: string): Promise<Depen
   let mgr = sshManagers.get(connectionId);
   if (!mgr) {
     const proxy = await sshConnectionManager.connect(connectionId);
-    mgr = new DependencyManager(getSshExec(proxy), {
+    mgr = new DependencyManager(new SshExecutionContext(proxy), {
       emitEvents: true,
       runInstallCommand: createSshInstallCommandRunner(proxy),
       connectionId,

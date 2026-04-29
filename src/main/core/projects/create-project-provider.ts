@@ -2,8 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bareRefName } from '@shared/git-utils';
 import type { LocalProject, SshProject } from '@shared/projects';
+import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
@@ -12,15 +16,16 @@ import {
   sshConnectionManager,
   type SshConnectionEvent,
 } from '@main/core/ssh/ssh-connection-manager';
-import { getGitLocalExec, getGitSshExec, getLocalExec, getSshExec } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-import { ProjectProvider } from './project-provider';
+import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
 import {
   LocalProjectSettingsProvider,
   SshProjectSettingsProvider,
 } from './settings/project-settings';
+import type { ProjectSettingsProvider } from './settings/schema';
 import { LocalWorktreeHost } from './worktrees/hosts/local-worktree-host';
 import { SshWorktreeHost } from './worktrees/hosts/ssh-worktree-host';
+import type { WorktreeHost } from './worktrees/hosts/worktree-host';
 import { WorktreeService } from './worktrees/worktree-service';
 
 const hasGitHubToken = async (): Promise<boolean> =>
@@ -35,8 +40,9 @@ export async function createProvider(project: LocalProject | SshProject): Promis
 
 async function createLocalProvider(project: LocalProject): Promise<ProjectProvider> {
   const localFs = new LocalFileSystem(project.path);
-  const exec = getLocalExec();
-  const gitExec = getGitLocalExec(() => githubConnectionService.getToken());
+  const baseCtx = new LocalExecutionContext({ root: project.path });
+  const ctx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
+
   const settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
   const worktreeDirectory = await settings.getWorktreeDirectory();
   await fs.promises.mkdir(worktreeDirectory, { recursive: true });
@@ -45,39 +51,15 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
     allowedRoots: [project.path, worktreeDirectory],
   });
 
-  const transport = {
-    kind: 'local' as const,
-    defaultWorkspaceType: { kind: 'local' as const },
-    exec,
-    gitExec,
-    fs: localFs,
+  return buildProvider(
+    project.id,
+    project.path,
+    { kind: 'local', defaultWorkspaceType: { kind: 'local' }, ctx },
+    localFs,
     settings,
     worktreeHost,
     worktreePoolPath,
-  };
-
-  const repoGit = new GitService(project.path, gitExec, localFs);
-  const repository = new GitRepositoryService(repoGit, settings);
-  const worktreeService = new WorktreeService({
-    worktreePoolPath,
-    repoPath: project.path,
-    projectSettings: settings,
-    exec: gitExec,
-    host: worktreeHost,
-  });
-  const gitFetchService = new GitFetchService(repoGit, hasGitHubToken);
-  gitFetchService.start();
-
-  const dispose = () => {};
-
-  return new ProjectProvider(
-    project.id,
-    project.path,
-    transport,
-    repository,
-    worktreeService,
-    gitFetchService,
-    dispose
+    () => {}
   );
 }
 
@@ -86,63 +68,47 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     const proxy = await sshConnectionManager.connect(project.connectionId);
     const rootFs = new SshFileSystem(proxy, '/');
     const projectFs = new SshFileSystem(proxy, project.path);
-    const exec = getSshExec(proxy);
-    const gitExec = getGitSshExec(proxy, () => githubConnectionService.getToken());
+
+    const baseCtx = new SshExecutionContext(proxy, { root: project.path });
+    const ctx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
 
     const settings = new SshProjectSettingsProvider(
       projectFs,
       bareRefName(project.baseRef),
       rootFs,
       project.path,
-      exec
+      baseCtx
     );
     const worktreePoolPath = path.posix.join(await settings.getWorktreeDirectory(), project.name);
     const worktreeHost = new SshWorktreeHost(rootFs);
     await worktreeHost.mkdirAbsolute(worktreePoolPath, { recursive: true });
 
-    const transport = {
-      kind: 'ssh' as const,
-      defaultWorkspaceType: { kind: 'ssh' as const, proxy, connectionId: project.connectionId },
-      exec,
-      gitExec,
-      fs: projectFs,
+    const dispose = () => sshConnectionManager.off('connection-event', handler);
+
+    const provider = buildProvider(
+      project.id,
+      project.path,
+      {
+        kind: 'ssh',
+        defaultWorkspaceType: { kind: 'ssh', proxy, connectionId: project.connectionId },
+        ctx,
+      },
+      projectFs,
       settings,
       worktreeHost,
       worktreePoolPath,
-    };
+      dispose
+    );
 
-    // SSH: disable local-filesystem git operations (CatFileBatch and streaming status)
-    const repoGit = new GitService(project.path, gitExec, projectFs, false);
-    const repository = new GitRepositoryService(repoGit, settings);
-    const worktreeService = new WorktreeService({
-      worktreePoolPath,
-      repoPath: project.path,
-      projectSettings: settings,
-      exec: gitExec,
-      host: worktreeHost,
-    });
-    const gitFetchService = new GitFetchService(repoGit, hasGitHubToken);
-    gitFetchService.start();
-
-    // Wire reconnect handler now that fetchService is in scope — no deferred injection needed.
+    // Wire reconnect handler after provider is built so gitFetchService is available.
     const handler = (evt: SshConnectionEvent) => {
       if (evt.type === 'reconnected' && evt.connectionId === project.connectionId) {
-        void gitFetchService.fetch();
+        void provider.gitFetchService.fetch();
       }
     };
     sshConnectionManager.on('connection-event', handler);
 
-    const dispose = () => sshConnectionManager.off('connection-event', handler);
-
-    return new ProjectProvider(
-      project.id,
-      project.path,
-      transport,
-      repository,
-      worktreeService,
-      gitFetchService,
-      dispose
-    );
+    return provider;
   } catch (error) {
     log.warn('createSshProvider: SSH connection failed', {
       projectId: project.id,
@@ -150,4 +116,47 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     });
     throw error;
   }
+}
+
+function buildProvider(
+  projectId: string,
+  repoPath: string,
+  transportMeta: Pick<ProjectProviderTransport, 'kind' | 'defaultWorkspaceType' | 'ctx'>,
+  projectFs: FileSystemProvider,
+  settings: ProjectSettingsProvider,
+  worktreeHost: WorktreeHost,
+  worktreePoolPath: string,
+  dispose: () => void
+): ProjectProvider {
+  const { ctx } = transportMeta;
+
+  const transport: ProjectProviderTransport = {
+    ...transportMeta,
+    fs: projectFs,
+    settings,
+    worktreeHost,
+    worktreePoolPath,
+  };
+
+  const repoGit = new GitService(ctx, projectFs);
+  const repository = new GitRepositoryService(repoGit, settings);
+  const worktreeService = new WorktreeService({
+    worktreePoolPath,
+    repoPath,
+    projectSettings: settings,
+    ctx,
+    host: worktreeHost,
+  });
+  const gitFetchService = new GitFetchService(repoGit, hasGitHubToken);
+  gitFetchService.start();
+
+  return new ProjectProvider(
+    projectId,
+    repoPath,
+    transport,
+    repository,
+    worktreeService,
+    gitFetchService,
+    dispose
+  );
 }

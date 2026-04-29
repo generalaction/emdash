@@ -7,9 +7,9 @@ import {
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubConnectResponse, GitHubUser } from '@shared/github';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
-import { getLocalExec } from '@main/core/utils/exec';
 import { KV } from '@main/db/kv';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -113,10 +113,10 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
 
   private async resolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
     const { token: storedToken, source } = await this.getStoredTokenRecord();
-    const exec = getLocalExec();
+    const ctx = new LocalExecutionContext();
 
     if (storedToken && source === 'cli') {
-      const cliToken = await extractGhCliToken(exec);
+      const cliToken = await extractGhCliToken(ctx);
       if (!cliToken) {
         try {
           await this.clearStoredToken();
@@ -140,7 +140,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
       return { token: storedToken, source: source ?? 'secure_storage' };
     }
 
-    const cliToken = await extractGhCliToken(exec);
+    const cliToken = await extractGhCliToken(ctx);
     if (!cliToken) return { token: null, source: null };
 
     try {
