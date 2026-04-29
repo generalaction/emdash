@@ -1,4 +1,4 @@
-import { AgentProviderId } from '@shared/agent-provider-registry';
+import { type AgentProviderId } from '@shared/agent-provider-registry';
 import ampLogo from '../../assets/images/ampcode.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import augmentLogoSvg from '../../assets/images/Auggie.svg?raw';

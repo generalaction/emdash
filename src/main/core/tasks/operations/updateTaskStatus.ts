@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import { TaskLifecycleStatus } from '@shared/tasks';
+import { type TaskLifecycleStatus } from '@shared/tasks';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';

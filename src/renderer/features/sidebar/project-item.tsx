@@ -13,7 +13,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
 import {
   isUnregisteredProject,
-  UnregisteredProject,
+  type UnregisteredProject,
 } from '@renderer/features/projects/stores/project';
 import {
   getProjectManagerStore,
@@ -21,6 +21,7 @@ import {
   getRepositoryStore,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
+import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import {
   useNavigate,
   useParams,
@@ -92,14 +93,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     : null;
   const canReconnect = sshConnectionState !== 'connected';
   const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
-  const isReconnecting =
-    sshConnectionState === 'connecting' || sshConnectionState === 'reconnecting';
-  const sshStateDotClass =
-    sshConnectionState === 'connected'
-      ? 'bg-emerald-500'
-      : isReconnecting
-        ? 'bg-blue-500'
-        : 'bg-red-500';
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
@@ -157,11 +150,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               {isSshProject ? (
                 <span className="min-w-0 flex items-center gap-2">
                   <span className="truncate">{project.name}</span>
-                  <span
-                    className={cn('h-1.5 w-1.5 shrink-0 rounded-full', sshStateDotClass)}
-                    aria-label={`SSH connection ${sshConnectionState ?? 'disconnected'}`}
-                    title={`SSH connection ${sshConnectionState ?? 'disconnected'}`}
-                  />
+                  <ConnectionStatusDot state={sshConnectionState} />
                 </span>
               ) : (
                 <span className="min-w-0 flex items-center gap-1.5">

@@ -35,6 +35,9 @@ export type Task = {
   isPinned: boolean;
   prs: PullRequest[];
   conversations: Record<string, number>;
+  workspaceProvider?: 'byoi';
+  workspaceId?: string;
+  workspaceProviderData?: string; // JSON, BYOI only
 };
 
 export type TaskBootstrapStatus =
@@ -71,6 +74,7 @@ export type CreateTaskParams = {
   /**  */
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
+  workspaceProvider?: 'byoi';
 };
 
 export type CreateTaskError =

@@ -13,7 +13,7 @@ type LifecycleScript = {
   script: string;
 };
 
-export class WorkspaceLifecycleService {
+export class LifecycleScriptService {
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;

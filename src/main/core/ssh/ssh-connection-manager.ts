@@ -186,6 +186,23 @@ export class SshConnectionManager extends EventEmitter {
     await Promise.all(ids.map((id) => this.disconnect(id)));
   }
 
+  /**
+   * Establish an ephemeral connection from a caller-supplied config.
+   * The connection is marked intentional from the start so the close handler
+   * never schedules a reconnect — callers are responsible for teardown via
+   * `disconnect(id)`.
+   */
+  async connectFromConfig(id: string, config: ConnectConfig): Promise<SshClientProxy> {
+    this.intentionalDisconnects.add(id);
+    const connectionPromise = this.createConnection(id, config);
+    this.pendingConnections.set(id, connectionPromise);
+    try {
+      return await connectionPromise;
+    } finally {
+      this.pendingConnections.delete(id);
+    }
+  }
+
   // ─── Private ─────────────────────────────────────────────────────────────
 
   private createConnection(id: string, config: ConnectConfig): Promise<SshClientProxy> {
