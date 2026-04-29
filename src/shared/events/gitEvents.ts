@@ -3,6 +3,9 @@ import { defineEvent } from '@shared/ipc/events';
 
 export type GitRefChange = {
   projectId: string;
+  /** Present when the change is scoped to a specific workspace (e.g. after a workspace-level fetch).
+   *  Absent for project-level watcher events. */
+  workspaceId?: string;
   kind: 'local-refs' | 'remote-refs' | 'config';
   /** Specific structured refs that changed, when derivable from the FS path.
    *  Absent for packed-refs (ambiguous) and bare HEAD pointer changes. */

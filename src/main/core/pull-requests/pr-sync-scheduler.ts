@@ -1,6 +1,8 @@
 import { and, eq, inArray } from 'drizzle-orm';
+import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { isGitHubUrl, normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
+import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
 import { projectRemotes, pullRequests } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -18,13 +20,25 @@ export class PrSyncScheduler {
   private readonly _intervals = new Map<string, ReturnType<typeof setInterval>[]>();
   /** Per-project set of known GitHub remote URLs (for cleanup on unmount). */
   private readonly _projectRemoteUrls = new Map<string, string[]>();
+  private _unsubscribes: Array<() => void> = [];
 
   initialize(): void {
-    projectManager.registerOnProjectOpened((id) => this.onProjectMounted(id));
-    projectManager.registerOnProjectClosed((id) => this.onProjectUnmounted(id));
+    this._unsubscribes = [
+      projectManager.on('projectOpened', (id) => this.onProjectMounted(id)),
+      projectManager.on('projectClosed', (id) => this.onProjectUnmounted(id)),
+      taskManager.hooks.on('task:provisioned', ({ projectId, taskBranch }) => {
+        void this.onTaskProvisioned(projectId, taskBranch);
+      }),
+      gitWatcherRegistry.on('ref:changed', (p) => {
+        if (p.kind === 'config') void this.onRemoteChanged(p.projectId);
+      }),
+    ];
   }
 
-  // ── Project lifecycle ──────────────────────────────────────────────────────
+  dispose(): void {
+    for (const unsub of this._unsubscribes) unsub();
+    this._unsubscribes = [];
+  }
 
   async onProjectMounted(projectId: string): Promise<void> {
     log.info('PrSyncScheduler: onProjectMounted', { projectId });
@@ -99,10 +113,6 @@ export class PrSyncScheduler {
         void prSyncEngine.syncSingle(row.repositoryUrl, prNumber);
       }
     }
-  }
-
-  async onPushCompleted(projectId: string, taskBranch: string): Promise<void> {
-    return this.onTaskProvisioned(projectId, taskBranch);
   }
 
   // ── Remote config change ───────────────────────────────────────────────────

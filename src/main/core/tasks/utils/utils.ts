@@ -1,7 +1,7 @@
-import { PullRequest } from '@shared/pull-requests';
-import { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
-import { TaskRow } from '@main/db/schema';
-import { fromStoredBranch } from './stored-branch';
+import type { PullRequest } from '@shared/pull-requests';
+import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
+import type { TaskRow } from '@main/db/schema';
+import { fromStoredBranch } from '../stored-branch';
 
 export function mapTaskRowToTask(
   row: TaskRow,
@@ -25,5 +25,8 @@ export function mapTaskRowToTask(
     updatedAt: row.updatedAt,
     statusChangedAt: row.statusChangedAt,
     isPinned: row.isPinned === 1,
+    workspaceProvider: (row.workspaceProvider as 'byoi') ?? undefined,
+    workspaceId: row.workspaceId ?? undefined,
+    workspaceProviderData: row.workspaceProviderData ?? undefined,
   };
 }

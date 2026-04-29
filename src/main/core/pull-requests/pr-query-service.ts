@@ -91,10 +91,6 @@ async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
   );
 }
 
-// ---------------------------------------------------------------------------
-// PrQueryService
-// ---------------------------------------------------------------------------
-
 export class PrQueryService {
   async listPullRequests(projectId: string, options: ListPrOptions = {}): Promise<PullRequest[]> {
     let repositoryUrls: string[];

@@ -1,17 +1,21 @@
 import type { GeneralSessionConfig } from '@shared/general-session';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { Terminal } from '@shared/terminals';
-import { Pty } from '@main/core/pty/pty';
+import type { Terminal } from '@shared/terminals';
+import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import {
+  sshConnectionManager,
+  type SshConnectionEvent,
+} from '@main/core/ssh/ssh-connection-manager';
+import {
   type LifecycleScriptSpawnRequest,
   type TerminalProvider,
 } from '@main/core/terminals/terminal-provider';
-import { ExecFn } from '@main/core/utils/exec';
+import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 
@@ -39,6 +43,8 @@ export class SshTerminalProvider implements TerminalProvider {
   private readonly shellSetup?: string;
   private readonly exec: ExecFn;
   private readonly proxy: SshClientProxy;
+  private readonly connectionId: string;
+  private readonly _handleReconnect: (evt: SshConnectionEvent) => void;
 
   constructor({
     projectId,
@@ -49,6 +55,7 @@ export class SshTerminalProvider implements TerminalProvider {
     shellSetup,
     exec,
     proxy,
+    connectionId,
   }: {
     projectId: string;
     scopeId: string;
@@ -58,6 +65,7 @@ export class SshTerminalProvider implements TerminalProvider {
     shellSetup?: string;
     exec: ExecFn;
     proxy: SshClientProxy;
+    connectionId: string;
   }) {
     this.projectId = projectId;
     this.scopeId = scopeId;
@@ -67,6 +75,19 @@ export class SshTerminalProvider implements TerminalProvider {
     this.shellSetup = shellSetup;
     this.exec = exec;
     this.proxy = proxy;
+    this.connectionId = connectionId;
+    this._handleReconnect = (evt: SshConnectionEvent) => {
+      if (evt.type === 'reconnected' && evt.connectionId === this.connectionId) {
+        this.rehydrate().catch((e: unknown) => {
+          log.error('SshTerminalProvider: rehydrate failed after reconnect', {
+            scopeId: this.scopeId,
+            connectionId: this.connectionId,
+            error: String(e),
+          });
+        });
+      }
+    };
+    sshConnectionManager.on('connection-event', this._handleReconnect);
   }
 
   async spawnTerminal(
@@ -227,6 +248,7 @@ export class SshTerminalProvider implements TerminalProvider {
   }
 
   async destroyAll(): Promise<void> {
+    sshConnectionManager.off('connection-event', this._handleReconnect);
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {

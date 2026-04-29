@@ -25,7 +25,8 @@ import {
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import { RightPanelView } from '@renderer/features/tasks/types';
+import type { RightPanelView } from '@renderer/features/tasks/types';
+import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
@@ -125,7 +126,10 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <span className="flex items-center gap-1">
                 <span className="text-sm text-foreground-passive">{projectName}</span>
                 <span className="text-sm text-foreground-passive">/</span>
-                {taskDisplayName(taskStore)}
+                <span className="flex items-center gap-1.5">
+                  {taskDisplayName(taskStore)}
+                  <ConnectionStatusDot state={provisionedTask.workspace.connectionState} />
+                </span>
               </span>
               <ChevronDown className="size-3.5 shrink-0" />
             </PopoverTrigger>

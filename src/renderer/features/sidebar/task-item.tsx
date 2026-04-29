@@ -3,8 +3,12 @@ import { selectCurrentPr } from '@shared/pull-requests';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
-import { TaskStore } from '@renderer/features/tasks/stores/task';
-import { getTaskManagerStore, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { type TaskStore } from '@renderer/features/tasks/stores/task';
+import {
+  asProvisioned,
+  getTaskManagerStore,
+  getTaskStore,
+} from '@renderer/features/tasks/stores/task-selectors';
 import {
   useNavigate,
   useParams,
@@ -71,6 +75,10 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const canPin = task.state !== 'unregistered';
 
+  const workspace = asProvisioned(task)?.workspace;
+  const handleReconnect =
+    workspace?.connectionState != null ? () => workspace.reconnect() : undefined;
+
   return (
     <TaskContextMenu
       isPinned={task.data.isPinned}
@@ -80,6 +88,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       onUnpin={() => void task.setPinned(false)}
       onRename={handleRename}
       onArchive={handleArchive}
+      onReconnect={handleReconnect}
       onDelete={handleDelete}
     >
       <SidebarMenuRow
