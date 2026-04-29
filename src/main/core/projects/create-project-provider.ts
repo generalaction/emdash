@@ -38,9 +38,12 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   const exec = getLocalExec();
   const gitExec = getGitLocalExec(() => githubConnectionService.getToken());
   const settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
-  const worktreePoolPath = path.join(await settings.getWorktreeDirectory(), project.name);
-  await fs.promises.mkdir(worktreePoolPath, { recursive: true });
-  const worktreeHost = await LocalWorktreeHost.create({ allowedRoots: [project.path] });
+  const worktreeDirectory = await settings.getWorktreeDirectory();
+  await fs.promises.mkdir(worktreeDirectory, { recursive: true });
+  const worktreePoolPath = path.join(worktreeDirectory, project.name);
+  const worktreeHost = await LocalWorktreeHost.create({
+    allowedRoots: [project.path, worktreeDirectory],
+  });
 
   const transport = {
     kind: 'local' as const,
@@ -128,6 +131,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       }
     };
     sshConnectionManager.on('connection-event', handler);
+
     const dispose = () => sshConnectionManager.off('connection-event', handler);
 
     return new ProjectProvider(
