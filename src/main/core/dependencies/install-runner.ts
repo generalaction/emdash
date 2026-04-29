@@ -3,6 +3,7 @@ import type { InstallCommandError } from '@shared/dependencies';
 import { err, ok, type Result } from '@shared/result';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
+import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
@@ -61,14 +62,25 @@ function waitForInstallPty(pty: Pty): Promise<Result<void, InstallCommandError>>
 export function runLocalInstallCommand(
   command: string
 ): Promise<Result<void, InstallCommandError>> {
-  const shell = process.env.SHELL ?? '/bin/sh';
+  const installId = `install:${crypto.randomUUID()}`;
+  const resolved = resolveLocalPtySpawn({
+    platform: process.platform,
+    env: process.env,
+    intent: {
+      kind: 'run-command',
+      cwd: os.homedir(),
+      command: { kind: 'shell-line', commandLine: command },
+    },
+  });
+  logLocalPtySpawnWarnings('DependencyManager', resolved.warnings, { installId });
+
   let pty: Pty;
   try {
     pty = spawnLocalPty({
-      id: `install:${crypto.randomUUID()}`,
-      command: shell,
-      args: ['-c', command],
-      cwd: os.homedir(),
+      id: installId,
+      command: resolved.command,
+      args: resolved.args,
+      cwd: resolved.cwd,
       env: process.env as Record<string, string>,
       cols: 80,
       rows: 24,

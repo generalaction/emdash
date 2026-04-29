@@ -1,10 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import type path from 'node:path';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
-
-export type WorktreeDirectoryFs = Pick<FileSystemProvider, 'mkdir' | 'realPath'>;
 
 type PathApi = Pick<typeof path, 'isAbsolute' | 'join' | 'resolve'>;
 
@@ -44,7 +41,7 @@ export async function normalizeWorktreeDirectory(
 
 export async function canonicalizeWorktreeDirectory(
   directory: string,
-  fs: WorktreeDirectoryFs
+  fs: Pick<FileSystemProvider, 'mkdir' | 'realPath'>
 ): Promise<Result<string, UpdateProjectSettingsError>> {
   try {
     await fs.mkdir(directory, { recursive: true });
@@ -54,19 +51,12 @@ export async function canonicalizeWorktreeDirectory(
   }
 }
 
-export const defaultLocalWorktreeFs: WorktreeDirectoryFs = {
-  mkdir: async (p, options) => {
-    await fs.promises.mkdir(p, options);
-  },
-  realPath: async (p) => fs.promises.realpath(p),
-};
-
 export async function resolveAndValidateWorktreeDirectory(
   input: string | undefined,
   options: {
     projectPath: string;
     pathApi: Pick<typeof path, 'isAbsolute' | 'join' | 'resolve'>;
-    fs: WorktreeDirectoryFs;
+    fs: Pick<FileSystemProvider, 'mkdir' | 'realPath'>;
     homeDirectory?: string;
     resolveHomeDirectory?: () => Promise<string>;
   }

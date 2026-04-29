@@ -49,7 +49,8 @@ export async function createSshProvider(
       exec
     );
     const worktreePoolPath = path.posix.join(await settings.getWorktreeDirectory(), project.name);
-    await rootFs.mkdir(worktreePoolPath, { recursive: true });
+    const worktreeHost = new SshWorktreeHost(rootFs);
+    await worktreeHost.mkdirAbsolute(worktreePoolPath, { recursive: true });
 
     const gitExec = getGitSshExec(proxy, () => githubConnectionService.getToken());
     const repoGit = new GitService(project.path, gitExec, projectFs, false);

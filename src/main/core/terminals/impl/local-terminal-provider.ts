@@ -1,11 +1,15 @@
-import type { GeneralSessionConfig } from '@shared/general-session';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { Terminal } from '@shared/terminals';
+import type { Terminal } from '@shared/terminals';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
-import { Pty } from '@main/core/pty/pty';
+import type { Pty } from '@main/core/pty/pty';
 import { buildTerminalEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import {
+  logLocalPtySpawnWarnings,
+  resolveLocalPtySpawn,
+  type PtyCommandSpec,
+  type PtySpawnIntent,
+} from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
@@ -65,11 +69,16 @@ export class LocalTerminalProvider implements TerminalProvider {
     initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     command?: { command: string; args: string[] }
   ): Promise<void> {
-    return this.spawnWithPolicy(terminal, initialSize, command, {
-      respawnOnExit: true,
-      preserveBufferOnExit: false,
-      watchDevServer: true,
-    });
+    return this.spawnWithPolicy(
+      terminal,
+      initialSize,
+      command ? { kind: 'argv', command: command.command, args: command.args } : undefined,
+      {
+        respawnOnExit: true,
+        preserveBufferOnExit: false,
+        watchDevServer: true,
+      }
+    );
   }
 
   async spawnLifecycleScript({
@@ -83,7 +92,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     return this.spawnWithPolicy(
       terminal,
       initialSize,
-      { command, args: [] },
+      { kind: 'shell-line', commandLine: command },
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -95,28 +104,43 @@ export class LocalTerminalProvider implements TerminalProvider {
   private async spawnWithPolicy(
     terminal: Terminal,
     initialSize: { cols: number; rows: number },
-    command: { command: string; args: string[] } | undefined,
+    command: PtyCommandSpec | undefined,
     policy: SpawnPolicy
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
 
-    const cfg: GeneralSessionConfig = {
-      taskId: this.scopeId,
-      cwd: this.taskPath,
-      shellSetup: this.shellSetup,
-      tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
-      command: command?.command,
-      args: command?.args,
-    };
-    const params = resolveSpawnParams('general', cfg);
+    const intent: PtySpawnIntent = command
+      ? {
+          kind: 'run-command',
+          cwd: this.taskPath,
+          command,
+          shellSetup: this.shellSetup,
+          tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+        }
+      : {
+          kind: 'interactive-shell',
+          cwd: this.taskPath,
+          shellSetup: this.shellSetup,
+          tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
+        };
+    const resolved = resolveLocalPtySpawn({
+      platform: process.platform,
+      env: process.env,
+      intent,
+    });
+
+    logLocalPtySpawnWarnings('LocalTerminalProvider', resolved.warnings, {
+      terminalId: terminal.id,
+      sessionId,
+    });
 
     const pty = spawnLocalPty({
       id: sessionId,
-      command: params.command,
-      args: params.args,
-      cwd: this.taskPath,
+      command: resolved.command,
+      args: resolved.args,
+      cwd: resolved.cwd,
       env: { ...buildTerminalEnv(), ...this.taskEnvVars },
       cols: initialSize.cols,
       rows: initialSize.rows,

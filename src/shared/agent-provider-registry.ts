@@ -1,6 +1,7 @@
 export const AGENT_PROVIDER_IDS = [
   'codex',
   'claude',
+  'devin',
   'qwen',
   'droid',
   'gemini',
@@ -103,6 +104,24 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Claude Code',
     terminalOnly: true,
     supportsHooks: true,
+  },
+  {
+    id: 'devin',
+    name: 'Devin',
+    description:
+      "Cognition's Devin for Terminal agent for local, interactive coding sessions with Devin Cloud integration.",
+    docUrl: 'https://cli.devin.ai/docs',
+    installCommand: 'curl -fsSL https://cli.devin.ai/install.sh | bash',
+    commands: ['devin'],
+    versionArgs: ['--version'],
+    cli: 'devin',
+    autoApproveFlag: '--permission-mode=bypass',
+    initialPromptFlag: '--',
+    resumeFlag: '--continue',
+    planActivateCommand: '/plan',
+    icon: 'devin.png',
+    alt: 'Devin',
+    terminalOnly: true,
   },
   {
     id: 'cursor',

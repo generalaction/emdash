@@ -4,9 +4,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Remote } from '@shared/git';
 import { ok } from '@shared/result';
-import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { getLocalExec, type ExecFn } from '@main/core/utils/exec';
 import type { ProjectSettingsProvider } from '../settings/schema';
+import { LocalWorktreeHost } from './hosts/local-worktree-host';
+import type { WorktreeHost } from './hosts/worktree-host';
 import { WorktreeService } from './worktree-service';
 
 async function initRepo(dir: string, exec: ExecFn): Promise<void> {
@@ -34,12 +35,16 @@ describe('WorktreeService', () => {
   let repoDir: string;
   let poolDir: string;
   let exec: ExecFn;
+  let host: WorktreeHost;
 
   beforeEach(async () => {
     repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-repo-'));
     poolDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-pool-'));
     exec = getLocalExec();
     await initRepo(repoDir, exec);
+    host = await LocalWorktreeHost.create({
+      allowedRoots: [repoDir, poolDir],
+    });
   });
 
   afterEach(() => {
@@ -59,7 +64,7 @@ describe('WorktreeService', () => {
       worktreePoolPath: poolDir,
       repoPath: repoDir,
       exec,
-      rootFs: new LocalFileSystem('/'),
+      host,
       projectSettings: makeSettings(),
       ...overrides,
     });

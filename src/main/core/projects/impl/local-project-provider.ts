@@ -14,20 +14,24 @@ import { GitWatcherService } from '@main/core/git/git-watcher-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
+import type {
+  ProjectProvider,
+  ProvisionResult,
+  TaskProvider,
+} from '@main/core/projects/project-provider';
+import { LocalProjectSettingsProvider } from '@main/core/projects/settings/project-settings';
+import { provisionLocalTask } from '@main/core/projects/task-builder';
+import { TaskProvisionManager } from '@main/core/projects/task-provision-manager';
+import { WorktreeService } from '@main/core/projects/worktrees/worktree-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { prSyncScheduler } from '@main/core/pull-requests/pr-sync-scheduler';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { getGitLocalExec, getLocalExec } from '@main/core/utils/exec';
+import { provisionBYOITask } from '@main/core/workspaces/byoi/provision-byoi-task';
 import { localWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { provisionBYOITask } from '../../workspaces/byoi/provision-byoi-task';
-import type { ProjectProvider, ProvisionResult, TaskProvider } from '../project-provider';
-import { LocalProjectSettingsProvider } from '../settings/project-settings';
-import { provisionLocalTask } from '../task-builder';
-import { TaskProvisionManager } from '../task-provision-manager';
-import { WorktreeService } from '../worktrees/worktree-service';
 
 export async function createLocalProvider(
   project: LocalProject,

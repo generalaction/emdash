@@ -1,11 +1,11 @@
 import path from 'node:path';
 import type { Branch } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
-import { err, ok, Result } from '@shared/result';
-import { FileSystemProvider } from '@main/core/fs/types';
-import { ExecFn } from '@main/core/utils/exec';
+import { err, ok, type Result } from '@shared/result';
+import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
-import { ProjectSettingsProvider } from '../settings/schema';
+import type { ProjectSettingsProvider } from '../settings/schema';
+import type { WorktreeHost } from './hosts/worktree-host';
 
 export type ServeWorktreeError =
   | { type: 'worktree-setup-failed'; cause: unknown }
@@ -16,21 +16,21 @@ export class WorktreeService {
   private readonly worktreePoolPath: string;
   private readonly repoPath: string;
   private readonly exec: ExecFn;
-  private readonly rootFs: FileSystemProvider;
+  private readonly host: WorktreeHost;
   private readonly projectSettings: ProjectSettingsProvider;
 
   constructor(args: {
     worktreePoolPath: string;
     repoPath: string;
     exec: ExecFn;
-    rootFs: FileSystemProvider;
+    host: WorktreeHost;
     projectSettings: ProjectSettingsProvider;
   }) {
     this.worktreePoolPath = args.worktreePoolPath;
     this.repoPath = args.repoPath;
     this.projectSettings = args.projectSettings;
     this.exec = args.exec;
-    this.rootFs = args.rootFs;
+    this.host = args.host;
 
     this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
   }
@@ -51,7 +51,7 @@ export class WorktreeService {
   }
 
   private async ensureWorktreePoolDirExists(): Promise<void> {
-    await this.rootFs.mkdir(this.worktreePoolPath, { recursive: true });
+    await this.host.mkdirAbsolute(this.worktreePoolPath, { recursive: true });
   }
 
   private async getRemoteCandidates(): Promise<string[]> {
@@ -112,13 +112,13 @@ export class WorktreeService {
 
   async getWorktree(branchName: string): Promise<string | undefined> {
     const worktreePath = path.join(this.worktreePoolPath, branchName);
-    if (await this.rootFs.exists(worktreePath)) {
+    if (await this.host.existsAbsolute(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
-      await this.rootFs.remove(worktreePath, { recursive: true }).catch(() => {});
+      await this.host.removeAbsolute(worktreePath, { recursive: true }).catch(() => {});
     }
 
     try {
-      const realPoolPath = await this.rootFs.realPath(this.worktreePoolPath);
+      const realPoolPath = await this.host.realPathAbsolute(this.worktreePoolPath);
       const { stdout } = await this.exec('git', ['worktree', 'list', '--porcelain'], {
         cwd: this.repoPath,
       });
@@ -151,9 +151,9 @@ export class WorktreeService {
     }
 
     const targetPath = path.join(this.worktreePoolPath, branchName);
-    if (await this.rootFs.exists(targetPath)) {
+    if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
-      await this.rootFs.remove(targetPath, { recursive: true }).catch(() => {});
+      await this.host.removeAbsolute(targetPath, { recursive: true }).catch(() => {});
       await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
     }
 
@@ -176,7 +176,7 @@ export class WorktreeService {
         });
       }
 
-      await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
+      await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
       await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
       await this.exec('git', ['worktree', 'add', targetPath, branchName], {
         cwd: this.repoPath,
@@ -211,14 +211,14 @@ export class WorktreeService {
     const targetPath = path.join(this.worktreePoolPath, branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
-    if (await this.rootFs.exists(targetPath)) {
+    if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
-      await this.rootFs.remove(targetPath, { recursive: true });
+      await this.host.removeAbsolute(targetPath, { recursive: true });
       await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
     }
 
     try {
-      await this.rootFs.mkdir(path.dirname(targetPath), { recursive: true });
+      await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
       for (const remoteName of remoteCandidates) {
         await this.exec('git', ['fetch', remoteName], { cwd: this.repoPath }).catch(() => {});
       }
@@ -280,7 +280,7 @@ export class WorktreeService {
   }
 
   async removeWorktree(worktreePath: string): Promise<void> {
-    await this.rootFs.remove(worktreePath, { recursive: true }).catch(() => {});
+    await this.host.removeAbsolute(worktreePath, { recursive: true }).catch(() => {});
     await this.exec('git', ['worktree', 'prune'], { cwd: this.repoPath }).catch(() => {});
   }
 
@@ -288,17 +288,17 @@ export class WorktreeService {
     const settings = await this.projectSettings.get();
     const patterns = settings.preservePatterns ?? [];
     for (const pattern of patterns) {
-      const matches = await this.rootFs.glob(pattern, {
+      const matches = await this.host.globAbsolute(pattern, {
         cwd: this.repoPath,
         dot: true,
       });
       for (const relPath of matches) {
         const src = path.join(this.repoPath, relPath);
-        const stat = await this.rootFs.stat(src).catch(() => null);
+        const stat = await this.host.statAbsolute(src).catch(() => null);
         if (!stat || stat.type !== 'file') continue;
         const dest = path.join(targetPath, relPath);
-        await this.rootFs.mkdir(path.dirname(dest), { recursive: true });
-        await this.rootFs.copyFile(src, dest);
+        await this.host.mkdirAbsolute(path.dirname(dest), { recursive: true });
+        await this.host.copyFileAbsolute(src, dest);
       }
     }
   }

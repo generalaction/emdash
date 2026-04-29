@@ -33,13 +33,14 @@ import { ownerFromUrl } from '@shared/pull-requests';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE, type ExecFn } from '@main/core/utils/exec';
-import { GitProvider } from '../types';
+import { type GitProvider } from '../types';
 import { CatFileBatch } from './cat-file-batch';
 import {
   computeBaseRef,
   mapStatus,
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_OUTPUT_BYTES,
+  MAX_REF_LIST_BYTES,
   parseDiffLines,
   stripTrailingNewline,
 } from './git-utils';
@@ -893,6 +894,7 @@ export class GitService implements GitProvider {
 
       await this.exec('git', selectedRemote ? ['fetch', selectedRemote] : ['fetch'], {
         cwd: this.path,
+        maxBuffer: MAX_REF_LIST_BYTES,
       });
       return ok();
     } catch (error: unknown) {
@@ -1212,7 +1214,7 @@ export class GitService implements GitProvider {
     const { stdout } = await this.exec(
       'git',
       ['branch', '-a', '--format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(refname)'],
-      { cwd: this.path }
+      { cwd: this.path, maxBuffer: MAX_REF_LIST_BYTES }
     );
 
     const branches: Branch[] = [];
@@ -1346,7 +1348,10 @@ export class GitService implements GitProvider {
     remote = 'origin'
   ): Promise<Result<void, CreateBranchError>> {
     if (syncWithRemote) {
-      await this.exec('git', ['fetch', remote], { cwd: this.path }).catch(() => {});
+      await this.exec('git', ['fetch', remote], {
+        cwd: this.path,
+        maxBuffer: MAX_REF_LIST_BYTES,
+      }).catch(() => {});
     }
     const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
     try {
