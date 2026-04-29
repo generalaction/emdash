@@ -2,9 +2,12 @@ import { Check, Loader2, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import type { Branch } from '@shared/git';
+import type { UpdateProjectSettingsError } from '@shared/projects';
+import { err, type Result } from '@shared/result';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
+import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Field, FieldDescription, FieldGroup, FieldTitle } from '@renderer/lib/ui/field';
@@ -19,6 +22,7 @@ import {
 import { Separator } from '@renderer/lib/ui/separator';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { cn } from '@renderer/utils/utils';
 
 type FormState = {
   preservePatterns: string;
@@ -101,7 +105,7 @@ export interface ProjectSettingsFormProps {
   projectId: string;
   initial: ProjectSettings;
   onSuccess: () => void;
-  save: (settings: ProjectSettings) => Promise<void>;
+  save: (settings: ProjectSettings) => Promise<Result<void, UpdateProjectSettingsError>>;
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -125,6 +129,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   const [form, setForm] = useState<FormState>(baseline);
   const [savedForm, setSavedForm] = useState<FormState>(baseline);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [worktreeDirectoryError, setWorktreeDirectoryError] = useState<string | null>(null);
 
   const formSnapshot = useMemo(() => JSON.stringify(form), [form]);
   const savedSnapshot = useMemo(() => JSON.stringify(savedForm), [savedForm]);
@@ -136,21 +141,33 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setSaveStatus((current) => (current === 'idle' ? current : 'idle'));
+    if (key === 'worktreeDirectory' && worktreeDirectoryError) {
+      setWorktreeDirectoryError(null);
+    }
   }
 
   async function handleSave() {
     const formAtSubmit = form;
-
     setSaveStatus('saving');
 
-    try {
-      await save(formToSettings(formAtSubmit));
+    const result = await save(formToSettings(formAtSubmit)).catch(() => err({ type: 'error' }));
+
+    if (result.success) {
+      setWorktreeDirectoryError(null);
       setSavedForm(formAtSubmit);
       setSaveStatus('saved');
       onSuccess();
-    } catch {
-      setSaveStatus('error');
+      return;
     }
+
+    if (result.error.type === 'invalid-worktree-directory') {
+      setWorktreeDirectoryError('Invalid worktree directory');
+      setSaveStatus('idle');
+      return;
+    }
+
+    setWorktreeDirectoryError(null);
+    setSaveStatus('error');
   }
 
   return (
@@ -180,11 +197,20 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
               Override where worktrees are created. Defaults to the app-level worktree directory
               setting.
             </FieldDescription>
-            <Input
-              placeholder="Leave blank to use the default"
-              value={form.worktreeDirectory}
-              onChange={(e) => update('worktreeDirectory', e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                aria-invalid={worktreeDirectoryError ? true : undefined}
+                className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
+                placeholder="Leave blank to use the default"
+                value={form.worktreeDirectory}
+                onChange={(e) => update('worktreeDirectory', e.target.value)}
+              />
+              {worktreeDirectoryError ? (
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-red-500">
+                  {worktreeDirectoryError}
+                </span>
+              ) : null}
+            </div>
           </Field>
 
           <Separator />
@@ -265,6 +291,22 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
               <FieldTitle>Lifecycle scripts</FieldTitle>
               <FieldDescription className="mt-1">
                 Shell commands run at each stage of the worktree lifecycle. One command per line.
+                <span> See </span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="group inline-flex h-auto cursor-pointer items-center gap-1 px-0 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline focus-visible:outline-none focus-visible:ring-0"
+                  onClick={() => rpc.app.openExternal('https://www.emdash.sh/docs/project-config')}
+                >
+                  <span className="font-mono text-xs transition-colors group-hover:text-foreground">
+                    docs
+                  </span>
+                  <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">
+                    ↗
+                  </span>
+                </Button>
+                <span> for the full project config reference.</span>
               </FieldDescription>
             </div>
 
@@ -307,6 +349,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
           variant="outline"
           onClick={() => {
             setForm(savedForm);
+            setWorktreeDirectoryError(null);
             if (saveStatus === 'error') setSaveStatus('idle');
           }}
           disabled={!dirty || saving}

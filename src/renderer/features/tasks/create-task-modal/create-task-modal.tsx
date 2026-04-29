@@ -1,16 +1,15 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useState } from 'react';
-import type { PullRequest } from '@shared/pull-requests';
+import { useCallback, useEffect, useState } from 'react';
+import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   getProjectManagerStore,
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
-import { useNameWithOwner } from '@renderer/lib/hooks/useNameWithOwner';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -21,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
+import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import {
   resolveBranchLikeTaskStrategy,
@@ -63,6 +63,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   });
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [useBYOI, setUseBYOI] = useState(false);
+  useEffect(() => setUseBYOI(false), [selectedProjectId]);
   const repo = selectedProjectId ? getRepositoryStore(selectedProjectId) : undefined;
   const defaultBranch = repo?.defaultBranch;
   const isUnborn = repo?.isUnborn ?? false;
@@ -72,8 +74,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
     : null;
-  const { data: remoteState } = useNameWithOwner(selectedProjectId);
-  const nameWithOwner = remoteState?.status === 'ready' ? remoteState.nameWithOwner : undefined;
+  const nameWithOwner = selectedProjectId
+    ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
+    : undefined;
 
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
@@ -107,7 +110,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           name: fromBranch.taskName,
           sourceBranch: fromBranch.selectedBranch,
-          strategy: taskStrategy,
+          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+          workspaceProvider: useBYOI ? 'byoi' : undefined,
         });
         break;
       }
@@ -124,17 +128,21 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           name: fromIssue.taskName,
           sourceBranch: fromIssue.selectedBranch,
-          strategy: taskStrategy,
+          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
           linkedIssue: fromIssue.linkedIssue ?? undefined,
+          workspaceProvider: useBYOI ? 'byoi' : undefined,
         });
         break;
       }
       case 'from-pull-request': {
         if (!fromPR.linkedPR) return;
+        const reviewBranch = fromPR.linkedPR.headRefName;
         const taskStrategy = resolvePullRequestTaskStrategy({
           checkoutMode: fromPR.checkoutMode,
-          prNumber: fromPR.linkedPR.metadata.number,
-          headBranch: fromPR.linkedPR.metadata.headRefName,
+          prNumber: getPrNumber(fromPR.linkedPR) ?? 0,
+          headBranch: reviewBranch,
+          headRepositoryUrl: fromPR.linkedPR.headRepositoryUrl,
+          isFork: isForkPr(fromPR.linkedPR),
           taskBranch: fromPR.taskName,
           pushBranch: fromPR.branchSelection.pushBranch,
         });
@@ -142,10 +150,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           id,
           projectId: selectedProjectId,
           name: fromPR.taskName,
-          sourceBranch: { type: 'local', branch: fromPR.linkedPR.metadata.headRefName },
+          sourceBranch: { type: 'local', branch: reviewBranch },
           initialStatus:
             fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
-          strategy: taskStrategy,
+          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+          workspaceProvider: useBYOI ? 'byoi' : undefined,
         });
         break;
       }
@@ -160,6 +169,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     fromIssue,
     fromPR,
     isUnborn,
+    useBYOI,
     navigate,
     onClose,
   ]);
@@ -200,6 +210,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             From Pull Request
           </ToggleGroupItem>
         </ToggleGroup>
+        <div className="flex items-center gap-2">
+          <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
+          <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+        </div>
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
           {selectedStrategy === 'from-branch' && (
             <FromBranchContent
@@ -224,9 +238,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             <div className="flex flex-col gap-3">
               {!nameWithOwner && (
                 <p className="text-sm text-muted-foreground">
-                  {remoteState?.status === 'no_remote'
-                    ? 'No remote is configured for this project.'
-                    : 'Pull requests are currently available only for GitHub remotes.'}
+                  Pull requests are currently available only for configured GitHub remotes.
                 </p>
               )}
               <FromPrContent

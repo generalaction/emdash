@@ -106,6 +106,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: Stac
         type: slot.diffType === 'disk' ? 'disk' : 'git',
         group: slot.diffType,
         originalRef: slot.originalRef,
+        modifiedRef: slot.diffType === 'pr' ? slot.modifiedRef : undefined,
       });
     }, 150);
   }
@@ -147,7 +148,8 @@ const StackedFileSlot = observer(function StackedFileSlot({
   const [contentHeight, setContentHeight] = useState<number | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  const { file, originalUri, modifiedUri, language, isBinary, diffType, originalRef } = slotStore;
+  const { file, originalUri, modifiedUri, language, isBinary, diffType, originalRef, modifiedRef } =
+    slotStore;
 
   // Register/unregister models whenever URIs change (group switch, file change at slot).
   // Runs even when file is null; isBinary guard inside skips registration cleanly.
@@ -165,11 +167,20 @@ const StackedFileSlot = observer(function StackedFileSlot({
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
         .catch(() => {});
     } else if (diffType === 'git' || diffType === 'pr') {
+      const effectiveModifiedRef = diffType === 'pr' ? modifiedRef : HEAD_REF;
       void modelRegistry
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
         .catch(() => {});
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'git', HEAD_REF)
+        .registerModel(
+          projectId,
+          workspaceId,
+          root,
+          file.path,
+          language,
+          'git',
+          effectiveModifiedRef
+        )
         .catch(() => {});
     } else {
       const diskUri = modelRegistry.toDiskUri(modifiedUri);
@@ -210,7 +221,17 @@ const StackedFileSlot = observer(function StackedFileSlot({
         modelRegistry.unregisterModel(modelRegistry.toDiskUri(modifiedUri));
       }
     };
-  }, [isBinary, originalUri, modifiedUri, language, diffType, originalRef, file, slotStore]);
+  }, [
+    isBinary,
+    originalUri,
+    modifiedUri,
+    language,
+    diffType,
+    originalRef,
+    modifiedRef,
+    file,
+    slotStore,
+  ]);
 
   if (!file) return null;
 

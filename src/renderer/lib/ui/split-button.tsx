@@ -80,7 +80,7 @@ export function SplitButton({
             <Button
               variant={variant}
               size={size}
-              className={cn('rounded-l-none border-l border-current/20', px)}
+              className={cn('rounded-l-none border-l', px)}
               disabled={isDisabled}
             />
           }

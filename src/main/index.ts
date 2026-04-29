@@ -12,11 +12,11 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
+import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
-import { prService } from './core/pull-requests/pr-service';
+import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import { appSettingsService } from './core/settings/settings-service';
-import { onPrUpserted } from './core/task-status/pr-task-bridge';
 import { updateService } from './core/updates/update-service';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
@@ -31,6 +31,7 @@ if (process.platform === 'linux') {
 registerAppScheme();
 
 app.setName(PRODUCT_NAME);
+app.setPath('userData', join(app.getPath('appData'), 'emdash'));
 
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0];
@@ -68,7 +69,6 @@ app.whenReady().then(async () => {
 
   try {
     await initializeDatabase();
-    prService.registerUpsertHook(onPrUpserted);
     const BUFFER_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
     editorBufferService.pruneStale(BUFFER_STALE_MS).catch((e) => {
       log.warn('Failed to prune stale editor buffers:', e);
@@ -89,6 +89,8 @@ app.whenReady().then(async () => {
     log.warn('telemetry init failed:', e);
   }
 
+  gitWatcherRegistry.initialize();
+  prSyncScheduler.initialize();
   appService.initialize();
   appSettingsService.initialize();
 

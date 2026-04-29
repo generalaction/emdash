@@ -14,7 +14,7 @@ import {
   type DiffMode,
   type DiffResult,
   type FetchError,
-  type FetchPrRefError,
+  type FetchPrForReviewError,
   type FullGitStatus,
   type GitChange,
   type GitHeadState,
@@ -29,16 +29,18 @@ import {
   type SoftResetError,
 } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
+import { ownerFromUrl } from '@shared/pull-requests';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE, type ExecFn } from '@main/core/utils/exec';
-import { GitProvider } from '../types';
+import { type GitProvider } from '../types';
 import { CatFileBatch } from './cat-file-batch';
 import {
   computeBaseRef,
   mapStatus,
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_OUTPUT_BYTES,
+  MAX_REF_LIST_BYTES,
   parseDiffLines,
   stripTrailingNewline,
 } from './git-utils';
@@ -198,7 +200,6 @@ export class GitService implements GitProvider {
           status,
           additions: ns?.additions ?? 0,
           deletions: ns?.deletions ?? 0,
-          isStaged: true,
         });
       }
 
@@ -225,7 +226,6 @@ export class GitService implements GitProvider {
         status,
         additions,
         deletions,
-        isStaged: false,
       });
     }
 
@@ -250,7 +250,6 @@ export class GitService implements GitProvider {
             status: c.status,
             additions: prev.additions + c.additions,
             deletions: prev.deletions + c.deletions,
-            isStaged: true,
           });
         } else {
           byPath.set(c.path, c);
@@ -615,11 +614,21 @@ export class GitService implements GitProvider {
     skip?: number;
     knownAheadCount?: number;
     preferredRemote?: string;
-    /** When provided, compute aheadCount as `base..HEAD` instead of `@{upstream}..HEAD`. */
+    /**
+     * When provided, compute aheadCount as `base..<head|HEAD>` instead of
+     * `@{upstream}..HEAD`. Use an immutable commit SHA for merged PRs so the
+     * count remains stable after the remote base branch moves forward.
+     */
     base?: GitObjectRef;
+    /**
+     * When provided, anchor the log and aheadCount range to this ref instead
+     * of the live HEAD. Pass `commitRef(pr.headRefOid)` for merged PRs.
+     */
+    head?: GitObjectRef;
   }): Promise<{ commits: Commit[]; aheadCount: number }> {
-    const { maxCount = 50, skip = 0, knownAheadCount, preferredRemote, base } = options ?? {};
+    const { maxCount = 50, skip = 0, knownAheadCount, preferredRemote, base, head } = options ?? {};
     const remote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
+    const headStr = head ? toRefString(head) : 'HEAD';
 
     let aheadCount = knownAheadCount ?? -1;
     if (aheadCount < 0) {
@@ -630,7 +639,7 @@ export class GitService implements GitProvider {
         try {
           const { stdout } = await this.exec(
             'git',
-            ['rev-list', '--count', `${toRefString(base)}..HEAD`],
+            ['rev-list', '--count', `${toRefString(base)}..${headStr}`],
             { cwd: this.path }
           );
           aheadCount = Number.parseInt(stdout.trim(), 10) || 0;
@@ -682,9 +691,19 @@ export class GitService implements GitProvider {
     const FIELD_SEP = '---FIELD_SEP---';
     const RECORD_SEP = '---RECORD_SEP---';
     const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%b`;
+    // When base is provided (PR view), use a range so only commits between
+    // base and head are returned — not a raw linear walk from head.
+    const rangeArg = base ? `${toRefString(base)}..${headStr}` : headStr;
     const { stdout } = await this.exec(
       'git',
-      ['log', `--max-count=${maxCount}`, `--skip=${skip}`, `--pretty=format:${format}`, '--'],
+      [
+        'log',
+        `--max-count=${maxCount}`,
+        `--skip=${skip}`,
+        `--pretty=format:${format}`,
+        rangeArg,
+        '--',
+      ],
       { cwd: this.path }
     );
 
@@ -773,7 +792,6 @@ export class GitService implements GitProvider {
         status: mapStatus(code),
         additions: stat?.additions ?? 0,
         deletions: stat?.deletions ?? 0,
-        isStaged,
       });
     }
 
@@ -876,6 +894,7 @@ export class GitService implements GitProvider {
 
       await this.exec('git', selectedRemote ? ['fetch', selectedRemote] : ['fetch'], {
         cwd: this.path,
+        maxBuffer: MAX_REF_LIST_BYTES,
       });
       return ok();
     } catch (error: unknown) {
@@ -1195,7 +1214,7 @@ export class GitService implements GitProvider {
     const { stdout } = await this.exec(
       'git',
       ['branch', '-a', '--format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(refname)'],
-      { cwd: this.path }
+      { cwd: this.path, maxBuffer: MAX_REF_LIST_BYTES }
     );
 
     const branches: Branch[] = [];
@@ -1329,7 +1348,10 @@ export class GitService implements GitProvider {
     remote = 'origin'
   ): Promise<Result<void, CreateBranchError>> {
     if (syncWithRemote) {
-      await this.exec('git', ['fetch', remote], { cwd: this.path }).catch(() => {});
+      await this.exec('git', ['fetch', remote], {
+        cwd: this.path,
+        maxBuffer: MAX_REF_LIST_BYTES,
+      }).catch(() => {});
     }
     const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
     try {
@@ -1358,20 +1380,66 @@ export class GitService implements GitProvider {
     }
   }
 
-  async fetchPrRef(
+  async fetchPrForReview(
     prNumber: number,
-    localBranchName: string,
-    remote = 'origin'
-  ): Promise<Result<void, FetchPrRefError>> {
+    headRefName: string,
+    headRepositoryUrl: string,
+    localBranch: string,
+    isFork: boolean,
+    configuredRemote = 'origin'
+  ): Promise<Result<void, FetchPrForReviewError>> {
     try {
-      await this.exec(
-        'git',
-        ['fetch', remote, `refs/pull/${prNumber}/head:refs/heads/${localBranchName}`],
-        { cwd: this.path }
-      );
+      if (isFork) {
+        const forkRemote = ownerFromUrl(headRepositoryUrl) ?? 'fork';
+        // Idempotently ensure remote exists with the correct URL
+        const remotes = await this.exec('git', ['remote'], { cwd: this.path }).catch(() => ({
+          stdout: '',
+        }));
+        const names = remotes.stdout
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (!names.includes(forkRemote)) {
+          await this.exec('git', ['remote', 'add', forkRemote, headRepositoryUrl], {
+            cwd: this.path,
+          });
+        } else {
+          await this.exec('git', ['remote', 'set-url', forkRemote, headRepositoryUrl], {
+            cwd: this.path,
+          }).catch(() => {});
+        }
+        await this.exec(
+          'git',
+          ['fetch', forkRemote, `${headRefName}:refs/heads/${localBranch}`, '--force'],
+          { cwd: this.path }
+        );
+        // Set tracking so `git push` targets the contributor's fork branch
+        await this.exec(
+          'git',
+          ['branch', `--set-upstream-to=${forkRemote}/${headRefName}`, localBranch],
+          { cwd: this.path }
+        ).catch(() => {});
+      } else {
+        // Same-repo: GitHub always exposes refs/pull/{N}/head on origin
+        await this.exec(
+          'git',
+          [
+            'fetch',
+            configuredRemote,
+            `refs/pull/${prNumber}/head:refs/heads/${localBranch}`,
+            '--force',
+          ],
+          { cwd: this.path }
+        );
+        await this.exec(
+          'git',
+          ['branch', `--set-upstream-to=${configuredRemote}/${headRefName}`, localBranch],
+          { cwd: this.path }
+        ).catch(() => {});
+      }
       return ok();
     } catch (error: unknown) {
-      const stderr = (error as { stderr?: string })?.stderr || String(error);
+      const stderr = (error as { stderr?: string })?.stderr ?? String(error);
       if (
         stderr.includes('not found') ||
         stderr.includes("couldn't find remote ref") ||

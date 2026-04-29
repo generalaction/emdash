@@ -4,13 +4,13 @@ import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { cn } from '@renderer/utils/utils';
 
-const LEFT_PANEL_DEFAULT_SIZE = 20;
-const RIGHT_PANEL_DEFAULT_SIZE = 25;
-const LEFT_SIDEBAR_MIN_SIZE = 16;
-const LEFT_SIDEBAR_MAX_SIZE = 30;
-const MAIN_PANEL_MIN_SIZE = 30;
-const RIGHT_SIDEBAR_MIN_SIZE = 23;
-const RIGHT_SIDEBAR_MAX_SIZE = 50;
+const LEFT_PANEL_DEFAULT_SIZE = '20%';
+const RIGHT_PANEL_DEFAULT_SIZE = '25%';
+const LEFT_SIDEBAR_MIN_SIZE = '16%';
+const LEFT_SIDEBAR_MAX_SIZE = '30%';
+const MAIN_PANEL_MIN_SIZE = '30%';
+const RIGHT_SIDEBAR_MIN_SIZE = '250px';
+const RIGHT_SIDEBAR_MAX_SIZE = '50%';
 
 interface WorkspaceLayoutProps {
   leftSidebar: ReactNode;
@@ -114,9 +114,9 @@ export function WorkspaceContentLayout({
             <ResizablePanel
               id="workspace-inner-right"
               panelRef={rightPanelRef}
-              defaultSize={`${RIGHT_PANEL_DEFAULT_SIZE}%`}
-              minSize={`${RIGHT_SIDEBAR_MIN_SIZE}%`}
-              maxSize={`${RIGHT_SIDEBAR_MAX_SIZE}%`}
+              defaultSize={RIGHT_PANEL_DEFAULT_SIZE}
+              minSize={RIGHT_SIDEBAR_MIN_SIZE}
+              maxSize={RIGHT_SIDEBAR_MAX_SIZE}
               collapsedSize="0%"
               onResize={() => setIsRightOpen(!rightPanelRef.current?.isCollapsed())}
               collapsible

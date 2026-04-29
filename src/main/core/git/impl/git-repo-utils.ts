@@ -83,30 +83,3 @@ export async function initializeNewProject(
     }
   }
 }
-
-// ---------------------------------------------------------------------------
-// ensurePullRequestBranch
-// ---------------------------------------------------------------------------
-
-/**
- * Fetch a pull request head ref into a local branch.
- *
- * Runs:
- *   git fetch origin refs/pull/{prNumber}/head:refs/heads/{safeBranch} --force
- */
-export async function ensurePullRequestBranch(
-  projectPath: string,
-  prNumber: number,
-  branchName: string,
-  exec: ExecFn
-): Promise<string> {
-  const safeBranch = branchName || `pr/${prNumber}`;
-
-  await exec(
-    'git',
-    ['fetch', 'origin', `refs/pull/${prNumber}/head:refs/heads/${safeBranch}`, '--force'],
-    { cwd: projectPath }
-  );
-
-  return safeBranch;
-}

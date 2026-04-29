@@ -9,7 +9,8 @@ import { StagedSection } from './staged-section';
 import { UnstagedSection } from './unstaged-section';
 
 export const ChangesPanel = observer(function ChangesPanel() {
-  const changesView = useProvisionedTask().taskView.diffView.changesView;
+  const provisioned = useProvisionedTask();
+  const changesView = provisioned.taskView.diffView.changesView;
 
   const {
     expanded,
@@ -21,6 +22,8 @@ export const ChangesPanel = observer(function ChangesPanel() {
     prRef,
     spacerRef,
   } = usePanelLayout(changesView);
+
+  if (!provisioned.workspace.git.hasData) return null;
 
   return (
     <div className="flex h-full flex-col">

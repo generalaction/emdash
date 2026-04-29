@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Issue } from '@shared/tasks';
 import {
+  buildDraftCommentsContextAction,
   buildLinkedIssueContextAction,
   buildReviewPromptContextAction,
   buildTaskContextActions,
@@ -32,7 +33,6 @@ describe('buildLinkedIssueContextAction', () => {
 
     expect(action).not.toBeNull();
     expect(action?.id).toBe('linked-issue:github:EMD-123');
-    expect(action?.behavior).toBe('inject');
     expect(action?.provider).toBe('github');
     expect(action?.label).toContain('EMD-123');
     expect(action?.label).toContain('Fix task context');
@@ -69,24 +69,61 @@ describe('buildReviewPromptContextAction', () => {
     expect(buildReviewPromptContextAction('   ')).toBeNull();
   });
 
-  it('builds send action for review prompt', () => {
+  it('builds review prompt action', () => {
     const action = buildReviewPromptContextAction('Review this worktree for issues.');
     expect(action).not.toBeNull();
     expect(action).toMatchObject({
       id: 'review-prompt',
       kind: 'review-prompt',
-      behavior: 'send',
       label: 'Review prompt',
       text: 'Review this worktree for issues.',
     });
   });
 });
 
+describe('buildDraftCommentsContextAction', () => {
+  it('returns null when there are no comments', () => {
+    expect(
+      buildDraftCommentsContextAction({
+        count: 0,
+        formattedComments: '<user_comments>...</user_comments>',
+      })
+    ).toBeNull();
+  });
+
+  it('returns null when formatted comments are empty', () => {
+    expect(
+      buildDraftCommentsContextAction({
+        count: 2,
+        formattedComments: '   ',
+      })
+    ).toBeNull();
+  });
+
+  it('builds an action with count label', () => {
+    const action = buildDraftCommentsContextAction({
+      count: 2,
+      formattedComments: '<user_comments>test</user_comments>',
+    });
+
+    expect(action).toEqual({
+      id: 'draft-comments',
+      kind: 'draft-comments',
+      label: 'Comments (2)',
+      text: '<user_comments>test</user_comments>',
+    });
+  });
+});
+
 describe('buildTaskContextActions', () => {
-  it('includes linked issue context first, then review prompt', () => {
-    const actions = buildTaskContextActions(makeIssue(), 'Review this worktree for issues.');
-    expect(actions).toHaveLength(2);
+  it('includes linked issue context, then draft comments, then review prompt', () => {
+    const actions = buildTaskContextActions(makeIssue(), 'Review this worktree for issues.', {
+      count: 1,
+      formattedComments: '<user_comments>test</user_comments>',
+    });
+    expect(actions).toHaveLength(3);
     expect(actions[0]?.id).toBe('linked-issue:github:EMD-123');
-    expect(actions[1]?.id).toBe('review-prompt');
+    expect(actions[1]?.id).toBe('draft-comments');
+    expect(actions[2]?.id).toBe('review-prompt');
   });
 });

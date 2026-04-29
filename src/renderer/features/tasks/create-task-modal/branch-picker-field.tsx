@@ -1,4 +1,5 @@
 import { ChevronDown, GitBranch } from 'lucide-react';
+import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -29,19 +30,7 @@ export function BranchPickerField({
   return (
     <div className={cn('border border-border rounded-md overflow-hidden', className)}>
       {!createBranchAndWorktree && currentBranch ? (
-        <div className="flex w-full items-center gap-2 justify-between p-2 opacity-60 cursor-not-allowed">
-          <div className="flex flex-col text-left text-sm gap-0.5">
-            <span className="text-foreground-passive text-xs">{label}</span>
-            <span className="flex items-center gap-1">
-              <GitBranch
-                absoluteStrokeWidth
-                strokeWidth={2}
-                className="size-3.5 shrink-0 text-foreground-muted"
-              />
-              <span>{currentBranch}</span>
-            </span>
-          </div>
-        </div>
+        <BranchDisplay label={label} branchName={currentBranch} />
       ) : projectId ? (
         <ProjectBranchSelector
           projectId={projectId}

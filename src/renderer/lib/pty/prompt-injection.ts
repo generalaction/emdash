@@ -1,5 +1,3 @@
-export const INJECT_ENTER_DELAY_MS = 50;
-
 export function buildPromptInjectionPayload(args: {
   providerId: string | undefined;
   text: string;
@@ -19,10 +17,6 @@ type InjectPromptArgs = {
   sendInput: SendInput;
 };
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export async function pastePromptInjection(args: InjectPromptArgs): Promise<void> {
   const payload = buildPromptInjectionPayload({
     providerId: args.providerId,
@@ -30,10 +24,4 @@ export async function pastePromptInjection(args: InjectPromptArgs): Promise<void
   });
   if (!payload) return;
   await args.sendInput(payload);
-}
-
-export async function sendPromptInjection(args: InjectPromptArgs): Promise<void> {
-  await pastePromptInjection(args);
-  await sleep(INJECT_ENTER_DELAY_MS);
-  await args.sendInput('\r');
 }

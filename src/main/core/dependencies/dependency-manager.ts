@@ -1,20 +1,24 @@
-import os from 'node:os';
+import type {
+  DependencyCategory,
+  DependencyId,
+  DependencyInstallResult,
+  DependencyState,
+  DependencyStatus,
+} from '@shared/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
-import { spawnLocalPty } from '@main/core/pty/local-pty';
+import { err, ok } from '@shared/result';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { getLocalExec, getSshExec, type ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import {
+  createSshInstallCommandRunner,
+  runLocalInstallCommand,
+  type InstallCommandRunner,
+} from './install-runner';
 import { resolveCommandPath, runVersionProbe } from './probe';
 import { DEPENDENCIES, getDependencyDescriptor } from './registry';
-import type {
-  DependencyCategory,
-  DependencyDescriptor,
-  DependencyId,
-  DependencyState,
-  DependencyStatus,
-  ProbeResult,
-} from './types';
+import type { DependencyDescriptor, ProbeResult } from './types';
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 
@@ -73,10 +77,25 @@ export class DependencyManager {
   private state = new Map<DependencyId, DependencyState>();
   private readonly exec: ExecFn;
   private readonly emitEvents: boolean;
+  private readonly runInstallCommand: InstallCommandRunner;
+  private readonly connectionId: string | undefined;
 
-  constructor(exec: ExecFn, { emitEvents = true }: { emitEvents?: boolean } = {}) {
+  constructor(
+    exec: ExecFn,
+    {
+      emitEvents = true,
+      runInstallCommand = runLocalInstallCommand,
+      connectionId,
+    }: {
+      emitEvents?: boolean;
+      runInstallCommand?: InstallCommandRunner;
+      connectionId?: string;
+    } = {}
+  ) {
     this.exec = exec;
     this.emitEvents = emitEvents;
+    this.runInstallCommand = runInstallCommand;
+    this.connectionId = connectionId;
   }
 
   /**
@@ -161,53 +180,28 @@ export class DependencyManager {
    * Run the installCommand for a dependency, then re-probe to update state.
    * Returns the updated DependencyState after installation attempt.
    */
-  async install(id: DependencyId): Promise<DependencyState> {
+  async install(id: DependencyId): Promise<DependencyInstallResult> {
     const descriptor = getDependencyDescriptor(id);
     if (!descriptor) {
-      throw new Error(`Unknown dependency id: ${id}`);
+      return err({ type: 'unknown-dependency', id });
     }
     if (!descriptor.installCommand) {
-      throw new Error(`No install command for dependency: ${id}`);
+      return err({ type: 'no-install-command', id });
     }
 
     log.info(`[DependencyManager] Installing ${id}: ${descriptor.installCommand}`);
 
-    await this.runWithLocalPty(descriptor.installCommand);
+    const installResult = await this.runInstallCommand(descriptor.installCommand);
+    if (!installResult.success) {
+      return err(installResult.error);
+    }
 
-    return this.probe(id);
-  }
+    const state = await this.probe(id);
+    if (state.status !== 'available') {
+      return err({ type: 'not-detected-after-install', id });
+    }
 
-  private runWithLocalPty(command: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const shell = process.env.SHELL ?? '/bin/sh';
-      try {
-        const pty = spawnLocalPty({
-          id: `install:${crypto.randomUUID()}`,
-          command: shell,
-          args: ['-c', command],
-          cwd: os.homedir(),
-          env: process.env as Record<string, string>,
-          cols: 80,
-          rows: 24,
-        });
-
-        const chunks: string[] = [];
-        pty.onData((chunk: string) => chunks.push(chunk));
-        pty.onExit(({ exitCode }) => {
-          if (exitCode === 0) {
-            log.info(`[DependencyManager] Install succeeded`);
-            resolve();
-          } else {
-            const output = chunks.join('').trim();
-            log.error(`[DependencyManager] Install failed`, { exitCode, output });
-            reject(new Error(`Install failed (exit ${exitCode ?? '?'}): ${output}`));
-          }
-        });
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        reject(new Error(message));
-      }
-    });
+    return ok(state);
   }
 
   private async resolveFirstPath(descriptor: DependencyDescriptor): Promise<string | null> {
@@ -221,7 +215,11 @@ export class DependencyManager {
   private updateState(state: DependencyState): void {
     this.state.set(state.id, state);
     if (this.emitEvents) {
-      events.emit(dependencyStatusUpdatedChannel, { id: state.id, state });
+      events.emit(dependencyStatusUpdatedChannel, {
+        id: state.id,
+        state,
+        connectionId: this.connectionId,
+      });
     }
   }
 }
@@ -235,7 +233,11 @@ export async function getDependencyManager(connectionId?: string): Promise<Depen
   let mgr = sshManagers.get(connectionId);
   if (!mgr) {
     const proxy = await sshConnectionManager.connect(connectionId);
-    mgr = new DependencyManager(getSshExec(proxy), { emitEvents: false });
+    mgr = new DependencyManager(getSshExec(proxy), {
+      emitEvents: true,
+      runInstallCommand: createSshInstallCommandRunner(proxy),
+      connectionId,
+    });
     sshManagers.set(connectionId, mgr);
   }
   return mgr;

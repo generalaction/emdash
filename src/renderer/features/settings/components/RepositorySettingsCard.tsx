@@ -41,13 +41,12 @@ const RepositorySettingsCard: React.FC = () => {
             disabled={loading}
             className="flex-1"
           />
-          {isFieldOverridden('branchPrefix') && (
-            <ResetToDefaultButton
-              defaultLabel="emdash"
-              onReset={() => resetField('branchPrefix')}
-              disabled={loading || saving}
-            />
-          )}
+          <ResetToDefaultButton
+            visible={isFieldOverridden('branchPrefix')}
+            defaultLabel="emdash"
+            onReset={() => resetField('branchPrefix')}
+            disabled={loading || saving}
+          />
         </div>
         <div className="text-[11px] text-muted-foreground">
           Example: <code className="rounded bg-muted/60 px-1">{example}</code>
@@ -58,13 +57,12 @@ const RepositorySettingsCard: React.FC = () => {
         description="Push the new branch to the selected project remote and set upstream after creation."
         control={
           <>
-            {isFieldOverridden('pushOnCreate') && (
-              <ResetToDefaultButton
-                defaultLabel="on"
-                onReset={() => resetField('pushOnCreate')}
-                disabled={loading || saving}
-              />
-            )}
+            <ResetToDefaultButton
+              visible={isFieldOverridden('pushOnCreate')}
+              defaultLabel="on"
+              onReset={() => resetField('pushOnCreate')}
+              disabled={loading || saving}
+            />
             <Switch
               checked={pushOnCreate}
               onCheckedChange={(checked) => update({ pushOnCreate: checked })}
@@ -79,13 +77,12 @@ const RepositorySettingsCard: React.FC = () => {
         description="When Emdash writes CLI hook configs, also add their paths to .gitignore."
         control={
           <>
-            {isFieldOverridden('writeAgentConfigToGitIgnore') && (
-              <ResetToDefaultButton
-                defaultLabel="on"
-                onReset={() => resetField('writeAgentConfigToGitIgnore')}
-                disabled={loading || saving}
-              />
-            )}
+            <ResetToDefaultButton
+              visible={isFieldOverridden('writeAgentConfigToGitIgnore')}
+              defaultLabel="on"
+              onReset={() => resetField('writeAgentConfigToGitIgnore')}
+              disabled={loading || saving}
+            />
             <Switch
               checked={writeAgentConfigToGitIgnore}
               onCheckedChange={(checked) => update({ writeAgentConfigToGitIgnore: checked })}

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { PullRequest } from '@shared/pull-requests';
+import { type PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@renderer/lib/ui/input-group';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
@@ -14,7 +14,7 @@ export interface InlinePrSelectorProps {
   value: PullRequest | null;
   onValueChange: (pr: PullRequest | null) => void;
   projectId?: string;
-  nameWithOwner?: string;
+  repositoryUrl?: string;
   disabled?: boolean;
 }
 
@@ -23,7 +23,7 @@ function PrRow({ pr }: { pr: PullRequest }) {
     <div className="flex flex-col min-w-0 gap-0.5">
       <div className="flex items-center gap-1.5 min-w-0">
         <span className="font-mono text-xs text-foreground-muted shrink-0">
-          #{pr.metadata.number}
+          {pr.identifier ?? ''}
         </span>
         {pr.isDraft && (
           <span className="text-xs text-foreground-muted border border-border rounded px-1 shrink-0">
@@ -33,7 +33,7 @@ function PrRow({ pr }: { pr: PullRequest }) {
         <span className="truncate text-sm">{pr.title}</span>
       </div>
       <div className="flex items-center gap-1 text-xs text-foreground-muted">
-        <code className="text-xs">{pr.metadata.headRefName}</code>
+        <code className="text-xs">{pr.headRefName}</code>
         {pr.author && (
           <>
             <span>·</span>
@@ -49,15 +49,15 @@ export function InlinePrSelector({
   value,
   onValueChange,
   projectId,
-  nameWithOwner = '',
+  repositoryUrl = '',
   disabled,
 }: InlinePrSelectorProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
 
   const { data } = useQuery({
-    queryKey: ['pull-requests-inline', projectId, nameWithOwner, statusFilter],
+    queryKey: ['pull-requests-inline', projectId, repositoryUrl, statusFilter],
     queryFn: async () => {
-      const response = await rpc.pullRequests.listPullRequests(projectId!, nameWithOwner!, {
+      const response = await rpc.pullRequests.listPullRequests(projectId!, {
         limit: 50,
         offset: 0,
         filters: { status: statusFilter },
@@ -65,7 +65,7 @@ export function InlinePrSelector({
       if (!response?.success) throw new Error(response?.error ?? 'Failed to load pull requests');
       return (response.prs ?? []) as PullRequest[];
     },
-    enabled: !!projectId && !!nameWithOwner,
+    enabled: !!projectId && !!repositoryUrl,
     staleTime: 30_000,
   });
 
@@ -81,8 +81,8 @@ export function InlinePrSelector({
     return prs.filter(
       (pr) =>
         pr.title.toLowerCase().includes(lower) ||
-        pr.metadata.headRefName.toLowerCase().includes(lower) ||
-        String(pr.metadata.number).includes(lower)
+        pr.headRefName.toLowerCase().includes(lower) ||
+        (pr.identifier ?? '').toLowerCase().includes(lower)
     );
   }, [data, query]);
 
@@ -113,7 +113,7 @@ export function InlinePrSelector({
         case 'Enter': {
           e.preventDefault();
           const pr = filteredPrs[highlightedIndex];
-          if (pr) onValueChange(value?.id === pr.id ? null : pr);
+          if (pr) onValueChange(value?.url === pr.url ? null : pr);
           break;
         }
         case 'Escape':
@@ -182,11 +182,11 @@ export function InlinePrSelector({
           </div>
         ) : (
           filteredPrs.map((pr, index) => {
-            const isSelected = value?.id === pr.id;
+            const isSelected = value?.url === pr.url;
             const isHighlighted = index === highlightedIndex;
             return (
               <button
-                key={pr.id}
+                key={pr.url}
                 type="button"
                 className={cn(
                   'relative flex min-w-0 w-full cursor-default items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none select-none',

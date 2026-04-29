@@ -11,7 +11,6 @@ import { githubController } from './core/github/controller';
 import { gitlabController } from './core/gitlab/controller';
 import { issueController } from './core/issues/controller';
 import { jiraController } from './core/jira/controller';
-import { lineCommentsController } from './core/line-comments';
 import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
 import { plainController } from './core/plain/controller';
@@ -28,9 +27,11 @@ import { telemetryController } from './core/telemetry/controller';
 import { terminalsController } from './core/terminals/controller';
 import { updateController } from './core/updates/controller';
 import { viewStateController } from './core/view-state/controller';
+import { legacyPortController } from './db/legacy-port/controller';
 
 export const rpcRouter = createRPCRouter({
   account: accountController,
+  legacyPort: legacyPortController,
   app: appController,
   appSettings: appSettingsController,
   providerSettings: providerSettingsController,
@@ -45,7 +46,6 @@ export const rpcRouter = createRPCRouter({
   jira: jiraController,
   linear: linearController,
   plain: plainController,
-  lineComments: lineCommentsController,
   skills: skillsController,
   ssh: sshController,
   projects: projectController,

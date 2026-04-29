@@ -7,10 +7,10 @@ import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import { cn } from '@renderer/utils/utils';
+import { getTabbedPtySessionIds } from './tabbed-pty-panel-sessions';
 
 export interface TabbedPtyPanelProps<TEntity> {
   store: TabViewProvider<TEntity, never> | undefined;
-  getSessionId: (entity: TEntity) => string;
   getSession: (entity: TEntity) => PtySession;
   paneId: string;
   tabBar: React.ReactNode;
@@ -25,7 +25,6 @@ export interface TabbedPtyPanelProps<TEntity> {
 
 export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   store,
-  getSessionId,
   getSession,
   paneId,
   tabBar,
@@ -41,13 +40,13 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   const activeTab = store?.activeTab;
 
   const allSessionIds = useMemo(
-    () => tabs.map(getSessionId),
+    () => getTabbedPtySessionIds(tabs, getSession),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tabs, getSessionId]
+    [tabs, getSession]
   );
 
-  const activeSessionId = activeTab ? getSessionId(activeTab) : null;
   const activeSession = activeTab ? getSession(activeTab) : null;
+  const activeSessionId = activeSession?.sessionId ?? null;
   const activeOnEnterPress = activeTab && onEnterPress ? () => onEnterPress(activeTab) : undefined;
   const activeOnInterruptPress =
     activeTab && onInterruptPress ? () => onInterruptPress(activeTab) : undefined;

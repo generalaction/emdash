@@ -8,6 +8,7 @@ import {
   type FileSystemProvider,
 } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import { resolveRemoteHome } from '@main/core/ssh/utils';
 import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 
@@ -203,15 +204,6 @@ async function writeRemoteConfigAtomic(
     } catch {}
     throw error;
   }
-}
-
-async function resolveRemoteHome(exec: ExecFn): Promise<string> {
-  const { stdout } = await exec('sh', ['-c', 'printf %s "$HOME"']);
-  const home = stdout.trim();
-  if (!home) {
-    throw new Error('Remote home directory is empty');
-  }
-  return home;
 }
 
 function isNodeNotFound(error: unknown): boolean {

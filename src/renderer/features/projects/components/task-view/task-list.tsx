@@ -4,12 +4,12 @@ import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
+import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SearchInput } from '@renderer/lib/ui/search-input';
-import { Separator } from '@renderer/lib/ui/separator';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
@@ -95,29 +95,30 @@ function SelectionBar({
   if (count === 0) return null;
 
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-xl border border-border bg-popover px-3 py-2 shadow-lg">
-      <span className="text-sm text-muted-foreground whitespace-nowrap">{count} selected</span>
-      <Separator orientation="vertical" className="h-4" />
-      <Button variant="ghost" size="icon-sm" onClick={onClear} aria-label="Clear selection">
-        <X className="size-3.5" />
-      </Button>
-      {tab === 'active' && (
-        <Button variant="outline" size="sm" onClick={onArchive}>
-          <Archive className="size-3.5" />
-          Archive
+    <ListPopoverCard className="justify-between">
+      <span className="text-foreground-muted whitespace-nowrap">{count} selected</span>
+      <div className="flex items-center gap-2">
+        {tab === 'active' && (
+          <Button variant="outline" size="sm" onClick={onArchive}>
+            <Archive className="size-3.5" />
+            Archive
+          </Button>
+        )}
+        {tab === 'archived' && (
+          <Button variant="outline" size="sm" onClick={onRestore}>
+            <RotateCcw className="size-3.5" />
+            Restore
+          </Button>
+        )}
+        <Button variant="destructive" size="sm" onClick={onDelete}>
+          <Trash2 className="size-3.5" />
+          Delete
         </Button>
-      )}
-      {tab === 'archived' && (
-        <Button variant="outline" size="sm" onClick={onRestore}>
-          <RotateCcw className="size-3.5" />
-          Restore
+        <Button variant="ghost" size="icon-sm" onClick={onClear} aria-label="Clear selection">
+          <X className="size-3.5" />
         </Button>
-      )}
-      <Button variant="destructive" size="sm" onClick={onDelete}>
-        <Trash2 className="size-3.5" />
-        Delete
-      </Button>
-    </div>
+      </div>
+    </ListPopoverCard>
   );
 }
 
@@ -177,7 +178,7 @@ export const TaskList = observer(function TaskList() {
   };
 
   return (
-    <div className="flex flex-col max-w-3xl mx-auto w-full pt-6 px-6 min-h-0">
+    <div className="relative flex flex-col max-w-3xl mx-auto w-full h-full pt-6 px-6 min-h-0">
       <div className="flex flex-col gap-4 border-b border-border pb-3 shrink-0">
         <div className="flex items-center gap-2 flex-wrap justify-between">
           <ToggleGroup

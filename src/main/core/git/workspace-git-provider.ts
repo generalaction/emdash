@@ -54,6 +54,7 @@ export interface WorkspaceGitProvider {
     knownAheadCount?: number;
     preferredRemote?: string;
     base?: GitObjectRef;
+    head?: GitObjectRef;
   }): Promise<{ commits: Commit[]; aheadCount: number }>;
   getLatestCommit(): Promise<Commit | null>;
   getCommitFiles(commitHash: string): Promise<CommitFile[]>;

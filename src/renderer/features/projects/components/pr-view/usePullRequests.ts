@@ -11,6 +11,19 @@ import { rpc } from '@renderer/lib/ipc';
 
 const PAGE_SIZE = 50;
 
+export const prQueryKeys = {
+  list: (projectId: string, repositoryUrl: string) =>
+    ['pull-requests', projectId, repositoryUrl] as const,
+  listFull: (
+    projectId: string,
+    repositoryUrl: string,
+    filters?: PrFilters,
+    sort?: PrSortField,
+    searchQuery?: string
+  ) => ['pull-requests', projectId, repositoryUrl, filters, sort, searchQuery] as const,
+  filterOptions: (repositoryUrl: string) => ['pr-filter-options', repositoryUrl] as const,
+};
+
 export interface UsePullRequestsOptions {
   filters?: PrFilters;
   sort?: PrSortField;
@@ -20,14 +33,14 @@ export interface UsePullRequestsOptions {
 
 export function usePullRequests(
   projectId?: string,
-  nameWithOwner?: string,
+  repositoryUrl?: string,
   options: UsePullRequestsOptions = {}
 ) {
   const { filters, sort, searchQuery, enabled = true } = options;
   const queryClient = useQueryClient();
 
   const query = useInfiniteQuery({
-    queryKey: ['pull-requests', projectId, nameWithOwner, filters, sort, searchQuery],
+    queryKey: prQueryKeys.listFull(projectId!, repositoryUrl!, filters, sort, searchQuery),
     queryFn: async ({ pageParam }: { pageParam: number }) => {
       const listOptions: ListPrOptions = {
         limit: PAGE_SIZE,
@@ -35,44 +48,38 @@ export function usePullRequests(
         filters,
         sort,
         searchQuery,
+        repositoryUrl,
       };
-      const response = await rpc.pullRequests.listPullRequests(
-        projectId!,
-        nameWithOwner!,
-        listOptions
-      );
+      const response = await rpc.pullRequests.listPullRequests(projectId!, listOptions);
       if (!response?.success) {
         throw new Error(response?.error || 'Failed to load pull requests');
       }
       const prs = (response.prs ?? []) as PullRequest[];
-      const syncing = !!(response as { syncing?: boolean }).syncing;
       return {
         prs,
-        syncing,
         nextOffset: prs.length === PAGE_SIZE ? pageParam + PAGE_SIZE : undefined,
       };
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage.nextOffset,
-    enabled: !!projectId && !!nameWithOwner && enabled,
-    staleTime: 10 * 60_000,
-    refetchInterval: (query) => (query.state.data?.pages[0]?.syncing ? 2_000 : false),
+    enabled: !!projectId && !!repositoryUrl && enabled,
+    staleTime: 0,
   });
 
   const prs = query.data?.pages.flatMap((p) => p.prs) ?? [];
-  const syncing = query.data?.pages[0]?.syncing ?? false;
 
   const refresh = useCallback(async () => {
-    if (!projectId || !nameWithOwner) return;
-    await rpc.pullRequests.syncPullRequests(projectId, nameWithOwner);
-    await queryClient.resetQueries({ queryKey: ['pull-requests', projectId, nameWithOwner] });
-    await queryClient.invalidateQueries({ queryKey: ['pr-filter-options', nameWithOwner] });
-  }, [queryClient, projectId, nameWithOwner]);
+    if (!projectId || !repositoryUrl) return;
+    await rpc.pullRequests.syncPullRequests(projectId);
+    await queryClient.invalidateQueries({ queryKey: prQueryKeys.list(projectId, repositoryUrl) });
+    await queryClient.invalidateQueries({
+      queryKey: prQueryKeys.filterOptions(repositoryUrl),
+    });
+  }, [queryClient, projectId, repositoryUrl]);
 
   return {
     prs,
     loading: query.isLoading,
-    syncing,
     dataUpdatedAt: query.dataUpdatedAt,
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage,
@@ -86,11 +93,11 @@ export function usePullRequests(
   };
 }
 
-export function useFilterOptions(projectId?: string, nameWithOwner?: string) {
+export function useFilterOptions(projectId?: string, repositoryUrl?: string) {
   return useQuery<PrFilterOptions>({
-    queryKey: ['pr-filter-options', nameWithOwner],
+    queryKey: prQueryKeys.filterOptions(repositoryUrl!),
     queryFn: async () => {
-      const response = await rpc.pullRequests.getFilterOptions(nameWithOwner!);
+      const response = await rpc.pullRequests.getFilterOptions(projectId!);
       if (!response?.success) {
         throw new Error(response?.error || 'Failed to load filter options');
       }
@@ -101,7 +108,7 @@ export function useFilterOptions(projectId?: string, nameWithOwner?: string) {
       };
       return { authors, labels, assignees };
     },
-    enabled: !!nameWithOwner,
+    enabled: !!repositoryUrl,
     staleTime: 60_000,
   });
 }

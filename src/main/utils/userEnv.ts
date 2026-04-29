@@ -1,5 +1,9 @@
 import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { log } from '@main/lib/logger';
+import { getWindowsEnvValue, prependWindowsPathEntry } from './windows-env';
 
 /**
  * Keys that must never be overwritten from the shell env capture.
@@ -26,6 +30,16 @@ const PRESERVE_KEYS = new Set([
   'NODE_ENV',
 ]);
 
+const USER_BIN_DIRS = [path.join(os.homedir(), '.local', 'bin')];
+
+function pathEntryExists(entry: string): boolean {
+  try {
+    return fs.statSync(entry).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function parseEnvOutput(raw: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const line of raw.split('\n')) {
@@ -51,10 +65,33 @@ function mergePath(shellPath: string, currentPath: string): string {
   return [...shellEntries, ...extra].join(sep);
 }
 
+export function ensureUserBinDirsInPath(candidates: string[] = USER_BIN_DIRS): string[] {
+  const currentPath = process.env.PATH ?? '';
+  const entries = currentPath.split(path.delimiter).filter(Boolean);
+  const existing = new Set(entries);
+  const additions = candidates.filter(
+    (candidate) => pathEntryExists(candidate) && !existing.has(candidate)
+  );
+
+  if (additions.length === 0) {
+    return [];
+  }
+
+  process.env.PATH = [...additions, ...entries].join(path.delimiter);
+  return additions;
+}
+
+export function ensureWindowsNpmGlobalBinInPath(
+  env: NodeJS.ProcessEnv = process.env
+): string | null {
+  const appData = getWindowsEnvValue(env, 'APPDATA');
+  if (!appData) return null;
+
+  const npmPath = path.win32.join(appData, 'npm');
+  return prependWindowsPathEntry(env, npmPath) ? npmPath : null;
+}
+
 /**
- * Resolves the user's full login-shell environment once at startup and merges
- * it into `process.env`.
- *
  * Spawns `$SHELL -ilc 'env'` with a 5 s timeout. On any error (timeout,
  * missing shell, restricted environment) the function logs a warning and
  * returns — the app continues with whatever `process.env` already contains.
@@ -66,6 +103,7 @@ function mergePath(shellPath: string, currentPath: string): string {
 export async function resolveUserEnv(): Promise<void> {
   if (process.platform === 'win32') {
     // Windows PATH is managed differently; no login-shell capture needed.
+    ensureWindowsNpmGlobalBinInPath();
     return;
   }
 
