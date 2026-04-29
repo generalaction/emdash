@@ -1,11 +1,12 @@
+import type { ProvisionStep } from '@shared/events/taskEvents';
 import { TimeoutSignal } from '../projects/utils';
 import type { ServeWorktreeError } from '../projects/worktrees/worktree-service';
 
-export const TASK_TIMEOUT_MS = 600000;
+export const TASK_TIMEOUT_MS = 600_000;
 export const TEARDOWN_SCRIPT_WAIT_MS = 10_000;
 
 export type ProvisionTaskError =
-  | { type: 'timeout'; message: string; timeout: number }
+  | { type: 'timeout'; message: string; timeout: number; step: ProvisionStep | null }
   | { type: 'branch-not-found'; branch: string }
   | { type: 'worktree-setup-failed'; branch: string; message?: string }
   | { type: 'error'; message: string };
@@ -14,9 +15,13 @@ export type TeardownTaskError =
   | { type: 'timeout'; message: string; timeout: number }
   | { type: 'error'; message: string };
 
-export function toProvisionError(e: unknown): ProvisionTaskError {
+export function toProvisionError(
+  e: unknown,
+  step: ProvisionStep | null = null
+): ProvisionTaskError {
   if (isProvisionTaskError(e)) return e;
-  if (e instanceof TimeoutSignal) return { type: 'timeout', message: e.message, timeout: e.ms };
+  if (e instanceof TimeoutSignal)
+    return { type: 'timeout', message: e.message, timeout: e.ms, step };
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
@@ -55,6 +60,7 @@ export function isProvisionTaskError(e: unknown): e is ProvisionTaskError {
 export function formatProvisionTaskError(error: ProvisionTaskError): string {
   switch (error.type) {
     case 'timeout':
+      return error.step ? `${error.message} (step: ${error.step})` : error.message;
     case 'error':
       return error.message;
     case 'branch-not-found':
