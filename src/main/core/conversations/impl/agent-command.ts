@@ -1,18 +1,19 @@
 import path from 'node:path';
-import { type AgentProviderId, getProvider } from '@shared/agent-provider-registry';
+import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { ExecFn } from '@main/core/utils/exec';
 import { quoteShellArg } from '@main/utils/shellEscape';
 
 export function splitShellWords(input: string | undefined): string[] {
-  if (!input?.trim()) return [];
+  const trimmed = input?.trim();
+  if (!trimmed) return [];
 
   const words: string[] = [];
   let current = '';
   let quote: 'single' | 'double' | null = null;
 
-  for (let i = 0; i < input.trim().length; i++) {
-    const char = input.trim()[i];
+  for (let i = 0; i < trimmed.length; i++) {
+    const char = trimmed[i];
 
     if (char === "'" && quote !== 'double') {
       quote = quote === 'single' ? null : 'single';
@@ -25,7 +26,7 @@ export function splitShellWords(input: string | undefined): string[] {
     }
 
     if (char === '\\' && quote !== 'single') {
-      const next = input.trim()[i + 1];
+      const next = trimmed[i + 1];
       if (!next) {
         current += char;
       } else if (
@@ -59,6 +60,8 @@ export function splitShellWords(input: string | undefined): string[] {
   return words;
 }
 
+const compilerResolutionCache = new Map<string, Promise<string>>();
+
 async function maybeAvoidSystemCCompiler({
   providerId,
   cli,
@@ -72,19 +75,29 @@ async function maybeAvoidSystemCCompiler({
 }): Promise<string> {
   if (providerId !== 'claude' || !fallbackCli || cli === fallbackCli || !exec) return cli;
 
-  try {
-    const result = await exec('bash', ['-lc', `command -v -- ${quoteShellArg(cli)}`], {
-      timeout: 2000,
-      maxBuffer: 2048,
-    });
-    const resolved = result.stdout.trim().split(/\r?\n/)[0];
-    const basename = path.basename(resolved);
-    if (basename === 'cc' || basename === 'clang' || basename === 'gcc') return fallbackCli;
-  } catch {
-    // If resolution fails, keep the user's custom command and let the shell report the real error.
-  }
+  // Login-shell `command -v` is slow on macOS (sources zprofile/nvm/etc).
+  // The result is static for a given (providerId, cli, fallbackCli) within a process.
+  const key = `${providerId}|${cli}|${fallbackCli}`;
+  const cached = compilerResolutionCache.get(key);
+  if (cached) return cached;
 
-  return cli;
+  const pending = (async () => {
+    try {
+      const result = await exec('bash', ['-lc', `command -v -- ${quoteShellArg(cli)}`], {
+        timeout: 2000,
+        maxBuffer: 2048,
+      });
+      const resolved = result.stdout.trim().split(/\r?\n/)[0];
+      const basename = path.basename(resolved);
+      if (basename === 'cc' || basename === 'clang' || basename === 'gcc') return fallbackCli;
+    } catch {
+      // If resolution fails, keep the user's custom command and let the shell report the real error.
+    }
+    return cli;
+  })();
+
+  compilerResolutionCache.set(key, pending);
+  return pending;
 }
 
 export async function buildAgentCommand({
@@ -105,7 +118,9 @@ export async function buildAgentCommand({
   const providerConfig = await providerOverrideSettings.getItem(providerId);
   const providerDef = getProvider(providerId);
 
-  const [configuredCli = providerDef?.cli, ...cliArgs] = splitShellWords(providerConfig?.cli);
+  const cliTokens = splitShellWords(providerConfig?.cli);
+  const configuredCli = cliTokens[0] ?? providerDef?.cli;
+  const cliArgs = cliTokens.slice(1);
   if (!configuredCli) throw new Error(`No CLI configured for provider: ${providerId}`);
 
   const cli = await maybeAvoidSystemCCompiler({

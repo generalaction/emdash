@@ -61,7 +61,7 @@ describe('buildAgentCommand', () => {
     });
   });
 
-  it('keeps custom Claude command names generic when they do not resolve to the system compiler', async () => {
+  it('keeps the custom cli when resolution fails', async () => {
     getItem.mockResolvedValue({
       cli: 'c --already-configured',
       autoApproveFlag: '--dangerously-skip-permissions',
@@ -80,6 +80,28 @@ describe('buildAgentCommand', () => {
     ).resolves.toEqual({
       command: 'c',
       args: ['--already-configured', '--session-id', 'session-1', '--dangerously-skip-permissions'],
+    });
+  });
+
+  it('keeps the custom cli when it resolves to a non-compiler binary', async () => {
+    getItem.mockResolvedValue({
+      cli: 'my-claude',
+      autoApproveFlag: '--dangerously-skip-permissions',
+      sessionIdFlag: '--session-id',
+      initialPromptFlag: '',
+    });
+    const exec = vi.fn().mockResolvedValue({ stdout: '/opt/homebrew/bin/my-claude\n', stderr: '' });
+
+    await expect(
+      buildAgentCommand({
+        providerId: 'claude',
+        autoApprove: true,
+        sessionId: 'session-1',
+        exec,
+      })
+    ).resolves.toEqual({
+      command: 'my-claude',
+      args: ['--session-id', 'session-1', '--dangerously-skip-permissions'],
     });
   });
 
