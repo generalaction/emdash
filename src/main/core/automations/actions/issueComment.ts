@@ -5,14 +5,15 @@ import { jiraPostJson, plainTextToAdf } from '@main/core/jira/jira-http';
 import { linearConnectionService } from '@main/core/linear/linear-connection-service';
 import { plainConnectionService } from '@main/core/plain/plain-connection-service';
 import { postScmComment } from './scm-comment';
-import { applyTemplate } from './template';
+import { applyAutomationTemplate, eventIssueRef } from './template';
 import type { ActionExecutor, ActionOutcome } from './types';
 
 export const executeIssueComment: ActionExecutor<IssueCommentAction> = async (action, ctx) => {
-  const body = applyTemplate(action.body, ctx.event);
+  const body = applyAutomationTemplate(action.body, ctx.event);
   if (!body.trim()) return err('issue_comment_body_empty');
 
-  const ref = applyTemplate(action.issueRef, ctx.event).trim();
+  const ref =
+    applyAutomationTemplate(action.issueRef, ctx.event).trim() || eventIssueRef(ctx.event) || '';
   if (!ref) return err('issue_comment_ref_empty');
 
   try {

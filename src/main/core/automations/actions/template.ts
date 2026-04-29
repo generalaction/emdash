@@ -1,29 +1,53 @@
 import type { AutomationEvent } from '@shared/automations/events';
 
-const PLACEHOLDER_RE = /\{\{\s*([\w.]+)\s*\}\}/g;
+const TEMPLATE_RE = /{{\s*([^{}]+?)\s*}}/g;
+const MAX_VALUE_LENGTH = 4_000;
 
-function lookupPath(source: Record<string, unknown>, path: string): unknown {
-  let cursor: unknown = source;
-  for (const segment of path.split('.')) {
-    if (cursor === null || cursor === undefined) return undefined;
-    if (typeof cursor !== 'object') return undefined;
-    cursor = (cursor as Record<string, unknown>)[segment];
-  }
-  return cursor;
+function getPathValue(source: unknown, path: string): unknown {
+  return path.split('.').reduce<unknown>((value, segment) => {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value !== 'object') return undefined;
+    return (value as Record<string, unknown>)[segment];
+  }, source);
 }
 
-function stringify(value: unknown): string {
-  if (value === undefined || value === null) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return JSON.stringify(value);
+function stringifyTemplateValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const rendered = Array.isArray(value) ? value.join(', ') : String(value);
+  return rendered.length > MAX_VALUE_LENGTH ? `${rendered.slice(0, MAX_VALUE_LENGTH)}…` : rendered;
 }
 
-export function applyTemplate(template: string, event: AutomationEvent | null): string {
-  if (!event) return template;
-  const root: Record<string, unknown> = { event };
-  return template.replace(PLACEHOLDER_RE, (match, path) => {
-    const value = lookupPath(root, path);
-    return value === undefined ? match : stringify(value);
+export function applyAutomationTemplate(input: string, event: AutomationEvent | null): string {
+  if (!event || !input.includes('{{')) return input;
+  return input.replace(TEMPLATE_RE, (match, expression: string) => {
+    const path = expression.trim();
+    if (!path.startsWith('event.')) return match;
+    return stringifyTemplateValue(getPathValue({ event }, path));
   });
+}
+
+export function eventIssueRef(event: AutomationEvent | null): string | null {
+  if (!event) return null;
+  if (
+    event.kind === 'issue.opened' ||
+    event.kind === 'issue.closed' ||
+    event.kind === 'issue.assigned' ||
+    event.kind === 'issue.commented'
+  ) {
+    return event.payload.ref || event.payload.number;
+  }
+  return null;
+}
+
+export function eventPrRef(event: AutomationEvent | null): string | null {
+  if (!event) return null;
+  if (
+    event.kind === 'pr.opened' ||
+    event.kind === 'pr.merged' ||
+    event.kind === 'pr.closed' ||
+    event.kind === 'pr.review_requested'
+  ) {
+    return event.payload.ref || String(event.payload.number);
+  }
+  return null;
 }

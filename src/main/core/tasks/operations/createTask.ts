@@ -12,8 +12,8 @@ import type {
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
-import { events } from '@main/lib/events';
 import { tasks } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { capture } from '@main/lib/telemetry';
 import { createConversation } from '../../conversations/createConversation';
 import { prQueryService } from '../../pull-requests/pr-query-service';
