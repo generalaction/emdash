@@ -1,6 +1,7 @@
+import { AnimatePresence } from 'framer-motion';
 import { AlertCircle, CheckCircle2, Loader2, RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { Button } from '@renderer/lib/ui/button';
@@ -55,92 +56,95 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
     }
   }, [state?.status, prSync, repositoryUrl]);
 
+  let card: ReactNode = null;
+
   if (showSuccess) {
-    return (
+    card = (
       <SyncStatusCard
+        key="success"
         icon={<CheckCircle2 className="size-3.5 shrink-0 text-green-500" />}
         content="Sync complete"
       />
     );
+  } else if (state && state.status !== 'done') {
+    const kindLabel = KIND_LABELS[state.kind] ?? state.kind;
+
+    if (state.status === 'running' && state.kind !== 'single') {
+      const hasProgress = state.total != null && state.total > 0;
+      card = (
+        <SyncStatusCard
+          key="running"
+          icon={<Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />}
+          label={kindLabel}
+          content={
+            hasProgress ? `Syncing PRs: ${state.synced ?? 0} / ${state.total}` : 'Syncing PRs…'
+          }
+          actions={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 h-6 px-2 text-xs"
+              onClick={() => prSync?.cancel(repositoryUrl)}
+            >
+              Cancel
+            </Button>
+          }
+        />
+      );
+    } else if (state.status === 'cancelled' && state.kind !== 'single') {
+      card = (
+        <SyncStatusCard
+          key="cancelled"
+          icon={<RotateCcw className="size-3.5 shrink-0 text-muted-foreground" />}
+          label={kindLabel}
+          content="Sync cancelled"
+          actions={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => prSync?.retry()}
+            >
+              Resume
+            </Button>
+          }
+        />
+      );
+    } else {
+      card = (
+        <SyncStatusCard
+          key="error"
+          icon={<AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />}
+          label={<span className="text-destructive font-medium">Sync failed</span>}
+          content={
+            <span className="block truncate" title={state.error}>
+              {state.error ?? 'Unknown error'}
+            </span>
+          }
+          actions={
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => prSync?.retry()}
+              >
+                Retry
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => prSync?.clear(repositoryUrl)}
+                aria-label="Dismiss"
+              >
+                <X className="size-3.5" />
+              </Button>
+            </>
+          }
+        />
+      );
+    }
   }
 
-  if (!state || state.status === 'done') return null;
-
-  const kindLabel = KIND_LABELS[state.kind] ?? state.kind;
-
-  if (state.status === 'running' && state.kind !== 'single') {
-    const hasProgress = state.total != null && state.total > 0;
-    return (
-      <SyncStatusCard
-        icon={<Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />}
-        label={kindLabel}
-        content={
-          hasProgress ? `Syncing PRs: ${state.synced ?? 0} / ${state.total}` : 'Syncing PRs…'
-        }
-        actions={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0 h-6 px-2 text-xs"
-            onClick={() => prSync?.cancel(repositoryUrl)}
-          >
-            Cancel
-          </Button>
-        }
-      />
-    );
-  }
-
-  if (state.status === 'cancelled' && state.kind !== 'single') {
-    return (
-      <SyncStatusCard
-        icon={<RotateCcw className="size-3.5 shrink-0 text-muted-foreground" />}
-        label={kindLabel}
-        content="Sync cancelled"
-        actions={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={() => prSync?.retry()}
-          >
-            Resume
-          </Button>
-        }
-      />
-    );
-  }
-
-  // error state
-  return (
-    <SyncStatusCard
-      icon={<AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />}
-      label={<span className="text-destructive font-medium">Sync failed</span>}
-      content={
-        <span className="block truncate" title={state.error}>
-          {state.error ?? 'Unknown error'}
-        </span>
-      }
-      actions={
-        <>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={() => prSync?.retry()}
-          >
-            Retry
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => prSync?.clear(repositoryUrl)}
-            aria-label="Dismiss"
-          >
-            <X className="size-3.5" />
-          </Button>
-        </>
-      }
-    />
-  );
+  return <AnimatePresence>{card}</AnimatePresence>;
 });
