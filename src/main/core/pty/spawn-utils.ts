@@ -21,11 +21,19 @@ export interface SpawnParams {
  * On Windows: uses $SHELL if set, otherwise searches for Git Bash's bash.exe,
  * or falls back to cmd.exe.
  */
+let cachedShell: string | undefined;
+
 function resolveShell(): string {
+  if (cachedShell) return cachedShell;
+  cachedShell = doResolveShell();
+  return cachedShell;
+}
+
+function doResolveShell(): string {
   if (process.env.SHELL) return process.env.SHELL;
 
   if (process.platform === 'win32') {
-    // Try to find Git Bash on Windows
+    // Try well-known Git Bash install paths
     const gitBashCandidates = [
       'C:\\Program Files\\Git\\bin\\bash.exe',
       'C:\\Program Files\\Git\\usr\\bin\\bash.exe',
@@ -38,6 +46,17 @@ function resolveShell(): string {
     for (const candidate of gitBashCandidates) {
       try {
         if (fs.existsSync(candidate)) return candidate;
+      } catch {}
+    }
+
+    // Search PATH for bash.exe, skipping Windows system dirs (avoid WSL bash)
+    const pathEnv = process.env.PATH || '';
+    for (const dir of pathEnv.split(path.delimiter)) {
+      const lower = dir.toLowerCase();
+      if (lower.includes('\\windows\\system32') || lower.includes('\\windows\\syswow64')) continue;
+      const bashPath = path.join(dir, 'bash.exe');
+      try {
+        if (fs.existsSync(bashPath)) return bashPath;
       } catch {}
     }
 
@@ -89,7 +108,7 @@ export function resolveSpawnParams(type: SessionType, config: SessionConfig): Sp
         ? [cfg.command, ...(cfg.args ?? [])].join(' ')
         : useCmd
           ? shell
-          : `exec ${shell} -il`;
+          : `exec ${quoteShellArg(shell)} -il`;
       const fullCmd = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
 
       if (cfg.tmuxSessionName) {

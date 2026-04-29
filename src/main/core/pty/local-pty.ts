@@ -36,6 +36,8 @@ export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
       rows,
       cwd,
       env,
+      // Force ConPTY on Windows to avoid visible console windows (winpty flashes)
+      useConpty: process.platform === 'win32' ? true : undefined,
     });
     return new LocalPtySession(id, proc);
   } catch (e: unknown) {
