@@ -1,6 +1,6 @@
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import { Branch } from '@shared/git';
+import { type Branch } from '@shared/git';
 import { Badge } from '@renderer/lib/ui/badge';
 import {
   Combobox,
@@ -36,7 +36,9 @@ export function BranchSelector({
   onRefresh,
   isRefreshing = false,
 }: BranchSelectorProps) {
-  const [tab, setTab] = useState<'local' | 'remote'>(remoteOnly ? 'remote' : 'local');
+  const [tab, setTab] = useState<'local' | 'remote'>(
+    remoteOnly ? 'remote' : (value?.type ?? 'local')
+  );
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const localCount = useMemo(() => branches.filter((b) => b.type === 'local').length, [branches]);
