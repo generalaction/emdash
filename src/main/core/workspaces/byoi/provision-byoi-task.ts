@@ -96,7 +96,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
     projectId,
     createWorkspaceFactory(
       workspaceId,
-      { kind: 'ssh', proxy },
+      { kind: 'ssh', proxy, connectionId },
       {
         task,
         workDir,
@@ -133,7 +133,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
     const { taskProvider } = await buildTaskFromWorkspace(
       task,
       workspace,
-      { kind: 'ssh', proxy },
+      { kind: 'ssh', proxy, connectionId },
       projectId,
       projectPath,
       settings,

@@ -38,8 +38,7 @@ export class TaskProvisionManager {
     private readonly logPrefix: string,
     private readonly provisionFn: ProvisionFn,
     private readonly teardownFn: TeardownFn,
-    private readonly detachedCleanupFn: DetachedCleanupFn,
-    private readonly onTeardownFinally?: (taskId: string) => void
+    private readonly detachedCleanupFn: DetachedCleanupFn
   ) {}
 
   async provisionTask(
@@ -82,32 +81,28 @@ export class TaskProvisionManager {
     mode: TeardownMode = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
     return (
-      this._lifecycle.teardown(
-        taskId,
-        async (provisionResult) => {
-          const { taskProvider, persistData } = provisionResult;
-          try {
-            await withTimeout(
-              this.teardownFn(taskProvider, persistData.workspaceId, mode),
-              TASK_TIMEOUT_MS
-            );
-            return ok();
-          } catch (e) {
-            log.error(`${this.logPrefix}: failed to teardown task`, {
+      this._lifecycle.teardown(taskId, async (provisionResult) => {
+        const { taskProvider, persistData } = provisionResult;
+        try {
+          await withTimeout(
+            this.teardownFn(taskProvider, persistData.workspaceId, mode),
+            TASK_TIMEOUT_MS
+          );
+          return ok();
+        } catch (e) {
+          log.error(`${this.logPrefix}: failed to teardown task`, {
+            taskId,
+            error: String(e),
+          });
+          await this.detachedCleanupFn(taskId).catch((cleanupError) => {
+            log.warn(`${this.logPrefix}: fallback cleanup failed`, {
               taskId,
-              error: String(e),
+              error: String(cleanupError),
             });
-            await this.detachedCleanupFn(taskId).catch((cleanupError) => {
-              log.warn(`${this.logPrefix}: fallback cleanup failed`, {
-                taskId,
-                error: String(cleanupError),
-              });
-            });
-            return err<TeardownTaskError>(toTeardownError(e));
-          }
-        },
-        () => this.onTeardownFinally?.(taskId)
-      ) ?? (await this.detachedCleanupFn(taskId).then(() => ok()))
+          });
+          return err<TeardownTaskError>(toTeardownError(e));
+        }
+      }) ?? (await this.detachedCleanupFn(taskId).then(() => ok()))
     );
   }
 

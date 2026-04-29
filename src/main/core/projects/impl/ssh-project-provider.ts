@@ -5,7 +5,6 @@ import type { SshProject } from '@shared/projects';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
-import type { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
@@ -20,7 +19,6 @@ import {
   type SshConnectionEvent,
 } from '@main/core/ssh/ssh-connection-manager';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
-import type { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import { getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import { sshWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
@@ -69,9 +67,6 @@ export async function createSshProvider(
     );
     gitFetchService.start();
 
-    const conversationProviders = new Map<string, SshConversationProvider>();
-    const terminalProviders = new Map<string, SshTerminalProvider>();
-
     async function doProvisionTask(
       task: Task,
       conversations: Conversation[],
@@ -102,12 +97,12 @@ export async function createSshProvider(
       void gitFetchService.fetch();
       void prSyncScheduler.onTaskProvisioned(project.id, task.taskBranch);
 
-      const { provisionResult, buildTaskResult } = await provisionLocalTask({
+      const { provisionResult } = await provisionLocalTask({
         task,
         conversations,
         terminals,
         workspaceId: sshWorkspaceId(project.id, task.taskBranch),
-        type: { kind: 'ssh', proxy },
+        type: { kind: 'ssh', proxy, connectionId: project.connectionId },
         projectId: project.id,
         projectPath: project.path,
         settings,
@@ -117,11 +112,6 @@ export async function createSshProvider(
         logPrefix: 'SshProjectProvider',
       });
 
-      terminalProviders.set(task.id, buildTaskResult.terminalProvider as SshTerminalProvider);
-      conversationProviders.set(
-        task.id,
-        buildTaskResult.conversationProvider as SshConversationProvider
-      );
       log.debug('SshProjectProvider: doProvisionTask DONE', { taskId: task.id });
 
       return {
@@ -160,35 +150,12 @@ export async function createSshProvider(
       'SshProjectProvider',
       doProvisionTask,
       doTeardownTask,
-      cleanupDetachedTmuxSessions,
-      (taskId) => {
-        conversationProviders.delete(taskId);
-        terminalProviders.delete(taskId);
-      }
+      cleanupDetachedTmuxSessions
     );
-
-    async function rehydrateTerminals(): Promise<void> {
-      await Promise.all(
-        Array.from(terminalProviders.values()).map((provider) =>
-          provider.rehydrate().catch((e: unknown) => {
-            log.error('SshEnvironmentProvider: rehydrateTerminals failed for a provider', {
-              error: String(e),
-            });
-          })
-        )
-      );
-    }
 
     function handleConnectionEvent(evt: SshConnectionEvent): void {
       if (evt.type === 'reconnected' && evt.connectionId === project.connectionId) {
         void gitFetchService.fetch();
-        rehydrateTerminals().catch((e: unknown) => {
-          log.error('SshProjectProvider: rehydrateTerminals failed after reconnect', {
-            projectId: project.id,
-            connectionId: project.connectionId,
-            error: String(e),
-          });
-        });
       }
     }
 
@@ -196,6 +163,7 @@ export async function createSshProvider(
 
     return {
       type: 'ssh',
+      repoPath: project.path,
       settings,
       repository,
       fs: projectFs,

@@ -9,7 +9,7 @@ import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
-import { GitWatcherService } from '@main/core/git/git-watcher-service';
+import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
@@ -51,9 +51,6 @@ export async function createLocalProvider(project: LocalProject): Promise<Projec
     exec: gitExec,
     host: worktreeHost,
   });
-  const gitWatcher = new GitWatcherService(project.id, project.path);
-  void gitWatcher.start();
-
   const gitFetchService = new GitFetchService(
     repoGit,
     async () => (await githubConnectionService.getToken()) !== null
@@ -117,7 +114,7 @@ export async function createLocalProvider(project: LocalProject): Promise<Projec
 
     const mainDotGitAbs = path.resolve(project.path, '.git');
     const relativeGitDir = await workspace.git.getWorktreeGitDir(mainDotGitAbs);
-    gitWatcher.registerWorktree(workspaceId, relativeGitDir);
+    gitWatcherRegistry.get(project.id)?.registerWorktree(workspaceId, relativeGitDir);
 
     return provisionResult;
   }
@@ -135,7 +132,7 @@ export async function createLocalProvider(project: LocalProject): Promise<Projec
       await task.terminals.destroyAll();
     }
     await workspaceRegistry.release(workspaceId, mode);
-    gitWatcher.unregisterWorktree(workspaceId);
+    gitWatcherRegistry.get(project.id)?.unregisterWorktree(workspaceId);
   }
 
   async function cleanupDetachedTmuxSessions(taskId: string): Promise<void> {
@@ -157,6 +154,7 @@ export async function createLocalProvider(project: LocalProject): Promise<Projec
 
   return {
     type: 'local',
+    repoPath: project.path,
     settings,
     repository,
     fs: localFs,
@@ -173,7 +171,6 @@ export async function createLocalProvider(project: LocalProject): Promise<Projec
     cleanup: async () => {
       configChangeUnsub();
       gitFetchService.stop();
-      await gitWatcher.stop();
       const projectSettings = await settings.get();
       const mode = projectSettings.tmux ? 'detach' : 'terminate';
       await taskManager.teardownAll({ mode });

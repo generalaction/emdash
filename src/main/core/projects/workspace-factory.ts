@@ -23,7 +23,9 @@ import type { ProjectSettingsProvider } from './settings/schema';
 import { getEffectiveTaskSettings } from './settings/task-settings';
 import { TimeoutSignal, withTimeout } from './utils';
 
-export type WorkspaceType = { kind: 'local' } | { kind: 'ssh'; proxy: SshClientProxy };
+export type WorkspaceType =
+  | { kind: 'local' }
+  | { kind: 'ssh'; proxy: SshClientProxy; connectionId: string };
 
 type WorkspaceFactoryContext = {
   task: Pick<Task, 'id' | 'name'>;
@@ -102,6 +104,7 @@ export function createWorkspaceFactory(
             shellSetup,
             exec,
             proxy: type.proxy,
+            connectionId: type.connectionId,
             taskEnvVars: bootstrapTaskEnvVars,
           })
         : new LocalTerminalProvider({
@@ -251,6 +254,7 @@ export function buildTaskProviders(
         shellSetup: opts.shellSetup,
         exec,
         proxy: type.proxy,
+        connectionId: type.connectionId,
         taskEnvVars: opts.taskEnvVars,
       }),
     };

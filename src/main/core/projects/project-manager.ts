@@ -3,10 +3,7 @@ import { err, ok, type Result } from '@shared/result';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
-import { SshFileSystem } from '../fs/impl/ssh-fs';
-import { sshConnectionManager } from '../ssh/ssh-connection-manager';
-import { createLocalProvider } from './impl/local-project-provider';
-import { createSshProvider } from './impl/ssh-project-provider';
+import { createProvider } from './create-provider';
 import type { ProjectProvider } from './project-provider';
 import { TimeoutSignal, withTimeout } from './utils';
 
@@ -15,7 +12,7 @@ const LOCAL_PROVIDER_TIMEOUT_MS = 20_000;
 const TEARDOWN_PROVIDER_TIMEOUT_MS = 60_000;
 
 export type ProjectManagerHooks = {
-  projectOpened: (projectId: string) => void | Promise<void>;
+  projectOpened: (projectId: string, provider: ProjectProvider) => void | Promise<void>;
   projectClosed: (projectId: string) => void | Promise<void>;
 };
 
@@ -52,7 +49,7 @@ class ProjectManager implements Hookable<ProjectManagerHooks> {
           createProvider(project),
           project.type === 'ssh' ? SSH_PROVIDER_TIMEOUT_MS : LOCAL_PROVIDER_TIMEOUT_MS
         );
-        this._hooks.callHookBackground('projectOpened', project.id);
+        this._hooks.callHookBackground('projectOpened', project.id, provider);
         return ok(provider);
       } catch (e) {
         const initError = toInitError(e);
@@ -96,15 +93,6 @@ class ProjectManager implements Hookable<ProjectManagerHooks> {
     const ids = Array.from(this._lifecycle.keys());
     await Promise.allSettled(ids.map((id) => this.closeProject(id)));
   }
-}
-
-async function createProvider(project: LocalProject | SshProject) {
-  if (project.type === 'ssh') {
-    const proxy = await sshConnectionManager.connect(project.connectionId);
-    const rootFs = new SshFileSystem(proxy, '/');
-    return createSshProvider(project, rootFs, proxy);
-  }
-  return createLocalProvider(project);
 }
 
 export const projectManager = new ProjectManager();

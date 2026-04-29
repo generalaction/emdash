@@ -44,6 +44,7 @@ export interface TaskProvider {
 
 export interface ProjectProvider {
   readonly type: string;
+  readonly repoPath: string;
   readonly settings: ProjectSettingsProvider;
   readonly repository: GitRepositoryService;
   readonly fs: FileSystemProvider;
