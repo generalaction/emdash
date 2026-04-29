@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
-import { err, ok, Result } from '@shared/result';
+import { taskCreatedChannel } from '@shared/events/taskEvents';
+import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -11,6 +12,7 @@ import type {
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { capture } from '@main/lib/telemetry';
 import { createConversation } from '../conversations/createConversation';
 import type { ProvisionTaskError } from '../projects/project-provider';
@@ -218,6 +220,7 @@ export async function createTask(
     project_id: params.projectId,
     task_id: params.id,
   });
+  events.emit(taskCreatedChannel, { task });
 
   if (params.initialConversation) {
     await createConversation({
