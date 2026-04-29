@@ -17,8 +17,10 @@ class PowerSaveBlockerService {
 
     try {
       const tasks = await appSettingsService.get('tasks');
+      if (!this.started) return;
       this.enabled = tasks.keepAwakeWhileRunning;
     } catch (err) {
+      if (!this.started) return;
       log.warn('PowerSaveBlocker: failed to read initial setting:', err);
       this.enabled = false;
     }
@@ -31,6 +33,7 @@ class PowerSaveBlockerService {
         appSettingsService
           .get('tasks')
           .then((tasks) => {
+            if (!this.started) return;
             const next = tasks.keepAwakeWhileRunning;
             if (next === this.enabled) return;
             this.enabled = next;
@@ -77,10 +80,10 @@ class PowerSaveBlockerService {
     try {
       powerSaveBlocker.stop(this.blockerId);
       log.info(`PowerSaveBlocker: stopped (id=${this.blockerId})`);
+      this.blockerId = null;
     } catch (err) {
       log.warn('PowerSaveBlocker: failed to stop:', err);
     }
-    this.blockerId = null;
   }
 }
 
