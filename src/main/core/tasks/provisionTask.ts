@@ -1,14 +1,14 @@
 import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
-import { formatProvisionTaskError } from '@main/core/projects/provision-task-error';
-import { taskManager } from '@main/core/projects/task-manager';
+import { formatProvisionTaskError } from '@main/core/tasks/provision-task-error';
+import { taskManager } from '@main/core/tasks/task-manager';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { conversations, tasks, terminals } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';
-import { mapTaskRowToTask } from './core';
+import { mapTaskRowToTask } from './utils/utils';
 
 export async function provisionTask(taskId: string) {
   const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId));

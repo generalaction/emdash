@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
 import { log } from '@main/lib/logger';
-import { taskManager } from '../projects/task-manager';
+import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { ptySessionRegistry } from './pty-session-registry';
 

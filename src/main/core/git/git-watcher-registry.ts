@@ -1,5 +1,5 @@
 import { projectManager } from '../projects/project-manager';
-import { taskManager } from '../projects/task-manager';
+import { taskManager } from '../tasks/task-manager';
 import { GitWatcherService } from './git-watcher-service';
 
 export class GitWatcherRegistry {

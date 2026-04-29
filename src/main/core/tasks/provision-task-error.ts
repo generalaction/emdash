@@ -1,5 +1,5 @@
-import { TimeoutSignal } from './utils';
-import type { ServeWorktreeError } from './worktrees/worktree-service';
+import { TimeoutSignal } from '../projects/utils';
+import type { ServeWorktreeError } from '../projects/worktrees/worktree-service';
 
 export const TASK_TIMEOUT_MS = 600000;
 export const TEARDOWN_SCRIPT_WAIT_MS = 10_000;

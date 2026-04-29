@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskManager } from '@main/core/projects/task-manager';
+import { taskManager } from '@main/core/tasks/task-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';

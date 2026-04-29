@@ -10,16 +10,16 @@ import type { Workspace } from '@main/core/workspaces/workspace';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import type { ProvisionResult, TaskProvider } from './project-provider';
-import type { ProjectSettingsProvider } from './settings/schema';
+import type { ProvisionResult, TaskProvider } from '../projects/project-provider';
+import type { ProjectSettingsProvider } from '../projects/settings/schema';
+import { resolveTaskWorkDir } from '../projects/worktrees/utils';
+import type { WorktreeService } from '../projects/worktrees/worktree-service';
 import {
   buildTaskProviders,
   createWorkspaceFactory,
   resolveTaskEnv,
   type WorkspaceType,
-} from './workspace-factory';
-import { resolveTaskWorkDir } from './worktrees/utils';
-import type { WorktreeService } from './worktrees/worktree-service';
+} from '../workspaces/workspace-factory';
 
 export type BuildTaskResult = {
   taskProvider: TaskProvider;

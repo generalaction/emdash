@@ -1,7 +1,7 @@
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, type Result } from '@shared/result';
 import { projectManager } from '../project-manager';
-import { ProjectSettings } from '../settings/schema';
+import type { ProjectSettings } from '../settings/schema';
 
 export async function updateProjectSettings(
   projectId: string,

@@ -9,17 +9,17 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskManager } from '@main/core/projects/task-manager';
+import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';
-import { createConversation } from '../conversations/createConversation';
-import type { ProvisionTaskError } from '../projects/provision-task-error';
-import { prQueryService } from '../pull-requests/pr-query-service';
-import { appSettingsService } from '../settings/settings-service';
-import { mapTaskRowToTask } from './core';
-import { resolveTaskBranchName } from './resolveTaskBranchName';
-import { toStoredBranch } from './stored-branch';
+import { createConversation } from '../../conversations/createConversation';
+import { prQueryService } from '../../pull-requests/pr-query-service';
+import { appSettingsService } from '../../settings/settings-service';
+import type { ProvisionTaskError } from '../provision-task-error';
+import { resolveTaskBranchName } from '../resolveTaskBranchName';
+import { toStoredBranch } from '../stored-branch';
+import { mapTaskRowToTask } from '../utils/utils';
 
 function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
   switch (error.type) {

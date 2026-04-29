@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { Task } from '@shared/tasks';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import { mapWorktreeErrorToProvisionError } from '../provision-task-error';
+import { mapWorktreeErrorToProvisionError } from '../../tasks/provision-task-error';
 import type { WorktreeService } from './worktree-service';
 
 export const ensureLocalWorktreeDirectory = ({

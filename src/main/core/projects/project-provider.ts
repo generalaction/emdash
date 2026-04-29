@@ -7,10 +7,10 @@ import type { GitRepositoryService } from '@main/core/git/repository-service';
 import type { ExecFn } from '@main/core/utils/exec';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { ConversationProvider } from '../conversations/types';
+import { taskManager } from '../tasks/task-manager';
 import type { TerminalProvider } from '../terminals/terminal-provider';
+import type { WorkspaceType } from '../workspaces/workspace-factory';
 import type { ProjectSettingsProvider } from './settings/schema';
-import { taskManager } from './task-manager';
-import type { WorkspaceType } from './workspace-factory';
 import type { WorktreeHost } from './worktrees/hosts/worktree-host';
 import type { WorktreeService } from './worktrees/worktree-service';
 

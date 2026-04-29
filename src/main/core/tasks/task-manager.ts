@@ -14,7 +14,8 @@ import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/work
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
-import type { ProjectProvider, ProvisionResult, TaskProvider } from './project-provider';
+import type { ProjectProvider, ProvisionResult, TaskProvider } from '../projects/project-provider';
+import { withTimeout } from '../projects/utils';
 import {
   formatProvisionTaskError,
   TASK_TIMEOUT_MS,
@@ -24,7 +25,6 @@ import {
   type TeardownTaskError,
 } from './provision-task-error';
 import { provisionLocalTask } from './task-builder';
-import { withTimeout } from './utils';
 
 type StoredTask = ProvisionResult & { projectId: string; exec: ExecFn };
 
