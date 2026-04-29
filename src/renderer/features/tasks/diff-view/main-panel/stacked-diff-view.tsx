@@ -9,7 +9,7 @@ import {
 } from '@renderer/features/tasks/diff-view/stores/stacked-diff-panel-store';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
-import { getFileKind } from '@renderer/lib/editor/fileKind';
+import { isImagePreviewableForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
@@ -150,7 +150,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
   const sectionRef = useRef<HTMLDivElement>(null);
 
   const { file, originalUri, modifiedUri, language, isBinary, diffType, originalRef } = slotStore;
-  const isImage = file ? getFileKind(file.path) === 'image' : false;
+  const isImage = file ? isImagePreviewableForDiff(file.path) : false;
 
   // Register/unregister models whenever URIs change (group switch, file change at slot).
   // Runs even when file is null; isBinary guard inside skips registration cleanly.

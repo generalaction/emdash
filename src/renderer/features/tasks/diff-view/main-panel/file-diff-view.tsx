@@ -2,7 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { useEffect } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import { getFileKind, isBinaryForDiff } from '@renderer/lib/editor/fileKind';
+import { isBinaryForDiff, isImagePreviewableForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
@@ -17,7 +17,7 @@ export const FileDiffView = observer(function FileDiffView() {
   const diffView = provisioned.taskView.diffView;
   const activeFile = diffView.activeFile;
 
-  const isImage = activeFile ? getFileKind(activeFile.path) === 'image' : false;
+  const isImage = activeFile ? isImagePreviewableForDiff(activeFile.path) : false;
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;
   const showEditor = activeFile !== null && !isBinary;
 

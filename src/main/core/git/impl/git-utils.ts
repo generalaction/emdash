@@ -6,20 +6,15 @@ export const MAX_DIFF_CONTENT_BYTES = 512 * 1024;
 /** Maximum bytes for `git diff` output (larger than content limit due to headers/context). */
 export const MAX_DIFF_OUTPUT_BYTES = 10 * 1024 * 1024;
 
-export const IMAGE_MIME_TYPES: Record<string, string> = {
+export const DIFF_IMAGE_MIME_TYPES: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
-  '.bmp': 'image/bmp',
-  '.ico': 'image/x-icon',
 };
 
-export function getImageMimeType(filePath: string): string | null {
+export function getDiffImageMimeType(filePath: string): string | null {
   const ext = filePath.toLowerCase().slice(filePath.lastIndexOf('.'));
-  return IMAGE_MIME_TYPES[ext] ?? null;
+  return DIFF_IMAGE_MIME_TYPES[ext] ?? null;
 }
 
 /** Headers emitted by `git diff` that should be skipped when parsing hunks. */

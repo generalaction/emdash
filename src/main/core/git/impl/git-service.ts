@@ -38,7 +38,7 @@ import { GitProvider } from '../types';
 import { CatFileBatch } from './cat-file-batch';
 import {
   computeBaseRef,
-  getImageMimeType,
+  getDiffImageMimeType,
   mapStatus,
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_OUTPUT_BYTES,
@@ -432,7 +432,7 @@ export class GitService implements GitProvider {
   }
 
   private async _getImageDataUrl(filePath: string, objectSpec: string): Promise<GitImageResult> {
-    const mimeType = getImageMimeType(filePath);
+    const mimeType = getDiffImageMimeType(filePath);
     if (!mimeType) {
       return { success: false, error: `Unsupported image format: ${path.extname(filePath)}` };
     }

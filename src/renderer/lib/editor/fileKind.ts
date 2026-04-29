@@ -3,6 +3,9 @@ import type { ManagedFileKind } from './types';
 /** Raster image extensions — rendered with <img>, not Monaco. */
 export const RASTER_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp']);
 
+/** Static image extensions that the diff viewer renders as before/after images. */
+export const DIFF_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg']);
+
 /**
  * Known binary / non-text extensions — shown as "unsupported" instead of
  * attempting to load into Monaco.
@@ -75,4 +78,9 @@ export function isPreviewableKind(kind: ManagedFileKind): boolean {
 export function isBinaryForDiff(filePath: string): boolean {
   const kind = getFileKind(filePath);
   return kind === 'binary' || kind === 'image';
+}
+
+export function isImagePreviewableForDiff(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  return DIFF_IMAGE_EXTS.has(ext);
 }

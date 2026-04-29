@@ -75,6 +75,19 @@ describe('GitService.getImageAtRef', () => {
       error: 'Unsupported image format: .zip',
     });
   });
+
+  it('leaves animated image formats unsupported for diffs', async () => {
+    const svc = makeService(makeExec({}));
+
+    await expect(svc.getImageAtRef('animation.gif', 'HEAD')).resolves.toMatchObject({
+      success: false,
+      error: 'Unsupported image format: .gif',
+    });
+    await expect(svc.getImageAtRef('animation.webp', 'HEAD')).resolves.toMatchObject({
+      success: false,
+      error: 'Unsupported image format: .webp',
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
