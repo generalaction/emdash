@@ -9,7 +9,7 @@ vi.mock('@main/core/dependencies/probe', () => ({
   resolveCommandPath: mockResolveCommandPath,
 }));
 
-class MemoryFs implements Pick<FileSystemProvider, 'exists' | 'read' | 'write'> {
+class MemoryFs {
   readonly files = new Map<string, string>();
 
   async exists(path: string): Promise<boolean> {

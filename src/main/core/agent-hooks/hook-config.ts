@@ -64,6 +64,12 @@ export class HookConfigWriter {
   async writePiExtension(): Promise<boolean> {
     if (!(await resolveCommandPath('pi', this.exec))) return false;
 
+    const existing = await this.fs
+      .read(PI_EMDASH_EXTENSION_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === PI_EMDASH_EXTENSION) return true;
+
     await this.fs.write(PI_EMDASH_EXTENSION_PATH, PI_EMDASH_EXTENSION);
     return true;
   }
@@ -95,6 +101,7 @@ export class HookConfigWriter {
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([PI_EMDASH_EXTENSION_PATH]);
       }
+      return;
     }
   }
 
@@ -172,6 +179,7 @@ async function notifyEmdash(eventType: 'stop' | 'error' | 'notification', body: 
         'X-Emdash-Event-Type': eventType,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(2000),
     });
   } catch {
     // Emdash may not be running when pi is launched directly; ignore hook failures.
@@ -181,6 +189,11 @@ async function notifyEmdash(eventType: 'stop' | 'error' | 'notification', body: 
 export default function (pi: ExtensionAPI) {
   pi.on('agent_end', async () => {
     await notifyEmdash('stop', { message: 'Task completed' });
+  });
+
+  pi.on('session_shutdown', async (event) => {
+    if (event.reason !== 'quit') return;
+    await notifyEmdash('stop', { message: 'Session ended' });
   });
 }
 `;

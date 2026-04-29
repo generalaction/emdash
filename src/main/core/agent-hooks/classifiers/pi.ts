@@ -36,8 +36,7 @@ export function createPiClassifier() {
       };
     }
 
-    // JSON mode emits lifecycle events as JSON lines.
-    if (/"type"\s*:\s*"agent_end"/i.test(tail)) {
+    if (/"type"\s*:\s*"agent_end"/i.test(text)) {
       return {
         type: 'stop',
         message: 'Task completed',
