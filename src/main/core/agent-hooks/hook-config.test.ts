@@ -62,4 +62,31 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.pi/extensions/emdash-hook.ts')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
   });
+
+  it('writes the OpenCode notifications plugin and ignores it in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/opencode');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('opencode');
+
+    expect(fs.files.get('.opencode/plugins/emdash-notifications.js')).toContain(
+      'EmdashNotifications'
+    );
+    expect(fs.files.get('.opencode/plugins/emdash-notifications.js')).toContain(
+      "event.type === 'session.idle'"
+    );
+    expect(fs.files.get('.gitignore')).toBe('.opencode/plugins/emdash-notifications.js\n');
+  });
+
+  it('skips the OpenCode plugin when opencode is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('opencode');
+
+    expect(fs.files.has('.opencode/plugins/emdash-notifications.js')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
 });
