@@ -152,6 +152,18 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Confirm the current dialog action',
     category: 'Navigation',
   },
+  navBack: {
+    defaultHotkey: 'Mod+Shift+ArrowLeft',
+    label: 'Navigate Back',
+    description: 'Go back to the previous view in history',
+    category: 'Navigation',
+  },
+  navForward: {
+    defaultHotkey: 'Mod+Shift+ArrowRight',
+    label: 'Navigate Forward',
+    description: 'Go forward to the next view in history',
+    category: 'Navigation',
+  },
 });
 
 /** All valid shortcut keys — inferred directly from the registry, never redeclared. */

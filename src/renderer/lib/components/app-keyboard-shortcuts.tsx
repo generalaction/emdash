@@ -9,6 +9,7 @@ import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
   useNavigate,
+  useNavigationHistory,
   useParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
@@ -26,6 +27,7 @@ export function AppKeyboardShortcuts() {
   const { toggleLeft, toggleRight } = useWorkspaceLayoutContext();
   const { toggleTheme } = useTheme();
   const { navigate } = useNavigate();
+  const { goBack, goForward, canGoBack, canGoForward } = useNavigationHistory();
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const settingsHotkey = getEffectiveHotkey('settings', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
@@ -33,6 +35,8 @@ export function AppKeyboardShortcuts() {
   const toggleThemeHotkey = getEffectiveHotkey('toggleTheme', keyboard);
   const newProjectHotkey = getEffectiveHotkey('newProject', keyboard);
   const newTaskHotkey = getEffectiveHotkey('newTask', keyboard);
+  const navBackHotkey = getEffectiveHotkey('navBack', keyboard);
+  const navForwardHotkey = getEffectiveHotkey('navForward', keyboard);
 
   // Resolve current project context from whichever view is active
   const { currentView } = useWorkspaceSlots();
@@ -80,6 +84,14 @@ export function AppKeyboardShortcuts() {
     },
     { enabled: !!currentProjectId && newTaskHotkey !== null }
   );
+
+  useHotkey(getHotkeyRegistration('navBack', keyboard), () => goBack(), {
+    enabled: navBackHotkey !== null && canGoBack,
+  });
+
+  useHotkey(getHotkeyRegistration('navForward', keyboard), () => goForward(), {
+    enabled: navForwardHotkey !== null && canGoForward,
+  });
 
   return null;
 }

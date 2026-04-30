@@ -1,6 +1,7 @@
 import { LeftSidebar } from '@renderer/features/sidebar/left-sidebar';
 import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import { useTrackpadHistorySwipe } from '@renderer/lib/hooks/useTrackpadHistorySwipe';
 import {
   useViewLayoutOverride,
   useWorkspaceSlots,
@@ -12,6 +13,7 @@ import { Toaster } from '@renderer/lib/ui/toaster';
 
 export function Workspace() {
   useTheme();
+  useTrackpadHistorySwipe();
   const { WrapView } = useWorkspaceSlots();
   const { wrapParams } = useWorkspaceWrapParams();
   return (

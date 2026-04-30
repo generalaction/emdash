@@ -35,11 +35,21 @@ export type ViewParamsStoreContextValue = {
   viewParamsStore: Partial<{ [K in ViewId]: WrapParams<K> }>;
 };
 
+export type NavigationHistoryContextValue = {
+  goBack: () => void;
+  goForward: () => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
+};
+
 export const WorkspaceNavigateContext = createContext<NavigateFnTyped | undefined>(undefined);
 export const WorkspaceSlotsContext = createContext<SlotsContextValue | undefined>(undefined);
 export const WorkspaceWrapParamsContext = createContext<WrapParamsContextValue | undefined>(
   undefined
 );
+export const WorkspaceNavigationHistoryContext = createContext<
+  NavigationHistoryContextValue | undefined
+>(undefined);
 
 export const WorkspaceViewParamsStoreContext = createContext<
   ViewParamsStoreContextValue | undefined
@@ -68,6 +78,14 @@ export function useWorkspaceWrapParams(): WrapParamsContextValue {
   const context = useContext(WorkspaceWrapParamsContext);
   if (!context) {
     throw new Error('useWorkspaceWrapParams must be used within a WorkspaceViewProvider');
+  }
+  return context;
+}
+
+export function useNavigationHistory(): NavigationHistoryContextValue {
+  const context = useContext(WorkspaceNavigationHistoryContext);
+  if (!context) {
+    throw new Error('useNavigationHistory must be used within a WorkspaceViewProvider');
   }
   return context;
 }
