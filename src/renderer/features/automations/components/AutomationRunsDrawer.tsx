@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import type { Automation, AutomationRunStatus } from '@shared/automations/types';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -21,6 +22,8 @@ function statusClass(status: AutomationRunStatus) {
   }
 }
 
+const PANEL_EASE = [0.22, 1, 0.36, 1] as const;
+
 export function AutomationRunsDrawer({
   automation,
   onClose,
@@ -28,62 +31,77 @@ export function AutomationRunsDrawer({
   automation: Automation | null;
   onClose: () => void;
 }) {
-  const { navigate } = useNavigate();
-  if (!automation) return null;
-  return <DrawerContent automation={automation} navigate={navigate} onClose={onClose} />;
+  return (
+    <AnimatePresence>
+      {automation && (
+        <>
+          <motion.div
+            key="runs-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="fixed inset-0 z-30 bg-black/20"
+            onClick={onClose}
+            aria-hidden
+          />
+          <motion.aside
+            key="runs-panel"
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ duration: 0.28, ease: PANEL_EASE }}
+            className="fixed right-0 top-0 z-40 flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-2xl"
+          >
+            <DrawerContent automation={automation} onClose={onClose} />
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
 }
 
-function DrawerContent({
-  automation,
-  navigate,
-  onClose,
-}: {
-  automation: Automation;
-  navigate: ReturnType<typeof useNavigate>['navigate'];
-  onClose: () => void;
-}) {
+function DrawerContent({ automation, onClose }: { automation: Automation; onClose: () => void }) {
+  const { navigate } = useNavigate();
   const runs = useAutomationRuns(automation.id, 20);
 
   return (
-    <aside className="fixed right-0 top-0 z-40 flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-2xl">
-      <div className="flex items-start justify-between gap-4 border-b border-border p-5">
-        <div>
-          <h2 className="text-sm font-semibold">Run history</h2>
-          <p className="mt-1 text-xs text-muted-foreground">{automation.name}</p>
+    <>
+      <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold">Run history</h2>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{automation.name}</p>
         </div>
         <Button size="icon" variant="ghost" onClick={onClose} aria-label="Close run history">
           <X className="size-4" />
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto px-5 py-4">
         {runs.isPending ? (
           <div className="flex h-32 items-center justify-center">
             <Spinner />
           </div>
         ) : runs.data?.length ? (
-          <div className="flex flex-col gap-2">
+          <div className="overflow-hidden rounded-lg border border-border bg-muted/10">
             {runs.data.map((run) => {
               const taskId = run.taskId;
               return (
-                <div key={run.id} className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge variant="outline" className={cn(statusClass(run.status))}>
+                <div
+                  key={run.id}
+                  className="border-b border-border px-3 py-2.5 transition-colors last:border-b-0 hover:bg-muted/30"
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={cn('shrink-0', statusClass(run.status))}>
                       {run.status}
                     </Badge>
-                    <RelativeTime
-                      value={run.startedAt}
-                      className="text-xs text-muted-foreground"
-                      compact
-                      ago
-                    />
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>{run.triggerKind}</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {run.triggerKind}
+                    </span>
                     {taskId && (
                       <button
                         type="button"
-                        className="font-mono text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+                        className="font-mono text-xs text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
                         onClick={() =>
                           navigate('task', { projectId: automation.projectId, taskId })
                         }
@@ -91,8 +109,14 @@ function DrawerContent({
                         {taskId.slice(0, 8)}
                       </button>
                     )}
+                    <RelativeTime
+                      value={run.startedAt}
+                      className="ml-auto shrink-0 text-xs text-muted-foreground"
+                      compact
+                      ago
+                    />
                   </div>
-                  {run.error && <p className="mt-2 text-xs text-destructive">{run.error}</p>}
+                  {run.error && <p className="mt-1.5 text-xs text-destructive">{run.error}</p>}
                 </div>
               );
             })}
@@ -103,6 +127,6 @@ function DrawerContent({
           </div>
         )}
       </div>
-    </aside>
+    </>
   );
 }

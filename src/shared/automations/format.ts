@@ -43,15 +43,6 @@ function formatTimeOfDay(hour: number, minute: number): string {
   return `${h12}:${minute.toString().padStart(2, '0')} ${period}`;
 }
 
-function dayOfWeekLabel(token: string): string | null {
-  const upper = token.toUpperCase();
-  if (/^\d$/.test(upper)) {
-    const n = parseInt(upper, 10);
-    return n >= 0 && n <= 6 ? dayNames[n] : null;
-  }
-  return upper in dayTokenIndex ? dayNames[dayTokenIndex[upper]] : null;
-}
-
 function isWeekdaysToken(token: string): boolean {
   const upper = token.toUpperCase().replace(/\s+/g, '');
   return upper === 'MON-FRI' || upper === '1-5';
@@ -69,6 +60,70 @@ function isWeekendToken(token: string): boolean {
   );
 }
 
+type DayOfWeekDesc =
+  | { kind: 'all' }
+  | { kind: 'weekdays' }
+  | { kind: 'weekends' }
+  | { kind: 'list'; days: number[] };
+
+function parseDayOfWeek(dow: string): DayOfWeekDesc | null {
+  if (dow === '*') return { kind: 'all' };
+  if (isWeekdaysToken(dow)) return { kind: 'weekdays' };
+  if (isWeekendToken(dow)) return { kind: 'weekends' };
+
+  const tokens = dow.split(',').map((token) => token.trim());
+  const days: number[] = [];
+  for (const token of tokens) {
+    if (token.length === 0) return null;
+    const upper = token.toUpperCase();
+    if (/^\d$/.test(upper)) {
+      const n = parseInt(upper, 10);
+      if (n < 0 || n > 6) return null;
+      days.push(n);
+    } else if (upper in dayTokenIndex) {
+      days.push(dayTokenIndex[upper]);
+    } else {
+      return null;
+    }
+  }
+  if (days.length === 0) return null;
+  return { kind: 'list', days };
+}
+
+function joinLabels(labels: string[]): string {
+  if (labels.length === 0) return '';
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  const last = labels[labels.length - 1];
+  return `${labels.slice(0, -1).join(', ')} and ${last}`;
+}
+
+function dayDescriptionPrefix(desc: DayOfWeekDesc): string | null {
+  switch (desc.kind) {
+    case 'all':
+      return null;
+    case 'weekdays':
+      return 'Weekdays';
+    case 'weekends':
+      return 'Weekends';
+    case 'list':
+      return joinLabels(desc.days.map((index) => dayNames[index]));
+  }
+}
+
+function dayDescriptionSuffix(desc: DayOfWeekDesc): string | null {
+  switch (desc.kind) {
+    case 'all':
+      return null;
+    case 'weekdays':
+      return 'weekdays';
+    case 'weekends':
+      return 'weekends';
+    case 'list':
+      return joinLabels(desc.days.map((index) => dayNames[index]));
+  }
+}
+
 export function formatCronLabel(expr: string): string {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return expr;
@@ -76,33 +131,43 @@ export function formatCronLabel(expr: string): string {
   const minNum = /^\d+$/.test(min) ? parseInt(min, 10) : null;
   const hourNum = /^\d+$/.test(hour) ? parseInt(hour, 10) : null;
 
-  if (min === '*' && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
-    return 'Every minute';
-  }
-
-  const everyN = min.match(/^\*\/(\d+)$/);
-  if (everyN && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
-    return `Every ${everyN[1]} minutes`;
-  }
-
-  if (minNum !== null && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
-    if (minNum === 0) return 'Hourly';
-    return `Hourly at :${minNum.toString().padStart(2, '0')}`;
-  }
-
-  if (minNum !== null && hourNum !== null && dom === '*' && mon === '*') {
-    const time = formatTimeOfDay(hourNum, minNum);
-    if (dow === '*') return `Daily at ${time}`;
-    if (isWeekdaysToken(dow)) return `Weekdays at ${time}`;
-    if (isWeekendToken(dow)) return `Weekends at ${time}`;
-    const named = dayOfWeekLabel(dow);
-    if (named) return `${named} at ${time}`;
-  }
-
-  if (minNum !== null && hourNum !== null && /^\d+$/.test(dom) && mon === '*' && dow === '*') {
+  if (mon === '*' && dow === '*' && /^\d+$/.test(dom) && minNum !== null && hourNum !== null) {
     const day = parseInt(dom, 10);
     const time = formatTimeOfDay(hourNum, minNum);
     return `Monthly on the ${ordinal(day)} at ${time}`;
+  }
+
+  if (dom !== '*' || mon !== '*') return expr;
+
+  const dowDesc = parseDayOfWeek(dow);
+  if (!dowDesc) return expr;
+
+  if (hour === '*') {
+    if (min === '*') {
+      if (dowDesc.kind === 'all') return 'Every minute';
+      const suffix = dayDescriptionSuffix(dowDesc);
+      return suffix ? `Every minute on ${suffix}` : expr;
+    }
+    const everyN = min.match(/^\*\/(\d+)$/);
+    if (everyN) {
+      if (dowDesc.kind === 'all') return `Every ${everyN[1]} minutes`;
+      const suffix = dayDescriptionSuffix(dowDesc);
+      return suffix ? `Every ${everyN[1]} minutes on ${suffix}` : expr;
+    }
+    if (minNum !== null) {
+      const base = minNum === 0 ? 'Hourly' : `Hourly at :${minNum.toString().padStart(2, '0')}`;
+      if (dowDesc.kind === 'all') return base;
+      const suffix = dayDescriptionSuffix(dowDesc);
+      return suffix ? `${base} on ${suffix}` : expr;
+    }
+    return expr;
+  }
+
+  if (minNum !== null && hourNum !== null) {
+    const time = formatTimeOfDay(hourNum, minNum);
+    if (dowDesc.kind === 'all') return `Daily at ${time}`;
+    const prefix = dayDescriptionPrefix(dowDesc);
+    return prefix ? `${prefix} at ${time}` : expr;
   }
 
   return expr;
@@ -130,18 +195,6 @@ export function formatEventLabel(event: AutomationEventKind): string {
       return 'Issue assigned';
     case 'issue.commented':
       return 'Issue commented';
-    case 'task.created':
-      return 'Task created';
-    case 'task.completed':
-      return 'Task completed';
-    case 'task.failed':
-      return 'Task failed';
-    case 'agent.session_exited':
-      return 'Agent session exited';
-    case 'agent.permission_prompt':
-      return 'Agent needs permission';
-    case 'git.ref_changed':
-      return 'Git ref changed';
   }
 }
 
