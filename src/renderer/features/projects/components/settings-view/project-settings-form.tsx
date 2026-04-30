@@ -136,7 +136,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 
   const baseline = useMemo(
     () => settingsToForm(initial, configuredRemote, remotes),
-     
+
     [initial, configuredRemote, remotes]
   );
   const [form, setForm] = useState<FormState>(baseline);

@@ -23,7 +23,6 @@ export const PrCommitsList = observer(function PrCommitsList() {
   const commits = data?.pages.flat() ?? [];
   const parentRef = useRef<HTMLDivElement>(null);
 
-   
   const virtualizer = useVirtualizer({
     count: commits.length,
     getScrollElement: () => parentRef.current,

@@ -1,4 +1,4 @@
-import { type HTMLElements, Reorder } from 'motion/react';
+import { Reorder, type HTMLElements } from 'motion/react';
 import React from 'react';
 
 type Axis = 'x' | 'y';

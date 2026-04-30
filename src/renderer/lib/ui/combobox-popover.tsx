@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { cn } from '@renderer/utils/utils';
 import {
   Combobox,

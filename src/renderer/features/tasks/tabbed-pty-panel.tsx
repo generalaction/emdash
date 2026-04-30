@@ -41,7 +41,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
 
   const allSessionIds = useMemo(
     () => getTabbedPtySessionIds(tabs, getSession),
-     
+
     [tabs, getSession]
   );
 

@@ -1,7 +1,7 @@
 import type z from 'zod';
 import {
-  type agentAutoApproveDefaultsSchema,
   appSettingsSchema,
+  type agentAutoApproveDefaultsSchema,
   type interfaceSettingsSchema,
   type localProjectSettingsSchema,
   type notificationSettingsSchema,

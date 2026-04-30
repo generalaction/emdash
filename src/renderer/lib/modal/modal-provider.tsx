@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { createContext, type ReactNode, useCallback, useContext } from 'react';
+import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { type modalRegistry } from '@renderer/app/modal-registry';
 import { modalStore } from './modal-store';
 

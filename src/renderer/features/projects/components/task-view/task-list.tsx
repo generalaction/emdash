@@ -13,7 +13,7 @@ import { SearchInput } from '@renderer/lib/ui/search-input';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
-import { type ReadyTask, TaskRow } from './task-row';
+import { TaskRow, type ReadyTask } from './task-row';
 
 function TaskVirtualList({
   tasks,

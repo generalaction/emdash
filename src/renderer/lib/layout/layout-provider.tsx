@@ -1,12 +1,12 @@
 import {
   createContext,
-  type ReactNode,
-  type RefObject,
   useCallback,
   useContext,
   useEffect,
   useRef,
   useState,
+  type ReactNode,
+  type RefObject,
 } from 'react';
 import { usePanelRef, type PanelImperativeHandle } from 'react-resizable-panels';
 import { panelDragStore } from './panel-drag-store';
