@@ -18,6 +18,7 @@ import {
   type FullGitStatus,
   type GitChange,
   type GitHeadState,
+  type GitImageResult,
   type GitInfo,
   type GitObjectRef,
   type LocalBranch,
@@ -33,10 +34,12 @@ import { ownerFromUrl } from '@shared/pull-requests';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE, type ExecFn } from '@main/core/utils/exec';
+import { quoteShellArg } from '@main/utils/shellEscape';
 import { type GitProvider } from '../types';
 import { CatFileBatch } from './cat-file-batch';
 import {
   computeBaseRef,
+  getDiffImageMimeType,
   mapStatus,
   MAX_DIFF_CONTENT_BYTES,
   MAX_DIFF_OUTPUT_BYTES,
@@ -54,6 +57,7 @@ import {
 export class GitService implements GitProvider {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
+  private static readonly MAX_GIT_IMAGE_BYTES = 10 * 1024 * 1024;
 
   constructor(
     private readonly path: string,
@@ -416,6 +420,82 @@ export class GitService implements GitProvider {
     } catch {
       return null;
     }
+  }
+
+  async getImageAtRef(filePath: string, ref: string): Promise<GitImageResult> {
+    return this._getImageDataUrl(filePath, `${ref}:${filePath}`);
+  }
+
+  async getImageAtIndex(filePath: string): Promise<GitImageResult> {
+    return this._getImageDataUrl(filePath, `:0:${filePath}`);
+  }
+
+  private async _getImageDataUrl(filePath: string, objectSpec: string): Promise<GitImageResult> {
+    const mimeType = getDiffImageMimeType(filePath);
+    if (!mimeType) {
+      return { success: false, error: `Unsupported image format: ${path.extname(filePath)}` };
+    }
+
+    try {
+      const buffer = this._localWorkspace
+        ? await this._readLocalGitBlob(objectSpec)
+        : await this._readRemoteGitBlob(objectSpec);
+      if (buffer.length === 0) return { success: false, error: `Image not found: ${filePath}` };
+      return {
+        success: true,
+        dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
+        mimeType,
+        size: buffer.length,
+      };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  private async _readLocalGitBlob(objectSpec: string): Promise<Buffer> {
+    return new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      const child = spawn(GIT_EXECUTABLE, ['show', objectSpec], {
+        cwd: this.path,
+        env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
+      });
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > GitService.MAX_GIT_IMAGE_BYTES) {
+          child.kill();
+          reject(new Error(`Image too large: ${size} bytes`));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      child.stderr.setEncoding('utf8');
+      let stderr = '';
+      child.stderr.on('data', (chunk: string) => {
+        stderr += chunk;
+      });
+      child.on('error', reject);
+      child.on('close', (code) => {
+        if ((code ?? 0) === 0) {
+          resolve(Buffer.concat(chunks, size));
+          return;
+        }
+        reject(new Error(stderr.trim() || `git show exited with code ${code}`));
+      });
+    });
+  }
+
+  private async _readRemoteGitBlob(objectSpec: string): Promise<Buffer> {
+    const { stdout } = await this.exec(
+      'bash',
+      ['-lc', `git show ${quoteShellArg(objectSpec)} | base64`],
+      {
+        cwd: this.path,
+        maxBuffer: GitService.MAX_GIT_IMAGE_BYTES * 2,
+      }
+    );
+    return Buffer.from(stdout.replace(/\s/g, ''), 'base64');
   }
 
   async getFileDiff(

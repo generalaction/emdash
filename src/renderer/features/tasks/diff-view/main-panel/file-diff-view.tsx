@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
+import { isBinaryForDiff, isImagePreviewableForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
+import { ImageDiffViewer } from './image-diff-viewer';
 
 export const FileDiffView = observer(function FileDiffView() {
   const { projectId } = useTaskViewContext();
@@ -20,6 +21,7 @@ export const FileDiffView = observer(function FileDiffView() {
   const activeFile = diffView.activeFile;
   const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
 
+  const isImage = activeFile ? isImagePreviewableForDiff(activeFile.path) : false;
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;
   const showEditor = activeFile !== null && !isBinary;
   const activeFilePath = activeFile?.path ?? '';
@@ -161,11 +163,21 @@ export const FileDiffView = observer(function FileDiffView() {
             description="Select a file to view changes"
           />
         )}
-        {isBinary && (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Binary file — no diff available
-          </div>
-        )}
+        {isBinary &&
+          (isImage && activeFile ? (
+            <ImageDiffViewer
+              projectId={projectId}
+              workspaceId={workspaceId}
+              filePath={activeFile.path}
+              diffType={activeFile.group}
+              originalRef={activeFile.originalRef}
+              modifiedRef={activeFile.modifiedRef}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Binary file — no diff available
+            </div>
+          ))}
       </div>
     </div>
   );

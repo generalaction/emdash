@@ -9,10 +9,12 @@ import {
 } from '@renderer/features/tasks/diff-view/stores/stacked-diff-panel-store';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
+import { isImagePreviewableForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { cn } from '@renderer/utils/utils';
+import { ImageDiffViewer } from './image-diff-viewer';
 
 const LARGE_DIFF_LINE_THRESHOLD = 1500;
 
@@ -150,6 +152,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
 
   const { file, originalUri, modifiedUri, language, isBinary, diffType, originalRef, modifiedRef } =
     slotStore;
+  const isImage = file ? isImagePreviewableForDiff(file.path) : false;
 
   // Register/unregister models whenever URIs change (group switch, file change at slot).
   // Runs even when file is null; isBinary guard inside skips registration cleanly.
@@ -254,8 +257,21 @@ const StackedFileSlot = observer(function StackedFileSlot({
       </div>
 
       <Activity mode={expanded ? 'visible' : 'hidden'}>
-        <div style={{ height: isBinary || (isLarge && !forceLoad) ? 80 : editorHeight }}>
-          {isBinary ? (
+        <div
+          style={{
+            height: isImage ? 220 : isBinary || (isLarge && !forceLoad) ? 80 : editorHeight,
+          }}
+        >
+          {isImage ? (
+            <ImageDiffViewer
+              projectId={slotStore.projectId}
+              workspaceId={slotStore.workspaceId}
+              filePath={file.path}
+              diffType={diffType}
+              originalRef={originalRef}
+              modifiedRef={modifiedRef}
+            />
+          ) : isBinary ? (
             <div className="flex h-full items-center justify-center text-sm text-foreground-passive">
               Binary file
             </div>

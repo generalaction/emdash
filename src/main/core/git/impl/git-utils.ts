@@ -6,6 +6,17 @@ export const MAX_DIFF_CONTENT_BYTES = 512 * 1024;
 /** Maximum bytes for `git diff` output (larger than content limit due to headers/context). */
 export const MAX_DIFF_OUTPUT_BYTES = 10 * 1024 * 1024;
 
+export const DIFF_IMAGE_MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+};
+
+export function getDiffImageMimeType(filePath: string): string | null {
+  const ext = filePath.toLowerCase().slice(filePath.lastIndexOf('.'));
+  return DIFF_IMAGE_MIME_TYPES[ext] ?? null;
+}
+
 /**
  * Maximum bytes for ref-listing / fetch output. Repos with many thousands of refs
  * (e.g. monorepos) easily exceed Node's 1 MB default `maxBuffer`, which would otherwise

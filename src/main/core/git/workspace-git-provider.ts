@@ -7,6 +7,7 @@ import type {
   FetchError,
   FullGitStatus,
   GitChange,
+  GitImageResult,
   GitObjectRef,
   MergeBaseRange,
   PullError,
@@ -39,6 +40,8 @@ export interface WorkspaceGitProvider {
   getFileAtHead(filePath: string): Promise<string | null>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;
+  getImageAtRef(filePath: string, ref: string): Promise<GitImageResult>;
+  getImageAtIndex(filePath: string): Promise<GitImageResult>;
   getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult>;
 
   stageFiles(filePaths: string[]): Promise<void>;

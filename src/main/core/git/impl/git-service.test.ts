@@ -42,9 +42,53 @@ const BRANCH_FORMAT =
 
 const stubFs = {} as FileSystemProvider;
 
-function makeService(exec: ExecFn): GitService {
-  return new GitService('/repo', exec, stubFs);
+function makeService(exec: ExecFn, localWorkspace = true): GitService {
+  return new GitService('/repo', exec, stubFs, localWorkspace);
 }
+
+// ---------------------------------------------------------------------------
+// getImageAtRef()
+// ---------------------------------------------------------------------------
+
+describe('GitService.getImageAtRef', () => {
+  it('returns a data URL for an image blob at a ref', async () => {
+    const svc = makeService(
+      makeExec({
+        "-lc git show 'HEAD:icon.png' | base64": Buffer.from('png bytes').toString('base64'),
+      }),
+      false
+    );
+
+    await expect(svc.getImageAtRef('icon.png', 'HEAD')).resolves.toMatchObject({
+      success: true,
+      dataUrl: `data:image/png;base64,${Buffer.from('png bytes').toString('base64')}`,
+      mimeType: 'image/png',
+      size: 9,
+    });
+  });
+
+  it('rejects unsupported image extensions before shelling out', async () => {
+    const svc = makeService(makeExec({}));
+
+    await expect(svc.getImageAtRef('archive.zip', 'HEAD')).resolves.toMatchObject({
+      success: false,
+      error: 'Unsupported image format: .zip',
+    });
+  });
+
+  it('leaves animated image formats unsupported for diffs', async () => {
+    const svc = makeService(makeExec({}));
+
+    await expect(svc.getImageAtRef('animation.gif', 'HEAD')).resolves.toMatchObject({
+      success: false,
+      error: 'Unsupported image format: .gif',
+    });
+    await expect(svc.getImageAtRef('animation.webp', 'HEAD')).resolves.toMatchObject({
+      success: false,
+      error: 'Unsupported image format: .webp',
+    });
+  });
+});
 
 // ---------------------------------------------------------------------------
 // getBranches()

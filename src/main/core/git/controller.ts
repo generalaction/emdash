@@ -125,6 +125,36 @@ export const gitController = createRPCController({
     }
   },
 
+  getImageAtRef: async (projectId: string, workspaceId: string, filePath: string, ref: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const image = await env.git.getImageAtRef(filePath, ref);
+      return ok(image);
+    } catch (e) {
+      log.error('gitCtrl.getImageAtRef failed', {
+        projectId,
+        workspaceId,
+        filePath,
+        ref,
+        error: e,
+      });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  getImageAtIndex: async (projectId: string, workspaceId: string, filePath: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const image = await env.git.getImageAtIndex(filePath);
+      return ok(image);
+    } catch (e) {
+      log.error('gitCtrl.getImageAtIndex failed', { projectId, workspaceId, filePath, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
   getFileDiff: async (projectId: string, workspaceId: string, filePath: string, base?: GitRef) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);

@@ -25,6 +25,14 @@ export interface DiffResult {
   modifiedContent?: string;
 }
 
+export type GitImageResult = {
+  success: boolean;
+  dataUrl?: string;
+  mimeType?: string;
+  size?: number;
+  error?: string;
+};
+
 export interface GitInfo {
   isGitRepo: boolean;
   remote?: string;
