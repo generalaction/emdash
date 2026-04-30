@@ -14,15 +14,17 @@ export const taskPrUpdatedChannel = defineEvent<{
   prs: PullRequest[];
 }>('task:pr-updated');
 
+export type ProvisionStep =
+  | 'resolving-worktree'
+  | 'initialising-workspace'
+  | 'running-provision-script'
+  | 'connecting'
+  | 'setting-up-workspace'
+  | 'starting-sessions';
+
 export const taskProvisionProgressChannel = defineEvent<{
   taskId: string;
   projectId: string;
-  step:
-    | 'resolving-worktree'
-    | 'initialising-workspace'
-    | 'running-provision-script'
-    | 'connecting'
-    | 'setting-up-workspace'
-    | 'starting-sessions';
+  step: ProvisionStep;
   message: string;
 }>('task:provision-progress');

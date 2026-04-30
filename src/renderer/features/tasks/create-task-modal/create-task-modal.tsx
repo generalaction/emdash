@@ -8,6 +8,7 @@ import {
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -65,6 +66,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [useBYOI, setUseBYOI] = useState(false);
   useEffect(() => setUseBYOI(false), [selectedProjectId]);
+  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
+  useEffect(() => {
+    if (!isWorkspaceProviderEnabled) setUseBYOI(false);
+  }, [isWorkspaceProviderEnabled]);
   const repo = selectedProjectId ? getRepositoryStore(selectedProjectId) : undefined;
   const defaultBranch = repo?.defaultBranch;
   const isUnborn = repo?.isUnborn ?? false;
@@ -210,10 +215,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             From Pull Request
           </ToggleGroupItem>
         </ToggleGroup>
-        <div className="flex items-center gap-2">
-          <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
-          <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
-        </div>
+        {isWorkspaceProviderEnabled && (
+          <div className="flex items-center gap-2">
+            <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
+            <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+          </div>
+        )}
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
           {selectedStrategy === 'from-branch' && (
             <FromBranchContent

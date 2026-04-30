@@ -54,6 +54,30 @@ function formatCreateTaskError(error: CreateTaskError): string {
         : `Could not set up the worktree for branch "${error.branch}".`;
     case 'provision-failed':
       return `Task could not be provisioned: ${error.message}`;
+    case 'provision-timeout': {
+      const seconds = Math.round(error.timeoutMs / 1000);
+      const stepLabel = (() => {
+        switch (error.step) {
+          case 'resolving-worktree':
+            return 'resolving the worktree';
+          case 'initialising-workspace':
+            return 'initialising the workspace';
+          case 'running-provision-script':
+            return 'running the provision script';
+          case 'connecting':
+            return 'connecting to the workspace';
+          case 'setting-up-workspace':
+            return 'setting up the workspace';
+          case 'starting-sessions':
+            return 'starting sessions';
+          case null:
+            return null;
+        }
+      })();
+      return stepLabel
+        ? `Task setup timed out after ${seconds}s while ${stepLabel}.`
+        : `Task setup timed out after ${seconds}s before any step started.`;
+    }
   }
 }
 

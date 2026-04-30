@@ -3,7 +3,7 @@ import { err, ok, type Result } from '@shared/result';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
-import { createProvider } from './create-provider';
+import { createProvider } from './create-project-provider';
 import type { ProjectProvider } from './project-provider';
 import { TimeoutSignal, withTimeout } from './utils';
 
@@ -11,7 +11,7 @@ const SSH_PROVIDER_TIMEOUT_MS = 60_000;
 const LOCAL_PROVIDER_TIMEOUT_MS = 20_000;
 const TEARDOWN_PROVIDER_TIMEOUT_MS = 60_000;
 
-export type ProjectManagerHooks = {
+type ProjectManagerHooks = {
   projectOpened: (projectId: string, provider: ProjectProvider) => void | Promise<void>;
   projectClosed: (projectId: string) => void | Promise<void>;
 };
