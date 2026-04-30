@@ -61,7 +61,6 @@ export class LifecycleScriptService {
         taskId: this.workspaceId,
         name: script.type,
       },
-      command: '',
       initialSize,
       respawnOnExit: false,
       preserveBufferOnExit: true,

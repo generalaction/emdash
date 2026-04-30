@@ -114,7 +114,7 @@ export class SshTerminalProvider implements TerminalProvider {
     return this.spawnWithPolicy(
       terminal,
       initialSize,
-      { command, args: [] },
+      command === undefined ? undefined : { command, args: [] },
       {
         respawnOnExit,
         preserveBufferOnExit,
