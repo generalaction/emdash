@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
@@ -24,6 +24,12 @@ type Props = BaseModalProps<void>;
 
 const GROUP_ORDER: CommandGroup[] = ['Navigation', 'Actions', 'Tasks', 'Projects'];
 
+// Split on '+' only when it sits between two characters, so a literal '+' key
+// (e.g. 'Ctrl++') survives as its own segment instead of producing an empty Kbd.
+function splitShortcut(shortcut: string): string[] {
+  return shortcut.split(/(?<=.)\+(?=.)/);
+}
+
 export const CommandPaletteModal = observer(function CommandPaletteModal({ onClose }: Props) {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
@@ -34,8 +40,6 @@ export const CommandPaletteModal = observer(function CommandPaletteModal({ onClo
   const showCreateTask = useShowModal('taskModal');
   const { toggleLeft, toggleRight } = useWorkspaceLayoutContext();
   const { toggleTheme } = useTheme();
-
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const currentProjectId =
     currentView === 'task'
@@ -106,7 +110,7 @@ export const CommandPaletteModal = observer(function CommandPaletteModal({ onClo
       label="Command palette"
       className="min-h-[200px]"
     >
-      <CommandInput ref={inputRef} autoFocus placeholder="Type a command or search…" />
+      <CommandInput autoFocus placeholder="Type a command or search…" />
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>
         {GROUP_ORDER.map((group) => {
@@ -127,8 +131,8 @@ export const CommandPaletteModal = observer(function CommandPaletteModal({ onClo
                     {item.shortcut ? (
                       <CommandShortcut>
                         <KbdGroup>
-                          {item.shortcut.split('+').map((key) => (
-                            <Kbd key={key}>{key.trim()}</Kbd>
+                          {splitShortcut(item.shortcut).map((key, index) => (
+                            <Kbd key={index}>{key.trim()}</Kbd>
                           ))}
                         </KbdGroup>
                       </CommandShortcut>
