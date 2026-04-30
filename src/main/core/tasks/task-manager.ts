@@ -138,11 +138,20 @@ async function cleanupDetachedSessions(
 }
 
 class TaskManager {
-  private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError>();
-  private readonly _tasksByProject = new Map<string, Set<string>>();
   private readonly _hooks = new HookCore<TaskManagerHooks>((name, e) =>
     log.error(`TaskManager: ${String(name)} hook error`, e)
   );
+  private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError>({
+    postTeardown: (taskId, stored) => {
+      this._tasksByProject.get(stored.projectId)?.delete(taskId);
+      this._hooks.callHookBackground('task:torn-down', {
+        projectId: stored.projectId,
+        taskId,
+        workspaceId: stored.persistData.workspaceId,
+      });
+    },
+  });
+  private readonly _tasksByProject = new Map<string, Set<string>>();
 
   readonly hooks: Hookable<TaskManagerHooks> = this._hooks;
 
@@ -199,9 +208,6 @@ class TaskManager {
     taskId: string,
     mode: TeardownMode = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
-    // Pre-capture stored task so the onFinally closure has access to hook data.
-    const stored = this._lifecycle.get(taskId);
-
     const result = this._lifecycle.teardown(
       taskId,
       async ({ taskProvider, persistData, projectId, ctx }) => {
@@ -221,15 +227,6 @@ class TaskManager {
           });
           return err<TeardownTaskError>(toTeardownError(e));
         }
-      },
-      () => {
-        if (!stored) return;
-        this._tasksByProject.get(stored.projectId)?.delete(taskId);
-        this._hooks.callHookBackground('task:torn-down', {
-          projectId: stored.projectId,
-          taskId,
-          workspaceId: stored.persistData.workspaceId,
-        });
       }
     );
 
