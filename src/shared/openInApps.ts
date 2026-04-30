@@ -39,6 +39,7 @@ const ICON_PATHS = {
   kitty: 'kitty.png',
   zed: 'zed.png',
   'intellij-idea': 'intellij-idea.svg',
+  'android-studio': 'android-studio.svg',
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
   rustrover: 'rustrover.svg',
@@ -332,6 +333,27 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['idea {{path}}'],
         checkCommands: ['idea'],
+      },
+    },
+  },
+  'android-studio': {
+    id: 'android-studio',
+    label: 'Android Studio',
+    iconPath: ICON_PATHS['android-studio'],
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "Android Studio" {{path}}'],
+        bundleIds: ['com.google.android.studio'],
+        appNames: ['Android Studio'],
+      },
+      win32: {
+        openCommands: ['studio64 {{path}}', 'studio {{path}}'],
+        checkCommands: ['studio64', 'studio'],
+      },
+      linux: {
+        openCommands: ['studio {{path}}'],
+        checkCommands: ['studio'],
       },
     },
   },
