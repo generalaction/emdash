@@ -247,6 +247,7 @@ export const automations = sqliteTable(
     cronTz: text('cron_tz'),
     eventType: text('event_type'),
     eventProvider: text('event_provider'),
+    eventFilters: text('event_filters'),
     promptTemplate: text('prompt_template').notNull().default(''),
     actions: text('actions').notNull().default('[]'),
     projectId: text('project_id')

@@ -1,4 +1,4 @@
-import type { AutomationEventKind, EventProviderScope } from '@shared/automations/events';
+import type { AutomationEventKind } from '@shared/automations/events';
 import type { Automation } from '@shared/automations/types';
 import { automationsChangedChannel } from '@shared/events/automationEvents';
 import { events } from '@main/lib/events';
@@ -39,19 +39,15 @@ async function loadAll(): Promise<Automation[]> {
 
 function matches(
   automation: Automation,
-  filter: { kind: AutomationEventKind; provider: EventProviderScope; projectId: string }
+  filter: { kind: AutomationEventKind; projectId: string }
 ): boolean {
   if (automation.trigger.kind !== 'event') return false;
   if (automation.projectId !== filter.projectId) return false;
-  if (automation.trigger.event !== filter.kind) return false;
-  const scoped = automation.trigger.provider ?? null;
-  if (scoped == null) return true;
-  return scoped === filter.provider;
+  return automation.trigger.event === filter.kind;
 }
 
 export async function findEnabledEventAutomations(filter: {
   kind: AutomationEventKind;
-  provider: EventProviderScope;
   projectId: string;
 }): Promise<Automation[]> {
   const all = await loadAll();

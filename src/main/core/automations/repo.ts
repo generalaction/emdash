@@ -2,11 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
 import { and, desc, eq, isNotNull, lt, lte } from 'drizzle-orm';
 import type { ActionSpec } from '@shared/automations/actions';
-import type {
-  AutomationEventKind,
-  EventProviderScope,
-  IntegrationProvider,
-} from '@shared/automations/events';
+import type { AutomationEventKind, EventTriggerFilters } from '@shared/automations/events';
+import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
   Automation,
   AutomationRun,
@@ -27,11 +24,46 @@ import {
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 
-const DEFAULT_TZ = 'UTC';
+const DEFAULT_TZ = getLocalTimeZone();
+const EVENT_PROVIDER = 'github';
 
 function fallbackActions(promptTemplate: string): ActionSpec[] {
   const prompt = promptTemplate.trim();
   return prompt ? [{ kind: 'task.create', prompt }] : [];
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.every((v) => typeof v === 'string') ? (value as string[]) : undefined;
+}
+
+function parseEventFilters(raw: string | null): EventTriggerFilters | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+    const obj = parsed as Record<string, unknown>;
+    const result: EventTriggerFilters = {};
+    const branches = asStringArray(obj.branches);
+    const authorsInclude = asStringArray(obj.authorsInclude);
+    const authorsExclude = asStringArray(obj.authorsExclude);
+    if (branches) result.branches = branches;
+    if (authorsInclude) result.authorsInclude = authorsInclude;
+    if (authorsExclude) result.authorsExclude = authorsExclude;
+    return Object.keys(result).length > 0 ? result : undefined;
+  } catch (error) {
+    log.warn('automations.repo: failed to parse event_filters JSON', { error: String(error) });
+    return undefined;
+  }
+}
+
+function serializeEventFilters(filters: EventTriggerFilters | undefined): string | null {
+  if (!filters) return null;
+  const cleaned: EventTriggerFilters = {};
+  if (filters.branches?.length) cleaned.branches = filters.branches;
+  if (filters.authorsInclude?.length) cleaned.authorsInclude = filters.authorsInclude;
+  if (filters.authorsExclude?.length) cleaned.authorsExclude = filters.authorsExclude;
+  return Object.keys(cleaned).length > 0 ? JSON.stringify(cleaned) : null;
 }
 
 function parseActions(raw: string, promptTemplate: string): ActionSpec[] {
@@ -39,7 +71,13 @@ function parseActions(raw: string, promptTemplate: string): ActionSpec[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return fallbackActions(promptTemplate);
-    return parsed.every((item) => item && typeof item === 'object' && 'kind' in item)
+    return parsed.every(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        'kind' in item &&
+        (item as { kind: unknown }).kind === 'task.create'
+    )
       ? (parsed as ActionSpec[])
       : fallbackActions(promptTemplate);
   } catch (error) {
@@ -86,10 +124,11 @@ function mapAutomationRow(row: AutomationRow): Automation {
     trigger = { kind: 'cron', expr: row.cronExpr, tz: row.cronTz ?? DEFAULT_TZ };
   } else if (row.triggerType === 'event') {
     if (!row.eventType) throw new Error(`automation_row_missing_event_type:${row.id}`);
+    const filters = parseEventFilters(row.eventFilters);
     trigger = {
       kind: 'event',
       event: row.eventType as AutomationEventKind,
-      provider: (row.eventProvider ?? null) as EventProviderScope | null,
+      ...(filters ? { filters } : {}),
     };
   } else {
     throw new Error(`automation_row_invalid_trigger_type:${row.triggerType}`);
@@ -144,6 +183,7 @@ function rowValuesFromTrigger(trigger: TriggerSpec) {
       cronTz: trigger.tz || DEFAULT_TZ,
       eventType: null,
       eventProvider: null,
+      eventFilters: null,
       nextRunAt: getNextRunAt(trigger),
     };
   }
@@ -152,7 +192,8 @@ function rowValuesFromTrigger(trigger: TriggerSpec) {
     cronExpr: null,
     cronTz: null,
     eventType: trigger.event,
-    eventProvider: trigger.provider ?? null,
+    eventProvider: EVENT_PROVIDER,
+    eventFilters: serializeEventFilters(trigger.filters),
     nextRunAt: null,
   };
 }
@@ -275,7 +316,6 @@ export async function enabledCronAutomations(): Promise<Automation[]> {
 
 export async function enabledEventAutomations(filter: {
   kind?: AutomationEventKind;
-  provider?: EventProviderScope;
   projectId?: string;
 }): Promise<Automation[]> {
   const conditions = [eq(automations.enabled, 1), eq(automations.triggerType, 'event')];
@@ -287,12 +327,7 @@ export async function enabledEventAutomations(filter: {
     .from(automations)
     .where(and(...conditions));
 
-  return rows.map(mapAutomationRow).filter((automation) => {
-    if (automation.trigger.kind !== 'event') return false;
-    if (filter.provider == null) return true;
-    const scoped = automation.trigger.provider;
-    return scoped == null || scoped === filter.provider;
-  });
+  return rows.map(mapAutomationRow).filter((automation) => automation.trigger.kind === 'event');
 }
 
 export async function hasEnabledEventAutomations(): Promise<boolean> {
@@ -376,7 +411,6 @@ export async function overdueCronAutomations(cutoff: number): Promise<Automation
 }
 
 export type AutomationEventCursorRecord = {
-  provider: IntegrationProvider;
   projectId: string;
   lastPolledAt: number;
   cursor: string | null;
@@ -384,7 +418,6 @@ export type AutomationEventCursorRecord = {
 
 function mapCursorRow(row: AutomationEventCursorRow): AutomationEventCursorRecord {
   return {
-    provider: row.provider as IntegrationProvider,
     projectId: row.projectId,
     lastPolledAt: row.lastPolledAt,
     cursor: row.cursor,
@@ -392,7 +425,6 @@ function mapCursorRow(row: AutomationEventCursorRow): AutomationEventCursorRecor
 }
 
 export async function getEventCursor(
-  provider: IntegrationProvider,
   projectId: string
 ): Promise<AutomationEventCursorRecord | null> {
   const [row] = await db
@@ -400,7 +432,7 @@ export async function getEventCursor(
     .from(automationEventCursors)
     .where(
       and(
-        eq(automationEventCursors.provider, provider),
+        eq(automationEventCursors.provider, EVENT_PROVIDER),
         eq(automationEventCursors.projectId, projectId)
       )
     )
@@ -409,7 +441,6 @@ export async function getEventCursor(
 }
 
 export async function upsertEventCursor(input: {
-  provider: IntegrationProvider;
   projectId: string;
   cursor: string | null;
   lastPolledAt?: number;
@@ -418,7 +449,7 @@ export async function upsertEventCursor(input: {
   await db
     .insert(automationEventCursors)
     .values({
-      provider: input.provider,
+      provider: EVENT_PROVIDER,
       projectId: input.projectId,
       lastPolledAt,
       cursor: input.cursor,
