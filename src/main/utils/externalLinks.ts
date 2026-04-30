@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from 'electron';
+import { type BrowserWindow, shell } from 'electron';
 
 /**
  * Ensure any external HTTP(S) links open in the user's default browser

@@ -1,7 +1,7 @@
 import { Paperclip } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
-import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';

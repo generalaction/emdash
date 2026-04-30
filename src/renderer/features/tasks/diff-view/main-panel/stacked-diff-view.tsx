@@ -4,7 +4,7 @@ import { observer } from 'mobx-react-lite';
 import { Activity, useEffect, useMemo, useRef, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import {
-  DiffSlotStore,
+  type DiffSlotStore,
   StackedDiffPanelStore,
 } from '@renderer/features/tasks/diff-view/stores/stacked-diff-panel-store';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';

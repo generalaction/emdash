@@ -23,7 +23,7 @@ export const PrCommitsList = observer(function PrCommitsList() {
   const commits = data?.pages.flat() ?? [];
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
+   
   const virtualizer = useVirtualizer({
     count: commits.length,
     getScrollElement: () => parentRef.current,

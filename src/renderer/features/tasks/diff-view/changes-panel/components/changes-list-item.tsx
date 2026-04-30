@@ -1,6 +1,6 @@
 import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'lucide-react';
-import { ButtonHTMLAttributes, forwardRef, useMemo } from 'react';
-import { GitChange, GitChangeStatus } from '@shared/git';
+import { type ButtonHTMLAttributes, forwardRef, useMemo } from 'react';
+import { type GitChange, type GitChangeStatus } from '@shared/git';
 import { splitPath } from '@renderer/features/tasks/utils';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { Checkbox } from '@renderer/lib/ui/checkbox';

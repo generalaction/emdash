@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, memo, ReactNode } from 'react';
+import React, { Component, type ErrorInfo, memo, type ReactNode } from 'react';
 import { DiCoffeescript } from 'react-icons/di';
 import { FaFileImage } from 'react-icons/fa';
 import {

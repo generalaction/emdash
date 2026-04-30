@@ -1,7 +1,7 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import { LocalProject, SshProject } from '@shared/projects';
+import { type LocalProject, type SshProject } from '@shared/projects';
 import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
-import { ProjectStore, UnregisteredProject } from '@renderer/features/projects/stores/project';
+import { type ProjectStore, type UnregisteredProject } from '@renderer/features/projects/stores/project';
 import type { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
 import {
   registeredTaskData,

@@ -1,5 +1,5 @@
 import { ChevronDown, Plus, RefreshCw } from 'lucide-react';
-import { SelectionState } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
+import { type SelectionState } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Checkbox } from '@renderer/lib/ui/checkbox';

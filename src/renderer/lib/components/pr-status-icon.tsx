@@ -1,6 +1,6 @@
 import { GitMerge, GitPullRequestArrow, GitPullRequestClosed } from 'lucide-react';
-import { ReactNode } from 'react';
-import { PullRequest } from '@shared/pull-requests';
+import { type ReactNode } from 'react';
+import { type PullRequest } from '@shared/pull-requests';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 

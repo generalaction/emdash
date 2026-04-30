@@ -1,6 +1,6 @@
 import { runInAction } from 'mobx';
 import {
-  ComponentType,
+  type ComponentType,
   Fragment,
   useCallback,
   useEffect,

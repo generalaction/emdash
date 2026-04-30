@@ -1,4 +1,4 @@
-import { Terminal } from '@xterm/xterm';
+import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';

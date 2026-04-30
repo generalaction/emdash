@@ -1,5 +1,5 @@
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
-import { Conversation, CreateConversationParams } from '@shared/conversations';
+import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import {
   agentEventChannel,
   agentSessionExitedChannel,

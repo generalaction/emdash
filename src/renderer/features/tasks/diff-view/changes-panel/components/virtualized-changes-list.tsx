@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
-import { GitChange } from '@shared/git';
+import { type GitChange } from '@shared/git';
 import { cn } from '@renderer/utils/utils';
 import { ChangesListItem } from './changes-list-item';
 

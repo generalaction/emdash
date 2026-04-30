@@ -7,9 +7,9 @@ import type { EditorViewStore } from '@renderer/features/tasks/editor/stores/edi
 import {
   isUnprovisioned,
   isUnregistered,
-  ProvisionedTask,
+  type ProvisionedTask,
   registeredTaskData,
-  TaskStore,
+  type TaskStore,
 } from './task';
 import type { TaskManagerStore } from './task-manager';
 import type { TaskViewStore } from './task-view';

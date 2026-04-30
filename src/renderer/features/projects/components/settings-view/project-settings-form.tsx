@@ -136,7 +136,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 
   const baseline = useMemo(
     () => settingsToForm(initial, configuredRemote, remotes),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [initial, configuredRemote, remotes]
   );
   const [form, setForm] = useState<FormState>(baseline);

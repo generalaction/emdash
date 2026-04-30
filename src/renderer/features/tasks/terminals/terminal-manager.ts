@@ -1,6 +1,6 @@
 import { makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { CreateTerminalParams, Terminal } from '@shared/terminals';
+import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 

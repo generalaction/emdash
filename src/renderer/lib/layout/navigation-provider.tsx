@@ -1,4 +1,4 @@
-import { ComponentType, createContext, useCallback, useContext, type ReactNode } from 'react';
+import { type ComponentType, createContext, useCallback, useContext, type ReactNode } from 'react';
 import type { ViewId, WrapParams } from '@renderer/app/view-registry';
 
 /**
@@ -91,7 +91,7 @@ export function useParams<TId extends ViewId>(
       updateFn(viewId, update);
     },
     // viewId is a stable string literal
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [updateFn, viewId]
   );
   return { params, setParams };

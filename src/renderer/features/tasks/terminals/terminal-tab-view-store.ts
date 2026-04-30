@@ -1,5 +1,5 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import { TabViewProvider, TabViewSnapshot } from '@renderer/lib/stores/generic-tab-view';
+import { type TabViewProvider, type TabViewSnapshot } from '@renderer/lib/stores/generic-tab-view';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import {
   reorderTabIds,

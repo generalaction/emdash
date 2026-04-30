@@ -1,7 +1,7 @@
 import {
   createContext,
-  ReactNode,
-  RefObject,
+  type ReactNode,
+  type RefObject,
   useCallback,
   useContext,
   useEffect,
