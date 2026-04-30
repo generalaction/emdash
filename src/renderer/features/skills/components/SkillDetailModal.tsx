@@ -68,7 +68,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isProcessing && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <SkillIconRenderer skill={skill} size="md" />
@@ -95,7 +95,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             </div>
           </div>
         </DialogHeader>
-        <DialogContentArea>
+        <DialogContentArea className="overflow-y-auto">
           {skill.defaultPrompt && (
             <div className="space-y-1 rounded-md bg-muted/40 pb-2">
               <p className="text-xs font-medium text-muted-foreground">Example prompt</p>
@@ -109,7 +109,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             <MarkdownRenderer
               content={body}
               variant="compact"
-              className="max-h-60 overflow-y-auto rounded-md bg-muted/20  py-2 text-xs text-muted-foreground"
+              className="rounded-md bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
             />
           )}
         </DialogContentArea>
