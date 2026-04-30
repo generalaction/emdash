@@ -157,6 +157,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
     if (!file || isBinary) return;
     const { projectId, workspaceId } = slotStore;
     const root = `workspace:${workspaceId}`;
+    let disposed = false;
 
     if (diffType === 'staged') {
       void modelRegistry
@@ -182,16 +183,43 @@ const StackedFileSlot = observer(function StackedFileSlot({
         )
         .catch(() => {});
     } else {
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'disk')
-        .catch(() => {});
+      const diskUri = modelRegistry.toDiskUri(modifiedUri);
+      void (async () => {
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          file.path,
+          language,
+          'disk'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(diskUri);
+          return;
+        }
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          file.path,
+          language,
+          'buffer'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(modifiedUri);
+        }
+      })().catch(() => {});
       void modelRegistry
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
         .catch(() => {});
     }
     return () => {
+      disposed = true;
       modelRegistry.unregisterModel(originalUri);
       modelRegistry.unregisterModel(modifiedUri);
+      if (diffType === 'disk') {
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(modifiedUri));
+      }
     };
   }, [
     isBinary,
