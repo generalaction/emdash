@@ -208,7 +208,7 @@ export class TaskManagerStore {
     if (!isRegistered(store)) return;
     const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, store.data.id);
     if (!result.success) return;
-    const prs = result.prs ?? [];
+    const prs = result.data.prs;
     runInAction(() => {
       if (isRegistered(store)) {
         (store.data as Task).prs = prs;

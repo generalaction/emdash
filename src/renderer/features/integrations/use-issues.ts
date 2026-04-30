@@ -24,7 +24,7 @@ export interface UseIssuesResult {
 interface UseIssuesOptions {
   projectId?: string;
   projectPath?: string;
-  nameWithOwner?: string;
+  repositoryUrl?: string;
   enabled?: boolean;
   initialLimit?: number;
   searchLimit?: number;
@@ -40,7 +40,7 @@ export function useIssues(
   {
     projectId,
     projectPath,
-    nameWithOwner,
+    repositoryUrl,
     enabled = true,
     initialLimit = INITIAL_FETCH_LIMIT,
     searchLimit = SEARCH_LIMIT,
@@ -66,7 +66,7 @@ export function useIssues(
       provider,
       projectId ?? '',
       projectPath ?? '',
-      nameWithOwner ?? '',
+      repositoryUrl ?? '',
       initialLimit,
     ],
     queryFn: async () => {
@@ -76,7 +76,7 @@ export function useIssues(
         limit: initialLimit,
         projectId,
         projectPath,
-        nameWithOwner,
+        repositoryUrl,
       });
 
       if (!result?.success) {
@@ -98,7 +98,7 @@ export function useIssues(
       provider,
       projectId ?? '',
       projectPath ?? '',
-      nameWithOwner ?? '',
+      repositoryUrl ?? '',
       debouncedTerm.trim(),
       searchLimit,
     ],
@@ -110,7 +110,7 @@ export function useIssues(
         searchTerm: debouncedTerm.trim(),
         projectId,
         projectPath,
-        nameWithOwner,
+        repositoryUrl,
       });
 
       if (result?.success) {

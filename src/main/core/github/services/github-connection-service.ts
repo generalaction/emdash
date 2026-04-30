@@ -7,9 +7,10 @@ import {
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubConnectResponse, GitHubUser } from '@shared/github';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
-import { getLocalExec } from '@main/core/utils/exec';
+import { TTLCache } from '@main/core/utils/ttl-cache';
 import { KV } from '@main/db/kv';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -71,6 +72,11 @@ const GITHUB_CONFIG = {
 export class GitHubConnectionServiceImpl implements GitHubConnectionService {
   private deviceFlowAbortController: AbortController | null = null;
 
+  private readonly _tokenRecordCache = new TTLCache<{
+    token: string | null;
+    source: TokenSource;
+  }>(5 * 60 * 1000);
+
   private parseTokenSource(raw: unknown): Exclude<TokenSource, null> | null {
     return raw === 'cli' || raw === 'secure_storage' ? raw : null;
   }
@@ -105,18 +111,27 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
   }
 
   private async clearStoredToken(): Promise<void> {
+    this._invalidateTokenCache();
     await Promise.all([
       encryptedAppSecretsStore.deleteSecret(GITHUB_TOKEN_SECRET_KEY),
       this.clearStoredTokenSource(),
     ]);
   }
 
-  private async resolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
+  private _invalidateTokenCache(): void {
+    this._tokenRecordCache.invalidate();
+  }
+
+  private resolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
+    return this._tokenRecordCache.get(() => this._doResolveTokenRecord());
+  }
+
+  private async _doResolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
     const { token: storedToken, source } = await this.getStoredTokenRecord();
-    const exec = getLocalExec();
+    const ctx = new LocalExecutionContext();
 
     if (storedToken && source === 'cli') {
-      const cliToken = await extractGhCliToken(exec);
+      const cliToken = await extractGhCliToken(ctx);
       if (!cliToken) {
         try {
           await this.clearStoredToken();
@@ -140,7 +155,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
       return { token: storedToken, source: source ?? 'secure_storage' };
     }
 
-    const cliToken = await extractGhCliToken(exec);
+    const cliToken = await extractGhCliToken(ctx);
     if (!cliToken) return { token: null, source: null };
 
     try {
@@ -294,6 +309,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     token: string,
     source: Exclude<TokenSource, null> = 'secure_storage'
   ): Promise<void> {
+    this._invalidateTokenCache();
     await encryptedAppSecretsStore.setSecret(GITHUB_TOKEN_SECRET_KEY, token);
     await this.setStoredTokenSource(source);
   }

@@ -257,10 +257,10 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <IssueSelector
                 value={taskPayload.linkedIssue ?? null}
                 onValueChange={(issue) => {
-                  taskStore.updateLinkedIssue(issue ?? undefined);
+                  void taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                nameWithOwner={provisionedTask.repositoryStore.repositoryUrl ?? ''}
+                repositoryUrl={provisionedTask.repositoryStore.repositoryUrl ?? ''}
                 projectPath={provisionedTask.path}
               />
             </PopoverContent>

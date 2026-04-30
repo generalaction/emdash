@@ -8,9 +8,9 @@ import type {
   RemoteBranchesPayload,
 } from '@shared/git';
 import { bareRefName, computeDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { isGitHubUrl, normalizeGitHubUrl } from '@renderer/utils/github/utils';
 import type { ProjectSettingsStore } from './project-settings-store';
 
 export class RepositoryStore {
@@ -128,7 +128,7 @@ export class RepositoryStore {
   /** True when the configured remote points to a GitHub.com repository. */
   get isGitHubRemote(): boolean {
     const url = this.configuredRemote.url;
-    return !!url && isGitHubUrl(url);
+    return parseGitHubRepository(url) !== null;
   }
 
   /**
@@ -137,8 +137,7 @@ export class RepositoryStore {
    */
   get repositoryUrl(): string | null {
     const url = this.configuredRemote.url;
-    if (!url || !isGitHubUrl(url)) return null;
-    return normalizeGitHubUrl(url);
+    return parseGitHubRepository(url)?.repositoryUrl ?? null;
   }
 
   get defaultBranchName(): string {

@@ -143,7 +143,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
   const openGitHub = useCallback(() => {
     if (verificationUri) {
-      rpc.app.openExternal(verificationUri);
+      void rpc.app.openExternal(verificationUri);
     }
   }, [verificationUri]);
 
@@ -158,7 +158,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
       // Auto-copy code
       if (!hasAutocopied.current) {
         hasAutocopied.current = true;
-        copyToClipboard(data.userCode, true);
+        void copyToClipboard(data.userCode, true);
 
         // Show countdown and open browser after 3 seconds
         setBrowserOpening(true);
@@ -175,7 +175,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
           setBrowserOpening(false);
           if (!hasOpenedBrowser.current) {
             hasOpenedBrowser.current = true;
-            rpc.app.openExternal(data.verificationUri);
+            void rpc.app.openExternal(data.verificationUri);
           }
         }, 3000);
       }
@@ -231,7 +231,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
         e.preventDefault();
-        copyToClipboard(userCode);
+        void copyToClipboard(userCode);
       } else if (e.key === 'Enter') {
         openGitHub();
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'r') {

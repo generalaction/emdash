@@ -2,7 +2,7 @@ import { ProjectManagerStore } from '@renderer/features/projects/stores/project-
 import { SidebarStore } from '@renderer/features/sidebar/sidebar-store';
 import { DependenciesStore } from './dependencies-store';
 import { NavigationStore } from './navigation-store';
-import { snapshotRegistry, SnapshotRegistry } from './snapshot-registry';
+import { snapshotRegistry, type SnapshotRegistry } from './snapshot-registry';
 import { SshConnectionStore } from './ssh-connection-store';
 import { UpdateStore } from './update-store';
 

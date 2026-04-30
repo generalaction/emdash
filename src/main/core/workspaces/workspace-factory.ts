@@ -3,6 +3,9 @@ import type { Task } from '@shared/tasks';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
@@ -13,7 +16,6 @@ import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
-import { getGitLocalExec, getGitSshExec, getSshExec } from '@main/core/utils/exec';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
@@ -60,19 +62,12 @@ export function createWorkspaceFactory(
   return async () => {
     const workDir = context.workDir;
 
-    // Transport-specific FS, exec, and git exec
+    // Transport-specific FS and exec
     const workspaceFs =
       type.kind === 'ssh' ? new SshFileSystem(type.proxy, workDir) : new LocalFileSystem(workDir);
 
-    const exec =
-      type.kind === 'ssh'
-        ? getSshExec(type.proxy)
-        : getGitLocalExec(() => githubConnectionService.getToken());
-
-    const gitExec =
-      type.kind === 'ssh'
-        ? getGitSshExec(type.proxy, () => githubConnectionService.getToken())
-        : exec;
+    const ctx =
+      type.kind === 'ssh' ? new SshExecutionContext(type.proxy) : new LocalExecutionContext();
 
     // Settings (shared)
     const projectSettings = await context.settings.get();
@@ -102,7 +97,7 @@ export function createWorkspaceFactory(
             taskPath: workDir,
             tmux: tmuxEnabled,
             shellSetup,
-            exec,
+            ctx,
             proxy: type.proxy,
             connectionId: type.connectionId,
             taskEnvVars: bootstrapTaskEnvVars,
@@ -113,7 +108,7 @@ export function createWorkspaceFactory(
             taskPath: workDir,
             tmux: tmuxEnabled,
             shellSetup,
-            exec,
+            ctx,
             taskEnvVars: bootstrapTaskEnvVars,
           });
 
@@ -123,12 +118,14 @@ export function createWorkspaceFactory(
       terminals: workspaceTerminals,
     });
 
-    const gitService = new GitService(
-      workDir,
-      gitExec,
-      workspaceFs,
-      type.kind === 'ssh' ? false : undefined
+    const baseGitCtx =
+      type.kind === 'ssh'
+        ? new SshExecutionContext(type.proxy, { root: workDir })
+        : new LocalExecutionContext({ root: workDir });
+    const authGitCtx = new GitHubAuthExecutionContext(baseGitCtx, () =>
+      githubConnectionService.getToken()
     );
+    const gitService = new GitService(baseGitCtx, authGitCtx, workspaceFs);
 
     const repository = context.repository ?? new GitRepositoryService(gitService, context.settings);
 
@@ -234,7 +231,7 @@ export function buildTaskProviders(
   opts: TaskProviderOpts
 ): { conversations: ConversationProvider; terminals: TerminalProvider } {
   if (type.kind === 'ssh') {
-    const exec = getSshExec(type.proxy);
+    const ctx = new SshExecutionContext(type.proxy);
     return {
       conversations: new SshConversationProvider({
         projectId: opts.projectId,
@@ -242,7 +239,7 @@ export function buildTaskProviders(
         taskId: opts.taskId,
         tmux: opts.tmuxEnabled,
         shellSetup: opts.shellSetup,
-        exec,
+        ctx,
         proxy: type.proxy,
         taskEnvVars: opts.taskEnvVars,
       }),
@@ -252,7 +249,7 @@ export function buildTaskProviders(
         taskPath: opts.taskPath,
         tmux: opts.tmuxEnabled,
         shellSetup: opts.shellSetup,
-        exec,
+        ctx,
         proxy: type.proxy,
         connectionId: type.connectionId,
         taskEnvVars: opts.taskEnvVars,
@@ -260,7 +257,7 @@ export function buildTaskProviders(
     };
   }
 
-  const exec = getGitLocalExec(() => githubConnectionService.getToken());
+  const ctx = new LocalExecutionContext();
   return {
     conversations: new LocalConversationProvider({
       projectId: opts.projectId,
@@ -268,7 +265,7 @@ export function buildTaskProviders(
       taskId: opts.taskId,
       tmux: opts.tmuxEnabled,
       shellSetup: opts.shellSetup,
-      exec,
+      ctx,
       taskEnvVars: opts.taskEnvVars,
     }),
     terminals: new LocalTerminalProvider({
@@ -277,7 +274,7 @@ export function buildTaskProviders(
       taskPath: opts.taskPath,
       tmux: opts.tmuxEnabled,
       shellSetup: opts.shellSetup,
-      exec,
+      ctx,
       taskEnvVars: opts.taskEnvVars,
     }),
   };

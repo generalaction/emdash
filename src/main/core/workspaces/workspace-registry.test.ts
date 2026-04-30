@@ -183,15 +183,17 @@ describe('WorkspaceRegistry', () => {
     const { workspace, dispose, gitDispose } = makeWorkspace('branch:main');
     const order: string[] = [];
 
-    dispose.mockImplementation(async () => {
+    dispose.mockImplementation(() => {
       order.push('lifecycleDispose');
+      return undefined;
     });
     gitDispose.mockImplementation(() => {
       order.push('gitDispose');
     });
 
-    const onDestroy = vi.fn(async () => {
+    const onDestroy = vi.fn(() => {
       order.push('onDestroy');
+      return Promise.resolve();
     });
     const factory = vi.fn(async () => ({ workspace, onDestroy }));
 

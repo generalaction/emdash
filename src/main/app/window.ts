@@ -39,9 +39,9 @@ export function createMainWindow(): BrowserWindow {
   });
 
   if (import.meta.env.DEV) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
+    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
   } else {
-    mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
+    void mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
   }
 
   // Route external links to the user’s default browser
@@ -58,7 +58,7 @@ export function createMainWindow(): BrowserWindow {
     if (typeof mainWindow?.setWindowButtonVisibility === 'function') {
       mainWindow.setWindowButtonVisibility(true);
     }
-    checkAndReportDailyActiveUser();
+    void checkAndReportDailyActiveUser();
   });
 
   mainWindow.on('blur', () => {

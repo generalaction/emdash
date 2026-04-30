@@ -2,10 +2,10 @@ import { observer } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
-import { PtySession } from '@renderer/lib/pty/pty-session';
+import { type PtySession } from '@renderer/lib/pty/pty-session';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
-import { TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import { cn } from '@renderer/utils/utils';
 import { getTabbedPtySessionIds } from './tabbed-pty-panel-sessions';
 
@@ -41,7 +41,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
 
   const allSessionIds = useMemo(
     () => getTabbedPtySessionIds(tabs, getSession),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [tabs, getSession]
   );
 

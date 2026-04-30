@@ -5,9 +5,9 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
-import type { ExecFn } from '@main/core/utils/exec';
 import { provisionBYOITask } from '@main/core/workspaces/byoi/provision-byoi-task';
 import { localWorkspaceId, sshWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
@@ -27,7 +27,7 @@ import {
 } from './provision-task-error';
 import { provisionLocalTask } from './task-builder';
 
-type StoredTask = ProvisionResult & { projectId: string; exec: ExecFn };
+type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
 
 export type TaskManagerHooks = {
   'task:provisioned': (info: {
@@ -62,7 +62,7 @@ async function executeProvision(
       conversations,
       terminals,
       wpConfig: projectSettings.workspaceProvider,
-      execFn: provider.exec,
+      ctx: provider.ctx,
       projectId: provider.projectId,
       projectPath: provider.repoPath,
       settings: provider.settings,
@@ -126,23 +126,32 @@ async function executeTeardown(
 async function cleanupDetachedSessions(
   projectId: string,
   taskId: string,
-  exec: ExecFn
+  ctx: IExecutionContext
 ): Promise<void> {
   const { conversationIds, terminalIds } = await getTaskSessionLeafIds(projectId, taskId);
   const sessionIds = [...conversationIds, ...terminalIds].map((leafId) =>
     makePtySessionId(projectId, taskId, leafId)
   );
   await Promise.all(
-    sessionIds.map((sessionId) => killTmuxSession(exec, makeTmuxSessionName(sessionId)))
+    sessionIds.map((sessionId) => killTmuxSession(ctx, makeTmuxSessionName(sessionId)))
   );
 }
 
 class TaskManager {
-  private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError>();
-  private readonly _tasksByProject = new Map<string, Set<string>>();
   private readonly _hooks = new HookCore<TaskManagerHooks>((name, e) =>
     log.error(`TaskManager: ${String(name)} hook error`, e)
   );
+  private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError>({
+    postTeardown: (taskId, stored) => {
+      this._tasksByProject.get(stored.projectId)?.delete(taskId);
+      this._hooks.callHookBackground('task:torn-down', {
+        projectId: stored.projectId,
+        taskId,
+        workspaceId: stored.persistData.workspaceId,
+      });
+    },
+  });
+  private readonly _tasksByProject = new Map<string, Set<string>>();
 
   readonly hooks: Hookable<TaskManagerHooks> = this._hooks;
 
@@ -165,7 +174,7 @@ class TaskManager {
         const stored: StoredTask = {
           ...result,
           projectId: provider.projectId,
-          exec: provider.exec,
+          ctx: provider.ctx,
         };
 
         const byProject = this._tasksByProject.get(provider.projectId) ?? new Set<string>();
@@ -199,12 +208,9 @@ class TaskManager {
     taskId: string,
     mode: TeardownMode = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
-    // Pre-capture stored task so the onFinally closure has access to hook data.
-    const stored = this._lifecycle.get(taskId);
-
     const result = this._lifecycle.teardown(
       taskId,
-      async ({ taskProvider, persistData, projectId, exec }) => {
+      async ({ taskProvider, persistData, projectId, ctx }) => {
         try {
           await withTimeout(
             executeTeardown(taskProvider, persistData.workspaceId, mode),
@@ -213,7 +219,7 @@ class TaskManager {
           return ok();
         } catch (e) {
           log.error('TaskManager: failed to teardown task', { taskId, error: String(e) });
-          await cleanupDetachedSessions(projectId, taskId, exec).catch((cleanupError) => {
+          await cleanupDetachedSessions(projectId, taskId, ctx).catch((cleanupError) => {
             log.warn('TaskManager: fallback cleanup failed', {
               taskId,
               error: String(cleanupError),
@@ -221,15 +227,6 @@ class TaskManager {
           });
           return err<TeardownTaskError>(toTeardownError(e));
         }
-      },
-      () => {
-        if (!stored) return;
-        this._tasksByProject.get(stored.projectId)?.delete(taskId);
-        this._hooks.callHookBackground('task:torn-down', {
-          projectId: stored.projectId,
-          taskId,
-          workspaceId: stored.persistData.workspaceId,
-        });
       }
     );
 
