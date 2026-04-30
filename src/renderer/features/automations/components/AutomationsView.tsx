@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { LayoutGrid, Loader2, Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/types';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { useAutomations } from '../useAutomations';
@@ -11,12 +12,13 @@ import { AutomationRunsDrawer } from './AutomationRunsDrawer';
 
 export function AutomationsView() {
   const { automations, catalog, remove, setEnabled, runNow } = useAutomations();
+  const { toast } = useToast();
   const showConfirmDelete = useShowModal('confirmActionModal');
   const showCreateAutomation = useShowModal('createAutomationModal');
   const [runsAutomation, setRunsAutomation] = useState<Automation | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
 
-  const automationItems = automations.data ?? [];
+  const automationItems = useMemo(() => automations.data ?? [], [automations.data]);
   const usedTemplateIds = useMemo(
     () => new Set(automationItems.map((item) => item.builtinTemplateId).filter(Boolean)),
     [automationItems]
@@ -49,6 +51,18 @@ export function AutomationsView() {
       description: `“${automation.name}” will be deleted. Run history for this automation will also be removed.`,
       confirmLabel: 'Delete',
       onSuccess: () => remove.mutate(automation.id),
+    });
+  }
+
+  function runAutomationNow(automation: Automation) {
+    runNow.mutate(automation.id, {
+      onError: (error) => {
+        toast({
+          title: 'Automation failed',
+          description: error instanceof Error ? error.message : String(error),
+          variant: 'destructive',
+        });
+      },
     });
   }
 
@@ -112,22 +126,15 @@ export function AutomationsView() {
         </div>
 
         {automationItems.length > 0 && (
-          <div className="mb-6 overflow-hidden rounded-lg border border-border bg-muted/10">
-            <div className="grid grid-cols-[minmax(0,1fr)_140px_88px_64px_32px] items-center gap-3 border-b border-border bg-muted/20 px-3 py-2 text-[11px] font-medium tracking-wide text-muted-foreground">
-              <div>Automations</div>
-              <div>Author</div>
-              <div>Tools</div>
-              <div>Created</div>
-              <div />
-            </div>
+          <div className="mb-6 divide-y divide-border/70 border-y border-border/70">
             {automationItems.map((automation) => (
               <AutomationRow
                 key={automation.id}
                 automation={automation}
-                busy={runNow.isPending}
+                busy={runNow.isPending && runNow.variables === automation.id}
                 onEdit={openEditAutomation}
                 onDelete={deleteAutomation}
-                onRunNow={(item) => runNow.mutate(item.id)}
+                onRunNow={runAutomationNow}
                 onSetEnabled={(item, enabled) => setEnabled.mutate({ id: item.id, enabled })}
                 onShowRuns={setRunsAutomation}
               />
