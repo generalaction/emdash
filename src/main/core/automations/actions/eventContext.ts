@@ -20,10 +20,7 @@ export function appendAutomationEventContext(
 ): string {
   if (!event) return prompt;
 
-  const lines = [
-    `Automation event: ${formatEventLabel(event.kind)}`,
-    `- Provider: ${event.provider}`,
-  ];
+  const lines = [`Automation event: ${formatEventLabel(event.kind)}`];
   switch (event.kind) {
     case 'pr.opened':
     case 'pr.merged':
@@ -54,24 +51,6 @@ export function appendAutomationEventContext(
       addLine(lines, 'Assignee', event.payload.assignee);
       addLine(lines, 'Body', event.payload.body);
       addLine(lines, 'Ref', event.payload.ref);
-      break;
-    case 'task.created':
-    case 'task.completed':
-    case 'task.failed':
-      addLine(lines, 'Task', event.payload.name ?? event.payload.taskId);
-      addLine(lines, 'Status', event.payload.status);
-      addLine(lines, 'Task ID', event.payload.taskId);
-      break;
-    case 'agent.session_exited':
-    case 'agent.permission_prompt':
-      addLine(lines, 'Task ID', event.payload.taskId);
-      addLine(lines, 'Conversation ID', event.payload.conversationId);
-      addLine(lines, 'Exit code', event.payload.exitCode);
-      addLine(lines, 'Message', event.payload.message);
-      break;
-    case 'git.ref_changed':
-      addLine(lines, 'Branch', event.payload.branch);
-      addLine(lines, 'Change type', event.payload.changeType);
       break;
     default: {
       const exhaustive: never = event;

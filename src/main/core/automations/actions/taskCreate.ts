@@ -2,11 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
-import { type CreateTaskError } from '@shared/tasks';
-import { openProject } from '@main/core/projects/operations/openProject';
-import { projectManager } from '@main/core/projects/project-manager';
+import type { CreateTaskError } from '@shared/tasks';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { createTask } from '@main/core/tasks/operations/createTask';
 import { appendAutomationEventContext } from './eventContext';
 import { applyAutomationTemplate } from './template';
@@ -33,29 +30,6 @@ function stringifyCreateTaskError(error: CreateTaskError): string {
   }
 }
 
-async function sourceBranchForAutomation(projectId: string) {
-  const openResult = await openProject(projectId);
-  if (!openResult.success) {
-    const message =
-      openResult.error.type === 'path-not-found'
-        ? `path_not_found:${openResult.error.path}`
-        : openResult.error.type === 'ssh-disconnected'
-          ? `ssh_disconnected:${openResult.error.connectionId}`
-          : openResult.error.message;
-    throw new Error(message);
-  }
-
-  const project = projectManager.getProject(projectId);
-  if (!project) throw new Error('project_not_open');
-
-  const [repoInfo, defaultBranch] = await Promise.all([
-    project.repository.getRepositoryInfo(),
-    project.repository.getDefaultBranchName().catch(() => 'main'),
-  ]);
-
-  return { type: 'local' as const, branch: repoInfo.currentBranch ?? defaultBranch };
-}
-
 export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action, ctx) => {
   const prompt = appendAutomationEventContext(
     applyAutomationTemplate(action.prompt, ctx.event),
@@ -63,33 +37,31 @@ export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action
   ).trim();
   if (!prompt) return err('task_create_prompt_empty');
 
+  if (!action.taskName) return err('task_create_missing_task_name');
+  if (!action.sourceBranch) return err('task_create_missing_source_branch');
+  if (!action.strategy) return err('task_create_missing_strategy');
+
   try {
     const taskId = randomUUID();
     const conversationId = randomUUID();
     const provider = action.provider ?? (await appSettingsService.get('defaultAgent'));
-    const sourceBranch = await sourceBranchForAutomation(ctx.automation.projectId);
-    const mode = action.mode ?? 'direct';
-    const taskName =
-      mode === 'worktree'
-        ? generateTaskName({ title: `${ctx.automation.name} ${taskId.slice(0, 8)}` })
-        : `Automation: ${ctx.automation.name}`;
+    const projectId = ctx.automation.projectId;
 
     const result = await createTask({
       id: taskId,
-      projectId: ctx.automation.projectId,
-      name: taskName,
-      sourceBranch,
-      strategy:
-        mode === 'worktree'
-          ? { kind: 'new-branch', taskBranch: taskName }
-          : { kind: 'no-worktree' },
+      projectId,
+      name: action.taskName,
+      sourceBranch: action.sourceBranch,
+      strategy: action.strategy,
+      linkedIssue: action.linkedIssue,
       initialConversation: {
         id: conversationId,
-        projectId: ctx.automation.projectId,
+        projectId,
         taskId,
         provider,
         title: ctx.automation.name,
         initialPrompt: prompt,
+        autoApprove: true,
       },
     });
 
@@ -97,7 +69,7 @@ export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action
 
     return ok({
       taskId,
-      sessionId: makePtySessionId(ctx.automation.projectId, taskId, conversationId),
+      sessionId: makePtySessionId(projectId, taskId, conversationId),
     });
   } catch (error) {
     return err(error instanceof Error ? error.message : String(error));

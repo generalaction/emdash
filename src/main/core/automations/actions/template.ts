@@ -25,29 +25,3 @@ export function applyAutomationTemplate(input: string, event: AutomationEvent | 
     return stringifyTemplateValue(getPathValue({ event }, path));
   });
 }
-
-export function eventIssueRef(event: AutomationEvent | null): string | null {
-  if (!event) return null;
-  if (
-    event.kind === 'issue.opened' ||
-    event.kind === 'issue.closed' ||
-    event.kind === 'issue.assigned' ||
-    event.kind === 'issue.commented'
-  ) {
-    return event.payload.ref || event.payload.number;
-  }
-  return null;
-}
-
-export function eventPrRef(event: AutomationEvent | null): string | null {
-  if (!event) return null;
-  if (
-    event.kind === 'pr.opened' ||
-    event.kind === 'pr.merged' ||
-    event.kind === 'pr.closed' ||
-    event.kind === 'pr.review_requested'
-  ) {
-    return event.payload.ref || String(event.payload.number);
-  }
-  return null;
-}
