@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FileSystemProvider, ReadResult, WriteResult } from '@main/core/fs/types';
+import { MemoryFs } from '@main/core/fs/test-helpers/memory-fs';
 import type { ExecFn } from '@main/core/utils/exec';
 import { HookConfigWriter } from './hook-config';
 
@@ -9,36 +9,8 @@ vi.mock('@main/core/dependencies/probe', () => ({
   resolveCommandPath: mockResolveCommandPath,
 }));
 
-class MemoryFs {
-  readonly files = new Map<string, string>();
-
-  async exists(path: string): Promise<boolean> {
-    return this.files.has(path);
-  }
-
-  async read(path: string): Promise<ReadResult> {
-    const content = this.files.get(path);
-    if (content === undefined) {
-      throw new Error(`not found: ${path}`);
-    }
-    return {
-      content,
-      truncated: false,
-      totalSize: Buffer.byteLength(content),
-    };
-  }
-
-  async write(path: string, content: string): Promise<WriteResult> {
-    this.files.set(path, content);
-    return {
-      success: true,
-      bytesWritten: Buffer.byteLength(content),
-    };
-  }
-}
-
 function makeWriter(fs: MemoryFs): HookConfigWriter {
-  return new HookConfigWriter(fs as unknown as FileSystemProvider, vi.fn() as ExecFn);
+  return new HookConfigWriter(fs, vi.fn() as ExecFn);
 }
 
 describe('HookConfigWriter', () => {
@@ -54,6 +26,9 @@ describe('HookConfigWriter', () => {
     await writer.writeForProvider('pi');
 
     expect(fs.files.get('.pi/extensions/emdash-hook.ts')).toContain("pi.on('agent_end'");
+    expect(fs.files.get('.pi/extensions/emdash-hook.ts')).toContain(
+      "process.once('uncaughtException'"
+    );
     expect(fs.files.get('.pi/extensions/emdash-hook.ts')).toContain("'X-Emdash-Event-Type'");
     expect(fs.files.get('.gitignore')).toBe('.pi/extensions/emdash-hook.ts\n');
   });

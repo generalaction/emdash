@@ -5,6 +5,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { makeClaudeHookCommand, makeCodexNotifyCommand } from './agent-notify-command';
+import piEmdashExtension from './pi-emdash-extension.ts?raw';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
@@ -68,9 +69,9 @@ export class HookConfigWriter {
       .read(PI_EMDASH_EXTENSION_PATH)
       .then((r) => r.content)
       .catch(() => undefined);
-    if (existing === PI_EMDASH_EXTENSION) return true;
+    if (existing === piEmdashExtension) return true;
 
-    await this.fs.write(PI_EMDASH_EXTENSION_PATH, PI_EMDASH_EXTENSION);
+    await this.fs.write(PI_EMDASH_EXTENSION_PATH, piEmdashExtension);
     return true;
   }
 
@@ -159,41 +160,3 @@ export class HookConfigWriter {
     });
   }
 }
-
-const PI_EMDASH_EXTENSION = `import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
-
-async function notifyEmdash(eventType: 'stop' | 'error' | 'notification', body: Record<string, unknown> = {}) {
-  const port = process.env.EMDASH_HOOK_PORT;
-  const token = process.env.EMDASH_HOOK_TOKEN;
-  const ptyId = process.env.EMDASH_PTY_ID;
-
-  if (!port || !token || !ptyId) return;
-
-  try {
-    await fetch(\`http://127.0.0.1:\${port}/hook\`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Emdash-Token': token,
-        'X-Emdash-Pty-Id': ptyId,
-        'X-Emdash-Event-Type': eventType,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(2000),
-    });
-  } catch {
-    // Emdash may not be running when pi is launched directly; ignore hook failures.
-  }
-}
-
-export default function (pi: ExtensionAPI) {
-  pi.on('agent_end', async () => {
-    await notifyEmdash('stop', { message: 'Task completed' });
-  });
-
-  pi.on('session_shutdown', async (event) => {
-    if (event.reason !== 'quit') return;
-    await notifyEmdash('stop', { message: 'Session ended' });
-  });
-}
-`;
