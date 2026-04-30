@@ -50,7 +50,7 @@ function DialogContent({
           }
         }}
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 flex flex-col w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 bg-background text-sm ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out rounded-xl overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95',
+          'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] flex-col w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 bg-background text-sm ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out rounded-xl overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95',
           className
         )}
         {...props}
@@ -70,7 +70,7 @@ function DialogHeader({
   return (
     <div
       data-slot="dialog-header"
-      className="flex items-center gap-2 p-6 justify-between"
+      className="flex shrink-0 items-center gap-2 p-6 justify-between"
       {...props}
     >
       <div className={cn('flex items-center gap-2', className)}>{children}</div>
@@ -101,7 +101,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        'flex flex-col-reverse gap-2 p-3 border-t border-border bg-background-quaternary-1 sm:flex-row sm:justify-end',
+        'flex shrink-0 flex-col-reverse gap-2 p-3 border-t border-border bg-background-quaternary-1 sm:flex-row sm:justify-end',
         className
       )}
       {...props}
@@ -148,7 +148,14 @@ export function DialogContentArea({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn('flex flex-col gap-2 w-full min-h-0 p-6 pt-0', className)}>{children}</div>
+    <div
+      className={cn(
+        'flex min-h-0 w-full flex-1 flex-col gap-2 overflow-y-auto p-6 pt-0',
+        className
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
