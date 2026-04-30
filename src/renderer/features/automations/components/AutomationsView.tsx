@@ -19,6 +19,14 @@ export function AutomationsView() {
   const [browseOpen, setBrowseOpen] = useState(false);
 
   const automationItems = useMemo(() => automations.data ?? [], [automations.data]);
+  const activeAutomations = useMemo(
+    () => automationItems.filter((automation) => automation.enabled),
+    [automationItems]
+  );
+  const pausedAutomations = useMemo(
+    () => automationItems.filter((automation) => !automation.enabled),
+    [automationItems]
+  );
   const usedTemplateIds = useMemo(
     () => new Set(automationItems.map((item) => item.builtinTemplateId).filter(Boolean)),
     [automationItems]
@@ -34,7 +42,10 @@ export function AutomationsView() {
   const showTemplates = recommendedTemplates.length > 0 && (!hasAutomations || browseOpen);
 
   function openTemplate(template: BuiltinAutomationTemplate) {
-    showCreateAutomation({ template });
+    showCreateAutomation({
+      template,
+      onSuccess: () => setBrowseOpen(false),
+    });
   }
 
   function openEditAutomation(automation: Automation) {
@@ -64,6 +75,21 @@ export function AutomationsView() {
         });
       },
     });
+  }
+
+  function renderAutomationRow(automation: Automation) {
+    return (
+      <AutomationRow
+        key={automation.id}
+        automation={automation}
+        busy={runNow.isPending && runNow.variables === automation.id}
+        onEdit={openEditAutomation}
+        onDelete={deleteAutomation}
+        onRunNow={runAutomationNow}
+        onSetEnabled={(item, enabled) => setEnabled.mutate({ id: item.id, enabled })}
+        onShowRuns={setRunsAutomation}
+      />
+    );
   }
 
   const isLoading = automations.isPending || catalog.isPending;
@@ -126,19 +152,23 @@ export function AutomationsView() {
         </div>
 
         {automationItems.length > 0 && (
-          <div className="mb-6 divide-y divide-border/70 border-y border-border/70">
-            {automationItems.map((automation) => (
-              <AutomationRow
-                key={automation.id}
-                automation={automation}
-                busy={runNow.isPending && runNow.variables === automation.id}
-                onEdit={openEditAutomation}
-                onDelete={deleteAutomation}
-                onRunNow={runAutomationNow}
-                onSetEnabled={(item, enabled) => setEnabled.mutate({ id: item.id, enabled })}
-                onShowRuns={setRunsAutomation}
-              />
-            ))}
+          <div className="mb-6 space-y-5">
+            {activeAutomations.length > 0 && (
+              <div className="divide-y divide-border/70 border-y border-border/70">
+                {activeAutomations.map(renderAutomationRow)}
+              </div>
+            )}
+
+            {pausedAutomations.length > 0 && (
+              <section>
+                <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
+                  Paused
+                </h2>
+                <div className="divide-y divide-border/70 border-y border-border/70">
+                  {pausedAutomations.map(renderAutomationRow)}
+                </div>
+              </section>
+            )}
           </div>
         )}
 

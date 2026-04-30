@@ -9,14 +9,14 @@ import { queryClient } from '@renderer/lib/query-client';
 
 export function wireAutomationCacheInvalidation(): void {
   events.on(automationsChangedChannel, () => {
-    queryClient.invalidateQueries({
+    void queryClient.invalidateQueries({
       predicate: (query) => query.queryKey[0] === 'automations' && query.queryKey[1] !== 'catalog',
     });
   });
 
   events.on(automationRunUpdatedChannel, ({ automationId, runId, status, taskId }) => {
     updateAutomationRunStatus(automationId, { runId, status, taskId });
-    queryClient.invalidateQueries({ queryKey: ['automations', 'runs', automationId] });
+    void queryClient.invalidateQueries({ queryKey: ['automations', 'runs', automationId] });
     if (status === 'success' || status === 'failed' || status === 'skipped') {
       const now = Date.now();
       queryClient.setQueriesData<Automation[]>(

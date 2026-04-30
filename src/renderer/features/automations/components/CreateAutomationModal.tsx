@@ -9,15 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react';
+import { useMemo, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
 import {
   AGENT_PROVIDER_IDS,
   isValidProviderId,
@@ -121,13 +113,7 @@ const GITHUB_EVENTS: readonly AutomationEventKind[] = [
   'pr.opened',
   'pr.merged',
   'pr.closed',
-  'pr.review_requested',
-  'ci.failed',
-  'ci.succeeded',
   'issue.opened',
-  'issue.closed',
-  'issue.assigned',
-  'issue.commented',
 ] as const;
 
 const GITHUB_EVENT_ITEMS: PillItem<AutomationEventKind>[] = GITHUB_EVENTS.map((kind) => ({
@@ -233,6 +219,33 @@ function linkedPullRequestSnapshot(pr: PullRequest): TaskCreateAction['linkedPul
   };
 }
 
+function plainBranch(branch: Branch): Branch {
+  if (branch.type === 'remote') {
+    return {
+      type: 'remote',
+      branch: branch.branch,
+      remote: {
+        name: branch.remote.name,
+        url: branch.remote.url,
+      },
+    };
+  }
+
+  return branch.remote
+    ? {
+        type: 'local',
+        branch: branch.branch,
+        remote: {
+          name: branch.remote.name,
+          url: branch.remote.url,
+        },
+      }
+    : {
+        type: 'local',
+        branch: branch.branch,
+      };
+}
+
 export type CreateAutomationModalArgs = {
   template?: BuiltinAutomationTemplate;
   automation?: Automation;
@@ -275,17 +288,20 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
   );
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
 
-  const repo = projectId ? getRepositoryStore(projectId) : undefined;
+  const selectedMountedProject = projectId
+    ? asMounted(getProjectManagerStore().projects.get(projectId))
+    : undefined;
+  const effectiveProjectId = selectedMountedProject ? projectId : firstMountedProjectId();
+
+  const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
   const defaultBranch = repo?.defaultBranch;
   const isUnborn = repo?.isUnborn ?? false;
   const currentBranch = repo?.currentBranch ?? null;
-  const projectData = projectId
-    ? mountedProjectData(getProjectManagerStore().projects.get(projectId))
+  const projectData = effectiveProjectId
+    ? mountedProjectData(getProjectManagerStore().projects.get(effectiveProjectId))
     : null;
-  const nameWithOwner = repo?.repositoryUrl ?? undefined;
+  const repositoryUrl = repo?.repositoryUrl ?? undefined;
 
   const branchInitial = useMemo(() => branchInitialFromAction(seedTaskAction), [seedTaskAction]);
   const fromBranchInitial: FromBranchModeInitial = useMemo(
@@ -302,36 +318,27 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
   );
 
   const fromBranch = useFromBranchMode(
-    projectId,
+    effectiveProjectId,
     defaultBranch,
     isUnborn,
     currentBranch,
     fromBranchInitial
   );
   const fromIssue = useFromIssueMode(
-    projectId,
+    effectiveProjectId,
     defaultBranch,
     isUnborn,
     currentBranch,
     fromIssueInitial
   );
-  const fromPR = useFromPullRequestMode(projectId, defaultBranch, isUnborn);
+  const fromPR = useFromPullRequestMode(effectiveProjectId, defaultBranch, isUnborn);
 
-  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !nameWithOwner;
+  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !repositoryUrl;
   const activeMode = {
     'from-branch': fromBranch,
     'from-issue': fromIssue,
     'from-pull-request': fromPR,
   }[selectedStrategy];
-
-  useEffect(() => {
-    if (name.trim().length === 0) {
-      nameRef.current?.focus();
-    } else {
-      textareaRef.current?.focus();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const { create, update } = useAutomations();
   const isEdit = Boolean(automation);
@@ -341,7 +348,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
   const canSave =
     name.trim().length > 0 &&
     prompt.trim().length > 0 &&
-    !!projectId &&
+    !!effectiveProjectId &&
     activeMode.isValid &&
     !fromPrUnavailable &&
     !isPending;
@@ -377,7 +384,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
         return {
           ...base,
           taskName: fromBranch.taskName,
-          sourceBranch: fromBranch.selectedBranch,
+          sourceBranch: plainBranch(fromBranch.selectedBranch),
           strategy,
         };
       }
@@ -392,7 +399,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
         return {
           ...base,
           taskName: fromIssue.taskName,
-          sourceBranch: fromIssue.selectedBranch,
+          sourceBranch: plainBranch(fromIssue.selectedBranch),
           strategy,
           linkedIssue: fromIssue.linkedIssue,
         };
@@ -421,7 +428,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
   }
 
   async function handleSave() {
-    if (!projectId || !canSave) return;
+    if (!effectiveProjectId || !canSave) return;
     setError(null);
     const action = buildTaskAction();
     if (!action) return;
@@ -432,7 +439,12 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
       const saved = automation
         ? await update.mutateAsync({
             id: automation.id,
-            patch: { name: trimmedName, trigger: triggerSpec, actions, projectId },
+            patch: {
+              name: trimmedName,
+              trigger: triggerSpec,
+              actions,
+              projectId: effectiveProjectId,
+            },
           })
         : await create.mutateAsync({
             name: trimmedName,
@@ -440,7 +452,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
             category: template?.category ?? automationCatalogCategories[0],
             trigger: triggerSpec,
             actions,
-            projectId,
+            projectId: effectiveProjectId,
             builtinTemplateId: template?.id ?? null,
           });
       onSuccess(saved);
@@ -453,7 +465,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
     <>
       <DialogHeader className="flex items-center gap-2">
         <ProjectSelector
-          value={projectId}
+          value={effectiveProjectId}
           onChange={setProjectId}
           trigger={
             <ComboboxTrigger className="h-6 flex items-center gap-2 border border-border rounded-md px-2.5 py-1 text-sm outline-none">
@@ -470,7 +482,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
           <Field>
             <FieldLabel>Name</FieldLabel>
             <Input
-              ref={nameRef}
+              autoFocus={name.trim().length === 0}
               value={name}
               onChange={(event) => setName(event.target.value)}
               onKeyDown={(event) => {
@@ -484,47 +496,48 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
             />
           </Field>
 
-          <Field>
-            <FieldLabel>Trigger</FieldLabel>
-            <ComboboxPill
-              items={TRIGGER_ITEMS}
-              value={triggerKind}
-              onChange={setTriggerKind}
-              triggerClassName="w-full justify-between"
-            />
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field>
+              <FieldLabel>Trigger</FieldLabel>
+              <ComboboxPill
+                items={TRIGGER_ITEMS}
+                value={triggerKind}
+                onChange={setTriggerKind}
+                triggerClassName="w-full justify-between"
+              />
+            </Field>
+
+            {triggerKind === 'cron' ? (
+              <Field>
+                <FieldLabel>Schedule</FieldLabel>
+                <SchedulePicker value={cronExpr} onChange={setCronExpr} />
+              </Field>
+            ) : (
+              <Field>
+                <FieldLabel>Event</FieldLabel>
+                <ComboboxPill
+                  items={GITHUB_EVENT_ITEMS}
+                  value={githubEvent}
+                  onChange={setGithubEvent}
+                  triggerIcon={<Webhook className="size-3.5 shrink-0" />}
+                  triggerLabel={eventLabel}
+                  triggerClassName="w-full justify-between"
+                />
+              </Field>
+            )}
+          </div>
 
           <AnimatedHeight>
-            <div className="flex flex-col gap-4">
-              {triggerKind === 'cron' ? (
-                <Field>
-                  <FieldLabel>Schedule</FieldLabel>
-                  <SchedulePicker value={cronExpr} onChange={setCronExpr} />
-                </Field>
-              ) : (
-                <>
-                  <Field>
-                    <FieldLabel>Event</FieldLabel>
-                    <ComboboxPill
-                      items={GITHUB_EVENT_ITEMS}
-                      value={githubEvent}
-                      onChange={setGithubEvent}
-                      triggerIcon={<Webhook className="size-3.5 shrink-0" />}
-                      triggerLabel={eventLabel}
-                      triggerClassName="w-full justify-between"
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>Filters</FieldLabel>
-                    <FilterPill
-                      eventKind={githubEvent}
-                      value={eventFilters}
-                      onChange={setEventFilters}
-                    />
-                  </Field>
-                </>
-              )}
-            </div>
+            {triggerKind === 'github' ? (
+              <Field>
+                <FieldLabel>Filters</FieldLabel>
+                <FilterPill
+                  eventKind={githubEvent}
+                  value={eventFilters}
+                  onChange={setEventFilters}
+                />
+              </Field>
+            ) : null}
           </AnimatedHeight>
 
           <Separator className="my-1" />
@@ -551,7 +564,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
             {selectedStrategy === 'from-branch' && (
               <FromBranchContent
                 state={fromBranch}
-                projectId={projectId}
+                projectId={effectiveProjectId}
                 currentBranch={currentBranch}
                 isUnborn={isUnborn}
               />
@@ -559,9 +572,9 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
             {selectedStrategy === 'from-issue' && (
               <FromIssueContent
                 state={fromIssue}
-                projectId={projectId}
+                projectId={effectiveProjectId}
                 currentBranch={currentBranch}
-                nameWithOwner={nameWithOwner}
+                repositoryUrl={repositoryUrl}
                 projectPath={projectData?.path}
                 disabled={isTransitioning}
                 isUnborn={isUnborn}
@@ -569,15 +582,15 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
             )}
             {selectedStrategy === 'from-pull-request' && (
               <div className="flex flex-col gap-3">
-                {!nameWithOwner && (
+                {!repositoryUrl && (
                   <p className="text-sm text-muted-foreground">
                     Pull requests are currently available only for configured GitHub remotes.
                   </p>
                 )}
                 <FromPrContent
                   state={fromPR}
-                  projectId={projectId}
-                  nameWithOwner={nameWithOwner}
+                  projectId={effectiveProjectId}
+                  repositoryUrl={repositoryUrl}
                   disabled={isTransitioning || fromPrUnavailable}
                 />
               </div>
@@ -592,7 +605,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
           <Field>
             <FieldLabel>Prompt</FieldLabel>
             <textarea
-              ref={textareaRef}
+              autoFocus={name.trim().length > 0}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={(event) => {
