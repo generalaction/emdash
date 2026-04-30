@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { Conversation, CreateConversationParams } from '@shared/conversations';
+import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';

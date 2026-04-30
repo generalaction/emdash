@@ -18,6 +18,7 @@ import {
   type FileWatcher,
   type ListOptions,
   type ReadResult,
+  type SearchMatch,
   type SearchOptions,
   type SearchResult,
   type WriteResult,
@@ -569,7 +570,7 @@ export class SshFileSystem implements FileSystemProvider {
         return { matches: [], total: 0, filesSearched: 0 };
       }
 
-      const matches: import('../types').SearchMatch[] = [];
+      const matches: SearchMatch[] = [];
       const lines = result.stdout.split('\n').filter((line) => line.trim());
       const seenFiles = new Set<string>();
 

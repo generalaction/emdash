@@ -99,7 +99,7 @@ export class LifecycleScriptService implements IDisposable {
     if (exit && !waitForExit) {
       pty.onExit(() => {
         if (this.disposed) return;
-        this.prepareLifecycleScript(script, { initialSize });
+        void this.prepareLifecycleScript(script, { initialSize });
       });
     }
 

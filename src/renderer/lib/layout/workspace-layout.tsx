@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useDefaultLayout } from 'react-resizable-panels';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';

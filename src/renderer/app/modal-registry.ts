@@ -13,7 +13,7 @@ import { ChangeProjectConnectionModal } from '@renderer/lib/components/change-pr
 import { ConfirmActionDialog } from '@renderer/lib/components/confirm-action-dialog';
 import { FeedbackModal } from '@renderer/lib/components/feedback-modal/feedback-modal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-device-flow-modal';
-import { ModalComponent } from '@renderer/lib/modal/modal-provider';
+import { type ModalComponent } from '@renderer/lib/modal/modal-provider';
 
 export type ModalSize = 'xs' | 'sm' | 'md' | 'lg';
 

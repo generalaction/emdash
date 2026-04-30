@@ -7,7 +7,7 @@ import {
   type InitialConversationState,
 } from './initial-conversation-section';
 import { TaskNameField } from './task-name-field';
-import { FromIssueModeState } from './use-from-issue-mode';
+import { type FromIssueModeState } from './use-from-issue-mode';
 
 interface FromIssueContentProps {
   state: FromIssueModeState;

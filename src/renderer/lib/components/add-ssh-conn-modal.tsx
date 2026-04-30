@@ -206,7 +206,7 @@ export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshCon
           id="add-ssh-conn-form"
           onSubmit={(e) => {
             e.preventDefault();
-            form.handleSubmit();
+            void form.handleSubmit();
           }}
         >
           <FieldGroup>

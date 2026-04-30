@@ -52,7 +52,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
-    taskManager?.provisionTask(taskId);
+    void taskManager?.provisionTask(taskId);
   };
 
   const handleArchive = () => {

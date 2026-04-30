@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { getPaneContainer } from '@renderer/lib/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/lib/pty/pty-dimensions';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -46,7 +46,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const handleCreateConversation = useCallback(() => {
     if (createDisabled || !conversationMgr || !providerId) return;
     const id = crypto.randomUUID();
-    conversationMgr.createConversation({
+    void conversationMgr.createConversation({
       projectId,
       taskId,
       id,

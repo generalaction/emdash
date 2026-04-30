@@ -4,7 +4,7 @@ import {
   type InitialConversationState,
 } from './initial-conversation-section';
 import { TaskNameField } from './task-name-field';
-import { FromBranchModeState } from './use-from-branch-mode';
+import { type FromBranchModeState } from './use-from-branch-mode';
 
 interface FromBranchContentProps {
   state: FromBranchModeState;
