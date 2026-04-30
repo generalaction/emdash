@@ -13,6 +13,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { parseGitHubRepository } from '@shared/github-repository';
 import {
   asMounted,
   getProjectStore,
@@ -92,6 +93,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const taskStore = getTaskStore(projectId, taskId)!;
   const taskPayload = getRegisteredTaskData(projectId, taskId)!;
   const provisionedTask = useProvisionedTask();
+  const nameWithOwner = parseGitHubRepository(
+    provisionedTask.repositoryStore.repositoryUrl
+  )?.nameWithOwner;
   const { taskView } = provisionedTask;
   const { view, rightPanelView } = taskView;
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
@@ -257,10 +261,10 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <IssueSelector
                 value={taskPayload.linkedIssue ?? null}
                 onValueChange={(issue) => {
-                  taskStore.updateLinkedIssue(issue ?? undefined);
+                  void taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                nameWithOwner={provisionedTask.repositoryStore.repositoryUrl ?? ''}
+                nameWithOwner={nameWithOwner ?? ''}
                 projectPath={provisionedTask.path}
               />
             </PopoverContent>

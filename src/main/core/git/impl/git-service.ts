@@ -29,7 +29,7 @@ import {
   type SoftResetError,
 } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
-import { ownerFromUrl } from '@shared/pull-requests';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE, type ExecFn } from '@main/core/utils/exec';
@@ -1390,7 +1390,7 @@ export class GitService implements GitProvider {
   ): Promise<Result<void, FetchPrForReviewError>> {
     try {
       if (isFork) {
-        const forkRemote = ownerFromUrl(headRepositoryUrl) ?? 'fork';
+        const forkRemote = parseGitHubRepository(headRepositoryUrl)?.owner ?? 'fork';
         // Idempotently ensure remote exists with the correct URL
         const remotes = await this.exec('git', ['remote'], { cwd: this.path }).catch(() => ({
           stdout: '',
