@@ -4,17 +4,28 @@ import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 
+export type BranchSelectionInitial = {
+  createBranchAndWorktree?: boolean;
+  pushBranch?: boolean;
+  branchOverride?: Branch;
+};
+
 export function useBranchSelection(
   selectedProjectId: string | undefined,
   defaultBranch: Branch | undefined,
   isUnborn: boolean,
-  currentBranchName?: string | null
+  currentBranchName?: string | null,
+  initial?: BranchSelectionInitial
 ) {
   const { value: localProject } = useAppSettingsKey('localProject');
   const pushOnCreateByDefault = localProject?.pushOnCreate ?? true;
 
-  const [createBranchAndWorktreePreference, setCreateBranchAndWorktreePreference] = useState(true);
-  const [pushBranchOverride, setPushBranchOverride] = useState<boolean | undefined>(undefined);
+  const [createBranchAndWorktreePreference, setCreateBranchAndWorktreePreference] = useState(
+    initial?.createBranchAndWorktree ?? true
+  );
+  const [pushBranchOverride, setPushBranchOverride] = useState<boolean | undefined>(
+    initial?.pushBranch
+  );
   const pushBranch = pushBranchOverride ?? pushOnCreateByDefault;
   const createBranchAndWorktree = isUnborn ? false : createBranchAndWorktreePreference;
 
@@ -23,7 +34,11 @@ export function useBranchSelection(
   // ignored, so defaultBranch takes effect automatically — no effect needed.
   const [branchOverride, setBranchOverride] = useState<
     { projectId: string; branch: Branch } | undefined
-  >(undefined);
+  >(
+    initial?.branchOverride && selectedProjectId
+      ? { projectId: selectedProjectId, branch: initial.branchOverride }
+      : undefined
+  );
 
   const selectedBranch: Branch | undefined =
     !createBranchAndWorktree && currentBranchName
