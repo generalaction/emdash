@@ -86,6 +86,25 @@ export const appSettings = sqliteTable(
   })
 );
 
+export const promptTemplates = sqliteTable(
+  'prompt_templates',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    text: text('text').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    sortOrderIdx: index('idx_prompt_templates_sort_order').on(table.sortOrder),
+  })
+);
+
 export const tasks = sqliteTable(
   'tasks',
   {
@@ -391,6 +410,8 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;
+export type PromptTemplateRow = typeof promptTemplates.$inferSelect;
+export type PromptTemplateInsert = typeof promptTemplates.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;

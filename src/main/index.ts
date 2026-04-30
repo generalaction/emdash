@@ -15,9 +15,11 @@ import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
+import { PromptTemplateService } from './core/prompt-templates/service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
+import { db } from './db/client';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import * as telemetry from './lib/telemetry';
@@ -26,6 +28,51 @@ import { resolveUserEnv } from './utils/userEnv';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+}
+
+const DEFAULT_PROMPT_TEMPLATES = [
+  {
+    name: 'Review',
+    text: 'Review all changes in this worktree. Focus on correctness, regressions, edge cases, and missing tests. List concrete issues first, then note residual risks.',
+  },
+  {
+    name: 'Summarize',
+    text: 'Summarize the changes made in this worktree. Explain what was changed, why it was changed, and any notable implementation details.',
+  },
+  {
+    name: 'Find bugs',
+    text: 'Look for bugs, edge cases, and regressions in this worktree. Be thorough and list every issue you find, no matter how small.',
+  },
+  {
+    name: 'Write tests',
+    text: 'Write unit tests for the changed files in this worktree. Cover happy paths, edge cases, and error handling.',
+  },
+];
+
+async function migrateReviewPromptToTemplates(): Promise<void> {
+  const service = new PromptTemplateService(db);
+  const existing = await service.list();
+  if (existing.length > 0) return;
+
+  // Migrate old reviewPrompt if it exists and is non-empty
+  let migrated = false;
+  try {
+    const reviewPrompt = await appSettingsService.get('reviewPrompt');
+    const text = (reviewPrompt ?? '').trim();
+    if (text) {
+      await service.create({ name: 'Review prompt', text });
+      migrated = true;
+    }
+  } catch {
+    // If reviewPrompt setting doesn't exist or fails, skip silently
+  }
+
+  // If nothing was migrated, seed the default starter templates
+  if (!migrated) {
+    for (const template of DEFAULT_PROMPT_TEMPLATES) {
+      await service.create(template);
+    }
+  }
 }
 
 registerAppScheme();
@@ -90,6 +137,7 @@ app.whenReady().then(async () => {
   prSyncScheduler.initialize();
   appService.initialize();
   await appSettingsService.initialize();
+  await migrateReviewPromptToTemplates();
 
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);

@@ -10,8 +10,8 @@ import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
+import { PromptTemplatesSettingsCard } from './PromptTemplatesSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
-import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
 import { AutoGenerateTaskNamesRow, AutoTrustWorktreesRow } from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
@@ -25,6 +25,7 @@ export type SettingsPageTab =
   | 'integrations'
   | 'repository'
   | 'interface'
+  | 'prompts'
   | 'docs';
 
 interface SectionConfig {
@@ -55,6 +56,7 @@ export function SettingsPage({
     { id: 'integrations', label: 'Integrations' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
+    { id: 'prompts', label: 'Prompts' },
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
@@ -94,11 +96,6 @@ export function SettingsPage({
       sections: [
         { component: <DefaultAgentSettingsCard /> },
         {
-          title: 'Review Prompt',
-          action: <ReviewPromptResetButton />,
-          component: <ReviewPromptSettingsCard />,
-        },
-        {
           title: 'CLI agents',
           component: (
             <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
@@ -130,6 +127,11 @@ export function SettingsPage({
           component: <HiddenToolsSettingsCard />,
         },
       ],
+    },
+    prompts: {
+      title: 'Prompts',
+      description: 'Manage reusable prompt templates for quick insertion into conversations.',
+      sections: [{ title: 'Prompt templates', component: <PromptTemplatesSettingsCard /> }],
     },
   };
 
