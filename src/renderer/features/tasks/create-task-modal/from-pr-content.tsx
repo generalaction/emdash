@@ -12,7 +12,8 @@ interface FromPrContentProps {
   projectId?: string;
   repositoryUrl?: string;
   disabled?: boolean;
-  initialConversation: InitialConversationState;
+  initialConversation?: InitialConversationState;
+  connectionId?: string;
 }
 
 export function FromPrContent({
@@ -21,6 +22,7 @@ export function FromPrContent({
   repositoryUrl,
   disabled,
   initialConversation,
+  connectionId,
 }: FromPrContentProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -38,7 +40,9 @@ export function FromPrContent({
         disabled={disabled}
       />
       <TaskNameField state={state} />
-      <InitialConversationField state={initialConversation} />
+      {initialConversation && (
+        <InitialConversationField state={initialConversation} connectionId={connectionId} />
+      )}
     </div>
   );
 }

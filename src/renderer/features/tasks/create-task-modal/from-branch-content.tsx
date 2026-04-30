@@ -11,7 +11,8 @@ interface FromBranchContentProps {
   projectId?: string;
   currentBranch?: string | null;
   isUnborn?: boolean;
-  initialConversation: InitialConversationState;
+  initialConversation?: InitialConversationState;
+  connectionId?: string;
 }
 
 export function FromBranchContent({
@@ -20,6 +21,7 @@ export function FromBranchContent({
   currentBranch,
   isUnborn,
   initialConversation,
+  connectionId,
 }: FromBranchContentProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -30,7 +32,9 @@ export function FromBranchContent({
         isUnborn={isUnborn}
       />
       <TaskNameField state={state} />
-      <InitialConversationField state={initialConversation} />
+      {initialConversation && (
+        <InitialConversationField state={initialConversation} connectionId={connectionId} />
+      )}
     </div>
   );
 }

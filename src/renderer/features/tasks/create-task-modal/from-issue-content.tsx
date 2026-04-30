@@ -17,7 +17,8 @@ interface FromIssueContentProps {
   projectPath?: string;
   disabled?: boolean;
   isUnborn?: boolean;
-  initialConversation: InitialConversationState;
+  initialConversation?: InitialConversationState;
+  connectionId?: string;
 }
 
 export function FromIssueContent({
@@ -29,6 +30,7 @@ export function FromIssueContent({
   disabled,
   isUnborn,
   initialConversation,
+  connectionId,
 }: FromIssueContentProps) {
   const [isSelecting, setIsSelecting] = useState(!state.linkedIssue);
 
@@ -71,10 +73,13 @@ export function FromIssueContent({
         isUnborn={isUnborn}
       />
       <TaskNameField state={state} />
-      <InitialConversationField
-        state={initialConversation}
-        linkedIssue={state.linkedIssue ?? undefined}
-      />
+      {initialConversation && (
+        <InitialConversationField
+          state={initialConversation}
+          linkedIssue={state.linkedIssue ?? undefined}
+          connectionId={connectionId}
+        />
+      )}
     </div>
   );
 }
