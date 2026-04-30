@@ -79,6 +79,17 @@ describe('HookConfigWriter', () => {
     expect(fs.files.get('.gitignore')).toBe('.opencode/plugins/emdash-notifications.js\n');
   });
 
+  it('does not duplicate the OpenCode gitignore entry', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/opencode');
+    const fs = new MemoryFs();
+    fs.files.set('.gitignore', '.opencode/plugins/emdash-notifications.js\n');
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('opencode');
+
+    expect(fs.files.get('.gitignore')).toBe('.opencode/plugins/emdash-notifications.js\n');
+  });
+
   it('skips the OpenCode plugin when opencode is unavailable', async () => {
     mockResolveCommandPath.mockResolvedValue(undefined);
     const fs = new MemoryFs();

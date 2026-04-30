@@ -83,7 +83,14 @@ export class HookConfigWriter {
   async writeOpenCodePlugin(): Promise<boolean> {
     if (!(await resolveCommandPath('opencode', this.exec))) return false;
 
-    await this.fs.write(OPENCODE_PLUGIN_PATH, makeOpenCodePluginContent());
+    const pluginContent = makeOpenCodePluginContent();
+    const existing = await this.fs
+      .read(OPENCODE_PLUGIN_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === pluginContent) return true;
+
+    await this.fs.write(OPENCODE_PLUGIN_PATH, pluginContent);
     return true;
   }
 
@@ -122,6 +129,7 @@ export class HookConfigWriter {
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([OPENCODE_PLUGIN_PATH]);
       }
+      return;
     }
   }
 
