@@ -22,20 +22,20 @@ function runBundledMigrations(connection: BetterSqlite3.Database): void {
     )
   `);
 
-  const lastRow = connection
-    .prepare('SELECT created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1')
-    .get() as { created_at: number } | undefined;
-  const lastTimestamp = lastRow?.created_at ?? 0;
+  const appliedHashes = new Set(
+    (connection.prepare('SELECT hash FROM __drizzle_migrations').all() as { hash: string }[]).map(
+      (r) => r.hash
+    )
+  );
 
   connection.transaction(() => {
     for (const entry of (journal as { entries: JournalEntry[] }).entries) {
-      if (entry.when <= lastTimestamp) continue;
-
       const sqlKey = Object.keys(sqlFiles).find((k) => k.includes(entry.tag));
       if (!sqlKey) throw new Error(`Missing bundled SQL for migration: ${entry.tag}`);
 
       const sql = sqlFiles[sqlKey];
       const hash = createHash('sha256').update(sql).digest('hex');
+      if (appliedHashes.has(hash)) continue;
 
       for (const stmt of sql.split('--> statement-breakpoint')) {
         const trimmed = stmt.trim();

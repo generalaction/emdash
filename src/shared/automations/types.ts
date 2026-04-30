@@ -1,9 +1,15 @@
 import type { ActionSpec } from '@shared/automations/actions';
-import type { AutomationEventKind, EventProviderScope } from '@shared/automations/events';
+import type { AutomationEventKind, EventTriggerFilters } from '@shared/automations/events';
+
+export const AUTOMATION_NAME_MAX_LENGTH = 120;
 
 export type TriggerSpec =
   | { kind: 'cron'; expr: string; tz: string }
-  | { kind: 'event'; event: AutomationEventKind; provider?: EventProviderScope | null };
+  | {
+      kind: 'event';
+      event: AutomationEventKind;
+      filters?: EventTriggerFilters;
+    };
 
 export type Automation = {
   id: string;
