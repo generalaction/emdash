@@ -73,7 +73,7 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
         </div>
       </DialogHeader>
 
-      <DialogContentArea className="overflow-y-auto">
+      <DialogContentArea>
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="skill-name" className="text-xs">

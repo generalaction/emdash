@@ -95,7 +95,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             </div>
           </div>
         </DialogHeader>
-        <DialogContentArea className="overflow-y-auto">
+        <DialogContentArea>
           {skill.defaultPrompt && (
             <div className="space-y-1 rounded-md bg-muted/40 pb-2">
               <p className="text-xs font-medium text-muted-foreground">Example prompt</p>
