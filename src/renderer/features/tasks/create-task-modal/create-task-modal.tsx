@@ -79,14 +79,14 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
     : null;
-  const nameWithOwner = selectedProjectId
+  const repositoryUrl = selectedProjectId
     ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
     : undefined;
 
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, isUnborn, initialPR);
-  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !nameWithOwner;
+  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !repositoryUrl;
 
   const activeMode = {
     'from-branch': fromBranch,
@@ -235,7 +235,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               state={fromIssue}
               projectId={selectedProjectId}
               currentBranch={currentBranch}
-              nameWithOwner={nameWithOwner}
+              repositoryUrl={repositoryUrl}
               projectPath={projectData?.path}
               disabled={isTransitioning}
               isUnborn={isUnborn}
@@ -243,7 +243,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           )}
           {selectedStrategy === 'from-pull-request' && (
             <div className="flex flex-col gap-3">
-              {!nameWithOwner && (
+              {!repositoryUrl && (
                 <p className="text-sm text-muted-foreground">
                   Pull requests are currently available only for configured GitHub remotes.
                 </p>
@@ -251,7 +251,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               <FromPrContent
                 state={fromPR}
                 projectId={selectedProjectId}
-                nameWithOwner={nameWithOwner}
+                repositoryUrl={repositoryUrl}
                 disabled={isTransitioning || fromPrUnavailable}
               />
             </div>

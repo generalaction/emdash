@@ -2,13 +2,20 @@ import { randomUUID } from 'node:crypto';
 import type { Octokit } from '@octokit/rest';
 import { and, eq, inArray, lt, ne } from 'drizzle-orm';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
+import {
+  parseGitHubRepository,
+  parseGitHubRepositoryResult,
+  type GitHubRepositoryParseError,
+} from '@shared/github-repository';
 import type {
   MergeableState,
   MergeStateStatus,
   PrSyncProgress,
   PullRequest,
+  PullRequestFile,
   PullRequestStatus,
 } from '@shared/pull-requests';
+import { ok, type Result } from '@shared/result';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
 import {
   GET_PR_BY_NUMBER_QUERY,
@@ -16,11 +23,6 @@ import {
   INCREMENTAL_SYNC_PRS_QUERY,
   SYNC_PRS_QUERY,
 } from '@main/core/github/services/pr-queries';
-import {
-  isGitHubUrl,
-  normalizeGitHubUrl,
-  splitNormalizedUrl,
-} from '@main/core/github/services/utils';
 import { db } from '@main/db/client';
 import { KV } from '@main/db/kv';
 import {
@@ -245,7 +247,17 @@ export class PrSyncEngine {
    */
   private async _runFullSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
     log.info('PrSyncEngine: runFullSync start', { repositoryUrl });
-    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
+    const repository = parseGitHubRepositoryResult(repositoryUrl);
+    if (!repository.success) {
+      this._emitProgress({
+        remoteUrl: repositoryUrl,
+        kind: 'full',
+        status: 'error',
+        error: `Invalid GitHub repository URL: "${repository.error.input}"`,
+      });
+      return;
+    }
+    const { owner, repo } = repository.data;
     const octokit = await this.getOctokit().catch((e: unknown) => {
       log.warn('PrSyncEngine: runFullSync — failed to get Octokit (not authenticated?)', {
         repositoryUrl,
@@ -339,7 +351,17 @@ export class PrSyncEngine {
   private async _runIncrementalSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
     log.info('PrSyncEngine: runIncrementalSync started', { repositoryUrl });
 
-    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
+    const repository = parseGitHubRepositoryResult(repositoryUrl);
+    if (!repository.success) {
+      this._emitProgress({
+        remoteUrl: repositoryUrl,
+        kind: 'incremental',
+        status: 'error',
+        error: `Invalid GitHub repository URL: "${repository.error.input}"`,
+      });
+      return;
+    }
+    const { owner, repo } = repository.data;
     const octokit = await this.getOctokit().catch((e: unknown) => {
       log.warn('PrSyncEngine: runIncrementalSync — failed to get Octokit (not authenticated?)', {
         repositoryUrl,
@@ -509,7 +531,9 @@ export class PrSyncEngine {
   ): Promise<PullRequest | null> {
     if (signal.aborted) return null;
 
-    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
+    const repository = parseGitHubRepositoryResult(repositoryUrl);
+    if (!repository.success) return null;
+    const { owner, repo } = repository.data;
     const octokit = await this.getOctokit();
 
     const response = await withRetry(() =>
@@ -598,8 +622,9 @@ export class PrSyncEngine {
     const prNumber = pr[0].identifier ? parseInt(pr[0].identifier.replace('#', ''), 10) : NaN;
     if (isNaN(prNumber)) return false;
 
-    if (!isGitHubUrl(pr[0].repositoryUrl)) return false;
-    const { owner, repo } = splitNormalizedUrl(normalizeGitHubUrl(pr[0].repositoryUrl));
+    const repository = parseGitHubRepository(pr[0].repositoryUrl);
+    if (!repository) return false;
+    const { owner, repo } = repository;
     const octokit = await this.getOctokit();
 
     type CheckNode = GqlCheckRunNode | GqlStatusContextNode;
@@ -789,14 +814,11 @@ export class PrSyncEngine {
     const status: PullRequestStatus =
       node.state === 'MERGED' ? 'merged' : node.state === 'CLOSED' ? 'closed' : 'open';
 
-    // Normalise URLs
-    const headRepositoryUrl = node.headRepository?.url
-      ? normalizeGitHubUrl(node.headRepository.url)
-      : repositoryUrl;
+    const headRepositoryUrl =
+      parseGitHubRepository(node.headRepository?.url)?.repositoryUrl ?? repositoryUrl;
 
-    const baseRepositoryUrl = node.baseRepository?.url
-      ? normalizeGitHubUrl(node.baseRepository.url)
-      : repositoryUrl;
+    const baseRepositoryUrl =
+      parseGitHubRepository(node.baseRepository?.url)?.repositoryUrl ?? repositoryUrl;
 
     // Upsert author
     let authorUserId: string | null = null;
@@ -988,8 +1010,10 @@ export class PrSyncEngine {
     title: string;
     body?: string;
     draft: boolean;
-  }): Promise<{ url: string; number: number }> {
-    const { owner, repo } = splitNormalizedUrl(params.repositoryUrl);
+  }): Promise<Result<{ url: string; number: number }, GitHubRepositoryParseError>> {
+    const repository = parseGitHubRepositoryResult(params.repositoryUrl);
+    if (!repository.success) return repository;
+    const { owner, repo } = repository.data;
     const octokit = await this.getOctokit();
     const response = await octokit.rest.pulls.create({
       owner,
@@ -1001,15 +1025,17 @@ export class PrSyncEngine {
       draft: params.draft,
     });
     const { html_url: url, number } = response.data;
-    return { url, number };
+    return ok({ url, number });
   }
 
   async mergePullRequest(
     repositoryUrl: string,
     prNumber: number,
     options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string }
-  ): Promise<{ sha: string | null; merged: boolean }> {
-    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
+  ): Promise<Result<{ sha: string | null; merged: boolean }, GitHubRepositoryParseError>> {
+    const repository = parseGitHubRepositoryResult(repositoryUrl);
+    if (!repository.success) return repository;
+    const { owner, repo } = repository.data;
     const octokit = await this.getOctokit();
     const response = await octokit.rest.pulls.merge({
       owner,
@@ -1018,11 +1044,16 @@ export class PrSyncEngine {
       merge_method: options.strategy,
       sha: options.commitHeadOid,
     });
-    return { sha: response.data.sha ?? null, merged: response.data.merged };
+    return ok({ sha: response.data.sha ?? null, merged: response.data.merged });
   }
 
-  async markReadyForReview(repositoryUrl: string, prNumber: number): Promise<void> {
-    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
+  async markReadyForReview(
+    repositoryUrl: string,
+    prNumber: number
+  ): Promise<Result<void, GitHubRepositoryParseError>> {
+    const repository = parseGitHubRepositoryResult(repositoryUrl);
+    if (!repository.success) return repository;
+    const { owner, repo } = repository.data;
     const octokit = await this.getOctokit();
     const { data } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
     await octokit.graphql(
@@ -1033,21 +1064,16 @@ export class PrSyncEngine {
       }`,
       { id: data.node_id }
     );
+    return ok();
   }
 
   async getPullRequestFiles(
     repositoryUrl: string,
     prNumber: number
-  ): Promise<
-    {
-      filename: string;
-      status: string;
-      additions: number;
-      deletions: number;
-      patch?: string;
-    }[]
-  > {
-    const { owner, repo } = splitNormalizedUrl(repositoryUrl);
+  ): Promise<Result<PullRequestFile[], GitHubRepositoryParseError>> {
+    const repository = parseGitHubRepositoryResult(repositoryUrl);
+    if (!repository.success) return repository;
+    const { owner, repo } = repository.data;
     const octokit = await this.getOctokit();
     const files = await octokit.paginate(octokit.rest.pulls.listFiles, {
       owner,
@@ -1055,13 +1081,15 @@ export class PrSyncEngine {
       pull_number: prNumber,
       per_page: 100,
     });
-    return files.map((f) => ({
-      filename: f.filename,
-      status: f.status,
-      additions: f.additions,
-      deletions: f.deletions,
-      patch: f.patch,
-    }));
+    return ok(
+      files.map((f) => ({
+        filename: f.filename,
+        status: f.status,
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: f.patch,
+      }))
+    );
   }
 
   private async _getFullSyncCursor(repositoryUrl: string): Promise<{ done: boolean } | null> {

@@ -2,6 +2,7 @@ import { ChevronDown, CircleAlert, GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Branch } from '@shared/git';
+import { pullRequestErrorMessage } from '@shared/pull-requests';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
@@ -27,7 +28,7 @@ import { log } from '@renderer/utils/logger';
 import { resolveInitialBaseBranch } from './base-branch';
 
 export type CreatePrModalArgs = {
-  nameWithOwner: string; // kept as-is for modal registry compatibility; value is a repositoryUrl
+  repositoryUrl: string;
   branchName: string;
   draft: boolean;
   workspaceId: string;
@@ -36,7 +37,7 @@ export type CreatePrModalArgs = {
 type Props = BaseModalProps<void> & CreatePrModalArgs;
 
 export const CreatePrModal = observer(function CreatePrModal({
-  nameWithOwner: repositoryUrl,
+  repositoryUrl,
   branchName,
   draft,
   workspaceId,
@@ -96,7 +97,7 @@ export const CreatePrModal = observer(function CreatePrModal({
       if (result.success) {
         onSuccess();
       } else {
-        setError(result.error);
+        setError(pullRequestErrorMessage(result.error));
       }
     } finally {
       setIsCreating(false);

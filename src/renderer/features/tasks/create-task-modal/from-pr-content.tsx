@@ -6,17 +6,17 @@ import { FromPullRequestModeState } from './use-from-pull-request-mode';
 interface FromPrContentProps {
   state: FromPullRequestModeState;
   projectId?: string;
-  nameWithOwner?: string;
+  repositoryUrl?: string;
   disabled?: boolean;
 }
 
-export function FromPrContent({ state, projectId, nameWithOwner, disabled }: FromPrContentProps) {
+export function FromPrContent({ state, projectId, repositoryUrl, disabled }: FromPrContentProps) {
   return (
     <div className="flex flex-col gap-4">
       <PrPickerField
         state={state}
         projectId={projectId}
-        repositoryUrl={nameWithOwner}
+        repositoryUrl={repositoryUrl}
         disabled={disabled}
       />
       <CheckoutModeGroup

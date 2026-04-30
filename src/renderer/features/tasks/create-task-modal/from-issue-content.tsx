@@ -9,7 +9,7 @@ interface FromIssueContentProps {
   state: FromIssueModeState;
   projectId?: string;
   currentBranch?: string | null;
-  nameWithOwner?: string;
+  repositoryUrl?: string;
   projectPath?: string;
   disabled?: boolean;
   isUnborn?: boolean;
@@ -19,7 +19,7 @@ export function FromIssueContent({
   state,
   projectId,
   currentBranch,
-  nameWithOwner = '',
+  repositoryUrl = '',
   projectPath = '',
   disabled,
   isUnborn,
@@ -38,7 +38,7 @@ export function FromIssueContent({
           value={state.linkedIssue}
           onValueChange={handleValueChange}
           projectId={projectId}
-          nameWithOwner={nameWithOwner}
+          repositoryUrl={repositoryUrl}
           projectPath={projectPath}
           disabled={disabled}
         />
