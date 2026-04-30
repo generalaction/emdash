@@ -3,6 +3,7 @@ import {
   automationRunUpdatedChannel,
   automationsChangedChannel,
 } from '@shared/events/automationEvents';
+import { updateAutomationRunStatus } from '@renderer/features/automations/automation-run-status-store';
 import { events } from '@renderer/lib/ipc';
 import { queryClient } from '@renderer/lib/query-client';
 
@@ -13,7 +14,8 @@ export function wireAutomationCacheInvalidation(): void {
     });
   });
 
-  events.on(automationRunUpdatedChannel, ({ automationId, status }) => {
+  events.on(automationRunUpdatedChannel, ({ automationId, runId, status, taskId }) => {
+    updateAutomationRunStatus(automationId, { runId, status, taskId });
     queryClient.invalidateQueries({ queryKey: ['automations', 'runs', automationId] });
     if (status === 'success' || status === 'failed' || status === 'skipped') {
       const now = Date.now();

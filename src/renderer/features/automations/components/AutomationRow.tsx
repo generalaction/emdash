@@ -1,21 +1,25 @@
-import { History, MoreHorizontal, Pencil, Play, Trash2, User } from 'lucide-react';
+import {
+  CheckCircle2,
+  CircleAlert,
+  CircleMinus,
+  History,
+  Loader2,
+  Pencil,
+  Play,
+  Power,
+  PowerOff,
+  Trash2,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ActionSpec } from '@shared/automations/actions';
-import type { Automation } from '@shared/automations/types';
+import type { Automation, AutomationRunStatus } from '@shared/automations/types';
 import AgentLogo from '@renderer/lib/components/agent-logo';
-import { useAccountSession } from '@renderer/lib/hooks/useAccount';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
-import { RelativeTime } from '@renderer/lib/ui/relative-time';
+import { Badge } from '@renderer/lib/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import { cn } from '@renderer/utils/utils';
+import { useAutomationRunStatus } from '../automation-run-status-store';
 
 type Tool = {
   id: string;
@@ -49,6 +53,39 @@ function collectTools(automation: Automation): Tool[] {
   return tools;
 }
 
+function statusMeta(status: AutomationRunStatus) {
+  switch (status) {
+    case 'running':
+      return {
+        label: 'Running',
+        icon: Loader2,
+        className: 'border-blue-500/30 bg-blue-500/10 text-blue-500',
+        iconClassName: 'animate-spin',
+      };
+    case 'success':
+      return {
+        label: 'Succeeded',
+        icon: CheckCircle2,
+        className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
+        iconClassName: '',
+      };
+    case 'failed':
+      return {
+        label: 'Failed',
+        icon: CircleAlert,
+        className: 'border-destructive/30 bg-destructive/10 text-destructive',
+        iconClassName: '',
+      };
+    case 'skipped':
+      return {
+        label: 'Skipped',
+        icon: CircleMinus,
+        className: 'border-amber-500/30 bg-amber-500/10 text-amber-500',
+        iconClassName: '',
+      };
+  }
+}
+
 interface AutomationRowProps {
   automation: Automation;
   busy?: boolean;
@@ -68,15 +105,8 @@ export const AutomationRow = observer(function AutomationRow({
   onSetEnabled,
   onShowRuns,
 }: AutomationRowProps) {
-  const { data: session } = useAccountSession();
-  const { user: githubUser } = useGithubContext();
-  const author = session?.user
-    ? { name: session.user.username, avatarUrl: session.user.avatarUrl }
-    : githubUser
-      ? { name: githubUser.login, avatarUrl: githubUser.avatar_url }
-      : null;
-
   const tools = useMemo(() => collectTools(automation), [automation]);
+  const runStatus = useAutomationRunStatus(automation.id);
   const visibleTools = tools.slice(0, 3);
   const overflow = tools.length - visibleTools.length;
 
@@ -94,112 +124,130 @@ export const AutomationRow = observer(function AutomationRow({
   }, [automation.name]);
 
   const dimmed = !automation.enabled;
+  const runStatusMeta = runStatus ? statusMeta(runStatus.status) : null;
+  const StatusIcon = runStatusMeta?.icon;
+  const runStatusTooltip =
+    runStatus?.status === 'running' ? 'Automation is running' : 'Latest run finished';
 
   return (
     <div
-      className={`group grid grid-cols-[minmax(0,1fr)_140px_88px_64px_32px] items-center gap-3 border-b border-border px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/30 ${
+      className={`group flex items-center gap-4 px-1 py-3 text-left transition-colors hover:bg-muted/20 ${
         dimmed ? 'opacity-60' : ''
       }`}
     >
-      <div className="min-w-0">
-        <Tooltip>
-          <TooltipTrigger
-            ref={titleRef}
-            onClick={() => onEdit(automation)}
-            className="block w-full max-w-full truncate rounded-sm text-left text-sm font-medium text-foreground hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            {automation.name}
-          </TooltipTrigger>
-          {isTitleTruncated ? <TooltipContent>{automation.name}</TooltipContent> : null}
-        </Tooltip>
-      </div>
-
-      <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-        {author ? (
-          <>
-            {author.avatarUrl ? (
-              <img
-                src={author.avatarUrl}
-                alt={author.name}
-                className="size-5 shrink-0 rounded-full border border-border/60"
-              />
-            ) : (
-              <div className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted">
-                <User className="size-3 text-muted-foreground" />
-              </div>
-            )}
-            <span className="truncate">{author.name}</span>
-          </>
-        ) : (
-          <span className="text-foreground-passive">—</span>
-        )}
-      </div>
-
-      <div className="flex items-center gap-1.5">
-        {visibleTools.length === 0 ? (
-          <span className="text-xs text-foreground-passive">—</span>
-        ) : (
-          visibleTools.map((tool) => (
-            <Tooltip key={tool.id}>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger
+              ref={titleRef}
+              onClick={() => onEdit(automation)}
+              className="block min-w-0 max-w-full truncate rounded-sm text-left text-sm font-medium text-foreground hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {automation.name}
+            </TooltipTrigger>
+            {isTitleTruncated ? <TooltipContent>{automation.name}</TooltipContent> : null}
+          </Tooltip>
+          {runStatusMeta && StatusIcon ? (
+            <Tooltip>
               <TooltipTrigger>
-                <span className="flex size-4 items-center justify-center text-muted-foreground">
-                  <AgentLogo
-                    logo={tool.logo}
-                    alt={tool.label}
-                    isSvg={tool.isSvg}
-                    invertInDark={tool.invertInDark}
-                    className="size-4 rounded-sm"
-                  />
-                </span>
+                <Badge
+                  variant="outline"
+                  className={cn('h-5 shrink-0 gap-1 px-1.5 text-[10px]', runStatusMeta.className)}
+                >
+                  <StatusIcon className={cn('size-3', runStatusMeta.iconClassName)} />
+                  {runStatusMeta.label}
+                </Badge>
               </TooltipTrigger>
-              <TooltipContent>{tool.label}</TooltipContent>
+              <TooltipContent>{runStatusTooltip}</TooltipContent>
             </Tooltip>
-          ))
-        )}
-        {overflow > 0 && (
-          <span className="text-[10px] font-medium text-muted-foreground">+{overflow}</span>
-        )}
-      </div>
+          ) : null}
+        </div>
 
-      <div className="text-xs text-muted-foreground">
-        <RelativeTime value={automation.createdAt} compact />
+        {visibleTools.length > 0 ? (
+          <div className="flex items-center gap-1.5">
+            {visibleTools.map((tool) => (
+              <Tooltip key={tool.id}>
+                <TooltipTrigger>
+                  <span className="flex size-4 items-center justify-center text-muted-foreground">
+                    <AgentLogo
+                      logo={tool.logo}
+                      alt={tool.label}
+                      isSvg={tool.isSvg}
+                      invertInDark={tool.invertInDark}
+                      className="size-4 rounded-sm"
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{tool.label}</TooltipContent>
+              </Tooltip>
+            ))}
+            {overflow > 0 && (
+              <span className="text-[10px] font-medium text-muted-foreground">+{overflow}</span>
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div
-        className="flex items-center justify-end"
+        className="flex shrink-0 items-center justify-end gap-0.5 opacity-70 transition-opacity group-hover:opacity-100"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
       >
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label={`Actions for ${automation.name}`}
-            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        <Tooltip>
+          <TooltipTrigger
+            disabled={busy || runStatus?.status === 'running'}
+            onClick={() => onRunNow(automation)}
+            aria-label={`Run ${automation.name} now`}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
           >
-            <MoreHorizontal className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem disabled={busy} onClick={() => onRunNow(automation)}>
-              <Play className="size-3.5" />
-              Run now
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onShowRuns(automation)}>
-              <History className="size-3.5" />
-              Run history
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onEdit(automation)}>
-              <Pencil className="size-3.5" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onSetEnabled(automation, !automation.enabled)}>
-              {automation.enabled ? 'Disable' : 'Enable'}
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onClick={() => onDelete(automation)}>
-              <Trash2 className="size-3.5" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            {runStatus?.status === 'running' ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Play className="size-4" />
+            )}
+          </TooltipTrigger>
+          <TooltipContent>{runStatus?.status === 'running' ? 'Running' : 'Run now'}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            onClick={() => onShowRuns(automation)}
+            aria-label={`Show run history for ${automation.name}`}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <History className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>Run history</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            onClick={() => onEdit(automation)}
+            aria-label={`Edit ${automation.name}`}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <Pencil className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>Edit</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            onClick={() => onSetEnabled(automation, !automation.enabled)}
+            aria-label={`${automation.enabled ? 'Disable' : 'Enable'} ${automation.name}`}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {automation.enabled ? <PowerOff className="size-4" /> : <Power className="size-4" />}
+          </TooltipTrigger>
+          <TooltipContent>{automation.enabled ? 'Disable' : 'Enable'}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            onClick={() => onDelete(automation)}
+            aria-label={`Delete ${automation.name}`}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <Trash2 className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>Delete</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
