@@ -1,5 +1,8 @@
 import { CheckoutModeGroup } from './checkout-mode-group';
-import { type InitialConversationState, InitialConversationField } from './initial-conversation-section';
+import {
+  InitialConversationField,
+  type InitialConversationState,
+} from './initial-conversation-section';
 import { PrPickerField } from './pr-picker-field';
 import { TaskNameField } from './task-name-field';
 import type { FromPullRequestModeState } from './use-from-pull-request-mode';
@@ -13,7 +16,14 @@ interface FromPrContentProps {
   connectionId?: string;
 }
 
-export function FromPrContent({ state, projectId, repositoryUrl, disabled, initialConversation, connectionId }: FromPrContentProps) {
+export function FromPrContent({
+  state,
+  projectId,
+  repositoryUrl,
+  disabled,
+  initialConversation,
+  connectionId,
+}: FromPrContentProps) {
   return (
     <div className="flex flex-col gap-4">
       <PrPickerField

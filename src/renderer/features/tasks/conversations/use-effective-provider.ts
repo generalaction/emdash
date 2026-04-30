@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { AGENT_PROVIDER_IDS, type AgentProviderId, isValidProviderId } from '@shared/agent-provider-registry';
+import {
+  AGENT_PROVIDER_IDS,
+  isValidProviderId,
+  type AgentProviderId,
+} from '@shared/agent-provider-registry';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { appState } from '@renderer/lib/stores/app-state';
 import { resolveConversationProviderSelection } from './provider-selection';

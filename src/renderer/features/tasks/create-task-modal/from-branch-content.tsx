@@ -1,5 +1,8 @@
-import { type InitialConversationState, InitialConversationField } from './initial-conversation-section';
 import { BranchPickerField } from './branch-picker-field';
+import {
+  InitialConversationField,
+  type InitialConversationState,
+} from './initial-conversation-section';
 import { TaskNameField } from './task-name-field';
 import { FromBranchModeState } from './use-from-branch-mode';
 

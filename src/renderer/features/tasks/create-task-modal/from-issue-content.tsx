@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { InlineIssueSelector } from '../components/issue-selector/inline-issue-selector';
 import { SelectedIssueValue } from '../components/issue-selector/issue-selector';
 import { BranchPickerField } from './branch-picker-field';
-import { type InitialConversationState, InitialConversationField } from './initial-conversation-section';
+import {
+  InitialConversationField,
+  type InitialConversationState,
+} from './initial-conversation-section';
 import { TaskNameField } from './task-name-field';
 import { FromIssueModeState } from './use-from-issue-mode';
 
