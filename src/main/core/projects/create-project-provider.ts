@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { bareRefName } from '@shared/git-utils';
+import { safePathSegment } from '@shared/path-name';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -40,7 +41,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   const settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
   const worktreeDirectory = await settings.getWorktreeDirectory();
   await fs.promises.mkdir(worktreeDirectory, { recursive: true });
-  const worktreePoolPath = path.join(worktreeDirectory, project.name);
+  const worktreePoolPath = path.join(worktreeDirectory, safePathSegment(project.name, project.id));
   const worktreeHost = await LocalWorktreeHost.create({
     allowedRoots: [project.path, worktreeDirectory],
   });
