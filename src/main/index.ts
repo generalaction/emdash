@@ -64,7 +64,7 @@ app.on('activate', () => {
   }
 });
 
-app.whenReady().then(async () => {
+void app.whenReady().then(async () => {
   await resolveUserEnv();
 
   try {

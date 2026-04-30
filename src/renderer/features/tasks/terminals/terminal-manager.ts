@@ -18,7 +18,7 @@ export class TerminalManagerStore {
     });
     onBecomeObserved(this, 'terminals', () => {
       if (this._loaded) return;
-      this.load();
+      void this.load();
     });
   }
 

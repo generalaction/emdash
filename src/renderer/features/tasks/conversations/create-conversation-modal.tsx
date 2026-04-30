@@ -46,7 +46,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const handleCreateConversation = useCallback(() => {
     if (createDisabled || !conversationMgr || !providerId) return;
     const id = crypto.randomUUID();
-    conversationMgr.createConversation({
+    void conversationMgr.createConversation({
       projectId,
       taskId,
       id,

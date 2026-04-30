@@ -19,7 +19,7 @@ export function useMonacoLease<T>(pool: {
 
   useEffect(() => {
     let cancelled = false;
-    pool.lease().then((entry) => {
+    void pool.lease().then((entry) => {
       if (cancelled) {
         pool.release(entry);
         return;

@@ -1,7 +1,7 @@
 import { autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
@@ -187,8 +187,8 @@ export const EditorProvider = observer(function EditorProvider({
           if (!tab) return;
           showConflictModal({
             filePath: tab.path,
-            onSuccess: async (accept) => {
-              await editorView.resolveConflict(accept);
+            onSuccess: (accept) => {
+              void editorView.resolveConflict(accept);
             },
           });
         }

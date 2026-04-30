@@ -29,7 +29,7 @@ export class ConversationManagerStore {
     });
     onBecomeObserved(this, 'conversations', () => {
       if (this._loaded) return;
-      this.load();
+      void this.load();
     });
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();

@@ -398,7 +398,7 @@ export class ProjectManagerStore {
         this.projects.set(id, createUnmountedProject(project, 'opening'));
       }
     });
-    this.mountProject(id);
+    void this.mountProject(id);
   }
 
   private _updatePhase(id: string, phase: UnregisteredProjectPhase): void {
