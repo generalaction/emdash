@@ -1,5 +1,6 @@
 import { GitBranch } from 'lucide-react';
-import { ownerFromUrl, type PullRequest } from '@shared/pull-requests';
+import { parseGitHubRepository } from '@shared/github-repository';
+import type { PullRequest } from '@shared/pull-requests';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 
@@ -9,9 +10,9 @@ import { cn } from '@renderer/utils/utils';
  */
 export function PrMergeLine({ pr, className }: { pr: PullRequest; className?: string }) {
   const author = pr.author?.userName;
-  const baseOwner = ownerFromUrl(pr.repositoryUrl);
+  const baseOwner = parseGitHubRepository(pr.repositoryUrl)?.owner;
   const baseBranch = pr.baseRefName;
-  const headOwner = ownerFromUrl(pr.headRepositoryUrl) ?? author;
+  const headOwner = parseGitHubRepository(pr.headRepositoryUrl)?.owner ?? author;
   const headBranch = pr.headRefName;
   const actionText = getPrMergeLineActionText(pr.status);
 
@@ -32,7 +33,7 @@ export function getPrMergeLineActionText(status: PullRequest['status']) {
     case 'merged':
       return 'merged into';
     case 'closed':
-      return 'closed without merging into';
+      return 'was closed without merging into';
     case 'open':
       return 'wants to merge into';
   }

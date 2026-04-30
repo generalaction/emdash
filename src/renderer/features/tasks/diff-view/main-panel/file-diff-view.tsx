@@ -83,17 +83,41 @@ export const FileDiffView = observer(function FileDiffView() {
     if (activeFile.group === 'git') {
       return modelRegistry.toGitUri(uri, HEAD_REF);
     }
-    return modelRegistry.toDiskUri(uri);
+    return uri;
   })();
 
   // Register/unregister models whenever the active file changes.
   useEffect(() => {
     if (!activeFile || isBinary) return;
+    let disposed = false;
 
     if (activeFile.group === 'disk') {
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, activeFile.path, language, 'disk')
-        .catch(() => {});
+      const diskUri = modelRegistry.toDiskUri(uri);
+      void (async () => {
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          activeFile.path,
+          language,
+          'disk'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(diskUri);
+          return;
+        }
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          activeFile.path,
+          language,
+          'buffer'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(modifiedUri);
+        }
+      })().catch(() => {});
       void modelRegistry
         .registerModel(
           projectId,
@@ -139,10 +163,14 @@ export const FileDiffView = observer(function FileDiffView() {
         .catch(() => {});
     }
     return () => {
+      disposed = true;
       modelRegistry.unregisterModel(originalUri);
       modelRegistry.unregisterModel(modifiedUri);
+      if (activeFile.group === 'disk') {
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
+      }
     };
-  }, [isBinary, originalUri, modifiedUri, language, activeFile, projectId, workspaceId, root]);
+  }, [isBinary, originalUri, modifiedUri, language, activeFile, projectId, workspaceId, root, uri]);
 
   return (
     <div className="file-diff-view flex h-full flex-col">

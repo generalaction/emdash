@@ -8,9 +8,9 @@ import type {
   RemoteBranchesPayload,
 } from '@shared/git';
 import { bareRefName, computeDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { isGitHubUrl, normalizeGitHubUrl } from '@renderer/utils/github/utils';
 import type { ProjectSettingsStore } from './project-settings-store';
 
 export class RepositoryStore {
@@ -22,17 +22,20 @@ export class RepositoryStore {
   constructor(
     private readonly projectId: string,
     private readonly settingsStore: ProjectSettingsStore,
-    private readonly baseRef: string
+    private readonly baseRef: string,
+    private readonly workspaceId?: string
   ) {
     this.localData = new Resource<LocalBranchesPayload, GitRefChange>(
-      () => rpc.repository.getLocalBranches(projectId),
+      () => rpc.repository.getLocalBranches(projectId, workspaceId),
       [
         { kind: 'demand' },
         {
           kind: 'event',
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
-              if (p.projectId === projectId && p.kind === 'local-refs') handler(p);
+              if (p.projectId !== projectId) return;
+              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.kind === 'local-refs') handler(p);
             }),
           onEvent: 'reload',
           debounceMs: 200,
@@ -41,15 +44,16 @@ export class RepositoryStore {
     );
 
     this.remoteData = new Resource<RemoteBranchesPayload, GitRefChange>(
-      () => rpc.repository.getRemoteBranches(projectId),
+      () => rpc.repository.getRemoteBranches(projectId, workspaceId),
       [
         { kind: 'demand' },
         {
           kind: 'event',
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
-              if (p.projectId === projectId && (p.kind === 'remote-refs' || p.kind === 'config'))
-                handler(p);
+              if (p.projectId !== projectId) return;
+              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.kind === 'remote-refs' || p.kind === 'config') handler(p);
             }),
           onEvent: 'reload',
           debounceMs: 300,
@@ -124,7 +128,7 @@ export class RepositoryStore {
   /** True when the configured remote points to a GitHub.com repository. */
   get isGitHubRemote(): boolean {
     const url = this.configuredRemote.url;
-    return !!url && isGitHubUrl(url);
+    return parseGitHubRepository(url) !== null;
   }
 
   /**
@@ -133,8 +137,7 @@ export class RepositoryStore {
    */
   get repositoryUrl(): string | null {
     const url = this.configuredRemote.url;
-    if (!url || !isGitHubUrl(url)) return null;
-    return normalizeGitHubUrl(url);
+    return parseGitHubRepository(url)?.repositoryUrl ?? null;
   }
 
   get defaultBranchName(): string {

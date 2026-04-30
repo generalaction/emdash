@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Branch } from '@shared/git';
+import { type Branch } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';

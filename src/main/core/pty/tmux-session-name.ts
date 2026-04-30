@@ -1,4 +1,4 @@
-import type { ExecFn } from '@main/core/utils/exec';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';
 
 const TMUX_SESSION_PREFIX = 'emdash-';
@@ -17,9 +17,9 @@ export function makeTmuxSessionName(sessionId: string): string {
   return `${TMUX_SESSION_PREFIX}${encoded}`;
 }
 
-export async function killTmuxSession(exec: ExecFn, sessionName: string): Promise<void> {
+export async function killTmuxSession(ctx: IExecutionContext, sessionName: string): Promise<void> {
   try {
-    await exec('tmux', ['kill-session', '-t', sessionName]);
+    await ctx.exec('tmux', ['kill-session', '-t', sessionName]);
   } catch (err) {
     log.debug('killTmuxSession: tmux session not found or already dead', {
       sessionName,

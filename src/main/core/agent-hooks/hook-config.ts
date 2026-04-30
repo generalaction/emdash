@@ -1,15 +1,17 @@
 import * as toml from 'smol-toml';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { makeClaudeHookCommand, makeCodexNotifyCommand } from './agent-notify-command';
+import piEmdashExtension from './pi-emdash-extension.ts?raw';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
+const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 
@@ -21,7 +23,7 @@ const HOOK_EVENT_MAP = [
 export class HookConfigWriter {
   constructor(
     private readonly fs: FileSystemProvider,
-    private readonly exec: ExecFn
+    private readonly exec: IExecutionContext
   ) {}
 
   async writeClaudeHooks(): Promise<boolean> {
@@ -60,6 +62,19 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writePiExtension(): Promise<boolean> {
+    if (!(await resolveCommandPath('pi', this.exec))) return false;
+
+    const existing = await this.fs
+      .read(PI_EMDASH_EXTENSION_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === piEmdashExtension) return true;
+
+    await this.fs.write(PI_EMDASH_EXTENSION_PATH, piEmdashExtension);
+    return true;
+  }
+
   async writeForProvider(
     providerId: AgentProviderId,
     options: HookConfigWriteOptions = {}
@@ -79,12 +94,21 @@ export class HookConfigWriter {
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([CODEX_CONFIG_PATH]);
       }
+      return;
+    }
+
+    if (providerId === 'pi') {
+      const wroteConfig = await this.writePiExtension();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([PI_EMDASH_EXTENSION_PATH]);
+      }
+      return;
     }
   }
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex'] as const).map((providerId) =>
+      (['claude', 'codex', 'pi'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })

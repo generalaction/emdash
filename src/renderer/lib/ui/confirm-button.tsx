@@ -7,7 +7,7 @@ import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
-import { Button, buttonVariants } from './button';
+import { Button, type buttonVariants } from './button';
 import { ShortcutHint } from './shortcut-hint';
 
 type ConfirmButtonProps = ButtonPrimitive.Props & VariantProps<typeof buttonVariants>;

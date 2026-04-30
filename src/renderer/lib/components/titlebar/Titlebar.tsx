@@ -1,5 +1,5 @@
 import { PanelLeft, PanelRight } from 'lucide-react';
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';

@@ -58,28 +58,28 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
       if (ctx?.prev !== undefined) {
         queryClient.setQueryData(['appSettings', key, 'meta'], ctx.prev);
       }
-      queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
-      queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
+      void queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
-      queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
+      void queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
     },
   });
 
   const resetMutation = useMutation<void, Error, void>({
     mutationFn: () => rpc.appSettings.reset(key) as Promise<void>,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
-      queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
+      void queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
     },
   });
 
   const resetFieldMutation = useMutation<void, Error, keyof AppSettings[K]>({
     mutationFn: (field) => rpc.appSettings.resetField(key, field as string) as Promise<void>,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
-      queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
+      void queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
     },
   });
 

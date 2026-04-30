@@ -3,7 +3,7 @@ import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { ReorderList } from '@renderer/lib/components/reorder-list';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
-import { EditorTab } from '@renderer/lib/editor/types';
+import { type EditorTab } from '@renderer/lib/editor/types';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { useModelStatus } from '@renderer/lib/monaco/use-model';
 import { Separator } from '@renderer/lib/ui/separator';

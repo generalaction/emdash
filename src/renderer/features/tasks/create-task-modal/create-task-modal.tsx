@@ -1,6 +1,6 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   getProjectManagerStore,
@@ -8,8 +8,9 @@ import {
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -20,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
+import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import {
   resolveBranchLikeTaskStrategy,
@@ -28,6 +30,7 @@ import {
 import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
+import { useInitialConversationState } from './initial-conversation-section';
 import { useFromBranchMode } from './use-from-branch-mode';
 import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
@@ -62,23 +65,42 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   });
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [useBYOI, setUseBYOI] = useState(false);
+
+  const projectData = selectedProjectId
+    ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
+    : null;
+  const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
+
+  const initialConversation = useInitialConversationState(connectionId);
+
+  useEffect(() => setUseBYOI(false), [selectedProjectId]);
+  useEffect(() => {
+    initialConversation.setProvider(null);
+    initialConversation.setPrompt('');
+    // setProvider and setPrompt are stable useState setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]);
+
+  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
+  useEffect(() => {
+    if (!isWorkspaceProviderEnabled) setUseBYOI(false);
+  }, [isWorkspaceProviderEnabled]);
+
   const repo = selectedProjectId ? getRepositoryStore(selectedProjectId) : undefined;
   const defaultBranch = repo?.defaultBranch;
   const isUnborn = repo?.isUnborn ?? false;
   const currentBranch = repo?.currentBranch ?? null;
   const { navigate } = useNavigate();
 
-  const projectData = selectedProjectId
-    ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
-    : null;
-  const nameWithOwner = selectedProjectId
+  const repositoryUrl = selectedProjectId
     ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
     : undefined;
 
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, isUnborn, initialPR);
-  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !nameWithOwner;
+  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !repositoryUrl;
 
   const activeMode = {
     'from-branch': fromBranch,
@@ -92,6 +114,18 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     const id = crypto.randomUUID();
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
+
+    const builtInitialConversation =
+      initialConversation.provider && initialConversation.prompt.trim()
+        ? {
+            id: crypto.randomUUID(),
+            projectId: selectedProjectId,
+            taskId: id,
+            provider: initialConversation.provider,
+            title: activeMode.taskName,
+            initialPrompt: initialConversation.prompt.trim(),
+          }
+        : undefined;
 
     switch (selectedStrategy) {
       case 'from-branch': {
@@ -107,7 +141,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           name: fromBranch.taskName,
           sourceBranch: fromBranch.selectedBranch,
-          strategy: taskStrategy,
+          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+          workspaceProvider: useBYOI ? 'byoi' : undefined,
+          initialConversation: builtInitialConversation,
         });
         break;
       }
@@ -124,8 +160,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           name: fromIssue.taskName,
           sourceBranch: fromIssue.selectedBranch,
-          strategy: taskStrategy,
+          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
           linkedIssue: fromIssue.linkedIssue ?? undefined,
+          workspaceProvider: useBYOI ? 'byoi' : undefined,
+          initialConversation: builtInitialConversation,
         });
         break;
       }
@@ -148,7 +186,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           sourceBranch: { type: 'local', branch: reviewBranch },
           initialStatus:
             fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
-          strategy: taskStrategy,
+          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+          workspaceProvider: useBYOI ? 'byoi' : undefined,
+          initialConversation: builtInitialConversation,
         });
         break;
       }
@@ -163,6 +203,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     fromIssue,
     fromPR,
     isUnborn,
+    useBYOI,
+    initialConversation,
+    activeMode.taskName,
     navigate,
     onClose,
   ]);
@@ -203,6 +246,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             From Pull Request
           </ToggleGroupItem>
         </ToggleGroup>
+        {isWorkspaceProviderEnabled && (
+          <div className="flex items-center gap-2">
+            <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
+            <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+          </div>
+        )}
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
           {selectedStrategy === 'from-branch' && (
             <FromBranchContent
@@ -210,6 +259,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               projectId={selectedProjectId}
               currentBranch={currentBranch}
               isUnborn={isUnborn}
+              initialConversation={initialConversation}
+              connectionId={connectionId}
             />
           )}
           {selectedStrategy === 'from-issue' && (
@@ -217,15 +268,17 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               state={fromIssue}
               projectId={selectedProjectId}
               currentBranch={currentBranch}
-              nameWithOwner={nameWithOwner}
+              repositoryUrl={repositoryUrl}
               projectPath={projectData?.path}
               disabled={isTransitioning}
               isUnborn={isUnborn}
+              initialConversation={initialConversation}
+              connectionId={connectionId}
             />
           )}
           {selectedStrategy === 'from-pull-request' && (
             <div className="flex flex-col gap-3">
-              {!nameWithOwner && (
+              {!repositoryUrl && (
                 <p className="text-sm text-muted-foreground">
                   Pull requests are currently available only for configured GitHub remotes.
                 </p>
@@ -233,8 +286,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               <FromPrContent
                 state={fromPR}
                 projectId={selectedProjectId}
-                nameWithOwner={nameWithOwner}
+                repositoryUrl={repositoryUrl}
                 disabled={isTransitioning || fromPrUnavailable}
+                initialConversation={initialConversation}
+                connectionId={connectionId}
               />
             </div>
           )}

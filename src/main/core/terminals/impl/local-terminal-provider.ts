@@ -1,5 +1,6 @@
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { Terminal } from '@shared/terminals';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildTerminalEnv } from '@main/core/pty/pty-env';
@@ -11,7 +12,6 @@ import {
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 import { type LifecycleScriptSpawnRequest, type TerminalProvider } from '../terminal-provider';
@@ -35,7 +35,7 @@ export class LocalTerminalProvider implements TerminalProvider {
   private readonly taskPath: string;
   private readonly tmux: boolean;
   private readonly shellSetup?: string;
-  private readonly exec: ExecFn;
+  private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
 
   constructor({
@@ -44,7 +44,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     taskPath,
     tmux = false,
     shellSetup,
-    exec,
+    ctx,
     taskEnvVars = {},
   }: {
     projectId: string;
@@ -52,7 +52,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     taskPath: string;
     tmux?: boolean;
     shellSetup?: string;
-    exec: ExecFn;
+    ctx: IExecutionContext;
     taskEnvVars?: Record<string, string>;
   }) {
     this.projectId = projectId;
@@ -60,7 +60,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     this.taskPath = taskPath;
     this.tmux = tmux;
     this.shellSetup = shellSetup;
-    this.exec = exec;
+    this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
   }
 
@@ -92,7 +92,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     return this.spawnWithPolicy(
       terminal,
       initialSize,
-      { kind: 'shell-line', commandLine: command },
+      command === undefined ? undefined : { kind: 'shell-line', commandLine: command },
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -198,7 +198,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     if (this.tmux) {
-      await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
+      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
   }
 
@@ -206,9 +206,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(
-        sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
-      );
+      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
     }
     this.knownSessionIds.clear();
   }
