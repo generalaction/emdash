@@ -12,9 +12,10 @@ export function useTaskName(opts?: {
   generatedName?: string;
   isPending?: boolean;
   resetKey?: unknown;
+  initialName?: string;
 }): TaskNameState {
-  const { generatedName, isPending = false, resetKey } = opts ?? {};
-  const [taskName, setTaskName] = useState(generatedName ?? '');
+  const { generatedName, isPending = false, resetKey, initialName } = opts ?? {};
+  const [taskName, setTaskName] = useState(generatedName ?? initialName ?? '');
   const [showSlugHint, setShowSlugHint] = useState(false);
   const [prevGeneratedName, setPrevGeneratedName] = useState(generatedName);
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
