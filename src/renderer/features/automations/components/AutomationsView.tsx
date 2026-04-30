@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Plus, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { LayoutGrid, Loader2, Plus, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/types';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -8,19 +8,13 @@ import { useAutomations } from '../useAutomations';
 import { AutomationCard } from './AutomationCard';
 import { AutomationRow } from './AutomationRow';
 import { AutomationRunsDrawer } from './AutomationRunsDrawer';
-import { CreateAutomationPanel } from './CreateAutomationPanel';
-
-type PanelSeed =
-  | { kind: 'new' }
-  | { kind: 'template'; template: BuiltinAutomationTemplate }
-  | { kind: 'edit'; automation: Automation };
 
 export function AutomationsView() {
   const { automations, catalog, remove, setEnabled, runNow } = useAutomations();
   const showConfirmDelete = useShowModal('confirmActionModal');
+  const showCreateAutomation = useShowModal('createAutomationModal');
   const [runsAutomation, setRunsAutomation] = useState<Automation | null>(null);
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [panelSeed, setPanelSeed] = useState<PanelSeed>({ kind: 'new' });
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   const automationItems = automations.data ?? [];
   const usedTemplateIds = useMemo(
@@ -34,30 +28,20 @@ export function AutomationsView() {
   const popularTemplates = recommendedTemplates.slice(0, 4);
   const moreTemplates = recommendedTemplates.slice(4);
   const isEmpty = automationItems.length === 0 && recommendedTemplates.length === 0;
+  const hasAutomations = automationItems.length > 0;
+  const showTemplates = recommendedTemplates.length > 0 && (!hasAutomations || browseOpen);
 
   function openTemplate(template: BuiltinAutomationTemplate) {
-    setPanelSeed({ kind: 'template', template });
-    setPanelOpen(true);
+    showCreateAutomation({ template });
   }
 
   function openEditAutomation(automation: Automation) {
-    setPanelSeed({ kind: 'edit', automation });
-    setPanelOpen(true);
+    showCreateAutomation({ automation });
   }
 
-  function openNewPanel() {
-    setPanelSeed({ kind: 'new' });
-    setPanelOpen(true);
+  function openNewAutomation() {
+    showCreateAutomation({});
   }
-
-  useEffect(() => {
-    if (!panelOpen) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setPanelOpen(false);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [panelOpen]);
 
   function deleteAutomation(automation: Automation) {
     showConfirmDelete({
@@ -88,46 +72,54 @@ export function AutomationsView() {
               Run agents on a schedule or on events from your repo
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => (panelOpen ? setPanelOpen(false) : openNewPanel())}
-            className="overflow-hidden"
-          >
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.span
-                key={panelOpen ? 'close' : 'open'}
-                initial={{ y: 12, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -12, opacity: 0 }}
-                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                className="inline-flex items-center"
+          <div className="flex items-center gap-2">
+            {hasAutomations && recommendedTemplates.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setBrowseOpen((prev) => !prev)}
+                className="overflow-hidden"
               >
-                {panelOpen ? (
-                  <>
-                    <X className="mr-1.5 h-3.5 w-3.5" />
-                    Close
-                  </>
-                ) : (
-                  <>
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    New Automation
-                  </>
-                )}
-              </motion.span>
-            </AnimatePresence>
-          </Button>
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.span
+                    key={browseOpen ? 'close-browse' : 'open-browse'}
+                    initial={{ y: 12, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -12, opacity: 0 }}
+                    transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                    className="inline-flex items-center"
+                  >
+                    {browseOpen ? (
+                      <>
+                        <X className="mr-1.5 h-3.5 w-3.5" />
+                        Close
+                      </>
+                    ) : (
+                      <>
+                        <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
+                        Browse Automations
+                      </>
+                    )}
+                  </motion.span>
+                </AnimatePresence>
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={openNewAutomation}>
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              New Automation
+            </Button>
+          </div>
         </div>
-
-        <CreateAutomationPanel
-          open={panelOpen}
-          onOpenChange={setPanelOpen}
-          template={panelSeed.kind === 'template' ? panelSeed.template : undefined}
-          automation={panelSeed.kind === 'edit' ? panelSeed.automation : undefined}
-        />
 
         {automationItems.length > 0 && (
           <div className="mb-6 overflow-hidden rounded-lg border border-border bg-muted/10">
+            <div className="grid grid-cols-[minmax(0,1fr)_140px_88px_64px_32px] items-center gap-3 border-b border-border bg-muted/20 px-3 py-2 text-[11px] font-medium tracking-wide text-muted-foreground">
+              <div>Automations</div>
+              <div>Author</div>
+              <div>Tools</div>
+              <div>Created</div>
+              <div />
+            </div>
             {automationItems.map((automation) => (
               <AutomationRow
                 key={automation.id}
@@ -143,45 +135,56 @@ export function AutomationsView() {
           </div>
         )}
 
-        {recommendedTemplates.length > 0 && (
-          <div className="mb-6 space-y-6">
-            {popularTemplates.length > 0 && (
-              <section>
-                <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-                  Most popular automations
-                </h2>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {popularTemplates.map((template) => (
-                    <AutomationCard
-                      key={template.id}
-                      kind="template"
-                      template={template}
-                      onUse={openTemplate}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
+        <AnimatePresence initial={false}>
+          {showTemplates && (
+            <motion.div
+              key="automation-templates"
+              initial={{ height: 0, opacity: 0, y: 12 }}
+              animate={{ height: 'auto', opacity: 1, y: 0 }}
+              exit={{ height: 0, opacity: 0, y: 6 }}
+              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              style={{ overflow: 'hidden' }}
+            >
+              <div className="mb-6 space-y-6">
+                {popularTemplates.length > 0 && (
+                  <section>
+                    <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
+                      Most popular automations
+                    </h2>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {popularTemplates.map((template) => (
+                        <AutomationCard
+                          key={template.id}
+                          kind="template"
+                          template={template}
+                          onUse={openTemplate}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
 
-            {moreTemplates.length > 0 && (
-              <section>
-                <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-                  More automation templates
-                </h2>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {moreTemplates.map((template) => (
-                    <AutomationCard
-                      key={template.id}
-                      kind="template"
-                      template={template}
-                      onUse={openTemplate}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
-        )}
+                {moreTemplates.length > 0 && (
+                  <section>
+                    <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
+                      More automation templates
+                    </h2>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {moreTemplates.map((template) => (
+                        <AutomationCard
+                          key={template.id}
+                          kind="template"
+                          template={template}
+                          onUse={openTemplate}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {isEmpty && (
           <div className="py-12 text-center">
@@ -190,20 +193,10 @@ export function AutomationsView() {
         )}
       </div>
 
-      {runsAutomation && (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-30 bg-black/10"
-            aria-label="Close run history"
-            onClick={() => setRunsAutomation(null)}
-          />
-          <AutomationRunsDrawer
-            automation={runsAutomation}
-            onClose={() => setRunsAutomation(null)}
-          />
-        </>
-      )}
+      <AutomationRunsDrawer
+        automation={runsAutomation}
+        onClose={() => setRunsAutomation(null)}
+      />
     </div>
   );
 }
