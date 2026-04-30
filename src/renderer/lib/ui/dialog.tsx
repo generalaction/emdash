@@ -70,7 +70,7 @@ function DialogHeader({
   return (
     <div
       data-slot="dialog-header"
-      className="flex items-center gap-2 p-6 justify-between"
+      className="flex shrink-0 items-center gap-2 p-6 justify-between"
       {...props}
     >
       <div className={cn('flex items-center gap-2', className)}>{children}</div>
@@ -101,7 +101,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        'flex flex-col-reverse gap-2 p-3 border-t border-border bg-background-quaternary-1 sm:flex-row sm:justify-end',
+        'flex shrink-0 flex-col-reverse gap-2 p-3 border-t border-border bg-background-quaternary-1 sm:flex-row sm:justify-end',
         className
       )}
       {...props}
@@ -148,7 +148,12 @@ export function DialogContentArea({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn('flex flex-col gap-2 w-full min-h-0 overflow-y-auto p-6 pt-0', className)}>
+    <div
+      className={cn(
+        'flex min-h-0 w-full flex-1 flex-col gap-2 overflow-y-auto p-6 pt-0',
+        className
+      )}
+    >
       {children}
     </div>
   );
