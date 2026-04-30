@@ -193,10 +193,7 @@ export function AutomationsView() {
         )}
       </div>
 
-      <AutomationRunsDrawer
-        automation={runsAutomation}
-        onClose={() => setRunsAutomation(null)}
-      />
+      <AutomationRunsDrawer automation={runsAutomation} onClose={() => setRunsAutomation(null)} />
     </div>
   );
 }
