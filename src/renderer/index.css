@@ -497,6 +497,38 @@
     }
   }
 
+  .text-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--foreground-passive) 0%,
+      var(--foreground-passive) 30%,
+      var(--foreground) 50%,
+      var(--foreground-passive) 70%,
+      var(--foreground-passive) 100%
+    );
+    background-size: 200% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: text-shimmer-move 2s linear infinite;
+  }
+
+  @keyframes text-shimmer-move {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .text-shimmer {
+      animation: none;
+    }
+  }
+
   /* Diff decorations for Monaco editor gutter and line highlights */
   .diff-glyph-added::before,
   .diff-glyph-modified::before,
