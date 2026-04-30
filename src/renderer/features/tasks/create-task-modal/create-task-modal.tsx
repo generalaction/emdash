@@ -1,7 +1,6 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useState } from 'react';
-import { parseGitHubRepository } from '@shared/github-repository';
 import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   getProjectManagerStore,
@@ -83,7 +82,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const repositoryUrl = selectedProjectId
     ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
     : undefined;
-  const nameWithOwner = parseGitHubRepository(repositoryUrl)?.nameWithOwner;
 
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
@@ -237,7 +235,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               state={fromIssue}
               projectId={selectedProjectId}
               currentBranch={currentBranch}
-              nameWithOwner={nameWithOwner ?? undefined}
+              repositoryUrl={repositoryUrl}
               projectPath={projectData?.path}
               disabled={isTransitioning}
               isUnborn={isUnborn}

@@ -1,4 +1,4 @@
-import { parseGitHubRepository } from '@shared/github-repository';
+import { parseGitHubRepository, type GitHubRepositoryRef } from '@shared/github-repository';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
 import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
@@ -28,9 +28,12 @@ function toIssue(raw: {
   };
 }
 
-async function listIssues(nameWithOwner: string, limit: number): Promise<IssueListResult> {
+async function listIssues(
+  repository: GitHubRepositoryRef,
+  limit: number
+): Promise<IssueListResult> {
   try {
-    const issues = await issueService.listIssues(nameWithOwner, limit);
+    const issues = await issueService.listIssues(repository, limit);
     return {
       success: true,
       issues: issues.map(toIssue),
@@ -44,7 +47,7 @@ async function listIssues(nameWithOwner: string, limit: number): Promise<IssueLi
 }
 
 async function searchIssues(
-  nameWithOwner: string,
+  repository: GitHubRepositoryRef,
   searchTerm: string,
   limit: number
 ): Promise<IssueListResult> {
@@ -53,7 +56,7 @@ async function searchIssues(
   }
 
   try {
-    const issues = await issueService.searchIssues(nameWithOwner, searchTerm, limit);
+    const issues = await issueService.searchIssues(repository, searchTerm, limit);
     return {
       success: true,
       issues: issues.map(toIssue),
@@ -81,23 +84,21 @@ export const githubIssueProvider: IssueProvider = {
 
   listIssues: async (opts) => {
     const repository =
-      parseGitHubRepository(opts.nameWithOwner) ?? parseGitHubRepository(opts.remote);
-    const nameWithOwner = repository?.nameWithOwner;
-    if (!nameWithOwner) {
-      return { success: false, error: 'Repository name is required.' };
+      parseGitHubRepository(opts.repositoryUrl) ?? parseGitHubRepository(opts.remote);
+    if (!repository) {
+      return { success: false, error: 'Repository URL is required.' };
     }
 
-    return listIssues(nameWithOwner, opts.limit ?? 50);
+    return listIssues(repository, opts.limit ?? 50);
   },
 
   searchIssues: async (opts) => {
     const repository =
-      parseGitHubRepository(opts.nameWithOwner) ?? parseGitHubRepository(opts.remote);
-    const nameWithOwner = repository?.nameWithOwner;
-    if (!nameWithOwner) {
-      return { success: false, error: 'Repository name is required.' };
+      parseGitHubRepository(opts.repositoryUrl) ?? parseGitHubRepository(opts.remote);
+    if (!repository) {
+      return { success: false, error: 'Repository URL is required.' };
     }
 
-    return searchIssues(nameWithOwner, opts.searchTerm, opts.limit ?? 20);
+    return searchIssues(repository, opts.searchTerm, opts.limit ?? 20);
   },
 };

@@ -22,18 +22,26 @@ describe('githubIssueProvider', () => {
     vi.clearAllMocks();
   });
 
-  it('normalizes repository URLs before listing issues', async () => {
+  it('uses repositoryUrl to resolve the GitHub repository before listing issues', async () => {
     mockIssueService.listIssues.mockResolvedValue([]);
 
     await githubIssueProvider.listIssues({
-      nameWithOwner: 'https://github.com/owner/repo',
+      repositoryUrl: 'https://github.com/owner/repo',
       limit: 7,
     });
 
-    expect(mockIssueService.listIssues).toHaveBeenCalledWith('owner/repo', 7);
+    expect(mockIssueService.listIssues).toHaveBeenCalledWith(
+      {
+        owner: 'owner',
+        repo: 'repo',
+        nameWithOwner: 'owner/repo',
+        repositoryUrl: 'https://github.com/owner/repo',
+      },
+      7
+    );
   });
 
-  it('falls back to the resolved remote when nameWithOwner is not provided', async () => {
+  it('falls back to the resolved remote when repositoryUrl is not provided', async () => {
     mockIssueService.searchIssues.mockResolvedValue([]);
 
     await githubIssueProvider.searchIssues({
@@ -42,6 +50,15 @@ describe('githubIssueProvider', () => {
       limit: 3,
     });
 
-    expect(mockIssueService.searchIssues).toHaveBeenCalledWith('owner/repo', 'bug', 3);
+    expect(mockIssueService.searchIssues).toHaveBeenCalledWith(
+      {
+        owner: 'owner',
+        repo: 'repo',
+        nameWithOwner: 'owner/repo',
+        repositoryUrl: 'https://github.com/owner/repo',
+      },
+      'bug',
+      3
+    );
   });
 });
