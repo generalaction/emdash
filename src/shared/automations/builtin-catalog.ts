@@ -49,7 +49,6 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     defaultActions: [
       {
         kind: 'task.create',
-        mode: 'worktree',
         prompt:
           'Inspect recent code changes for high-severity correctness bugs, regressions, race conditions, data loss risks, and broken edge cases. If you find a real issue, implement the smallest safe fix and validate it with targeted tests.',
       },
@@ -82,7 +81,6 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     defaultActions: [
       {
         kind: 'task.create',
-        mode: 'worktree',
         prompt:
           'Review the repository for validated high-impact security vulnerabilities. Focus on authentication, authorization, injection, secret handling, unsafe filesystem or shell usage, SSRF, deserialization, and privilege boundaries. Avoid noisy theoretical findings; only report or fix exploitable issues.',
       },
@@ -112,7 +110,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
       'Review recent changes and add tests for high-risk logic that lacks adequate coverage',
     icon: 'FlaskConical',
     defaultTrigger: { kind: 'cron', expr: '0 10 * * TUE,THU', tz: 'UTC' },
-    defaultActions: [{ kind: 'task.create', mode: 'worktree', prompt: TEST_COVERAGE_PROMPT }],
+    defaultActions: [{ kind: 'task.create', prompt: TEST_COVERAGE_PROMPT }],
   },
   {
     id: 'assign-pr-reviewers',
@@ -120,7 +118,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     name: 'Assign PR reviewers',
     description: 'Assign reviewers based on code changes and auto-approve low-risk PRs',
     icon: 'GitPullRequest',
-    defaultTrigger: { kind: 'event', event: 'pr.opened', provider: 'github' },
+    defaultTrigger: { kind: 'event', event: 'pr.opened' },
     defaultActions: [
       {
         kind: 'task.create',
@@ -139,7 +137,6 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     defaultActions: [
       {
         kind: 'task.create',
-        mode: 'worktree',
         prompt:
           'Find stale feature flags that appear fully rolled out or permanently disabled. For safe cases, remove dead branches and simplify affected code. Preserve behavior, update tests, and call out flags that need product confirmation instead of changing them.',
       },
@@ -152,7 +149,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     description:
       'Review pull requests for exploitable security issues and flag only validated findings before merge',
     icon: 'ShieldCheck',
-    defaultTrigger: { kind: 'event', event: 'pr.opened', provider: 'github' },
+    defaultTrigger: { kind: 'event', event: 'pr.opened' },
     defaultActions: [
       {
         kind: 'task.create',
@@ -172,7 +169,6 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     defaultActions: [
       {
         kind: 'task.create',
-        mode: 'worktree',
         prompt:
           'Review recent bug reports described in linked issues, project docs, or prompt notes. For actionable issues, reproduce or reason through the failure, identify the responsible code path, implement the smallest safe fix, add regression coverage, and prepare a PR summary. If no bug-report details are available, report what information is needed instead of guessing.',
       },
@@ -184,11 +180,10 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     name: 'Fix CI failures',
     description: 'Detect CI failures on main and automatically open PRs',
     icon: 'KeyRound',
-    defaultTrigger: { kind: 'event', event: 'ci.failed', provider: 'github' },
+    defaultTrigger: { kind: 'event', event: 'ci.failed' },
     defaultActions: [
       {
         kind: 'task.create',
-        mode: 'worktree',
         prompt:
           'Triage the failed CI run. Identify the failing job, root cause, and whether the failure is flaky. If there is a safe code or test fix, implement it, run the relevant validation, and prepare a PR-ready summary.',
       },
@@ -205,7 +200,6 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     defaultActions: [
       {
         kind: 'task.create',
-        mode: 'worktree',
         prompt:
           'Find recently changed or under-documented developer-facing code. Add concise documentation that explains behavior, setup, examples, sharp edges, and validation steps. Prefer updating existing docs over creating duplicate pages.',
       },
