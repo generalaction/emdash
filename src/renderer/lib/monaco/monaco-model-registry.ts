@@ -152,6 +152,13 @@ export class MonacoModelRegistry {
   readonly bufferVersions = observable.map<string, number>();
 
   /**
+   * Monotonically-increasing content version for each typed model URI.
+   * Covers disk:// and git:// snapshots so non-Monaco renderers can react to
+   * model invalidations without attaching an editor.
+   */
+  readonly modelVersions = observable.map<string, number>();
+
+  /**
    * 60 s TTL timers. Started in unregisterModel when refs drop to 0.
    * Cancelled if the model is re-registered before the timer fires.
    */
@@ -294,6 +301,7 @@ export class MonacoModelRegistry {
     this.modelMap.set(diskUri, entry);
 
     this.modelStatus.set(diskUri, 'ready');
+    this.modelVersions.set(diskUri, 1);
 
     return uri;
   }
@@ -356,6 +364,7 @@ export class MonacoModelRegistry {
     this.modelMap.set(gitUri, entry);
 
     this.modelStatus.set(gitUri, 'ready');
+    this.modelVersions.set(gitUri, 1);
 
     return uri;
   }
@@ -465,6 +474,7 @@ export class MonacoModelRegistry {
     }
 
     this.modelStatus.set(uri, 'ready');
+    this.modelVersions.set(uri, 1);
     // Mark the buffer as having content so markdown/other renderers that depend
     // on bufferVersions can react to the initial population.
     runInAction(() => {
@@ -509,6 +519,7 @@ export class MonacoModelRegistry {
       if (!e.model.isDisposed()) e.model.dispose();
       this.modelMap.delete(uri);
       this.modelStatus.delete(uri);
+      this.modelVersions.delete(uri);
       if (e.type === 'buffer') {
         this.bufferContentDisposables.get(uri)?.dispose();
         this.bufferContentDisposables.delete(uri);
@@ -731,6 +742,7 @@ export class MonacoModelRegistry {
             );
       if (res.success && res.data.content !== null) {
         entry.model.setValue(res.data.content);
+        this.modelVersions.set(uri, (this.modelVersions.get(uri) ?? 0) + 1);
       }
     }
   }
@@ -789,6 +801,7 @@ export class MonacoModelRegistry {
     const newMatchesBuffer = bufValue === newContent;
 
     entry.model.setValue(newContent);
+    this.modelVersions.set(diskUri, (this.modelVersions.get(diskUri) ?? 0) + 1);
 
     if (!wasDirty || newMatchesBuffer) {
       if (bufEntry?.type === 'buffer' && !newMatchesBuffer) {

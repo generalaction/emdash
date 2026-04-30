@@ -9,10 +9,12 @@ import {
 } from '@renderer/features/tasks/diff-view/stores/stacked-diff-panel-store';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
+import { isMarkdownPath } from '@renderer/lib/editor/utils';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { cn } from '@renderer/utils/utils';
+import { MarkdownDiffPreview } from './markdown-diff-preview';
 
 const LARGE_DIFF_LINE_THRESHOLD = 1500;
 
@@ -190,6 +192,8 @@ const StackedFileSlot = observer(function StackedFileSlot({
   const forceLoad = panelStore.isForceLoaded(file.path);
   const totalDiffLines = file.additions + file.deletions;
   const isLarge = totalDiffLines > LARGE_DIFF_LINE_THRESHOLD;
+  const isMarkdown = isMarkdownPath(file.path);
+  const showMarkdownPreview = isMarkdown && diffView.markdownDiffMode === 'preview';
   const diffStyle = diffView.diffStyle;
 
   const editorHeight =
@@ -248,6 +252,15 @@ const StackedFileSlot = observer(function StackedFileSlot({
                 Load anyway
               </button>
             </div>
+          ) : showMarkdownPreview ? (
+            <MarkdownDiffPreview
+              filePath={file.path}
+              workspaceId={slotStore.workspaceId}
+              originalUri={originalUri}
+              modifiedUri={modifiedUri}
+              diffStyle={diffStyle}
+              onHeightChange={setContentHeight}
+            />
           ) : (
             <StickyDiffEditor
               originalUri={originalUri}

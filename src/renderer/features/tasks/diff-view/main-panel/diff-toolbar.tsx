@@ -1,9 +1,10 @@
-import { AlignJustify, Columns2 } from 'lucide-react';
+import { AlignJustify, Columns2, Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { splitPath } from '@renderer/features/tasks/utils';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
+import { isMarkdownPath } from '@renderer/lib/editor/utils';
 import { Badge } from '@renderer/lib/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
@@ -14,6 +15,7 @@ export const DiffToolbar = observer(function DiffToolbar() {
 
   const filePath = activeFile?.path ?? undefined;
   const { filename, directory } = filePath ? splitPath(filePath) : { filename: '', directory: '' };
+  const isMarkdown = filePath ? isMarkdownPath(filePath) : false;
 
   const diffSourceLabel = useMemo(() => {
     if (activeFile?.group === 'staged') return 'Staged';
@@ -38,6 +40,25 @@ export const DiffToolbar = observer(function DiffToolbar() {
         {diffSourceLabel && <Badge variant="outline">{diffSourceLabel}</Badge>}
       </div>
       <div className="flex items-center gap-2">
+        {isMarkdown && (
+          <ToggleGroup
+            size="sm"
+            multiple={false}
+            value={[diffView.markdownDiffMode]}
+            onValueChange={([value]) => {
+              if (value) {
+                diffView.setMarkdownDiffMode(value as 'preview' | 'source');
+              }
+            }}
+          >
+            <ToggleGroupItem value="preview" aria-label="Preview">
+              <Eye className="h-3.5 w-3.5" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="source" aria-label="View source">
+              <Pencil className="h-3.5 w-3.5" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
         <ToggleGroup
           size="sm"
           multiple={false}

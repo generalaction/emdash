@@ -3,11 +3,13 @@ import { useEffect } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
+import { isMarkdownPath } from '@renderer/lib/editor/utils';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
+import { MarkdownDiffPreview } from './markdown-diff-preview';
 
 export const FileDiffView = observer(function FileDiffView() {
   const { projectId } = useTaskViewContext();
@@ -17,7 +19,9 @@ export const FileDiffView = observer(function FileDiffView() {
   const activeFile = diffView.activeFile;
 
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;
-  const showEditor = activeFile !== null && !isBinary;
+  const isMarkdown = activeFile ? isMarkdownPath(activeFile.path) : false;
+  const showMarkdownPreview = isMarkdown && diffView.markdownDiffMode === 'preview';
+  const showDiff = activeFile !== null && !isBinary;
 
   // Compute URIs from activeFile (same rules as DiffSlotStore).
   const root = `workspace:${workspaceId}`;
@@ -92,7 +96,16 @@ export const FileDiffView = observer(function FileDiffView() {
   return (
     <div className="flex h-full flex-col">
       <div className="relative min-h-0 flex-1">
-        {showEditor && (
+        {showDiff && showMarkdownPreview && (
+          <MarkdownDiffPreview
+            filePath={activeFile.path}
+            workspaceId={workspaceId}
+            originalUri={originalUri}
+            modifiedUri={modifiedUri}
+            diffStyle={diffView.diffStyle}
+          />
+        )}
+        {showDiff && !showMarkdownPreview && (
           <StickyDiffEditor
             originalUri={originalUri}
             modifiedUri={modifiedUri}

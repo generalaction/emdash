@@ -21,6 +21,7 @@ function isValidGitObjectRef(raw: unknown): raw is GitObjectRef {
 export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   activeFileOverride: ActiveFile | null = null;
   diffStyle: 'unified' | 'split' = 'unified';
+  markdownDiffMode: 'preview' | 'source' = 'preview';
   readonly viewMode = 'file' as const;
   commitAction: 'commit' | 'commit-push' | null = null;
 
@@ -46,9 +47,11 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       activeFileOverride: observable,
       activeFile: computed,
       diffStyle: observable,
+      markdownDiffMode: observable,
       commitAction: observable,
       setActiveFile: action,
       setDiffStyle: action,
+      setMarkdownDiffMode: action,
     });
 
     // Auto-expand the changes panel section that contains the newly selected file.
@@ -118,11 +121,13 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
       viewMode: 'file',
       activeFile: this.activeFileOverride ?? undefined,
       commitAction: this.commitAction,
+      markdownDiffMode: this.markdownDiffMode,
     };
   }
 
   restoreSnapshot(snapshot: Partial<DiffViewSnapshot>): void {
     if (snapshot.diffStyle) this.diffStyle = snapshot.diffStyle;
+    if (snapshot.markdownDiffMode) this.markdownDiffMode = snapshot.markdownDiffMode;
     // viewMode is always 'file' — ignore any persisted value
     if (snapshot.activeFile && isValidGitObjectRef(snapshot.activeFile.originalRef)) {
       this.activeFileOverride = snapshot.activeFile;
@@ -157,6 +162,10 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
   setDiffStyle(style: 'unified' | 'split'): void {
     this.diffStyle = style;
+  }
+
+  setMarkdownDiffMode(mode: 'preview' | 'source'): void {
+    this.markdownDiffMode = mode;
   }
 
   dispose(): void {
