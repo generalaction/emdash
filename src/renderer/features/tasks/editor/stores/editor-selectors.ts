@@ -1,7 +1,7 @@
-import { EditorTab } from '@renderer/lib/editor/types';
+import { type EditorTab } from '@renderer/lib/editor/types';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
-import { EditorViewStore } from './editor-view-store';
+import { type EditorViewStore } from './editor-view-store';
 
 export type RichEditorTab = EditorTab & { isDirty: boolean; bufferUri: string };
 

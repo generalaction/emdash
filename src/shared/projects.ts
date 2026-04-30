@@ -42,3 +42,8 @@ export type UpdateProjectSettingsError =
   | { type: 'invalid-settings' }
   | { type: 'invalid-worktree-directory' }
   | { type: 'error' };
+
+export type ProjectRemoteState = {
+  hasRemote: boolean;
+  selectedRemoteUrl: string | null;
+};

@@ -57,10 +57,16 @@ export class DiffSlotStore {
   get modifiedUri(): string {
     if (!this.uri) return '';
     if (this.diffType === 'staged') return modelRegistry.toGitUri(this.uri, STAGED_REF);
-    if (this.diffType === 'pr')
+
+    if (this.diffType === 'pr') {
       return modelRegistry.toGitUri(this.uri, this.modifiedRef ?? HEAD_REF);
-    if (this.diffType === 'git') return modelRegistry.toGitUri(this.uri, HEAD_REF);
-    return modelRegistry.toDiskUri(this.uri);
+    }
+
+    if (this.diffType === 'git') {
+      return modelRegistry.toGitUri(this.uri, HEAD_REF);
+    }
+
+    return this.uri;
   }
 
   get language(): string {

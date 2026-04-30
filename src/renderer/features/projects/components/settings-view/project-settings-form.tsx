@@ -7,6 +7,7 @@ import { err, type Result } from '@shared/result';
 import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -34,6 +35,8 @@ type FormState = {
   worktreeDirectory: string;
   defaultBranch: Branch | null;
   remote: string;
+  provisionCommand: string;
+  terminateCommand: string;
 };
 
 function normalizeScript(val: string | string[] | undefined): string {
@@ -72,6 +75,8 @@ export function settingsToForm(
     worktreeDirectory: s.worktreeDirectory ?? '',
     defaultBranch,
     remote: s.remote ?? '',
+    provisionCommand: s.workspaceProvider?.provisionCommand ?? '',
+    terminateCommand: s.workspaceProvider?.terminateCommand ?? '',
   };
 }
 
@@ -98,6 +103,14 @@ export function formToSettings(f: FormState): ProjectSettings {
     worktreeDirectory: f.worktreeDirectory || undefined,
     defaultBranch,
     remote: f.remote || undefined,
+    workspaceProvider:
+      f.provisionCommand && f.terminateCommand
+        ? {
+            type: 'script' as const,
+            provisionCommand: f.provisionCommand,
+            terminateCommand: f.terminateCommand,
+          }
+        : undefined,
   };
 }
 
@@ -123,13 +136,14 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 
   const baseline = useMemo(
     () => settingsToForm(initial, configuredRemote, remotes),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [initial, configuredRemote, remotes]
   );
   const [form, setForm] = useState<FormState>(baseline);
   const [savedForm, setSavedForm] = useState<FormState>(baseline);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [worktreeDirectoryError, setWorktreeDirectoryError] = useState<string | null>(null);
+  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
 
   const formSnapshot = useMemo(() => JSON.stringify(form), [form]);
   const savedSnapshot = useMemo(() => JSON.stringify(savedForm), [savedForm]);
@@ -343,6 +357,41 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             </Field>
           </div>
         </FieldGroup>
+        {isWorkspaceProviderEnabled && (
+          <>
+            <Separator />
+            <div className="flex flex-col gap-4">
+              <div>
+                <FieldTitle>Workspace provider</FieldTitle>
+                <FieldDescription>
+                  Commands used to provision and terminate BYOI infrastructure for tasks.
+                </FieldDescription>
+              </div>
+              <Field>
+                <FieldTitle className="text-xs font-normal text-muted-foreground">
+                  Provision command
+                </FieldTitle>
+                <Textarea
+                  rows={3}
+                  placeholder="./scripts/provision-workspace.sh"
+                  value={form.provisionCommand}
+                  onChange={(e) => update('provisionCommand', e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldTitle className="text-xs font-normal text-muted-foreground">
+                  Terminate command
+                </FieldTitle>
+                <Textarea
+                  rows={3}
+                  placeholder="./scripts/terminate-workspace.sh"
+                  value={form.terminateCommand}
+                  onChange={(e) => update('terminateCommand', e.target.value)}
+                />
+              </Field>
+            </div>
+          </>
+        )}
       </div>
       <div className="flex justify-end gap-2 pt-5 pb-10">
         <Button

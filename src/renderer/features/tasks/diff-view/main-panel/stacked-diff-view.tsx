@@ -4,8 +4,8 @@ import { observer } from 'mobx-react-lite';
 import { Activity, useEffect, useMemo, useRef, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import {
-  type DiffSlotStore,
   StackedDiffPanelStore,
+  type DiffSlotStore,
 } from '@renderer/features/tasks/diff-view/stores/stacked-diff-panel-store';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
@@ -158,6 +158,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
     if (!file || isBinary) return;
     const { projectId, workspaceId } = slotStore;
     const root = `workspace:${workspaceId}`;
+    let disposed = false;
 
     if (diffType === 'staged') {
       void modelRegistry
@@ -183,16 +184,43 @@ const StackedFileSlot = observer(function StackedFileSlot({
         )
         .catch(() => {});
     } else {
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'disk')
-        .catch(() => {});
+      const diskUri = modelRegistry.toDiskUri(modifiedUri);
+      void (async () => {
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          file.path,
+          language,
+          'disk'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(diskUri);
+          return;
+        }
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          file.path,
+          language,
+          'buffer'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(modifiedUri);
+        }
+      })().catch(() => {});
       void modelRegistry
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
         .catch(() => {});
     }
     return () => {
+      disposed = true;
       modelRegistry.unregisterModel(originalUri);
       modelRegistry.unregisterModel(modifiedUri);
+      if (diffType === 'disk') {
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(modifiedUri));
+      }
     };
   }, [
     isBinary,

@@ -16,6 +16,7 @@ import {
 } from '@shared/events/updateEvents';
 import { resolveAppVersion } from '@main/core/app/utils';
 import { events } from '@main/lib/events';
+import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
 
@@ -45,7 +46,7 @@ export interface UpdateState {
   releaseNotes?: string;
 }
 
-class UpdateService {
+class UpdateService implements IInitializable, IDisposable {
   private updateState: UpdateState;
   private checkTimer?: NodeJS.Timeout;
   private currentCheckPromise: Promise<UpdateInfo | null> | null = null;
@@ -336,7 +337,7 @@ class UpdateService {
     return { ...this.updateState };
   }
 
-  shutdown(): void {
+  dispose(): void {
     if (this.checkTimer) {
       clearTimeout(this.checkTimer);
       this.checkTimer = undefined;

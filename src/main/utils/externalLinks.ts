@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from 'electron';
+import { shell, type BrowserWindow } from 'electron';
 
 /**
  * Ensure any external HTTP(S) links open in the user's default browser
@@ -16,7 +16,7 @@ export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean)
   // Handle window.open and target="_blank"
   wc.setWindowOpenHandler(({ url }) => {
     if (!isInternalAppUrl(url) && /^https?:\/\//i.test(url)) {
-      shell.openExternal(url);
+      void shell.openExternal(url);
       return { action: 'deny' };
     }
     return { action: 'allow' };
@@ -26,7 +26,7 @@ export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean)
   wc.on('will-navigate', (event, url) => {
     if (!isInternalAppUrl(url) && /^https?:\/\//i.test(url)) {
       event.preventDefault();
-      shell.openExternal(url);
+      void shell.openExternal(url);
     }
   });
 }

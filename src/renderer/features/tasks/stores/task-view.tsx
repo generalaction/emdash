@@ -8,7 +8,7 @@ import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-v
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
-import { MainPanelView, RightPanelView } from '@renderer/features/tasks/types';
+import { type MainPanelView, type RightPanelView } from '@renderer/features/tasks/types';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 
 interface TaskViewResources {

@@ -221,7 +221,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     const flowLabel = githubStatusMessage ? 'OAuth flow' : 'Device flow';
     setGithubLoading(false);
     setGithubStatusMessage(undefined);
-    rpc.github.authCancel();
+    void rpc.github.authCancel();
     toast({
       title: 'GitHub connection unsuccessful',
       description: `${flowLabel} was canceled`,

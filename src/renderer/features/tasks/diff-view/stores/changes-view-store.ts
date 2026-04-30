@@ -1,6 +1,6 @@
 import { computed, makeObservable, observable, reaction, runInAction, when } from 'mobx';
-import { PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { GitStore } from './git-store';
+import { type PrStore } from '@renderer/features/tasks/stores/pr-store';
+import { type GitStore } from './git-store';
 
 export type SelectionState = 'all' | 'none' | 'partial';
 

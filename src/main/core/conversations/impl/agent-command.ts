@@ -1,4 +1,4 @@
-import { AgentProviderId, getProvider } from '@shared/agent-provider-registry';
+import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 
 export async function buildAgentCommand({
