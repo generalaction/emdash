@@ -1,10 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { isGitHubUrl, normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
-import { projectRemotes } from '@main/db/schema';
+import { projectRemotes, pullRequests } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';
@@ -88,11 +88,29 @@ export class PrSyncScheduler {
   async onTaskProvisioned(projectId: string, taskBranch: string | undefined): Promise<void> {
     if (!taskBranch) return;
 
-    const remoteUrls = await this._getGitHubRemoteUrls(projectId);
-    for (const url of remoteUrls) {
-      const prNumber = await this._findPrNumberForBranch(url, taskBranch);
+    const projectRemoteUrls = await this._getStoredGitHubRemoteUrls(projectId);
+    if (projectRemoteUrls.length === 0) return;
+
+    const allRepositoryUrls = await this._expandWithForkParents(projectRemoteUrls);
+
+    const rows = await db
+      .select({
+        identifier: pullRequests.identifier,
+        repositoryUrl: pullRequests.repositoryUrl,
+      })
+      .from(pullRequests)
+      .where(
+        and(
+          eq(pullRequests.headRefName, taskBranch),
+          inArray(pullRequests.repositoryUrl, allRepositoryUrls),
+          inArray(pullRequests.headRepositoryUrl, projectRemoteUrls)
+        )
+      );
+
+    for (const row of rows) {
+      const prNumber = parsePrNumber(row.identifier);
       if (prNumber !== null) {
-        void prSyncEngine.syncSingle(url, prNumber);
+        void prSyncEngine.syncSingle(row.repositoryUrl, prNumber);
       }
     }
   }
@@ -142,17 +160,17 @@ export class PrSyncScheduler {
     try {
       const remotes = await project.repository.getRemotes();
       await syncProjectRemotes(projectId, remotes);
-      return remotes.filter((r) => isGitHubUrl(r.url)).map((r) => normalizeGitHubUrl(r.url));
+      const githubUrls = remotes
+        .filter((r) => isGitHubUrl(r.url))
+        .map((r) => normalizeGitHubUrl(r.url));
+      return this._expandWithForkParents(githubUrls);
     } catch (e) {
       log.warn('PrSyncScheduler: failed to sync project remotes', { projectId, error: String(e) });
       return [];
     }
   }
 
-  private async _getGitHubRemoteUrls(projectId: string): Promise<string[]> {
-    const cached = this._projectRemoteUrls.get(projectId);
-    if (cached) return cached;
-
+  private async _getStoredGitHubRemoteUrls(projectId: string): Promise<string[]> {
     const rows = await db
       .select({ remoteUrl: projectRemotes.remoteUrl })
       .from(projectRemotes)
@@ -161,27 +179,18 @@ export class PrSyncScheduler {
     return rows.filter((r) => isGitHubUrl(r.remoteUrl)).map((r) => normalizeGitHubUrl(r.remoteUrl));
   }
 
-  private async _findPrNumberForBranch(
-    repositoryUrl: string,
-    taskBranch: string
-  ): Promise<number | null> {
-    const { pullRequests } = await import('@main/db/schema');
-    const { and, eq: deq } = await import('drizzle-orm');
-    const rows = await db
-      .select({ identifier: pullRequests.identifier })
-      .from(pullRequests)
-      .where(
-        and(
-          deq(pullRequests.repositoryUrl, repositoryUrl),
-          deq(pullRequests.headRefName, taskBranch)
-        )
-      )
-      .limit(1);
-
-    if (!rows[0]?.identifier) return null;
-    const n = Number.parseInt(rows[0].identifier.replace('#', ''), 10);
-    return Number.isNaN(n) ? null : n;
+  private async _expandWithForkParents(repositoryUrls: string[]): Promise<string[]> {
+    const expanded = await Promise.all(
+      repositoryUrls.map((url) => prSyncEngine.getRelatedRepositoryUrls(url))
+    );
+    return [...new Set(expanded.flat())];
   }
+}
+
+function parsePrNumber(identifier: string | null): number | null {
+  if (!identifier) return null;
+  const n = parseInt(identifier.replace('#', ''), 10);
+  return Number.isNaN(n) ? null : n;
 }
 
 export const prSyncScheduler = new PrSyncScheduler();

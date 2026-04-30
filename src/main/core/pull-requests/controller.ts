@@ -78,7 +78,10 @@ export const pullRequestController = createRPCController({
       if (capability.status !== 'ready') {
         return { success: false as const, error: `Remote not ready: ${capability.status}` };
       }
-      prSyncEngine.forceFullSync(capability.repositoryUrl);
+      const repositoryUrls = await prSyncEngine.getRelatedRepositoryUrls(capability.repositoryUrl);
+      for (const repositoryUrl of repositoryUrls) {
+        prSyncEngine.forceFullSync(repositoryUrl);
+      }
       return { success: true as const };
     } catch (error) {
       log.error('Failed to force full sync:', error);
@@ -104,7 +107,10 @@ export const pullRequestController = createRPCController({
         projectId,
         repositoryUrl: capability.repositoryUrl,
       });
-      prSyncEngine.sync(capability.repositoryUrl);
+      const repositoryUrls = await prSyncEngine.getRelatedRepositoryUrls(capability.repositoryUrl);
+      for (const repositoryUrl of repositoryUrls) {
+        prSyncEngine.sync(repositoryUrl);
+      }
       return { success: true as const };
     } catch (error) {
       log.error('Failed to trigger sync:', error);

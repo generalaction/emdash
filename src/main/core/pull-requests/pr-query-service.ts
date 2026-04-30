@@ -19,6 +19,18 @@ export type ProjectRemoteCapability =
   | { status: 'no_remote' }
   | { status: 'unsupported_remote' };
 
+/** Match a PR by either its base or head repository URL. */
+function matchesAnyRepoSide(repositoryUrls: string[]) {
+  return or(
+    inArray(pullRequests.repositoryUrl, repositoryUrls),
+    inArray(pullRequests.headRepositoryUrl, repositoryUrls)
+  )!;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
   if (rows.length === 0) return [];
 
@@ -95,7 +107,7 @@ export class PrQueryService {
       repositoryUrls = remoteRows.map((r) => r.remoteUrl);
     }
 
-    const conditions = [inArray(pullRequests.repositoryUrl, repositoryUrls)];
+    const conditions = [matchesAnyRepoSide(repositoryUrls)];
 
     const filters = options.filters;
     if (filters?.status && filters.status !== 'all') {
@@ -161,9 +173,7 @@ export class PrQueryService {
     const rows = await db
       .select()
       .from(pullRequests)
-      .where(
-        and(eq(pullRequests.headRefName, taskBranch), eq(pullRequests.repositoryUrl, repositoryUrl))
-      );
+      .where(and(eq(pullRequests.headRefName, taskBranch), matchesAnyRepoSide([repositoryUrl])));
 
     return fetchRelated(rows);
   }
@@ -182,7 +192,7 @@ export class PrQueryService {
     const prUrlsSub = db
       .select({ url: pullRequests.url })
       .from(pullRequests)
-      .where(inArray(pullRequests.repositoryUrl, repositoryUrls));
+      .where(matchesAnyRepoSide(repositoryUrls));
 
     const authorUserIdsSub = db
       .select({ userId: pullRequests.authorUserId })

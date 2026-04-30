@@ -140,6 +140,9 @@ export class PrSyncEngine {
   // Per-operation deduplication for single-PR and check-run syncs
   private readonly _singleInflight = new Map<string, Promise<void>>();
   private readonly _checksInflight = new Map<string, Promise<void>>();
+  // Process-lifetime cache for fork-parent lookups, keyed by normalized URL.
+  // Avoids hitting SQLite KV on every sync trigger.
+  private readonly _forkParentMemCache = new Map<string, string | null>();
 
   constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
@@ -198,6 +201,52 @@ export class PrSyncEngine {
     }
   }
 
+  async getRelatedRepositoryUrls(repositoryUrl: string): Promise<string[]> {
+    if (!isGitHubUrl(repositoryUrl)) return [repositoryUrl];
+    const normalizedUrl = normalizeGitHubUrl(repositoryUrl);
+    const parentUrl = await this._getForkParentNormalized(normalizedUrl);
+    if (!parentUrl || parentUrl === normalizedUrl) return [normalizedUrl];
+    return [normalizedUrl, parentUrl];
+  }
+
+  async getForkParentRepositoryUrl(repositoryUrl: string): Promise<string | null> {
+    if (!isGitHubUrl(repositoryUrl)) return null;
+    return this._getForkParentNormalized(normalizeGitHubUrl(repositoryUrl));
+  }
+
+  private async _getForkParentNormalized(normalizedUrl: string): Promise<string | null> {
+    const memCached = this._forkParentMemCache.get(normalizedUrl);
+    if (memCached !== undefined) return memCached;
+
+    const persisted = (await this.kv.get(`fork-parent:${normalizedUrl}`)) as string | null;
+    if (persisted != null) {
+      const value = persisted.length > 0 ? persisted : null;
+      this._forkParentMemCache.set(normalizedUrl, value);
+      return value;
+    }
+
+    const { owner, repo } = splitNormalizedUrl(normalizedUrl);
+    try {
+      const { data } = await withRetry(() =>
+        githubRateLimiter
+          .acquire()
+          .then(() => this.getOctokit())
+          .then((octokit) => octokit.rest.repos.get({ owner, repo }))
+      );
+      const parentUrl =
+        data.fork && data.parent?.html_url ? normalizeGitHubUrl(data.parent.html_url) : null;
+      await this.kv.set(`fork-parent:${normalizedUrl}`, parentUrl ?? '');
+      this._forkParentMemCache.set(normalizedUrl, parentUrl);
+      return parentUrl;
+    } catch (error) {
+      log.warn('PrSyncEngine: failed to resolve fork parent', {
+        repositoryUrl: normalizedUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
   /** Cancel any in-flight syncs for a project and clean up its PR rows and KV cursors. */
   async deleteProjectData(projectId: string): Promise<void> {
     log.info('PrSyncEngine: deleteProjectData', { projectId });
@@ -232,7 +281,9 @@ export class PrSyncEngine {
         this.kv.del(`fullsync:${url}`),
         this.kv.del(`incrementalsync:${url}`),
         this.kv.del(`users-synced-at:${url}`),
+        this.kv.del(`fork-parent:${url}`),
       ]);
+      this._forkParentMemCache.delete(url);
     }
   }
 
