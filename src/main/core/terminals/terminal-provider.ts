@@ -1,8 +1,8 @@
-import { Terminal } from '@shared/terminals';
+import type { Terminal } from '@shared/terminals';
 
 export type LifecycleScriptSpawnRequest = {
   terminal: Terminal;
-  command: string;
+  command?: string;
   initialSize?: { cols: number; rows: number };
   respawnOnExit?: boolean;
   preserveBufferOnExit?: boolean;
@@ -12,7 +12,7 @@ export type LifecycleScriptSpawnRequest = {
 export interface TerminalProvider {
   spawnTerminal(
     terminal: Terminal,
-    initialSize: { cols: number; rows: number },
+    initialSize?: { cols: number; rows: number },
     command?: { command: string; args: string[] }
   ): Promise<void>;
   spawnLifecycleScript(request: LifecycleScriptSpawnRequest): Promise<void>;

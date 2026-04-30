@@ -1,6 +1,6 @@
 import { AlertCircle, Check, Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { UnregisteredProject } from '@renderer/features/projects/stores/project';
+import { type UnregisteredProject } from '@renderer/features/projects/stores/project';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';

@@ -3,12 +3,12 @@ import os from 'node:os';
 import path from 'node:path';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';
 import { resolveRemoteHome } from '@main/core/ssh/utils';
-import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import {
   projectSettingsSchema,
@@ -133,17 +133,17 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
     private readonly defaultBranchFallback: string = 'main',
     private readonly rootFs?: Pick<FileSystemProvider, 'mkdir' | 'realPath'>,
     private readonly projectPath: string = '/',
-    private readonly exec?: ExecFn
+    private readonly ctx?: IExecutionContext
   ) {}
 
   private homeDirectory?: Promise<string>;
 
   private async getHomeDirectory(): Promise<Result<string, UpdateProjectSettingsError>> {
-    if (!this.exec) {
+    if (!this.ctx) {
       return err({ type: 'invalid-worktree-directory' });
     }
     try {
-      this.homeDirectory ??= resolveRemoteHome(this.exec);
+      this.homeDirectory ??= resolveRemoteHome(this.ctx);
       return ok(await this.homeDirectory);
     } catch {
       return err({ type: 'invalid-worktree-directory' });

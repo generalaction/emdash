@@ -9,6 +9,7 @@ import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
@@ -17,7 +18,6 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import type { ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { capture } from '@main/lib/telemetry';
@@ -36,7 +36,7 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly taskId: string;
   private readonly tmux: boolean;
   private readonly shellSetup?: string;
-  private readonly exec: ExecFn;
+  private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
   private readonly hookConfigWriter: HookConfigWriter;
   private readonly preparedHookProviders = new Map<string, boolean>();
@@ -47,7 +47,7 @@ export class LocalConversationProvider implements ConversationProvider {
     taskId,
     tmux = false,
     shellSetup,
-    exec,
+    ctx,
     taskEnvVars = {},
   }: {
     projectId: string;
@@ -55,7 +55,7 @@ export class LocalConversationProvider implements ConversationProvider {
     taskId: string;
     tmux?: boolean;
     shellSetup?: string;
-    exec: ExecFn;
+    ctx: IExecutionContext;
     taskEnvVars?: Record<string, string>;
   }) {
     this.projectId = projectId;
@@ -63,9 +63,9 @@ export class LocalConversationProvider implements ConversationProvider {
     this.taskId = taskId;
     this.tmux = tmux;
     this.shellSetup = shellSetup;
-    this.exec = exec;
+    this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
-    this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), exec);
+    this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), ctx);
   }
 
   async startSession(
@@ -239,7 +239,7 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     if (this.tmux) {
-      await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
+      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
   }
 
@@ -247,9 +247,7 @@ export class LocalConversationProvider implements ConversationProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(
-        sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
-      );
+      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
     }
     this.knownSessionIds.clear();
   }

@@ -7,6 +7,9 @@ import type {
 } from '@shared/github';
 import { createRPCController } from '@shared/ipc/rpc';
 import { ACCOUNT_CONFIG } from '@main/core/account/config';
+import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -14,7 +17,6 @@ import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-r
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { repoService } from '@main/core/github/services/repo-service';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { getGitLocalExec, getGitSshExec, type ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { capture, identify as telemetryIdentify } from '@main/lib/telemetry';
 
@@ -236,20 +238,26 @@ export const githubController = createRPCController({
 
   cloneRepository: async (repoUrl: string, targetPath: string, connectionId?: string) => {
     try {
-      let exec: ExecFn;
+      let ctx;
       let parentFs: FileSystemProvider;
 
       if (connectionId) {
         const proxy = await sshConnectionManager.connect(connectionId);
-        exec = getGitSshExec(proxy, () => githubConnectionService.getToken());
+        ctx = new GitHubAuthExecutionContext(
+          new SshExecutionContext(proxy, { root: path.posix.dirname(targetPath) }),
+          () => githubConnectionService.getToken()
+        );
         parentFs = new SshFileSystem(proxy, path.posix.dirname(targetPath));
       } else {
-        exec = getGitLocalExec(() => githubConnectionService.getToken());
+        ctx = new GitHubAuthExecutionContext(
+          new LocalExecutionContext({ root: path.dirname(targetPath) }),
+          () => githubConnectionService.getToken()
+        );
         parentFs = new LocalFileSystem(path.dirname(targetPath));
       }
 
       await parentFs.mkdir('.', { recursive: true });
-      return await cloneRepository(repoUrl, targetPath, exec);
+      return await cloneRepository(repoUrl, targetPath, ctx);
     } catch (error) {
       log.error('Failed to clone repository:', error);
       return {
@@ -266,15 +274,21 @@ export const githubController = createRPCController({
     connectionId?: string;
   }) => {
     try {
-      let exec: ExecFn;
+      let ctx;
       let projectFs: FileSystemProvider;
 
       if (params.connectionId) {
         const proxy = await sshConnectionManager.connect(params.connectionId);
-        exec = getGitSshExec(proxy, () => githubConnectionService.getToken());
+        ctx = new GitHubAuthExecutionContext(
+          new SshExecutionContext(proxy, { root: params.targetPath }),
+          () => githubConnectionService.getToken()
+        );
         projectFs = new SshFileSystem(proxy, params.targetPath);
       } else {
-        exec = getGitLocalExec(() => githubConnectionService.getToken());
+        ctx = new GitHubAuthExecutionContext(
+          new LocalExecutionContext({ root: params.targetPath }),
+          () => githubConnectionService.getToken()
+        );
         projectFs = new LocalFileSystem(params.targetPath);
       }
 
@@ -285,7 +299,7 @@ export const githubController = createRPCController({
           name: params.name,
           description: params.description,
         },
-        exec,
+        ctx,
         projectFs
       );
 
@@ -325,18 +339,25 @@ export const githubController = createRPCController({
         (settings as { projects?: { defaultDirectory?: string } }).projects?.defaultDirectory ??
         path.join(homedir(), 'emdash-projects');
       const localPath = path.join(projectDir, name);
-      const exec = getGitLocalExec(() => githubConnectionService.getToken());
+      const cloneCtx = new GitHubAuthExecutionContext(
+        new LocalExecutionContext({ root: path.dirname(localPath) }),
+        () => githubConnectionService.getToken()
+      );
       const parentFs = new LocalFileSystem(path.dirname(localPath));
       await parentFs.mkdir('.', { recursive: true });
-      const cloneResult = await cloneRepository(cloneUrl, localPath, exec);
+      const cloneResult = await cloneRepository(cloneUrl, localPath, cloneCtx);
       if (!cloneResult.success) {
         throw new Error(cloneResult.error ?? 'Clone failed');
       }
 
+      const initCtx = new GitHubAuthExecutionContext(
+        new LocalExecutionContext({ root: localPath }),
+        () => githubConnectionService.getToken()
+      );
       const projectFs = new LocalFileSystem(localPath);
       await initializeNewProject(
         { repoUrl: cloneUrl, localPath, name, description },
-        exec,
+        initCtx,
         projectFs
       );
 

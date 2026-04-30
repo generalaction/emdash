@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { Issue } from '@shared/tasks';
+import { type Issue } from '@shared/tasks';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { capture } from '@main/lib/telemetry';

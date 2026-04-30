@@ -19,10 +19,6 @@ export type ProjectRemoteCapability =
   | { status: 'no_remote' }
   | { status: 'unsupported_remote' };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
   if (rows.length === 0) return [];
 
@@ -82,10 +78,6 @@ async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
     )
   );
 }
-
-// ---------------------------------------------------------------------------
-// PrQueryService
-// ---------------------------------------------------------------------------
 
 export class PrQueryService {
   async listPullRequests(projectId: string, options: ListPrOptions = {}): Promise<PullRequest[]> {

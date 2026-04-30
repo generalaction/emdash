@@ -2,6 +2,7 @@ import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createScriptTerminalId } from '@shared/terminals';
 import { events } from '@main/lib/events';
+import type { IDisposable } from '@main/lib/lifecycle';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 
@@ -13,7 +14,7 @@ type LifecycleScript = {
   script: string;
 };
 
-export class WorkspaceLifecycleService {
+export class LifecycleScriptService implements IDisposable {
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;
@@ -61,7 +62,6 @@ export class WorkspaceLifecycleService {
         taskId: this.workspaceId,
         name: script.type,
       },
-      command: '',
       initialSize,
       respawnOnExit: false,
       preserveBufferOnExit: true,
