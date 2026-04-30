@@ -14,6 +14,7 @@ import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
+import { powerSaveBlockerService } from './core/power/power-save-blocker-service';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import { appSettingsService } from './core/settings/settings-service';
@@ -94,6 +95,10 @@ app.whenReady().then(async () => {
   appService.initialize();
   appSettingsService.initialize();
 
+  powerSaveBlockerService.start().catch((e) => {
+    log.warn('Failed to start power-save-blocker service:', e);
+  });
+
   agentHookService.start().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
@@ -128,6 +133,7 @@ app.on('before-quit', () => {
   telemetry.shutdown();
 
   agentHookService.stop();
+  powerSaveBlockerService.shutdown();
   updateService.shutdown();
   projectManager.shutdown().catch((e) => {
     log.error('Failed to shutdown project manager:', e);

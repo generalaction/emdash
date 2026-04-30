@@ -86,3 +86,37 @@ export const AutoTrustWorktreesRow: React.FC = () => {
     />
   );
 };
+
+export const KeepAwakeWhileRunningRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title={
+        <div className="flex items-center gap-1.5">
+          Keep computer awake while tasks run
+          <InfoTooltip
+            label="More info about keep-awake"
+            content="Prevents the system from sleeping or starting the display sleep timer while at least one task session is active. Releases the lock once all sessions exit."
+          />
+        </div>
+      }
+      description="Block sleep and display dimming whenever a task session is running."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('keepAwakeWhileRunning')}
+            defaultLabel="off"
+            onReset={taskSettings.resetKeepAwakeWhileRunning}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.keepAwakeWhileRunning}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateKeepAwakeWhileRunning}
+          />
+        </>
+      }
+    />
+  );
+};
