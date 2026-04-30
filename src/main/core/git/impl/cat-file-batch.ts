@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
+import type { IDisposable } from '@main/lib/lifecycle';
 
 const REQUEST_TIMEOUT_MS = 5000;
 
@@ -13,7 +14,7 @@ type Pending = {
  * Persistent `git cat-file --batch` subprocess with a strictly serialized queue.
  * Local workspace only — SSH workspaces use per-call `git show` in GitService.
  */
-export class CatFileBatch {
+export class CatFileBatch implements IDisposable {
   private disposed = false;
   private proc: ChildProcessWithoutNullStreams | null = null;
   private buf = Buffer.alloc(0);

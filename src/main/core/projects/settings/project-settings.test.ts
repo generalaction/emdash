@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import type { ExecFn } from '@main/core/utils/exec';
 import { LocalProjectSettingsProvider, SshProjectSettingsProvider } from './project-settings';
 
 vi.mock('@main/core/settings/settings-service', () => ({
@@ -146,21 +146,21 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       mkdir: vi.fn().mockResolvedValue(undefined),
       realPath: vi.fn().mockResolvedValue('/canonical/ssh-worktrees'),
     };
-    const exec = vi.fn().mockResolvedValue({ stdout: '/home/ubuntu', stderr: '' }) as ExecFn;
+    const ctx = {
+      root: undefined,
+      supportsLocalSpawn: false,
+      exec: vi.fn().mockResolvedValue({ stdout: '/home/ubuntu', stderr: '' }),
+      execStreaming: vi.fn(),
+      dispose: vi.fn(),
+    } as unknown as IExecutionContext;
 
-    const provider = new SshProjectSettingsProvider(
-      projectFs,
-      'main',
-      rootFs,
-      '/remote/repo',
-      exec
-    );
+    const provider = new SshProjectSettingsProvider(projectFs, 'main', rootFs, '/remote/repo', ctx);
     const first = await provider.update({ preservePatterns: [], worktreeDirectory: '~/worktrees' });
     const second = await provider.update({ preservePatterns: [], worktreeDirectory: '~' });
     expect(first.success).toBe(true);
     expect(second.success).toBe(true);
 
-    expect(exec).toHaveBeenCalledTimes(1);
+    expect(ctx.exec).toHaveBeenCalledTimes(1);
     expect(rootFs.mkdir).toHaveBeenCalledWith('/home/ubuntu/worktrees', { recursive: true });
     expect(rootFs.realPath).toHaveBeenCalledWith('/home/ubuntu/worktrees');
     expect(writeMock).toHaveBeenCalledTimes(2);

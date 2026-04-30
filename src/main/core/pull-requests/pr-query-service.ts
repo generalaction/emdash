@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNotNull, like, or } from 'drizzle-orm';
+import { parseGitHubRepository } from '@shared/github-repository';
 import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
-import { isGitHubUrl, normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import {
@@ -242,11 +242,12 @@ export class PrQueryService {
     if (!remoteState.hasRemote) return { status: 'no_remote' };
     if (!remoteState.selectedRemoteUrl) return { status: 'unsupported_remote' };
 
-    if (!isGitHubUrl(remoteState.selectedRemoteUrl)) return { status: 'unsupported_remote' };
+    const repository = parseGitHubRepository(remoteState.selectedRemoteUrl);
+    if (!repository) return { status: 'unsupported_remote' };
 
     return {
       status: 'ready',
-      repositoryUrl: normalizeGitHubUrl(remoteState.selectedRemoteUrl),
+      repositoryUrl: repository.repositoryUrl,
     };
   }
 }

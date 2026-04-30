@@ -45,9 +45,11 @@ export const UnstagedSection = observer(function UnstagedSection() {
       variant: 'destructive',
       description:
         'Are you sure you want to discard the changes to the selected files? This can not be undone.',
-      onSuccess: async () => {
-        await git.discardFiles(paths);
-        changesView.clearUnstagedSelection();
+      onSuccess: () => {
+        void (async () => {
+          await git.discardFiles(paths);
+          changesView.clearUnstagedSelection();
+        })();
       },
     });
   };
@@ -57,9 +59,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
       title: 'Discard All Changes',
       variant: 'destructive',
       description: 'Are you sure you want to discard all changes? This can not be undone.',
-      onSuccess: async () => {
-        await git.discardAllFiles();
-      },
+      onSuccess: () => void git.discardAllFiles(),
     });
   };
 

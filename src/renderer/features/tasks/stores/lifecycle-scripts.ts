@@ -4,7 +4,7 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { createScriptTerminalId } from '@shared/terminals';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
-import { TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import {
   addTabId,
   setNextTabActive,

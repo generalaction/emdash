@@ -33,8 +33,8 @@ export const CommentsPopover = observer(function CommentsPopover({
 
   const count = comments.length;
 
-  const handleApply = async () => {
-    onApply();
+  const handleApply = () => {
+    void onApply();
     setOpen(false);
   };
 

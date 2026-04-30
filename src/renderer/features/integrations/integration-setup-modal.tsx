@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {

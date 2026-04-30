@@ -1,7 +1,7 @@
 import { Eye, FileCode, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { FileTabs } from '@renderer/features/tasks/editor/file-tabs';
-import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
+import { type EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
 import { ImageRenderer } from '@renderer/lib/editor/image-renderer';

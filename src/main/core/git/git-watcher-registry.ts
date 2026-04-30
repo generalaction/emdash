@@ -8,6 +8,7 @@ import {
 import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/git';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
+import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { projectManager } from '../projects/project-manager';
 import { taskManager } from '../tasks/task-manager';
@@ -16,7 +17,7 @@ export type GitWatcherHooks = {
   'ref:changed': (change: GitRefChange) => void | Promise<void>;
 };
 
-class GitWatcherRegistry implements Hookable<GitWatcherHooks> {
+class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, IDisposable {
   private readonly _hooks = new HookCore<GitWatcherHooks>((name, e) =>
     log.error(`GitWatcherRegistry: ${String(name)} hook error`, e)
   );
@@ -52,6 +53,15 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks> {
     taskManager.hooks.on('task:torn-down', ({ projectId, workspaceId }) => {
       this._worktrees.get(projectId)?.delete(workspaceId);
     });
+  }
+
+  async dispose(): Promise<void> {
+    const ids = [...this._subscriptions.keys()];
+    try {
+      await Promise.allSettled(ids.map((id) => this._stopWatching(id)));
+    } catch (e) {
+      log.error('Failed to stop watching git repositories:', e);
+    }
   }
 
   private async _startWatching(projectId: string, repoPath: string): Promise<void> {

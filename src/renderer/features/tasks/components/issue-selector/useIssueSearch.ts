@@ -9,17 +9,17 @@ export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
 function isProviderUsable(
   status: ConnectionStatus | undefined,
-  context: { projectPath?: string; nameWithOwner?: string }
+  context: { projectPath?: string; repositoryUrl?: string }
 ): boolean {
   if (!status?.connected) return false;
   if (status.capabilities.requiresProjectPath && !context.projectPath) return false;
-  if (status.capabilities.requiresNameWithOwner && !context.nameWithOwner) return false;
+  if (status.capabilities.requiresRepositoryUrl && !context.repositoryUrl) return false;
   return true;
 }
 
-export function useIssueSearch(nameWithOwner: string, projectPath = '', projectId?: string) {
+export function useIssueSearch(repositoryUrl: string, projectPath = '', projectId?: string) {
   const { connectionStatus, isCheckingConnections } = useIntegrationsContext();
-  const context = useMemo(() => ({ projectPath, nameWithOwner }), [projectPath, nameWithOwner]);
+  const context = useMemo(() => ({ projectPath, repositoryUrl }), [projectPath, repositoryUrl]);
 
   const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
     null
@@ -48,7 +48,7 @@ export function useIssueSearch(nameWithOwner: string, projectPath = '', projectI
 
   const issuesHook = useIssues(issueProvider, {
     projectId,
-    nameWithOwner,
+    repositoryUrl,
     projectPath,
     enabled: !!issueProvider,
   });

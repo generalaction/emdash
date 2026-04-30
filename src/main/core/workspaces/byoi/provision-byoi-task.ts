@@ -2,11 +2,11 @@ import type { Conversation } from '@shared/conversations';
 import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProvisionResult } from '@main/core/projects/project-provider';
 import type { ProjectSettings, ProjectSettingsProvider } from '@main/core/projects/settings/schema';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { buildTaskFromWorkspace } from '@main/core/tasks/task-builder';
-import type { ExecFn } from '@main/core/utils/exec';
 import { parseProvisionOutput } from '@main/core/workspaces/byoi/provision-output';
 import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
 import { remoteTaskWorkspaceId } from '@main/core/workspaces/workspace-id';
@@ -21,9 +21,8 @@ export type ProvisionBYOITaskParams = {
   terminals: Terminal[];
   /** Workspace provider config read from project settings (`workspaceProvider.type === 'script'`). */
   wpConfig: NonNullable<ProjectSettings['workspaceProvider']>;
-  /** Exec function for running provision/terminate scripts. Use `getLocalExec()` for local
-   *  projects and `getSshExec(proxy)` for SSH projects so scripts run on the right host. */
-  execFn: ExecFn;
+  /** Execution context for running provision/terminate scripts. */
+  ctx: IExecutionContext;
   projectId: string;
   projectPath: string;
   settings: ProjectSettingsProvider;
@@ -33,8 +32,8 @@ export type ProvisionBYOITaskParams = {
 /**
  * Runs the BYOI script-run → SSH-connect → workspace-acquire → build flow.
  * Parameterised by `execFn` so both local and SSH project providers can use it:
- * - Local project: pass `getLocalExec()` (scripts run on the local machine)
- * - SSH project:  pass `getSshExec(proxy)` (scripts run on the remote SSH host)
+ * - Local project: pass `new LocalExecutionContext({ root: projectPath })` (scripts run on local machine)
+ * - SSH project:  pass `new SshExecutionContext(proxy, { root: projectPath })` (scripts run on remote host)
  */
 export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promise<ProvisionResult> {
   const {
@@ -42,7 +41,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
     conversations,
     terminals,
     wpConfig,
-    execFn,
+    ctx,
     projectId,
     projectPath,
     settings,
@@ -56,9 +55,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
     message: 'Running provision script…',
   });
 
-  const { stdout } = await execFn('/bin/sh', ['-c', wpConfig.provisionCommand], {
-    cwd: projectPath,
-  });
+  const { stdout } = await ctx.exec('/bin/sh', ['-c', wpConfig.provisionCommand]);
 
   const parseResult = parseProvisionOutput(stdout);
   if (!parseResult.success) {
@@ -109,7 +106,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
             const cmd = output.id
               ? `REMOTE_WORKSPACE_ID=${quoteShellArg(output.id)} ${wpConfig.terminateCommand}`
               : wpConfig.terminateCommand;
-            await execFn('/bin/sh', ['-c', cmd], { cwd: projectPath }).catch((e) => {
+            await ctx.exec('/bin/sh', ['-c', cmd]).catch((e) => {
               log.warn(`${logPrefix}: terminate command failed`, { error: String(e) });
             });
             await sshConnectionManager.disconnect(connectionId);
