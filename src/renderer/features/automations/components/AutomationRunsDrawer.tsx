@@ -51,7 +51,15 @@ export function AutomationRunsDrawer({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ duration: 0.28, ease: PANEL_EASE }}
-            className="fixed right-0 top-0 z-40 flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-2xl"
+            tabIndex={-1}
+            ref={(node) => node?.focus()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                onClose();
+              }
+            }}
+            className="fixed right-0 top-0 z-40 flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-2xl outline-none"
           >
             <DrawerContent automation={automation} onClose={onClose} />
           </motion.aside>
