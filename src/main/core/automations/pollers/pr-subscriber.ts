@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm';
-import { SCM_PROVIDERS, type AutomationEvent, type ScmProvider } from '@shared/automations/events';
+import type { AutomationEvent } from '@shared/automations/events';
 import { prUpdatedChannel } from '@shared/events/prEvents';
 import { getPrNumber, type PullRequest } from '@shared/pull-requests';
+import { isGitHubUrl } from '@main/core/github/services/utils';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -10,16 +11,8 @@ import { hasAnyEnabledEventAutomation } from '../event-cache';
 import { dispatchEvent } from '../eventDispatcher';
 import { getEventCursor, upsertEventCursor } from '../repo';
 import { parseCursor, serializeCursor, trackSeenPrs } from './cursor';
-import { urlMatchesProvider } from './scm-helpers';
 
 let unsubscribe: (() => void) | null = null;
-
-function detectProvider(repositoryUrl: string): ScmProvider | null {
-  for (const provider of SCM_PROVIDERS) {
-    if (urlMatchesProvider(repositoryUrl, provider)) return provider;
-  }
-  return null;
-}
 
 async function findProjectIdsForRemote(remoteUrl: string): Promise<string[]> {
   const rows = await db
@@ -31,13 +24,11 @@ async function findProjectIdsForRemote(remoteUrl: string): Promise<string[]> {
 
 function toPrEvent(
   pr: PullRequest,
-  provider: ScmProvider,
   projectId: string,
   kind: 'pr.opened' | 'pr.merged' | 'pr.closed'
 ): AutomationEvent {
   return {
     kind,
-    provider,
     projectId,
     occurredAt: Date.now(),
     payload: {
@@ -57,6 +48,7 @@ async function processBatch(prs: PullRequest[]): Promise<void> {
   if (!(await hasAnyEnabledEventAutomation())) return;
   const byRepo = new Map<string, PullRequest[]>();
   for (const pr of prs) {
+    if (!isGitHubUrl(pr.repositoryUrl)) continue;
     const list = byRepo.get(pr.repositoryUrl) ?? [];
     list.push(pr);
     byRepo.set(pr.repositoryUrl, list);
@@ -64,24 +56,16 @@ async function processBatch(prs: PullRequest[]): Promise<void> {
 
   await Promise.all(
     Array.from(byRepo.entries()).map(async ([repositoryUrl, repoPrs]) => {
-      const provider = detectProvider(repositoryUrl);
-      if (!provider) return;
       const projectIds = await findProjectIdsForRemote(repositoryUrl);
       if (projectIds.length === 0) return;
 
-      await Promise.all(
-        projectIds.map((projectId) => processProjectBatch(provider, projectId, repoPrs))
-      );
+      await Promise.all(projectIds.map((projectId) => processProjectBatch(projectId, repoPrs)));
     })
   );
 }
 
-async function processProjectBatch(
-  provider: ScmProvider,
-  projectId: string,
-  repoPrs: PullRequest[]
-): Promise<void> {
-  const cursorRow = await getEventCursor(provider, projectId);
+async function processProjectBatch(projectId: string, repoPrs: PullRequest[]): Promise<void> {
+  const cursorRow = await getEventCursor(projectId);
   const cursor = parseCursor(cursorRow?.cursor ?? null) ?? {
     initialized: false,
     seenPrs: {},
@@ -94,12 +78,12 @@ async function processProjectBatch(
     const prev = seen[pr.url];
     if (cursor.initialized) {
       if (prev === undefined && pr.status === 'open') {
-        eventsToEmit.push(toPrEvent(pr, provider, projectId, 'pr.opened'));
+        eventsToEmit.push(toPrEvent(pr, projectId, 'pr.opened'));
       } else if (prev !== undefined && prev !== pr.status) {
         if (pr.status === 'merged') {
-          eventsToEmit.push(toPrEvent(pr, provider, projectId, 'pr.merged'));
+          eventsToEmit.push(toPrEvent(pr, projectId, 'pr.merged'));
         } else if (pr.status === 'closed') {
-          eventsToEmit.push(toPrEvent(pr, provider, projectId, 'pr.closed'));
+          eventsToEmit.push(toPrEvent(pr, projectId, 'pr.closed'));
         }
       }
     }
@@ -112,7 +96,7 @@ async function processProjectBatch(
     seenPrs: trackSeenPrs(cursor.seenPrs, transitions),
   });
   if (eventsToEmit.length > 0 || nextSerialized !== cursorRow?.cursor) {
-    await upsertEventCursor({ provider, projectId, cursor: nextSerialized });
+    await upsertEventCursor({ projectId, cursor: nextSerialized });
   }
 
   await Promise.all(
@@ -120,7 +104,6 @@ async function processProjectBatch(
       dispatchEvent(event).catch((error) => {
         log.error('automations.pr-subscriber: dispatch failed', {
           kind: event.kind,
-          provider,
           error: String(error),
         });
       })

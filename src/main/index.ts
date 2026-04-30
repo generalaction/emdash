@@ -13,10 +13,6 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationScheduler } from './core/automations/automation-scheduler';
 import { automationEventPoller } from './core/automations/automationEventPoller';
-import {
-  startInternalEventBridge,
-  stopInternalEventBridge,
-} from './core/automations/internalEventBridge';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
@@ -119,7 +115,6 @@ void app.whenReady().then(async () => {
   gitWatcherRegistry.initialize();
   prSyncScheduler.initialize();
   automationScheduler.start();
-  startInternalEventBridge();
   appService.initialize();
   await appSettingsService.initialize();
 
@@ -162,7 +157,6 @@ app.on('before-quit', (event) => {
   void telemetryService.dispose().finally(() => {
     automationEventPoller.stop();
     automationScheduler.stop();
-    stopInternalEventBridge();
     agentHookService.dispose();
     stopResourceSampler();
     updateService.dispose();
