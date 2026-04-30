@@ -4,6 +4,7 @@ import type { AfterPackContext } from 'app-builder-lib';
 import fs from 'fs-extra';
 
 const require = createRequire(import.meta.url);
+const LINUX_RUNTIME_NODE_MODULES_SENTINEL = '__emdashLinuxRuntimeNodeModulesInjected';
 
 function isLinuxPack(context: AfterPackContext): boolean {
   return context.electronPlatformName === 'linux';
@@ -87,8 +88,8 @@ async function resolveInstalledPackageDir(parentDir: string, packageName: string
 async function copyPackageFiles(sourceDir: string, destinationDir: string): Promise<void> {
   await fs.copy(sourceDir, destinationDir, {
     dereference: false,
-    filter: (_source, destinationLike) => {
-      const rel = path.relative(sourceDir, destinationLike);
+    filter: (sourceLike) => {
+      const rel = path.relative(sourceDir, sourceLike);
       if (rel === '') {
         return true;
       }
@@ -154,19 +155,25 @@ export async function injectLinuxRuntimeNodeModules(context: AfterPackContext): 
     return;
   }
 
+  const guard = context as AfterPackContext & {
+    [LINUX_RUNTIME_NODE_MODULES_SENTINEL]?: boolean;
+  };
+  if (guard[LINUX_RUNTIME_NODE_MODULES_SENTINEL]) {
+    return;
+  }
+  guard[LINUX_RUNTIME_NODE_MODULES_SENTINEL] = true;
+
   const projectDir = context.packager.projectDir;
   const resourcesDir = path.join(context.appOutDir, 'resources');
   const runtimeNodeModulesDir = path.join(resourcesDir, 'node_modules');
   const projectPackageJson = await readPackageJson(projectDir);
-  const rootDependencies = {
-    ...(projectPackageJson.dependencies ?? {}),
-    ...(projectPackageJson.optionalDependencies ?? {}),
-  };
+  const rootDependencies = Object.keys(projectPackageJson.dependencies ?? {});
+  const rootOptionalDependencies = Object.keys(projectPackageJson.optionalDependencies ?? {});
 
   await fs.remove(runtimeNodeModulesDir);
   await fs.ensureDir(runtimeNodeModulesDir);
 
-  for (const packageName of Object.keys(rootDependencies)) {
+  for (const packageName of rootDependencies) {
     const packageDir = await resolveInstalledPackageDir(projectDir, packageName);
     await copyRuntimePackageTree(
       packageName,
@@ -174,5 +181,19 @@ export async function injectLinuxRuntimeNodeModules(context: AfterPackContext): 
       path.join(runtimeNodeModulesDir, ...splitPackagePath(packageName)),
       new Set()
     );
+  }
+
+  for (const packageName of rootOptionalDependencies) {
+    try {
+      const packageDir = await resolveInstalledPackageDir(projectDir, packageName);
+      await copyRuntimePackageTree(
+        packageName,
+        packageDir,
+        path.join(runtimeNodeModulesDir, ...splitPackagePath(packageName)),
+        new Set()
+      );
+    } catch {
+      continue;
+    }
   }
 }
