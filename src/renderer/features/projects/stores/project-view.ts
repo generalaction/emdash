@@ -74,9 +74,6 @@ class TaskViewStore {
       return;
     }
     const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex];
-    for (let i = start; i <= end; i++) {
-      this.selectedIds.add(orderedIds[i]!);
-    }
-    this.lastSelectedId = toId;
+    this.selectedIds = new Set(orderedIds.slice(start, end + 1));
   }
 }
