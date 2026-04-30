@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { MemoryFs } from '@main/core/fs/test-helpers/memory-fs';
-import type { ExecFn } from '@main/core/utils/exec';
 import { HookConfigWriter } from './hook-config';
 
 const mockResolveCommandPath = vi.hoisted(() => vi.fn());
@@ -9,8 +9,17 @@ vi.mock('@main/core/dependencies/probe', () => ({
   resolveCommandPath: mockResolveCommandPath,
 }));
 
+function makeExecutionContext(): IExecutionContext {
+  return {
+    supportsLocalSpawn: false,
+    exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
+    execStreaming: vi.fn(async () => {}),
+    dispose: vi.fn(),
+  };
+}
+
 function makeWriter(fs: MemoryFs): HookConfigWriter {
-  return new HookConfigWriter(fs, vi.fn() as ExecFn);
+  return new HookConfigWriter(fs, makeExecutionContext());
 }
 
 describe('HookConfigWriter', () => {
