@@ -667,16 +667,22 @@ describe('legacy-port table passes', () => {
       .run('conv-legacy-chat', 'task-legacy-tmux', 'Legacy Claude Chat', 'claude');
 
     const calls: Array<{ command: string; args?: string[] }> = [];
-    const tmuxExec = async (command: string, args?: string[]) => {
-      calls.push({ command, args });
-      if (
-        command === 'tmux' &&
-        args?.[0] === 'has-session' &&
-        args[2] !== 'emdash-claude-chat-conv-legacy-chat'
-      ) {
-        throw new Error('missing');
-      }
-      return { stdout: '', stderr: '' };
+    const tmuxExec = {
+      root: undefined,
+      supportsLocalSpawn: false,
+      exec: async (command: string, args: string[] = []) => {
+        calls.push({ command, args });
+        if (
+          command === 'tmux' &&
+          args?.[0] === 'has-session' &&
+          args[2] !== 'emdash-claude-chat-conv-legacy-chat'
+        ) {
+          throw new Error('missing');
+        }
+        return { stdout: '', stderr: '' };
+      },
+      execStreaming: async () => {},
+      dispose: () => {},
     };
 
     const remap = createRemapTables();

@@ -1,8 +1,8 @@
 import * as toml from 'smol-toml';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { makeClaudeHookCommand, makeCodexNotifyCommand } from './agent-notify-command';
 
@@ -21,7 +21,7 @@ const HOOK_EVENT_MAP = [
 export class HookConfigWriter {
   constructor(
     private readonly fs: FileSystemProvider,
-    private readonly exec: ExecFn
+    private readonly exec: IExecutionContext
   ) {}
 
   async writeClaudeHooks(): Promise<boolean> {

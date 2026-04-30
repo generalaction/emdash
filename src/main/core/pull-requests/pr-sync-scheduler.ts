@@ -5,6 +5,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
+import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';
@@ -15,7 +16,7 @@ const INCREMENTAL_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
  * Wires sync coordinator to application lifecycle events.
  * Called from project providers at mount, unmount, provision, and config change.
  */
-export class PrSyncScheduler {
+export class PrSyncScheduler implements IInitializable, IDisposable {
   /** Per-project set of interval handles for light sync polling. */
   private readonly _intervals = new Map<string, ReturnType<typeof setInterval>[]>();
   /** Per-project set of known GitHub remote URLs (for cleanup on unmount). */

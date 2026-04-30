@@ -69,10 +69,7 @@ app.whenReady().then(async () => {
 
   try {
     await initializeDatabase();
-    const BUFFER_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-    editorBufferService.pruneStale(BUFFER_STALE_MS).catch((e) => {
-      log.warn('Failed to prune stale editor buffers:', e);
-    });
+    void editorBufferService.pruneStale();
   } catch (error) {
     log.error('Failed to initialize database:', error);
     dialog.showErrorBox(
@@ -92,9 +89,9 @@ app.whenReady().then(async () => {
   gitWatcherRegistry.initialize();
   prSyncScheduler.initialize();
   appService.initialize();
-  appSettingsService.initialize();
+  await appSettingsService.initialize();
 
-  agentHookService.start().catch((e) => {
+  agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
 
@@ -127,9 +124,11 @@ app.on('before-quit', () => {
   telemetry.capture('app_closed');
   telemetry.shutdown();
 
-  agentHookService.stop();
-  updateService.shutdown();
-  projectManager.shutdown().catch((e) => {
+  agentHookService.dispose();
+  updateService.dispose();
+  prSyncScheduler.dispose();
+  void gitWatcherRegistry.dispose();
+  projectManager.dispose().catch((e) => {
     log.error('Failed to shutdown project manager:', e);
   });
 });

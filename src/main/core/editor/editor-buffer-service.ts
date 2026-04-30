@@ -1,6 +1,9 @@
 import { and, eq, lt } from 'drizzle-orm';
 import { db } from '@/main/db/client';
 import { editorBuffers } from '@/main/db/schema';
+import { log } from '@main/lib/logger';
+
+const BUFFER_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export class EditorBufferService {
   async saveBuffer(
@@ -41,9 +44,13 @@ export class EditorBufferService {
     return rows;
   }
 
-  async pruneStale(olderThanMs: number): Promise<void> {
-    const cutoff = Date.now() - olderThanMs;
-    await db.delete(editorBuffers).where(lt(editorBuffers.updatedAt, cutoff));
+  async pruneStale(): Promise<void> {
+    try {
+      const cutoff = Date.now() - BUFFER_STALE_MS;
+      await db.delete(editorBuffers).where(lt(editorBuffers.updatedAt, cutoff));
+    } catch (e) {
+      log.error('Failed to prune stale editor buffers:', e);
+    }
   }
 }
 

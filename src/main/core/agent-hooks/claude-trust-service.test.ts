@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   FileSystemError,
   FileSystemErrorCodes,
   type FileSystemProvider,
 } from '@main/core/fs/types';
-import type { ExecFn } from '@main/core/utils/exec';
 import { ClaudeTrustService } from './claude-trust-service';
 
 const mockReadFile = vi.hoisted(() => vi.fn());
@@ -224,9 +224,10 @@ describe('ClaudeTrustService', () => {
       realPath: vi.fn().mockResolvedValue('/remote/worktree'),
     });
 
-    const exec: ExecFn = vi
-      .fn()
-      .mockImplementation(async (command: string, args: string[] = []) => {
+    const ctx: IExecutionContext = {
+      root: undefined,
+      supportsLocalSpawn: false,
+      exec: vi.fn().mockImplementation(async (command: string, args: string[] = []) => {
         if (command === 'sh') {
           return { stdout: '/home/remote-user', stderr: '' };
         }
@@ -236,12 +237,15 @@ describe('ClaudeTrustService', () => {
           return { stdout: '', stderr: '' };
         }
         return { stdout: '', stderr: '' };
-      });
+      }),
+      execStreaming: vi.fn(),
+      dispose: vi.fn(),
+    };
 
     await service.maybeAutoTrustSsh({
       providerId: 'claude',
       cwd: '/remote/worktree',
-      exec,
+      ctx,
       remoteFs,
     });
 
@@ -257,6 +261,6 @@ describe('ClaudeTrustService', () => {
       hasTrustDialogAccepted: true,
       hasCompletedProjectOnboarding: true,
     });
-    expect(exec).toHaveBeenCalledWith('mv', [tmpPath, '/home/remote-user/.claude.json']);
+    expect(ctx.exec).toHaveBeenCalledWith('mv', [tmpPath, '/home/remote-user/.claude.json']);
   });
 });

@@ -14,6 +14,7 @@ import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
+import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
 import {
@@ -38,23 +39,31 @@ type RemoteTerminalLaunchAttempt = {
   args: string[];
 };
 
-class AppService {
+class AppService implements IInitializable, IDisposable {
   private cachedAppVersion: string | null = null;
   private cachedAppVersionPromise: Promise<string> | null = null;
   private cachedInstalledFonts: { fonts: string[]; fetchedAt: number } | null = null;
+  private _unsubscribes: Array<() => void> = [];
 
   initialize(): void {
     void this.getCachedAppVersion();
 
-    events.on(appUndoChannel, () => {
-      getMainWindow()?.webContents.undo();
-    });
-    events.on(appRedoChannel, () => {
-      getMainWindow()?.webContents.redo();
-    });
-    events.on(appPasteChannel, () => {
-      getMainWindow()?.webContents.paste();
-    });
+    this._unsubscribes = [
+      events.on(appUndoChannel, () => {
+        getMainWindow()?.webContents.undo();
+      }),
+      events.on(appRedoChannel, () => {
+        getMainWindow()?.webContents.redo();
+      }),
+      events.on(appPasteChannel, () => {
+        getMainWindow()?.webContents.paste();
+      }),
+    ];
+  }
+
+  dispose(): void {
+    for (const unsub of this._unsubscribes) unsub();
+    this._unsubscribes = [];
   }
 
   getCachedAppVersion(): Promise<string> {

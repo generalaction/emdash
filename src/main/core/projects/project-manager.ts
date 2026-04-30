@@ -1,6 +1,7 @@
 import type { LocalProject, ProjectBootstrapStatus, SshProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { HookCore, type Hookable } from '@main/lib/hookable';
+import type { IDisposable } from '@main/lib/lifecycle';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
 import { createProvider } from './create-project-provider';
@@ -30,7 +31,7 @@ function toTeardownError(e: unknown): ProviderLifecycleError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-class ProjectManager implements Hookable<ProjectManagerHooks> {
+class ProjectManager implements Hookable<ProjectManagerHooks>, IDisposable {
   private readonly _lifecycle = new LifecycleMap<ProjectProvider, ProviderLifecycleError>();
   private readonly _hooks = new HookCore<ProjectManagerHooks>((name, e) =>
     log.error(`ProjectManager: ${String(name)} hook error`, e)
@@ -68,7 +69,7 @@ class ProjectManager implements Hookable<ProjectManagerHooks> {
         projectId,
         async (provider) => {
           try {
-            await withTimeout(provider.cleanup(), TEARDOWN_PROVIDER_TIMEOUT_MS);
+            await withTimeout(provider.dispose(), TEARDOWN_PROVIDER_TIMEOUT_MS);
             return ok();
           } catch (e) {
             const error = toTeardownError(e);
@@ -89,7 +90,7 @@ class ProjectManager implements Hookable<ProjectManagerHooks> {
     return this._lifecycle.bootstrapStatus(projectId, (e) => e.message);
   }
 
-  async shutdown(): Promise<void> {
+  async dispose(): Promise<void> {
     const ids = Array.from(this._lifecycle.keys());
     await Promise.allSettled(ids.map((id) => this.closeProject(id)));
   }
