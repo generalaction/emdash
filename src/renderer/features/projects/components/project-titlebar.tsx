@@ -1,9 +1,9 @@
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { parseGitHubRepository } from '@shared/github-repository';
+import { useConfirmDeleteProject } from '@renderer/features/projects/hooks/use-confirm-delete-project';
 import {
   asMounted,
-  getProjectManagerStore,
   getProjectStore,
   getRepositoryStore,
   projectDisplayName,
@@ -14,7 +14,6 @@ import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,8 +30,8 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
 }) {
   const { navigate } = useNavigate();
   const store = getProjectStore(projectId);
-  const displayName = projectDisplayName(store);
-  const showConfirmDeleteProject = useShowModal('confirmActionModal');
+  const displayName = projectDisplayName(store) ?? 'this project';
+  const confirmDeleteProject = useConfirmDeleteProject();
 
   const repo = getRepositoryStore(projectId);
   const configuredRemote = repo?.configuredRemote;
@@ -60,14 +59,10 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
           <DropdownMenuItem
             className="flex items-center gap-2 text-foreground-destructive"
             onClick={() => {
-              showConfirmDeleteProject({
-                title: 'Delete project',
-                description: `"${displayName}" will be deleted. The project folder and worktrees will stay on the filesystem.`,
-                confirmLabel: 'Delete',
-                onSuccess: () => {
-                  void getProjectManagerStore().deleteProject(projectId);
-                  navigate('home');
-                },
+              void confirmDeleteProject({
+                projectId,
+                projectLabel: displayName,
+                onDeleted: () => navigate('home'),
               });
             }}
           >

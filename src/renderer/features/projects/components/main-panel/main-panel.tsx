@@ -1,11 +1,13 @@
 import { Loader2, TriangleAlert, Unplug } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useConfirmDeleteProject } from '@renderer/features/projects/hooks/use-confirm-delete-project';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { isUnregisteredProject } from '../../stores/project';
 import {
   getProjectManagerStore,
   getProjectStore,
+  projectDisplayName,
   projectViewKind,
   unmountedMountErrorMessage,
 } from '../../stores/project-selectors';
@@ -18,6 +20,7 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   } = useParams('project');
   const store = getProjectStore(projectId);
   const kind = projectViewKind(store);
+  const displayName = projectDisplayName(store) ?? 'this project';
 
   if (kind === 'creating' && store && isUnregisteredProject(store)) {
     return <PendingProjectStatus project={store} />;
@@ -28,7 +31,13 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   }
 
   if (kind === 'path_not_found') {
-    return <ProjectPathNotFoundPanel path={store?.error ?? ''} projectId={projectId} />;
+    return (
+      <ProjectPathNotFoundPanel
+        path={store?.error ?? ''}
+        projectId={projectId}
+        title={displayName}
+      />
+    );
   }
 
   if (kind === 'ssh_disconnected') {
@@ -103,7 +112,17 @@ function ProjectSshDisconnectedPanel({
   );
 }
 
-function ProjectPathNotFoundPanel({ path, projectId }: { path: string; projectId: string }) {
+function ProjectPathNotFoundPanel({
+  path,
+  projectId,
+  title,
+}: {
+  path: string;
+  projectId: string;
+  title: string;
+}) {
+  const confirmDeleteProject = useConfirmDeleteProject();
+
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center text-center gap-3">
@@ -118,7 +137,9 @@ function ProjectPathNotFoundPanel({ path, projectId }: { path: string; projectId
         <button
           type="button"
           className="mt-2 text-xs text-foreground-destructive underline underline-offset-2 hover:text-foreground-destructive/80 transition-colors"
-          onClick={() => void getProjectManagerStore().deleteProject(projectId)}
+          onClick={() => {
+            void confirmDeleteProject({ projectId, projectLabel: title });
+          }}
         >
           Remove Project
         </button>
