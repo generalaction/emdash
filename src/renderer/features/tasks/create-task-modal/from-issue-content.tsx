@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { InlineIssueSelector } from '../components/issue-selector/inline-issue-selector';
 import { SelectedIssueValue } from '../components/issue-selector/issue-selector';
 import { BranchPickerField } from './branch-picker-field';
+import { type InitialConversationState, InitialConversationField } from './initial-conversation-section';
 import { TaskNameField } from './task-name-field';
 import { FromIssueModeState } from './use-from-issue-mode';
 
@@ -13,6 +14,8 @@ interface FromIssueContentProps {
   projectPath?: string;
   disabled?: boolean;
   isUnborn?: boolean;
+  initialConversation: InitialConversationState;
+  connectionId?: string;
 }
 
 export function FromIssueContent({
@@ -23,6 +26,8 @@ export function FromIssueContent({
   projectPath = '',
   disabled,
   isUnborn,
+  initialConversation,
+  connectionId,
 }: FromIssueContentProps) {
   const [isSelecting, setIsSelecting] = useState(!state.linkedIssue);
 
@@ -65,6 +70,11 @@ export function FromIssueContent({
         isUnborn={isUnborn}
       />
       <TaskNameField state={state} />
+      <InitialConversationField
+        state={initialConversation}
+        linkedIssue={state.linkedIssue ?? undefined}
+        connectionId={connectionId}
+      />
     </div>
   );
 }
