@@ -1,9 +1,7 @@
+import { parseGitHubRepository } from '@shared/github-repository';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
-import {
-  normalizeSearchTerm,
-  requireNameWithOwner,
-} from '@main/core/issues/helpers/provider-inputs';
+import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { githubConnectionService } from './services/github-connection-service';
 import { issueService } from './services/issue-service';
@@ -82,7 +80,9 @@ export const githubIssueProvider: IssueProvider = {
   },
 
   listIssues: async (opts) => {
-    const nameWithOwner = requireNameWithOwner(opts.nameWithOwner);
+    const repository =
+      parseGitHubRepository(opts.nameWithOwner) ?? parseGitHubRepository(opts.remote);
+    const nameWithOwner = repository?.nameWithOwner;
     if (!nameWithOwner) {
       return { success: false, error: 'Repository name is required.' };
     }
@@ -91,7 +91,9 @@ export const githubIssueProvider: IssueProvider = {
   },
 
   searchIssues: async (opts) => {
-    const nameWithOwner = requireNameWithOwner(opts.nameWithOwner);
+    const repository =
+      parseGitHubRepository(opts.nameWithOwner) ?? parseGitHubRepository(opts.remote);
+    const nameWithOwner = repository?.nameWithOwner;
     if (!nameWithOwner) {
       return { success: false, error: 'Repository name is required.' };
     }
