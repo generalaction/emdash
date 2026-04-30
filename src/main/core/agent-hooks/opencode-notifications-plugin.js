@@ -1,4 +1,4 @@
-const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
+/* global fetch, process */
 
 export const EmdashNotifications = async () => ({
   event: async ({ event }) => {
