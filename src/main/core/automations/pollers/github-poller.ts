@@ -1,6 +1,5 @@
-import { nameWithOwnerFromUrl } from '@shared/pull-requests';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { githubIssueProvider } from '@main/core/github/github-issue-provider';
-import { isGitHubUrl } from '@main/core/github/services/utils';
 import { getProjectById } from '@main/core/projects/operations/getProjects';
 import { getProjectRemoteUrls } from '@main/core/pull-requests/project-remotes-service';
 import { diffIssuesAgainstCursor } from './issue-helpers';
@@ -12,9 +11,8 @@ async function listProjectGithubRepos(projectId: string): Promise<string[]> {
   const urls = await getProjectRemoteUrls(projectId);
   const repos: string[] = [];
   for (const url of urls) {
-    if (!isGitHubUrl(url)) continue;
-    const nameWithOwner = nameWithOwnerFromUrl(url);
-    if (nameWithOwner) repos.push(nameWithOwner);
+    const repository = parseGitHubRepository(url);
+    if (repository) repos.push(repository.repositoryUrl);
   }
   return repos;
 }
@@ -26,10 +24,10 @@ export const githubPoller: Poller = {
       if (repos.length === 0) return { ok: true, issues: [] };
 
       const results = await Promise.all(
-        repos.map((nameWithOwner) =>
+        repos.map((repositoryUrl) =>
           githubIssueProvider.listIssues({
             projectId,
-            nameWithOwner,
+            repositoryUrl,
             limit: 50,
           })
         )

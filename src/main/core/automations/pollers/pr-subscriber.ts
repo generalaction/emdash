@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
 import type { AutomationEvent } from '@shared/automations/events';
 import { prUpdatedChannel } from '@shared/events/prEvents';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { getPrNumber, type PullRequest } from '@shared/pull-requests';
-import { isGitHubUrl } from '@main/core/github/services/utils';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -48,7 +48,7 @@ async function processBatch(prs: PullRequest[]): Promise<void> {
   if (!(await hasAnyEnabledEventAutomation())) return;
   const byRepo = new Map<string, PullRequest[]>();
   for (const pr of prs) {
-    if (!isGitHubUrl(pr.repositoryUrl)) continue;
+    if (!parseGitHubRepository(pr.repositoryUrl)) continue;
     const list = byRepo.get(pr.repositoryUrl) ?? [];
     list.push(pr);
     byRepo.set(pr.repositoryUrl, list);

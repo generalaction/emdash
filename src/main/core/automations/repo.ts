@@ -18,6 +18,7 @@ import {
   automationEventCursors,
   automationRuns,
   automations,
+  projects,
   type AutomationEventCursorRow,
   type AutomationRow,
   type AutomationRunRow,
@@ -211,7 +212,20 @@ export async function getAutomation(id: string): Promise<Automation | null> {
   return row ? mapAutomationRow(row) : null;
 }
 
+async function projectExists(projectId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function createAutomation(input: CreateAutomationInput): Promise<Automation> {
+  if (!(await projectExists(input.projectId))) {
+    throw new Error('project_not_found');
+  }
+
   const now = Date.now();
   const [row] = await db
     .insert(automations)
@@ -245,7 +259,12 @@ export async function updateAutomation(
   if (patch.name !== undefined) values.name = patch.name.trim();
   if (patch.description !== undefined) values.description = patch.description?.trim() || null;
   if (patch.category !== undefined) values.category = patch.category;
-  if (patch.projectId !== undefined) values.projectId = patch.projectId;
+  if (patch.projectId !== undefined) {
+    if (!(await projectExists(patch.projectId))) {
+      throw new Error('project_not_found');
+    }
+    values.projectId = patch.projectId;
+  }
   if (patch.enabled !== undefined) values.enabled = patch.enabled ? 1 : 0;
   if (patch.builtinTemplateId !== undefined) values.builtinTemplateId = patch.builtinTemplateId;
   if (patch.trigger !== undefined) Object.assign(values, rowValuesFromTrigger(patch.trigger));
