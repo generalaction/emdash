@@ -2,7 +2,7 @@ import type { Terminal } from '@shared/terminals';
 
 export type LifecycleScriptSpawnRequest = {
   terminal: Terminal;
-  command: string;
+  command?: string;
   initialSize?: { cols: number; rows: number };
   respawnOnExit?: boolean;
   preserveBufferOnExit?: boolean;

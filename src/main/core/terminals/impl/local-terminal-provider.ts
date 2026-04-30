@@ -92,7 +92,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     return this.spawnWithPolicy(
       terminal,
       initialSize,
-      { kind: 'shell-line', commandLine: command },
+      command === undefined ? undefined : { kind: 'shell-line', commandLine: command },
       {
         respawnOnExit,
         preserveBufferOnExit,

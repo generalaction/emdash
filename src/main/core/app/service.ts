@@ -18,9 +18,9 @@ import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { buildExternalToolEnv } from '@main/utils/childProcessEnv';
 import {
-  buildGhosttyRemoteExecArgs,
   buildRemoteEditorUrl,
   buildRemoteSshCommand,
+  buildRemoteTerminalExecArgs,
 } from '@main/utils/remoteOpenIn';
 import {
   checkCommand,
@@ -33,6 +33,11 @@ import {
 } from './utils';
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
+
+type RemoteTerminalLaunchAttempt = {
+  file: string;
+  args: string[];
+};
 
 class AppService implements IInitializable, IDisposable {
   private cachedAppVersion: string | null = null;
@@ -247,7 +252,7 @@ class AppService implements IInitializable, IDisposable {
     }
 
     if (appId === 'ghostty') {
-      const ghosttyExecArgs = buildGhosttyRemoteExecArgs({
+      const remoteExecArgs = buildRemoteTerminalExecArgs({
         host,
         username,
         port,
@@ -258,29 +263,60 @@ class AppService implements IInitializable, IDisposable {
           ? [
               {
                 file: 'open',
-                args: ['-n', '-b', 'com.mitchellh.ghostty', '--args', '-e', ...ghosttyExecArgs],
+                args: ['-n', '-b', 'com.mitchellh.ghostty', '--args', '-e', ...remoteExecArgs],
               },
-              { file: 'open', args: ['-na', 'Ghostty', '--args', '-e', ...ghosttyExecArgs] },
-              { file: 'ghostty', args: ['-e', ...ghosttyExecArgs] },
+              { file: 'open', args: ['-na', 'Ghostty', '--args', '-e', ...remoteExecArgs] },
+              { file: 'ghostty', args: ['-e', ...remoteExecArgs] },
             ]
-          : [{ file: 'ghostty', args: ['-e', ...ghosttyExecArgs] }];
+          : [{ file: 'ghostty', args: ['-e', ...remoteExecArgs] }];
 
-      let lastError: unknown = null;
-      for (const attempt of attempts) {
-        try {
-          await execFileCommand(attempt.file, attempt.args);
-          return;
-        } catch (error) {
-          lastError = error;
-        }
-      }
-      if (lastError instanceof Error) throw lastError;
-      throw new Error('Unable to launch Ghostty');
+      await this.launchRemoteTerminal('Ghostty', attempts);
+      return;
+    }
+
+    if (appId === 'kitty') {
+      const remoteExecArgs = buildRemoteTerminalExecArgs({
+        host,
+        username,
+        port,
+        targetPath: target,
+      });
+      const attempts =
+        platform === 'darwin'
+          ? [
+              {
+                file: 'open',
+                args: ['-n', '-b', 'net.kovidgoyal.kitty', '--args', ...remoteExecArgs],
+              },
+              { file: 'open', args: ['-na', 'kitty', '--args', ...remoteExecArgs] },
+              { file: 'kitty', args: remoteExecArgs },
+            ]
+          : [{ file: 'kitty', args: remoteExecArgs }];
+
+      await this.launchRemoteTerminal('Kitty', attempts);
+      return;
     }
 
     if (appConfig?.supportsRemote) {
       throw new Error(`Remote SSH not yet implemented for ${label}`);
     }
+  }
+
+  private async launchRemoteTerminal(
+    label: string,
+    attempts: RemoteTerminalLaunchAttempt[]
+  ): Promise<void> {
+    let lastError: unknown = null;
+    for (const attempt of attempts) {
+      try {
+        await execFileCommand(attempt.file, attempt.args);
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (lastError instanceof Error) throw lastError;
+    throw new Error(`Unable to launch ${label}`);
   }
 
   private async openInLocal(args: {
