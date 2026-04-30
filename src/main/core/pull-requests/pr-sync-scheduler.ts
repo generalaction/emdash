@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
-import { isGitHubUrl, normalizeGitHubUrl } from '@main/core/github/services/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
@@ -143,7 +143,10 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     try {
       const remotes = await project.repository.getRemotes();
       await syncProjectRemotes(projectId, remotes);
-      return remotes.filter((r) => isGitHubUrl(r.url)).map((r) => normalizeGitHubUrl(r.url));
+      return remotes.flatMap((r) => {
+        const repository = parseGitHubRepository(r.url);
+        return repository ? [repository.repositoryUrl] : [];
+      });
     } catch (e) {
       log.warn('PrSyncScheduler: failed to sync project remotes', { projectId, error: String(e) });
       return [];
@@ -159,7 +162,10 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
       .from(projectRemotes)
       .where(eq(projectRemotes.projectId, projectId));
 
-    return rows.filter((r) => isGitHubUrl(r.remoteUrl)).map((r) => normalizeGitHubUrl(r.remoteUrl));
+    return rows.flatMap((r) => {
+      const repository = parseGitHubRepository(r.remoteUrl);
+      return repository ? [repository.repositoryUrl] : [];
+    });
   }
 
   private async _findPrNumberForBranch(
