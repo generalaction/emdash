@@ -175,21 +175,6 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     ],
   },
   {
-    id: 'ci-failure-fixer',
-    category: 'Incidents & triage',
-    name: 'Fix CI failures',
-    description: 'Detect CI failures on main and automatically open PRs',
-    icon: 'KeyRound',
-    defaultTrigger: { kind: 'event', event: 'ci.failed' },
-    defaultActions: [
-      {
-        kind: 'task.create',
-        prompt:
-          'Triage the failed CI run. Identify the failing job, root cause, and whether the failure is flaky. If there is a safe code or test fix, implement it, run the relevant validation, and prepare a PR-ready summary.',
-      },
-    ],
-  },
-  {
     id: 'docs-generator',
     category: 'Documentation',
     name: 'Generate docs',

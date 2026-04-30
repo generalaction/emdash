@@ -21,8 +21,6 @@ export function emitRunUpdated(run: AutomationRun, sessionId?: string): void {
   });
 }
 
-const EVENT_CONCURRENCY_CAP = 5;
-
 export async function runAutomation(
   automation: Automation,
   triggerKind: AutomationRunTriggerKind,
@@ -40,18 +38,6 @@ export async function runAutomation(
     emitRunUpdated(skipped);
     return ok(skipped);
   }
-  if (triggerKind === 'event' && runningCount >= EVENT_CONCURRENCY_CAP) {
-    const skipped = await insertRun({
-      automationId: automation.id,
-      status: 'skipped',
-      triggerKind,
-      finishedAt: Date.now(),
-      error: 'concurrency_cap_reached',
-    });
-    emitRunUpdated(skipped);
-    return ok(skipped);
-  }
-
   if (automation.actions.length === 0) {
     const failed = await insertRun({
       automationId: automation.id,
