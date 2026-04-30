@@ -18,28 +18,34 @@ const HOOK_EVENT_MAP = [
 ] satisfies { eventType: string; hookKey: string }[];
 
 function makeClaudeHookCommand(eventType: string): string {
-  return (
+  // Wrap with sh -c to check EMDASH_HOOK_PORT exists before executing curl.
+  // This prevents curl from running (and potentially flashing a console window)
+  // when Claude Code is used outside of Emdash (where EMDASH_HOOK_PORT is unset).
+  const curlCmd =
     'curl -sf -X POST ' +
     '-H "Content-Type: application/json" ' +
     '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
     '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
     `-H "X-Emdash-Event-Type: ${eventType}" ` +
     '-d @- ' +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
-  );
+    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook"';
+  return `sh -c '[ -n "$EMDASH_HOOK_PORT" ] && ${curlCmd}' || true`;
 }
 
 function makeCodexNotifyCommand(): string[] {
+  // Guard with EMDASH_HOOK_PORT check to skip when not running under Emdash
+  const curlCmd =
+    'curl -sf -X POST ' +
+    "-H 'Content-Type: application/json' " +
+    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
+    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
+    '-H "X-Emdash-Event-Type: notification" ' +
+    '-d "$1" ' +
+    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook"';
   return [
     'bash',
     '-c',
-    'curl -sf -X POST ' +
-      "-H 'Content-Type: application/json' " +
-      '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
-      '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-      '-H "X-Emdash-Event-Type: notification" ' +
-      '-d "$1" ' +
-      '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true',
+    `[ -n "$EMDASH_HOOK_PORT" ] && ${curlCmd}`,
     '_',
   ];
 }
