@@ -12,10 +12,6 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationScheduler } from './core/automations/automation-scheduler';
 import { automationEventPoller } from './core/automations/automationEventPoller';
-import {
-  startInternalEventBridge,
-  stopInternalEventBridge,
-} from './core/automations/internalEventBridge';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
@@ -98,7 +94,6 @@ app.whenReady().then(async () => {
   gitWatcherRegistry.initialize();
   prSyncScheduler.initialize();
   automationScheduler.start();
-  startInternalEventBridge();
   appService.initialize();
   appSettingsService.initialize();
 
@@ -139,7 +134,6 @@ app.on('before-quit', () => {
 
   automationEventPoller.stop();
   automationScheduler.stop();
-  stopInternalEventBridge();
   agentHookService.stop();
   updateService.shutdown();
   projectManager.shutdown().catch((e) => {

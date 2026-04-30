@@ -1,8 +1,7 @@
-import { ALL_INTEGRATION_PROVIDERS, type IntegrationProvider } from '@shared/automations/events';
 import { log } from '@main/lib/logger';
 import { dispatchEvent } from './eventDispatcher';
-import { pollersByProvider } from './pollers';
 import { parseCursor, serializeCursor } from './pollers/cursor';
+import { githubPoller } from './pollers/github-poller';
 import { startPrEventSubscriber, stopPrEventSubscriber } from './pollers/pr-subscriber';
 import {
   enabledEventAutomations,
@@ -40,7 +39,10 @@ class AutomationEventPoller {
     this.ticking = true;
     try {
       if (!(await hasEnabledEventAutomations())) return;
-      await Promise.all(ALL_INTEGRATION_PROVIDERS.map((provider) => this.pollProvider(provider)));
+      const automations = await enabledEventAutomations({});
+      if (automations.length === 0) return;
+      const projectIds = new Set(automations.map((a) => a.projectId));
+      await Promise.all([...projectIds].map((projectId) => this.pollProject(projectId)));
     } catch (error) {
       log.error('AutomationEventPoller tick failed', { error: String(error) });
     } finally {
@@ -48,33 +50,19 @@ class AutomationEventPoller {
     }
   }
 
-  private async pollProvider(provider: IntegrationProvider): Promise<void> {
-    const automations = await enabledEventAutomations({ provider });
-    if (automations.length === 0) return;
-
-    const projectIds = new Set(automations.map((a) => a.projectId));
-    const poller = pollersByProvider[provider];
-
-    await Promise.all(
-      [...projectIds].map(async (projectId) => {
-        try {
-          const cursorRow = await getEventCursor(provider, projectId);
-          const cursor = parseCursor(cursorRow?.cursor ?? null);
-          const result = await poller.poll(projectId, cursor);
-          const nextSerialized = serializeCursor(result.cursor);
-          if (result.events.length > 0 || nextSerialized !== cursorRow?.cursor) {
-            await upsertEventCursor({ provider, projectId, cursor: nextSerialized });
-          }
-          await Promise.all(result.events.map((event) => dispatchEvent(event)));
-        } catch (error) {
-          log.error('AutomationEventPoller poll failed', {
-            provider,
-            projectId,
-            error: String(error),
-          });
-        }
-      })
-    );
+  private async pollProject(projectId: string): Promise<void> {
+    try {
+      const cursorRow = await getEventCursor(projectId);
+      const cursor = parseCursor(cursorRow?.cursor ?? null);
+      const result = await githubPoller.poll(projectId, cursor);
+      const nextSerialized = serializeCursor(result.cursor);
+      if (result.events.length > 0 || nextSerialized !== cursorRow?.cursor) {
+        await upsertEventCursor({ projectId, cursor: nextSerialized });
+      }
+      await Promise.all(result.events.map((event) => dispatchEvent(event)));
+    } catch (error) {
+      log.error('AutomationEventPoller poll failed', { projectId, error: String(error) });
+    }
   }
 }
 
