@@ -1,6 +1,7 @@
 import { Bot, CirclePause, CirclePlay, History, Loader2, Pencil, Play, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import githubSvg from '@/assets/images/Github.svg?raw';
 import type { ActionSpec } from '@shared/automations/actions';
 import { formatTriggerLabel } from '@shared/automations/format';
 import type { Automation } from '@shared/automations/types';
@@ -81,6 +82,12 @@ export const AutomationRow = observer(function AutomationRow({
 
   const dimmed = !automation.enabled;
   const isRunning = runStatus?.status === 'running';
+  const isGithubTriggered = automation.trigger.kind === 'event';
+  const tooltipLabel = isGithubTriggered
+    ? primaryTool
+      ? `${primaryTool.label} · GitHub`
+      : 'GitHub automation'
+    : (primaryTool?.label ?? 'Automation');
 
   return (
     <div
@@ -90,7 +97,7 @@ export const AutomationRow = observer(function AutomationRow({
     >
       <Tooltip>
         <TooltipTrigger>
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-muted-foreground">
+          <span className="relative flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-muted-foreground">
             {primaryTool ? (
               <AgentLogo
                 logo={primaryTool.logo}
@@ -102,9 +109,14 @@ export const AutomationRow = observer(function AutomationRow({
             ) : (
               <Bot className="size-4" />
             )}
+            {isGithubTriggered ? (
+              <span className="absolute -bottom-1 -right-1 flex size-3.5 items-center justify-center rounded-full border border-border/70 bg-background text-foreground shadow-sm">
+                <AgentLogo logo={githubSvg} alt="GitHub" isSvg className="size-2.5 rounded-full" />
+              </span>
+            ) : null}
           </span>
         </TooltipTrigger>
-        <TooltipContent>{primaryTool?.label ?? 'Automation'}</TooltipContent>
+        <TooltipContent>{tooltipLabel}</TooltipContent>
       </Tooltip>
 
       <div className="flex min-w-0 flex-1 items-center gap-2">
