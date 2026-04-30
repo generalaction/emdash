@@ -42,7 +42,8 @@ export async function createProvider(project: LocalProject | SshProject): Promis
 async function createLocalProvider(project: LocalProject): Promise<ProjectProvider> {
   const localFs = new LocalFileSystem(project.path);
   const baseCtx = new LocalExecutionContext({ root: project.path });
-  const ctx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
+  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
+  const ctx = baseCtx;
 
   const settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
   const worktreeDirectory = await settings.getWorktreeDirectory();
@@ -55,7 +56,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   return buildProvider(
     project.id,
     project.path,
-    { kind: 'local', defaultWorkspaceType: { kind: 'local' }, ctx },
+    { kind: 'local', defaultWorkspaceType: { kind: 'local' }, ctx, authCtx },
     localFs,
     settings,
     worktreeHost,
@@ -71,7 +72,10 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     const projectFs = new SshFileSystem(proxy, project.path);
 
     const baseCtx = new SshExecutionContext(proxy, { root: project.path });
-    const ctx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
+    const authCtx = new GitHubAuthExecutionContext(baseCtx, () =>
+      githubConnectionService.getToken()
+    );
+    const ctx = baseCtx;
 
     const settings = new SshProjectSettingsProvider(
       projectFs,
@@ -93,6 +97,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
         kind: 'ssh',
         defaultWorkspaceType: { kind: 'ssh', proxy, connectionId: project.connectionId },
         ctx,
+        authCtx,
       },
       projectFs,
       settings,
@@ -122,14 +127,17 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
 function buildProvider(
   projectId: string,
   repoPath: string,
-  transportMeta: Pick<ProjectProviderTransport, 'kind' | 'defaultWorkspaceType' | 'ctx'>,
+  transportMeta: Pick<
+    ProjectProviderTransport,
+    'kind' | 'defaultWorkspaceType' | 'ctx' | 'authCtx'
+  >,
   projectFs: FileSystemProvider,
   settings: ProjectSettingsProvider,
   worktreeHost: WorktreeHost,
   worktreePoolPath: string,
   dispose: () => void
 ): ProjectProvider {
-  const { ctx } = transportMeta;
+  const { ctx, authCtx } = transportMeta;
 
   const transport: ProjectProviderTransport = {
     ...transportMeta,
@@ -139,7 +147,7 @@ function buildProvider(
     worktreePoolPath,
   };
 
-  const repoGit = new GitService(ctx, projectFs);
+  const repoGit = new GitService(ctx, authCtx, projectFs);
   const repository = new GitRepositoryService(repoGit, settings);
   const worktreeService = new WorktreeService({
     worktreePoolPath,

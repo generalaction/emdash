@@ -118,16 +118,14 @@ export function createWorkspaceFactory(
       terminals: workspaceTerminals,
     });
 
-    const gitCtx =
+    const baseGitCtx =
       type.kind === 'ssh'
-        ? new GitHubAuthExecutionContext(
-            new SshExecutionContext(type.proxy, { root: workDir }),
-            () => githubConnectionService.getToken()
-          )
-        : new GitHubAuthExecutionContext(new LocalExecutionContext({ root: workDir }), () =>
-            githubConnectionService.getToken()
-          );
-    const gitService = new GitService(gitCtx, workspaceFs);
+        ? new SshExecutionContext(type.proxy, { root: workDir })
+        : new LocalExecutionContext({ root: workDir });
+    const authGitCtx = new GitHubAuthExecutionContext(baseGitCtx, () =>
+      githubConnectionService.getToken()
+    );
+    const gitService = new GitService(baseGitCtx, authGitCtx, workspaceFs);
 
     const repository = context.repository ?? new GitRepositoryService(gitService, context.settings);
 

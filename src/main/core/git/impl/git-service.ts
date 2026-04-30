@@ -58,6 +58,7 @@ export class GitService implements GitProvider, IDisposable {
 
   constructor(
     private readonly ctx: IExecutionContext,
+    private readonly authCtx: IExecutionContext,
     private readonly fs: FileSystemProvider
   ) {}
 
@@ -136,7 +137,7 @@ export class GitService implements GitProvider, IDisposable {
 
   private async _runStatusZ(parser: StatusParser): Promise<void> {
     await this.ctx.execStreaming(
-      'git',
+      GIT_EXECUTABLE,
       ['--no-optional-locks', 'status', '-z', '-uall'],
       (chunk) => {
         parser.update(chunk);
@@ -849,9 +850,11 @@ export class GitService implements GitProvider, IDisposable {
         return err({ type: 'remote_not_found', message: `Remote "${selectedRemote}" not found` });
       }
 
-      await this.ctx.exec(GIT_EXECUTABLE, selectedRemote ? ['fetch', selectedRemote] : ['fetch'], {
-        maxBuffer: MAX_REF_LIST_BYTES,
-      });
+      await this.authCtx.exec(
+        GIT_EXECUTABLE,
+        selectedRemote ? ['fetch', selectedRemote] : ['fetch'],
+        { maxBuffer: MAX_REF_LIST_BYTES }
+      );
       return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
@@ -888,7 +891,7 @@ export class GitService implements GitProvider, IDisposable {
 
   async push(preferredRemote?: string): Promise<Result<{ output: string }, PushError>> {
     const doPush = async (args: string[]): Promise<string> => {
-      const { stdout, stderr } = await this.ctx.exec(GIT_EXECUTABLE, args);
+      const { stdout, stderr } = await this.authCtx.exec(GIT_EXECUTABLE, args);
       return (stdout || stderr || '').trim();
     };
 
@@ -976,7 +979,7 @@ export class GitService implements GitProvider, IDisposable {
     remote = 'origin'
   ): Promise<Result<{ output: string }, PushError>> {
     const doPush = async (args: string[]): Promise<string> => {
-      const { stdout, stderr } = await this.ctx.exec(GIT_EXECUTABLE, args);
+      const { stdout, stderr } = await this.authCtx.exec(GIT_EXECUTABLE, args);
       return (stdout || stderr || '').trim();
     };
 
@@ -1044,7 +1047,7 @@ export class GitService implements GitProvider, IDisposable {
 
   async pull(): Promise<Result<{ output: string }, PullError>> {
     try {
-      const { stdout } = await this.ctx.exec(GIT_EXECUTABLE, ['pull']);
+      const { stdout } = await this.authCtx.exec(GIT_EXECUTABLE, ['pull']);
       return ok({ output: stdout.trim() });
     } catch (error: unknown) {
       const stdout = (error as { stdout?: string })?.stdout || '';
@@ -1174,7 +1177,7 @@ export class GitService implements GitProvider, IDisposable {
     const remotes = await this.getRemotes();
     const remoteByName = new Map(remotes.map((remote) => [remote.name, remote]));
     const { stdout } = await this.ctx.exec(
-      'git',
+      GIT_EXECUTABLE,
       ['branch', '-a', '--format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(refname)'],
       { maxBuffer: MAX_REF_LIST_BYTES }
     );
@@ -1239,7 +1242,7 @@ export class GitService implements GitProvider, IDisposable {
 
     // Heuristic 2: ask the remote directly (requires a network call).
     try {
-      const { stdout } = await this.ctx.exec(GIT_EXECUTABLE, ['remote', 'show', remote]);
+      const { stdout } = await this.authCtx.exec(GIT_EXECUTABLE, ['remote', 'show', remote]);
       const match = /HEAD branch:\s*(\S+)/.exec(stdout);
       if (match?.[1]) return match[1];
     } catch {}
@@ -1311,8 +1314,8 @@ export class GitService implements GitProvider, IDisposable {
     remote = 'origin'
   ): Promise<Result<void, CreateBranchError>> {
     if (syncWithRemote) {
-      await this.ctx
-        .exec('git', ['fetch', remote], {
+      await this.authCtx
+        .exec(GIT_EXECUTABLE, ['fetch', remote], {
           maxBuffer: MAX_REF_LIST_BYTES,
         })
         .catch(() => {});
@@ -1367,10 +1370,10 @@ export class GitService implements GitProvider, IDisposable {
           await this.ctx.exec(GIT_EXECUTABLE, ['remote', 'add', forkRemote, headRepositoryUrl]);
         } else {
           await this.ctx
-            .exec('git', ['remote', 'set-url', forkRemote, headRepositoryUrl])
+            .exec(GIT_EXECUTABLE, ['remote', 'set-url', forkRemote, headRepositoryUrl])
             .catch(() => {});
         }
-        await this.ctx.exec(GIT_EXECUTABLE, [
+        await this.authCtx.exec(GIT_EXECUTABLE, [
           'fetch',
           forkRemote,
           `${headRefName}:refs/heads/${localBranch}`,
@@ -1378,18 +1381,22 @@ export class GitService implements GitProvider, IDisposable {
         ]);
         // Set tracking so `git push` targets the contributor's fork branch
         await this.ctx
-          .exec('git', ['branch', `--set-upstream-to=${forkRemote}/${headRefName}`, localBranch])
+          .exec(GIT_EXECUTABLE, [
+            'branch',
+            `--set-upstream-to=${forkRemote}/${headRefName}`,
+            localBranch,
+          ])
           .catch(() => {});
       } else {
         // Same-repo: GitHub always exposes refs/pull/{N}/head on origin
-        await this.ctx.exec(GIT_EXECUTABLE, [
+        await this.authCtx.exec(GIT_EXECUTABLE, [
           'fetch',
           configuredRemote,
           `refs/pull/${prNumber}/head:refs/heads/${localBranch}`,
           '--force',
         ]);
         await this.ctx
-          .exec('git', [
+          .exec(GIT_EXECUTABLE, [
             'branch',
             `--set-upstream-to=${configuredRemote}/${headRefName}`,
             localBranch,
@@ -1436,10 +1443,10 @@ export class GitService implements GitProvider, IDisposable {
 
     if (remoteName) {
       try {
-        await this.ctx.exec(GIT_EXECUTABLE, ['push', remoteName, '--delete', oldBranch]);
+        await this.authCtx.exec(GIT_EXECUTABLE, ['push', remoteName, '--delete', oldBranch]);
       } catch {}
       try {
-        await this.ctx.exec(GIT_EXECUTABLE, ['push', '-u', remoteName, newBranch]);
+        await this.authCtx.exec(GIT_EXECUTABLE, ['push', '-u', remoteName, newBranch]);
       } catch (error: unknown) {
         const stderr = (error as { stderr?: string })?.stderr || String(error);
         return err({ type: 'remote_push_failed', message: stderr });
@@ -1503,7 +1510,7 @@ export class GitService implements GitProvider, IDisposable {
 
     if (!branch && remoteName) {
       try {
-        const { stdout } = await this.ctx.exec(GIT_EXECUTABLE, ['remote', 'show', remoteName]);
+        const { stdout } = await this.authCtx.exec(GIT_EXECUTABLE, ['remote', 'show', remoteName]);
         const match = /HEAD branch:\s*(\S+)/.exec(stdout);
         branch = match?.[1] ?? undefined;
       } catch {}

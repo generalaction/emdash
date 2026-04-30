@@ -48,10 +48,9 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
   }
 
   const fs = new LocalFileSystem(params.path);
-  const ctx = new GitHubAuthExecutionContext(new LocalExecutionContext({ root: params.path }), () =>
-    githubConnectionService.getToken()
-  );
-  const git = new GitService(ctx, fs);
+  const baseCtx = new LocalExecutionContext({ root: params.path });
+  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
+  const git = new GitService(baseCtx, authCtx, fs);
   const gitInfo = await ensureGitRepository(git, params.initGitRepository);
 
   const [row] = await db
@@ -88,10 +87,9 @@ export async function getLocalProjectPathStatus(path: string): Promise<ProjectPa
   }
 
   const fs = new LocalFileSystem(path);
-  const ctx = new GitHubAuthExecutionContext(new LocalExecutionContext({ root: path }), () =>
-    githubConnectionService.getToken()
-  );
-  const git = new GitService(ctx, fs);
+  const baseCtx = new LocalExecutionContext({ root: path });
+  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
+  const git = new GitService(baseCtx, authCtx, fs);
   const gitInfo = await git.detectInfo();
   return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
 }
@@ -112,11 +110,11 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   if (!pathEntry || pathEntry.type !== 'dir') {
     throw new Error('Invalid directory');
   }
-  const sshCtx = new GitHubAuthExecutionContext(
-    new SshExecutionContext(sshProxy, { root: params.path }),
-    () => githubConnectionService.getToken()
+  const baseSshCtx = new SshExecutionContext(sshProxy, { root: params.path });
+  const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
+    githubConnectionService.getToken()
   );
-  const git = new GitService(sshCtx, sshFs);
+  const git = new GitService(baseSshCtx, authSshCtx, sshFs);
 
   const gitInfo = await ensureGitRepository(git, params.initGitRepository);
 
@@ -161,11 +159,11 @@ export async function getSshProjectPathStatus(
       return { isDirectory: false, isGitRepo: false };
     }
 
-    const sshCtx = new GitHubAuthExecutionContext(
-      new SshExecutionContext(sshProxy, { root: path }),
-      () => githubConnectionService.getToken()
+    const baseSshCtx = new SshExecutionContext(sshProxy, { root: path });
+    const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
+      githubConnectionService.getToken()
     );
-    const git = new GitService(sshCtx, sshFs);
+    const git = new GitService(baseSshCtx, authSshCtx, sshFs);
     const gitInfo = await git.detectInfo();
     return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
   } catch {

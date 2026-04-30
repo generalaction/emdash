@@ -57,7 +57,8 @@ function makeContext(exec: MockExec, root = '/repo'): IExecutionContext {
 }
 
 function makeService(exec: MockExec): GitService {
-  return new GitService(makeContext(exec), stubFs);
+  const ctx = makeContext(exec);
+  return new GitService(ctx, ctx, stubFs);
 }
 
 // ---------------------------------------------------------------------------
