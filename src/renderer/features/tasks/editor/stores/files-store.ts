@@ -1,5 +1,5 @@
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { FileNode, FileWatchEvent } from '@shared/fs';
+import { type FileNode, type FileWatchEvent } from '@shared/fs';
 import {
   isExcluded,
   makeNode,

@@ -12,6 +12,7 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
+import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
@@ -67,15 +68,12 @@ app.on('activate', () => {
   }
 });
 
-app.whenReady().then(async () => {
+void app.whenReady().then(async () => {
   await resolveUserEnv();
 
   try {
     await initializeDatabase();
-    const BUFFER_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-    editorBufferService.pruneStale(BUFFER_STALE_MS).catch((e) => {
-      log.warn('Failed to prune stale editor buffers:', e);
-    });
+    void editorBufferService.pruneStale();
   } catch (error) {
     log.error('Failed to initialize database:', error);
     dialog.showErrorBox(
@@ -92,11 +90,12 @@ app.whenReady().then(async () => {
     log.warn('telemetry init failed:', e);
   }
 
+  gitWatcherRegistry.initialize();
   prSyncScheduler.initialize();
   appService.initialize();
-  appSettingsService.initialize();
+  await appSettingsService.initialize();
 
-  agentHookService.start().catch((e) => {
+  agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
 
@@ -131,10 +130,12 @@ app.on('before-quit', () => {
   telemetry.capture('app_closed');
   telemetry.shutdown();
 
-  agentHookService.stop();
+  agentHookService.dispose();
   stopResourceSampler();
-  updateService.shutdown();
-  projectManager.shutdown().catch((e) => {
+  updateService.dispose();
+  prSyncScheduler.dispose();
+  void gitWatcherRegistry.dispose();
+  projectManager.dispose().catch((e) => {
     log.error('Failed to shutdown project manager:', e);
   });
 });

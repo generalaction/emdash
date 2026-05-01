@@ -17,7 +17,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { ContextBar } from './context-bar';
-import { ConversationStore } from './conversation-manager';
+import { type ConversationStore } from './conversation-manager';
 import { ConversationsTabs } from './conversation-tabs';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {

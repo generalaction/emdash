@@ -29,15 +29,19 @@ export function createMainWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.mjs'),
     },
     ...(process.platform === 'darwin'
-      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 10, y: 10 } }
+      ? {
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: { x: 10, y: 10 },
+          acceptFirstMouse: true,
+        }
       : {}),
     show: false,
   });
 
   if (import.meta.env.DEV) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
+    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
   } else {
-    mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
+    void mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
   }
 
   // Route external links to the user’s default browser
@@ -54,7 +58,7 @@ export function createMainWindow(): BrowserWindow {
     if (typeof mainWindow?.setWindowButtonVisibility === 'function') {
       mainWindow.setWindowButtonVisibility(true);
     }
-    checkAndReportDailyActiveUser();
+    void checkAndReportDailyActiveUser();
   });
 
   mainWindow.on('blur', () => {

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { log } from '@main/lib/logger';
+import { getWindowsEnvValue, prependWindowsPathEntry } from './windows-env';
 
 /**
  * Keys that must never be overwritten from the shell env capture.
@@ -80,6 +81,16 @@ export function ensureUserBinDirsInPath(candidates: string[] = USER_BIN_DIRS): s
   return additions;
 }
 
+export function ensureWindowsNpmGlobalBinInPath(
+  env: NodeJS.ProcessEnv = process.env
+): string | null {
+  const appData = getWindowsEnvValue(env, 'APPDATA');
+  if (!appData) return null;
+
+  const npmPath = path.win32.join(appData, 'npm');
+  return prependWindowsPathEntry(env, npmPath) ? npmPath : null;
+}
+
 /**
  * Spawns `$SHELL -ilc 'env'` with a 5 s timeout. On any error (timeout,
  * missing shell, restricted environment) the function logs a warning and
@@ -92,6 +103,7 @@ export function ensureUserBinDirsInPath(candidates: string[] = USER_BIN_DIRS): s
 export async function resolveUserEnv(): Promise<void> {
   if (process.platform === 'win32') {
     // Windows PATH is managed differently; no login-shell capture needed.
+    ensureWindowsNpmGlobalBinInPath();
     return;
   }
 

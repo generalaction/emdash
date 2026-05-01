@@ -103,7 +103,12 @@ export const sshController = createRPCController({
   testConnection: async (
     config: SshConfig & { password?: string; passphrase?: string }
   ): Promise<ConnectionTestResult> => {
-    return new Promise(async (resolve) => {
+    let identityAgent: string | undefined;
+    if (config.authType === 'agent') {
+      identityAgent = await resolveIdentityAgent(config.host);
+    }
+
+    return new Promise((resolve) => {
       const client = new Client();
       const debugLogs: string[] = [];
       const startTime = Date.now();
@@ -137,7 +142,6 @@ export const sshController = createRPCController({
           connectConfig.privateKey = readFileSync(keyPath);
           if (config.passphrase) connectConfig.passphrase = config.passphrase;
         } else if (config.authType === 'agent') {
-          const identityAgent = await resolveIdentityAgent(config.host);
           connectConfig.agent = identityAgent || process.env.SSH_AUTH_SOCK;
         }
 

@@ -7,9 +7,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@renderer/lib/ui/button';
-import { SplitButton, SplitButtonAction } from '@renderer/lib/ui/split-button';
+import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { cn } from '@renderer/utils/utils';
-import { MergeSeverity, MergeUiState } from './pr-entry';
+import { type MergeSeverity, type MergeUiState } from './pr-entry';
 
 const severityConfig: Record<MergeSeverity, SeverityConfig> = {
   success: { icon: CheckCircle2, iconClass: 'text-green-600' },
@@ -24,13 +24,11 @@ export function MergeFooter({
   uiState,
   mergeActions,
   isMerging,
-
   onMarkReady,
 }: {
   uiState: MergeUiState;
   mergeActions: SplitButtonAction[];
   isMerging: boolean;
-
   onMarkReady: () => void;
 }) {
   const isDraft = uiState.kind === 'draft';

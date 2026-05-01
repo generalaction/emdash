@@ -13,20 +13,19 @@ import { ChangeProjectConnectionModal } from '@renderer/lib/components/change-pr
 import { ConfirmActionDialog } from '@renderer/lib/components/confirm-action-dialog';
 import { FeedbackModal } from '@renderer/lib/components/feedback-modal/feedback-modal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-device-flow-modal';
-import { ModalComponent } from '@renderer/lib/modal/modal-provider';
+import { type ModalComponent } from '@renderer/lib/modal/modal-provider';
 
 export type ModalSize = 'xs' | 'sm' | 'md' | 'lg';
 
-export type ModalRegistryEntry = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  component: ModalComponent<any, any>;
+export type ModalRegistryEntry<TProps = unknown, TResult = unknown> = {
+  component: ModalComponent<TProps, TResult>;
   size?: ModalSize;
 };
 
 export function createModal<TProps, TResult>(
   component: ModalComponent<TProps, TResult>,
   config: Omit<ModalRegistryEntry, 'component'> = {}
-): ModalRegistryEntry {
+): ModalRegistryEntry<TProps, TResult> {
   return { component, ...config };
 }
 
@@ -46,4 +45,5 @@ export const modalRegistry = {
   renameTaskModal: createModal(RenameTaskModal, { size: 'xs' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   addRemoteModal: createModal(AddRemoteModal),
-} satisfies Record<string, ModalRegistryEntry>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+} satisfies Record<string, ModalRegistryEntry<any, any>>;

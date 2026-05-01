@@ -13,8 +13,8 @@ import {
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { PtySession } from '@renderer/lib/pty/pty-session';
-import { TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { type PtySession } from '@renderer/lib/pty/pty-session';
+import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';

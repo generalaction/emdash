@@ -6,7 +6,7 @@ Thanks for your interest in contributing! We favor small, focused PRs and clear 
 
 Prerequisites
 
-- **Node.js 24.0.0+ (recommended: 24.14.0)** and Git
+- **Node.js 24.0.0+ (recommended: 24.14.0)**, **pnpm 10.28.0+**, and Git
 - Optional (recommended for end‑to‑end testing):
   - GitHub CLI (`brew install gh`; then `gh auth login`)
   - At least one supported coding agent CLI (see docs for list)
@@ -28,10 +28,11 @@ pnpm run d
 pnpm install
 pnpm run dev
 
-# Type checking, lint, build
- pnpm run typecheck
- pnpm run lint
- pnpm run build
+# Format, lint, type check, and test
+pnpm run format
+pnpm run lint
+pnpm run typecheck
+pnpm run test
 ```
 
 Tip: During development, the renderer hot‑reloads. Changes to the Electron main process (files in `src/main`) require a restart of the dev app.
@@ -61,13 +62,13 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 3. Run checks locally
 
 ```
-pnpm run format      # Format code with Prettier (required)
+pnpm run format     # Format code with Prettier (required)
+pnpm run lint       # ESLint
 pnpm run typecheck  # TypeScript type checking
-pnpm run lint        # ESLint
-pnpm run build       # Build both main and renderer
+pnpm run test       # Vitest test suite
 ```
 
-Pre-commit hooks run automatically via Husky + lint-staged. On each commit, staged files are auto-formatted with Prettier and linted with ESLint. You don't need to remember to run these manually. Type checking and tests run in CI only since they need the full project context and are slower to execute.
+Pre-commit hooks run automatically via Husky + lint-staged. On each commit, staged files are auto-formatted with Prettier and linted with ESLint. Run the full local gate before opening or merging a PR.
 
 If you need to skip the hook for a work-in-progress commit, use `git commit --no-verify`. The checks will still run in CI when you open a PR.
 
@@ -98,9 +99,9 @@ TypeScript + ESLint + Prettier
 Pre-commit hooks handle formatting and linting automatically on staged files. For full-project checks you can run them manually:
 
 - `pnpm run format` -- format all files with Prettier
-- `pnpm run typecheck` -- TypeScript type checking (whole project)
 - `pnpm run lint` -- ESLint across all files
-- `pnpm exec vitest run` -- run the test suite
+- `pnpm run typecheck` -- TypeScript type checking (whole project)
+- `pnpm run test` -- run the test suite
 
 Electron main (Node side)
 
@@ -159,19 +160,23 @@ This automatically:
 2. Creates a git commit with the version number (e.g., `"0.2.10"`)
 3. Creates a git tag (e.g., `v0.2.10`)
 
-Then push to trigger the CI/CD pipeline.
+Then push the commit and tag. Production release builds are dispatched from GitHub Actions.
 
 ### What happens next
 
-Two GitHub Actions workflows trigger on version tags:
+The release pipeline is split across these GitHub Actions workflows:
 
-**macOS Release** (`.github/workflows/release.yml`):
-1. Builds the TypeScript and Vite bundles
-2. Signs the app with Apple Developer ID
-3. Notarizes via Apple's notary service
-4. Creates a GitHub Release with DMG artifacts for arm64 and x64
+**Production Release** (`.github/workflows/release-prod.yml`):
+1. Builds Linux, Windows, and macOS packages
+2. Signs Windows builds when Azure Trusted Signing secrets are configured
+3. Signs, verifies, notarizes, and staples macOS DMGs and ZIPs
+4. Uploads release artifacts to Cloudflare R2
 
 **Linux/Nix Build** (`.github/workflows/nix-build.yml`):
 1. Computes the correct dependency hash from `pnpm-lock.yaml`
 2. Builds the x86_64-linux package via Nix flake
-3. Pushes build artifacts to Cachix
+3. Pushes build artifacts to Cachix and uploads the Nix artifact when available
+
+**Canary Release** (`.github/workflows/release-canary.yml`):
+1. Builds Linux, Windows, and macOS packages with the canary config
+2. Publishes artifacts to the `v1-canary` R2 channel

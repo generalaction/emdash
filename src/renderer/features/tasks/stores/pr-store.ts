@@ -1,7 +1,13 @@
 import { makeAutoObservable, type IObservableArray } from 'mobx';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
 import { commitRef, mergeBaseRange, refsEqual, remoteRef, type GitChange } from '@shared/git';
-import { isForkPr, ownerFromUrl, selectCurrentPr, type PullRequest } from '@shared/pull-requests';
+import { parseGitHubRepository } from '@shared/github-repository';
+import {
+  isForkPr,
+  pullRequestErrorMessage,
+  selectCurrentPr,
+  type PullRequest,
+} from '@shared/pull-requests';
 import type { Task } from '@shared/tasks';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -75,7 +81,7 @@ export class PrStore {
                   pr.headRefName
                 );
                 const forkOwner = isForkPr(pr)
-                  ? (ownerFromUrl(pr.headRepositoryUrl) ?? null)
+                  ? (parseGitHubRepository(pr.headRepositoryUrl)?.owner ?? null)
                   : null;
                 const forkRef = forkOwner ? remoteRef(forkOwner, pr.headRefName) : null;
                 const relevant =
@@ -139,7 +145,7 @@ export class PrStore {
       project_id: this.projectId,
       task_id: this.workspaceId,
     });
-    return { success: false, error: result.error ?? 'Merge failed' };
+    return { success: false, error: pullRequestErrorMessage(result.error) };
   }
 
   async markReadyForReview(id: string): Promise<void> {

@@ -53,7 +53,10 @@ function createAppDb(): Database.Database {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       last_interacted_at TEXT,
       status_changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      is_pinned INTEGER NOT NULL DEFAULT 0
+      is_pinned INTEGER NOT NULL DEFAULT 0,
+      workspace_provider TEXT,
+      workspace_id TEXT,
+      workspace_provider_data TEXT
     );
 
     CREATE TABLE conversations (
@@ -226,5 +229,64 @@ describe('runLegacyPort', () => {
       count: number;
     };
     expect(projectsAfterSecondRun.count).toBe(1);
+  });
+
+  it('rolls back destination changes when a fatal import error happens', async () => {
+    const appDb = new Database(':memory:');
+    openDbs.push(appDb);
+    appDb.pragma('foreign_keys = ON');
+    appDb.exec(`
+      CREATE TABLE ssh_connections (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL DEFAULT 22,
+        username TEXT NOT NULL,
+        auth_type TEXT NOT NULL DEFAULT 'agent',
+        private_key_path TEXT,
+        use_agent INTEGER NOT NULL DEFAULT 0,
+        metadata TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL UNIQUE,
+        workspace_provider TEXT NOT NULL DEFAULT 'local',
+        base_ref TEXT,
+        ssh_connection_id TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    appDb
+      .prepare(
+        `INSERT INTO projects (id, name, path, workspace_provider, base_ref) VALUES (?, ?, ?, ?, ?)`
+      )
+      .run('existing-project', 'Existing Project', '/existing/repo', 'local', 'main');
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-port-rollback-'));
+    tempDirs.push(tmpDir);
+
+    seedLegacyDb(path.join(tmpDir, 'emdash.db'));
+
+    const stateStore = new InMemoryLegacyPortStateStore();
+
+    await runLegacyPort(tmpDir, { appDb, stateStore });
+
+    const projects = appDb
+      .prepare(`SELECT id, name, path FROM projects ORDER BY id ASC`)
+      .all() as Array<{ id: string; name: string; path: string }>;
+
+    expect(await stateStore.getStatus()).toBeNull();
+    expect(projects).toEqual([
+      {
+        id: 'existing-project',
+        name: 'Existing Project',
+        path: '/existing/repo',
+      },
+    ]);
   });
 });

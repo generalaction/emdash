@@ -1,16 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { type LocalProject, type ProjectPathStatus, type SshProject } from '@shared/projects';
+import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { checkIsValidDirectory } from '@main/core/git/impl/detectGitInfo';
 import { GitService } from '@main/core/git/impl/git-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { getGitSshExec, getLocalExec } from '@main/core/utils/exec';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import { checkIsValidDirectory } from '../path-utils';
 
 async function ensureGitRepository(
   git: GitService,
@@ -46,7 +48,9 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
   }
 
   const fs = new LocalFileSystem(params.path);
-  const git = new GitService(params.path, getLocalExec(), fs);
+  const baseCtx = new LocalExecutionContext({ root: params.path });
+  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
+  const git = new GitService(baseCtx, authCtx, fs);
   const gitInfo = await ensureGitRepository(git, params.initGitRepository);
 
   const [row] = await db
@@ -83,7 +87,9 @@ export async function getLocalProjectPathStatus(path: string): Promise<ProjectPa
   }
 
   const fs = new LocalFileSystem(path);
-  const git = new GitService(path, getLocalExec(), fs);
+  const baseCtx = new LocalExecutionContext({ root: path });
+  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
+  const git = new GitService(baseCtx, authCtx, fs);
   const gitInfo = await git.detectInfo();
   return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
 }
@@ -104,12 +110,11 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   if (!pathEntry || pathEntry.type !== 'dir') {
     throw new Error('Invalid directory');
   }
-  const git = new GitService(
-    params.path,
-    getGitSshExec(sshProxy, () => githubConnectionService.getToken()),
-    sshFs,
-    false
+  const baseSshCtx = new SshExecutionContext(sshProxy, { root: params.path });
+  const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
+    githubConnectionService.getToken()
   );
+  const git = new GitService(baseSshCtx, authSshCtx, sshFs);
 
   const gitInfo = await ensureGitRepository(git, params.initGitRepository);
 
@@ -154,12 +159,11 @@ export async function getSshProjectPathStatus(
       return { isDirectory: false, isGitRepo: false };
     }
 
-    const git = new GitService(
-      path,
-      getGitSshExec(sshProxy, () => githubConnectionService.getToken()),
-      sshFs,
-      false
+    const baseSshCtx = new SshExecutionContext(sshProxy, { root: path });
+    const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
+      githubConnectionService.getToken()
     );
+    const git = new GitService(baseSshCtx, authSshCtx, sshFs);
     const gitInfo = await git.detectInfo();
     return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
   } catch {

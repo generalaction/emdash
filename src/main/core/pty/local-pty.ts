@@ -1,8 +1,8 @@
-import path from 'node:path';
 import * as nodePty from 'node-pty';
 import type { IPty } from 'node-pty';
 import { log } from '@main/lib/logger';
 import { normalizeSignal } from './exit-signals';
+import { suppressExpectedNodePtyErrors } from './node-pty-errors';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
 
 export interface LocalSpawnOptions extends PtyDimensions {
@@ -18,25 +18,25 @@ const MIN_ROWS = 1;
 
 export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
   const { id, command, args, cwd, env, cols, rows } = options;
-  const spawnSpec = resolveWindowsPtySpawn(command, args);
 
   log.info('LocalPtySession:spawn', {
     id,
-    command: spawnSpec.command,
-    args: spawnSpec.args,
+    command,
+    args,
     cwd,
     cols,
     rows,
   });
 
   try {
-    const proc = nodePty.spawn(spawnSpec.command, spawnSpec.args, {
+    const proc = nodePty.spawn(command, args, {
       name: 'xterm-256color',
       cols,
       rows,
       cwd,
       env,
     });
+    suppressExpectedNodePtyErrors(proc);
     return new LocalPtySession(id, proc);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
@@ -89,35 +89,4 @@ export class LocalPtySession implements Pty {
   getPid(): number {
     return this.proc.pid;
   }
-}
-
-function resolveWindowsPtySpawn(
-  command: string,
-  args: string[]
-): { command: string; args: string[] } {
-  if (process.platform !== 'win32') return { command, args };
-
-  const quoteForCmdExe = (input: string): string => {
-    if (input.length === 0) return '""';
-    if (!/[\s"^&|<>()%!]/.test(input)) return input;
-    return `"${input
-      .replace(/%/g, '%%')
-      .replace(/!/g, '^!')
-      .replace(/(["^&|<>()])/g, '^$1')}"`;
-  };
-
-  const ext = path.extname(command).toLowerCase();
-  if (ext === '.cmd' || ext === '.bat') {
-    const comspec = process.env.ComSpec || String.raw`C:\\Windows\\System32\\cmd.exe`;
-    const fullCommandString = [command, ...args].map(quoteForCmdExe).join(' ');
-    return { command: comspec, args: ['/d', '/s', '/c', fullCommandString] };
-  }
-  if (ext === '.ps1') {
-    return {
-      command: 'powershell.exe',
-      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', command, ...args],
-    };
-  }
-
-  return { command, args };
 }

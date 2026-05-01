@@ -6,7 +6,7 @@ import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
-import { BranchSelectionState } from './use-branch-selection';
+import { type BranchSelectionState } from './use-branch-selection';
 
 interface BranchPickerFieldProps {
   state: BranchSelectionState;

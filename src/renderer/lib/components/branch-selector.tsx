@@ -1,6 +1,6 @@
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import { Branch } from '@shared/git';
+import { type Branch } from '@shared/git';
 import { Badge } from '@renderer/lib/ui/badge';
 import {
   Combobox,

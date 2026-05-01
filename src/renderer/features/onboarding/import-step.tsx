@@ -1,142 +1,161 @@
-import { Import } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { useLegacyPortImport, useLegacyPortPreview } from '@renderer/lib/hooks/useLegacyPort';
+import { useMemo, useState } from 'react';
+import type { LegacyImportSource } from '@shared/legacy-port';
+import { useImportProgress } from '@renderer/lib/hooks/useImportProgress';
+import {
+  useLegacyPortImport,
+  useLegacyPortPreview,
+  useLegacyPortStartFresh,
+} from '@renderer/lib/hooks/useLegacyPort';
 import { Button } from '@renderer/lib/ui/button';
+import { cn } from '@renderer/utils/utils';
+import { ImportHeader } from './components/import-header';
+import { ImportProgress } from './components/import-progress';
+import { ImportSourceSelector } from './components/import-source-selector';
+import { ProjectConflicts } from './components/project-conflicts';
+import {
+  availableSources,
+  shouldCenterImportContent,
+  shouldShowSourceSelector,
+  singleAvailableSource,
+} from './import-state';
 
-const PROGRESS_DURATION_MS = 4000;
-const COMPLETE_DELAY_MS = 1000;
+function toggleSourceSelection(
+  sources: LegacyImportSource[],
+  source: LegacyImportSource
+): LegacyImportSource[] {
+  if (sources.includes(source)) {
+    return sources.filter((candidate) => candidate !== source);
+  }
+  return [...sources, source];
+}
 
 export function ImportStep({ onComplete }: { onComplete: () => void }) {
   const { data: preview, isLoading: previewLoading } = useLegacyPortPreview(true);
   const importMutation = useLegacyPortImport();
+  const startFreshMutation = useLegacyPortStartFresh();
+  const importProgress = useImportProgress();
 
-  const [isImporting, setIsImporting] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [importError, setImportError] = useState<string | null>(null);
+  const sourceOptions = useMemo(() => availableSources(preview), [preview]);
+  const [selectedSourcesOverride, setSelectedSourcesOverride] = useState<
+    LegacyImportSource[] | null
+  >(null);
+  const [conflictChoiceOverrides, setConflictChoiceOverrides] = useState<
+    Record<string, LegacyImportSource>
+  >({});
+  const [startFreshError, setStartFreshError] = useState<string | null>(null);
 
-  const onCompleteRef = useRef(onComplete);
-  useEffect(() => {
-    onCompleteRef.current = onComplete;
-  }, [onComplete]);
+  const selectedSources = selectedSourcesOverride ?? sourceOptions;
+  const visibleConflicts = useMemo(() => {
+    if (!selectedSources.includes('v0') || !selectedSources.includes('v1-beta')) return [];
+    return preview?.conflicts ?? [];
+  }, [preview?.conflicts, selectedSources]);
 
-  const animationRef = useRef<number | null>(null);
-  const completeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const importDoneRef = useRef(false);
-  const animationDoneRef = useRef(false);
+  const v0Preview = preview?.sources.v0 ?? { available: false, projects: 0, tasks: 0 };
+  const betaPreview = preview?.sources.v1Beta ?? { available: false, projects: 0, tasks: 0 };
+  const canImport = selectedSources.length > 0 && !previewLoading;
+  const singleSource = singleAvailableSource(preview);
+  const showSourceSelector = shouldShowSourceSelector(preview);
+  const centerContent = shouldCenterImportContent(preview);
 
-  useEffect(() => {
-    return () => {
-      if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
-      if (completeTimerRef.current !== null) clearTimeout(completeTimerRef.current);
-    };
-  }, []);
-
-  const maybeScheduleComplete = () => {
-    if (importDoneRef.current && animationDoneRef.current && completeTimerRef.current === null) {
-      completeTimerRef.current = setTimeout(() => {
-        onCompleteRef.current();
-      }, COMPLETE_DELAY_MS);
-    }
+  const toggleSource = (source: LegacyImportSource) => {
+    setSelectedSourcesOverride((current) =>
+      toggleSourceSelection(current ?? selectedSources, source)
+    );
   };
 
-  const startAnimation = () => {
-    const startTime = performance.now();
-
-    const tick = (now: number) => {
-      const elapsed = now - startTime;
-      const pct = Math.min(elapsed / PROGRESS_DURATION_MS, 1);
-      setProgress(Math.round(pct * 100));
-
-      if (pct < 1) {
-        animationRef.current = requestAnimationFrame(tick);
-      } else {
-        animationRef.current = null;
-        animationDoneRef.current = true;
-        maybeScheduleComplete();
-      }
-    };
-
-    animationRef.current = requestAnimationFrame(tick);
+  const updateConflictChoice = (identityKey: string, source: LegacyImportSource) => {
+    setConflictChoiceOverrides((current) => ({
+      ...current,
+      [identityKey]: source,
+    }));
   };
 
   const handleImport = async () => {
-    setImportError(null);
-    setIsImporting(true);
-    setProgress(0);
-    importDoneRef.current = false;
-    animationDoneRef.current = false;
-    completeTimerRef.current = null;
+    setStartFreshError(null);
+    const conflictChoices = Object.fromEntries(
+      visibleConflicts.map((conflict) => [
+        conflict.identityKey,
+        conflictChoiceOverrides[conflict.identityKey] ?? 'v1-beta',
+      ])
+    ) as Record<string, LegacyImportSource>;
 
-    startAnimation();
+    await importProgress.run(
+      () =>
+        importMutation.mutateAsync({
+          sources: selectedSources,
+          conflictChoices,
+        }),
+      { onComplete }
+    );
+  };
 
+  const handleStartFresh = async () => {
+    setStartFreshError(null);
+    importProgress.clearError();
     try {
-      const result = await importMutation.mutateAsync();
+      const result = await startFreshMutation.mutateAsync();
       if (!result.success) {
-        if (animationRef.current !== null) {
-          cancelAnimationFrame(animationRef.current);
-          animationRef.current = null;
-        }
-        setImportError(result.error ?? 'Import failed');
-        setIsImporting(false);
-        setProgress(0);
+        setStartFreshError(result.error ?? 'Start fresh failed');
         return;
       }
-      importDoneRef.current = true;
-      maybeScheduleComplete();
+      onComplete();
     } catch (err) {
-      if (animationRef.current !== null) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-      setImportError(err instanceof Error ? err.message : 'Import failed');
-      setIsImporting(false);
-      setProgress(0);
+      setStartFreshError(err instanceof Error ? err.message : 'Start fresh failed');
     }
   };
 
-  const projectCount = preview?.projects ?? 0;
-  const taskCount = preview?.tasks ?? 0;
+  const isBusy = importProgress.isImporting || startFreshMutation.isPending;
 
   return (
-    <div className="flex flex-col space-y-8 max-w-sm w-full">
-      <div className="flex flex-col items-center justify-center gap-4">
-        <div className="flex flex-col items-center justify-center gap-6">
-          <Import className="h-10 w-10" absoluteStrokeWidth strokeWidth={1.5} />
-          <div className="flex flex-col items-center justify-center gap-2">
-            <h1 className="text-xl text-center">Import your Emdash v0 data</h1>
-            {previewLoading ? (
-              <p className="text-md text-foreground-muted text-center">
-                Scanning legacy database...
-              </p>
-            ) : (
-              <p className="text-md text-foreground-muted text-center">
-                Found <span className="text-foreground font-medium">{projectCount}</span>{' '}
-                {projectCount === 1 ? 'project' : 'projects'} and{' '}
-                <span className="text-foreground font-medium">{taskCount}</span>{' '}
-                {taskCount === 1 ? 'task' : 'tasks'} from your previous Emdash installation
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+    <div
+      className={cn(
+        'flex h-full min-h-0 w-full max-w-3xl flex-col gap-5 overflow-hidden p-6',
+        centerContent && 'justify-center'
+      )}
+    >
+      <ImportHeader
+        isLoading={previewLoading}
+        singleSource={
+          singleSource
+            ? {
+                source: singleSource,
+                preview: singleSource === 'v0' ? v0Preview : betaPreview,
+              }
+            : null
+        }
+      />
 
-      {isImporting && (
-        <div className="flex flex-col gap-2">
-          <div className="w-full h-2 bg-background-1 rounded-full overflow-hidden">
-            <div className="h-full bg-foreground rounded-full" style={{ width: `${progress}%` }} />
-          </div>
-          <p className="text-xs text-foreground-muted text-center">{progress}%</p>
-        </div>
+      {!previewLoading && showSourceSelector && (
+        <ImportSourceSelector
+          sources={sourceOptions}
+          v0Preview={v0Preview}
+          betaPreview={betaPreview}
+          selectedSources={selectedSources}
+          disabled={importProgress.isImporting}
+          onToggle={toggleSource}
+        />
       )}
 
-      {importError && <p className="text-sm text-destructive text-center">{importError}</p>}
+      <ProjectConflicts
+        conflicts={visibleConflicts}
+        choices={conflictChoiceOverrides}
+        disabled={importProgress.isImporting}
+        onChoiceChange={updateConflictChoice}
+      />
 
-      <div className="flex flex-col w-full gap-2">
-        <Button size={'lg'} onClick={handleImport} disabled={isImporting || previewLoading}>
-          {isImporting ? 'Importing...' : 'Import data'}
+      {importProgress.isImporting && <ImportProgress progress={importProgress.progress} />}
+
+      {importProgress.error && (
+        <p className="text-sm text-destructive text-center">{importProgress.error}</p>
+      )}
+      {startFreshError && <p className="text-sm text-destructive text-center">{startFreshError}</p>}
+
+      <div className="flex w-full shrink-0 flex-col gap-2">
+        <Button size={'lg'} onClick={handleImport} disabled={isBusy || !canImport}>
+          {importProgress.isImporting ? 'Importing...' : 'Import data'}
         </Button>
-        <Button variant="ghost" onClick={onComplete} disabled={isImporting}>
-          Skip
+        <Button variant="ghost" onClick={handleStartFresh} disabled={isBusy}>
+          Start fresh
         </Button>
       </div>
     </div>

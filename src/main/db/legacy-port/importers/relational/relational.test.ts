@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { portConversations } from './conversations';
 import { portProjects } from './projects';
@@ -55,7 +57,10 @@ function createAppDb(): {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       last_interacted_at TEXT,
       status_changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      is_pinned INTEGER NOT NULL DEFAULT 0
+      is_pinned INTEGER NOT NULL DEFAULT 0,
+      workspace_provider TEXT,
+      workspace_id TEXT,
+      workspace_provider_data TEXT
     );
 
     CREATE TABLE conversations (
@@ -620,6 +625,97 @@ describe('legacy-port table passes', () => {
       { id: mappedMainUuid, title: 'Legacy Claude Main', provider: 'claude' },
       { id: mappedOptimisticUuid, title: 'Legacy Claude Optimistic Alias', provider: 'claude' },
       { id: 'conv-legacy-codex', title: 'Legacy Codex Conversation', provider: 'codex' },
+    ]);
+  });
+
+  it('renames legacy tmux sessions to v1 deterministic names when importing conversations', async () => {
+    const { appSqlite, appDb } = createAppDb();
+    const legacyDb = createLegacyDb();
+    openDbs.push(appSqlite, legacyDb);
+
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-port-tmux-'));
+    tempDirs.push(userDataDir);
+
+    const mappedChatUuid = '6ba95736-36d7-401e-9ef6-01655fb9162a';
+    fs.writeFileSync(
+      path.join(userDataDir, 'pty-session-map.json'),
+      JSON.stringify({
+        'claude-chat-conv-legacy-chat': { uuid: mappedChatUuid },
+      }),
+      'utf8'
+    );
+
+    legacyDb
+      .prepare(
+        `INSERT INTO projects (id, name, path, base_ref, is_remote, remote_path, ssh_connection_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run('proj-legacy-tmux', 'Legacy Tmux', '/legacy/tmux', 'main', 0, null, null);
+    legacyDb
+      .prepare(
+        `INSERT INTO tasks (id, project_id, name, status, branch, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        'task-legacy-tmux',
+        'proj-legacy-tmux',
+        'Legacy Tmux Task',
+        'running',
+        'feature/tmux',
+        '2026-01-03T12:00:00.000Z'
+      );
+    legacyDb
+      .prepare(`INSERT INTO conversations (id, task_id, title, provider) VALUES (?, ?, ?, ?)`)
+      .run('conv-legacy-chat', 'task-legacy-tmux', 'Legacy Claude Chat', 'claude');
+
+    const calls: Array<{ command: string; args?: string[] }> = [];
+    const tmuxExec = {
+      root: undefined,
+      supportsLocalSpawn: false,
+      exec: async (command: string, args: string[] = []) => {
+        calls.push({ command, args });
+        if (
+          command === 'tmux' &&
+          args?.[0] === 'has-session' &&
+          args[2] !== 'emdash-claude-chat-conv-legacy-chat'
+        ) {
+          throw new Error('missing');
+        }
+        return { stdout: '', stderr: '' };
+      },
+      execStreaming: async () => {},
+      dispose: () => {},
+    };
+
+    const remap = createRemapTables();
+    await portSshConnections({ appDb, legacyDb, remap });
+    await portProjects({ appDb, legacyDb, remap });
+    const taskResult = await portTasks({ appDb, legacyDb, remap });
+
+    await portConversations({
+      appDb,
+      legacyDb,
+      remap,
+      mergedLegacyTaskIds: taskResult.mergedLegacyTaskIds,
+      userDataPath: userDataDir,
+      tmuxExec,
+    });
+
+    const newTmuxName = makeTmuxSessionName(
+      makePtySessionId('proj-legacy-tmux', 'task-legacy-tmux', mappedChatUuid)
+    );
+
+    expect(calls).toEqual([
+      {
+        command: 'tmux',
+        args: ['has-session', '-t', 'emdash-claude-chat-conv-legacy-chat'],
+      },
+      {
+        command: 'tmux',
+        args: ['has-session', '-t', newTmuxName],
+      },
+      {
+        command: 'tmux',
+        args: ['rename-session', '-t', 'emdash-claude-chat-conv-legacy-chat', newTmuxName],
+      },
     ]);
   });
 });

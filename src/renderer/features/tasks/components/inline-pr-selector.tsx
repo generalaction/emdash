@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type PullRequest } from '@shared/pull-requests';
+import { pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@renderer/lib/ui/input-group';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
@@ -62,8 +62,12 @@ export function InlinePrSelector({
         offset: 0,
         filters: { status: statusFilter },
       });
-      if (!response?.success) throw new Error(response?.error ?? 'Failed to load pull requests');
-      return (response.prs ?? []) as PullRequest[];
+      if (!response?.success) {
+        throw new Error(
+          response ? pullRequestErrorMessage(response.error) : 'Failed to load pull requests'
+        );
+      }
+      return response.data.prs;
     },
     enabled: !!projectId && !!repositoryUrl,
     staleTime: 30_000,

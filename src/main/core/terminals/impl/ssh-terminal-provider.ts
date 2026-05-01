@@ -1,17 +1,21 @@
 import type { GeneralSessionConfig } from '@shared/general-session';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { Terminal } from '@shared/terminals';
-import { Pty } from '@main/core/pty/pty';
+import type { Terminal } from '@shared/terminals';
+import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import {
+  sshConnectionManager,
+  type SshConnectionEvent,
+} from '@main/core/ssh/ssh-connection-manager';
+import {
   type LifecycleScriptSpawnRequest,
   type TerminalProvider,
 } from '@main/core/terminals/terminal-provider';
-import { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 
@@ -37,8 +41,10 @@ export class SshTerminalProvider implements TerminalProvider {
   private readonly taskEnvVars: Record<string, string>;
   private readonly tmux: boolean;
   private readonly shellSetup?: string;
-  private readonly exec: ExecFn;
+  private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
+  private readonly connectionId: string;
+  private readonly _handleReconnect: (evt: SshConnectionEvent) => void;
 
   constructor({
     projectId,
@@ -47,8 +53,9 @@ export class SshTerminalProvider implements TerminalProvider {
     taskEnvVars = {},
     tmux = false,
     shellSetup,
-    exec,
+    ctx,
     proxy,
+    connectionId,
   }: {
     projectId: string;
     scopeId: string;
@@ -56,8 +63,9 @@ export class SshTerminalProvider implements TerminalProvider {
     taskEnvVars?: Record<string, string>;
     tmux?: boolean;
     shellSetup?: string;
-    exec: ExecFn;
+    ctx: IExecutionContext;
     proxy: SshClientProxy;
+    connectionId: string;
   }) {
     this.projectId = projectId;
     this.scopeId = scopeId;
@@ -65,8 +73,21 @@ export class SshTerminalProvider implements TerminalProvider {
     this.taskEnvVars = taskEnvVars;
     this.tmux = tmux;
     this.shellSetup = shellSetup;
-    this.exec = exec;
+    this.ctx = ctx;
     this.proxy = proxy;
+    this.connectionId = connectionId;
+    this._handleReconnect = (evt: SshConnectionEvent) => {
+      if (evt.type === 'reconnected' && evt.connectionId === this.connectionId) {
+        this.rehydrate().catch((e: unknown) => {
+          log.error('SshTerminalProvider: rehydrate failed after reconnect', {
+            scopeId: this.scopeId,
+            connectionId: this.connectionId,
+            error: String(e),
+          });
+        });
+      }
+    };
+    sshConnectionManager.on('connection-event', this._handleReconnect);
   }
 
   async spawnTerminal(
@@ -93,7 +114,7 @@ export class SshTerminalProvider implements TerminalProvider {
     return this.spawnWithPolicy(
       terminal,
       initialSize,
-      { command, args: [] },
+      command === undefined ? undefined : { command, args: [] },
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -222,17 +243,16 @@ export class SshTerminalProvider implements TerminalProvider {
     }
     this.terminals.delete(terminalId);
     if (this.tmux) {
-      await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
+      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
   }
 
   async destroyAll(): Promise<void> {
+    sshConnectionManager.off('connection-event', this._handleReconnect);
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(
-        sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
-      );
+      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
     }
     this.knownSessionIds.clear();
     this.terminals.clear();

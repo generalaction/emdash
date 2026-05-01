@@ -10,6 +10,7 @@ import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
 import { ModalProvider } from './lib/modal/modal-provider';
 import { GithubContextProvider } from './lib/providers/github-context-provider';
+import { PostHogFeatureFlagsProvider } from './lib/providers/posthog-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
 import { TerminalPoolProvider } from './lib/pty/pty-pool-provider';
 import { queryClient } from './lib/query-client';
@@ -40,13 +41,9 @@ function AppContent() {
     if (!isLoading && view === 'onboarding' && frozenSteps === null) {
       const computed: OnboardingStep[] = [];
       if (!session?.isSignedIn) computed.push('sign-in');
-      const needsImport =
-        legacyStatus?.hasLegacyDb &&
-        legacyStatus.portStatus !== 'completed' &&
-        legacyStatus.portStatus !== 'no-legacy-file' &&
-        !legacyStatus.hasExistingData;
+      const needsImport = legacyStatus?.hasImportSources && !legacyStatus.portStatus;
       if (needsImport) computed.push('import');
-      setFrozenSteps(computed);
+      setFrozenSteps(computed); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [view, isLoading, frozenSteps, session, legacyStatus]);
 
@@ -96,7 +93,9 @@ function AppContent() {
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <PostHogFeatureFlagsProvider>
+        <AppContent />
+      </PostHogFeatureFlagsProvider>
     </QueryClientProvider>
   );
 }
