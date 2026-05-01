@@ -117,81 +117,87 @@ export function SettingsPage({
     [matchedAnchorsByTab]
   );
 
-  const tabContent: Record<
-    string,
-    { title: string; description: string; sections: SectionConfig[] }
-  > = {
-    general: {
-      title: 'General',
-      description: 'Manage your account, privacy settings, notifications, and app updates.',
-      sections: [
-        { anchor: 'telemetry', component: <TelemetryCard /> },
-        { anchor: 'auto-generate-task-names', component: <AutoGenerateTaskNamesRow /> },
-        { anchor: 'auto-trust-worktrees', component: <AutoTrustWorktreesRow /> },
-        { anchor: 'notifications', component: <NotificationSettingsCard /> },
-        { anchor: 'update', component: <UpdateCard /> },
-      ],
-    },
-    account: {
-      title: 'Account',
-      description: 'Manage your Emdash account.',
-      sections: [{ anchor: 'account', component: <AccountTab /> }],
-    },
-    'clis-models': {
-      title: 'Agents',
-      description: 'Manage CLI agents and model configurations.',
-      sections: [
-        { anchor: 'default-agent', component: <DefaultAgentSettingsCard /> },
-        {
-          anchor: 'review-prompt',
-          title: 'Review Prompt',
-          action: <ReviewPromptResetButton />,
-          component: <ReviewPromptSettingsCard />,
-        },
-        {
-          anchor: 'cli-agents',
-          title: 'CLI agents',
-          component: (
-            <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
-              <CliAgentsList filterQuery={isSearching ? trimmedQuery : ''} />
-            </div>
-          ),
-        },
-      ],
-    },
-    integrations: {
-      title: 'Integrations',
-      description: 'Connect external services and tools.',
-      sections: [
-        { anchor: 'integrations', title: 'Integrations', component: <IntegrationsCard /> },
-      ],
-    },
-    repository: {
-      title: 'Repository',
-      description: 'Configure repository and branch settings.',
-      sections: [
-        { anchor: 'branch-prefix', title: 'Branch prefix', component: <RepositorySettingsCard /> },
-      ],
-    },
-    interface: {
-      title: 'Interface',
-      description: 'Customize the appearance and behavior of the app.',
-      sections: [
-        { anchor: 'theme', component: <ThemeCard /> },
-        { anchor: 'terminal', component: <TerminalSettingsCard /> },
-        {
-          anchor: 'keyboard-shortcuts',
-          title: 'Keyboard shortcuts',
-          component: <KeyboardSettingsCard />,
-        },
-        {
-          anchor: 'tools',
-          title: 'Tools',
-          component: <HiddenToolsSettingsCard filterQuery={isSearching ? trimmedQuery : ''} />,
-        },
-      ],
-    },
-  };
+  const tabContent = useMemo<
+    Record<string, { title: string; description: string; sections: SectionConfig[] }>
+  >(
+    () => ({
+      general: {
+        title: 'General',
+        description: 'Manage your account, privacy settings, notifications, and app updates.',
+        sections: [
+          { anchor: 'telemetry', component: <TelemetryCard /> },
+          { anchor: 'auto-generate-task-names', component: <AutoGenerateTaskNamesRow /> },
+          { anchor: 'auto-trust-worktrees', component: <AutoTrustWorktreesRow /> },
+          { anchor: 'notifications', component: <NotificationSettingsCard /> },
+          { anchor: 'update', component: <UpdateCard /> },
+        ],
+      },
+      account: {
+        title: 'Account',
+        description: 'Manage your Emdash account.',
+        sections: [{ anchor: 'account', component: <AccountTab /> }],
+      },
+      'clis-models': {
+        title: 'Agents',
+        description: 'Manage CLI agents and model configurations.',
+        sections: [
+          { anchor: 'default-agent', component: <DefaultAgentSettingsCard /> },
+          {
+            anchor: 'review-prompt',
+            title: 'Review Prompt',
+            action: <ReviewPromptResetButton />,
+            component: <ReviewPromptSettingsCard />,
+          },
+          {
+            anchor: 'cli-agents',
+            title: 'CLI agents',
+            component: (
+              <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
+                <CliAgentsList />
+              </div>
+            ),
+          },
+        ],
+      },
+      integrations: {
+        title: 'Integrations',
+        description: 'Connect external services and tools.',
+        sections: [
+          { anchor: 'integrations', title: 'Integrations', component: <IntegrationsCard /> },
+        ],
+      },
+      repository: {
+        title: 'Repository',
+        description: 'Configure repository and branch settings.',
+        sections: [
+          {
+            anchor: 'branch-prefix',
+            title: 'Branch prefix',
+            component: <RepositorySettingsCard />,
+          },
+        ],
+      },
+      interface: {
+        title: 'Interface',
+        description: 'Customize the appearance and behavior of the app.',
+        sections: [
+          { anchor: 'theme', component: <ThemeCard /> },
+          { anchor: 'terminal', component: <TerminalSettingsCard /> },
+          {
+            anchor: 'keyboard-shortcuts',
+            title: 'Keyboard shortcuts',
+            component: <KeyboardSettingsCard />,
+          },
+          {
+            anchor: 'tools',
+            title: 'Tools',
+            component: <HiddenToolsSettingsCard />,
+          },
+        ],
+      },
+    }),
+    []
+  );
 
   const currentContent = tabContent[activeTab as keyof typeof tabContent];
 
@@ -253,7 +259,7 @@ export function SettingsPage({
                       }
                     }}
                     className={cn(
-                      'flex w-full items-center gap-2 hover:bg-background-1 text-foreground-muted hover:text-foreground rounded-md px-3 py-2 text-sm font-normal',
+                      'flex w-full items-center gap-2 hover:bg-background-1 text-foreground-muted hover:text-foreground rounded-md px-3 py-2 text-sm font-normal transition-colors',
                       isActive &&
                         'bg-background-2 text-foreground hover:bg-background-2 hover:text-foreground',
                       isDimmed && 'opacity-40'
