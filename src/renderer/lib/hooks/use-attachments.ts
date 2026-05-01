@@ -45,7 +45,7 @@ export function useAttachments() {
   );
 
   const handleDrop = useCallback(
-    (event: React.DragEvent<HTMLFormElement>) => {
+    (event: React.DragEvent<HTMLElement>) => {
       event.preventDefault();
       event.stopPropagation();
       const files = Array.from(event.dataTransfer?.files ?? []);
@@ -54,7 +54,7 @@ export function useAttachments() {
     [addFiles]
   );
 
-  const handleDragOver = useCallback((event: React.DragEvent<HTMLFormElement>) => {
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
   }, []);

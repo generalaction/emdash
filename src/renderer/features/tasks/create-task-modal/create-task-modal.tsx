@@ -30,7 +30,11 @@ import {
 import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
-import { useInitialConversationState } from './initial-conversation-section';
+import {
+  buildInitialPrompt,
+  getInitialPromptImages,
+  useInitialConversationState,
+} from './initial-conversation-section';
 import { useFromBranchMode } from './use-from-branch-mode';
 import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
@@ -78,7 +82,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   useEffect(() => {
     initialConversation.setProvider(null);
     initialConversation.setPrompt('');
-    // setProvider and setPrompt are stable useState setters
+    initialConversation.resetImages();
+    // setProvider, setPrompt, and resetImages are stable state callbacks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectId]);
 
@@ -115,15 +120,19 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
+    const initialPrompt = buildInitialPrompt(
+      initialConversation.prompt,
+      getInitialPromptImages(initialConversation.imageAttachments)
+    );
     const builtInitialConversation =
-      initialConversation.provider && initialConversation.prompt.trim()
+      initialConversation.provider && initialPrompt
         ? {
             id: crypto.randomUUID(),
             projectId: selectedProjectId,
             taskId: id,
             provider: initialConversation.provider,
             title: activeMode.taskName,
-            initialPrompt: initialConversation.prompt.trim(),
+            initialPrompt,
           }
         : undefined;
 
