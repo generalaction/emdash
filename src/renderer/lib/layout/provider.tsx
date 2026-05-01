@@ -61,6 +61,7 @@ const viewEvents: Record<
   | 'settings_viewed'
   | 'skills_viewed'
   | 'mcp_viewed'
+  | 'automations_viewed'
 > = {
   home: 'home_viewed',
   project: 'project_viewed',
@@ -68,6 +69,7 @@ const viewEvents: Record<
   settings: 'settings_viewed',
   skills: 'skills_viewed',
   mcp: 'mcp_viewed',
+  automations: 'automations_viewed',
 };
 
 export function WorkspaceViewProvider({ children }: { children: ReactNode }) {

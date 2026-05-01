@@ -11,12 +11,12 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
+import { useConfirmDeleteProject } from '@renderer/features/projects/hooks/use-confirm-delete-project';
 import {
   isUnregisteredProject,
   type UnregisteredProject,
 } from '@renderer/features/projects/stores/project';
 import {
-  getProjectManagerStore,
   getProjectStore,
   getRepositoryStore,
   projectViewKind,
@@ -57,8 +57,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const { params: projectParams } = useParams('project');
   const { params: taskParams } = useParams('task');
   const showCreateTaskModal = useShowModal('taskModal');
-  const showConfirmDeleteProject = useShowModal('confirmActionModal');
   const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
+  const confirmDeleteProject = useConfirmDeleteProject();
 
   const project = getProjectStore(projectId);
 
@@ -211,12 +211,10 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
           variant="destructive"
           onClick={() => {
             const projectLabel = project.name ?? 'this project';
-            showConfirmDeleteProject({
-              title: 'Delete project',
-              description: `"${projectLabel}" will be deleted. The project folder and worktrees will stay on the filesystem.`,
-              confirmLabel: 'Delete',
-              onSuccess: () => {
-                void getProjectManagerStore().deleteProject(projectId);
+            void confirmDeleteProject({
+              projectId,
+              projectLabel,
+              onDeleted: () => {
                 if (isProjectActive) navigate('home');
               },
             });

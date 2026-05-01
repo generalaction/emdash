@@ -17,7 +17,7 @@ interface FromIssueContentProps {
   projectPath?: string;
   disabled?: boolean;
   isUnborn?: boolean;
-  initialConversation: InitialConversationState;
+  initialConversation?: InitialConversationState;
   connectionId?: string;
 }
 
@@ -73,11 +73,13 @@ export function FromIssueContent({
         isUnborn={isUnborn}
       />
       <TaskNameField state={state} />
-      <InitialConversationField
-        state={initialConversation}
-        linkedIssue={state.linkedIssue ?? undefined}
-        connectionId={connectionId}
-      />
+      {initialConversation && (
+        <InitialConversationField
+          state={initialConversation}
+          linkedIssue={state.linkedIssue ?? undefined}
+          connectionId={connectionId}
+        />
+      )}
     </div>
   );
 }

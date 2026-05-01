@@ -17,6 +17,7 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { capture } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
+import { scheduleInitialPromptInjection } from './keystroke-injection';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -183,6 +184,7 @@ export class SshConversationProvider implements ConversationProvider {
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
+    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
     capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,

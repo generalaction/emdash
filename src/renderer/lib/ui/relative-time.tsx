@@ -51,11 +51,12 @@ export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className, co
 
   if (compact) {
     const short = toCompactLabel(date);
+    const showAgo = ago && short !== 'now';
 
     return (
       <time className={className} dateTime={date.toISOString()}>
         {short}
-        {ago && <span className="text-foreground-muted"> ago</span>}
+        {showAgo && <span className="text-foreground-muted"> ago</span>}
       </time>
     );
   }
