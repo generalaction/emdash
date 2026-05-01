@@ -12,11 +12,7 @@ import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
-import {
-  AutoApproveByDefaultRow,
-  AutoGenerateTaskNamesRow,
-  AutoTrustWorktreesRow,
-} from './TaskSettingsRows';
+import { AutoGenerateTaskNamesRow, AutoTrustWorktreesRow } from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
@@ -45,7 +41,7 @@ export function SettingsPage({
   onTabChange: (tab: SettingsPageTab) => void;
 }) {
   const handleDocsClick = useCallback(() => {
-    rpc.app.openExternal('https://docs.emdash.sh');
+    void rpc.app.openExternal('https://docs.emdash.sh');
   }, []);
 
   const tabs: Array<{
@@ -75,9 +71,6 @@ export function SettingsPage({
         },
         {
           component: <AutoGenerateTaskNamesRow />,
-        },
-        {
-          component: <AutoApproveByDefaultRow />,
         },
         {
           component: <AutoTrustWorktreesRow />,

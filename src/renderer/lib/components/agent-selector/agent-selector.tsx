@@ -1,8 +1,8 @@
+import { ChevronDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useState } from 'react';
-import { AgentProviderId } from '@shared/agent-provider-registry';
+import React, { useMemo, useState } from 'react';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import AgentLogo from '@renderer/lib/components/agent-logo';
-import { appState } from '@renderer/lib/stores/app-state';
 import {
   Combobox,
   ComboboxCollection,
@@ -16,20 +16,15 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
+import { AgentInstallButton } from './agent-install-button';
+import {
+  canInstallAgentOption,
+  isComboboxOptionDisabled,
+  type AgentGroup,
+  type AgentOption,
+} from './agent-selector-options';
 import { AgentTooltipRow } from './agent-tooltip-row';
-
-interface AgentOption {
-  value: string;
-  label: string;
-  agentId: AgentProviderId;
-  disabled: boolean;
-}
-
-interface AgentGroup {
-  value: string;
-  label: string;
-  items: AgentOption[];
-}
+import { useAgentAvailability } from './use-agent-availability';
 
 interface AgentSelectorProps {
   value: AgentProviderId | null;
@@ -37,32 +32,17 @@ interface AgentSelectorProps {
   disabled?: boolean;
   className?: string;
   connectionId?: string;
+  installable?: boolean;
 }
 
 export const AgentSelector: React.FC<AgentSelectorProps> = observer(
-  ({ value, onChange, disabled = false, className = '', connectionId }) => {
-    const installedAgents = connectionId
-      ? appState.dependencies.remoteInstalledAgents(connectionId)
-      : appState.dependencies.localInstalledAgents;
+  ({ value, onChange, disabled = false, className = '', connectionId, installable = true }) => {
     const [open, setOpen] = useState(false);
-
-    const installedSet = new Set(installedAgents.filter((id) => id in agentConfig));
-    const allAgentIds = Object.keys(agentConfig) as AgentProviderId[];
-
-    const installedOptions: AgentOption[] = allAgentIds
-      .filter((id) => installedSet.has(id))
-      .map((id) => ({ value: id, label: agentConfig[id].name, agentId: id, disabled: false }));
-
-    const notInstalledOptions: AgentOption[] = allAgentIds
-      .filter((id) => !installedSet.has(id))
-      .map((id) => ({ value: id, label: agentConfig[id].name, agentId: id, disabled: true }));
-
-    const groups: AgentGroup[] = [
-      { value: 'installed', label: 'Installed', items: installedOptions },
-      { value: 'not-installed', label: 'Not installed', items: notInstalledOptions },
-    ].filter((g) => g.items.length > 0);
-
-    const allOptions = [...installedOptions, ...notInstalledOptions];
+    const { groups, installingAgents, installAgent } = useAgentAvailability({
+      connectionId,
+      value,
+    });
+    const allOptions = useMemo(() => groups.flatMap((group) => group.items), [groups]);
 
     const selectedConfig = value ? agentConfig[value] : null;
     const selectedOption = value ? allOptions.find((o) => o.value === value) : null;
@@ -74,81 +54,108 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     }
 
     return (
-      <div className={cn('relative block min-w-0', className)}>
-        <Combobox
-          items={groups}
-          value={selectedOption ?? null}
-          onValueChange={handleValueChange}
-          open={open}
-          onOpenChange={disabled ? undefined : setOpen}
-          isItemEqualToValue={(a: AgentOption, b: AgentOption) => a.value === b.value}
-          filter={(item: AgentOption, query) =>
-            item.label.toLowerCase().includes(query.toLowerCase())
-          }
-          autoHighlight
+      <Combobox
+        items={groups}
+        value={selectedOption ?? null}
+        onValueChange={handleValueChange}
+        open={open}
+        onOpenChange={disabled ? undefined : setOpen}
+        isItemEqualToValue={(a: AgentOption, b: AgentOption) => a.value === b.value}
+        filter={(item: AgentOption, query) =>
+          item.label.toLowerCase().includes(query.toLowerCase())
+        }
+        autoHighlight
+      >
+        <ComboboxTrigger
+          disabled={disabled}
+          className={cn(
+            'flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 text-sm outline-none',
+            disabled && 'cursor-not-allowed opacity-60',
+            className
+          )}
         >
-          <ComboboxTrigger
-            disabled={disabled}
-            className={cn(
-              'flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 text-sm outline-none',
-              disabled && 'cursor-not-allowed opacity-60'
-            )}
-          >
-            {selectedConfig ? (
-              <>
-                <AgentLogo
-                  logo={selectedConfig.logo}
-                  alt={selectedConfig.alt}
-                  isSvg={selectedConfig.isSvg}
-                  invertInDark={selectedConfig.invertInDark}
-                  className="h-4 w-4 shrink-0 rounded-sm"
-                />
-                <span className="flex-1 truncate text-left">{selectedConfig.name}</span>
-              </>
-            ) : (
-              <span className="flex-1 truncate text-foreground-muted">No agent installed</span>
-            )}
-          </ComboboxTrigger>
-          <ComboboxContent className="min-w-(--anchor-width)">
-            <ComboboxInput showTrigger={false} placeholder="Search agents..." />
-            <ComboboxList className="pb-0">
-              {(group: AgentGroup) => (
-                <ComboboxGroup key={group.value} items={group.items} className="py-1">
-                  <ComboboxLabel>{group.label}</ComboboxLabel>
-                  <ComboboxCollection>
-                    {(item: AgentOption) => {
-                      const config = agentConfig[item.agentId];
-                      return (
-                        <AgentTooltipRow key={item.value} id={item.agentId}>
-                          <ComboboxItem
-                            value={item}
-                            disabled={item.disabled}
+          {selectedConfig ? (
+            <>
+              <AgentLogo
+                logo={selectedConfig.logo}
+                alt={selectedConfig.alt}
+                isSvg={selectedConfig.isSvg}
+                invertInDark={selectedConfig.invertInDark}
+                className="h-4 w-4 shrink-0 rounded-sm"
+              />
+              <span className="flex-1 truncate text-left">{selectedConfig.name}</span>
+            </>
+          ) : (
+            <span className="flex-1 truncate text-foreground-muted">No agent installed</span>
+          )}
+          <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
+        </ComboboxTrigger>
+        <ComboboxContent className="min-w-(--anchor-width)">
+          <ComboboxInput showTrigger={false} placeholder="Search agents..." />
+          <ComboboxList className="pb-0">
+            {(group: AgentGroup) => (
+              <ComboboxGroup key={group.value} items={group.items} className="py-1">
+                <ComboboxLabel>{group.label}</ComboboxLabel>
+                <ComboboxCollection>
+                  {(item: AgentOption) => {
+                    const config = agentConfig[item.agentId];
+                    const showInstall = canInstallAgentOption(item, installable);
+                    return (
+                      <AgentTooltipRow key={item.value} id={item.agentId}>
+                        <ComboboxItem
+                          value={item}
+                          disabled={isComboboxOptionDisabled(item)}
+                          className={cn(
+                            'group/agent-row',
+                            item.disabled &&
+                              'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed',
+                            showInstall && 'data-disabled:opacity-100'
+                          )}
+                        >
+                          {config && (
+                            <AgentLogo
+                              logo={config.logo}
+                              alt={config.alt}
+                              isSvg={config.isSvg}
+                              invertInDark={config.invertInDark}
+                              className={cn(
+                                'h-4 w-4 shrink-0 rounded-sm',
+                                showInstall && 'opacity-50'
+                              )}
+                            />
+                          )}
+                          <span
                             className={cn(
-                              item.disabled &&
-                                'data-disabled:pointer-events-auto data-disabled:cursor-not-allowed'
+                              'min-w-0 flex-1 truncate',
+                              showInstall && 'text-foreground-muted'
                             )}
                           >
-                            {config && (
-                              <AgentLogo
-                                logo={config.logo}
-                                alt={config.alt}
-                                isSvg={config.isSvg}
-                                invertInDark={config.invertInDark}
-                                className="h-4 w-4 shrink-0 rounded-sm"
-                              />
-                            )}
                             {item.label}
-                          </ComboboxItem>
-                        </AgentTooltipRow>
-                      );
-                    }}
-                  </ComboboxCollection>
-                </ComboboxGroup>
-              )}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
-      </div>
+                          </span>
+                          <AgentInstallButton
+                            agentId={item.agentId}
+                            canInstall={installable}
+                            isInstalled={!item.disabled}
+                            isInstalling={installingAgents.has(item.agentId)}
+                            disabled={disabled}
+                            className="size-6"
+                            onInstall={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (disabled) return;
+                              void installAgent(item.agentId);
+                            }}
+                          />
+                        </ComboboxItem>
+                      </AgentTooltipRow>
+                    );
+                  }}
+                </ComboboxCollection>
+              </ComboboxGroup>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
     );
   }
 );

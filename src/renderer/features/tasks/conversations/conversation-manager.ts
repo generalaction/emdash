@@ -1,5 +1,5 @@
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
-import { Conversation, CreateConversationParams } from '@shared/conversations';
+import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import {
   agentEventChannel,
   agentSessionExitedChannel,
@@ -29,7 +29,7 @@ export class ConversationManagerStore {
     });
     onBecomeObserved(this, 'conversations', () => {
       if (this._loaded) return;
-      this.load();
+      void this.load();
     });
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();

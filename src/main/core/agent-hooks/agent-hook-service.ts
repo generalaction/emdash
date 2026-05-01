@@ -1,13 +1,14 @@
 import { agentEventChannel } from '@shared/events/agentEvents';
 import { events } from '@main/lib/events';
+import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { enrichEvent } from './event-enricher';
 import { HookServer } from './hook-server';
 import { isAppFocused, maybeShowNotification } from './notification';
 
-class AgentHookService {
+class AgentHookService implements IInitializable, IDisposable {
   private server = new HookServer();
 
-  async start(): Promise<void> {
+  async initialize(): Promise<void> {
     await this.server.start(async (raw) => {
       const event = await enrichEvent(raw);
       event.source = 'hook';
@@ -17,7 +18,7 @@ class AgentHookService {
     });
   }
 
-  stop(): void {
+  dispose(): void {
     this.server.stop();
   }
   getPort(): number {

@@ -4,7 +4,7 @@ import type {
   CreateBranchError,
   DeleteBranchError,
   FetchError,
-  FetchPrRefError,
+  FetchPrForReviewError,
   LocalBranch,
   LocalBranchesPayload,
   PushError,
@@ -13,6 +13,7 @@ import type {
   RenameBranchError,
 } from '@shared/git';
 import { computeDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/schema';
 import type { RepositoryGitProvider } from './repository-git-provider';
@@ -101,12 +102,22 @@ export class GitRepositoryService {
     return this.git.deleteBranch(branch, force);
   }
 
-  async fetchPrRef(
+  async fetchPrForReview(
     prNumber: number,
-    localBranchName: string,
+    headRefName: string,
+    headRepositoryUrl: string,
+    localBranch: string,
+    isFork: boolean,
     remote?: string
-  ): Promise<Result<void, FetchPrRefError>> {
-    return this.git.fetchPrRef(prNumber, localBranchName, remote);
+  ): Promise<Result<void, FetchPrForReviewError>> {
+    return this.git.fetchPrForReview(
+      prNumber,
+      headRefName,
+      headRepositoryUrl,
+      localBranch,
+      isFork,
+      remote
+    );
   }
 
   async fetch(remote?: string): Promise<Result<void, FetchError>> {
@@ -149,5 +160,16 @@ export class GitRepositoryService {
     const remoteBranches = branches.filter((b): b is RemoteBranch => b.type === 'remote');
     const gitDefaultBranch = await this.git.getDefaultBranch(remote);
     return { remoteBranches, remotes, gitDefaultBranch };
+  }
+
+  async getRemoteState(): Promise<ProjectRemoteState> {
+    try {
+      const remotes = await this.getRemotes();
+      const remoteName = await this.getConfiguredRemote();
+      const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
+      return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
+    } catch {
+      return { hasRemote: false, selectedRemoteUrl: null };
+    }
   }
 }

@@ -1,6 +1,7 @@
-import { makeObservable, observable, runInAction, toJS } from 'mobx';
+import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
-import { taskPrUpdatedChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
+import { taskProvisionProgressChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -10,6 +11,7 @@ import type {
 } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import {
@@ -19,7 +21,7 @@ import {
   isRegistered,
   isUnprovisioned,
   isUnregistered,
-  TaskStore,
+  type TaskStore,
 } from './task';
 
 function formatCreateTaskError(error: CreateTaskError): string {
@@ -36,7 +38,7 @@ function formatCreateTaskError(error: CreateTaskError): string {
           return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
           return `Branch "${error.error.name}" is not a valid branch name.`;
-        case 'error':
+        default:
           return `Could not create branch "${error.branch}": ${error.error.message}`;
       }
     }
@@ -52,6 +54,30 @@ function formatCreateTaskError(error: CreateTaskError): string {
         : `Could not set up the worktree for branch "${error.branch}".`;
     case 'provision-failed':
       return `Task could not be provisioned: ${error.message}`;
+    case 'provision-timeout': {
+      const seconds = Math.round(error.timeoutMs / 1000);
+      const stepLabel = (() => {
+        switch (error.step) {
+          case 'resolving-worktree':
+            return 'resolving the worktree';
+          case 'initialising-workspace':
+            return 'initialising the workspace';
+          case 'running-provision-script':
+            return 'running the provision script';
+          case 'connecting':
+            return 'connecting to the workspace';
+          case 'setting-up-workspace':
+            return 'setting up the workspace';
+          case 'starting-sessions':
+            return 'starting sessions';
+          case null:
+            return null;
+        }
+      })();
+      return stepLabel
+        ? `Task setup timed out after ${seconds}s while ${stepLabel}.`
+        : `Task setup timed out after ${seconds}s before any step started.`;
+    }
   }
 }
 
@@ -70,15 +96,29 @@ function formatCreateTaskWarning(warning: CreateTaskWarning): string {
 export class TaskManagerStore {
   private readonly projectId: string;
   private readonly _repository: RepositoryStore;
+  private readonly _settingsStore: ProjectSettingsStore;
+  private readonly _baseRef: string;
   private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
 
+  private _unsubPrUpdated: (() => void) | null = null;
+  private _unsubPrSyncProgress: (() => void) | null = null;
+  private _unsubProvisionProgress: (() => void) | null = null;
+  private _disposeRepositoryReaction: (() => void) | null = null;
+
   tasks = observable.map<string, TaskStore>();
 
-  constructor(projectId: string, repository: RepositoryStore) {
+  constructor(
+    projectId: string,
+    repository: RepositoryStore,
+    settingsStore: ProjectSettingsStore,
+    baseRef: string
+  ) {
     this.projectId = projectId;
     this._repository = repository;
+    this._settingsStore = settingsStore;
+    this._baseRef = baseRef;
     makeObservable(this, { tasks: observable });
 
     events.on(taskStatusUpdatedChannel, ({ taskId, projectId: evtProjectId, status }) => {
@@ -91,26 +131,94 @@ export class TaskManagerStore {
       }
     });
 
-    events.on(taskPrUpdatedChannel, ({ taskId, projectId: evtProjectId, prs }) => {
-      if (evtProjectId !== this.projectId) return;
-      const store = this.tasks.get(taskId);
-      if (store && isRegistered(store)) {
-        runInAction(() => {
-          (store.data as Task).prs = prs;
-        });
+    this._unsubProvisionProgress = events.on(
+      taskProvisionProgressChannel,
+      ({ taskId, projectId: evtProjectId, message }) => {
+        if (evtProjectId !== this.projectId) return;
+        const store = this.tasks.get(taskId);
+        if (store?.isBootstrapping) {
+          runInAction(() => {
+            store.provisionProgressMessage = message;
+          });
+        }
+      }
+    );
+
+    this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
+      const repoUrl = this._repository.repositoryUrl;
+      if (!repoUrl) return;
+      for (const pr of prs) {
+        if (pr.repositoryUrl !== repoUrl) continue;
+        for (const [, store] of this.tasks) {
+          if (!isRegistered(store)) continue;
+          const task = store.data as Task;
+          if (task.taskBranch !== pr.headRefName) continue;
+          runInAction(() => {
+            const idx = task.prs.findIndex((p) => p.url === pr.url);
+            if (idx >= 0) {
+              task.prs.splice(idx, 1, pr);
+            } else {
+              task.prs.push(pr);
+            }
+          });
+        }
+      }
+    });
+
+    this._unsubPrSyncProgress = events.on(prSyncProgressChannel, (progress) => {
+      if (progress.status !== 'done') return;
+      const repoUrl = this._repository.repositoryUrl;
+      if (!repoUrl || progress.remoteUrl !== repoUrl) return;
+      for (const [, store] of this.tasks) {
+        if (isRegistered(store)) {
+          void this._reloadPrsForTask(store);
+        }
+      }
+    });
+
+    this._disposeRepositoryReaction = reaction(
+      () => this._repository.repositoryUrl,
+      () => {
+        for (const [, store] of this.tasks) {
+          if (isRegistered(store)) {
+            void this._reloadPrsForTask(store);
+          }
+        }
+      }
+    );
+  }
+
+  private async _reloadPrsForTask(store: TaskStore): Promise<void> {
+    if (!isRegistered(store)) return;
+    const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, store.data.id);
+    if (!result.success) return;
+    const prs = result.data.prs;
+    runInAction(() => {
+      if (isRegistered(store)) {
+        (store.data as Task).prs = prs;
       }
     });
   }
 
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
-      this._loadPromise = rpc.tasks.getTasks(this.projectId).then((tasks) => {
-        runInAction(() => {
-          for (const t of tasks) {
-            this.tasks.set(t.id, createUnprovisionedTask(t));
-          }
+      this._loadPromise = rpc.tasks
+        .getTasks(this.projectId)
+        .then((tasks) => {
+          runInAction(() => {
+            for (const t of tasks) {
+              this.tasks.set(t.id, createUnprovisionedTask(t));
+            }
+          });
+          const reloadPromises = tasks.flatMap((t) => {
+            const store = this.tasks.get(t.id);
+            return store && isRegistered(store) ? [this._reloadPrsForTask(store)] : [];
+          });
+          void Promise.all(reloadPromises);
+        })
+        .catch((e) => {
+          console.error('Error loading tasks', e);
         });
-      });
     }
     return this._loadPromise;
   }
@@ -197,8 +305,11 @@ export class TaskManagerStore {
             current.transitionToProvisioned(
               { ...current.data, lastInteractedAt: new Date().toISOString() },
               result.path,
-              this._repository,
-              savedSnapshot as TaskViewSnapshot | undefined
+              result.workspaceId,
+              this._settingsStore,
+              this._baseRef,
+              savedSnapshot as TaskViewSnapshot | undefined,
+              result.sshConnectionId ?? undefined
             );
             current.activate();
           }
@@ -338,5 +449,16 @@ export class TaskManagerStore {
       });
       throw e;
     }
+  }
+
+  dispose(): void {
+    this._unsubPrUpdated?.();
+    this._unsubPrUpdated = null;
+    this._unsubPrSyncProgress?.();
+    this._unsubPrSyncProgress = null;
+    this._unsubProvisionProgress?.();
+    this._unsubProvisionProgress = null;
+    this._disposeRepositoryReaction?.();
+    this._disposeRepositoryReaction = null;
   }
 }

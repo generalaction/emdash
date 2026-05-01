@@ -31,12 +31,16 @@ const ICON_PATHS = {
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
   vscodium: 'vscodium.png',
+  windsurf: 'windsurf.png',
+  xcode: 'xcode.png',
   terminal: 'terminal.png',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
+  kitty: 'kitty.png',
   zed: 'zed.png',
   'intellij-idea': 'intellij-idea.svg',
+  'android-studio': 'android-studio.svg',
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
   rustrover: 'rustrover.svg',
@@ -141,6 +145,49 @@ const _OPEN_IN_APPS = {
       },
     },
   },
+  windsurf: {
+    id: 'windsurf',
+    label: 'Windsurf',
+    iconPath: ICON_PATHS.windsurf,
+    autoInstall: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v windsurf >/dev/null 2>&1 && windsurf {{path}}',
+          'open -n -b com.exafunction.windsurf --args {{path}}',
+          'open -n -a "Windsurf" {{path}}',
+        ],
+        checkCommands: ['windsurf'],
+        bundleIds: ['com.exafunction.windsurf'],
+        appNames: ['Windsurf'],
+      },
+      win32: {
+        openCommands: ['start "" windsurf {{path}}'],
+        checkCommands: ['windsurf'],
+      },
+      linux: {
+        openCommands: ['windsurf {{path}}'],
+        checkCommands: ['windsurf'],
+      },
+    },
+  },
+  xcode: {
+    id: 'xcode',
+    label: 'Xcode',
+    iconPath: ICON_PATHS.xcode,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v xed >/dev/null 2>&1 && xed {{path}}',
+          'open -n -b com.apple.dt.Xcode --args {{path}}',
+          'open -n -a "Xcode" {{path}}',
+        ],
+        checkCommands: ['xed'],
+        bundleIds: ['com.apple.dt.Xcode'],
+        appNames: ['Xcode'],
+      },
+    },
+  },
   terminal: {
     id: 'terminal',
     label: 'Terminal',
@@ -207,6 +254,26 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['ghostty --working-directory={{path}}'],
         checkCommands: ['ghostty'],
+      },
+    },
+  },
+  kitty: {
+    id: 'kitty',
+    label: 'Kitty',
+    iconPath: ICON_PATHS.kitty,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'open -n -b net.kovidgoyal.kitty --args --directory {{path}}',
+          'open -na "kitty" --args --directory {{path}}',
+        ],
+        bundleIds: ['net.kovidgoyal.kitty'],
+        appNames: ['kitty'],
+      },
+      linux: {
+        openCommands: ['kitty --directory {{path}}'],
+        checkCommands: ['kitty'],
       },
     },
   },
@@ -294,6 +361,27 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['idea {{path}}'],
         checkCommands: ['idea'],
+      },
+    },
+  },
+  'android-studio': {
+    id: 'android-studio',
+    label: 'Android Studio',
+    iconPath: ICON_PATHS['android-studio'],
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "Android Studio" {{path}}'],
+        bundleIds: ['com.google.android.studio'],
+        appNames: ['Android Studio'],
+      },
+      win32: {
+        openCommands: ['studio64 {{path}}', 'studio {{path}}'],
+        checkCommands: ['studio64', 'studio'],
+      },
+      linux: {
+        openCommands: ['studio {{path}}'],
+        checkCommands: ['studio'],
       },
     },
   },

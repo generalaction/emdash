@@ -1,6 +1,8 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect } from 'react';
+import type * as monaco from 'monaco-editor';
+import { useCallback, useEffect, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
+import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -14,10 +16,50 @@ export const FileDiffView = observer(function FileDiffView() {
   const provisioned = useProvisionedTask();
   const { workspaceId } = provisioned;
   const diffView = provisioned.taskView.diffView;
+  const draftComments = provisioned.draftComments;
   const activeFile = diffView.activeFile;
+  const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
 
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;
   const showEditor = activeFile !== null && !isBinary;
+  const activeFilePath = activeFile?.path ?? '';
+
+  const comments = activeFilePath ? draftComments.getCommentsForFile(activeFilePath) : [];
+
+  const handleAddComment = useCallback(
+    (lineNumber: number, content: string, lineContent?: string) => {
+      if (!activeFilePath) return;
+      draftComments.addComment({
+        filePath: activeFilePath,
+        lineNumber,
+        lineContent: lineContent ?? null,
+        content,
+      });
+    },
+    [activeFilePath, draftComments]
+  );
+
+  const handleEditComment = useCallback(
+    (id: string, content: string) => {
+      draftComments.updateComment(id, content);
+    },
+    [draftComments]
+  );
+
+  const handleDeleteComment = useCallback(
+    (id: string) => {
+      draftComments.deleteComment(id);
+    },
+    [draftComments]
+  );
+
+  useDiffEditorComments({
+    editor: showEditor ? editor : null,
+    comments,
+    onAddComment: handleAddComment,
+    onEditComment: handleEditComment,
+    onDeleteComment: handleDeleteComment,
+  });
 
   // Compute URIs from activeFile (same rules as DiffSlotStore).
   const root = `workspace:${workspaceId}`;
@@ -35,20 +77,47 @@ export const FileDiffView = observer(function FileDiffView() {
   const modifiedUri = (() => {
     if (!activeFile || !uri) return '';
     if (activeFile.group === 'staged') return modelRegistry.toGitUri(uri, STAGED_REF);
-    if (activeFile.group === 'git' || activeFile.group === 'pr') {
+    if (activeFile.group === 'pr') {
+      return modelRegistry.toGitUri(uri, activeFile.modifiedRef ?? HEAD_REF);
+    }
+    if (activeFile.group === 'git') {
       return modelRegistry.toGitUri(uri, HEAD_REF);
     }
-    return modelRegistry.toDiskUri(uri);
+    return uri;
   })();
 
   // Register/unregister models whenever the active file changes.
   useEffect(() => {
     if (!activeFile || isBinary) return;
+    let disposed = false;
 
     if (activeFile.group === 'disk') {
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, activeFile.path, language, 'disk')
-        .catch(() => {});
+      const diskUri = modelRegistry.toDiskUri(uri);
+      void (async () => {
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          activeFile.path,
+          language,
+          'disk'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(diskUri);
+          return;
+        }
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          activeFile.path,
+          language,
+          'buffer'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(modifiedUri);
+        }
+      })().catch(() => {});
       void modelRegistry
         .registerModel(
           projectId,
@@ -79,24 +148,39 @@ export const FileDiffView = observer(function FileDiffView() {
           activeFile.originalRef
         )
         .catch(() => {});
+      const effectiveModifiedRef =
+        activeFile.group === 'pr' ? (activeFile.modifiedRef ?? HEAD_REF) : HEAD_REF;
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, activeFile.path, language, 'git', HEAD_REF)
+        .registerModel(
+          projectId,
+          workspaceId,
+          root,
+          activeFile.path,
+          language,
+          'git',
+          effectiveModifiedRef
+        )
         .catch(() => {});
     }
     return () => {
+      disposed = true;
       modelRegistry.unregisterModel(originalUri);
       modelRegistry.unregisterModel(modifiedUri);
+      if (activeFile.group === 'disk') {
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
+      }
     };
-  }, [isBinary, originalUri, modifiedUri, language, activeFile, projectId, workspaceId, root]);
+  }, [isBinary, originalUri, modifiedUri, language, activeFile, projectId, workspaceId, root, uri]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="file-diff-view flex h-full flex-col">
       <div className="relative min-h-0 flex-1">
         {showEditor && (
           <StickyDiffEditor
             originalUri={originalUri}
             modifiedUri={modifiedUri}
             diffStyle={diffView.diffStyle}
+            onEditorChange={setEditor}
           />
         )}
         {!activeFile && (

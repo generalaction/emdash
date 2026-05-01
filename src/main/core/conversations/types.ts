@@ -1,4 +1,4 @@
-import { Conversation } from '@shared/conversations';
+import { type Conversation } from '@shared/conversations';
 
 export interface ConversationProvider {
   startSession(

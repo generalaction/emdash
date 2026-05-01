@@ -9,6 +9,7 @@ import { createCodebuffClassifier } from './codebuff';
 import { createContinueClassifier } from './continue';
 import { createCopilotClassifier } from './copilot';
 import { createCursorClassifier } from './cursor';
+import { createDevinClassifier } from './devin';
 import { createDroidClassifier } from './droid';
 import { createGeminiClassifier } from './gemini';
 import { createGenericClassifier } from './generic';
@@ -34,6 +35,7 @@ const classifierFactories: Partial<Record<AgentProviderId, () => ProviderClassif
   continue: createContinueClassifier,
   copilot: createCopilotClassifier,
   cursor: createCursorClassifier,
+  devin: createDevinClassifier,
   droid: createDroidClassifier,
   gemini: createGeminiClassifier,
   goose: createGooseClassifier,

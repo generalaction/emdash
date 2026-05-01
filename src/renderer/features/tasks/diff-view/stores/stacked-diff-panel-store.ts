@@ -1,5 +1,6 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
 import { commitRef, HEAD_REF, STAGED_REF, type GitChange, type GitObjectRef } from '@shared/git';
+import { getPrNumber } from '@shared/pull-requests';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -14,12 +15,14 @@ interface SlotContext {
   files: GitChange[];
   diffType: DiffType;
   originalRef: GitObjectRef;
+  modifiedRef?: GitObjectRef;
 }
 
 export class DiffSlotStore {
   file: GitChange | null = null;
   diffType: DiffType = 'disk';
   originalRef: GitObjectRef = commitRef('HEAD');
+  modifiedRef: GitObjectRef | undefined = undefined;
 
   constructor(
     readonly projectId: string,
@@ -29,6 +32,7 @@ export class DiffSlotStore {
       file: observable.ref,
       diffType: observable,
       originalRef: observable.ref,
+      modifiedRef: observable.ref,
       uri: computed,
       originalUri: computed,
       modifiedUri: computed,
@@ -53,10 +57,16 @@ export class DiffSlotStore {
   get modifiedUri(): string {
     if (!this.uri) return '';
     if (this.diffType === 'staged') return modelRegistry.toGitUri(this.uri, STAGED_REF);
-    if (this.diffType === 'git' || this.diffType === 'pr') {
+
+    if (this.diffType === 'pr') {
+      return modelRegistry.toGitUri(this.uri, this.modifiedRef ?? HEAD_REF);
+    }
+
+    if (this.diffType === 'git') {
       return modelRegistry.toGitUri(this.uri, HEAD_REF);
     }
-    return modelRegistry.toDiskUri(this.uri);
+
+    return this.uri;
   }
 
   get language(): string {
@@ -143,12 +153,13 @@ export class StackedDiffPanelStore {
 
     if (activeFile.group === 'pr') {
       const activePr = this.pr.pullRequests.find(
-        (p) => activeFile.prNumber != null && p.metadata.number === activeFile.prNumber
+        (p) => activeFile.prNumber != null && getPrNumber(p) === activeFile.prNumber
       );
       return {
         files: activePr ? (this.pr.getFiles(activePr).data ?? []) : [],
         diffType: 'pr',
         originalRef: activeFile.originalRef,
+        modifiedRef: activeFile.modifiedRef,
       };
     }
 
@@ -164,7 +175,7 @@ export class StackedDiffPanelStore {
     };
   }
 
-  private _applyContext({ files, diffType, originalRef }: SlotContext): void {
+  private _applyContext({ files, diffType, originalRef, modifiedRef }: SlotContext): void {
     const count = Math.min(files.length, MAX_STACKED_FILES);
     this._count = count;
 
@@ -173,6 +184,7 @@ export class StackedDiffPanelStore {
       slot.file = files[i]!;
       slot.diffType = diffType;
       slot.originalRef = originalRef;
+      slot.modifiedRef = modifiedRef;
     }
 
     const currentPaths = new Set(files.map((f) => f.path));

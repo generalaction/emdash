@@ -2,15 +2,15 @@ import { CircleFadingArrowUp, CirclePlayIcon, Plus, Terminal } from 'lucide-reac
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import {
-  LifecycleScriptsStore,
-  LifecycleScriptStore,
-  ScriptType,
+  type LifecycleScriptsStore,
+  type LifecycleScriptStore,
+  type ScriptType,
 } from '@renderer/features/tasks/stores/lifecycle-scripts';
 import {
-  TerminalManagerStore,
-  TerminalStore,
+  type TerminalManagerStore,
+  type TerminalStore,
 } from '@renderer/features/tasks/terminals/terminal-manager';
-import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
+import { type TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { getPaneContainer } from '@renderer/lib/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/lib/pty/pty-dimensions';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';

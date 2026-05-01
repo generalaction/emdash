@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import type { TaskStore } from '@renderer/features/tasks/stores/task';
 import { asProvisioned } from '@renderer/features/tasks/stores/task-selectors';
+import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 
 /**
@@ -18,6 +19,8 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
   const linesAdded = git?.totalLinesAdded ?? 0;
   const linesDeleted = git?.totalLinesDeleted ?? 0;
   const visible = git !== undefined && !git.error && (linesAdded > 0 || linesDeleted > 0);
+  const formattedLinesAdded = formatDiffLineCount(linesAdded);
+  const formattedLinesDeleted = formatDiffLineCount(linesDeleted);
 
   if (!visible) return null;
 
@@ -29,10 +32,12 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
       )}
       aria-label={`${linesAdded} lines added, ${linesDeleted} lines removed`}
     >
-      {linesAdded > 0 ? <span className="text-foreground-diff-added">+{linesAdded}</span> : null}
+      {linesAdded > 0 ? (
+        <span className="text-foreground-diff-added">+{formattedLinesAdded}</span>
+      ) : null}
       {linesAdded > 0 && linesDeleted > 0 ? ' ' : null}
       {linesDeleted > 0 ? (
-        <span className="text-foreground-diff-deleted">-{linesDeleted}</span>
+        <span className="text-foreground-diff-deleted">-{formattedLinesDeleted}</span>
       ) : null}
     </span>
   );

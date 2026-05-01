@@ -6,6 +6,7 @@ type RelativeTimeProps = {
   className?: string;
   /** Renders an abbreviated form (e.g. "3d", "5mo") with a tooltip showing the full text. */
   compact?: boolean;
+  ago?: boolean;
 };
 
 function parseTimestamp(input: string | number | Date): Date | null {
@@ -35,7 +36,7 @@ function toCompactLabel(date: Date): string {
     .replace(/ years?/, 'y');
 }
 
-export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className, compact }) => {
+export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className, compact, ago }) => {
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className, co
     return (
       <time className={className} dateTime={date.toISOString()}>
         {short}
+        {ago && <span className="text-foreground-muted"> ago</span>}
       </time>
     );
   }
@@ -62,6 +64,7 @@ export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className, co
   return (
     <time className={className} dateTime={date.toISOString()}>
       {label}
+      {ago && 'ago'}
     </time>
   );
 };

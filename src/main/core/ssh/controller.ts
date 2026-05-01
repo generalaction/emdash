@@ -32,10 +32,13 @@ export const sshController = createRPCController({
 
   /** Create or update an SSH connection, storing secrets in local secure storage. */
   saveConnection: async (
-    config: Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }
+    config: Partial<Pick<SshConfig, 'id'>> &
+      Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }
   ): Promise<SshConfig> => {
-    const connectionId = randomUUID();
+    const connectionId = config.id ?? randomUUID();
 
+    // Only update stored credentials when a non-empty value is provided.
+    // On edits, leaving a field blank means "keep the existing credential".
     if (config.password) {
       await sshCredentialService.storePassword(connectionId, config.password);
     }
@@ -100,7 +103,12 @@ export const sshController = createRPCController({
   testConnection: async (
     config: SshConfig & { password?: string; passphrase?: string }
   ): Promise<ConnectionTestResult> => {
-    return new Promise(async (resolve) => {
+    let identityAgent: string | undefined;
+    if (config.authType === 'agent') {
+      identityAgent = await resolveIdentityAgent(config.host);
+    }
+
+    return new Promise((resolve) => {
       const client = new Client();
       const debugLogs: string[] = [];
       const startTime = Date.now();
@@ -134,7 +142,6 @@ export const sshController = createRPCController({
           connectConfig.privateKey = readFileSync(keyPath);
           if (config.passphrase) connectConfig.passphrase = config.passphrase;
         } else if (config.authType === 'agent') {
-          const identityAgent = await resolveIdentityAgent(config.host);
           connectConfig.agent = identityAgent || process.env.SSH_AUTH_SOCK;
         }
 

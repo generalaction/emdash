@@ -1,16 +1,96 @@
 export type PullRequestStatus = 'open' | 'closed' | 'merged';
 
-export type PrFilters = {
-  status?: PullRequestStatus | 'all' | 'not-open';
-  authorLogins?: string[];
-  labelNames?: string[];
-  assigneeLogins?: string[];
+export type MergeableState = 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+
+export type MergeStateStatus =
+  | 'CLEAN'
+  | 'DIRTY'
+  | 'BEHIND'
+  | 'BLOCKED'
+  | 'HAS_HOOKS'
+  | 'UNSTABLE'
+  | 'UNKNOWN';
+
+export type PullRequestUser = {
+  userId: string;
+  userName: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  url: string | null;
+  userUpdatedAt: string | null;
+  userCreatedAt: string | null;
 };
 
-export type PrFilterOptions = {
-  authors: User[];
+export type Label = {
+  name: string;
+  color: string | null;
+};
+
+export type PullRequestCheck = {
+  id: string;
+  pullRequestUrl: string;
+  commitSha: string;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  detailsUrl: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  workflowName: string | null;
+  appName: string | null;
+  appLogoUrl: string | null;
+};
+
+/** Fully denormalised PR view used throughout the renderer. */
+export type PullRequest = {
+  url: string;
+  provider: string;
+  repositoryUrl: string;
+  baseRefName: string;
+  baseRefOid: string;
+  headRepositoryUrl: string;
+  headRefName: string;
+  headRefOid: string;
+  identifier: string | null;
+  title: string;
+  description: string | null;
+  status: PullRequestStatus;
+  isDraft: boolean;
+  additions: number | null;
+  deletions: number | null;
+  changedFiles: number | null;
+  commitCount: number | null;
+  mergeableStatus: MergeableState | null;
+  mergeStateStatus: MergeStateStatus | null;
+  reviewDecision: string | null;
+  createdAt: string;
+  updatedAt: string;
+  author: PullRequestUser | null;
   labels: Label[];
-  assignees: User[];
+  assignees: PullRequestUser[];
+  checks: PullRequestCheck[];
+};
+
+// ── Sync progress ─────────────────────────────────────────────────────────────
+
+export type PrSyncProgress = {
+  remoteUrl: string;
+  kind: 'full' | 'incremental' | 'single';
+  status: 'running' | 'done' | 'error' | 'cancelled';
+  synced?: number;
+  total?: number;
+  error?: string;
+};
+
+// ── Query options ─────────────────────────────────────────────────────────────
+
+export type PullRequestStatusFilter = PullRequestStatus | 'all' | 'not-open';
+
+export type PrFilters = {
+  status?: PullRequestStatusFilter;
+  authorUserIds?: string[];
+  labelNames?: string[];
+  assigneeUserIds?: string[];
 };
 
 export type PrSortField = 'newest' | 'oldest' | 'recently-updated';
@@ -21,78 +101,51 @@ export type ListPrOptions = {
   searchQuery?: string;
   filters?: PrFilters;
   sort?: PrSortField;
+  repositoryUrl?: string;
 };
 
-export type PullRequestRemoteCapability =
-  | { status: 'ready'; nameWithOwner: string }
-  | { status: 'no_remote' }
-  | { status: 'unsupported_remote' };
-
-export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
-
-export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
-
-export interface GitHubReviewer {
-  login: string;
-  state?: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
-}
-
-export type User = {
-  userName: string;
-  displayName: string;
-  avatarUrl?: string;
-};
-
-export type Label = {
-  name: string;
-  color?: string;
-};
-
-// Common fields all forges share
-interface PullRequestBase {
-  id: string;
-  identifier: string;
-  nameWithOwner: string;
-  url: string;
-  title: string;
-  status: PullRequestStatus;
+export type PrFilterOptions = {
+  authors: PullRequestUser[];
   labels: Label[];
-  assignees: User[];
-  author: User | null;
-  isDraft: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+  assignees: PullRequestUser[];
+};
 
-// GitHub-specific metadata
-export interface GitHubPrMetadata {
-  number: number;
-  headRefName: string;
-  headRefOid: string;
-  baseRefName: string;
-  headRepository: {
-    nameWithOwner: string;
-    url: string;
-    owner: { login: string };
-  } | null;
-  labels: Array<{ name: string; color: string }>;
-  assignees: Array<{ login: string; avatarUrl: string }>;
-  reviewDecision: ReviewDecision;
-  reviewers: GitHubReviewer[];
+export type PullRequestError =
+  | { type: 'invalid_repository'; input: string }
+  | { type: 'remote_not_ready'; status: string }
+  | { type: 'list_failed'; message: string }
+  | { type: 'filter_options_failed'; message: string }
+  | { type: 'task_pull_requests_failed'; message: string }
+  | { type: 'sync_failed'; message: string }
+  | { type: 'refresh_failed'; message: string }
+  | { type: 'checks_failed'; message: string }
+  | { type: 'create_failed'; message: string }
+  | { type: 'merge_failed'; message: string }
+  | { type: 'mark_ready_failed'; message: string }
+  | { type: 'files_failed'; message: string };
+
+// ── Pass-through types ────────────────────────────────────────────────────────
+
+export interface PullRequestFile {
+  filename: string;
+  status: string;
   additions: number;
   deletions: number;
-  changedFiles: number;
-  mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
-  mergeStateStatus: 'CLEAN' | 'DIRTY' | 'BEHIND' | 'BLOCKED' | 'HAS_HOOKS' | 'UNSTABLE' | 'UNKNOWN';
-  body: string | null;
+  patch?: string;
 }
 
-export type GitHubPullRequest = PullRequestBase & {
-  provider: 'github';
-  metadata: GitHubPrMetadata;
-};
+export function pullRequestErrorMessage(error: PullRequestError): string {
+  switch (error.type) {
+    case 'invalid_repository':
+      return `Invalid GitHub repository URL: "${error.input}"`;
+    case 'remote_not_ready':
+      return `Remote not ready: ${error.status}`;
+    default:
+      return error.message;
+  }
+}
 
-export type PullRequest = GitHubPullRequest;
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
  * Returns the open PR if one exists, otherwise the most recently created PR.
@@ -105,44 +158,17 @@ export function selectCurrentPr(prs: PullRequest[]): PullRequest | undefined {
   return prs.reduce((a, b) => (a.createdAt >= b.createdAt ? a : b), prs[0]);
 }
 
-// ── Pass-through types (service → renderer) ────────────────────────
-
-export interface PullRequestFile {
-  filename: string;
-  status: string;
-  additions: number;
-  deletions: number;
-  patch?: string;
+/** True when the PR originates from a fork (head repo differs from base repo). */
+export function isForkPr(pr: PullRequest): boolean {
+  return pr.headRepositoryUrl !== pr.repositoryUrl;
 }
 
-export interface PrCheckRun {
-  name: string;
-  bucket: CheckRunBucket;
-  workflowName?: string;
-  appName?: string;
-  appLogoUrl?: string;
-  detailsUrl?: string;
-  startedAt?: string;
-  completedAt?: string;
-}
-
-export interface PrCommentAuthor {
-  login: string;
-  avatarUrl?: string;
-}
-
-export interface PrCommentsResult {
-  comments: Array<{
-    id: number;
-    author: PrCommentAuthor;
-    body: string;
-    createdAt: string;
-  }>;
-  reviews: Array<{
-    id: number;
-    author: PrCommentAuthor;
-    body: string;
-    submittedAt?: string;
-    state: string;
-  }>;
+/**
+ * Extract the numeric PR number from a `PullRequest` row.
+ * The `identifier` field stores values like `"#123"`.
+ */
+export function getPrNumber(pr: { identifier: string | null }): number | null {
+  if (!pr.identifier) return null;
+  const n = parseInt(pr.identifier.replace('#', ''), 10);
+  return isNaN(n) ? null : n;
 }

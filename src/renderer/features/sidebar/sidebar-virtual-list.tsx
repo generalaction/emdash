@@ -1,13 +1,13 @@
 import {
   closestCenter,
-  CollisionDetection,
   DndContext,
-  DragEndEvent,
   DragOverlay,
-  DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -19,7 +19,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
-import { SidebarRow } from '@renderer/features/sidebar/sidebar-store';
+import { type SidebarRow } from '@renderer/features/sidebar/sidebar-store';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { sidebarStore } from '@renderer/lib/stores/app-state';

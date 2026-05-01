@@ -1,12 +1,12 @@
 import { runInAction } from 'mobx';
 import {
-  ComponentType,
   Fragment,
   useCallback,
   useEffect,
   useMemo,
   useState,
   useTransition,
+  type ComponentType,
   type ReactNode,
 } from 'react';
 import {

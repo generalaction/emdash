@@ -2,7 +2,7 @@ import type { VariantProps } from 'class-variance-authority';
 import { ChevronDown } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { cn } from '@renderer/utils/utils';
-import { Button, buttonVariants } from './button';
+import { Button, type buttonVariants } from './button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,7 +80,7 @@ export function SplitButton({
             <Button
               variant={variant}
               size={size}
-              className={cn('rounded-l-none border-l border-current/20', px)}
+              className={cn('rounded-l-none border-l', px)}
               disabled={isDisabled}
             />
           }

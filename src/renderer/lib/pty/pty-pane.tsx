@@ -6,7 +6,7 @@ import { usePty } from './use-pty';
 
 type Props = {
   /**
-   * Deterministic PTY session ID: `makePtySessionId(projectId, taskId, conversationId|terminalId)`.
+   * Deterministic PTY session ID: `makePtySessionId(projectId, scopeId, leafId)`.
    */
   sessionId: string;
   /** Pre-connected FrontendPty owned by the entity's PtySession store. */
@@ -67,7 +67,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
       focus();
     };
 
-    const handleDrop: React.DragEventHandler<HTMLDivElement> = async (event) => {
+    const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
       try {
         event.preventDefault();
         const dt = event.dataTransfer;
@@ -80,23 +80,29 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
         }
         if (paths.length === 0) return;
 
-        if (remoteConnectionId) {
+        void (async () => {
           try {
-            const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
-            if (result.success && result.data?.remotePaths) {
-              const escaped = result.data.remotePaths
-                .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
-                .join(' ');
+            if (remoteConnectionId) {
+              try {
+                const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
+                if (result.success && result.data?.remotePaths) {
+                  const escaped = result.data.remotePaths
+                    .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
+                    .join(' ');
+                  sendInput(`${escaped} `);
+                }
+              } catch (error) {
+                log.warn('SSH file transfer failed', { error });
+              }
+            } else {
+              const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
               sendInput(`${escaped} `);
             }
+            focus();
           } catch (error) {
-            log.warn('SSH file transfer failed', { error });
+            log.warn('Terminal drop failed', { error });
           }
-        } else {
-          const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
-          sendInput(`${escaped} `);
-        }
-        focus();
+        })();
       } catch (error) {
         log.warn('Terminal drop failed', { error });
       }
