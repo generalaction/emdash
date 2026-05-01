@@ -77,7 +77,9 @@ function EmptyState({
       <FileSearch className="h-8 w-8 text-muted-foreground" />
       <div className="flex flex-col items-center gap-1">
         <p className="text-sm font-medium">No prompt templates yet</p>
-        <p className="text-xs text-muted-foreground">Create your own or pick a starter below</p>
+        <p className="text-xs text-muted-foreground">
+          Create reusable prompts for common tasks like review, summarize, and testing.
+        </p>
       </div>
       <div className="flex flex-wrap justify-center gap-2 px-4">
         {STARTER_PROMPT_TEMPLATES.map((starter) => (
@@ -116,6 +118,7 @@ export function PromptTemplatesSettingsCard() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftText, setDraftText] = useState('');
+  const isAtMaxTemplates = templates.length >= MAX_PROMPT_TEMPLATES;
 
   if (isLoading) {
     return <div className="text-sm text-muted-foreground">Loading...</div>;
@@ -232,6 +235,7 @@ export function PromptTemplatesSettingsCard() {
                     className="h-7 w-7"
                     disabled={index === 0 || isSaving}
                     onClick={() => handleMove(index, 'up')}
+                    aria-label="Move template up"
                   >
                     <ArrowUp className="h-3.5 w-3.5" />
                   </Button>
@@ -241,6 +245,7 @@ export function PromptTemplatesSettingsCard() {
                     className="h-7 w-7"
                     disabled={index === templates.length - 1 || isSaving}
                     onClick={() => handleMove(index, 'down')}
+                    aria-label="Move template down"
                   >
                     <ArrowDown className="h-3.5 w-3.5" />
                   </Button>
@@ -248,9 +253,10 @@ export function PromptTemplatesSettingsCard() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    disabled={isSaving}
+                    disabled={isSaving || isAtMaxTemplates}
                     onClick={() => handleDuplicate(template)}
                     title="Duplicate"
+                    aria-label="Duplicate template"
                   >
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
@@ -260,6 +266,7 @@ export function PromptTemplatesSettingsCard() {
                     className="h-7 w-7"
                     disabled={isSaving}
                     onClick={() => setEditingId(template.id)}
+                    aria-label="Edit template"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
@@ -292,6 +299,7 @@ export function PromptTemplatesSettingsCard() {
                       disabled={isSaving}
                       onClick={() => setDeletingId(template.id)}
                       title="Delete"
+                      aria-label="Delete template"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -327,16 +335,16 @@ export function PromptTemplatesSettingsCard() {
         />
       )}
 
-      {templates.length > 0 && !isAdding && templates.length < MAX_PROMPT_TEMPLATES && (
+      {templates.length > 0 && !isAdding && !isAtMaxTemplates && (
         <Button variant="outline" size="sm" onClick={() => setIsAdding(true)}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           Add template
         </Button>
       )}
 
-      {templates.length >= MAX_PROMPT_TEMPLATES && (
+      {isAtMaxTemplates && (
         <p className="text-xs text-muted-foreground">
-          Maximum of {MAX_PROMPT_TEMPLATES} templates reached.
+          Template limit reached ({MAX_PROMPT_TEMPLATES}). Delete one to add another.
         </p>
       )}
     </div>

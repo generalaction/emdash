@@ -70,7 +70,7 @@ export function buildPromptTemplateContextActions(templates: PromptTemplate[]): 
   return templates.map((template) => ({
     id: `prompt-template:${template.id}`,
     kind: 'prompt-template',
-    label: truncate(template.name, MAX_LABEL_TITLE_LENGTH),
+    label: template.name,
     text: template.text,
   }));
 }

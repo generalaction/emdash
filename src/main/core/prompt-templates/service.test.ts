@@ -102,4 +102,22 @@ describe('PromptTemplateService', () => {
     expect(list[1]!.sortOrder).toBe(1);
     expect(list[2]!.sortOrder).toBe(2);
   });
+
+  it('rejects partial reorder lists', async () => {
+    const t1 = await service.create({ name: '1', text: 'a' });
+    await service.create({ name: '2', text: 'b' });
+
+    await expect(service.reorder([t1.id])).rejects.toThrow(
+      'Reorder request must include all prompt templates'
+    );
+  });
+
+  it('rejects duplicate ids in reorder list', async () => {
+    const t1 = await service.create({ name: '1', text: 'a' });
+    await service.create({ name: '2', text: 'b' });
+
+    await expect(service.reorder([t1.id, t1.id])).rejects.toThrow(
+      'Reorder request contains duplicate template IDs'
+    );
+  });
 });

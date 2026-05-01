@@ -104,10 +104,10 @@ describe('buildPromptTemplateContextActions', () => {
     });
   });
 
-  it('truncates long names', () => {
+  it('keeps full template names for tooltips and accessibility', () => {
     const templates = [makeTemplate({ name: 'A'.repeat(30), text: 'text' })];
     const actions = buildPromptTemplateContextActions(templates);
-    expect(actions[0]!.label.endsWith('…')).toBe(true);
+    expect(actions[0]!.label).toBe('A'.repeat(30));
   });
 });
 

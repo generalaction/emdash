@@ -121,7 +121,17 @@ export class PromptTemplateService {
   }
 
   async reorder(ids: string[]): Promise<void> {
-    if (ids.length === 0) return;
+    const [countRow] = await this.db.select({ value: count() }).from(promptTemplates);
+    const totalTemplates = countRow.value;
+    if (totalTemplates === 0 && ids.length === 0) return;
+
+    if (ids.length !== totalTemplates) {
+      throw new Error('Reorder request must include all prompt templates');
+    }
+
+    if (new Set(ids).size !== ids.length) {
+      throw new Error('Reorder request contains duplicate template IDs');
+    }
 
     const existingRows = await this.db
       .select({ id: promptTemplates.id })

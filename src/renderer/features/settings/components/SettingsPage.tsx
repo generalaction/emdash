@@ -130,7 +130,7 @@ export function SettingsPage({
     },
     prompts: {
       title: 'Prompts',
-      description: 'Manage reusable prompt templates for quick insertion into conversations.',
+      description: 'Manage reusable prompts shown in the task Context Bar for one-click insertion.',
       sections: [{ title: 'Prompt templates', component: <PromptTemplatesSettingsCard /> }],
     },
   };
