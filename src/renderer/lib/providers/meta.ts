@@ -12,6 +12,7 @@ import factorydroidIcon from '@/assets/images/droid.svg?raw';
 import geminiIcon from '@/assets/images/gemini.png';
 import ghcopilotIcon from '@/assets/images/gh-copilot.svg?raw';
 import gooseIcon from '@/assets/images/goose.png';
+import junieIcon from '@/assets/images/junie-color.png';
 import kilocodeIcon from '@/assets/images/kilocode.png';
 import kimiIcon from '@/assets/images/kimi.png';
 import kiroIcon from '@/assets/images/kiro.png';
@@ -37,6 +38,7 @@ const ICONS: Record<string, string> = {
   'cursor.svg': cursorlogoIcon,
   'gh-copilot.svg': ghcopilotIcon,
   'goose.png': gooseIcon,
+  'junie-color.png': junieIcon,
   'kimi.png': kimiIcon,
   'kilocode.png': kilocodeIcon,
   'kiro.png': kiroIcon,
