@@ -1,4 +1,5 @@
 import { Check, Loader2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Issue } from '@shared/tasks';
 import {
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { cn } from '@renderer/utils/utils';
 import { ConnectIssueIntegrationPlaceholder, IssueRow, ProviderLogo } from './issue-selector';
+import { getLinkedIssueMap } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
 export interface InlineIssueSelectorProps {
@@ -19,16 +21,20 @@ export interface InlineIssueSelectorProps {
   repositoryUrl?: string;
   projectPath?: string;
   disabled?: boolean;
+  /** Skip "already linked" indicator for this task — useful when re-selecting the same task's issue. */
+  excludeTaskId?: string;
 }
 
-export function InlineIssueSelector({
+export const InlineIssueSelector = observer(function InlineIssueSelector({
   value,
   onValueChange,
   projectId,
   repositoryUrl = '',
   projectPath = '',
   disabled,
+  excludeTaskId,
 }: InlineIssueSelectorProps) {
+  const linkedIssueMap = getLinkedIssueMap(projectId, excludeTaskId);
   const {
     issues,
     issueProvider,
@@ -90,7 +96,9 @@ export function InlineIssueSelector({
         case 'Enter': {
           e.preventDefault();
           const issue = issues[highlightedIndex];
-          if (issue) onValueChange(issue === value ? null : issue);
+          if (!issue) break;
+          if (linkedIssueMap.has(issue.url)) break;
+          onValueChange(issue === value ? null : issue);
           break;
         }
         case 'Escape':
@@ -103,7 +111,7 @@ export function InlineIssueSelector({
           break;
       }
     },
-    [issues, highlightedIndex, value, query, onValueChange, handleSetSearchTerm]
+    [issues, highlightedIndex, value, query, onValueChange, handleSetSearchTerm, linkedIssueMap]
   );
 
   const providerAddon = issueProvider ? (
@@ -170,19 +178,28 @@ export function InlineIssueSelector({
           issues.map((issue, index) => {
             const isSelected = value?.identifier === issue.identifier;
             const isHighlighted = index === highlightedIndex;
+            const linkedTo = linkedIssueMap.get(issue.url);
+            const isLinked = !!linkedTo;
             return (
               <button
                 key={issue.identifier}
                 type="button"
+                disabled={isLinked}
                 className={cn(
                   'relative flex min-w-0 w-full cursor-default items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none select-none',
-                  isHighlighted && !isSelected && 'bg-background-2',
-                  isSelected && 'bg-background-2'
+                  isHighlighted && !isSelected && !isLinked && 'bg-background-2',
+                  isSelected && 'bg-background-2',
+                  isLinked && 'cursor-not-allowed opacity-50'
                 )}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                onClick={() => onValueChange(isSelected ? null : issue)}
+                onMouseEnter={() => {
+                  if (!isLinked) setHighlightedIndex(index);
+                }}
+                onClick={() => {
+                  if (isLinked) return;
+                  onValueChange(isSelected ? null : issue);
+                }}
               >
-                <IssueRow issue={issue} />
+                <IssueRow issue={issue} linkedTo={linkedTo} />
                 {isSelected && (
                   <Check className="absolute right-2 size-3.5 shrink-0 text-foreground-muted" />
                 )}
@@ -201,4 +218,4 @@ export function InlineIssueSelector({
       </div>
     </div>
   );
-}
+});
