@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { buildRemoteSshAuthority, buildRemoteTerminalExecArgs } from './remoteOpenIn';
+import {
+  buildRemoteEditorUrl,
+  buildRemoteSshAuthority,
+  buildRemoteTerminalExecArgs,
+} from './remoteOpenIn';
 
 describe('remoteOpenIn', () => {
+  describe('buildRemoteEditorUrl', () => {
+    it('builds VSCodium remote SSH URLs', () => {
+      expect(buildRemoteEditorUrl('vscodium', 'example.com', 'alice', '/repo')).toBe(
+        'vscodium://vscode-remote/ssh-remote+alice%40example.com/repo'
+      );
+    });
+  });
+
   describe('buildRemoteTerminalExecArgs', () => {
     it('builds argv tokens for terminal app SSH launchers', () => {
       const args = buildRemoteTerminalExecArgs({
