@@ -14,11 +14,6 @@ import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { ModalContextBar } from './modal-context-bar';
 
-type InitialPromptImage = {
-  name: string;
-  path: string;
-};
-
 export type InitialConversationState = {
   provider: AgentProviderId | null;
   setProvider: (provider: AgentProviderId | null) => void;
@@ -37,25 +32,17 @@ type ImagePreview = {
   src: string;
 };
 
-function pathToImageReference(path: string): string {
-  return `file://${encodeURI(path)}`;
-}
-
-function escapeMarkdownImageAlt(text: string): string {
-  return text.replace(/]/g, '\\]');
-}
+type InitialPromptImage = {
+  name: string;
+  path: string;
+};
 
 export function buildInitialPrompt(prompt: string, images: InitialPromptImage[]): string {
   const trimmedPrompt = prompt.trim();
   const validImages = images.filter((image) => image.path);
   if (validImages.length === 0) return trimmedPrompt;
 
-  const imagePrompt = validImages
-    .map(
-      (image) => `![${escapeMarkdownImageAlt(image.name)}](${pathToImageReference(image.path)})`
-    )
-    .join('\n');
-
+  const imagePrompt = validImages.map((image) => `- ${image.name}: ${image.path}`).join('\n');
   return [trimmedPrompt, 'Attached images:', imagePrompt].filter(Boolean).join('\n\n');
 }
 
