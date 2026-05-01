@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
-import { AgentProviderId } from '@shared/agent-provider-registry';
+import { type AgentProviderId } from '@shared/agent-provider-registry';
 import type { McpCatalogEntry, McpServer } from '@shared/mcp/types';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { agentConfig } from '@renderer/utils/agentConfig';

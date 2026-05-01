@@ -1,6 +1,7 @@
-import { CreateConversationParams } from '@shared/conversations';
-import type { Branch, CreateBranchError, FetchPrRefError, PushError } from '@shared/git';
-import { PullRequest } from './pull-requests';
+import type { CreateConversationParams } from '@shared/conversations';
+import type { ProvisionStep } from '@shared/events/taskEvents';
+import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
+import type { PullRequest } from '@shared/pull-requests';
 
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
 
@@ -23,7 +24,7 @@ export type Task = {
   projectId: string;
   name: string;
   status: TaskLifecycleStatus;
-  sourceBranch: Branch;
+  sourceBranch: Branch | undefined;
   taskBranch?: string;
   createdAt: string;
   updatedAt: string;
@@ -35,6 +36,9 @@ export type Task = {
   isPinned: boolean;
   prs: PullRequest[];
   conversations: Record<string, number>;
+  workspaceProvider?: 'byoi';
+  workspaceId?: string;
+  workspaceProviderData?: string; // JSON, BYOI only
 };
 
 export type TaskBootstrapStatus =
@@ -49,7 +53,10 @@ export type CreateTaskStrategy =
   | {
       kind: 'from-pull-request';
       prNumber: number;
+      /** The PR's headRefName, used as the local branch name (same as `gh pr checkout`). */
       headBranch: string;
+      headRepositoryUrl: string;
+      isFork: boolean;
       taskBranch?: string;
       pushBranch?: boolean;
     }
@@ -68,16 +75,18 @@ export type CreateTaskParams = {
   /**  */
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
+  workspaceProvider?: 'byoi';
 };
 
 export type CreateTaskError =
   | { type: 'project-not-found' }
   | { type: 'initial-commit-required'; branch: string }
   | { type: 'branch-create-failed'; branch: string; error: CreateBranchError }
-  | { type: 'pr-fetch-failed'; error: FetchPrRefError; remote: string }
+  | { type: 'pr-fetch-failed'; error: FetchPrForReviewError; remote: string }
   | { type: 'branch-not-found'; branch: string }
   | { type: 'worktree-setup-failed'; branch: string; message?: string }
-  | { type: 'provision-failed'; message: string };
+  | { type: 'provision-failed'; message: string }
+  | { type: 'provision-timeout'; timeoutMs: number; step: ProvisionStep | null };
 
 export type CreateTaskWarning = {
   type: 'branch-publish-failed';

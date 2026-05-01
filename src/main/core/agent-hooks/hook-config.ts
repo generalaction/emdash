@@ -1,14 +1,22 @@
 import * as toml from 'smol-toml';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
+import {
+  makeClaudeHookCommand,
+  makeCodexNotifyCommand,
+  makeOpenCodePluginContent,
+} from './agent-notify-command';
+import piEmdashExtension from './pi-emdash-extension.ts?raw';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
+const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
+const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 
@@ -17,46 +25,21 @@ const HOOK_EVENT_MAP = [
   { eventType: 'stop', hookKey: 'Stop' },
 ] satisfies { eventType: string; hookKey: string }[];
 
-function makeClaudeHookCommand(eventType: string): string {
-  return (
-    'curl -sf -X POST ' +
-    '-H "Content-Type: application/json" ' +
-    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
-    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-    `-H "X-Emdash-Event-Type: ${eventType}" ` +
-    '-d @- ' +
-    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
-  );
-}
-
-function makeCodexNotifyCommand(): string[] {
-  return [
-    'bash',
-    '-c',
-    'curl -sf -X POST ' +
-      "-H 'Content-Type: application/json' " +
-      '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
-      '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
-      '-H "X-Emdash-Event-Type: notification" ' +
-      '-d "$1" ' +
-      '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true',
-    '_',
-  ];
-}
-
 export class HookConfigWriter {
   constructor(
     private readonly fs: FileSystemProvider,
-    private readonly exec: ExecFn
+    private readonly exec: IExecutionContext
   ) {}
 
   async writeClaudeHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('claude', this.exec))) return false;
 
-    const config: Record<string, unknown> = await this.fs
-      .read(CLAUDE_SETTINGS_PATH)
-      .then((r) => JSON.parse(r.content) ?? {})
-      .catch(() => ({}));
+    const config: Record<string, unknown> = (await this.fs.exists(CLAUDE_SETTINGS_PATH))
+      ? await this.fs
+          .read(CLAUDE_SETTINGS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
 
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
 
@@ -72,13 +55,42 @@ export class HookConfigWriter {
   async writeCodexNotify(): Promise<boolean> {
     if (!(await resolveCommandPath('codex', this.exec))) return false;
 
-    const config: Record<string, unknown> = await this.fs
-      .read(CODEX_CONFIG_PATH)
-      .then((result) => toml.parse(result.content) ?? {})
-      .catch(() => ({}));
+    const config: Record<string, unknown> = (await this.fs.exists(CODEX_CONFIG_PATH))
+      ? await this.fs
+          .read(CODEX_CONFIG_PATH)
+          .then((result) => toml.parse(result.content) ?? {})
+          .catch(() => ({}))
+      : {};
 
     config.notify = makeCodexNotifyCommand();
     await this.fs.write(CODEX_CONFIG_PATH, toml.stringify(config));
+    return true;
+  }
+
+  async writePiExtension(): Promise<boolean> {
+    if (!(await resolveCommandPath('pi', this.exec))) return false;
+
+    const existing = await this.fs
+      .read(PI_EMDASH_EXTENSION_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === piEmdashExtension) return true;
+
+    await this.fs.write(PI_EMDASH_EXTENSION_PATH, piEmdashExtension);
+    return true;
+  }
+
+  async writeOpenCodePlugin(): Promise<boolean> {
+    if (!(await resolveCommandPath('opencode', this.exec))) return false;
+
+    const pluginContent = makeOpenCodePluginContent();
+    const existing = await this.fs
+      .read(OPENCODE_PLUGIN_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === pluginContent) return true;
+
+    await this.fs.write(OPENCODE_PLUGIN_PATH, pluginContent);
     return true;
   }
 
@@ -101,12 +113,29 @@ export class HookConfigWriter {
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([CODEX_CONFIG_PATH]);
       }
+      return;
+    }
+
+    if (providerId === 'pi') {
+      const wroteConfig = await this.writePiExtension();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([PI_EMDASH_EXTENSION_PATH]);
+      }
+      return;
+    }
+
+    if (providerId === 'opencode') {
+      const wroteConfig = await this.writeOpenCodePlugin();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([OPENCODE_PLUGIN_PATH]);
+      }
+      return;
     }
   }
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex'] as const).map((providerId) =>
+      (['claude', 'codex', 'pi', 'opencode'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })

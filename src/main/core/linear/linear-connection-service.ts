@@ -115,7 +115,7 @@ export class LinearConnectionService {
   }
 
   private async getStoredToken(): Promise<string | null> {
-    if (this.cachedToken !== undefined) {
+    if (this.cachedToken) {
       return this.cachedToken;
     }
 

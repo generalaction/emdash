@@ -1,4 +1,4 @@
-import { createContext, useEffect, type ReactNode } from 'react';
+import { createContext, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import type { Theme } from '@shared/app-settings';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
@@ -34,11 +34,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme: Theme = themeValue ?? null;
   const effectiveTheme: EffectiveTheme = theme ?? getSystemTheme();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isLoading) return;
     applyTheme(effectiveTheme);
+  }, [effectiveTheme, isLoading]);
+
+  useEffect(() => {
+    if (isLoading) return;
     setCachedTheme(theme);
-  }, [theme, effectiveTheme, isLoading, setCachedTheme]);
+  }, [theme, isLoading, setCachedTheme]);
 
   // Subscribe to system color scheme changes when no explicit preference is set.
   useEffect(() => {

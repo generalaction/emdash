@@ -1,9 +1,18 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
+import { parseArgs } from 'node:util';
 import { S3mini } from 's3mini';
 import { findBlockmaps, findInstallers, findManifests } from './lib/artifacts.ts';
 import { r2Endpoint, requireEnv } from './lib/config.ts';
 import { fail, info, step } from './lib/log.ts';
+
+const { values } = parseArgs({
+  options: {
+    channel: { type: 'string' },
+    prefix: { type: 'string' },
+  },
+  strict: true,
+});
 
 const s3 = new S3mini({
   accessKeyId: requireEnv('R2_ACCESS_KEY_ID'),
@@ -12,7 +21,11 @@ const s3 = new S3mini({
   region: 'auto',
 });
 
-const files = [...findManifests(), ...findInstallers(), ...findBlockmaps()];
+const files = [
+  ...findManifests(values.channel),
+  ...findInstallers(values.prefix),
+  ...findBlockmaps(),
+];
 
 if (files.length === 0) {
   fail('No artifacts found to upload');

@@ -14,6 +14,8 @@ export interface StickyDiffEditorProps {
   diffStyle: 'unified' | 'split';
   /** Called whenever the content height changes, for auto-sizing parent containers. */
   onHeightChange?: (height: number) => void;
+  /** Called when the diff editor instance is created/disposed. */
+  onEditorChange?: (editor: monaco.editor.IStandaloneDiffEditor | null) => void;
 }
 
 /**
@@ -29,8 +31,11 @@ export function StickyDiffEditor({
   modifiedUri,
   diffStyle,
   onHeightChange,
+  onEditorChange,
 }: StickyDiffEditorProps) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const modifiedUriRef = useRef(modifiedUri);
+  modifiedUriRef.current = modifiedUri;
 
   // Observable box so the autorun can react to the editor arriving after async mount.
   const editorBox = useRef(
@@ -39,6 +44,9 @@ export function StickyDiffEditor({
 
   const onHeightChangeRef = useRef(onHeightChange);
   onHeightChangeRef.current = onHeightChange;
+
+  const onEditorChangeRef = useRef(onEditorChange);
+  onEditorChangeRef.current = onEditorChange;
 
   const { effectiveTheme } = useTheme();
 
@@ -51,10 +59,18 @@ export function StickyDiffEditor({
 
     const editor = m.editor.createDiffEditor(mountRef.current, {
       ...DIFF_EDITOR_BASE_OPTIONS,
+      readOnly: !modifiedUriRef.current.startsWith('file://'),
       renderSideBySide: diffStyle === 'split',
     });
+    onEditorChangeRef.current?.(editor);
 
     const modifiedEditor = editor.getModifiedEditor();
+    modifiedEditor.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => {
+      const uri = modifiedUriRef.current;
+      if (!uri.startsWith('file://')) return;
+      void modelRegistry.saveFileToDisk(uri);
+    });
+
     const heightDisposable = modifiedEditor.onDidContentSizeChange(
       (e: { contentHeightChanged: boolean; contentHeight: number }) => {
         if (e.contentHeightChanged) {
@@ -66,6 +82,7 @@ export function StickyDiffEditor({
     runInAction(() => editorBox.set(editor));
 
     return () => {
+      onEditorChangeRef.current?.(null);
       heightDisposable.dispose();
       runInAction(() => editorBox.set(null));
       editor.dispose();
@@ -77,6 +94,10 @@ export function StickyDiffEditor({
   useEffect(() => {
     editorBox.get()?.updateOptions({ renderSideBySide: diffStyle === 'split' });
   }, [diffStyle, editorBox]);
+
+  useEffect(() => {
+    editorBox.get()?.updateOptions({ readOnly: !modifiedUri.startsWith('file://') });
+  }, [modifiedUri, editorBox]);
 
   // Sync global Monaco theme (affects all editor instances simultaneously).
   useEffect(() => {

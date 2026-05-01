@@ -30,6 +30,10 @@ export class EncryptedAppSecretsStore {
     this.assertSecureStorageAvailable();
     const encryptedSecret = this.safeStorageApi.encryptString(secret).toString('base64');
 
+    await this.setEncryptedSecret(key, encryptedSecret);
+  }
+
+  async setEncryptedSecret(key: string, encryptedSecret: string): Promise<void> {
     await this.db
       .insert(appSecrets)
       .values({

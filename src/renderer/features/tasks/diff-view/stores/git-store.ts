@@ -73,6 +73,7 @@ export class GitStore {
       unstagedFileChanges: computed,
       totalLinesAdded: computed,
       totalLinesDeleted: computed,
+      hasData: computed,
       isLoading: computed,
       error: computed,
       isBranchPublished: computed,
@@ -101,7 +102,6 @@ export class GitStore {
           status: 'modified',
           additions: staged.additions + unstaged.additions,
           deletions: staged.deletions + unstaged.deletions,
-          isStaged: true,
         });
       } else if (staged) {
         out.push(staged);
@@ -132,6 +132,11 @@ export class GitStore {
     if (!full) return 0;
     const u = full.unstaged.reduce((s, c) => s + c.deletions, 0);
     return full.totalDeleted + u;
+  }
+
+  /** True once the first successful load has completed. Remains true during subsequent reloads. */
+  get hasData(): boolean {
+    return this.fullStatus.data !== null;
   }
 
   get isLoading(): boolean {

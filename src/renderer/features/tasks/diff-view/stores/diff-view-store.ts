@@ -3,8 +3,8 @@ import { commitRef, type GitObjectRef } from '@shared/git';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { Snapshottable } from '@renderer/lib/stores/snapshottable';
-import { GitStore } from './git-store';
+import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
+import { type GitStore } from './git-store';
 
 export const MAX_STACKED_FILES = 8;
 
@@ -23,6 +23,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   diffStyle: 'unified' | 'split' = 'unified';
   readonly viewMode = 'file' as const;
   commitAction: 'commit' | 'commit-push' | null = null;
+  prTab: 'files' | 'commits' | 'checks' = 'files';
 
   readonly changesView: ChangesViewStore;
 
@@ -45,11 +46,24 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     makeObservable(this, {
       activeFileOverride: observable,
       activeFile: computed,
+      effectivePrTab: computed,
       diffStyle: observable,
       commitAction: observable,
+      prTab: observable,
       setActiveFile: action,
       setDiffStyle: action,
+      setPrTab: action,
     });
+
+    // Reset PR tab when the current PR changes (different PR URL).
+    this._disposeReactions.push(
+      reaction(
+        () => this.pr.currentPr?.url,
+        () => {
+          this.prTab = this.pr.currentPr?.status === 'open' ? 'files' : 'commits';
+        }
+      )
+    );
 
     // Auto-expand the changes panel section that contains the newly selected file.
     this._disposeReactions.push(
@@ -112,12 +126,20 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     return null;
   }
 
+  get effectivePrTab(): 'files' | 'commits' | 'checks' {
+    if (this.pr.currentPr?.status !== 'open' && this.prTab === 'files') {
+      return 'commits';
+    }
+    return this.prTab;
+  }
+
   get snapshot(): DiffViewSnapshot {
     return {
       diffStyle: this.diffStyle,
       viewMode: 'file',
       activeFile: this.activeFileOverride ?? undefined,
       commitAction: this.commitAction,
+      prTab: this.prTab,
     };
   }
 
@@ -133,6 +155,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     // Snapshots with an unrecognised originalRef shape are discarded — the
     // store falls back to _defaultActiveFile automatically.
     if (snapshot.commitAction) this.commitAction = snapshot.commitAction;
+    if (snapshot.prTab) this.prTab = snapshot.prTab;
   }
 
   get effectiveCommitAction(): 'commit' | 'commit-push' {
@@ -157,6 +180,10 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
   setDiffStyle(style: 'unified' | 'split'): void {
     this.diffStyle = style;
+  }
+
+  setPrTab(tab: 'files' | 'commits' | 'checks'): void {
+    this.prTab = tab;
   }
 
   dispose(): void {

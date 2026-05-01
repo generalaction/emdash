@@ -7,13 +7,16 @@ const { values } = parseArgs({
     platform: { type: 'string' },
     arch: { type: 'string', default: 'both' },
     targets: { type: 'string' },
+    config: { type: 'string', default: 'electron-builder.config.ts' },
   },
   strict: true,
 });
 
 const platform = values.platform;
 if (!platform || !['mac', 'linux', 'win'].includes(platform)) {
-  fail('Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip]');
+  fail(
+    'Usage: build.ts --platform mac|linux|win [--arch arm64|x64|both] [--targets dmg,zip] [--config electron-builder.config.ts]'
+  );
 }
 
 const archInput = values.arch ?? 'both';
@@ -41,7 +44,7 @@ for (const arch of archs) {
     targets,
     archFlag,
     '--publish always',
-    '--config electron-builder.config.ts',
+    `--config ${values.config}`,
     '--config.npmRebuild=false',
   ].join(' ');
 

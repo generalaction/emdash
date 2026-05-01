@@ -1,10 +1,21 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
-import { modalRegistry, type ModalRegistryEntry } from '@renderer/app/modal-registry';
+import {
+  modalRegistry,
+  type ModalRegistryEntry,
+  type ModalSize,
+} from '@renderer/app/modal-registry';
 import { Dialog, DialogOverlay, DialogPortal } from '@renderer/lib/ui/dialog';
 import { cn } from '@renderer/utils/utils';
 import { modalStore } from './modal-store';
+
+const SIZE_CLASSES: Record<ModalSize, string> = {
+  xs: 'sm:max-w-xs',
+  sm: 'sm:max-w-sm',
+  md: 'sm:max-w-lg',
+  lg: 'sm:max-w-2xl',
+};
 
 export const ModalRenderer = observer(function ModalRenderer() {
   const entry = (
@@ -15,19 +26,22 @@ export const ModalRenderer = observer(function ModalRenderer() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Component = entry?.component as React.ComponentType<any> | undefined;
 
-  // Preserve the last rendered content so the close animation plays with full-height content
-  // rather than shrinking to zero while the popup fades out.
+  // Preserve the last rendered content and entry config so the close animation plays with the
+  // correct dimensions and full content rather than collapsing while the popup fades out.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lastComponentRef = useRef<React.ComponentType<any> | null>(null);
   const lastArgsRef = useRef<Record<string, unknown> | null>(null);
+  const lastEntryRef = useRef<ModalRegistryEntry | null>(null);
 
   if (modalStore.isOpen && Component && modalStore.activeModalArgs) {
     lastComponentRef.current = Component;
     lastArgsRef.current = modalStore.activeModalArgs;
+    lastEntryRef.current = entry;
   }
 
   const DisplayComponent = lastComponentRef.current;
   const displayArgs = lastArgsRef.current;
+  const displayEntry = lastEntryRef.current;
 
   const handleOpenChange = (
     open: boolean,
@@ -40,14 +54,6 @@ export const ModalRenderer = observer(function ModalRenderer() {
       modalStore.closeModal();
     }
   };
-
-  if (entry?.usesOwnShell) {
-    return (
-      <Dialog open={modalStore.isOpen} onOpenChange={handleOpenChange}>
-        {DisplayComponent && displayArgs ? <DisplayComponent {...displayArgs} /> : null}
-      </Dialog>
-    );
-  }
 
   return (
     <Dialog open={modalStore.isOpen} onOpenChange={handleOpenChange}>
@@ -62,8 +68,8 @@ export const ModalRenderer = observer(function ModalRenderer() {
             }
           }}
           className={cn(
-            'fixed top-1/2 left-1/2 z-50 flex flex-col w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 bg-background-quaternary text-sm ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out rounded-xl overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95',
-            entry?.popupClassName
+            'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-background-quaternary text-sm ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+            SIZE_CLASSES[displayEntry?.size ?? 'md']
           )}
         >
           {DisplayComponent && displayArgs ? <DisplayComponent {...displayArgs} /> : null}

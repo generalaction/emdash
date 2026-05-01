@@ -28,13 +28,12 @@ const NotificationSettingsCard: React.FC = () => {
         description="Get notified when agents need your attention."
         control={
           <>
-            {isFieldOverridden('enabled') && (
-              <ResetToDefaultButton
-                defaultLabel="on"
-                onReset={() => resetField('enabled')}
-                disabled={loading}
-              />
-            )}
+            <ResetToDefaultButton
+              visible={isFieldOverridden('enabled')}
+              defaultLabel="on"
+              onReset={() => resetField('enabled')}
+              disabled={loading}
+            />
             <Switch
               checked={notifications?.enabled ?? true}
               disabled={loading}
@@ -54,13 +53,12 @@ const NotificationSettingsCard: React.FC = () => {
           description="Play audio cues for agent events."
           control={
             <>
-              {isFieldOverridden('sound') && (
-                <ResetToDefaultButton
-                  defaultLabel="on"
-                  onReset={() => resetField('sound')}
-                  disabled={loading}
-                />
-              )}
+              <ResetToDefaultButton
+                visible={isFieldOverridden('sound')}
+                defaultLabel="on"
+                onReset={() => resetField('sound')}
+                disabled={loading}
+              />
               <Switch
                 checked={notifications?.sound ?? true}
                 disabled={loading}
@@ -75,13 +73,12 @@ const NotificationSettingsCard: React.FC = () => {
           description="When to play sounds."
           control={
             <>
-              {isFieldOverridden('soundFocusMode') && (
-                <ResetToDefaultButton
-                  defaultLabel="always"
-                  onReset={() => resetField('soundFocusMode')}
-                  disabled={loading}
-                />
-              )}
+              <ResetToDefaultButton
+                visible={isFieldOverridden('soundFocusMode')}
+                defaultLabel="always"
+                onReset={() => resetField('soundFocusMode')}
+                disabled={loading}
+              />
               <Select
                 value={notifications?.soundFocusMode ?? 'always'}
                 onValueChange={(next) => update({ soundFocusMode: next as 'always' | 'unfocused' })}
@@ -103,13 +100,12 @@ const NotificationSettingsCard: React.FC = () => {
           description="Show system banners when agents need attention or finish (while Emdash is unfocused)."
           control={
             <>
-              {isFieldOverridden('osNotifications') && (
-                <ResetToDefaultButton
-                  defaultLabel="on"
-                  onReset={() => resetField('osNotifications')}
-                  disabled={loading}
-                />
-              )}
+              <ResetToDefaultButton
+                visible={isFieldOverridden('osNotifications')}
+                defaultLabel="on"
+                onReset={() => resetField('osNotifications')}
+                disabled={loading}
+              />
               <Switch
                 checked={notifications?.osNotifications ?? true}
                 disabled={loading}

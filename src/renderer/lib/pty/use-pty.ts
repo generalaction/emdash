@@ -1,4 +1,4 @@
-import { Terminal } from '@xterm/xterm';
+import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
@@ -57,7 +57,7 @@ const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 export interface UsePtyOptions {
-  /** Deterministic PTY session ID: makePtySessionId(projectId, taskId, conversationId|terminalId) */
+  /** Deterministic PTY session ID: makePtySessionId(projectId, scopeId, leafId). */
   sessionId: string;
   /** Pre-connected FrontendPty instance owned by the entity's PtySession store. */
   pty: FrontendPty;
@@ -175,7 +175,7 @@ export function usePty(
       pendingResizeTimerRef.current = setTimeout(() => {
         pendingResizeTimerRef.current = null;
         lastSentResizeRef.current = { cols: c, rows: r };
-        rpc.pty.resize(sessionId, c, r);
+        void rpc.pty.resize(sessionId, c, r);
       }, PTY_RESIZE_DEBOUNCE_MS);
     },
     [sessionId]

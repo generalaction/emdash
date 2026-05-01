@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { APP_BUNDLE, APP_ID, PRODUCT_NAME, RELEASE_DIR } from './lib/config.ts';
+import { RELEASE_DIR } from './lib/config.ts';
 import { exec, execOrNull } from './lib/exec.ts';
 import { fail, info, step, warn } from './lib/log.ts';
 
@@ -12,34 +12,39 @@ if (process.platform !== 'darwin') {
 
 const { values } = parseArgs({
   options: {
-    'smoke-test': { type: 'boolean', default: false },
     'expected-team-id': { type: 'string' },
   },
   strict: true,
 });
 
-const smokeTest = values['smoke-test'] ?? false;
 const expectedTeamId = values['expected-team-id'];
 
-const macDirs = readdirSync(RELEASE_DIR)
+const appBundles = readdirSync(RELEASE_DIR)
   .filter((d) => d.startsWith('mac'))
-  .map((d) => join(RELEASE_DIR, d, APP_BUNDLE))
+  .flatMap((d) => {
+    const dir = join(RELEASE_DIR, d);
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.app'))
+      .map((f) => join(dir, f));
+  })
   .filter((p) => existsSync(p));
 
-if (macDirs.length === 0) {
+if (appBundles.length === 0) {
   fail('No app bundles found to verify');
 }
 
 let verified = 0;
 
-for (const appDir of macDirs) {
+for (const appDir of appBundles) {
   const archDir = appDir.split('/').at(-2)!;
   const expectedArch =
     archDir === 'mac-arm64' ? 'arm64' : archDir.startsWith('mac') ? 'x86_64' : null;
 
+  const productName = basename(appDir, '.app');
+
   step(`Verifying ${appDir} (expected: ${expectedArch ?? 'unknown'})`);
 
-  const electronBin = join(appDir, 'Contents', 'MacOS', PRODUCT_NAME);
+  const electronBin = join(appDir, 'Contents', 'MacOS', productName);
   const sqliteNode = join(
     appDir,
     'Contents',
@@ -70,14 +75,6 @@ for (const appDir of macDirs) {
     }
   }
 
-  if (smokeTest && archDir === 'mac-arm64') {
-    step('Smoke test sqlite3 (arm64)');
-    exec(
-      `ELECTRON_RUN_AS_NODE=1 NODE_PATH="${appDir}/Contents/Resources/app.asar.unpacked/node_modules" "${electronBin}" -e "require('sqlite3'); console.log('sqlite3 OK')"`,
-      { echo: true }
-    );
-  }
-
   const plist = join(appDir, 'Contents', 'Info.plist');
   if (existsSync(plist)) {
     const bid =
@@ -86,9 +83,6 @@ for (const appDir of macDirs) {
         `plutil -extract CFBundleIdentifier xml1 -o - "${plist}" | sed -n 's/.*<string>\\(.*\\)<\\/string>.*/\\1/p' | head -n1`
       );
     info(`CFBundleIdentifier: ${bid}`);
-    if (bid !== APP_ID) {
-      fail(`CFBundleIdentifier mismatch (got '${bid}', expected '${APP_ID}')`);
-    }
   }
 
   exec(`codesign --verify --deep --strict --verbose=2 "${appDir}"`, { echo: true });

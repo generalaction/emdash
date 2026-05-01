@@ -93,6 +93,26 @@ export const AddProjectModal = observer(function AddProjectModal({
     });
   };
 
+  const handleEditConnection = (id: string) => {
+    const conn = appState.sshConnections.connections.find((c) => c.id === id);
+    if (!conn) return;
+    showSshConnModal({
+      initialConfig: conn,
+      onSuccess: () =>
+        showAddProjectModal({
+          strategy: 'ssh',
+          mode,
+          connectionId: id,
+        }),
+      onClose: () =>
+        showAddProjectModal({
+          strategy: 'ssh',
+          mode,
+          connectionId: id,
+        }),
+    });
+  };
+
   const { value: localProjectSettings } = useAppSettingsKey('localProject');
   const defaultPath =
     strategy === 'local' ? (localProjectSettings?.defaultProjectsDirectory ?? '') : '';
@@ -268,6 +288,7 @@ export const AddProjectModal = observer(function AddProjectModal({
               connectionId={selectedConnectionId}
               onConnectionIdChange={setConnectionId}
               onAddConnection={handleAddConnection}
+              onEditConnection={handleEditConnection}
             />
           </Field>
         )}

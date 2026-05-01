@@ -18,6 +18,7 @@ interface TaskContextMenuProps {
   onRename: () => void;
   onArchive: () => void;
   onRestore?: () => void;
+  onReconnect?: () => void;
   onDelete: () => void;
 }
 
@@ -31,6 +32,7 @@ export function TaskContextMenu({
   onRename,
   onArchive,
   onRestore,
+  onReconnect,
   onDelete,
 }: TaskContextMenuProps) {
   return (
@@ -53,6 +55,12 @@ export function TaskContextMenu({
           <Pencil className="size-4" />
           Rename
         </ContextMenuItem>
+        {onReconnect && (
+          <ContextMenuItem onClick={onReconnect}>
+            <RotateCcw className="size-4" />
+            Reconnect
+          </ContextMenuItem>
+        )}
         {!isArchived && (
           <ContextMenuItem onClick={onArchive}>
             <Archive className="size-4" />

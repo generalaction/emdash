@@ -39,10 +39,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   }
 
   if (kind === 'project-mounting' || kind === 'provisioning') {
+    const progressMessage = taskStore?.provisionProgressMessage ?? 'Setting up workspace…';
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">Setting up workspace…</p>
+        <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
       </div>
     );
   }
@@ -61,10 +62,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   }
 
   if (kind === 'idle' || kind === 'teardown') {
+    const progressMessage = taskStore?.provisionProgressMessage ?? 'Setting up workspace…';
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">Setting up workspace…</p>
+        <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
       </div>
     );
   }

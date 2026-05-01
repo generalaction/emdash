@@ -1,5 +1,5 @@
 import { ExternalLink } from 'lucide-react';
-import { type PullRequest } from '@shared/pull-requests';
+import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
@@ -28,7 +28,7 @@ export function PrBadge({ variant = 'default', pr, className }: PrBadgeProps) {
             )}
           >
             <StatusIcon className="size-3" status={pr.status} disableTooltip />
-            <PrNumberBadge number={pr.metadata.number} className="text-[10px]" />
+            <PrNumberBadge number={getPrNumber(pr) ?? 0} className="text-[10px]" />
             <span className="text-xs text-foreground-muted truncate">{pr.title}</span>
           </div>
         );
@@ -52,7 +52,7 @@ export function PrBadge({ variant = 'default', pr, className }: PrBadgeProps) {
               <span className="text-sm text-foreground leading-snug truncate min-w-0">
                 {pr.title}
               </span>
-              <PrNumberBadge number={pr.metadata.number} />
+              <PrNumberBadge number={getPrNumber(pr) ?? 0} />
               <Tooltip>
                 <TooltipTrigger>
                   <Button

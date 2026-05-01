@@ -44,6 +44,7 @@ jspm_packages/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 
 # IDE
 .vscode/
@@ -68,3 +69,5 @@ Thumbs.db
 .env
 .cursor
 .codex/config.toml
+
+src/main/appConfig.json

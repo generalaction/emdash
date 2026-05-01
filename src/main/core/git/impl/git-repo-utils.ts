@@ -3,12 +3,13 @@
  * belong on the path-scoped GitService (e.g. cloning, initial project setup,
  * fetching PR refs).
  *
- * All functions accept an ExecFn + FileSystemProvider so they remain testable
+ * All functions accept an IExecutionContext so they remain testable
  * without touching the real filesystem or spawning real processes.
  */
 
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { ExecFn } from '@main/core/utils/exec';
+import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 
 // ---------------------------------------------------------------------------
 // cloneRepository
@@ -17,14 +18,15 @@ import type { ExecFn } from '@main/core/utils/exec';
 /**
  * Clone a git repository to a local path.
  * The caller is responsible for ensuring the parent directory exists.
+ * The context's root is used as the working directory for the clone command.
  */
 export async function cloneRepository(
   repoUrl: string,
   localPath: string,
-  exec: ExecFn
+  ctx: IExecutionContext
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await exec('git', ['clone', repoUrl, localPath]);
+    await ctx.exec(GIT_EXECUTABLE, ['clone', repoUrl, localPath]);
     return { success: true };
   } catch (error) {
     return {
@@ -47,6 +49,7 @@ export interface InitializeNewProjectParams {
 
 /**
  * Initialize a freshly-cloned (empty) project with a README and initial commit.
+ * The context must be rooted at `localPath` so git commands run there directly.
  *
  * Steps:
  *  1. Write a README.md
@@ -56,10 +59,10 @@ export interface InitializeNewProjectParams {
  */
 export async function initializeNewProject(
   params: InitializeNewProjectParams,
-  exec: ExecFn,
+  ctx: IExecutionContext,
   fs: FileSystemProvider
 ): Promise<void> {
-  const { localPath, name, description } = params;
+  const { name, description } = params;
 
   const exists = await fs.exists('.');
   if (!exists) {
@@ -69,44 +72,16 @@ export async function initializeNewProject(
   const readmeContent = description ? `# ${name}\n\n${description}\n` : `# ${name}\n`;
   await fs.write('README.md', readmeContent);
 
-  const opts = { cwd: localPath };
-  await exec('git', ['add', 'README.md'], opts);
-  await exec('git', ['commit', '-m', 'Initial commit'], opts);
+  await ctx.exec(GIT_EXECUTABLE, ['add', 'README.md']);
+  await ctx.exec(GIT_EXECUTABLE, ['commit', '-m', 'Initial commit']);
 
   try {
-    await exec('git', ['push', '-u', 'origin', 'main'], opts);
+    await ctx.exec(GIT_EXECUTABLE, ['push', '-u', 'origin', 'main']);
   } catch {
     try {
-      await exec('git', ['push', '-u', 'origin', 'master'], opts);
+      await ctx.exec(GIT_EXECUTABLE, ['push', '-u', 'origin', 'master']);
     } catch {
       throw new Error('Failed to push to remote repository');
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// ensurePullRequestBranch
-// ---------------------------------------------------------------------------
-
-/**
- * Fetch a pull request head ref into a local branch.
- *
- * Runs:
- *   git fetch origin refs/pull/{prNumber}/head:refs/heads/{safeBranch} --force
- */
-export async function ensurePullRequestBranch(
-  projectPath: string,
-  prNumber: number,
-  branchName: string,
-  exec: ExecFn
-): Promise<string> {
-  const safeBranch = branchName || `pr/${prNumber}`;
-
-  await exec(
-    'git',
-    ['fetch', 'origin', `refs/pull/${prNumber}/head:refs/heads/${safeBranch}`, '--force'],
-    { cwd: projectPath }
-  );
-
-  return safeBranch;
 }

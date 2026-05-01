@@ -1,83 +1,156 @@
+import { RequestError } from '@octokit/request-error';
 import { createRPCController } from '@shared/ipc/rpc';
-import type { ListPrOptions } from '@shared/pull-requests';
-import { parseNameWithOwner } from '@main/core/github/services/utils';
-import { projectManager } from '@main/core/projects/project-manager';
+import type { ListPrOptions, PullRequestError, PullRequestFile } from '@shared/pull-requests';
+import { err, ok } from '@shared/result';
 import { log } from '@main/lib/logger';
 import { capture } from '@main/lib/telemetry';
-import { prService } from './pr-service';
+import { prQueryService } from './pr-query-service';
+import { prSyncEngine } from './pr-sync-engine';
 
 export const pullRequestController = createRPCController({
-  getNameWithOwner: async (projectId: string) => {
-    const project = projectManager.getProject(projectId);
-    if (!project) return { status: 'no_remote' as const };
-    const remoteState = await project.getRemoteState();
-    if (!remoteState.hasRemote) return { status: 'no_remote' as const };
-    if (!remoteState.selectedRemoteUrl) return { status: 'unsupported_remote' as const };
+  // ── DB-cached reads ────────────────────────────────────────────────────────
 
-    const nameWithOwner = parseNameWithOwner(remoteState.selectedRemoteUrl);
-    if (!nameWithOwner) return { status: 'unsupported_remote' as const };
-
-    return { status: 'ready' as const, nameWithOwner };
-  },
-
-  // ── DB-cached reads ────────────────────────────────────────────────────
-  listPullRequests: async (
-    projectId: string,
-    nameWithOwner: string,
-    options?: ListPrOptions,
-    invalidate = false
-  ) => {
+  listPullRequests: async (projectId: string, options?: ListPrOptions) => {
     try {
-      const { prs, syncing } = await prService.listPullRequests(
-        projectId,
-        nameWithOwner,
-        options,
-        invalidate
-      );
-      return { success: true, prs, totalCount: prs.length, syncing };
+      const prs = await prQueryService.listPullRequests(projectId, options);
+      return ok({ prs, totalCount: prs.length });
     } catch (error) {
       log.error('Failed to list pull requests:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to list pull requests',
-      };
+      return err<PullRequestError>({
+        type: 'list_failed',
+        message: error instanceof Error ? error.message : 'Unable to list pull requests',
+      });
     }
   },
 
-  getFilterOptions: async (nameWithOwner: string) => {
+  getFilterOptions: async (projectId: string) => {
     try {
-      const options = await prService.getFilterOptions(nameWithOwner);
-      return { success: true, ...options };
+      const options = await prQueryService.getFilterOptions(projectId);
+      return ok(options);
     } catch (error) {
       log.error('Failed to get PR filter options:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to get filter options',
-      };
+      return err<PullRequestError>({
+        type: 'filter_options_failed',
+        message: error instanceof Error ? error.message : 'Unable to get filter options',
+      });
     }
   },
 
-  getPullRequest: async (nameWithOwner: string, prNumber: number, invalidate = false) => {
+  getPullRequestsForTask: async (projectId: string, taskId: string) => {
     try {
-      const pr = await prService.getPullRequest(nameWithOwner, prNumber, invalidate);
-      if (!pr) return { success: false, error: 'Pull request not found' };
-      return { success: true, pr };
+      const capability = await prQueryService.getProjectRemoteInfo(projectId);
+      if (capability.status !== 'ready') {
+        return ok({ prs: [], taskBranch: null });
+      }
+
+      const { tasks } = await import('@main/db/schema');
+      const { eq } = await import('drizzle-orm');
+      const { db } = await import('@main/db/client');
+      const [taskRow] = await db
+        .select({ taskBranch: tasks.taskBranch })
+        .from(tasks)
+        .where(eq(tasks.id, taskId))
+        .limit(1);
+
+      if (!taskRow?.taskBranch) {
+        return ok({ prs: [], taskBranch: null });
+      }
+
+      const prs = await prQueryService.getTaskPullRequests(
+        projectId,
+        taskRow.taskBranch,
+        capability.repositoryUrl
+      );
+      return ok({ prs, taskBranch: taskRow.taskBranch });
     } catch (error) {
-      log.error('Failed to get pull request:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to get pull request',
-      };
+      log.error('Failed to get pull requests for task:', error);
+      return err<PullRequestError>({
+        type: 'task_pull_requests_failed',
+        message: error instanceof Error ? error.message : 'Unable to get task pull requests',
+      });
     }
   },
 
-  getPullRequestsForTask: async (projectId: string, taskId: string, invalidate = false) => {
-    return prService.getPullRequestsForTask(projectId, taskId, invalidate);
+  // ── Sync triggers ──────────────────────────────────────────────────────────
+
+  forceFullSyncPullRequests: async (projectId: string) => {
+    try {
+      const capability = await prQueryService.getProjectRemoteInfo(projectId);
+      if (capability.status !== 'ready') {
+        return err<PullRequestError>({ type: 'remote_not_ready', status: capability.status });
+      }
+      prSyncEngine.forceFullSync(capability.repositoryUrl);
+      return ok();
+    } catch (error) {
+      log.error('Failed to force full sync:', error);
+      return err<PullRequestError>({
+        type: 'sync_failed',
+        message: error instanceof Error ? error.message : 'Unable to force sync',
+      });
+    }
   },
 
-  // ── Mutations ──────────────────────────────────────────────────────────
+  syncPullRequests: async (projectId: string) => {
+    try {
+      log.info('PrController: syncPullRequests called', { projectId });
+      const capability = await prQueryService.getProjectRemoteInfo(projectId);
+      if (capability.status !== 'ready') {
+        log.warn('PrController: remote not ready, skipping sync', {
+          projectId,
+          status: capability.status,
+        });
+        return err<PullRequestError>({ type: 'remote_not_ready', status: capability.status });
+      }
+      log.info('PrController: triggering sync', {
+        projectId,
+        repositoryUrl: capability.repositoryUrl,
+      });
+      prSyncEngine.sync(capability.repositoryUrl);
+      return ok();
+    } catch (error) {
+      log.error('Failed to trigger sync:', error);
+      return err<PullRequestError>({
+        type: 'sync_failed',
+        message: error instanceof Error ? error.message : 'Unable to sync',
+      });
+    }
+  },
+
+  refreshPullRequest: async (repositoryUrl: string, prNumber: number) => {
+    try {
+      const pr = await prSyncEngine.syncSingle(repositoryUrl, prNumber);
+      return ok({ pr });
+    } catch (error) {
+      log.error('Failed to refresh pull request:', error);
+      return err<PullRequestError>({
+        type: 'refresh_failed',
+        message: error instanceof Error ? error.message : 'Unable to refresh pull request',
+      });
+    }
+  },
+
+  syncChecks: async (pullRequestUrl: string, headRefOid: string) => {
+    try {
+      const hasRunning = await prSyncEngine.syncChecks(pullRequestUrl, headRefOid);
+      return ok({ hasRunning });
+    } catch (error) {
+      log.error('Failed to sync checks:', error);
+      return err<PullRequestError>({
+        type: 'checks_failed',
+        message: error instanceof Error ? error.message : 'Unable to sync checks',
+      });
+    }
+  },
+
+  cancelSync: (repositoryUrl: string) => {
+    prSyncEngine.cancel(repositoryUrl);
+    return ok();
+  },
+
+  // ── Mutations ──────────────────────────────────────────────────────────────
+
   createPullRequest: async (params: {
-    nameWithOwner: string;
+    repositoryUrl: string;
     head: string;
     base: string;
     title: string;
@@ -85,116 +158,86 @@ export const pullRequestController = createRPCController({
     draft: boolean;
   }) => {
     try {
-      const result = await prService.createPullRequest(params);
+      const result = await prSyncEngine.createPullRequest(params);
+      if (!result.success) {
+        return err<PullRequestError>({ type: 'invalid_repository', input: result.error.input });
+      }
+      // Sync the newly created PR into the DB
+      void prSyncEngine.syncSingle(params.repositoryUrl, result.data.number);
       capture('pr_created', { is_draft: params.draft });
-      return { success: true, url: result.url, number: result.number };
+      return ok({ url: result.data.url, number: result.data.number });
     } catch (error) {
       log.error('Failed to create pull request:', error);
       capture('pr_creation_failed', {
         error_type: error instanceof Error ? error.name || 'error' : 'unknown_error',
       });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to create pull request',
-      };
+      const ghErrors =
+        error instanceof RequestError &&
+        Array.isArray((error.response?.data as { errors?: unknown[] } | undefined)?.errors)
+          ? (error.response!.data as { errors: { message?: string }[] }).errors
+          : undefined;
+      const message =
+        ghErrors?.[0]?.message ??
+        (error instanceof Error ? error.message : 'Unable to create pull request');
+      return err<PullRequestError>({ type: 'create_failed', message });
     }
   },
 
   mergePullRequest: async (
-    nameWithOwner: string,
+    repositoryUrl: string,
     prNumber: number,
     options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string }
   ) => {
     try {
-      const result = await prService.mergePullRequest(nameWithOwner, prNumber, options);
-      return { success: true, sha: result.sha, merged: result.merged };
+      const result = await prSyncEngine.mergePullRequest(repositoryUrl, prNumber, options);
+      if (!result.success) {
+        return err<PullRequestError>({ type: 'invalid_repository', input: result.error.input });
+      }
+      // Refresh the merged PR
+      void prSyncEngine.syncSingle(repositoryUrl, prNumber);
+      return ok({ sha: result.data.sha, merged: result.data.merged });
     } catch (error) {
       log.error('Failed to merge pull request:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to merge pull request',
-      };
+      return err<PullRequestError>({
+        type: 'merge_failed',
+        message: error instanceof Error ? error.message : 'Unable to merge pull request',
+      });
     }
   },
 
-  markReadyForReview: async (nameWithOwner: string, prNumber: number) => {
+  markReadyForReview: async (repositoryUrl: string, prNumber: number) => {
     try {
-      await prService.markReadyForReview(nameWithOwner, prNumber);
-      return { success: true };
+      const result = await prSyncEngine.markReadyForReview(repositoryUrl, prNumber);
+      if (!result.success) {
+        return err<PullRequestError>({ type: 'invalid_repository', input: result.error.input });
+      }
+      void prSyncEngine.syncSingle(repositoryUrl, prNumber);
+      return ok();
     } catch (error) {
       log.error('Failed to mark pull request ready for review:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to mark PR ready for review',
-      };
+      return err<PullRequestError>({
+        type: 'mark_ready_failed',
+        message: error instanceof Error ? error.message : 'Unable to mark PR ready for review',
+      });
     }
   },
 
-  // ── Pass-through reads ─────────────────────────────────────────────────
-  getCheckRuns: async (nameWithOwner: string, prNumber: number) => {
-    try {
-      const checks = await prService.getCheckRuns(nameWithOwner, prNumber);
-      return { success: true, checks };
-    } catch (error) {
-      log.error('Failed to get check runs:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to get check runs',
-      };
-    }
-  },
+  // ── Pass-through reads ─────────────────────────────────────────────────────
 
-  getPrComments: async (nameWithOwner: string, prNumber: number) => {
+  getPullRequestFiles: async (repositoryUrl: string, prNumber: number) => {
     try {
-      const result = await prService.getPrComments(nameWithOwner, prNumber);
-      return { success: true, ...result };
-    } catch (error) {
-      log.error('Failed to get PR comments:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to get PR comments',
-      };
-    }
-  },
-
-  getPullRequestFiles: async (nameWithOwner: string, prNumber: number) => {
-    try {
-      const files = await prService.getPullRequestFiles(nameWithOwner, prNumber);
-      return { success: true, files };
+      const result = await prSyncEngine.getPullRequestFiles(repositoryUrl, prNumber);
+      if (!result.success) {
+        return err<PullRequestError>({ type: 'invalid_repository', input: result.error.input });
+      }
+      const files: PullRequestFile[] = result.data;
+      return ok({ files });
     } catch (error) {
       log.error('Failed to get pull request files:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to get pull request files',
-      };
-    }
-  },
-
-  // ── Pass-through mutations ─────────────────────────────────────────────
-  addPrComment: async (nameWithOwner: string, prNumber: number, body: string) => {
-    try {
-      const result = await prService.addPrComment(nameWithOwner, prNumber, body);
-      return { success: true, id: result.id };
-    } catch (error) {
-      log.error('Failed to add PR comment:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to add comment',
-      };
-    }
-  },
-
-  // ── Bootstrap sync ─────────────────────────────────────────────────────
-  syncPullRequests: async (projectId: string, nameWithOwner: string) => {
-    try {
-      await prService.syncPullRequests(projectId, nameWithOwner);
-      return { success: true };
-    } catch (error) {
-      log.error('Failed to sync pull requests:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to sync pull requests',
-      };
+      return err<PullRequestError>({
+        type: 'files_failed',
+        message: error instanceof Error ? error.message : 'Unable to get pull request files',
+      });
     }
   },
 });

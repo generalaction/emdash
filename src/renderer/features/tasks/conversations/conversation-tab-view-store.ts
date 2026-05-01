@@ -1,6 +1,6 @@
 import { action, autorun, computed, makeObservable, observable, reaction } from 'mobx';
 import type { TabViewProvider, TabViewSnapshot } from '@renderer/lib/stores/generic-tab-view';
-import { Snapshottable } from '@renderer/lib/stores/snapshottable';
+import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
 import {
   reorderTabIds,
   setNextTabActive,

@@ -1,8 +1,22 @@
+import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import type { BranchesPayload, LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
+import { events } from '@main/lib/events';
 import { capture } from '@main/lib/telemetry';
+import type { GitRepositoryService } from '../git/repository-service';
 import { projectManager } from '../projects/project-manager';
+import { workspaceRegistry } from '../workspaces/workspace-registry';
+
+function resolveRepository(projectId: string, workspaceId?: string): GitRepositoryService {
+  const project = projectManager.getProject(projectId);
+  if (!project) throw new Error('Project not found');
+  if (workspaceId) {
+    const ws = workspaceRegistry.get(workspaceId);
+    if (ws) return ws.repository;
+  }
+  return project.repository;
+}
 
 export const repositoryController = createRPCController({
   getBranches: async (projectId: string): Promise<BranchesPayload> => {
@@ -13,16 +27,18 @@ export const repositoryController = createRPCController({
     return project.repository.getBranchesPayload();
   },
 
-  getLocalBranches: async (projectId: string): Promise<LocalBranchesPayload> => {
-    const project = projectManager.getProject(projectId);
-    if (!project) throw new Error('Project not found');
-    return project.repository.getLocalBranchesPayload();
+  getLocalBranches: async (
+    projectId: string,
+    workspaceId?: string
+  ): Promise<LocalBranchesPayload> => {
+    return resolveRepository(projectId, workspaceId).getLocalBranchesPayload();
   },
 
-  getRemoteBranches: async (projectId: string): Promise<RemoteBranchesPayload> => {
-    const project = projectManager.getProject(projectId);
-    if (!project) throw new Error('Project not found');
-    return project.repository.getRemoteBranchesPayload();
+  getRemoteBranches: async (
+    projectId: string,
+    workspaceId?: string
+  ): Promise<RemoteBranchesPayload> => {
+    return resolveRepository(projectId, workspaceId).getRemoteBranchesPayload();
   },
 
   getRemotes: async (projectId: string) => {
@@ -52,16 +68,50 @@ export const repositoryController = createRPCController({
     return ok({ remotePushed: result.data.remotePushed });
   },
 
-  fetch: async (projectId: string) => {
+  fetch: async (projectId: string, workspaceId?: string) => {
     const project = projectManager.getProject(projectId);
     if (!project) return err({ type: 'not_found' as const });
-    const result = await project.fetch();
+
+    let result;
+    if (workspaceId) {
+      const ws = workspaceRegistry.get(workspaceId);
+      result = ws ? await ws.fetchService.fetch() : await project.fetch();
+    } else {
+      result = await project.fetch();
+    }
+
     capture('vcs_fetch', {
       success: result.success,
       project_id: projectId,
       ...(result.success ? {} : { error_type: result.error.type }),
     });
+
     if (!result.success) return err(result.error);
+
+    if (workspaceId) {
+      events.emit(gitRefChangedChannel, { projectId, workspaceId, kind: 'remote-refs' });
+    }
+
     return ok();
+  },
+
+  fetchPrForReview: async (
+    projectId: string,
+    prNumber: number,
+    headRefName: string,
+    headRepositoryUrl: string,
+    isFork: boolean
+  ) => {
+    const project = projectManager.getProject(projectId);
+    if (!project) return err({ type: 'not_found' as const });
+    const result = await project.repository.fetchPrForReview(
+      prNumber,
+      headRefName,
+      headRepositoryUrl,
+      headRefName,
+      isFork
+    );
+    if (!result.success) return err(result.error);
+    return ok({ localBranch: headRefName });
   },
 });

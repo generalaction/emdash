@@ -1,0 +1,168 @@
+name: Release (Canary)
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: 'Architecture to build (arm64 | x64 | both)'
+        required: false
+        default: 'both'
+
+permissions:
+  contents: read
+
+jobs:
+  release-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libsecret-1-dev rpm
+      - uses: ./.github/actions/setup-build
+        with:
+          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          posthog-host: ${{ secrets.POSTHOG_HOST }}
+          build-variant: canary
+
+      - run: pnpm run build
+
+      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
+
+      - name: Build Linux packages
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform linux --arch x64
+          --config electron-builder.canary.config.ts
+
+      - uses: ./.github/actions/upload-r2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          channel: v1-canary
+          prefix: emdash-canary
+
+  release-win:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-build
+        with:
+          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          posthog-host: ${{ secrets.POSTHOG_HOST }}
+          build-variant: canary
+          windows-native: 'true'
+      - name: Export Python path for native modules
+        shell: bash
+        run: echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Build app
+        shell: bash
+        run: pnpm run build
+
+      - shell: bash
+        run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
+
+      - name: Check Azure Trusted Signing secrets
+        id: signing
+        shell: bash
+        env:
+          AZ_TENANT: ${{ secrets.AZURE_TENANT_ID }}
+          AZ_CLIENT: ${{ secrets.AZURE_CLIENT_ID }}
+          AZ_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          if [ -n "$AZ_TENANT" ] && [ -n "$AZ_CLIENT" ] && [ -n "$AZ_SECRET" ]; then
+            echo "has_signing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_signing=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Azure Trusted Signing secrets not configured. Windows build will be unsigned."
+          fi
+
+      - name: Build Windows packages
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform win --arch x64
+          --config electron-builder.canary.config.ts
+
+      - name: Verify Windows code signature
+        if: ${{ steps.signing.outputs.has_signing == 'true' }}
+        shell: bash
+        run: node --experimental-strip-types scripts/release/verify-win.ts
+
+      - name: Upload to R2
+        uses: ./.github/actions/upload-r2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          channel: v1-canary
+          prefix: emdash-canary
+
+  release-mac:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-build
+        with:
+          posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+          posthog-host: ${{ secrets.POSTHOG_HOST }}
+          build-variant: canary
+
+      - name: Import Apple signing certificate
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.CERTIFICATE_PASSWORD }}
+
+      - run: pnpm run build
+
+      - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
+
+      - name: Build signed DMGs + ZIPs
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'true'
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: >
+          node --experimental-strip-types scripts/release/build.ts
+          --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg,zip
+          --config electron-builder.canary.config.ts
+
+      - name: Verify macOS bundle
+        run: >
+          node --experimental-strip-types scripts/release/verify-mac.ts
+          --expected-team-id ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Notarize and staple
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: node --experimental-strip-types scripts/release/notarize-mac.ts --app-bundle "Emdash Canary.app"
+
+      - name: Upload to R2
+        uses: ./.github/actions/upload-r2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          channel: v1-canary
+          prefix: emdash-canary
