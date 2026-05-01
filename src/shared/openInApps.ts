@@ -30,6 +30,7 @@ const ICON_PATHS = {
   files: 'files.svg',
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
+  vscodium: 'vscodium.png',
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
   terminal: 'terminal.png',
@@ -114,6 +115,33 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['code {{path}}', 'code-insiders {{path}}'],
         checkCommands: ['code', 'code-insiders'],
+      },
+    },
+  },
+  vscodium: {
+    id: 'vscodium',
+    label: 'VSCodium',
+    iconPath: ICON_PATHS.vscodium,
+    autoInstall: true,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v codium >/dev/null 2>&1 && codium {{path}}',
+          'open -n -b com.vscodium --args {{path}}',
+          'open -n -a "VSCodium" {{path}}',
+        ],
+        checkCommands: ['codium'],
+        bundleIds: ['com.vscodium'],
+        appNames: ['VSCodium'],
+      },
+      win32: {
+        openCommands: ['start "" codium {{path}}'],
+        checkCommands: ['codium'],
+      },
+      linux: {
+        openCommands: ['codium {{path}}'],
+        checkCommands: ['codium'],
       },
     },
   },
