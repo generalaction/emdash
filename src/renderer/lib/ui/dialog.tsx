@@ -148,12 +148,7 @@ export function DialogContentArea({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={cn(
-        'flex min-h-0 w-full flex-1 flex-col gap-2 overflow-y-auto p-6 pt-0',
-        className
-      )}
-    >
+    <div className={cn('flex flex-col gap-2 w-full min-h-0 overflow-y-auto p-6 pt-0', className)}>
       {children}
     </div>
   );

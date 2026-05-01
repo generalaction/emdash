@@ -1,24 +1,52 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { X } from 'lucide-react';
-import type { Automation, AutomationRunStatus } from '@shared/automations/types';
+import { ChevronRight, X } from 'lucide-react';
+import type {
+  Automation,
+  AutomationRun,
+  AutomationRunStatus,
+  AutomationRunTriggerKind,
+} from '@shared/automations/types';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { cn } from '@renderer/utils/utils';
 import { useAutomationRuns } from '../useAutomations';
 
-function statusClass(status: AutomationRunStatus) {
+function statusDotClass(status: AutomationRunStatus) {
   switch (status) {
     case 'success':
-      return 'text-emerald-500 border-emerald-500/30 bg-emerald-500/10';
+      return 'bg-emerald-500';
     case 'failed':
-      return 'text-destructive border-destructive/30 bg-destructive/10';
+      return 'bg-destructive';
     case 'skipped':
-      return 'text-amber-500 border-amber-500/30 bg-amber-500/10';
+      return 'bg-amber-500';
     case 'running':
-      return 'text-blue-500 border-blue-500/30 bg-blue-500/10';
+      return 'bg-blue-500';
+  }
+}
+
+function statusLabel(status: AutomationRunStatus) {
+  switch (status) {
+    case 'success':
+      return 'Success';
+    case 'failed':
+      return 'Failed';
+    case 'skipped':
+      return 'Skipped';
+    case 'running':
+      return 'Running';
+  }
+}
+
+function triggerLabel(kind: AutomationRunTriggerKind) {
+  switch (kind) {
+    case 'cron':
+      return 'Schedule';
+    case 'manual':
+      return 'Manual';
+    case 'event':
+      return 'Event';
   }
 }
 
@@ -85,50 +113,23 @@ function DrawerContent({ automation, onClose }: { automation: Automation; onClos
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="flex-1 overflow-y-auto px-2 py-2">
         {runs.isPending ? (
           <div className="flex h-32 items-center justify-center">
             <Spinner />
           </div>
         ) : runs.data?.length ? (
-          <div className="overflow-hidden rounded-lg border border-border bg-muted/10">
-            {runs.data.map((run) => {
-              const taskId = run.taskId;
-              return (
-                <div
-                  key={run.id}
-                  className="border-b border-border px-3 py-2.5 transition-colors last:border-b-0 hover:bg-muted/30"
-                >
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn('shrink-0', statusClass(run.status))}>
-                      {run.status}
-                    </Badge>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {run.triggerKind}
-                    </span>
-                    {taskId && (
-                      <button
-                        type="button"
-                        className="font-mono text-xs text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-                        onClick={() =>
-                          navigate('task', { projectId: automation.projectId, taskId })
-                        }
-                      >
-                        {taskId.slice(0, 8)}
-                      </button>
-                    )}
-                    <RelativeTime
-                      value={run.startedAt}
-                      className="ml-auto shrink-0 text-xs text-muted-foreground"
-                      compact
-                      ago
-                    />
-                  </div>
-                  {run.error && <p className="mt-1.5 text-xs text-destructive">{run.error}</p>}
-                </div>
-              );
-            })}
-          </div>
+          <ul className="flex flex-col">
+            {runs.data.map((run) => (
+              <RunRow
+                key={run.id}
+                run={run}
+                onOpenTask={(taskId) =>
+                  navigate('task', { projectId: automation.projectId, taskId })
+                }
+              />
+            ))}
+          </ul>
         ) : (
           <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
             No runs yet.
@@ -136,5 +137,58 @@ function DrawerContent({ automation, onClose }: { automation: Automation; onClos
         )}
       </div>
     </>
+  );
+}
+
+function RunRow({ run, onOpenTask }: { run: AutomationRun; onOpenTask: (taskId: string) => void }) {
+  const taskId = run.taskId;
+  const interactive = Boolean(taskId);
+
+  const content = (
+    <>
+      <span
+        className={cn('size-2 shrink-0 rounded-full', statusDotClass(run.status))}
+        aria-hidden
+      />
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="truncate text-sm font-medium text-foreground">
+          {statusLabel(run.status)}
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground/60">·</span>
+        <span className="truncate text-xs text-muted-foreground">
+          {triggerLabel(run.triggerKind)}
+        </span>
+      </div>
+      <RelativeTime
+        value={run.startedAt}
+        className="shrink-0 text-xs text-muted-foreground"
+        compact
+        ago
+      />
+      {interactive ? (
+        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+      ) : (
+        <span className="size-3.5 shrink-0" aria-hidden />
+      )}
+    </>
+  );
+
+  return (
+    <li>
+      {interactive && taskId ? (
+        <button
+          type="button"
+          onClick={() => onOpenTask(taskId)}
+          className="group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-muted/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {content}
+        </button>
+      ) : (
+        <div className="flex items-center gap-3 px-3 py-2.5">{content}</div>
+      )}
+      {run.error && (
+        <p className="mx-3 mb-2 mt-0.5 line-clamp-2 text-xs text-destructive">{run.error}</p>
+      )}
+    </li>
   );
 }

@@ -1,13 +1,4 @@
-import {
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Filter,
-  FolderOpen,
-  Github,
-  Webhook,
-  X,
-} from 'lucide-react';
+import { ChevronDown, Clock, Filter, FolderOpen, Github, Webhook, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react';
 import {
@@ -463,38 +454,45 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
 
   return (
     <>
-      <DialogHeader className="flex items-center gap-2">
-        <ProjectSelector
-          value={effectiveProjectId}
-          onChange={setProjectId}
-          trigger={
-            <ComboboxTrigger className="h-6 flex items-center gap-2 border border-border rounded-md px-2.5 py-1 text-sm outline-none">
-              <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
-              <ComboboxValue placeholder="Select a project" />
-            </ComboboxTrigger>
-          }
-        />
-        <ChevronRight className="size-3.5 text-foreground-passive" />
+      <DialogHeader>
         <DialogTitle>{isEdit ? 'Edit automation' : 'New automation'}</DialogTitle>
       </DialogHeader>
       <DialogContentArea>
         <FieldGroup>
-          <Field>
-            <FieldLabel>Name</FieldLabel>
-            <Input
-              autoFocus={name.trim().length === 0}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                  event.preventDefault();
-                  void handleSave();
+          <div className="grid grid-cols-2 gap-3">
+            <Field>
+              <FieldLabel>Project</FieldLabel>
+              <ProjectSelector
+                value={effectiveProjectId}
+                onChange={setProjectId}
+                trigger={
+                  <ComboboxTrigger className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-sm outline-none hover:bg-muted/40 data-popup-open:bg-muted/40">
+                    <span className="inline-flex min-w-0 items-center gap-2">
+                      <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
+                      <ComboboxValue placeholder="Select a project" />
+                    </span>
+                    <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
+                  </ComboboxTrigger>
                 }
-              }}
-              placeholder="Name this automation"
-              maxLength={AUTOMATION_NAME_MAX_LENGTH}
-            />
-          </Field>
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Name</FieldLabel>
+              <Input
+                autoFocus={name.trim().length === 0}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    event.preventDefault();
+                    void handleSave();
+                  }
+                }}
+                placeholder="Name this automation"
+                maxLength={AUTOMATION_NAME_MAX_LENGTH}
+              />
+            </Field>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Field>
