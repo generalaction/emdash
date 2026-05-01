@@ -209,7 +209,7 @@ class AppService {
 
     const { host, username, port } = connection;
 
-    if (appId === 'vscode' || appId === 'cursor') {
+    if (appId === 'vscode' || appId === 'vscodium' || appId === 'cursor') {
       await shell.openExternal(buildRemoteEditorUrl(appId, host, username, target));
       return;
     }
