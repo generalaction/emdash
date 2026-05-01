@@ -46,10 +46,14 @@ export function buildInitialPrompt(prompt: string, images: InitialPromptImage[])
   return [trimmedPrompt, 'Attached images:', imagePrompt].filter(Boolean).join('\n\n');
 }
 
+function imageDisplayName(file: File, index: number): string {
+  return file.name === 'image.png' ? `Pasted image ${index + 1}.png` : file.name;
+}
+
 export async function getInitialPromptImages(files: File[]): Promise<InitialPromptImage[]> {
   return Promise.all(
-    files.map(async (file) => ({
-      name: file.name,
+    files.map(async (file, index) => ({
+      name: imageDisplayName(file, index),
       path: await window.electronAPI.getPathForFileOrSave(file),
     }))
   );
@@ -188,14 +192,14 @@ export function InitialConversationField({
                   className="truncate text-left text-foreground-muted hover:text-foreground"
                   onClick={() => openPreview(file)}
                 >
-                  {file.name}
+                  {imageDisplayName(file, index)}
                 </button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-xs"
                   onClick={() => state.removeImageAttachment(index)}
-                  aria-label={`Remove ${file.name}`}
+                  aria-label={`Remove ${imageDisplayName(file, index)}`}
                 >
                   <X className="size-3" />
                 </Button>

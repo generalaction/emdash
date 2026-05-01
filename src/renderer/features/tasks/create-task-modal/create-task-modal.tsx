@@ -9,6 +9,7 @@ import {
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -97,6 +98,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const isUnborn = repo?.isUnborn ?? false;
   const currentBranch = repo?.currentBranch ?? null;
   const { navigate } = useNavigate();
+  const { toast } = useToast();
 
   const repositoryUrl = selectedProjectId
     ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
@@ -120,10 +122,20 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
-    const initialPrompt = buildInitialPrompt(
-      initialConversation.prompt,
-      await getInitialPromptImages(initialConversation.imageAttachments)
-    );
+    let initialPrompt: string;
+    try {
+      initialPrompt = buildInitialPrompt(
+        initialConversation.prompt,
+        await getInitialPromptImages(initialConversation.imageAttachments)
+      );
+    } catch (error) {
+      toast({
+        title: 'Failed to attach images',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+      return;
+    }
     const builtInitialConversation =
       initialConversation.provider && initialPrompt
         ? {
@@ -217,6 +229,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     activeMode.taskName,
     navigate,
     onClose,
+    toast,
   ]);
 
   return (
