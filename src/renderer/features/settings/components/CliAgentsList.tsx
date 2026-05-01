@@ -10,7 +10,6 @@ import type { DependencyState } from '@shared/dependencies';
 import { type CliAgentStatus } from '@renderer/features/settings/components/connections';
 import CustomCommandModal from '@renderer/features/settings/components/CustomCommandModal';
 import IntegrationRow from '@renderer/features/settings/components/IntegrationRow';
-import { filterByQuery } from '@renderer/features/settings/settings-search-index';
 import { getAgentInstallErrorMessage } from '@renderer/lib/components/agent-selector/agent-install';
 import { AgentInstallButton } from '@renderer/lib/components/agent-selector/agent-install-button';
 import { useToast } from '@renderer/lib/hooks/use-toast';
@@ -133,23 +132,18 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
   );
 };
 
-interface CliAgentsListProps {
-  filterQuery?: string;
-}
-
-export const CliAgentsList: React.FC<CliAgentsListProps> = observer(({ filterQuery = '' }) => {
+export const CliAgentsList: React.FC = observer(() => {
   const [customModalAgentId, setCustomModalAgentId] = useState<string | null>(null);
   const { toast } = useToast();
   const agentStatuses = appState.dependencies.agentStatuses;
 
   const sortedAgents = useMemo(() => {
-    const list = mapDependencyStatesToCli(agentStatuses).sort((a, b) => {
+    return mapDependencyStatesToCli(agentStatuses).sort((a, b) => {
       if (a.status === 'connected' && b.status !== 'connected') return -1;
       if (b.status === 'connected' && a.status !== 'connected') return 1;
       return a.name.localeCompare(b.name);
     });
-    return filterByQuery(list, filterQuery, (agent) => [agent.id, agent.name]);
-  }, [agentStatuses, filterQuery]);
+  }, [agentStatuses]);
 
   const handleInstall = useCallback(
     async (agent: CliAgentStatus) => {
