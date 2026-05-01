@@ -114,7 +114,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   }[selectedStrategy];
   const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable;
 
-  const handleCreateTask = useCallback(() => {
+  const handleCreateTask = useCallback(async () => {
     if (!selectedProjectId) return;
     const id = crypto.randomUUID();
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
@@ -122,7 +122,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
     const initialPrompt = buildInitialPrompt(
       initialConversation.prompt,
-      getInitialPromptImages(initialConversation.imageAttachments)
+      await getInitialPromptImages(initialConversation.imageAttachments)
     );
     const builtInitialConversation =
       initialConversation.provider && initialPrompt

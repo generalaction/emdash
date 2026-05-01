@@ -46,11 +46,13 @@ export function buildInitialPrompt(prompt: string, images: InitialPromptImage[])
   return [trimmedPrompt, 'Attached images:', imagePrompt].filter(Boolean).join('\n\n');
 }
 
-export function getInitialPromptImages(files: File[]): InitialPromptImage[] {
-  return files.map((file) => ({
-    name: file.name,
-    path: window.electronAPI.getPathForFile(file),
-  }));
+export async function getInitialPromptImages(files: File[]): Promise<InitialPromptImage[]> {
+  return Promise.all(
+    files.map(async (file) => ({
+      name: file.name,
+      path: await window.electronAPI.getPathForFileOrSave(file),
+    }))
+  );
 }
 
 export function useInitialConversationState(connectionId?: string): InitialConversationState {
