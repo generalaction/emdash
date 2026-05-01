@@ -56,7 +56,7 @@ export const ContextBar = observer(function ContextBar() {
 
   return (
     <TooltipProvider>
-      <div className="border-t border-border px-2 flex items-center gap-2 h-[41px]">
+      <div className="border-t border-border px-2 flex items-center gap-2 h-[41px] overflow-x-auto whitespace-nowrap">
         {templateActions.map((action) => (
           <Tooltip key={action.id}>
             <TooltipTrigger>
@@ -65,7 +65,7 @@ export const ContextBar = observer(function ContextBar() {
                 size="sm"
                 disabled={!canApplyContext || isLoadingTemplates}
                 onClick={() => void applyContext(action)}
-                className="h-7 max-w-full rounded-md bg-background-1 px-2 text-xs font-normal hover:bg-background-1/80"
+                className="h-7 max-w-full shrink-0 rounded-md bg-background-1 px-2 text-xs font-normal hover:bg-background-1/80"
               >
                 <FileSearch className="size-3.5 shrink-0" />
                 <span className="max-w-72 truncate">{action.label}</span>
@@ -87,7 +87,7 @@ export const ContextBar = observer(function ContextBar() {
                 size="sm"
                 disabled={!canApplyContext}
                 onClick={() => void applyContext(issueAction)}
-                className="h-7 max-w-full rounded-md bg-background-1 px-2 text-xs font-normal hover:bg-background-1/80"
+                className="h-7 max-w-full shrink-0 rounded-md bg-background-1 px-2 text-xs font-normal hover:bg-background-1/80"
               >
                 {issueAction.provider ? (
                   <ProviderLogo provider={issueAction.provider} className="h-3.5 w-3.5" />
