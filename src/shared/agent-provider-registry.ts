@@ -78,7 +78,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['codex'],
     versionArgs: ['--version'],
     cli: 'codex',
-    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+    autoApproveFlag: '--full-auto',
     initialPromptFlag: '',
     resumeFlag: 'resume --last',
     icon: 'openai.svg',
