@@ -2,7 +2,7 @@ import { Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
-import { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
+import { type ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';

@@ -1,8 +1,8 @@
 import { BrowserWindow } from 'electron';
-import { AgentProviderId } from '@shared/agent-provider-registry';
+import { type AgentProviderId } from '@shared/agent-provider-registry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
-import { Pty } from '@main/core/pty/pty';
+import { type Pty } from '@main/core/pty/pty';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { createClassifier } from './classifiers';

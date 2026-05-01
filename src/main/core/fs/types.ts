@@ -268,6 +268,14 @@ export interface FileSystemProvider {
   mkdir(diPath: string, options?: { recursive?: boolean }): Promise<void>;
 
   /**
+   * Copy an absolute local file into this filesystem at the given relative path.
+   * For SSH: transfers via SFTP fastPut. For local: delegates to fs.copyFile.
+   * @param localAbsPath - Absolute path of the source file on the local machine
+   * @param destRelPath  - Destination path relative to this filesystem's root
+   */
+  copyLocalFile?(localAbsPath: string, destRelPath: string): Promise<void>;
+
+  /**
    * Watch the worktree for filesystem changes. Returns a FileWatcher handle;
    * call update() to hint which paths matter (SSH uses this for polling),
    * call close() to stop. Batches events and delivers them via callback.

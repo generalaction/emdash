@@ -9,6 +9,7 @@ export const AGENT_PROVIDER_IDS = [
   'copilot',
   'amp',
   'opencode',
+  'hermes',
   'charm',
   'auggie',
   'goose',
@@ -220,6 +221,25 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'opencode.png',
     alt: 'OpenCode CLI',
     invertInDark: true,
+    terminalOnly: true,
+  },
+  {
+    id: 'hermes',
+    name: 'Hermes Agent',
+    description:
+      'Nous Research terminal agent with interactive chat, model-provider routing, skills, and session workflows.',
+    docUrl: 'https://hermes-agent.nousresearch.com/docs/',
+    installCommand:
+      'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash',
+    commands: ['hermes'],
+    versionArgs: ['--version'],
+    cli: 'hermes',
+    autoApproveFlag: '--yolo',
+    initialPromptFlag: '',
+    useKeystrokeInjection: true,
+    resumeFlag: '--continue',
+    icon: 'hermesagent.jpg',
+    alt: 'Hermes Agent CLI',
     terminalOnly: true,
   },
   {

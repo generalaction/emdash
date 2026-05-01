@@ -5,9 +5,9 @@
 
 import type { SFTPWrapper } from 'ssh2';
 import type { FileWatchEvent } from '@shared/fs';
+import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
-import { quoteShellArg } from '../../../utils/shellEscape';
-import type { SshClientProxy } from '../../ssh/ssh-client-proxy';
+import { quoteShellArg } from '@main/utils/shellEscape';
 import {
   DEFAULT_EMDASH_CONFIG,
   FileSystemError,
@@ -18,6 +18,7 @@ import {
   type FileWatcher,
   type ListOptions,
   type ReadResult,
+  type SearchMatch,
   type SearchOptions,
   type SearchResult,
   type WriteResult,
@@ -483,6 +484,14 @@ export class SshFileSystem implements FileSystemProvider {
     }
   }
 
+  async copyLocalFile(localAbsPath: string, destRelPath: string): Promise<void> {
+    const sftp = await this.getSftp();
+    const remoteFull = this.resolveRemotePath(destRelPath);
+    await new Promise<void>((resolve, reject) => {
+      sftp.fastPut(localAbsPath, remoteFull, (e) => (e ? reject(e) : resolve()));
+    });
+  }
+
   async copyFile(src: string, dest: string): Promise<void> {
     const fullSrc = this.resolveRemotePath(src);
     const fullDest = this.resolveRemotePath(dest);
@@ -561,7 +570,7 @@ export class SshFileSystem implements FileSystemProvider {
         return { matches: [], total: 0, filesSearched: 0 };
       }
 
-      const matches: import('../types').SearchMatch[] = [];
+      const matches: SearchMatch[] = [];
       const lines = result.stdout.split('\n').filter((line) => line.trim());
       const seenFiles = new Set<string>();
 
@@ -811,7 +820,7 @@ export class SshFileSystem implements FileSystemProvider {
 
     // Handle absolute paths (should not escape base)
     if (normalized.startsWith('/')) {
-      const resolved = normalized;
+      const resolved = this.normalizePosixPath(normalized);
       // Security: ensure resolved path is within remotePath base
       if (!this.isWithinBase(resolved)) {
         throw new FileSystemError(
@@ -823,8 +832,9 @@ export class SshFileSystem implements FileSystemProvider {
       return resolved;
     }
 
-    // Join with base path
-    const fullPath = `${this.remotePath}/${normalized}`.replace(/\/+/g, '/');
+    // Join with base path and normalize away any '.' segments (e.g. when relPath is '.')
+    const joined = `${this.remotePath}/${normalized}`.replace(/\/+/g, '/');
+    const fullPath = this.normalizePosixPath(joined);
 
     // Security: ensure path is within basePath
     if (!this.isWithinBase(fullPath)) {
@@ -836,6 +846,18 @@ export class SshFileSystem implements FileSystemProvider {
     }
 
     return fullPath;
+  }
+
+  /** Remove single-dot segments from a POSIX path (e.g. /a/./b → /a/b). */
+  private normalizePosixPath(p: string): string {
+    const parts = p.split('/');
+    const out: string[] = [];
+    for (const seg of parts) {
+      if (seg === '.') continue;
+      out.push(seg);
+    }
+    // Re-join and collapse any double slashes introduced by the filter
+    return out.join('/').replace(/\/+/g, '/') || '/';
   }
 
   /**

@@ -36,6 +36,8 @@ export const AGENT_ENV_VARS = [
   'NO_PROXY',
   'OPENAI_API_KEY',
   'OPENAI_BASE_URL',
+  'OPENROUTER_API_KEY',
+  'OPENROUTER_BASE_URL',
 ] as const;
 
 const DISPLAY_ENV_VARS = [

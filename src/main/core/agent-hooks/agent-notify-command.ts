@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, win32 } from 'node:path';
 import { log } from '@main/lib/logger';
+import openCodePluginContent from './opencode-notifications-plugin.js?raw';
 
 export type CodexNotifyCommandOptions = {
   platform?: NodeJS.Platform;
@@ -22,6 +23,10 @@ export function makeClaudeHookCommand(eventType: string): string {
     '-d @- ' +
     '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true'
   );
+}
+
+export function makeOpenCodePluginContent(): string {
+  return openCodePluginContent;
 }
 
 function makePosixCodexNotifyCommand(): string[] {

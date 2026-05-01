@@ -16,7 +16,7 @@ export interface InlineIssueSelectorProps {
   value: Issue | null;
   onValueChange: (issue: Issue | null) => void;
   projectId?: string;
-  nameWithOwner?: string;
+  repositoryUrl?: string;
   projectPath?: string;
   disabled?: boolean;
 }
@@ -25,7 +25,7 @@ export function InlineIssueSelector({
   value,
   onValueChange,
   projectId,
-  nameWithOwner = '',
+  repositoryUrl = '',
   projectPath = '',
   disabled,
 }: InlineIssueSelectorProps) {
@@ -38,7 +38,7 @@ export function InlineIssueSelector({
     connectedProviderCount,
     handleSetSearchTerm,
     setSelectedIssueProvider,
-  } = useIssueSearch(nameWithOwner, projectPath, projectId);
+  } = useIssueSearch(repositoryUrl, projectPath, projectId);
 
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
