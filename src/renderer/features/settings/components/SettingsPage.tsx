@@ -1,5 +1,7 @@
 import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
+import { getEmdashStableDownloadUrl } from '@shared/urls';
+import { DeprecationBanner } from '@renderer/app/deprecation-banner';
 import { rpc } from '@renderer/lib/ipc';
 import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
@@ -17,6 +19,8 @@ import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
 import { UpdateCard } from './UpdateCard';
+
+const STABLE_DOWNLOAD_URL = getEmdashStableDownloadUrl('settings-general-deprecation-notice');
 
 export type SettingsPageTab =
   | 'general'
@@ -42,6 +46,10 @@ export function SettingsPage({
 }) {
   const handleDocsClick = useCallback(() => {
     rpc.app.openExternal('https://docs.emdash.sh');
+  }, []);
+
+  const handleStableDownloadClick = useCallback((url: string) => {
+    void rpc.app.openExternal(url).catch(() => {});
   }, []);
 
   const tabs: Array<{
@@ -80,6 +88,15 @@ export function SettingsPage({
         },
         {
           component: <UpdateCard />,
+        },
+        {
+          component: (
+            <DeprecationBanner
+              downloadUrl={STABLE_DOWNLOAD_URL}
+              onDownloadStable={handleStableDownloadClick}
+              placement="settings"
+            />
+          ),
         },
       ],
     },
@@ -178,8 +195,8 @@ export function SettingsPage({
                   </div>
                   <Separator />
                 </div>
-                {currentContent.sections.map((section) => (
-                  <div key={section.title} className="flex flex-col gap-3">
+                {currentContent.sections.map((section, index) => (
+                  <div key={section.title ?? index} className="flex flex-col gap-3">
                     {section.title && (
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-normal text-foreground">{section.title}</h3>
