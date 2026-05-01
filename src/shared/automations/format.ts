@@ -1,4 +1,5 @@
 import type { AutomationEventKind } from '@shared/automations/events';
+import { getLocalTimeZone } from '@shared/automations/timezone';
 import type { TriggerSpec } from '@shared/automations/types';
 
 const dayNames = [
@@ -124,7 +125,74 @@ function dayDescriptionSuffix(desc: DayOfWeekDesc): string | null {
   }
 }
 
-export function formatCronLabel(expr: string): string {
+function getTzOffsetMinutes(date: Date, tz: string): number {
+  try {
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    });
+    const parts = dtf.formatToParts(date);
+    const get = (type: string) => {
+      const part = parts.find((p) => p.type === type);
+      return part ? parseInt(part.value, 10) : 0;
+    };
+    const asUTC = Date.UTC(
+      get('year'),
+      get('month') - 1,
+      get('day'),
+      get('hour'),
+      get('minute'),
+      get('second')
+    );
+    return (asUTC - date.getTime()) / 60000;
+  } catch {
+    return 0;
+  }
+}
+
+interface ShiftedWallTime {
+  hour: number;
+  minute: number;
+  dayShift: number;
+}
+
+function shiftWallTimeToLocal(
+  hour: number,
+  minute: number,
+  fromTz: string
+): ShiftedWallTime | null {
+  const localTz = getLocalTimeZone();
+  if (fromTz === localTz) return { hour, minute, dayShift: 0 };
+  const ref = new Date();
+  const fromOffset = getTzOffsetMinutes(ref, fromTz);
+  const toOffset = getTzOffsetMinutes(ref, localTz);
+  if (fromOffset === toOffset) return { hour, minute, dayShift: 0 };
+  const total = hour * 60 + minute + (toOffset - fromOffset);
+  const dayShift = Math.floor(total / 1440);
+  const wrapped = ((total % 1440) + 1440) % 1440;
+  return { hour: Math.floor(wrapped / 60), minute: wrapped % 60, dayShift };
+}
+
+function shiftDayOfWeekDesc(desc: DayOfWeekDesc, shift: number): DayOfWeekDesc {
+  if (shift === 0 || desc.kind === 'all') return desc;
+  const source =
+    desc.kind === 'weekdays' ? [1, 2, 3, 4, 5] : desc.kind === 'weekends' ? [0, 6] : desc.days;
+  const shifted = Array.from(new Set(source.map((d) => (((d + shift) % 7) + 7) % 7))).sort(
+    (a, b) => a - b
+  );
+  const eq = (a: number[], b: number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+  if (eq(shifted, [1, 2, 3, 4, 5])) return { kind: 'weekdays' };
+  if (eq(shifted, [0, 6])) return { kind: 'weekends' };
+  return { kind: 'list', days: shifted };
+}
+
+export function formatCronLabel(expr: string, tz?: string): string {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return expr;
   const [min, hour, dom, mon, dow] = parts;
@@ -133,7 +201,14 @@ export function formatCronLabel(expr: string): string {
 
   if (mon === '*' && dow === '*' && /^\d+$/.test(dom) && minNum !== null && hourNum !== null) {
     const day = parseInt(dom, 10);
-    const time = formatTimeOfDay(hourNum, minNum);
+    const shifted = tz ? shiftWallTimeToLocal(hourNum, minNum, tz) : null;
+    const localHour = shifted?.hour ?? hourNum;
+    const localMinute = shifted?.minute ?? minNum;
+    const time = formatTimeOfDay(localHour, localMinute);
+    const localDay = day + (shifted?.dayShift ?? 0);
+    if (localDay >= 1 && localDay <= 28) {
+      return `Monthly on the ${ordinal(localDay)} at ${time}`;
+    }
     return `Monthly on the ${ordinal(day)} at ${time}`;
   }
 
@@ -164,9 +239,13 @@ export function formatCronLabel(expr: string): string {
   }
 
   if (minNum !== null && hourNum !== null) {
-    const time = formatTimeOfDay(hourNum, minNum);
-    if (dowDesc.kind === 'all') return `Daily at ${time}`;
-    const prefix = dayDescriptionPrefix(dowDesc);
+    const shifted = tz ? shiftWallTimeToLocal(hourNum, minNum, tz) : null;
+    const localHour = shifted?.hour ?? hourNum;
+    const localMinute = shifted?.minute ?? minNum;
+    const localDow = shifted ? shiftDayOfWeekDesc(dowDesc, shifted.dayShift) : dowDesc;
+    const time = formatTimeOfDay(localHour, localMinute);
+    if (localDow.kind === 'all') return `Daily at ${time}`;
+    const prefix = dayDescriptionPrefix(localDow);
     return prefix ? `${prefix} at ${time}` : expr;
   }
 
@@ -199,7 +278,9 @@ export function formatEventLabel(event: AutomationEventKind): string {
 }
 
 export function formatTriggerLabel(trigger: TriggerSpec): string {
-  return trigger.kind === 'cron' ? formatCronLabel(trigger.expr) : formatEventLabel(trigger.event);
+  return trigger.kind === 'cron'
+    ? formatCronLabel(trigger.expr, trigger.tz)
+    : formatEventLabel(trigger.event);
 }
 
 export type ScheduleKind = 'daily' | 'weekdays' | 'weekends' | 'weekly' | 'hourly' | 'interval';
