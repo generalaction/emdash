@@ -62,14 +62,8 @@ export async function getInitialPromptImages(files: File[]): Promise<InitialProm
 export function useInitialConversationState(connectionId?: string): InitialConversationState {
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId);
   const [prompt, setPrompt] = useState('');
-  const {
-    attachments,
-    removeAttachment,
-    handlePaste,
-    handleDrop,
-    handleDragOver,
-    reset,
-  } = useAttachments();
+  const { attachments, removeAttachment, handlePaste, handleDrop, handleDragOver, reset } =
+    useAttachments();
   return {
     provider: providerId,
     setProvider: setProviderOverride,

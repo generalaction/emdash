@@ -8,8 +8,8 @@ import {
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useToast } from '@renderer/lib/hooks/use-toast';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
