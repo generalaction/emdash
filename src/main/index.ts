@@ -3,6 +3,7 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { registerRPCRouter } from '@shared/ipc/rpc';
+import { STARTER_PROMPT_TEMPLATES } from '@shared/prompt-templates';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
@@ -30,25 +31,6 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
 }
 
-const DEFAULT_PROMPT_TEMPLATES = [
-  {
-    name: 'Review',
-    text: 'Review all changes in this worktree. Focus on correctness, regressions, edge cases, and missing tests. List concrete issues first, then note residual risks.',
-  },
-  {
-    name: 'Summarize',
-    text: 'Summarize the changes made in this worktree. Explain what was changed, why it was changed, and any notable implementation details.',
-  },
-  {
-    name: 'Find bugs',
-    text: 'Look for bugs, edge cases, and regressions in this worktree. Be thorough and list every issue you find, no matter how small.',
-  },
-  {
-    name: 'Write tests',
-    text: 'Write unit tests for the changed files in this worktree. Cover happy paths, edge cases, and error handling.',
-  },
-];
-
 async function migrateReviewPromptToTemplates(): Promise<void> {
   const service = new PromptTemplateService(db);
   const existing = await service.list();
@@ -69,7 +51,7 @@ async function migrateReviewPromptToTemplates(): Promise<void> {
 
   // If nothing was migrated, seed the default starter templates
   if (!migrated) {
-    for (const template of DEFAULT_PROMPT_TEMPLATES) {
+    for (const template of STARTER_PROMPT_TEMPLATES) {
       await service.create(template);
     }
   }

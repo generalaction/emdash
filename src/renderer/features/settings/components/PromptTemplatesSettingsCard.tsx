@@ -1,34 +1,18 @@
 import { ArrowDown, ArrowUp, Copy, FileSearch, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
-import type { PromptTemplate } from '@shared/prompt-templates';
+import {
+  MAX_PROMPT_TEMPLATES,
+  STARTER_PROMPT_TEMPLATES,
+  type PromptTemplate,
+} from '@shared/prompt-templates';
 import { usePromptTemplates } from '@renderer/features/settings/use-prompt-templates';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { Textarea } from '@renderer/lib/ui/textarea';
 
-const MAX_TEMPLATES = 20;
 const MAX_NAME_LENGTH = 64;
 const MAX_TEXT_LENGTH = 4000;
-
-const STARTER_TEMPLATES = [
-  {
-    name: 'Review',
-    text: 'Review all changes in this worktree. Focus on correctness, regressions, edge cases, and missing tests. List concrete issues first, then note residual risks.',
-  },
-  {
-    name: 'Summarize',
-    text: 'Summarize the changes made in this worktree. Explain what was changed, why it was changed, and any notable implementation details.',
-  },
-  {
-    name: 'Find bugs',
-    text: 'Look for bugs, edge cases, and regressions in this worktree. Be thorough and list every issue you find, no matter how small.',
-  },
-  {
-    name: 'Write tests',
-    text: 'Write unit tests for the changed files in this worktree. Cover happy paths, edge cases, and error handling.',
-  },
-];
 
 function PromptTemplateEditor({
   template,
@@ -96,7 +80,7 @@ function EmptyState({
         <p className="text-xs text-muted-foreground">Create your own or pick a starter below</p>
       </div>
       <div className="flex flex-wrap justify-center gap-2 px-4">
-        {STARTER_TEMPLATES.map((starter) => (
+        {STARTER_PROMPT_TEMPLATES.map((starter) => (
           <Button
             key={starter.name}
             variant="outline"
@@ -343,16 +327,16 @@ export function PromptTemplatesSettingsCard() {
         />
       )}
 
-      {templates.length > 0 && !isAdding && templates.length < MAX_TEMPLATES && (
+      {templates.length > 0 && !isAdding && templates.length < MAX_PROMPT_TEMPLATES && (
         <Button variant="outline" size="sm" onClick={() => setIsAdding(true)}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           Add template
         </Button>
       )}
 
-      {templates.length >= MAX_TEMPLATES && (
+      {templates.length >= MAX_PROMPT_TEMPLATES && (
         <p className="text-xs text-muted-foreground">
-          Maximum of {MAX_TEMPLATES} templates reached.
+          Maximum of {MAX_PROMPT_TEMPLATES} templates reached.
         </p>
       )}
     </div>

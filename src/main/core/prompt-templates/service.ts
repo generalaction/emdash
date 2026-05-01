@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { desc, eq } from 'drizzle-orm';
-import type {
-  CreatePromptTemplateInput,
-  PromptTemplate,
-  UpdatePromptTemplateInput,
+import { count, desc, eq, inArray } from 'drizzle-orm';
+import {
+  MAX_PROMPT_TEMPLATES,
+  type CreatePromptTemplateInput,
+  type PromptTemplate,
+  type UpdatePromptTemplateInput,
 } from '@shared/prompt-templates';
 import type { AppDb } from '@main/db/client';
 import { promptTemplates } from '@main/db/schema';
@@ -64,6 +65,11 @@ export class PromptTemplateService {
     validateName(input.name);
     validateText(input.text);
 
+    const [countRow] = await this.db.select({ value: count() }).from(promptTemplates);
+    if (countRow.value >= MAX_PROMPT_TEMPLATES) {
+      throw new Error(`You can create up to ${MAX_PROMPT_TEMPLATES} templates`);
+    }
+
     const [maxRow] = await this.db
       .select({ sortOrder: promptTemplates.sortOrder })
       .from(promptTemplates)
@@ -101,12 +107,13 @@ export class PromptTemplateService {
 
     await this.db.update(promptTemplates).set(updates).where(eq(promptTemplates.id, id));
 
-    const [row] = await this.db
-      .select()
-      .from(promptTemplates)
-      .where(eq(promptTemplates.id, id))
-      .limit(1);
-    return toModel(row!);
+    return {
+      ...existing,
+      name: updates.name ?? existing.name,
+      text: updates.text ?? existing.text,
+      sortOrder: updates.sortOrder ?? existing.sortOrder,
+      updatedAt: updates.updatedAt ?? existing.updatedAt,
+    };
   }
 
   async delete(id: string): Promise<void> {
@@ -114,6 +121,17 @@ export class PromptTemplateService {
   }
 
   async reorder(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    const existingRows = await this.db
+      .select({ id: promptTemplates.id })
+      .from(promptTemplates)
+      .where(inArray(promptTemplates.id, ids));
+
+    if (existingRows.length !== ids.length) {
+      throw new Error('One or more prompt templates were not found');
+    }
+
     const now = new Date().toISOString();
     this.db.transaction((tx) => {
       for (let i = 0; i < ids.length; i++) {
