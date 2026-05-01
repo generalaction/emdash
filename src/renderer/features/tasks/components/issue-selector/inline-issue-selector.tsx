@@ -50,6 +50,10 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // Hold the latest map in a ref so handleKeyDown stays referentially stable.
+  // useMemo would break MobX reactivity here — observables wouldn't be re-read on cached renders.
+  const linkedIssueMapRef = useRef(linkedIssueMap);
+  linkedIssueMapRef.current = linkedIssueMap;
 
   // Scroll highlighted item into view whenever it changes
   useEffect(() => {
@@ -84,20 +88,31 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (issues.length === 0) return;
+      const linked = linkedIssueMapRef.current;
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setHighlightedIndex((prev) => Math.min(prev + 1, issues.length - 1));
+          setHighlightedIndex((prev) => {
+            for (let i = prev + 1; i < issues.length; i++) {
+              if (!linked.has(issues[i].url)) return i;
+            }
+            return prev;
+          });
           break;
         case 'ArrowUp':
           e.preventDefault();
-          setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+          setHighlightedIndex((prev) => {
+            for (let i = prev - 1; i >= 0; i--) {
+              if (!linked.has(issues[i].url)) return i;
+            }
+            return prev;
+          });
           break;
         case 'Enter': {
           e.preventDefault();
           const issue = issues[highlightedIndex];
           if (!issue) break;
-          if (linkedIssueMap.has(issue.url)) break;
+          if (linked.has(issue.url)) break;
           onValueChange(issue === value ? null : issue);
           break;
         }
@@ -111,7 +126,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
           break;
       }
     },
-    [issues, highlightedIndex, value, query, onValueChange, handleSetSearchTerm, linkedIssueMap]
+    [issues, highlightedIndex, value, query, onValueChange, handleSetSearchTerm]
   );
 
   const providerAddon = issueProvider ? (
