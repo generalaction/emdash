@@ -1,6 +1,6 @@
 import { quoteShellArg } from './shellEscape';
 
-type RemoteEditorScheme = 'vscode' | 'cursor';
+type RemoteEditorScheme = 'vscode' | 'vscodium' | 'cursor';
 
 export function buildRemoteSshAuthority(host: string, username: string): string {
   const normalizedHost = host.trim();
