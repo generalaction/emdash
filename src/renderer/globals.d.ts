@@ -8,6 +8,7 @@ declare global {
       eventSend: (channel: string, data: unknown) => void;
       eventOn: (channel: string, cb: (data: unknown) => void) => () => void;
       getPathForFile: (file: File) => string;
+      getPathForFileOrSave: (file: File) => Promise<string>;
     };
   }
 }
