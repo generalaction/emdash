@@ -58,7 +58,7 @@ export function PrBadge({ variant = 'default', pr, className }: PrBadgeProps) {
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="cursor-pointer"
                     onClick={() => rpc.app.openExternal(pr.url)}
                   >
                     <ExternalLink className="size-3.5" />
