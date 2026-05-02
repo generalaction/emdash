@@ -262,6 +262,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 projectId={projectId}
                 repositoryUrl={provisionedTask.repositoryStore.repositoryUrl ?? ''}
                 projectPath={provisionedTask.path}
+                excludeTaskId={taskId}
               />
             </PopoverContent>
           </Popover>

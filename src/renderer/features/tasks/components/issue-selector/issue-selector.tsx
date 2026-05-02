@@ -1,4 +1,5 @@
 import { ExternalLink, Loader2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { forwardRef, useCallback, useRef, useState } from 'react';
 import type { Issue } from '@shared/tasks';
 import {
@@ -22,6 +23,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
 function getStatusColorClass(status?: string) {
@@ -75,7 +77,26 @@ export function ProviderLogo({
   return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
 }
 
-export function IssueRow({ issue }: { issue: Issue }) {
+function truncateEnd(value: string, max = 20): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
+export function LinkedToTaskBadge({ linkedTo }: { linkedTo: LinkedIssueInfo }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className="ml-auto shrink-0 rounded border border-border px-1 text-xs text-foreground-muted">
+            Linked to {truncateEnd(linkedTo.taskName)}
+          </span>
+        }
+      />
+      <TooltipContent>Already linked to task: {linkedTo.taskName}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedIssueInfo }) {
   return (
     <span className="flex min-w-0 items-center gap-2 w-full">
       <Tooltip>
@@ -84,6 +105,7 @@ export function IssueRow({ issue }: { issue: Issue }) {
       </Tooltip>
       <IssueIdentifier identifier={issue.identifier} />
       {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
+      {linkedTo ? <LinkedToTaskBadge linkedTo={linkedTo} /> : null}
     </span>
   );
 }
@@ -94,15 +116,19 @@ export interface IssueSelectorProps {
   projectId?: string;
   repositoryUrl: string;
   projectPath?: string;
+  /** Skip "already linked" indicator for this task — useful when re-selecting the same task's issue. */
+  excludeTaskId?: string;
 }
 
-export function IssueSelector({
+export const IssueSelector = observer(function IssueSelector({
   projectId,
   repositoryUrl,
   projectPath = '',
   value,
   onValueChange,
+  excludeTaskId,
 }: IssueSelectorProps) {
+  const linkedIssueMap = getLinkedIssueMap(projectId, excludeTaskId);
   const {
     issues,
     issueProvider,
@@ -225,11 +251,19 @@ export function IssueSelector({
               <span className="text-muted-foreground">No issues found</span>
             </ComboboxEmpty>
             <ComboboxList>
-              {(issue: Issue) => (
-                <ComboboxItem key={issue.identifier} value={issue} className="pr-2">
-                  <IssueRow issue={issue} />
-                </ComboboxItem>
-              )}
+              {(issue: Issue) => {
+                const linkedTo = linkedIssueMap.get(issue.url);
+                return (
+                  <ComboboxItem
+                    key={issue.identifier}
+                    value={issue}
+                    className="pr-2"
+                    disabled={!!linkedTo}
+                  >
+                    <IssueRow issue={issue} linkedTo={linkedTo} />
+                  </ComboboxItem>
+                );
+              }}
             </ComboboxList>
           </ComboboxContent>
         </Combobox>
@@ -238,7 +272,7 @@ export function IssueSelector({
       )}
     </div>
   );
-}
+});
 
 export function SelectedIssueValue({ issue }: { issue: Issue }) {
   return (

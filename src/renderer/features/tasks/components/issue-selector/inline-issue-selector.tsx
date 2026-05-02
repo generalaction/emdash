@@ -1,4 +1,5 @@
 import { Check, Loader2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Issue } from '@shared/tasks';
 import {
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { cn } from '@renderer/utils/utils';
 import { ConnectIssueIntegrationPlaceholder, IssueRow, ProviderLogo } from './issue-selector';
+import { getLinkedIssueMap } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
 export interface InlineIssueSelectorProps {
@@ -19,16 +21,20 @@ export interface InlineIssueSelectorProps {
   repositoryUrl?: string;
   projectPath?: string;
   disabled?: boolean;
+  /** Skip "already linked" indicator for this task — useful when re-selecting the same task's issue. */
+  excludeTaskId?: string;
 }
 
-export function InlineIssueSelector({
+export const InlineIssueSelector = observer(function InlineIssueSelector({
   value,
   onValueChange,
   projectId,
   repositoryUrl = '',
   projectPath = '',
   disabled,
+  excludeTaskId,
 }: InlineIssueSelectorProps) {
+  const linkedIssueMap = getLinkedIssueMap(projectId, excludeTaskId);
   const {
     issues,
     issueProvider,
@@ -44,6 +50,10 @@ export function InlineIssueSelector({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // Hold the latest map in a ref so handleKeyDown stays referentially stable.
+  // useMemo would break MobX reactivity here — observables wouldn't be re-read on cached renders.
+  const linkedIssueMapRef = useRef(linkedIssueMap);
+  linkedIssueMapRef.current = linkedIssueMap;
 
   // Scroll highlighted item into view whenever it changes
   useEffect(() => {
@@ -78,19 +88,32 @@ export function InlineIssueSelector({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (issues.length === 0) return;
+      const linked = linkedIssueMapRef.current;
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setHighlightedIndex((prev) => Math.min(prev + 1, issues.length - 1));
+          setHighlightedIndex((prev) => {
+            for (let i = prev + 1; i < issues.length; i++) {
+              if (!linked.has(issues[i].url)) return i;
+            }
+            return prev;
+          });
           break;
         case 'ArrowUp':
           e.preventDefault();
-          setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+          setHighlightedIndex((prev) => {
+            for (let i = prev - 1; i >= 0; i--) {
+              if (!linked.has(issues[i].url)) return i;
+            }
+            return prev;
+          });
           break;
         case 'Enter': {
           e.preventDefault();
           const issue = issues[highlightedIndex];
-          if (issue) onValueChange(issue === value ? null : issue);
+          if (!issue) break;
+          if (linked.has(issue.url)) break;
+          onValueChange(issue === value ? null : issue);
           break;
         }
         case 'Escape':
@@ -170,19 +193,28 @@ export function InlineIssueSelector({
           issues.map((issue, index) => {
             const isSelected = value?.identifier === issue.identifier;
             const isHighlighted = index === highlightedIndex;
+            const linkedTo = linkedIssueMap.get(issue.url);
+            const isLinked = !!linkedTo;
             return (
               <button
                 key={issue.identifier}
                 type="button"
+                disabled={isLinked}
                 className={cn(
                   'relative flex min-w-0 w-full cursor-default items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none select-none',
-                  isHighlighted && !isSelected && 'bg-background-2',
-                  isSelected && 'bg-background-2'
+                  isHighlighted && !isSelected && !isLinked && 'bg-background-2',
+                  isSelected && 'bg-background-2',
+                  isLinked && 'cursor-not-allowed opacity-50'
                 )}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                onClick={() => onValueChange(isSelected ? null : issue)}
+                onMouseEnter={() => {
+                  if (!isLinked) setHighlightedIndex(index);
+                }}
+                onClick={() => {
+                  if (isLinked) return;
+                  onValueChange(isSelected ? null : issue);
+                }}
               >
-                <IssueRow issue={issue} />
+                <IssueRow issue={issue} linkedTo={linkedTo} />
                 {isSelected && (
                   <Check className="absolute right-2 size-3.5 shrink-0 text-foreground-muted" />
                 )}
@@ -201,4 +233,4 @@ export function InlineIssueSelector({
       </div>
     </div>
   );
-}
+});
