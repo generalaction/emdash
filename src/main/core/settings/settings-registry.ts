@@ -49,6 +49,9 @@ export const SETTINGS_DEFAULTS = {
   browserPreview: {
     enabled: true,
   },
+  resourceMonitor: {
+    enabled: false,
+  },
 } satisfies SettingsDefaultsMap;
 
 export function getDefaultForKey<K extends AppSettingsKey>(key: K): AppSettings[K] {

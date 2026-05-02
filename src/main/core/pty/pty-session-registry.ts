@@ -101,6 +101,15 @@ export class PtySessionRegistry {
   unsubscribe(sessionId: string): void {
     this.activeConsumers.delete(sessionId);
   }
+
+  /** Active PTYs with local OS PID; SSH entries have `pid: undefined`. */
+  listActiveSessions(): Array<{ sessionId: string; pid: number | undefined }> {
+    const out: Array<{ sessionId: string; pid: number | undefined }> = [];
+    for (const [sessionId, pty] of this.ptyMap) {
+      out.push({ sessionId, pid: pty.getPid?.() });
+    }
+    return out;
+  }
 }
 
 export const ptySessionRegistry = new PtySessionRegistry();

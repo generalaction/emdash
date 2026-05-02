@@ -11,6 +11,7 @@ import IntegrationsCard from './IntegrationsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
+import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
 import { AutoGenerateTaskNamesRow, AutoTrustWorktreesRow } from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
@@ -124,6 +125,7 @@ export function SettingsPage({
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
+        { component: <ResourceMonitorSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Tools',
