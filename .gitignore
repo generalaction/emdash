@@ -71,3 +71,5 @@ Thumbs.db
 .codex/config.toml
 
 src/main/appConfig.json
+
+result
