@@ -157,17 +157,18 @@ export class RepositoryStore {
   get defaultBranch(): LocalBranch | RemoteBranch | undefined {
     const name = this.defaultBranchName;
     const raw = this.settingsStore.settings?.defaultBranch;
-    const isRemotePref = typeof raw === 'object' && raw.remote === true;
-
-    if (isRemotePref) {
-      const remote = this.remoteBranches.find(
-        (b) => b.branch === name && b.remote.name === this.configuredRemote.name
-      );
-      if (remote) return remote;
-    }
+    // Legacy string-form setting means the user explicitly picked a local branch.
+    const isExplicitLocal = typeof raw === 'string';
+    const remoteName = this.configuredRemote.name;
+    const remote = this.remoteBranches.find(
+      (b) => b.branch === name && b.remote.name === remoteName
+    );
     const local = this.localBranches.find((b) => b.branch === name);
-    if (local) return local;
-    return this.remoteBranches.find((b) => b.branch === name);
+
+    // Prefer the remote default so new worktrees branch off the up-to-date
+    // remote tip rather than a stale local copy of the default branch.
+    if (isExplicitLocal) return local ?? remote;
+    return remote ?? local;
   }
 
   isDefault(branch: LocalBranch | RemoteBranch): boolean {
