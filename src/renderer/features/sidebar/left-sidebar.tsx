@@ -1,6 +1,9 @@
 import { FolderPlus, MessageSquareShare, Plug, Puzzle, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
+import { getEmdashStableDownloadUrl } from '@shared/urls';
+import { DeprecationBanner } from '@renderer/app/deprecation-banner';
+import { rpc } from '@renderer/lib/ipc';
 import {
   isCurrentView,
   useNavigate,
@@ -23,6 +26,12 @@ import { SidebarSpace } from './sidebar-space';
 import { SidebarVirtualList } from './sidebar-virtual-list';
 import { UpdateSection } from './update-section';
 
+const STABLE_DOWNLOAD_URL = getEmdashStableDownloadUrl('sidebar-deprecation-notice');
+
+function openStableDownload(url: string) {
+  void rpc.app.openExternal(url).catch(() => {});
+}
+
 export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
@@ -35,6 +44,10 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
       <SidebarSpace />
       <SidebarContainer className="w-full border-r-0 flex-1 min-h-0">
         <SidebarContent className="flex flex-col">
+          <DeprecationBanner
+            downloadUrl={STABLE_DOWNLOAD_URL}
+            onDownloadStable={openStableDownload}
+          />
           <SidebarPinnedTaskList />
           <SidebarGroup className="mb-0 min-h-0 flex-1 flex flex-col">
             <ProjectsGroupLabel />
