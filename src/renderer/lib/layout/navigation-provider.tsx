@@ -25,6 +25,7 @@ export type SlotsContextValue = {
   MainPanel: ComponentType;
   RightPanel: ComponentType | null;
   currentView: string;
+  previousView: ViewId | null;
 };
 
 export type WrapParamsContextValue = {

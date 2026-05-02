@@ -13,6 +13,7 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { modalStore } from '@renderer/lib/modal/modal-store';
 
 /**
  * Mounts global keyboard shortcut handlers for the entire application.
@@ -35,7 +36,7 @@ export function AppKeyboardShortcuts() {
   const newTaskHotkey = getEffectiveHotkey('newTask', keyboard);
 
   // Resolve current project context from whichever view is active
-  const { currentView } = useWorkspaceSlots();
+  const { currentView, previousView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
   const { params: projectParams } = useParams('project');
   const currentProjectId =
@@ -51,9 +52,28 @@ export function AppKeyboardShortcuts() {
     { enabled: commandPaletteHotkey !== null }
   );
 
-  useHotkey(getHotkeyRegistration('settings', keyboard), () => navigate('settings'), {
-    enabled: settingsHotkey !== null,
-  });
+  useHotkey(
+    getHotkeyRegistration('settings', keyboard),
+    () => {
+      if (currentView === 'settings') {
+        navigate(previousView ?? 'home');
+      } else {
+        navigate('settings');
+      }
+    },
+    {
+      enabled: settingsHotkey !== null,
+    }
+  );
+
+  useHotkey(
+    'Escape',
+    () => {
+      if (modalStore.isOpen) return;
+      navigate(previousView ?? 'home');
+    },
+    { enabled: currentView === 'settings', ignoreInputs: true }
+  );
 
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,

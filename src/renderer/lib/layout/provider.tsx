@@ -79,6 +79,7 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   const [viewParamsStore, setViewParamsStore] = useState<ViewParamsStore>(
     () => appState.navigation.viewParamsStore as ViewParamsStore
   );
+  const [previousViewId, setPreviousViewId] = useState<ViewId | null>(null);
   const [_, startTransition] = useTransition();
 
   // Sync React state back to the MobX persistence mirror after every commit.
@@ -120,6 +121,9 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
       }
 
       startTransition(() => {
+        if (viewId !== currentViewId) {
+          setPreviousViewId(currentViewId);
+        }
         setCurrentViewId(viewId);
         // Only overwrite stored params when the caller explicitly passes them;
         // navigating without params preserves whatever was stored for that view.
@@ -158,8 +162,9 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
       MainPanel: def.MainPanel,
       RightPanel: def.RightPanel ?? null,
       currentView: currentViewId,
+      previousView: previousViewId,
     };
-  }, [currentViewId]);
+  }, [currentViewId, previousViewId]);
 
   const wrapParamsValue = useMemo(
     (): WrapParamsContextValue => ({
