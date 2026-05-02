@@ -21,6 +21,7 @@ type OpenInAppConfigShape = {
   hideIfUnavailable?: boolean;
   autoInstall?: boolean;
   supportsRemote?: boolean;
+  variantOf?: string;
   platforms: Partial<Record<PlatformKey, PlatformConfig>>;
 };
 
@@ -34,11 +35,12 @@ const ICON_PATHS = {
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
   terminal: 'terminal.png',
-  warp: 'warp.svg',
+  warp: 'warp.png',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
   kitty: 'kitty.png',
   zed: 'zed.png',
+  'zed-nightly': 'zed-nightly.png',
   'intellij-idea': 'intellij-idea.svg',
   'android-studio': 'android-studio.svg',
   webstorm: 'webstorm.svg',
@@ -291,6 +293,29 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['zed {{path}}', 'xdg-open {{path}}'],
         checkCommands: ['zed'],
+      },
+    },
+  },
+  'zed-nightly': {
+    id: 'zed-nightly',
+    label: 'Zed Nightly',
+    iconPath: ICON_PATHS['zed-nightly'],
+    hideIfUnavailable: true,
+    variantOf: 'zed',
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v zed-nightly >/dev/null 2>&1 && zed-nightly {{path}}',
+          'open -n -b dev.zed.Zed-Nightly --args {{path}}',
+          'open -a "Zed Nightly" {{path}}',
+        ],
+        checkCommands: ['zed-nightly'],
+        bundleIds: ['dev.zed.Zed-Nightly'],
+        appNames: ['Zed Nightly'],
+      },
+      linux: {
+        openCommands: ['zed-nightly {{path}}'],
+        checkCommands: ['zed-nightly'],
       },
     },
   },

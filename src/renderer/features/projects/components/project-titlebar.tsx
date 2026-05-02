@@ -139,14 +139,14 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
               path={mounted.data.path}
               isRemote={isRemote}
               sshConnectionId={sshConnectionId}
-              className="h-7 bg-background"
+              className="bg-background"
             />
           )}
           <ToggleGroup
             variant="outline"
             size="sm"
             value={[mounted.view.activeView]}
-            className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1"
+            className="rounded-lg overflow-hidden shadow-none h-7! border border-border mx-1"
             onValueChange={([value]) => {
               if (value) mounted.view.setProjectView(value as ProjectView);
             }}
