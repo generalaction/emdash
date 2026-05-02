@@ -4,17 +4,20 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type ComponentType,
   type ReactNode,
 } from 'react';
+import { menuOpenSettingsChannel } from '@shared/events/appEvents';
 import {
   views,
   type ViewDefinition,
   type ViewId,
   type WrapParams,
 } from '@renderer/app/view-registry';
+import { events } from '@renderer/lib/ipc';
 import { useModalContext } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
@@ -131,6 +134,18 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
     },
     [closeModal, currentViewId]
   ) as NavigateFnTyped;
+
+  const navigateRef = useRef(navigate);
+
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
+
+  useEffect(() => {
+    return events.on(menuOpenSettingsChannel, () => {
+      navigateRef.current('settings');
+    });
+  }, []);
 
   const updateViewParams = useCallback(
     <TId extends ViewId>(

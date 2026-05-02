@@ -1,9 +1,11 @@
+import { dialog } from 'electron';
 import _electronUpdater, {
   type ProgressInfo,
   type UpdateInfo,
   type Logger as UpdaterLogger,
 } from 'electron-updater';
-import { UPDATE_CHANNEL } from '@shared/app-identity';
+import { PRODUCT_NAME, UPDATE_CHANNEL } from '@shared/app-identity';
+import { menuOpenSettingsChannel } from '@shared/events/appEvents';
 import {
   updateAvailableEvent,
   updateCheckingEvent,
@@ -14,6 +16,7 @@ import {
   updateNotAvailableEvent,
   updateProgressEvent,
 } from '@shared/events/updateEvents';
+import { getMainWindow } from '@main/app/window';
 import { resolveAppVersion } from '@main/core/app/utils';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
@@ -54,6 +57,7 @@ class UpdateService implements IInitializable, IDisposable {
   private active = false;
   private installRequested = false;
   private installRestartGuardTimer?: NodeJS.Timeout;
+  private userInitiatedDialogPending = false;
 
   constructor() {
     this.updateState = {
@@ -186,6 +190,99 @@ class UpdateService implements IInitializable, IDisposable {
     });
 
     return this.currentCheckPromise;
+  }
+
+  async checkForUpdatesUserInitiated(): Promise<void> {
+    if (this.userInitiatedDialogPending) return;
+    this.userInitiatedDialogPending = true;
+
+    try {
+      if (import.meta.env.DEV) {
+        await this.showUpdateDialog({
+          type: 'info',
+          message: 'Updates are disabled in development mode.',
+        });
+        return;
+      }
+
+      if (!this.active) {
+        await this.showUpdateDialog({
+          type: 'warning',
+          message: 'The update service is not available.',
+        });
+        return;
+      }
+
+      try {
+        const info = await this.checkForUpdates();
+
+        if (info) {
+          await this.presentUpdateAvailable(info.version);
+        } else if (
+          this.updateState.status === 'available' ||
+          this.updateState.status === 'downloading' ||
+          this.updateState.status === 'downloaded'
+        ) {
+          await this.presentUpdateAvailable(
+            this.updateState.availableVersion ?? this.updateState.currentVersion
+          );
+        } else if (this.updateState.status === 'error') {
+          await this.presentUpdateError(this.updateState.error ?? 'An unknown error occurred.');
+        } else {
+          await this.presentUpToDate();
+        }
+      } catch (error) {
+        await this.presentUpdateError(formatUpdaterError(error));
+      }
+    } finally {
+      this.userInitiatedDialogPending = false;
+    }
+  }
+
+  private async presentUpToDate(): Promise<void> {
+    await this.showUpdateDialog({
+      type: 'info',
+      message: `${PRODUCT_NAME} is up to date.`,
+      detail: `You're running version ${this.updateState.currentVersion}, the latest available version.`,
+    });
+  }
+
+  private async presentUpdateAvailable(version: string): Promise<void> {
+    const choice = await this.showUpdateDialog({
+      type: 'info',
+      message: `A new version of ${PRODUCT_NAME} is available.`,
+      detail: `Version ${version} is available — you have ${this.updateState.currentVersion}. Open Settings to download and install.`,
+      buttons: ['Open Settings', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice.response === 0) {
+      events.emit(menuOpenSettingsChannel, undefined);
+    }
+  }
+
+  private async presentUpdateError(message: string): Promise<void> {
+    await this.showUpdateDialog({
+      type: 'error',
+      message: 'Could not check for updates.',
+      detail: message,
+    });
+  }
+
+  private async showUpdateDialog(
+    options: Pick<
+      Electron.MessageBoxOptions,
+      'type' | 'message' | 'detail' | 'buttons' | 'defaultId' | 'cancelId'
+    >
+  ): Promise<Electron.MessageBoxReturnValue> {
+    const win = getMainWindow();
+    const merged: Electron.MessageBoxOptions = {
+      title: 'Check for Updates',
+      buttons: ['OK'],
+      defaultId: 0,
+      ...options,
+    };
+    return win ? dialog.showMessageBox(win, merged) : dialog.showMessageBox(merged);
   }
 
   private async _performCheck(): Promise<UpdateInfo | null> {
