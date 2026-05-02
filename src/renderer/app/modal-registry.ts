@@ -1,3 +1,4 @@
+import { CommandPaletteModal } from '@renderer/features/command-palette/command-palette-modal';
 import { IntegrationSetupModal } from '@renderer/features/integrations/integration-setup-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
 import { AddProjectModal } from '@renderer/features/projects/components/add-project-modal/add-project-modal';
@@ -45,5 +46,6 @@ export const modalRegistry = {
   renameTaskModal: createModal(RenameTaskModal, { size: 'xs' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   addRemoteModal: createModal(AddRemoteModal),
+  commandPaletteModal: createModal(CommandPaletteModal, { size: 'md' }),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalRegistryEntry<any, any>>;
