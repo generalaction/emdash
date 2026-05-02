@@ -22,7 +22,7 @@ function TaskVirtualList({
 }: {
   tasks: ReadyTask[];
   selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
+  onToggleSelect: (id: string, shiftKey: boolean) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +67,7 @@ function TaskVirtualList({
               <TaskRow
                 task={task}
                 isSelected={selectedIds.has(task.data.id)}
-                onToggleSelect={() => onToggleSelect(task.data.id)}
+                onToggleSelect={(shiftKey) => onToggleSelect(task.data.id, shiftKey)}
               />
             </div>
           );
@@ -208,7 +208,16 @@ export const TaskList = observer(function TaskList() {
       <TaskVirtualList
         tasks={filteredTasks}
         selectedIds={taskView.selectedIds}
-        onToggleSelect={(id) => taskView.toggleSelect(id)}
+        onToggleSelect={(id, shiftKey) => {
+          if (shiftKey) {
+            taskView.selectRange(
+              filteredTasks.map((t) => t.data.id),
+              id
+            );
+          } else {
+            taskView.toggleSelect(id);
+          }
+        }}
       />
 
       <SelectionBar
