@@ -57,6 +57,13 @@
       "when": 1777399834705,
       "tag": "0007_bent_spitfire",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1777551942949,
+      "tag": "0008_harsh_overlord",
+      "breakpoints": true
     }
   ]
 }

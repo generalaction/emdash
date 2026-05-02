@@ -1,9 +1,10 @@
+import type { PromptTemplate } from '@shared/prompt-templates';
 import type { Issue } from '@shared/tasks';
 import { ISSUE_PROVIDER_META } from '@renderer/features/integrations/issue-provider-meta';
 
 const MAX_LABEL_TITLE_LENGTH = 24;
 
-export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'review-prompt';
+export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'prompt-template';
 
 export interface ContextAction {
   id: string;
@@ -65,15 +66,13 @@ export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | nu
   };
 }
 
-export function buildReviewPromptContextAction(reviewPrompt?: string): ContextAction | null {
-  const text = (reviewPrompt ?? '').trim();
-  if (!text) return null;
-  return {
-    id: 'review-prompt',
-    kind: 'review-prompt',
-    label: 'Review prompt',
-    text,
-  };
+export function buildPromptTemplateContextActions(templates: PromptTemplate[]): ContextAction[] {
+  return templates.map((template) => ({
+    id: `prompt-template:${template.id}`,
+    kind: 'prompt-template',
+    label: template.name,
+    text: template.text,
+  }));
 }
 
 export function buildDraftCommentsContextAction(args: {
@@ -93,15 +92,15 @@ export function buildDraftCommentsContextAction(args: {
 
 export function buildTaskContextActions(
   linkedIssue?: Issue,
-  reviewPrompt?: string,
+  templates: PromptTemplate[] = [],
   draftComments?: { count: number; formattedComments?: string }
 ): ContextAction[] {
   const linkedIssueAction = buildLinkedIssueContextAction(linkedIssue);
   const draftCommentsAction = draftComments ? buildDraftCommentsContextAction(draftComments) : null;
-  const reviewPromptAction = buildReviewPromptContextAction(reviewPrompt);
+  const templateActions = buildPromptTemplateContextActions(templates);
   const actions: ContextAction[] = [];
   if (linkedIssueAction) actions.push(linkedIssueAction);
   if (draftCommentsAction) actions.push(draftCommentsAction);
-  if (reviewPromptAction) actions.push(reviewPromptAction);
+  actions.push(...templateActions);
   return actions;
 }

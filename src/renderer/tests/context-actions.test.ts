@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { PromptTemplate } from '@shared/prompt-templates';
 import type { Issue } from '@shared/tasks';
 import {
   buildDraftCommentsContextAction,
   buildLinkedIssueContextAction,
-  buildReviewPromptContextAction,
+  buildPromptTemplateContextActions,
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
 
@@ -19,6 +20,18 @@ function makeIssue(overrides: Partial<Issue> = {}): Issue {
     project: 'Infra',
     updatedAt: '2026-04-15T11:27:38.662Z',
     fetchedAt: '2026-04-15T15:49:46.788Z',
+    ...overrides,
+  };
+}
+
+function makeTemplate(overrides: Partial<PromptTemplate> = {}): PromptTemplate {
+  return {
+    id: 't1',
+    name: 'Review',
+    text: 'Review this worktree for issues.',
+    sortOrder: 0,
+    createdAt: '2026-04-15T11:27:38.662Z',
+    updatedAt: '2026-04-15T11:27:38.662Z',
     ...overrides,
   };
 }
@@ -64,20 +77,37 @@ describe('buildLinkedIssueContextAction', () => {
   });
 });
 
-describe('buildReviewPromptContextAction', () => {
-  it('returns null for empty review prompt', () => {
-    expect(buildReviewPromptContextAction('   ')).toBeNull();
+describe('buildPromptTemplateContextActions', () => {
+  it('returns empty array for no templates', () => {
+    expect(buildPromptTemplateContextActions([])).toEqual([]);
   });
 
-  it('builds review prompt action', () => {
-    const action = buildReviewPromptContextAction('Review this worktree for issues.');
-    expect(action).not.toBeNull();
-    expect(action).toMatchObject({
-      id: 'review-prompt',
-      kind: 'review-prompt',
-      label: 'Review prompt',
-      text: 'Review this worktree for issues.',
+  it('builds actions for each template', () => {
+    const templates = [
+      makeTemplate({ id: 't1', name: 'Review', text: 'Review this.' }),
+      makeTemplate({ id: 't2', name: 'Summarize', text: 'Summarize changes.' }),
+    ];
+    const actions = buildPromptTemplateContextActions(templates);
+
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toMatchObject({
+      id: 'prompt-template:t1',
+      kind: 'prompt-template',
+      label: 'Review',
+      text: 'Review this.',
     });
+    expect(actions[1]).toMatchObject({
+      id: 'prompt-template:t2',
+      kind: 'prompt-template',
+      label: 'Summarize',
+      text: 'Summarize changes.',
+    });
+  });
+
+  it('keeps full template names for tooltips and accessibility', () => {
+    const templates = [makeTemplate({ name: 'A'.repeat(30), text: 'text' })];
+    const actions = buildPromptTemplateContextActions(templates);
+    expect(actions[0]!.label).toBe('A'.repeat(30));
   });
 });
 
@@ -105,7 +135,6 @@ describe('buildDraftCommentsContextAction', () => {
       count: 2,
       formattedComments: '<user_comments>test</user_comments>',
     });
-
     expect(action).toEqual({
       id: 'draft-comments',
       kind: 'draft-comments',
@@ -116,14 +145,15 @@ describe('buildDraftCommentsContextAction', () => {
 });
 
 describe('buildTaskContextActions', () => {
-  it('includes linked issue context, then draft comments, then review prompt', () => {
-    const actions = buildTaskContextActions(makeIssue(), 'Review this worktree for issues.', {
+  it('includes linked issue, then draft comments, then prompt templates', () => {
+    const templates = [makeTemplate({ id: 't1', name: 'Review', text: 'Review this worktree.' })];
+    const actions = buildTaskContextActions(makeIssue(), templates, {
       count: 1,
       formattedComments: '<user_comments>test</user_comments>',
     });
     expect(actions).toHaveLength(3);
     expect(actions[0]?.id).toBe('linked-issue:github:EMD-123');
     expect(actions[1]?.id).toBe('draft-comments');
-    expect(actions[2]?.id).toBe('review-prompt');
+    expect(actions[2]?.id).toBe('prompt-template:t1');
   });
 });
