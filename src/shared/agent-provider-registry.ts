@@ -21,6 +21,7 @@ export const AGENT_PROVIDER_IDS = [
   'continue',
   'codebuff',
   'mistral',
+  'junie',
   'pi',
   'autohand',
 ] as const;
@@ -431,6 +432,22 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '--prompt',
     icon: 'mistral.png',
     alt: 'Mistral Vibe CLI',
+    terminalOnly: true,
+  },
+  {
+    id: 'junie',
+    name: 'Junie CLI',
+    description:
+      'JetBrains agentic coding CLI for interactive terminal and headless project workflows.',
+    docUrl: 'https://junie.jetbrains.com/docs/junie-cli.html',
+    installCommand: 'curl -fsSL https://junie.jetbrains.com/install.sh | bash',
+    commands: ['junie'],
+    versionArgs: ['--version'],
+    cli: 'junie',
+    initialPromptFlag: '--task',
+    sessionIdFlag: '--session-id',
+    icon: 'junie-color.png',
+    alt: 'Junie CLI',
     terminalOnly: true,
   },
   {
