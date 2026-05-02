@@ -1,4 +1,12 @@
-import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
+import {
+  ChevronDown,
+  Ellipsis,
+  ExternalLink,
+  GithubIcon,
+  Globe,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { parseGitHubRepository } from '@shared/github-repository';
 import {
@@ -33,6 +41,7 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const store = getProjectStore(projectId);
   const displayName = projectDisplayName(store);
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
+  const showRenameProjectModal = useShowModal('renameProjectModal');
 
   const repo = getRepositoryStore(projectId);
   const configuredRemote = repo?.configuredRemote;
@@ -57,6 +66,16 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
           <Ellipsis className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="min-w-40">
+          <DropdownMenuItem
+            className="flex items-center gap-2"
+            disabled={!displayName}
+            onClick={() =>
+              displayName && showRenameProjectModal({ projectId, currentName: displayName })
+            }
+          >
+            <Pencil className="size-4" />
+            Rename Project
+          </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 text-foreground-destructive"
             onClick={() => {

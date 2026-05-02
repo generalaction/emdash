@@ -1,6 +1,7 @@
 import { IntegrationSetupModal } from '@renderer/features/integrations/integration-setup-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
 import { AddProjectModal } from '@renderer/features/projects/components/add-project-modal/add-project-modal';
+import { RenameProjectModal } from '@renderer/features/projects/components/rename-project-modal';
 import { CreateSkillModal } from '@renderer/features/skills/components/CreateSkillModal';
 import { AddRemoteModal } from '@renderer/features/tasks/add-remote-modal';
 import { CreateConversationModal } from '@renderer/features/tasks/conversations/create-conversation-modal';
@@ -43,6 +44,7 @@ export const modalRegistry = {
   conflictDialog: createModal(ConflictDialog, { size: 'sm' }),
   createPrModal: createModal(CreatePrModal, { size: 'md' }),
   renameTaskModal: createModal(RenameTaskModal, { size: 'xs' }),
+  renameProjectModal: createModal(RenameProjectModal, { size: 'xs' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   addRemoteModal: createModal(AddRemoteModal),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

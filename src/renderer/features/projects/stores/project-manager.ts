@@ -337,6 +337,24 @@ export class ProjectManagerStore {
     return promise;
   }
 
+  async renameProject(projectId: string, newName: string): Promise<void> {
+    const trimmed = newName.trim();
+    const store = this.projects.get(projectId);
+    if (!store) throw new Error(`Project ${projectId} not found`);
+
+    const previousName = store.name;
+    if (previousName === null || previousName === trimmed) return;
+
+    runInAction(() => store.setName(trimmed));
+
+    try {
+      await rpc.projects.renameProject(projectId, trimmed);
+    } catch (err) {
+      runInAction(() => store.setName(previousName));
+      throw err;
+    }
+  }
+
   async deleteProject(projectId: string): Promise<void> {
     const snapshot = this.projects.get(projectId);
     runInAction(() => {
