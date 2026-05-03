@@ -23,6 +23,23 @@ export interface GitHubIssueDetail extends GitHubIssue {
   body: string | null;
 }
 
+export interface ListIssuesForPollingOptions {
+  limit?: number;
+  /** ISO timestamp passed as `since` to filter issues updated after this time. */
+  since?: string;
+  /** Previous ETag from a prior poll; sent as `If-None-Match`. */
+  etag?: string;
+}
+
+export interface PollIssuesResult {
+  /** False when the request itself failed (network/auth/etc). 304 still counts as ok. */
+  ok: boolean;
+  issues: GitHubIssue[];
+  etag?: string;
+  /** True when GitHub returned 304 — caller can skip processing. */
+  notModified: boolean;
+}
+
 export interface GitHubIssueService {
   listIssues(repository: GitHubRepositoryRef, limit?: number): Promise<GitHubIssue[]>;
   searchIssues(
@@ -31,6 +48,10 @@ export interface GitHubIssueService {
     limit?: number
   ): Promise<GitHubIssue[]>;
   getIssue(repository: GitHubRepositoryRef, issueNumber: number): Promise<GitHubIssueDetail | null>;
+  listIssuesForPolling(
+    repository: GitHubRepositoryRef,
+    options: ListIssuesForPollingOptions
+  ): Promise<PollIssuesResult>;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,6 +97,38 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
         .map((item) => this.mapIssue(item as unknown as RestIssue));
     } catch {
       return [];
+    }
+  }
+
+  async listIssuesForPolling(
+    repository: GitHubRepositoryRef,
+    options: ListIssuesForPollingOptions
+  ): Promise<PollIssuesResult> {
+    const { owner, repo } = repository;
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+    try {
+      const octokit = await this.getOctokit();
+      const response = await octokit.rest.issues.listForRepo({
+        owner,
+        repo,
+        state: 'open',
+        per_page: limit,
+        sort: 'updated',
+        direction: 'desc',
+        ...(options.since ? { since: options.since } : {}),
+        ...(options.etag ? { headers: { 'if-none-match': options.etag } } : {}),
+      });
+      const headers = (response.headers ?? {}) as { etag?: string };
+      const issues = response.data
+        .filter((issue) => !issue.pull_request)
+        .map((item) => this.mapIssue(item as unknown as RestIssue));
+      return { ok: true, issues, etag: headers.etag, notModified: false };
+    } catch (error) {
+      const status = (error as { status?: number } | null)?.status;
+      if (status === 304) {
+        return { ok: true, issues: [], etag: options.etag, notModified: true };
+      }
+      return { ok: false, issues: [], notModified: false };
     }
   }
 

@@ -25,25 +25,13 @@ export function appendAutomationEventContext(
     case 'pr.opened':
     case 'pr.merged':
     case 'pr.closed':
-    case 'pr.review_requested':
       addLine(lines, 'PR', `#${event.payload.number} ${event.payload.title}`);
       addLine(lines, 'URL', event.payload.url);
       addLine(lines, 'Author', event.payload.author);
       addLine(lines, 'Branch', `${event.payload.branch} → ${event.payload.baseBranch}`);
       addLine(lines, 'Ref', event.payload.ref);
       break;
-    case 'ci.failed':
-    case 'ci.succeeded':
-      addLine(lines, 'Workflow', event.payload.workflow);
-      addLine(lines, 'Conclusion', event.payload.conclusion);
-      addLine(lines, 'Branch', event.payload.branch);
-      addLine(lines, 'URL', event.payload.url);
-      addLine(lines, 'Ref', event.payload.ref);
-      break;
     case 'issue.opened':
-    case 'issue.closed':
-    case 'issue.assigned':
-    case 'issue.commented':
       addLine(lines, 'Issue', `#${event.payload.number} ${event.payload.title}`);
       addLine(lines, 'URL', event.payload.url);
       addLine(lines, 'Author', event.payload.author);

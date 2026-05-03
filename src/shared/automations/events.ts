@@ -1,27 +1,4 @@
-export type AutomationEventKind =
-  | 'pr.opened'
-  | 'pr.merged'
-  | 'pr.closed'
-  | 'pr.review_requested'
-  | 'ci.failed'
-  | 'ci.succeeded'
-  | 'issue.opened'
-  | 'issue.closed'
-  | 'issue.assigned'
-  | 'issue.commented';
-
-export const ALL_EVENT_KINDS: readonly AutomationEventKind[] = [
-  'pr.opened',
-  'pr.merged',
-  'pr.closed',
-  'pr.review_requested',
-  'ci.failed',
-  'ci.succeeded',
-  'issue.opened',
-  'issue.closed',
-  'issue.assigned',
-  'issue.commented',
-] as const;
+export type AutomationEventKind = 'pr.opened' | 'pr.merged' | 'pr.closed' | 'issue.opened';
 
 export type PrPayload = {
   ref: string;
@@ -31,14 +8,6 @@ export type PrPayload = {
   number: number;
   branch: string;
   baseBranch: string;
-};
-
-export type CiPayload = {
-  ref: string;
-  url: string;
-  workflow: string;
-  conclusion: 'failure' | 'success' | 'cancelled' | 'timed_out';
-  branch: string;
 };
 
 export type IssuePayload = {
@@ -54,19 +23,13 @@ export type IssuePayload = {
 
 export type AutomationEvent =
   | {
-      kind: 'pr.opened' | 'pr.merged' | 'pr.closed' | 'pr.review_requested';
+      kind: 'pr.opened' | 'pr.merged' | 'pr.closed';
       projectId: string;
       payload: PrPayload;
       occurredAt: number;
     }
   | {
-      kind: 'ci.failed' | 'ci.succeeded';
-      projectId: string;
-      payload: CiPayload;
-      occurredAt: number;
-    }
-  | {
-      kind: 'issue.opened' | 'issue.closed' | 'issue.assigned' | 'issue.commented';
+      kind: 'issue.opened';
       projectId: string;
       payload: IssuePayload;
       occurredAt: number;
@@ -79,23 +42,9 @@ export type EventTriggerFilters = {
 };
 
 export function isPrEventKind(kind: AutomationEventKind): boolean {
-  return (
-    kind === 'pr.opened' ||
-    kind === 'pr.merged' ||
-    kind === 'pr.closed' ||
-    kind === 'pr.review_requested'
-  );
-}
-
-export function isCiEventKind(kind: AutomationEventKind): boolean {
-  return kind === 'ci.failed' || kind === 'ci.succeeded';
+  return kind === 'pr.opened' || kind === 'pr.merged' || kind === 'pr.closed';
 }
 
 export function isIssueEventKind(kind: AutomationEventKind): boolean {
-  return (
-    kind === 'issue.opened' ||
-    kind === 'issue.closed' ||
-    kind === 'issue.assigned' ||
-    kind === 'issue.commented'
-  );
+  return kind === 'issue.opened';
 }

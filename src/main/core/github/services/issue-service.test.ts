@@ -151,6 +151,71 @@ describe('GitHubIssueServiceImpl', () => {
     });
   });
 
+  describe('listIssuesForPolling', () => {
+    it('forwards since and If-None-Match, returns etag from response headers', async () => {
+      const listForRepo = vi.fn().mockResolvedValue({
+        data: [restIssue],
+        headers: { etag: 'W/"new-etag"' },
+      });
+      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
+
+      const result = await issueService.listIssuesForPolling(repository, {
+        limit: 50,
+        since: '2024-05-01T12:00:00Z',
+        etag: 'W/"old-etag"',
+      });
+
+      expect(listForRepo).toHaveBeenCalledWith({
+        owner: 'owner',
+        repo: 'repo',
+        state: 'open',
+        per_page: 50,
+        sort: 'updated',
+        direction: 'desc',
+        since: '2024-05-01T12:00:00Z',
+        headers: { 'if-none-match': 'W/"old-etag"' },
+      });
+      expect(result.ok).toBe(true);
+      expect(result.notModified).toBe(false);
+      expect(result.etag).toBe('W/"new-etag"');
+      expect(result.issues).toEqual([expectedIssue]);
+    });
+
+    it('omits since and headers when not provided', async () => {
+      const listForRepo = vi.fn().mockResolvedValue({ data: [], headers: {} });
+      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
+
+      await issueService.listIssuesForPolling(repository, {});
+
+      const call = listForRepo.mock.calls[0][0];
+      expect(call).not.toHaveProperty('since');
+      expect(call).not.toHaveProperty('headers');
+    });
+
+    it('returns notModified=true and preserves etag on 304', async () => {
+      const err = Object.assign(new Error('Not Modified'), { status: 304 });
+      const listForRepo = vi.fn().mockRejectedValue(err);
+      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
+
+      const result = await issueService.listIssuesForPolling(repository, {
+        etag: 'W/"old-etag"',
+      });
+
+      expect(result).toEqual({ ok: true, issues: [], etag: 'W/"old-etag"', notModified: true });
+    });
+
+    it('returns ok=false on non-304 errors', async () => {
+      const listForRepo = vi.fn().mockRejectedValue(new Error('Network down'));
+      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
+
+      const result = await issueService.listIssuesForPolling(repository, {
+        etag: 'W/"old-etag"',
+      });
+
+      expect(result).toEqual({ ok: false, issues: [], notModified: false });
+    });
+  });
+
   describe('getIssue', () => {
     it('maps detail response to camelCase with body', async () => {
       const issuesGet = vi.fn().mockResolvedValue({ data: { ...restIssue, body: 'Issue body' } });

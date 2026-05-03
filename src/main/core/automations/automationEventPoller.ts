@@ -10,7 +10,7 @@ import {
   upsertEventCursor,
 } from './repo';
 
-const TICK_MS = 60_000;
+const TICK_MS = 30_000;
 
 class AutomationEventPoller {
   private timer: NodeJS.Timeout | null = null;

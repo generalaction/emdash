@@ -205,6 +205,22 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
       },
     ],
   },
+  {
+    id: 'issue-triage',
+    category: 'Incidents & triage',
+    name: 'Triage new issues',
+    description:
+      'Categorize newly opened GitHub issues, suggest labels, severity, and likely owners',
+    icon: 'CircleDot',
+    defaultTrigger: { kind: 'event', event: 'issue.opened' },
+    defaultActions: [
+      {
+        kind: 'task.create',
+        prompt:
+          'A new GitHub issue was opened. Read the issue body, reproduce the reported behavior against the codebase where possible, and classify it: bug vs feature vs question, severity, affected area, and likely owning module. Suggest labels, a short clarifying comment if information is missing, and link related code paths or prior issues. Do not implement a fix — this is a triage pass.',
+      },
+    ],
+  },
 ];
 
 export const automationCatalogCategories = [
