@@ -1,7 +1,8 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
 import type {
   Automation,
   AutomationRun,
+  AutomationRunWithContext,
   BuiltinAutomationTemplate,
   CreateAutomationInput,
   UpdateAutomationPatch,
@@ -10,7 +11,10 @@ import { rpc } from '@renderer/lib/ipc';
 
 const automationsKey = (projectId?: string) => ['automations', projectId ?? 'all'] as const;
 const catalogKey = ['automations', 'catalog'] as const;
-const runsKey = (automationId: string) => ['automations', 'runs', automationId] as const;
+const runsKey = (automationId: string, limit: number) =>
+  ['automations', 'runs', automationId, limit] as const;
+const recentRunsKey = (projectId: string | undefined, limit: number) =>
+  ['automations', 'recent-runs', projectId ?? 'all', limit] as const;
 
 async function unwrap<T>(
   promise: Promise<{ success: true; data: T } | { success: false; error: string }>
@@ -66,7 +70,17 @@ export function useAutomations(projectId?: string) {
 
 export function useAutomationRuns(automationId: string, limit = 20) {
   return useQuery({
-    queryKey: runsKey(automationId),
+    queryKey: runsKey(automationId, limit),
     queryFn: () => unwrap<AutomationRun[]>(rpc.automations.listRuns(automationId, limit)),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useRecentAutomationRuns(projectId?: string, limit = 50) {
+  return useQuery({
+    queryKey: recentRunsKey(projectId, limit),
+    queryFn: () =>
+      unwrap<AutomationRunWithContext[]>(rpc.automations.listRecentRuns(projectId, limit)),
+    placeholderData: keepPreviousData,
   });
 }

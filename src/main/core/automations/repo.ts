@@ -9,6 +9,7 @@ import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
+  AutomationRunWithContext,
   CreateAutomationInput,
   TriggerSpec,
   UpdateAutomationPatch,
@@ -412,6 +413,24 @@ export async function listRuns(automationId: string, limit = 20): Promise<Automa
     .orderBy(desc(automationRuns.startedAt))
     .limit(limit);
   return rows.map(mapAutomationRunRow);
+}
+
+export async function listRecentRuns(
+  projectId: string | undefined,
+  limit = 50
+): Promise<AutomationRunWithContext[]> {
+  const base = db
+    .select({ run: automationRuns, automation: automations })
+    .from(automationRuns)
+    .innerJoin(automations, eq(automationRuns.automationId, automations.id));
+  const rows = await (projectId ? base.where(eq(automations.projectId, projectId)) : base)
+    .orderBy(desc(automationRuns.startedAt))
+    .limit(limit);
+  return rows.map(({ run, automation }) => ({
+    ...mapAutomationRunRow(run),
+    automationName: automation.name,
+    projectId: automation.projectId,
+  }));
 }
 
 export async function overdueCronAutomations(cutoff: number): Promise<Automation[]> {

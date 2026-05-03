@@ -9,6 +9,7 @@ import { useAutomations } from '../useAutomations';
 import { AutomationCard } from './AutomationCard';
 import { AutomationRow } from './AutomationRow';
 import { AutomationRunsDrawer } from './AutomationRunsDrawer';
+import { RecentRunsList } from './RecentRunsList';
 
 export function AutomationsView() {
   const { automations, catalog, remove, setEnabled, runNow } = useAutomations();
@@ -151,7 +152,7 @@ export function AutomationsView() {
           </div>
         </div>
 
-        {automationItems.length > 0 && (
+        {hasAutomations && (
           <div className="mb-6 space-y-5">
             {activeAutomations.length > 0 && (
               <div className="divide-y divide-border/70 border-y border-border/70">
@@ -222,6 +223,15 @@ export function AutomationsView() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {hasAutomations && (
+          <section className="mt-2">
+            <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
+              Recent runs
+            </h2>
+            <RecentRunsList />
+          </section>
+        )}
 
         {isEmpty && (
           <div className="py-12 text-center">

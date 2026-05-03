@@ -17,6 +17,10 @@ export function wireAutomationCacheInvalidation(): void {
   events.on(automationRunUpdatedChannel, ({ automationId, runId, status, taskId }) => {
     updateAutomationRunStatus(automationId, { runId, status, taskId });
     void queryClient.invalidateQueries({ queryKey: ['automations', 'runs', automationId] });
+    void queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === 'automations' && query.queryKey[1] === 'recent-runs',
+    });
     if (status === 'success' || status === 'failed' || status === 'skipped') {
       const now = Date.now();
       queryClient.setQueriesData<Automation[]>(

@@ -5,6 +5,7 @@ import {
   AUTOMATION_NAME_MAX_LENGTH,
   type Automation,
   type AutomationRun,
+  type AutomationRunWithContext,
   type CreateAutomationInput,
   type TriggerSpec,
   type UpdateAutomationPatch,
@@ -18,6 +19,7 @@ import {
   createAutomation,
   getAutomation,
   listAutomations,
+  listRecentRuns,
   listRuns,
   removeAutomation,
   setAutomationEnabled,
@@ -145,5 +147,12 @@ export const automationsController = createRPCController({
 
   listRuns(automationId: string, limit = 20): Promise<Result<AutomationRun[], string>> {
     return safe(async () => ok(await listRuns(automationId, limit)));
+  },
+
+  listRecentRuns(
+    projectId?: string,
+    limit = 50
+  ): Promise<Result<AutomationRunWithContext[], string>> {
+    return safe(async () => ok(await listRecentRuns(projectId, limit)));
   },
 });

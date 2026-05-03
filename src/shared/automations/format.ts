@@ -1,6 +1,10 @@
 import type { AutomationEventKind } from '@shared/automations/events';
 import { getLocalTimeZone } from '@shared/automations/timezone';
-import type { TriggerSpec } from '@shared/automations/types';
+import type {
+  AutomationRunStatus,
+  AutomationRunTriggerKind,
+  TriggerSpec,
+} from '@shared/automations/types';
 
 const dayNames = [
   'Sundays',
@@ -99,27 +103,14 @@ function joinLabels(labels: string[]): string {
   return `${labels.slice(0, -1).join(', ')} and ${last}`;
 }
 
-function dayDescriptionPrefix(desc: DayOfWeekDesc): string | null {
+function dayDescription(desc: DayOfWeekDesc): string | null {
   switch (desc.kind) {
     case 'all':
       return null;
     case 'weekdays':
-      return 'Weekdays';
+      return 'Mon–Fri';
     case 'weekends':
-      return 'Weekends';
-    case 'list':
-      return joinLabels(desc.days.map((index) => dayNames[index]));
-  }
-}
-
-function dayDescriptionSuffix(desc: DayOfWeekDesc): string | null {
-  switch (desc.kind) {
-    case 'all':
-      return null;
-    case 'weekdays':
-      return 'weekdays';
-    case 'weekends':
-      return 'weekends';
+      return 'Sat–Sun';
     case 'list':
       return joinLabels(desc.days.map((index) => dayNames[index]));
   }
@@ -207,9 +198,9 @@ export function formatCronLabel(expr: string, tz?: string): string {
     const time = formatTimeOfDay(localHour, localMinute);
     const localDay = day + (shifted?.dayShift ?? 0);
     if (localDay >= 1 && localDay <= 28) {
-      return `Monthly on the ${ordinal(localDay)} at ${time}`;
+      return `Monthly · ${ordinal(localDay)} · ${time}`;
     }
-    return `Monthly on the ${ordinal(day)} at ${time}`;
+    return `Monthly · ${ordinal(day)} · ${time}`;
   }
 
   if (dom !== '*' || mon !== '*') return expr;
@@ -220,20 +211,20 @@ export function formatCronLabel(expr: string, tz?: string): string {
   if (hour === '*') {
     if (min === '*') {
       if (dowDesc.kind === 'all') return 'Every minute';
-      const suffix = dayDescriptionSuffix(dowDesc);
-      return suffix ? `Every minute on ${suffix}` : expr;
+      const days = dayDescription(dowDesc);
+      return days ? `Every minute · ${days}` : expr;
     }
     const everyN = min.match(/^\*\/(\d+)$/);
     if (everyN) {
-      if (dowDesc.kind === 'all') return `Every ${everyN[1]} minutes`;
-      const suffix = dayDescriptionSuffix(dowDesc);
-      return suffix ? `Every ${everyN[1]} minutes on ${suffix}` : expr;
+      if (dowDesc.kind === 'all') return `Every ${everyN[1]} min`;
+      const days = dayDescription(dowDesc);
+      return days ? `Every ${everyN[1]} min · ${days}` : expr;
     }
     if (minNum !== null) {
-      const base = minNum === 0 ? 'Hourly' : `Hourly at :${minNum.toString().padStart(2, '0')}`;
+      const base = minNum === 0 ? 'Hourly' : `Hourly :${minNum.toString().padStart(2, '0')}`;
       if (dowDesc.kind === 'all') return base;
-      const suffix = dayDescriptionSuffix(dowDesc);
-      return suffix ? `${base} on ${suffix}` : expr;
+      const days = dayDescription(dowDesc);
+      return days ? `${base} · ${days}` : expr;
     }
     return expr;
   }
@@ -244,9 +235,9 @@ export function formatCronLabel(expr: string, tz?: string): string {
     const localMinute = shifted?.minute ?? minNum;
     const localDow = shifted ? shiftDayOfWeekDesc(dowDesc, shifted.dayShift) : dowDesc;
     const time = formatTimeOfDay(localHour, localMinute);
-    if (localDow.kind === 'all') return `Daily at ${time}`;
-    const prefix = dayDescriptionPrefix(localDow);
-    return prefix ? `${prefix} at ${time}` : expr;
+    if (localDow.kind === 'all') return `Daily · ${time}`;
+    const days = dayDescription(localDow);
+    return days ? `${days} · ${time}` : expr;
   }
 
   return expr;
@@ -260,20 +251,8 @@ export function formatEventLabel(event: AutomationEventKind): string {
       return 'PR merged';
     case 'pr.closed':
       return 'PR closed';
-    case 'pr.review_requested':
-      return 'PR review requested';
-    case 'ci.failed':
-      return 'CI failure';
-    case 'ci.succeeded':
-      return 'CI succeeded';
     case 'issue.opened':
       return 'New issue';
-    case 'issue.closed':
-      return 'Issue closed';
-    case 'issue.assigned':
-      return 'Issue assigned';
-    case 'issue.commented':
-      return 'Issue commented';
   }
 }
 
@@ -281,6 +260,30 @@ export function formatTriggerLabel(trigger: TriggerSpec): string {
   return trigger.kind === 'cron'
     ? formatCronLabel(trigger.expr, trigger.tz)
     : formatEventLabel(trigger.event);
+}
+
+export function formatRunStatusLabel(status: AutomationRunStatus): string | null {
+  switch (status) {
+    case 'failed':
+      return 'Failed';
+    case 'skipped':
+      return 'Skipped';
+    case 'running':
+      return 'Running';
+    case 'success':
+      return null;
+  }
+}
+
+export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): string {
+  switch (kind) {
+    case 'cron':
+      return 'Schedule';
+    case 'manual':
+      return 'Manual';
+    case 'event':
+      return 'Event';
+  }
 }
 
 export type ScheduleKind = 'daily' | 'weekdays' | 'weekends' | 'weekly' | 'hourly' | 'interval';
