@@ -1,56 +1,20 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, X } from 'lucide-react';
-import type {
-  Automation,
-  AutomationRun,
-  AutomationRunStatus,
-  AutomationRunTriggerKind,
-} from '@shared/automations/types';
+import { observer } from 'mobx-react-lite';
+import { useMemo, useState } from 'react';
+import { formatRunStatusLabel, formatRunTriggerKindLabel } from '@shared/automations/format';
+import type { Automation, AutomationRun } from '@shared/automations/types';
+import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Spinner } from '@renderer/lib/ui/spinner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { useAutomationRuns } from '../useAutomations';
 
-function statusDotClass(status: AutomationRunStatus) {
-  switch (status) {
-    case 'success':
-      return 'bg-emerald-500';
-    case 'failed':
-      return 'bg-destructive';
-    case 'skipped':
-      return 'bg-amber-500';
-    case 'running':
-      return 'bg-blue-500';
-  }
-}
-
-function statusLabel(status: AutomationRunStatus) {
-  switch (status) {
-    case 'success':
-      return 'Success';
-    case 'failed':
-      return 'Failed';
-    case 'skipped':
-      return 'Skipped';
-    case 'running':
-      return 'Running';
-  }
-}
-
-function triggerLabel(kind: AutomationRunTriggerKind) {
-  switch (kind) {
-    case 'cron':
-      return 'Schedule';
-    case 'manual':
-      return 'Manual';
-    case 'event':
-      return 'Event';
-  }
-}
-
 const PANEL_EASE = [0.22, 1, 0.36, 1] as const;
+const RUNS_PAGE_SIZE = 20;
 
 export function AutomationRunsDrawer({
   automation,
@@ -89,7 +53,7 @@ export function AutomationRunsDrawer({
             }}
             className="fixed right-0 top-0 z-40 flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-2xl outline-none"
           >
-            <DrawerContent automation={automation} onClose={onClose} />
+            <DrawerContent key={automation.id} automation={automation} onClose={onClose} />
           </motion.aside>
         </>
       )}
@@ -99,7 +63,13 @@ export function AutomationRunsDrawer({
 
 function DrawerContent({ automation, onClose }: { automation: Automation; onClose: () => void }) {
   const { navigate } = useNavigate();
-  const runs = useAutomationRuns(automation.id, 20);
+  const [visibleLimit, setVisibleLimit] = useState(RUNS_PAGE_SIZE);
+  const runs = useAutomationRuns(automation.id, visibleLimit + 1);
+  const visibleRuns = useMemo(
+    () => runs.data?.slice(0, visibleLimit) ?? [],
+    [runs.data, visibleLimit]
+  );
+  const hasMoreRuns = Boolean(runs.data && runs.data.length > visibleLimit);
 
   return (
     <>
@@ -118,18 +88,34 @@ function DrawerContent({ automation, onClose }: { automation: Automation; onClos
           <div className="flex h-32 items-center justify-center">
             <Spinner />
           </div>
-        ) : runs.data?.length ? (
-          <ul className="flex flex-col">
-            {runs.data.map((run) => (
-              <RunRow
-                key={run.id}
-                run={run}
-                onOpenTask={(taskId) =>
-                  navigate('task', { projectId: automation.projectId, taskId })
-                }
-              />
-            ))}
-          </ul>
+        ) : visibleRuns.length ? (
+          <>
+            <ul className="flex flex-col">
+              {visibleRuns.map((run) => (
+                <RunRow
+                  key={run.id}
+                  run={run}
+                  projectId={automation.projectId}
+                  onOpenTask={(taskId) =>
+                    navigate('task', { projectId: automation.projectId, taskId })
+                  }
+                />
+              ))}
+            </ul>
+            {hasMoreRuns ? (
+              <div className="flex justify-center px-3 py-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={runs.isFetching}
+                  onClick={() => setVisibleLimit((limit) => limit + RUNS_PAGE_SIZE)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {runs.isFetching ? 'Loading older runs...' : 'Load older runs'}
+                </Button>
+              </div>
+            ) : null}
+          </>
         ) : (
           <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
             No runs yet.
@@ -140,24 +126,46 @@ function DrawerContent({ automation, onClose }: { automation: Automation; onClos
   );
 }
 
-function RunRow({ run, onOpenTask }: { run: AutomationRun; onOpenTask: (taskId: string) => void }) {
+const RunRow = observer(function RunRow({
+  run,
+  projectId,
+  onOpenTask,
+}: {
+  run: AutomationRun;
+  projectId: string;
+  onOpenTask: (taskId: string) => void;
+}) {
   const taskId = run.taskId;
-  const interactive = Boolean(taskId);
+  const task = taskId ? getRegisteredTaskData(projectId, taskId) : undefined;
+  const interactive = Boolean(taskId && task && !task.archivedAt);
+  const tooltip = interactive
+    ? 'Open agent'
+    : taskId
+      ? 'Agent is no longer available'
+      : 'This run did not create an agent';
 
-  const content = (
+  function handleOpenTask() {
+    if (!taskId || !interactive) return;
+    const taskView = getTaskView(projectId, taskId);
+    taskView?.setView('agents');
+    onOpenTask(taskId);
+  }
+
+  const status = formatRunStatusLabel(run.status);
+  const isFailed = run.status === 'failed';
+
+  const rowContent = (
     <>
-      <span
-        className={cn('size-2 shrink-0 rounded-full', statusDotClass(run.status))}
-        aria-hidden
-      />
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="truncate text-sm font-medium text-foreground">
-          {statusLabel(run.status)}
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span className={cn('truncate text-sm', isFailed ? 'text-destructive' : 'text-foreground')}>
+          Run from {formatRunTriggerKindLabel(run.triggerKind)}
         </span>
-        <span className="shrink-0 text-xs text-muted-foreground/60">·</span>
-        <span className="truncate text-xs text-muted-foreground">
-          {triggerLabel(run.triggerKind)}
-        </span>
+        {status ? (
+          <>
+            <span className="shrink-0 text-xs text-muted-foreground/50">·</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{status}</span>
+          </>
+        ) : null}
       </div>
       <RelativeTime
         value={run.startedAt}
@@ -165,30 +173,40 @@ function RunRow({ run, onOpenTask }: { run: AutomationRun; onOpenTask: (taskId: 
         compact
         ago
       />
-      {interactive ? (
-        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
-      ) : (
-        <span className="size-3.5 shrink-0" aria-hidden />
-      )}
+      <ChevronRight
+        className={cn(
+          'size-3.5 shrink-0 transition-transform',
+          interactive
+            ? 'text-muted-foreground/50 group-hover:translate-x-0.5 group-hover:text-foreground'
+            : 'text-muted-foreground/20'
+        )}
+      />
     </>
   );
 
   return (
     <li>
-      {interactive && taskId ? (
-        <button
-          type="button"
-          onClick={() => onOpenTask(taskId)}
-          className="group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-muted/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          {content}
-        </button>
-      ) : (
-        <div className="flex items-center gap-3 px-3 py-2.5">{content}</div>
-      )}
+      <Tooltip>
+        <TooltipTrigger render={<div />}>
+          {interactive ? (
+            <button
+              type="button"
+              onClick={handleOpenTask}
+              className="group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {rowContent}
+            </button>
+          ) : (
+            <div className="flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2.5 opacity-60">
+              {rowContent}
+            </div>
+          )}
+        </TooltipTrigger>
+        <TooltipContent side="left">{tooltip}</TooltipContent>
+      </Tooltip>
       {run.error && (
         <p className="mx-3 mb-2 mt-0.5 line-clamp-2 text-xs text-destructive">{run.error}</p>
       )}
     </li>
   );
-}
+});

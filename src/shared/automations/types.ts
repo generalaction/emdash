@@ -41,6 +41,11 @@ export type AutomationRun = {
   triggerKind: AutomationRunTriggerKind;
 };
 
+export type AutomationRunWithContext = AutomationRun & {
+  automationName: string;
+  projectId: string;
+};
+
 export type BuiltinAutomationTemplate = {
   id: string;
   category: string;
