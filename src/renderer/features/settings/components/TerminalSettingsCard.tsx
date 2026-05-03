@@ -1,17 +1,36 @@
-import { Check, ChevronDown } from 'lucide-react';
+import { ChevronsUpDownIcon } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
-import { Button } from '@renderer/lib/ui/button';
-import { Input } from '@renderer/lib/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
+import {
+  Combobox,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
+} from '@renderer/lib/ui/combobox';
 import { Switch } from '@renderer/lib/ui/switch';
 import { SettingRow } from './SettingRow';
 
+type FontPickerWindow = Window & {
+  queryLocalFonts?: () => Promise<Array<{ family: string }>>;
+};
+
 type FontOption = {
-  id: string;
+  value: string;
   label: string;
-  fontValue: string;
+};
+
+type FontGroup = {
+  value: 'popular' | 'installed';
+  label: string;
+  items: FontOption[];
 };
 
 const POPULAR_FONTS = [
@@ -25,16 +44,36 @@ const POPULAR_FONTS = [
   'MesloLGS NF',
 ];
 
-const toOptionId = (font: string) =>
-  `font-${font
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')}`;
+const DEFAULT_OPTION: FontOption = {
+  value: '',
+  label: 'Default (Menlo)',
+};
 
 const dedupeAndSort = (fonts: string[]) =>
   Array.from(new Set(fonts.map((font) => font.trim()).filter(Boolean))).sort((a, b) =>
     a.localeCompare(b)
   );
+
+const queryInstalledFonts = async (): Promise<string[]> => {
+  const fontWindow = window as FontPickerWindow;
+  if (typeof fontWindow.queryLocalFonts === 'function') {
+    try {
+      const fonts = await fontWindow.queryLocalFonts();
+      return dedupeAndSort(fonts.map((f) => f.family));
+    } catch {
+      // Permission denied or unsupported in this context — fall through to IPC.
+    }
+  }
+  try {
+    const result = await rpc.app.listInstalledFonts();
+    if (result?.success && Array.isArray(result.fonts)) {
+      return dedupeAndSort(result.fonts);
+    }
+  } catch {
+    // Swallow — UI shows just the default option.
+  }
+  return [];
+};
 
 const TerminalSettingsCard: React.FC = () => {
   const {
@@ -43,78 +82,54 @@ const TerminalSettingsCard: React.FC = () => {
     isLoading: loading,
     isSaving: saving,
   } = useAppSettingsKey('terminal');
-  const [pickerOpen, setPickerOpen] = useState<boolean>(false);
-  const [search, setSearch] = useState<string>('');
-  const [installedFonts, setInstalledFonts] = useState<string[] | null>(null);
-  const [loadingFonts, setLoadingFonts] = useState<boolean>(false);
+  const [installedFonts, setInstalledFonts] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void queryInstalledFonts().then((fonts) => {
+      if (!cancelled) setInstalledFonts(fonts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const fontFamily = terminal?.fontFamily ?? '';
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
 
-  const popularOptions = useMemo<FontOption[]>(() => {
-    return [
-      { id: 'popular-default', label: 'Default (Menlo)', fontValue: '' },
-      ...POPULAR_FONTS.map((font) => ({
-        id: `popular-${toOptionId(font)}`,
-        label: font,
-        fontValue: font,
-      })),
-    ];
-  }, []);
+  const groups = useMemo<FontGroup[]>(() => {
+    const installedSet = new Set(installedFonts.map((f) => f.toLowerCase()));
+    const popularSet = new Set(POPULAR_FONTS.map((f) => f.toLowerCase()));
 
-  const installedOptions = useMemo<FontOption[]>(() => {
-    const sourceFonts = dedupeAndSort(installedFonts ?? []);
-    return sourceFonts
-      .filter(
-        (font) =>
-          !POPULAR_FONTS.some((popular) => popular.toLowerCase() === font.toLowerCase()) &&
-          font.toLowerCase() !== 'menlo'
-      )
-      .map((font) => ({
-        id: `installed-${toOptionId(font)}`,
-        label: font,
-        fontValue: font,
-      }));
+    const popularItems: FontOption[] = [DEFAULT_OPTION];
+    for (const font of POPULAR_FONTS) {
+      if (installedSet.has(font.toLowerCase())) {
+        popularItems.push({ value: font, label: font });
+      }
+    }
+
+    const installedItems: FontOption[] = [];
+    for (const font of installedFonts) {
+      const lower = font.toLowerCase();
+      if (lower === 'menlo') continue;
+      if (popularSet.has(lower)) continue;
+      installedItems.push({ value: font, label: font });
+    }
+
+    return [
+      { value: 'popular', label: 'Popular', items: popularItems },
+      { value: 'installed', label: 'Installed', items: installedItems },
+    ];
   }, [installedFonts]);
 
-  const allOptions = useMemo<FontOption[]>(() => {
-    const byValue = new Map<string, FontOption>();
-    for (const option of [...popularOptions, ...installedOptions]) {
-      byValue.set(option.fontValue.toLowerCase(), option);
+  const selectedOption = useMemo<FontOption | null>(() => {
+    if (!fontFamily) return DEFAULT_OPTION;
+    for (const group of groups) {
+      const match = group.items.find((o) => o.value.toLowerCase() === fontFamily.toLowerCase());
+      if (match) return match;
     }
-    return Array.from(byValue.values());
-  }, [installedOptions, popularOptions]);
-
-  const findPreset = useCallback(
-    (font: string) => {
-      const normalized = font.trim().toLowerCase();
-      return allOptions.find((option) => option.fontValue.toLowerCase() === normalized) ?? null;
-    },
-    [allOptions]
-  );
-
-  const loadInstalledFonts = useCallback(async () => {
-    if (loadingFonts || installedFonts !== null) return;
-    setLoadingFonts(true);
-    try {
-      const result = await rpc.app.listInstalledFonts();
-      if (result?.success && Array.isArray(result.fonts) && result.fonts.length) {
-        setInstalledFonts(dedupeAndSort(result.fonts));
-      } else {
-        setInstalledFonts([]);
-      }
-    } catch {
-      setInstalledFonts([]);
-    } finally {
-      setLoadingFonts(false);
-    }
-  }, [installedFonts, loadingFonts]);
-
-  useEffect(() => {
-    if (pickerOpen) {
-      void loadInstalledFonts();
-    }
-  }, [loadInstalledFonts, pickerOpen]);
+    return { value: fontFamily, label: fontFamily };
+  }, [fontFamily, groups]);
 
   const applyFont = useCallback(
     (next: string) => {
@@ -137,25 +152,6 @@ const TerminalSettingsCard: React.FC = () => {
     [update]
   );
 
-  const selectedPreset = findPreset(fontFamily);
-  const pickerLabel = fontFamily.trim()
-    ? (selectedPreset?.label ?? `Custom: ${fontFamily.trim()}`)
-    : 'Default (Menlo)';
-
-  const filteredPopularOptions = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return popularOptions;
-    return popularOptions.filter((option) => option.label.toLowerCase().includes(query));
-  }, [popularOptions, search]);
-
-  const filteredInstalledOptions = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return installedOptions;
-    return installedOptions.filter((option) => option.label.toLowerCase().includes(query));
-  }, [installedOptions, search]);
-
-  const hasAnyResults = filteredPopularOptions.length > 0 || filteredInstalledOptions.length > 0;
-
   return (
     <div className="flex flex-col gap-4">
       <SettingRow
@@ -163,105 +159,56 @@ const TerminalSettingsCard: React.FC = () => {
         description="Choose the font family for the terminal."
         control={
           <div className="w-[183px] flex-shrink-0">
-            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 w-full justify-between text-sm font-normal"
-                  disabled={loading || saving}
-                >
-                  <span className="truncate text-left">{pickerLabel}</span>
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-[var(--anchor-width)] p-2">
-                <div className="grid gap-2">
-                  <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key !== 'Enter') return;
-                      const typed = search.trim();
-                      if (!typed) return;
-                      setSearch('');
-                      setPickerOpen(false);
-                      applyFont(typed);
-                    }}
-                    placeholder="Search or type custom font"
-                    aria-label="Search font options"
-                    className="h-8"
-                  />
-                  <div className="max-h-56 overflow-auto">
-                    {filteredPopularOptions.length > 0 ? (
-                      <>
-                        <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                          Popular
-                        </div>
-                        {filteredPopularOptions.map((option) => {
-                          const selected =
-                            selectedPreset?.fontValue.toLowerCase() ===
-                            option.fontValue.toLowerCase();
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-                              onClick={() => {
-                                setSearch('');
-                                setPickerOpen(false);
-                                applyFont(option.fontValue);
-                              }}
-                            >
-                              <span>{option.label}</span>
-                              {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
-                            </button>
-                          );
-                        })}
-                      </>
-                    ) : null}
-
-                    {filteredInstalledOptions.length > 0 || loadingFonts ? (
-                      <div className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        Installed Fonts
-                      </div>
-                    ) : null}
-
-                    {loadingFonts ? (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        Loading installed fonts...
-                      </div>
-                    ) : null}
-
-                    {filteredInstalledOptions.map((option) => {
-                      const selected =
-                        selectedPreset?.fontValue.toLowerCase() === option.fontValue.toLowerCase();
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-                          onClick={() => {
-                            setSearch('');
-                            setPickerOpen(false);
-                            applyFont(option.fontValue);
-                          }}
-                        >
-                          <span>{option.label}</span>
-                          {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
-                        </button>
-                      );
-                    })}
-
-                    {!loadingFonts && !hasAnyResults ? (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        No fonts found.
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <Combobox
+              items={groups}
+              value={selectedOption}
+              onValueChange={(opt: FontOption | null) => {
+                if (opt) applyFont(opt.value);
+              }}
+              isItemEqualToValue={(a: FontOption, b: FontOption) => a.value === b.value}
+              filter={(item: FontOption, query: string) =>
+                item.label.toLowerCase().includes(query.toLowerCase())
+              }
+              autoHighlight
+            >
+              <ComboboxTrigger
+                render={
+                  <button
+                    type="button"
+                    disabled={loading || saving}
+                    className="flex h-9 w-full items-center justify-between rounded-md border border-border bg-transparent px-2.5 py-1 text-left text-sm font-normal outline-none disabled:opacity-50"
+                  >
+                    <ComboboxValue placeholder="Default (Menlo)" />
+                    <ChevronsUpDownIcon className="ml-2 size-4 shrink-0 text-foreground-muted" />
+                  </button>
+                }
+              />
+              <ComboboxContent>
+                <ComboboxInput showTrigger={false} placeholder="Search fonts..." />
+                <ComboboxList>
+                  {(group: FontGroup) => (
+                    <ComboboxGroup
+                      key={group.value}
+                      items={group.items}
+                      // Hide the entire group (label + collection) when the active
+                      // filter leaves no items. Combobox keeps groups mounted but
+                      // omits filtered-out items, so an empty :has() check works.
+                      className="not-has-[[data-slot=combobox-item]]:hidden"
+                    >
+                      <ComboboxLabel>{group.label}</ComboboxLabel>
+                      <ComboboxCollection>
+                        {(item: FontOption) => (
+                          <ComboboxItem key={item.value || '__default__'} value={item}>
+                            {item.label}
+                          </ComboboxItem>
+                        )}
+                      </ComboboxCollection>
+                    </ComboboxGroup>
+                  )}
+                </ComboboxList>
+                <ComboboxEmpty>No fonts found.</ComboboxEmpty>
+              </ComboboxContent>
+            </Combobox>
           </div>
         }
       />
