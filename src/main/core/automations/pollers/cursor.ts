@@ -2,8 +2,12 @@ import { MAX_SEEN_ISSUES, MAX_SEEN_PRS, type PollerCursor } from './types';
 
 const PR_STATUSES: ReadonlySet<string> = new Set(['open', 'closed', 'merged']);
 
-export function emptyCursor(): PollerCursor {
-  return { initialized: false, seenIssueIds: [], seenPrs: {} };
+function isRepoEventState(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  if (v.etag !== undefined && typeof v.etag !== 'string') return false;
+  if (v.lastSyncedAt !== undefined && typeof v.lastSyncedAt !== 'string') return false;
+  return true;
 }
 
 function isPollerCursor(value: unknown): value is PollerCursor {
@@ -20,14 +24,30 @@ function isPollerCursor(value: unknown): value is PollerCursor {
       if (typeof status !== 'string' || !PR_STATUSES.has(status)) return false;
     }
   }
+  if (v.repoStates !== undefined) {
+    if (typeof v.repoStates !== 'object' || v.repoStates === null) return false;
+    for (const state of Object.values(v.repoStates as Record<string, unknown>)) {
+      if (!isRepoEventState(state)) return false;
+    }
+  }
   return true;
+}
+
+function looksLikeIssueUrl(value: string): boolean {
+  return value.startsWith('http://') || value.startsWith('https://');
 }
 
 export function parseCursor(raw: string | null): PollerCursor | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return isPollerCursor(parsed) ? parsed : null;
+    if (!isPollerCursor(parsed)) return null;
+    // Migrate legacy cursors that stored `#N` identifiers instead of issue URLs.
+    // Reseed without emitting to avoid replaying every currently-open issue.
+    if (parsed.seenIssueIds && parsed.seenIssueIds.some((id) => !looksLikeIssueUrl(id))) {
+      return { ...parsed, initialized: false, seenIssueIds: [] };
+    }
+    return parsed;
   } catch {
     return null;
   }

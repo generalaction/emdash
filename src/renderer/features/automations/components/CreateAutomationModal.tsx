@@ -9,7 +9,6 @@ import {
 import type { ActionSpec, TaskCreateAction } from '@shared/automations/actions';
 import { automationCatalogCategories } from '@shared/automations/builtin-catalog';
 import {
-  isCiEventKind,
   isIssueEventKind,
   isPrEventKind,
   type AutomationEventKind,
@@ -729,10 +728,10 @@ function SchedulePicker({ value, onChange }: SchedulePickerProps) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={cn(PILL_TRIGGER_CLASS, 'w-full justify-between')}>
-        <span className="inline-flex items-center gap-1.5">
+      <PopoverTrigger className={cn(PILL_TRIGGER_CLASS, 'w-full justify-between gap-1.5')}>
+        <span className="flex min-w-0 items-center gap-1.5">
           <Clock className="size-3.5 shrink-0" />
-          <span>{label}</span>
+          <span className="truncate">{label}</span>
         </span>
         <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
       </PopoverTrigger>
@@ -988,7 +987,7 @@ interface FilterPillProps {
 
 function FilterPill({ eventKind, value, onChange }: FilterPillProps) {
   const [open, setOpen] = useState(false);
-  const showBranches = isPrEventKind(eventKind) || isCiEventKind(eventKind);
+  const showBranches = isPrEventKind(eventKind);
   const showAuthors = isPrEventKind(eventKind) || isIssueEventKind(eventKind);
   const count = activeFilterCount(value);
 

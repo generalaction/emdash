@@ -1,6 +1,5 @@
 import { minimatch } from 'minimatch';
 import {
-  isCiEventKind,
   isIssueEventKind,
   isPrEventKind,
   type AutomationEvent,
@@ -10,9 +9,6 @@ import {
 function branchOf(event: AutomationEvent): string | null {
   if (isPrEventKind(event.kind)) {
     return 'baseBranch' in event.payload ? event.payload.baseBranch : null;
-  }
-  if (isCiEventKind(event.kind)) {
-    return 'branch' in event.payload ? event.payload.branch : null;
   }
   return null;
 }
