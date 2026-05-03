@@ -75,6 +75,20 @@ const queryInstalledFonts = async (): Promise<string[]> => {
   return [];
 };
 
+let installedFontsCache: string[] | null = null;
+let installedFontsPromise: Promise<string[]> | null = null;
+
+const getInstalledFonts = (): Promise<string[]> => {
+  if (installedFontsCache) return Promise.resolve(installedFontsCache);
+  if (installedFontsPromise) return installedFontsPromise;
+  installedFontsPromise = queryInstalledFonts().then((fonts) => {
+    installedFontsCache = fonts;
+    installedFontsPromise = null;
+    return fonts;
+  });
+  return installedFontsPromise;
+};
+
 const TerminalSettingsCard: React.FC = () => {
   const {
     value: terminal,
@@ -82,11 +96,14 @@ const TerminalSettingsCard: React.FC = () => {
     isLoading: loading,
     isSaving: saving,
   } = useAppSettingsKey('terminal');
-  const [installedFonts, setInstalledFonts] = useState<string[]>([]);
+  const [pickerOpen, setPickerOpen] = useState<boolean>(false);
+  const [query, setQuery] = useState<string>('');
+  const [installedFonts, setInstalledFonts] = useState<string[]>(() => installedFontsCache ?? []);
 
   useEffect(() => {
+    if (installedFontsCache) return;
     let cancelled = false;
-    void queryInstalledFonts().then((fonts) => {
+    void getInstalledFonts().then((fonts) => {
       if (!cancelled) setInstalledFonts(fonts);
     });
     return () => {
@@ -111,7 +128,6 @@ const TerminalSettingsCard: React.FC = () => {
     const installedItems: FontOption[] = [];
     for (const font of installedFonts) {
       const lower = font.toLowerCase();
-      if (lower === 'menlo') continue;
       if (popularSet.has(lower)) continue;
       installedItems.push({ value: font, label: font });
     }
@@ -121,6 +137,17 @@ const TerminalSettingsCard: React.FC = () => {
       { value: 'installed', label: 'Installed', items: installedItems },
     ];
   }, [installedFonts]);
+
+  const visibleGroups = useMemo<FontGroup[]>(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return groups.filter((group) => group.items.length > 0);
+    return groups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => item.label.toLowerCase().includes(q)),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [groups, query]);
 
   const selectedOption = useMemo<FontOption | null>(() => {
     if (!fontFamily) return DEFAULT_OPTION;
@@ -160,15 +187,22 @@ const TerminalSettingsCard: React.FC = () => {
         control={
           <div className="w-[183px] flex-shrink-0">
             <Combobox
-              items={groups}
+              items={visibleGroups}
               value={selectedOption}
               onValueChange={(opt: FontOption | null) => {
                 if (opt) applyFont(opt.value);
               }}
+              open={pickerOpen}
+              onOpenChange={(open) => {
+                setPickerOpen(open);
+                if (!open) setQuery('');
+              }}
+              inputValue={query}
+              onInputValueChange={(val: string, { reason }: { reason: string }) => {
+                if (reason !== 'item-press') setQuery(val);
+              }}
               isItemEqualToValue={(a: FontOption, b: FontOption) => a.value === b.value}
-              filter={(item: FontOption, query: string) =>
-                item.label.toLowerCase().includes(query.toLowerCase())
-              }
+              filter={null}
               autoHighlight
             >
               <ComboboxTrigger
@@ -184,17 +218,21 @@ const TerminalSettingsCard: React.FC = () => {
                 }
               />
               <ComboboxContent>
-                <ComboboxInput showTrigger={false} placeholder="Search fonts..." />
+                <ComboboxInput
+                  showTrigger={false}
+                  placeholder="Search or type custom font"
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    const typed = e.currentTarget.value.trim();
+                    if (!typed) return;
+                    e.preventDefault();
+                    applyFont(typed);
+                    setPickerOpen(false);
+                  }}
+                />
                 <ComboboxList>
                   {(group: FontGroup) => (
-                    <ComboboxGroup
-                      key={group.value}
-                      items={group.items}
-                      // Hide the entire group (label + collection) when the active
-                      // filter leaves no items. Combobox keeps groups mounted but
-                      // omits filtered-out items, so an empty :has() check works.
-                      className="not-has-[[data-slot=combobox-item]]:hidden"
-                    >
+                    <ComboboxGroup key={group.value} items={group.items}>
                       <ComboboxLabel>{group.label}</ComboboxLabel>
                       <ComboboxCollection>
                         {(item: FontOption) => (
