@@ -1,5 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { taskEvents } from '@main/core/tasks/task-events';
+import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { appSettingsService } from '../../settings/settings-service';
@@ -37,12 +39,17 @@ export async function renameTask(
     }
   }
 
-  await db
+  const [updatedRow] = await db
     .update(tasks)
     .set({
       name: newName,
       taskBranch: newBranch ?? row.taskBranch,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
-    .where(eq(tasks.id, taskId));
+    .where(eq(tasks.id, taskId))
+    .returning();
+
+  if (updatedRow) {
+    taskEvents._emit('task:updated', mapTaskRowToTask(updatedRow));
+  }
 }

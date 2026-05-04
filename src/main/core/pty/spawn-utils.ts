@@ -15,7 +15,7 @@ function posixShellLineForSsh(
   switch (type) {
     case 'agent': {
       const cfg = config as AgentSessionConfig;
-      const baseCmd = [cfg.command, ...cfg.args].join(' ');
+      const baseCmd = [cfg.command, ...cfg.args].map(quoteShellArg).join(' ');
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {
         cwd: cfg.cwd,

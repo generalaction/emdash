@@ -4,7 +4,11 @@ import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
-import { makeClaudeHookCommand, makeCodexNotifyCommand } from './agent-notify-command';
+import {
+  makeClaudeHookCommand,
+  makeCodexNotifyCommand,
+  makeOpenCodePluginContent,
+} from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
@@ -12,6 +16,7 @@ const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
+const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 
@@ -75,6 +80,20 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeOpenCodePlugin(): Promise<boolean> {
+    if (!(await resolveCommandPath('opencode', this.exec))) return false;
+
+    const pluginContent = makeOpenCodePluginContent();
+    const existing = await this.fs
+      .read(OPENCODE_PLUGIN_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === pluginContent) return true;
+
+    await this.fs.write(OPENCODE_PLUGIN_PATH, pluginContent);
+    return true;
+  }
+
   async writeForProvider(
     providerId: AgentProviderId,
     options: HookConfigWriteOptions = {}
@@ -104,11 +123,19 @@ export class HookConfigWriter {
       }
       return;
     }
+
+    if (providerId === 'opencode') {
+      const wroteConfig = await this.writeOpenCodePlugin();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([OPENCODE_PLUGIN_PATH]);
+      }
+      return;
+    }
   }
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'pi'] as const).map((providerId) =>
+      (['claude', 'codex', 'pi', 'opencode'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })

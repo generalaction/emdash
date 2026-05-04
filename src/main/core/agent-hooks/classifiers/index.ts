@@ -14,6 +14,7 @@ import { createDroidClassifier } from './droid';
 import { createGeminiClassifier } from './gemini';
 import { createGenericClassifier } from './generic';
 import { createGooseClassifier } from './goose';
+import { createJunieClassifier } from './junie';
 import { createKilocodeClassifier } from './kilocode';
 import { createKimiClassifier } from './kimi';
 import { createKiroClassifier } from './kiro';
@@ -39,6 +40,7 @@ const classifierFactories: Partial<Record<AgentProviderId, () => ProviderClassif
   droid: createDroidClassifier,
   gemini: createGeminiClassifier,
   goose: createGooseClassifier,
+  junie: createJunieClassifier,
   kilocode: createKilocodeClassifier,
   kimi: createKimiClassifier,
   kiro: createKiroClassifier,

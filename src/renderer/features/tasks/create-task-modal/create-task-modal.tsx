@@ -115,17 +115,16 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
-    const builtInitialConversation =
-      initialConversation.provider && initialConversation.prompt.trim()
-        ? {
-            id: crypto.randomUUID(),
-            projectId: selectedProjectId,
-            taskId: id,
-            provider: initialConversation.provider,
-            title: activeMode.taskName,
-            initialPrompt: initialConversation.prompt.trim(),
-          }
-        : undefined;
+    const builtInitialConversation = initialConversation.provider
+      ? {
+          id: crypto.randomUUID(),
+          projectId: selectedProjectId,
+          taskId: id,
+          provider: initialConversation.provider,
+          title: activeMode.taskName,
+          initialPrompt: initialConversation.prompt.trim() || undefined,
+        }
+      : undefined;
 
     switch (selectedStrategy) {
       case 'from-branch': {
