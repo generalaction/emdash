@@ -72,16 +72,23 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
         event.preventDefault();
         const dt = event.dataTransfer;
         if (!dt?.files?.length) return;
-
-        const paths: string[] = [];
-        for (const file of Array.from(dt.files)) {
-          const path = window.electronAPI.getPathForFile(file).trim();
-          if (path) paths.push(path);
-        }
-        if (paths.length === 0) return;
+        const files = Array.from(dt.files);
 
         void (async () => {
           try {
+            const paths = (
+              await Promise.all(
+                files.map(async (file) => {
+                  const buffer = await file.arrayBuffer();
+                  return rpc.app.saveRendererFile({
+                    name: file.name,
+                    data: new Uint8Array(buffer),
+                  });
+                })
+              )
+            ).filter(Boolean);
+            if (paths.length === 0) return;
+
             if (remoteConnectionId) {
               try {
                 const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });

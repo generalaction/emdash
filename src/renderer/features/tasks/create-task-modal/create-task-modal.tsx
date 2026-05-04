@@ -32,7 +32,6 @@ import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
 import {
-  buildInitialPrompt,
   getInitialPromptImages,
   useInitialConversationState,
 } from './initial-conversation-section';
@@ -122,12 +121,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
-    let initialPrompt: string;
+    let initialPromptImages: Awaited<ReturnType<typeof getInitialPromptImages>>;
     try {
-      initialPrompt = buildInitialPrompt(
-        initialConversation.prompt,
-        await getInitialPromptImages(initialConversation.imageAttachments)
-      );
+      initialPromptImages = await getInitialPromptImages(initialConversation.imageAttachments);
     } catch (error) {
       toast({
         title: 'Failed to attach images',
@@ -136,8 +132,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       });
       return;
     }
+    const initialPrompt = initialConversation.prompt.trim();
     const builtInitialConversation =
-      initialConversation.provider && initialPrompt
+      initialConversation.provider && (initialPrompt || initialPromptImages.length > 0)
         ? {
             id: crypto.randomUUID(),
             projectId: selectedProjectId,
@@ -145,6 +142,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             provider: initialConversation.provider,
             title: activeMode.taskName,
             initialPrompt,
+            initialPromptImages,
           }
         : undefined;
 

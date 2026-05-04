@@ -44,6 +44,7 @@ export const appController = createRPCController({
     appService.openSelectDirectoryDialog(args),
   saveInitialPromptImage: (args: { name: string; mimeType: string; data: Uint8Array }) =>
     appService.saveInitialPromptImage(args),
+  saveRendererFile: (args: { name: string; data: Uint8Array }) => appService.saveRendererFile(args),
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,

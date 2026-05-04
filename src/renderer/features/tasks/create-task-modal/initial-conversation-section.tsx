@@ -3,6 +3,7 @@ import type React from 'react';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import { INITIAL_PROMPT_IMAGE_MAX_BYTES } from '@shared/conversations';
 import type { Issue } from '@shared/tasks';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { buildTaskContextActions } from '@renderer/features/tasks/conversations/context-actions';
@@ -37,17 +38,6 @@ type InitialPromptImage = {
   name: string;
   path: string;
 };
-
-const INITIAL_PROMPT_IMAGE_MAX_BYTES = 25 * 1024 * 1024;
-
-export function buildInitialPrompt(prompt: string, images: InitialPromptImage[]): string {
-  const trimmedPrompt = prompt.trim();
-  const validImages = images.filter((image) => image.path);
-  if (validImages.length === 0) return trimmedPrompt;
-
-  const imagePrompt = validImages.map((image) => `- ${image.name}: ${image.path}`).join('\n');
-  return [trimmedPrompt, 'Attached images:', imagePrompt].filter(Boolean).join('\n\n');
-}
 
 function imageDisplayName(file: File, index: number): string {
   return file.name === 'image.png' ? `Pasted image ${index + 1}.png` : file.name;
@@ -117,18 +107,19 @@ export function InitialConversationField({
   };
 
   const openPreview = (file: File, displayName: string) => {
-    const reader = new FileReader();
-    reader.addEventListener('load', () => {
-      if (typeof reader.result === 'string') setPreview({ name: displayName, src: reader.result });
-    });
-    reader.readAsDataURL(file);
+    setPreview({ name: displayName, src: URL.createObjectURL(file) });
+  };
+
+  const closePreview = () => {
+    if (preview) URL.revokeObjectURL(preview.src);
+    setPreview(null);
   };
 
   const handlePreviewKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Escape') return;
     event.preventDefault();
     event.stopPropagation();
-    setPreview(null);
+    closePreview();
   };
 
   const previewPortal = preview
@@ -138,7 +129,7 @@ export function InitialConversationField({
           role="dialog"
           aria-modal="true"
           aria-label={`${preview.name} preview`}
-          onClick={() => setPreview(null)}
+          onClick={closePreview}
           onKeyDownCapture={handlePreviewKeyDown}
         >
           <div
@@ -152,7 +143,7 @@ export function InitialConversationField({
                 variant="ghost"
                 size="icon-xs"
                 autoFocus
-                onClick={() => setPreview(null)}
+                onClick={closePreview}
                 aria-label="Close image preview"
               >
                 <X className="size-3" />
@@ -192,29 +183,32 @@ export function InitialConversationField({
         />
         {state.imageAttachments.length > 0 ? (
           <ul className="flex flex-col gap-1 border-t border-border p-2">
-            {state.imageAttachments.map((file, index) => (
-              <li
-                key={`${file.name}-${index}`}
-                className="flex items-center justify-between gap-2 rounded-md bg-background-1 px-2 py-1 text-xs"
-              >
-                <button
-                  type="button"
-                  className="truncate text-left text-foreground-muted hover:text-foreground"
-                  onClick={() => openPreview(file, imageDisplayName(file, index))}
+            {state.imageAttachments.map((file, index) => {
+              const displayName = imageDisplayName(file, index);
+              return (
+                <li
+                  key={`${file.name}-${index}`}
+                  className="flex items-center justify-between gap-2 rounded-md bg-background-1 px-2 py-1 text-xs"
                 >
-                  {imageDisplayName(file, index)}
-                </button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => state.removeImageAttachment(index)}
-                  aria-label={`Remove ${imageDisplayName(file, index)}`}
-                >
-                  <X className="size-3" />
-                </Button>
-              </li>
-            ))}
+                  <button
+                    type="button"
+                    className="truncate text-left text-foreground-muted hover:text-foreground"
+                    onClick={() => openPreview(file, displayName)}
+                  >
+                    {displayName}
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => state.removeImageAttachment(index)}
+                    aria-label={`Remove ${displayName}`}
+                  >
+                    <X className="size-3" />
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
         <ModalContextBar actions={contextActions} onActionClick={handleActionClick} />

@@ -1,11 +1,48 @@
 import { randomUUID } from 'node:crypto';
+import { basename } from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
+import { taskManager } from '../tasks/task-manager';
+import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { mapConversationRowToConversation } from './utils';
+
+function buildInitialPrompt(
+  prompt: string | undefined,
+  images: Array<{ name: string; path: string }>
+): string | undefined {
+  const trimmedPrompt = prompt?.trim() ?? '';
+  const validImages = images.filter((image) => image.path);
+  if (validImages.length === 0) return trimmedPrompt || undefined;
+
+  const imagePrompt = validImages.map((image) => `- ${image.name}: ${image.path}`).join('\n');
+  return [trimmedPrompt, 'Attached images:', imagePrompt].filter(Boolean).join('\n\n');
+}
+
+async function prepareInitialPrompt(params: CreateConversationParams): Promise<string | undefined> {
+  const images = params.initialPromptImages ?? [];
+  if (images.length === 0) return buildInitialPrompt(params.initialPrompt, []);
+
+  const workspaceId = taskManager.getWorkspaceId(params.taskId);
+  const workspace = workspaceId ? workspaceRegistry.get(workspaceId) : undefined;
+  const copyLocalFile = workspace?.fs.copyLocalFile;
+  if (!workspace || !copyLocalFile) return buildInitialPrompt(params.initialPrompt, images);
+
+  const imageDir = '.emdash/initial-prompt-images';
+  await workspace.fs.mkdir(imageDir, { recursive: true });
+  const remoteImages = await Promise.all(
+    images.map(async (image) => {
+      const safeName = basename(image.name).replace(/[^a-zA-Z0-9._ -]/g, '_');
+      const remotePath = `${imageDir}/${randomUUID()}-${safeName}`;
+      await copyLocalFile(image.path, remotePath);
+      return { ...image, path: `${workspace.path}/${remotePath}` };
+    })
+  );
+  return buildInitialPrompt(params.initialPrompt, remoteImages);
+}
 
 export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
   const id = params.id ?? randomUUID();
@@ -45,7 +82,7 @@ export async function createConversation(params: CreateConversationParams): Prom
     conversation,
     params.initialSize,
     false,
-    params.initialPrompt
+    await prepareInitialPrompt(params)
   );
   telemetryService.capture('conversation_created', {
     provider: params.provider,
