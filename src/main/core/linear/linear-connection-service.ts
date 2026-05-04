@@ -14,6 +14,7 @@ export class LinearConnectionService {
   private cachedToken: string | null | undefined = undefined;
   private client: LinearClient | null = null;
   private clientToken: string | null = null;
+  /** `null` = no successful verification yet; `undefined` = verified, name unavailable. */
   private lastVerifiedDisplayName: string | undefined | null = null;
 
   async saveToken(
@@ -121,7 +122,7 @@ export class LinearConnectionService {
     const client = this.getClientForToken(token);
     const viewer = await client.viewer;
     const organization = await viewer.organization;
-    return organization.name ?? viewer.displayName ?? undefined;
+    return organization?.name ?? viewer.displayName ?? undefined;
   }
 
   private getClientForToken(token: string): LinearClient {

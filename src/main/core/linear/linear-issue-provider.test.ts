@@ -1,6 +1,19 @@
-import { describe, expect, it, vi } from 'vitest';
+import type * as LinearSdk from '@linear/sdk';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { linearConnectionService } from './linear-connection-service';
 import { linearIssueProvider } from './linear-issue-provider';
+
+const mockRawRequest = vi.hoisted(() => vi.fn());
+
+vi.mock('@linear/sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof LinearSdk>();
+  return {
+    ...actual,
+    LinearGraphQLClient: vi.fn().mockImplementation(function MockLinearGraphQLClient() {
+      return { rawRequest: mockRawRequest };
+    }),
+  };
+});
 
 vi.mock('./linear-connection-service', () => ({
   linearConnectionService: {
@@ -10,17 +23,17 @@ vi.mock('./linear-connection-service', () => ({
 
 const mockGetClient = vi.mocked(linearConnectionService.getClient);
 
-function makeLinearClient(rawRequest: ReturnType<typeof vi.fn>) {
-  return {
-    client: {
-      rawRequest,
-    },
-  };
+function makeLinearClient() {
+  return { options: { apiUrl: 'https://api.linear.app/graphql' } };
 }
 
 describe('linearIssueProvider', () => {
+  beforeEach(() => {
+    mockRawRequest.mockReset();
+  });
+
   it('maps branchName from listed Linear issues', async () => {
-    const rawRequest = vi.fn().mockResolvedValue({
+    mockRawRequest.mockResolvedValue({
       data: {
         issues: {
           nodes: [
@@ -41,11 +54,11 @@ describe('linearIssueProvider', () => {
         },
       },
     });
-    mockGetClient.mockResolvedValue(makeLinearClient(rawRequest) as never);
+    mockGetClient.mockResolvedValue(makeLinearClient() as never);
 
     const result = await linearIssueProvider.listIssues({ limit: 10 });
 
-    expect(rawRequest).toHaveBeenCalledWith(expect.stringContaining('branchName'), {
+    expect(mockRawRequest).toHaveBeenCalledWith(expect.stringContaining('branchName'), {
       limit: 10,
     });
     expect(result).toEqual({
@@ -61,7 +74,7 @@ describe('linearIssueProvider', () => {
   });
 
   it('maps branchName from searched Linear issues', async () => {
-    const rawRequest = vi.fn().mockResolvedValue({
+    mockRawRequest.mockResolvedValue({
       data: {
         searchIssues: {
           nodes: [
@@ -82,14 +95,14 @@ describe('linearIssueProvider', () => {
         },
       },
     });
-    mockGetClient.mockResolvedValue(makeLinearClient(rawRequest) as never);
+    mockGetClient.mockResolvedValue(makeLinearClient() as never);
 
     const result = await linearIssueProvider.searchIssues({
       searchTerm: 'GEN-626',
       limit: 5,
     });
 
-    expect(rawRequest).toHaveBeenCalledWith(
+    expect(mockRawRequest).toHaveBeenCalledWith(
       expect.stringContaining('branchName'),
       expect.objectContaining({ term: 'GEN-626', limit: 5 })
     );
