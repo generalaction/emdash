@@ -3,7 +3,7 @@ import type { BranchesPayload, LocalBranchesPayload, RemoteBranchesPayload } fro
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
 import { events } from '@main/lib/events';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import type { GitRepositoryService } from '../git/repository-service';
 import { projectManager } from '../projects/project-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
@@ -80,7 +80,7 @@ export const repositoryController = createRPCController({
       result = await project.fetch();
     }
 
-    capture('vcs_fetch', {
+    telemetryService.capture('vcs_fetch', {
       success: result.success,
       project_id: projectId,
       ...(result.success ? {} : { error_type: result.error.type }),

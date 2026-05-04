@@ -3,7 +3,7 @@ import { URL } from 'node:url';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { KV } from '@main/db/kv';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 
 type JiraCreds = { siteUrl: string; email: string };
 
@@ -36,7 +36,7 @@ export class JiraConnectionService {
       const me = await this.getMyself(siteUrl, email, token);
       await encryptedAppSecretsStore.setSecret(this.JIRA_TOKEN_SECRET_KEY, token);
       await this.writeCreds({ siteUrl, email });
-      capture('integration_connected', { provider: 'jira' });
+      telemetryService.capture('integration_connected', { provider: 'jira' });
       return { success: true, displayName: me?.displayName };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -51,7 +51,7 @@ export class JiraConnectionService {
       try {
         await jiraKV.del('creds');
       } catch {}
-      capture('integration_disconnected', { provider: 'jira' });
+      telemetryService.capture('integration_disconnected', { provider: 'jira' });
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
