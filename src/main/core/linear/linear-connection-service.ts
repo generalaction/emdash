@@ -2,7 +2,7 @@ import { AuthenticationLinearError, ForbiddenLinearError, LinearClient } from '@
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 
 const VIEWER_QUERY = `
   query EmdashLinearViewer {
@@ -50,7 +50,7 @@ export class LinearConnectionService {
 
       await this.storeToken(clean);
       this.lastVerifiedDisplayName = displayName;
-      capture('integration_connected', { provider: 'linear' });
+      telemetryService.capture('integration_connected', { provider: 'linear' });
 
       return {
         success: true,
@@ -72,7 +72,7 @@ export class LinearConnectionService {
       this.client = null;
       this.clientToken = null;
       this.lastVerifiedDisplayName = undefined;
-      capture('integration_disconnected', { provider: 'linear' });
+      telemetryService.capture('integration_disconnected', { provider: 'linear' });
       return { success: true };
     } catch (error) {
       log.error('Failed to clear Linear token:', error);

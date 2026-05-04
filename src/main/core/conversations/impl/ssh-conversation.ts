@@ -15,7 +15,7 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
 
 const DEFAULT_COLS = 80;
@@ -141,7 +141,7 @@ export class SshConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      capture('agent_run_finished', {
+      telemetryService.capture('agent_run_finished', {
         provider: conversation.providerId,
         exit_code: typeof exitCode === 'number' ? exitCode : -1,
         project_id: conversation.projectId,
@@ -183,7 +183,7 @@ export class SshConversationProvider implements ConversationProvider {
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
-    capture('agent_run_started', {
+    telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,
       task_id: conversation.taskId,

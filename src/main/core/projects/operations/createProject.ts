@@ -8,6 +8,7 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/impl/git-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
+import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { db } from '@main/db/client';
@@ -76,6 +77,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
   };
 
   await projectManager.openProject(project);
+  projectEvents._emit('project:created', project);
 
   return project;
 }
@@ -143,6 +145,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   };
 
   await projectManager.openProject(project);
+  projectEvents._emit('project:created', project);
 
   return project;
 }
