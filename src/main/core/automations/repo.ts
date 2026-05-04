@@ -253,9 +253,6 @@ export async function updateAutomation(
   id: string,
   patch: UpdateAutomationPatch
 ): Promise<Automation | null> {
-  const existing = await getAutomation(id);
-  if (!existing) return null;
-
   const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
   if (patch.name !== undefined) values.name = patch.name.trim();
   if (patch.description !== undefined) values.description = patch.description?.trim() || null;

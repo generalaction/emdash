@@ -2,46 +2,13 @@ import { Bot, CirclePause, CirclePlay, History, Loader2, Pencil, Play, Trash2 } 
 import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import githubSvg from '@/assets/images/Github.svg?raw';
-import type { ActionSpec } from '@shared/automations/actions';
 import { formatTriggerLabel } from '@shared/automations/format';
 import type { Automation } from '@shared/automations/types';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { useAutomationRunStatus } from '../automation-run-status-store';
-
-type Tool = {
-  id: string;
-  label: string;
-  logo: string;
-  isSvg?: boolean;
-  invertInDark?: boolean;
-};
-
-function actionTool(action: ActionSpec): Tool | null {
-  const cfg = action.provider ? agentConfig[action.provider] : undefined;
-  if (!cfg) return null;
-  return {
-    id: `agent:${action.provider}`,
-    label: cfg.name,
-    logo: cfg.logo,
-    isSvg: cfg.isSvg,
-    invertInDark: cfg.invertInDark,
-  };
-}
-
-function collectTools(automation: Automation): Tool[] {
-  const seen = new Set<string>();
-  const tools: Tool[] = [];
-  for (const action of automation.actions) {
-    const tool = actionTool(action);
-    if (!tool || seen.has(tool.id)) continue;
-    seen.add(tool.id);
-    tools.push(tool);
-  }
-  return tools;
-}
+import { collectTools } from '../automation-tools';
 
 interface AutomationRowProps {
   automation: Automation;

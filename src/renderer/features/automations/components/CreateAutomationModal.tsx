@@ -669,7 +669,7 @@ function clampInt(n: number, min: number, max: number): number {
 }
 
 function changeScheduleKind(prev: ScheduleSpec, kind: ScheduleKind): ScheduleSpec {
-  const hour = prev.kind === 'interval' ? 9 : prev.kind === 'hourly' ? 9 : prev.hour;
+  const hour = prev.kind === 'interval' || prev.kind === 'hourly' ? 9 : prev.hour;
   const minute = prev.kind === 'interval' ? 0 : prev.minute;
   switch (kind) {
     case 'daily':

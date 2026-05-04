@@ -2,7 +2,6 @@ import type { AutomationEvent } from '@shared/automations/events';
 
 export type RepoEventState = {
   etag?: string;
-  /** ISO timestamp of the last successful poll for this repo. */
   lastSyncedAt?: string;
 };
 
@@ -10,7 +9,6 @@ export type PollerCursor = {
   initialized?: boolean;
   seenIssueIds?: string[];
   seenPrs?: Record<string, 'open' | 'closed' | 'merged'>;
-  /** Per-repo conditional-request state, keyed by repositoryUrl. */
   repoStates?: Record<string, RepoEventState>;
 };
 

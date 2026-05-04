@@ -2,7 +2,6 @@ import { Bot, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import githubSvg from '@/assets/images/Github.svg?raw';
-import type { ActionSpec } from '@shared/automations/actions';
 import { formatRunStatusLabel, formatRunTriggerKindLabel } from '@shared/automations/format';
 import type { Automation, AutomationRunWithContext } from '@shared/automations/types';
 import {
@@ -15,38 +14,11 @@ import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
+import { getPrimaryTool } from '../automation-tools';
 import { useAutomations, useRecentAutomationRuns } from '../useAutomations';
 
 const PAGE_LIMIT = 50;
-
-type Tool = {
-  label: string;
-  logo: string;
-  isSvg?: boolean;
-  invertInDark?: boolean;
-};
-
-function actionTool(action: ActionSpec): Tool | null {
-  const cfg = action.provider ? agentConfig[action.provider] : undefined;
-  if (!cfg) return null;
-  return {
-    label: cfg.name,
-    logo: cfg.logo,
-    isSvg: cfg.isSvg,
-    invertInDark: cfg.invertInDark,
-  };
-}
-
-function primaryTool(automation: Automation | undefined): Tool | null {
-  if (!automation) return null;
-  for (const action of automation.actions) {
-    const tool = actionTool(action);
-    if (tool) return tool;
-  }
-  return null;
-}
 
 export function RecentRunsList() {
   const runs = useRecentAutomationRuns(undefined, PAGE_LIMIT);
@@ -106,7 +78,7 @@ const RecentRunRow = observer(function RecentRunRow({ run, automation }: RecentR
   const projectName = projectDisplayName(getProjectStore(run.projectId));
   const status = formatRunStatusLabel(run.status);
   const isFailed = run.status === 'failed';
-  const tool = primaryTool(automation);
+  const tool = getPrimaryTool(automation);
   const isGithubTriggered = run.triggerKind === 'event';
 
   function handleOpenTask() {

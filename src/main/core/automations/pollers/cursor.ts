@@ -57,7 +57,6 @@ export function serializeCursor(cursor: PollerCursor): string {
   return JSON.stringify(cursor);
 }
 
-/** Append new IDs to the seen list, capping the total length (oldest first eviction). */
 export function trackSeenIssueIds(prev: string[] | undefined, newIds: string[]): string[] {
   const set = new Set(prev ?? []);
   for (const id of newIds) set.add(id);

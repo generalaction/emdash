@@ -35,14 +35,19 @@ export const githubPoller: Poller = {
     const collected: GitHubIssue[] = [];
     let allOk = repos.length > 0;
 
-    for (const repo of repos) {
-      const key = repo.repositoryUrl;
-      const prev = prevStates[key];
-      const result = await issueService.listIssuesForPolling(repo, {
-        limit: 50,
-        since: sinceFor(prev),
-        etag: prev?.etag,
-      });
+    const results = await Promise.all(
+      repos.map(async (repo) => {
+        const key = repo.repositoryUrl;
+        const prev = prevStates[key];
+        const result = await issueService.listIssuesForPolling(repo, {
+          limit: 50,
+          since: sinceFor(prev),
+          etag: prev?.etag,
+        });
+        return { key, prev, result };
+      })
+    );
+    for (const { key, prev, result } of results) {
       if (!result.ok) allOk = false;
       collected.push(...result.issues);
       nextStates[key] = {
