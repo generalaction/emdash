@@ -32,6 +32,7 @@ import {
 import { Input } from '@renderer/lib/ui/input';
 import { ModalLayout } from '@renderer/lib/ui/modal-layout';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
+import { Textarea } from '@renderer/lib/ui/textarea';
 
 export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: string }> {
   initialConfig?: SshConfig;
@@ -50,6 +51,7 @@ const formSchema = z
       .min(1, 'Port must be at least 1')
       .max(65535, 'Port must be at most 65535'),
     username: z.string().min(1, 'Username is required'),
+    proxyCommand: z.string(),
     authType: z.enum(['password', 'key', 'agent']),
     password: z.string(),
     privateKeyPath: z.string(),
@@ -91,6 +93,7 @@ export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshCon
       host: initialConfig?.host ?? '',
       port: initialConfig?.port ?? 22,
       username: initialConfig?.username ?? '',
+      proxyCommand: initialConfig?.proxyCommand ?? '',
       authType: (initialConfig?.authType ?? 'password') as AuthType,
       password: '',
       privateKeyPath: initialConfig?.privateKeyPath ?? '',
@@ -110,6 +113,7 @@ export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshCon
           host: value.host,
           port: value.port,
           username: value.username,
+          proxyCommand: value.proxyCommand.trim() || undefined,
           authType: value.authType,
           privateKeyPath: value.authType === 'key' ? value.privateKeyPath : undefined,
           useAgent: value.authType === 'agent',
@@ -132,6 +136,7 @@ export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshCon
       host: v.host,
       port: v.port,
       username: v.username,
+      proxyCommand: v.proxyCommand.trim() || undefined,
       authType: v.authType,
       privateKeyPath: v.authType === 'key' ? v.privateKeyPath : undefined,
       useAgent: v.authType === 'agent',
@@ -297,6 +302,27 @@ export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshCon
                   </Field>
                 );
               }}
+            </form.Field>
+
+            <form.Field name="proxyCommand">
+              {(field) => (
+                <Field>
+                  <FieldLabel htmlFor={field.name}>ProxyCommand</FieldLabel>
+                  <Textarea
+                    id={field.name}
+                    name={field.name}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="Optional. Example: cloudflared access ssh --hostname %h"
+                    rows={3}
+                    className="resize-y"
+                  />
+                  <FieldDescription>
+                    Optional local command used to proxy the SSH transport before authentication.
+                  </FieldDescription>
+                </Field>
+              )}
             </form.Field>
 
             {/* Auth type */}

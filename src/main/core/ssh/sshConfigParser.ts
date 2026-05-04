@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { SshConfigHost } from '@shared/ssh';
+import { normalizeProxyCommand } from './proxy-command';
 
 /**
  * Strips surrounding quotes (single or double) from a value string.
@@ -83,6 +84,16 @@ export async function parseSshConfigFile(): Promise<SshConfigHost[]> {
     const portMatch = trimmed.match(/^Port\s+(\d+)$/i);
     if (portMatch && currentHost) {
       currentHost.port = parseInt(portMatch[1], 10);
+      continue;
+    }
+
+    // Match ProxyCommand
+    const proxyCommandMatch = trimmed.match(/^ProxyCommand\s+(.+)$/i);
+    if (proxyCommandMatch && currentHost) {
+      const proxyCommand = normalizeProxyCommand(proxyCommandMatch[1].trim());
+      if (proxyCommand) {
+        currentHost.proxyCommand = proxyCommand;
+      }
       continue;
     }
 

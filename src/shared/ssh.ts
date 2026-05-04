@@ -8,6 +8,7 @@ export interface SshConfig {
   host: string;
   port: number;
   username: string;
+  proxyCommand?: string;
   authType: 'password' | 'key' | 'agent';
   privateKeyPath?: string;
   useAgent?: boolean;
@@ -121,6 +122,7 @@ export interface SshConfigHost {
   hostname?: string;
   user?: string;
   port?: number;
+  proxyCommand?: string;
   identityFile?: string;
   identityAgent?: string;
 }
