@@ -116,6 +116,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Switch to the editor view in the task panel',
     category: 'Task View',
   },
+  editorFileSearch: {
+    defaultHotkey: 'Mod+P',
+    label: 'Quick Open File',
+    description: 'Search and open a file in the current task',
+    category: 'Task View',
+  },
   tabNext: {
     defaultHotkey: 'Mod+Alt+ArrowRight',
     label: 'Next Tab',

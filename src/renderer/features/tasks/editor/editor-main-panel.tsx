@@ -1,5 +1,7 @@
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { Eye, FileCode, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { FileTabs } from '@renderer/features/tasks/editor/file-tabs';
 import { type EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
@@ -9,7 +11,12 @@ import { MarkdownEditorRenderer } from '@renderer/lib/editor/markdown-renderer';
 import { SvgRenderer } from '@renderer/lib/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
 import type { ManagedFile } from '@renderer/lib/editor/types';
+import {
+  getEffectiveHotkey,
+  getHotkeyRegistration,
+} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { useEditorContext } from './editor-provider';
 
@@ -18,6 +25,18 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
 
   const editorView = useProvisionedTask().taskView.editorView;
   useTabShortcuts(editorView);
+
+  const { value: keyboard } = useAppSettingsKey('keyboard');
+  const showFileSearch = useShowModal('editorFileSearchModal');
+  const fileSearchHotkey = getEffectiveHotkey('editorFileSearch', keyboard);
+  useHotkey(
+    getHotkeyRegistration('editorFileSearch', keyboard),
+    (e) => {
+      e.preventDefault();
+      showFileSearch({});
+    },
+    { enabled: fileSearchHotkey !== null, conflictBehavior: 'allow' }
+  );
   const tabs = editorView.tabs;
   const activeTab = editorView.activeTab;
 

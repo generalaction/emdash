@@ -60,6 +60,7 @@ export const keyboardSettingsSchema = z
       taskViewAgents: z.string().nullable().optional(),
       taskViewDiff: z.string().nullable().optional(),
       taskViewEditor: z.string().nullable().optional(),
+      editorFileSearch: z.string().nullable().optional(),
       tabNext: z.string().nullable().optional(),
       tabPrev: z.string().nullable().optional(),
       tabClose: z.string().nullable().optional(),

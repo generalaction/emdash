@@ -7,6 +7,7 @@ import { CreateConversationModal } from '@renderer/features/tasks/conversations/
 import { CreateTaskModal } from '@renderer/features/tasks/create-task-modal/create-task-modal';
 import { CreatePrModal } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/create-pr-modal';
 import { ConflictDialog } from '@renderer/features/tasks/editor/conflict-dialog';
+import { FileSearchModal } from '@renderer/features/tasks/editor/file-search-modal';
 import { RenameTaskModal } from '@renderer/features/tasks/rename-task-modal';
 import { AddSshConnModal } from '@renderer/lib/components/add-ssh-conn-modal';
 import { ChangeProjectConnectionModal } from '@renderer/lib/components/change-project-connection-modal';
@@ -41,6 +42,7 @@ export const modalRegistry = {
   mcpServerModal: createModal(McpModal),
   createSkillModal: createModal(CreateSkillModal),
   conflictDialog: createModal(ConflictDialog, { size: 'sm' }),
+  editorFileSearchModal: createModal(FileSearchModal, { size: 'md' }),
   createPrModal: createModal(CreatePrModal, { size: 'md' }),
   renameTaskModal: createModal(RenameTaskModal, { size: 'xs' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
