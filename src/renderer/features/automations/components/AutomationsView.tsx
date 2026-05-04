@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { LayoutGrid, Loader2, Plus, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/types';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -18,6 +18,17 @@ export function AutomationsView() {
   const showCreateAutomation = useShowModal('createAutomationModal');
   const [runsAutomation, setRunsAutomation] = useState<Automation | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
+
+  useEffect(() => {
+    if (!browseOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setBrowseOpen(false);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [browseOpen]);
 
   const automationItems = useMemo(() => automations.data ?? [], [automations.data]);
   const activeAutomations = useMemo(
@@ -152,27 +163,6 @@ export function AutomationsView() {
           </div>
         </div>
 
-        {hasAutomations && (
-          <div className="mb-6 space-y-5">
-            {activeAutomations.length > 0 && (
-              <div className="divide-y divide-border/70 border-y border-border/70">
-                {activeAutomations.map(renderAutomationRow)}
-              </div>
-            )}
-
-            {pausedAutomations.length > 0 && (
-              <section>
-                <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
-                  Paused
-                </h2>
-                <div className="divide-y divide-border/70 border-y border-border/70">
-                  {pausedAutomations.map(renderAutomationRow)}
-                </div>
-              </section>
-            )}
-          </div>
-        )}
-
         <AnimatePresence initial={false}>
           {showTemplates && (
             <motion.div
@@ -223,6 +213,27 @@ export function AutomationsView() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {hasAutomations && (
+          <div className="mb-6 space-y-5">
+            {activeAutomations.length > 0 && (
+              <div className="divide-y divide-border/70 border-y border-border/70">
+                {activeAutomations.map(renderAutomationRow)}
+              </div>
+            )}
+
+            {pausedAutomations.length > 0 && (
+              <section>
+                <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
+                  Paused
+                </h2>
+                <div className="divide-y divide-border/70 border-y border-border/70">
+                  {pausedAutomations.map(renderAutomationRow)}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
 
         {hasAutomations && (
           <section className="mt-2">
