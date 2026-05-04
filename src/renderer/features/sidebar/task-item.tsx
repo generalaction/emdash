@@ -1,5 +1,7 @@
+import { Archive, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { selectCurrentPr } from '@shared/pull-requests';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
@@ -17,7 +19,7 @@ import {
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { PrBadge } from '../../lib/components/pr-badge';
-import { SidebarMenuRow } from './sidebar-primitives';
+import { SidebarItemMiniButton, SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
   taskId: string;
@@ -34,6 +36,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
   const showConfirm = useShowModal('confirmActionModal');
+
+  const { value: interfaceSettings } = useAppSettingsKey('interface');
+  const hoverAction = interfaceSettings?.taskHoverAction ?? 'delete';
 
   const { currentView } = useWorkspaceSlots();
   const { params } = useParams('task');
@@ -116,6 +121,24 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           <RenderPrBadge task={task} />
         </div>
         <TaskSidebarAgentStatus task={task} />
+        <SidebarItemMiniButton
+          className="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (hoverAction === 'archive') {
+              handleArchive();
+            } else {
+              handleDelete();
+            }
+          }}
+          aria-label={hoverAction === 'archive' ? 'Archive task' : 'Delete task'}
+        >
+          {hoverAction === 'archive' ? (
+            <Archive className="size-3.5" />
+          ) : (
+            <Trash2 className="size-3.5" />
+          )}
+        </SidebarItemMiniButton>
       </SidebarMenuRow>
     </TaskContextMenu>
   );
