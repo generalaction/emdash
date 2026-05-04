@@ -1,4 +1,6 @@
 import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { app } from 'electron';
 import { getProvider } from '@shared/agent-provider-registry';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
@@ -26,6 +28,11 @@ import { buildAgentCommand } from './agent-command';
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const MAX_RESPAWNS = 2;
+const OPENCODE_EMDASH_CONFIG_DIR = 'opencode';
+
+function getOpenCodeConfigDir(): string {
+  return join(app.getPath('userData'), OPENCODE_EMDASH_CONFIG_DIR);
+}
 
 export class LocalConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
@@ -65,7 +72,9 @@ export class LocalConversationProvider implements ConversationProvider {
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
-    this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), ctx);
+    this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), ctx, {
+      openCodeConfigFs: new LocalFileSystem(getOpenCodeConfigDir()),
+    });
   }
 
   async startSession(
@@ -127,6 +136,10 @@ export class LocalConversationProvider implements ConversationProvider {
       env: {
         ...buildAgentEnv({
           hook: port > 0 ? { port, ptyId, token } : undefined,
+          customVars:
+            conversation.providerId === 'opencode'
+              ? { OPENCODE_CONFIG_DIR: getOpenCodeConfigDir() }
+              : undefined,
         }),
         ...this.taskEnvVars,
       },

@@ -16,9 +16,10 @@ const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
-const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
+const OPENCODE_PLUGIN_PATH = 'plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
+type HookConfigWriterOptions = { openCodeConfigFs?: FileSystemProvider };
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
@@ -28,7 +29,8 @@ const HOOK_EVENT_MAP = [
 export class HookConfigWriter {
   constructor(
     private readonly fs: FileSystemProvider,
-    private readonly exec: IExecutionContext
+    private readonly exec: IExecutionContext,
+    private readonly options: HookConfigWriterOptions = {}
   ) {}
 
   async writeClaudeHooks(): Promise<boolean> {
@@ -83,14 +85,15 @@ export class HookConfigWriter {
   async writeOpenCodePlugin(): Promise<boolean> {
     if (!(await resolveCommandPath('opencode', this.exec))) return false;
 
+    const fs = this.options.openCodeConfigFs ?? this.fs;
     const pluginContent = makeOpenCodePluginContent();
-    const existing = await this.fs
+    const existing = await fs
       .read(OPENCODE_PLUGIN_PATH)
       .then((r) => r.content)
       .catch(() => undefined);
     if (existing === pluginContent) return true;
 
-    await this.fs.write(OPENCODE_PLUGIN_PATH, pluginContent);
+    await fs.write(OPENCODE_PLUGIN_PATH, pluginContent);
     return true;
   }
 
@@ -125,10 +128,7 @@ export class HookConfigWriter {
     }
 
     if (providerId === 'opencode') {
-      const wroteConfig = await this.writeOpenCodePlugin();
-      if (wroteConfig && writeGitIgnoreEntries) {
-        await this.ensureGitIgnoreEntries([OPENCODE_PLUGIN_PATH]);
-      }
+      await this.writeOpenCodePlugin();
       return;
     }
   }
