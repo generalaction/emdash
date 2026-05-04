@@ -4,27 +4,6 @@ import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secre
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 
-const VIEWER_QUERY = `
-  query EmdashLinearViewer {
-    viewer {
-      id
-      displayName
-      organization {
-        id
-        name
-      }
-    }
-  }
-`;
-
-type ViewerQueryResult = {
-  viewer: {
-    id: string;
-    displayName: string | null;
-    organization: { id: string; name: string | null } | null;
-  } | null;
-};
-
 function isAuthFailure(error: unknown): boolean {
   return error instanceof AuthenticationLinearError || error instanceof ForbiddenLinearError;
 }
@@ -35,7 +14,7 @@ export class LinearConnectionService {
   private cachedToken: string | null | undefined = undefined;
   private client: LinearClient | null = null;
   private clientToken: string | null = null;
-  private lastVerifiedDisplayName: string | undefined = undefined;
+  private lastVerifiedDisplayName: string | undefined | null = null;
 
   async saveToken(
     token: string
@@ -71,7 +50,7 @@ export class LinearConnectionService {
       this.cachedToken = null;
       this.client = null;
       this.clientToken = null;
-      this.lastVerifiedDisplayName = undefined;
+      this.lastVerifiedDisplayName = null;
       telemetryService.capture('integration_disconnected', { provider: 'linear' });
       return { success: true };
     } catch (error) {
@@ -86,7 +65,7 @@ export class LinearConnectionService {
   async checkConnection(): Promise<ConnectionStatus> {
     const token = await this.getStoredToken();
     if (!token) {
-      this.lastVerifiedDisplayName = undefined;
+      this.lastVerifiedDisplayName = null;
       return {
         connected: false,
         capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
@@ -103,7 +82,7 @@ export class LinearConnectionService {
       };
     } catch (error) {
       if (isAuthFailure(error)) {
-        this.lastVerifiedDisplayName = undefined;
+        this.lastVerifiedDisplayName = null;
         const message = error instanceof Error ? error.message : 'Linear token rejected.';
         return {
           connected: false,
@@ -112,7 +91,7 @@ export class LinearConnectionService {
         };
       }
 
-      if (this.lastVerifiedDisplayName === undefined) {
+      if (this.lastVerifiedDisplayName === null) {
         return {
           connected: false,
           error: 'Unable to verify Linear connection. Please try again.',
@@ -140,11 +119,9 @@ export class LinearConnectionService {
 
   private async fetchViewerDisplayName(token: string): Promise<string | undefined> {
     const client = this.getClientForToken(token);
-    const { data } = await client.client.rawRequest<ViewerQueryResult, Record<string, never>>(
-      VIEWER_QUERY,
-      {}
-    );
-    return data?.viewer?.organization?.name ?? data?.viewer?.displayName ?? undefined;
+    const viewer = await client.viewer;
+    const organization = await viewer.organization;
+    return organization.name ?? viewer.displayName ?? undefined;
   }
 
   private getClientForToken(token: string): LinearClient {
