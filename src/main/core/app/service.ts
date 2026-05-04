@@ -1,4 +1,8 @@
 import { exec } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, extname, join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { clipboard, dialog, shell } from 'electron';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
@@ -33,6 +37,51 @@ import {
 } from './utils';
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
+
+const INITIAL_PROMPT_IMAGE_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.svg',
+]);
+const INITIAL_PROMPT_IMAGE_DIR = join(tmpdir(), 'emdash-initial-prompt-images');
+const INITIAL_PROMPT_IMAGE_TTL_MS = 24 * 60 * 60 * 1000;
+const INITIAL_PROMPT_IMAGE_MAX_BYTES = 25 * 1024 * 1024;
+
+function extensionForImage(name: string, mimeType: string): string {
+  const nameExt = extname(name).toLowerCase();
+  if (INITIAL_PROMPT_IMAGE_EXTENSIONS.has(nameExt)) return nameExt;
+  const typeExt = mimeType.startsWith('image/') ? `.${mimeType.slice('image/'.length)}` : '.png';
+  return INITIAL_PROMPT_IMAGE_EXTENSIONS.has(typeExt) ? typeExt : '.png';
+}
+
+function safeImageFileName(name: string, mimeType: string): string {
+  const ext = extensionForImage(name, mimeType);
+  const rawName = basename(name || `image-${randomUUID()}${ext}`);
+  const withExt = extname(rawName) ? rawName : `${rawName}${ext}`;
+  return withExt.replace(/[^a-zA-Z0-9._ -]/g, '_');
+}
+
+async function cleanupOldInitialPromptImages(): Promise<void> {
+  try {
+    const entries = await readdir(INITIAL_PROMPT_IMAGE_DIR);
+    const now = Date.now();
+    await Promise.all(
+      entries.map(async (entry) => {
+        const path = join(INITIAL_PROMPT_IMAGE_DIR, entry);
+        const info = await stat(path).catch(() => null);
+        if (info && now - info.mtimeMs > INITIAL_PROMPT_IMAGE_TTL_MS) {
+          await rm(path, { force: true });
+        }
+      })
+    );
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
 
 type RemoteTerminalLaunchAttempt = {
   file: string;
@@ -357,6 +406,29 @@ class AppService implements IInitializable, IDisposable {
         resolve();
       });
     });
+  }
+
+  async saveInitialPromptImage(args: {
+    name: string;
+    mimeType: string;
+    data: Uint8Array;
+  }): Promise<string> {
+    if (!(args.data instanceof Uint8Array)) {
+      throw new Error('Invalid image data');
+    }
+    if (args.data.byteLength === 0) {
+      throw new Error('Image data is empty');
+    }
+    if (args.data.byteLength > INITIAL_PROMPT_IMAGE_MAX_BYTES) {
+      throw new Error('Image is too large');
+    }
+
+    await mkdir(INITIAL_PROMPT_IMAGE_DIR, { recursive: true });
+    void cleanupOldInitialPromptImages();
+    const fileName = safeImageFileName(args.name, args.mimeType);
+    const path = join(INITIAL_PROMPT_IMAGE_DIR, `${randomUUID()}-${fileName}`);
+    await writeFile(path, Buffer.from(args.data));
+    return path;
   }
 
   async openSelectDirectoryDialog(args: {

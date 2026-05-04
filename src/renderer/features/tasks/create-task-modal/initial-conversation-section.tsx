@@ -9,6 +9,7 @@ import { buildTaskContextActions } from '@renderer/features/tasks/conversations/
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
+import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Textarea } from '@renderer/lib/ui/textarea';
@@ -37,6 +38,8 @@ type InitialPromptImage = {
   path: string;
 };
 
+const INITIAL_PROMPT_IMAGE_MAX_BYTES = 25 * 1024 * 1024;
+
 export function buildInitialPrompt(prompt: string, images: InitialPromptImage[]): string {
   const trimmedPrompt = prompt.trim();
   const validImages = images.filter((image) => image.path);
@@ -50,11 +53,24 @@ function imageDisplayName(file: File, index: number): string {
   return file.name === 'image.png' ? `Pasted image ${index + 1}.png` : file.name;
 }
 
+async function resolveImagePath(file: File): Promise<string> {
+  if (file.size > INITIAL_PROMPT_IMAGE_MAX_BYTES) {
+    throw new Error('Image is too large');
+  }
+
+  const buffer = await file.arrayBuffer();
+  return rpc.app.saveInitialPromptImage({
+    name: file.name,
+    mimeType: file.type,
+    data: new Uint8Array(buffer),
+  });
+}
+
 export async function getInitialPromptImages(files: File[]): Promise<InitialPromptImage[]> {
   return Promise.all(
     files.map(async (file, index) => ({
       name: imageDisplayName(file, index),
-      path: await window.electronAPI.getPathForFileOrSave(file),
+      path: await resolveImagePath(file),
     }))
   );
 }
@@ -100,10 +116,10 @@ export function InitialConversationField({
     state.setPrompt(state.prompt ? `${state.prompt}\n${text}` : text);
   };
 
-  const openPreview = (file: File) => {
+  const openPreview = (file: File, displayName: string) => {
     const reader = new FileReader();
     reader.addEventListener('load', () => {
-      if (typeof reader.result === 'string') setPreview({ name: file.name, src: reader.result });
+      if (typeof reader.result === 'string') setPreview({ name: displayName, src: reader.result });
     });
     reader.readAsDataURL(file);
   };
@@ -184,7 +200,7 @@ export function InitialConversationField({
                 <button
                   type="button"
                   className="truncate text-left text-foreground-muted hover:text-foreground"
-                  onClick={() => openPreview(file)}
+                  onClick={() => openPreview(file, imageDisplayName(file, index))}
                 >
                   {imageDisplayName(file, index)}
                 </button>
