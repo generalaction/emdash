@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
 import { taskManager } from '../tasks/task-manager';
@@ -29,7 +30,12 @@ async function prepareInitialPrompt(params: CreateConversationParams): Promise<s
   const workspaceId = taskManager.getWorkspaceId(params.taskId);
   const workspace = workspaceId ? workspaceRegistry.get(workspaceId) : undefined;
   const copyLocalFile = workspace?.fs.copyLocalFile;
-  if (!workspace || !copyLocalFile) return buildInitialPrompt(params.initialPrompt, images);
+  if (!workspace || !copyLocalFile) {
+    if (workspace && !copyLocalFile) {
+      log.warn('Workspace has no copyLocalFile — initial prompt images will use temp paths');
+    }
+    return buildInitialPrompt(params.initialPrompt, images);
+  }
 
   const imageDir = '.emdash/initial-prompt-images';
   await workspace.fs.mkdir(imageDir, { recursive: true });
