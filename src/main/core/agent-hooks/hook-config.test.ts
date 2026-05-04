@@ -101,7 +101,7 @@ describe('HookConfigWriter', () => {
 
     await writer.writeForProvider('opencode');
 
-    expect(fs.files.has('.opencode/plugins/emdash-notifications.js')).toBe(false);
+    expect(fs.files.has('plugins/emdash-notifications.js')).toBe(false);
     expect(openCodeConfigFs.files.has('plugins/emdash-notifications.js')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
   });
