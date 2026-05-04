@@ -122,7 +122,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         </div>
         <TaskSidebarAgentStatus task={task} />
         <SidebarItemMiniButton
-          className="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100"
+          className="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
             if (hoverAction === 'archive') {
