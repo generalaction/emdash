@@ -5,6 +5,7 @@ import type { Pty } from '@main/core/pty/pty';
 import { log } from '@main/lib/logger';
 
 const INITIAL_PROMPT_INJECTION_DELAY_MS = 1000;
+const INITIAL_PROMPT_SUBMIT_SEQUENCE = '\r';
 
 export function scheduleInitialPromptInjection(args: {
   pty: Pty;
@@ -23,10 +24,27 @@ export function scheduleInitialPromptInjection(args: {
     text: args.initialPrompt,
   });
   if (!payload) return;
+  const submitSequence = provider.keystrokeSubmitSequence ?? INITIAL_PROMPT_SUBMIT_SEQUENCE;
 
   setTimeout(() => {
     try {
-      args.pty.write(`${payload}\r`);
+      if (provider.keystrokeSubmitDelayMs) {
+        args.pty.write(payload);
+        setTimeout(() => {
+          try {
+            args.pty.write(submitSequence);
+          } catch (error) {
+            log.warn('ConversationProvider: failed to submit initial prompt', {
+              providerId: args.conversation.providerId,
+              conversationId: args.conversation.id,
+              error: String(error),
+            });
+          }
+        }, provider.keystrokeSubmitDelayMs);
+        return;
+      }
+
+      args.pty.write(`${payload}${submitSequence}`);
     } catch (error) {
       log.warn('ConversationProvider: failed to inject initial prompt', {
         providerId: args.conversation.providerId,
