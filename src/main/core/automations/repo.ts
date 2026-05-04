@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
-import { and, desc, eq, isNotNull, lt, lte } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, lte } from 'drizzle-orm';
 import type { ActionSpec } from '@shared/automations/actions';
 import type { AutomationEventKind, EventTriggerFilters } from '@shared/automations/events';
 import { getLocalTimeZone } from '@shared/automations/timezone';
@@ -431,21 +431,6 @@ export async function listRecentRuns(
     automationName: automation.name,
     projectId: automation.projectId,
   }));
-}
-
-export async function overdueCronAutomations(cutoff: number): Promise<Automation[]> {
-  const rows = await db
-    .select()
-    .from(automations)
-    .where(
-      and(
-        eq(automations.enabled, 1),
-        eq(automations.triggerType, 'cron'),
-        isNotNull(automations.nextRunAt),
-        lt(automations.nextRunAt, cutoff)
-      )
-    );
-  return rows.map(mapAutomationRow);
 }
 
 export type AutomationEventCursorRecord = {

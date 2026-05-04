@@ -4,11 +4,9 @@ import {
   dueCronAutomations,
   enabledCronAutomations,
   getNextRunAt,
-  insertRun,
-  overdueCronAutomations,
   updateAutomationSchedule,
 } from './repo';
-import { emitRunUpdated, runAutomation } from './runtime';
+import { runAutomation } from './runtime';
 
 const TICK_MS = 60_000;
 const MISSED_GRACE_MS = 5 * 60_000;
@@ -40,28 +38,16 @@ class AutomationScheduler {
 
   private async bootstrap(): Promise<void> {
     const now = Date.now();
-    const missed = await overdueCronAutomations(now - MISSED_GRACE_MS);
-    await Promise.all(
-      missed.map(async (automation) => {
-        const run = await insertRun({
-          automationId: automation.id,
-          status: 'skipped',
-          triggerKind: 'cron',
-          startedAt: now,
-          finishedAt: now,
-          error: 'app_was_offline',
-        });
-        emitRunUpdated(run);
-      })
-    );
-
     const rows = await enabledCronAutomations();
     await Promise.all(
-      rows
-        .filter(
-          (automation) => !automation.nextRunAt || automation.nextRunAt < now - MISSED_GRACE_MS
-        )
-        .map((automation) => this.advanceNextRun(automation, now))
+      rows.map(async (automation) => {
+        if (automation.nextRunAt && automation.nextRunAt < now - MISSED_GRACE_MS) {
+          await runAutomation(automation, 'cron');
+        }
+        if (!automation.nextRunAt || automation.nextRunAt < now - MISSED_GRACE_MS) {
+          await this.advanceNextRun(automation, now);
+        }
+      })
     );
   }
 
