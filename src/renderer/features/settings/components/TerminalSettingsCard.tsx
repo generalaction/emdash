@@ -1,7 +1,7 @@
 import { ChevronsUpDownIcon } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { rpc } from '@renderer/lib/ipc';
+import { useInstalledFonts } from '@renderer/features/settings/use-installed-fonts';
 import {
   Combobox,
   ComboboxCollection,
@@ -17,10 +17,6 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { Switch } from '@renderer/lib/ui/switch';
 import { SettingRow } from './SettingRow';
-
-type FontPickerWindow = Window & {
-  queryLocalFonts?: () => Promise<Array<{ family: string }>>;
-};
 
 type FontOption = {
   value: string;
@@ -49,46 +45,6 @@ const DEFAULT_OPTION: FontOption = {
   label: 'Default (Menlo)',
 };
 
-const dedupeAndSort = (fonts: string[]) =>
-  Array.from(new Set(fonts.map((font) => font.trim()).filter(Boolean))).sort((a, b) =>
-    a.localeCompare(b)
-  );
-
-const queryInstalledFonts = async (): Promise<string[]> => {
-  const fontWindow = window as FontPickerWindow;
-  if (typeof fontWindow.queryLocalFonts === 'function') {
-    try {
-      const fonts = await fontWindow.queryLocalFonts();
-      return dedupeAndSort(fonts.map((f) => f.family));
-    } catch {
-      // Permission denied or unsupported in this context — fall through to IPC.
-    }
-  }
-  try {
-    const result = await rpc.app.listInstalledFonts();
-    if (result?.success && Array.isArray(result.fonts)) {
-      return dedupeAndSort(result.fonts);
-    }
-  } catch {
-    // Swallow — UI shows just the default option.
-  }
-  return [];
-};
-
-let installedFontsCache: string[] | null = null;
-let installedFontsPromise: Promise<string[]> | null = null;
-
-const getInstalledFonts = (): Promise<string[]> => {
-  if (installedFontsCache) return Promise.resolve(installedFontsCache);
-  if (installedFontsPromise) return installedFontsPromise;
-  installedFontsPromise = queryInstalledFonts().then((fonts) => {
-    installedFontsCache = fonts;
-    installedFontsPromise = null;
-    return fonts;
-  });
-  return installedFontsPromise;
-};
-
 const TerminalSettingsCard: React.FC = () => {
   const {
     value: terminal,
@@ -98,18 +54,7 @@ const TerminalSettingsCard: React.FC = () => {
   } = useAppSettingsKey('terminal');
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [query, setQuery] = useState<string>('');
-  const [installedFonts, setInstalledFonts] = useState<string[]>(() => installedFontsCache ?? []);
-
-  useEffect(() => {
-    if (installedFontsCache) return;
-    let cancelled = false;
-    void getInstalledFonts().then((fonts) => {
-      if (!cancelled) setInstalledFonts(fonts);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { fonts: installedFonts } = useInstalledFonts();
 
   const fontFamily = terminal?.fontFamily ?? '';
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
