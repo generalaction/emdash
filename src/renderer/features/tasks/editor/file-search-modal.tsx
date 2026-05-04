@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FileNode } from '@shared/fs';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
@@ -19,17 +19,17 @@ function scoreFile(node: FileNode, query: string): number {
   const path = node.path.toLowerCase();
 
   if (name === query) return 1000;
-  if (name.startsWith(query)) return 900 - node.depth;
+  if (name.startsWith(query)) return Math.max(1, 900 - node.depth);
   const nameIdx = name.indexOf(query);
-  if (nameIdx >= 0) return 700 - nameIdx - node.depth;
+  if (nameIdx >= 0) return Math.max(1, 700 - nameIdx - node.depth);
   const pathIdx = path.indexOf(query);
-  if (pathIdx >= 0) return 400 - pathIdx;
+  if (pathIdx >= 0) return Math.max(1, 400 - pathIdx);
 
   let qi = 0;
   for (let i = 0; i < name.length && qi < query.length; i++) {
     if (name[i] === query[qi]) qi++;
   }
-  if (qi === query.length) return 100 - (name.length - query.length);
+  if (qi === query.length) return Math.max(1, 100 - (name.length - query.length));
   return -1;
 }
 
@@ -41,26 +41,36 @@ export const FileSearchModal = observer(function FileSearchModal({
   const editorView = taskState.taskView.editorView;
   const [query, setQuery] = useState('');
   const trimmedQuery = query.trim().toLowerCase();
+  const fileTreeData = files.tree.data;
 
-  const allFiles: FileNode[] = [];
-  for (const node of files.nodes.values()) {
-    if (node.type === 'file') allFiles.push(node);
-  }
+  const allFiles = useMemo(() => {
+    const entries: FileNode[] = [];
+    const nodes = fileTreeData?.nodes ?? files.nodes;
+    for (const node of nodes.values()) {
+      if (node.type === 'file') entries.push(node);
+    }
+    return entries;
+  }, [fileTreeData, files]);
 
-  let entries: FileNode[];
-  if (!trimmedQuery) {
-    entries = allFiles
-      .sort((a, b) => (b.mtime?.getTime() ?? 0) - (a.mtime?.getTime() ?? 0))
-      .slice(0, MAX_RESULTS);
-  } else {
+  const recentFiles = useMemo(
+    () =>
+      [...allFiles]
+        .sort((a, b) => (b.mtime?.getTime() ?? 0) - (a.mtime?.getTime() ?? 0))
+        .slice(0, MAX_RESULTS),
+    [allFiles]
+  );
+
+  const entries = useMemo(() => {
+    if (!trimmedQuery) return recentFiles;
+
     const scored: Array<{ node: FileNode; score: number }> = [];
     for (const node of allFiles) {
       const score = scoreFile(node, trimmedQuery);
       if (score > 0) scored.push({ node, score });
     }
     scored.sort((a, b) => b.score - a.score);
-    entries = scored.slice(0, MAX_RESULTS).map((s) => s.node);
-  }
+    return scored.slice(0, MAX_RESULTS).map((s) => s.node);
+  }, [allFiles, recentFiles, trimmedQuery]);
 
   const isInitialLoad = files.isLoading && files.nodes.size === 0;
 
