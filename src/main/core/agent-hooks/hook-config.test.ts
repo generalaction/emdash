@@ -18,8 +18,8 @@ function makeExecutionContext(): IExecutionContext {
   };
 }
 
-function makeWriter(fs: MemoryFs): HookConfigWriter {
-  return new HookConfigWriter(fs, makeExecutionContext());
+function makeWriter(fs: MemoryFs, options?: { openCodeConfigFs?: MemoryFs }): HookConfigWriter {
+  return new HookConfigWriter(fs, makeExecutionContext(), options);
 }
 
 describe('HookConfigWriter', () => {
@@ -63,41 +63,46 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 
-  it('writes the OpenCode notifications plugin and ignores it in git', async () => {
+  it('writes the OpenCode notifications plugin outside the project', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/opencode');
-    const fs = new MemoryFs();
-    const writer = makeWriter(fs);
+    const projectFs = new MemoryFs();
+    const openCodeConfigFs = new MemoryFs();
+    const writer = makeWriter(projectFs, { openCodeConfigFs });
 
     await writer.writeForProvider('opencode');
 
-    expect(fs.files.get('.opencode/plugins/emdash-notifications.js')).toContain(
+    expect(openCodeConfigFs.files.get('plugins/emdash-notifications.js')).toContain(
       'EmdashNotifications'
     );
-    expect(fs.files.get('.opencode/plugins/emdash-notifications.js')).toContain(
+    expect(openCodeConfigFs.files.get('plugins/emdash-notifications.js')).toContain(
       "event.type === 'session.idle'"
     );
-    expect(fs.files.get('.gitignore')).toBe('.opencode/plugins/emdash-notifications.js\n');
+    expect(projectFs.files.has('.opencode/plugins/emdash-notifications.js')).toBe(false);
+    expect(projectFs.files.has('.gitignore')).toBe(false);
   });
 
-  it('does not duplicate the OpenCode gitignore entry', async () => {
+  it('does not write OpenCode gitignore entries', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/opencode');
     const fs = new MemoryFs();
-    fs.files.set('.gitignore', '.opencode/plugins/emdash-notifications.js\n');
-    const writer = makeWriter(fs);
+    const openCodeConfigFs = new MemoryFs();
+    const writer = makeWriter(fs, { openCodeConfigFs });
 
     await writer.writeForProvider('opencode');
 
-    expect(fs.files.get('.gitignore')).toBe('.opencode/plugins/emdash-notifications.js\n');
+    expect(openCodeConfigFs.files.has('plugins/emdash-notifications.js')).toBe(true);
+    expect(fs.files.has('.gitignore')).toBe(false);
   });
 
   it('skips the OpenCode plugin when opencode is unavailable', async () => {
     mockResolveCommandPath.mockResolvedValue(undefined);
     const fs = new MemoryFs();
-    const writer = makeWriter(fs);
+    const openCodeConfigFs = new MemoryFs();
+    const writer = makeWriter(fs, { openCodeConfigFs });
 
     await writer.writeForProvider('opencode');
 
     expect(fs.files.has('.opencode/plugins/emdash-notifications.js')).toBe(false);
+    expect(openCodeConfigFs.files.has('plugins/emdash-notifications.js')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 });

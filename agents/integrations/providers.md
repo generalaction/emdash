@@ -29,7 +29,7 @@ Each provider has a terminal output classifier in `src/main/core/conversations/i
 
 - Claude uses deterministic `--session-id` values for conversation isolation.
 - Agents with no CLI prompt flag (e.g., Amp, OpenCode) use keystroke injection — Emdash types the prompt into the TUI after startup.
-- `src/main/core/agent-hooks/service.ts` forwards hook events to renderer windows and can show OS notifications. Also writes hook config files (`.claude/settings.local.json`, `.codex/config.toml`) into worktrees.
+- `src/main/core/agent-hooks/agent-hook-service.ts` forwards hook events to renderer windows and can show OS notifications. Hook config for Claude, Codex, and Pi is written into worktrees; OpenCode uses an Emdash-owned `OPENCODE_CONFIG_DIR` outside the repository.
 
 ## Adding Or Changing A Provider
 
