@@ -313,6 +313,7 @@ export const automationRuns = sqliteTable(
     finishedAt: integer('finished_at'),
     status: text('status').notNull(),
     taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+    createdTaskId: text('created_task_id'),
     error: text('error'),
     triggerKind: text('trigger_kind').notNull(),
   },

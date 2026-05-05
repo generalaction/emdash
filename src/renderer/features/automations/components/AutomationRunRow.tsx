@@ -42,10 +42,11 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const taskId = run.taskId;
   const task = taskId ? getRegisteredTaskData(projectId, taskId) : undefined;
   const interactive = Boolean(taskId && task && !task.archivedAt);
+  const hadAgent = Boolean(run.createdTaskId);
   const tooltip = interactive
     ? 'Open agent'
-    : taskId
-      ? 'Agent is no longer available'
+    : hadAgent
+      ? 'Agent was deleted'
       : 'This run did not create an agent';
 
   const status = formatRunStatusLabel(run.status);

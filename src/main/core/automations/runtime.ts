@@ -78,6 +78,7 @@ export async function runAutomation(
           status: 'failed',
           finishedAt: Date.now(),
           taskId: firstTaskId,
+          createdTaskId: firstTaskId,
           error: message,
         })) ?? run;
       emitRunUpdated(run);
@@ -94,6 +95,7 @@ export async function runAutomation(
       status: 'success',
       finishedAt: Date.now(),
       taskId: firstTaskId,
+      createdTaskId: firstTaskId,
     })) ?? run;
   await updateAutomationSchedule(automation.id, { lastRunAt: run.startedAt });
   emitRunUpdated(run, firstSessionId);

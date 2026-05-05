@@ -37,6 +37,7 @@ export type AutomationRun = {
   finishedAt: number | null;
   status: AutomationRunStatus;
   taskId: string | null;
+  createdTaskId: string | null;
   error: string | null;
   triggerKind: AutomationRunTriggerKind;
 };

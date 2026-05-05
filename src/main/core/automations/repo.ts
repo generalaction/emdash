@@ -161,6 +161,7 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
     finishedAt: row.finishedAt,
     status: asRunStatus(row.status),
     taskId: row.taskId,
+    createdTaskId: row.createdTaskId,
     error: row.error,
     triggerKind: asRunTriggerKind(row.triggerKind),
   };
@@ -372,6 +373,7 @@ export async function insertRun(input: {
   startedAt?: number;
   finishedAt?: number | null;
   taskId?: string | null;
+  createdTaskId?: string | null;
   error?: string | null;
 }): Promise<AutomationRun> {
   const [row] = await db
@@ -383,6 +385,7 @@ export async function insertRun(input: {
       finishedAt: input.finishedAt ?? null,
       status: input.status,
       taskId: input.taskId ?? null,
+      createdTaskId: input.createdTaskId ?? input.taskId ?? null,
       error: input.error ?? null,
       triggerKind: input.triggerKind,
     })
@@ -392,7 +395,9 @@ export async function insertRun(input: {
 
 export async function updateRun(
   id: string,
-  values: Partial<Pick<AutomationRun, 'finishedAt' | 'status' | 'taskId' | 'error'>>
+  values: Partial<
+    Pick<AutomationRun, 'finishedAt' | 'status' | 'taskId' | 'createdTaskId' | 'error'>
+  >
 ): Promise<AutomationRun | null> {
   const [row] = await db
     .update(automationRuns)
