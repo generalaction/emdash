@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { TaskCreateAction } from '@shared/automations/actions';
+import { bareRefName } from '@shared/git-utils';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import type { CreateTaskError } from '@shared/tasks';
@@ -46,12 +47,12 @@ async function resolveSourceBranch(projectId: string, taskName: string, action: 
     if (!project) return err('project_not_found');
   }
 
-  const [branchesPayload, repoInfo] = await Promise.all([
+  const [branchesPayload, repoInfo, configuredRemote] = await Promise.all([
     project.repository.getBranchesPayload(),
     project.repository.getRepositoryInfo(),
+    project.repository.getConfiguredRemote(),
   ]);
-  const defaultBranchName = await project.repository.getDefaultBranchName();
-  const configuredRemote = await project.repository.getConfiguredRemote();
+  const defaultBranchName = bareRefName(branchesPayload.gitDefaultBranch);
   const localDefault = branchesPayload.branches.find(
     (branch) => branch.type === 'local' && branch.branch === defaultBranchName
   );
@@ -105,6 +106,7 @@ export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action
       sourceBranch: branchConfig.data.sourceBranch,
       strategy: branchConfig.data.strategy,
       linkedIssue: action.linkedIssue,
+      workspaceProvider: action.workspaceProvider,
       initialConversation: {
         id: conversationId,
         projectId,

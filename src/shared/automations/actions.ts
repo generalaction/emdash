@@ -23,6 +23,7 @@ export type TaskCreateAction = {
   taskName?: string;
   linkedIssue?: Issue;
   linkedPullRequest?: AutomationLinkedPullRequest;
+  workspaceProvider?: 'byoi';
 };
 
 export type ActionSpec = TaskCreateAction;

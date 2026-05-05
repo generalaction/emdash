@@ -60,6 +60,7 @@ import {
 } from '@renderer/features/tasks/create-task-modal/use-from-issue-mode';
 import { useFromPullRequestMode } from '@renderer/features/tasks/create-task-modal/use-from-pull-request-mode';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
 import { Button } from '@renderer/lib/ui/button';
@@ -92,6 +93,7 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { Separator } from '@renderer/lib/ui/separator';
+import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
@@ -276,6 +278,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
   const [selectedStrategy, setSelectedStrategy] = useState<TaskStrategy>(
     strategyFromAction(seedTaskAction)
   );
+  const [useBYOI, setUseBYOI] = useState(seedTaskAction?.workspaceProvider === 'byoi');
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -333,6 +336,8 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
   const { create, update } = useAutomations();
   const isEdit = Boolean(automation);
   const isPending = create.isPending || update.isPending;
+  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
+  const effectiveUseBYOI = isWorkspaceProviderEnabled && useBYOI;
 
   const eventLabel = useMemo(() => formatEventLabel(githubEvent), [githubEvent]);
   const canSave =
@@ -360,6 +365,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
       kind: 'task.create',
       prompt: prompt.trim(),
       provider,
+      workspaceProvider: effectiveUseBYOI ? 'byoi' : undefined,
     };
 
     switch (selectedStrategy) {
@@ -375,7 +381,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
           ...base,
           taskName: fromBranch.taskName,
           sourceBranch: plainBranch(fromBranch.selectedBranch),
-          strategy,
+          strategy: effectiveUseBYOI ? { kind: 'no-worktree' } : strategy,
         };
       }
       case 'from-issue': {
@@ -390,7 +396,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
           ...base,
           taskName: fromIssue.taskName,
           sourceBranch: plainBranch(fromIssue.selectedBranch),
-          strategy,
+          strategy: effectiveUseBYOI ? { kind: 'no-worktree' } : strategy,
           linkedIssue: fromIssue.linkedIssue,
         };
       }
@@ -410,7 +416,7 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
           ...base,
           taskName: fromPR.taskName,
           sourceBranch: { type: 'local', branch: reviewBranch },
-          strategy,
+          strategy: effectiveUseBYOI ? { kind: 'no-worktree' } : strategy,
           linkedPullRequest: linkedPullRequestSnapshot(fromPR.linkedPR),
         };
       }
@@ -556,6 +562,13 @@ export const CreateAutomationModal = observer(function CreateAutomationModal({
               From Pull Request
             </ToggleGroupItem>
           </ToggleGroup>
+
+          {isWorkspaceProviderEnabled ? (
+            <div className="flex items-center gap-2">
+              <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
+              <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+            </div>
+          ) : null}
 
           <AnimatedHeight onAnimatingChange={setIsTransitioning}>
             {selectedStrategy === 'from-branch' && (
