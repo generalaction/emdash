@@ -68,14 +68,16 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
     };
 
     const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
-      try {
-        event.preventDefault();
-        const dt = event.dataTransfer;
-        if (!dt?.files?.length) return;
-        const files = Array.from(dt.files);
+      event.preventDefault();
+      const dt = event.dataTransfer;
+      if (!dt?.files?.length) return;
+      const files = Array.from(dt.files);
 
-        void (async () => {
-          try {
+      const quoteShellArg = (arg: string) => `'${arg.replace(/'/g, "'\\''")}'`;
+
+      void (async () => {
+        try {
+          if (remoteConnectionId) {
             const paths = (
               await Promise.all(
                 files.map(async (file) => {
@@ -89,30 +91,31 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
             ).filter(Boolean);
             if (paths.length === 0) return;
 
-            if (remoteConnectionId) {
-              try {
-                const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
-                if (result.success && result.data?.remotePaths) {
-                  const escaped = result.data.remotePaths
-                    .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
-                    .join(' ');
-                  sendInput(`${escaped} `);
-                }
-              } catch (error) {
-                log.warn('SSH file transfer failed', { error });
+            try {
+              const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
+              if (result.success && result.data?.remotePaths) {
+                const escaped = result.data.remotePaths
+                  .map((p: string) => quoteShellArg(p))
+                  .join(' ');
+                sendInput(`${escaped} `);
               }
-            } else {
-              const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
-              sendInput(`${escaped} `);
+            } catch (error) {
+              log.warn('SSH file transfer failed', { error });
             }
-            focus();
-          } catch (error) {
-            log.warn('Terminal drop failed', { error });
+          } else {
+            const paths = files
+              .map((file) => window.electronAPI.getPathForFile(file).trim())
+              .filter(Boolean);
+            if (paths.length === 0) return;
+
+            const escaped = paths.map((p) => quoteShellArg(p)).join(' ');
+            sendInput(`${escaped} `);
           }
-        })();
-      } catch (error) {
-        log.warn('Terminal drop failed', { error });
-      }
+          focus();
+        } catch (error) {
+          log.warn('Terminal drop failed', { error });
+        }
+      })();
     };
 
     return (

@@ -20,7 +20,9 @@ describe('resolveSshCommand', () => {
   it('runs remote commands through a login shell so PATH matches install/probe', () => {
     const result = resolveSshCommand('agent', makeAgentConfig());
 
-    expect(result).toBe(`bash -l -c 'cd "/workspace" && claude --resume conv-1'`);
+    expect(result).toBe(
+      `bash -l -c 'cd "/workspace" && claude '\\''--resume'\\'' '\\''conv-1'\\'''`
+    );
   });
 
   it('adds SSH env exports before the remote command', () => {
@@ -29,7 +31,7 @@ describe('resolveSshCommand', () => {
     });
 
     expect(result).toBe(
-      `bash -l -c 'cd "/workspace" && export FOO='\\''bar'\\''; claude --resume conv-1'`
+      `bash -l -c 'cd "/workspace" && export FOO='\\''bar'\\''; claude '\\''--resume'\\'' '\\''conv-1'\\'''`
     );
   });
 
@@ -44,6 +46,6 @@ describe('resolveSshCommand', () => {
     expect(result).toContain('tmux has-session -t "agent-session"');
     expect(result).toContain('tmux new-session -d -s "agent-session"');
     expect(result).toContain('tmux attach-session -t "agent-session"');
-    expect(result).toContain('claude --resume conv-1');
+    expect(result).toContain("claude '\\''--resume'\\'' '\\''conv-1'\\''");
   });
 });

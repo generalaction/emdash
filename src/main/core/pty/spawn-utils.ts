@@ -15,7 +15,7 @@ function posixShellLineForSsh(
   switch (type) {
     case 'agent': {
       const cfg = config as AgentSessionConfig;
-      const baseCmd = [cfg.command, ...cfg.args].join(' ');
+      const baseCmd = [cfg.command, ...cfg.args.map(quoteShellArg)].join(' ');
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {
         cwd: cfg.cwd,
@@ -25,7 +25,7 @@ function posixShellLineForSsh(
     case 'general': {
       const cfg = config as GeneralSessionConfig;
       const baseCmd = cfg.command
-        ? [cfg.command, ...(cfg.args ?? [])].join(' ')
+        ? [cfg.command, ...(cfg.args ?? []).map(quoteShellArg)].join(' ')
         : `exec ${shell} -il`;
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {
@@ -56,6 +56,6 @@ export function resolveSshCommand(
 export function buildSshEnvPrefix(vars: Record<string, string>): string {
   const entries = Object.entries(vars);
   if (entries.length === 0) return '';
-  const exports = entries.map(([k, v]) => `export ${k}='${v.replace(/'/g, "'\\''")}'`).join('; ');
+  const exports = entries.map(([k, v]) => `export ${k}=${quoteShellArg(v)}`).join('; ');
   return exports + '; ';
 }

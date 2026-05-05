@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 // Expose protected methods that allow the renderer process to use
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -10,5 +10,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const wrapped = (_: Electron.IpcRendererEvent, data: unknown) => cb(data);
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
+  },
+  getPathForFile: (file: File) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return '';
+    }
   },
 });
