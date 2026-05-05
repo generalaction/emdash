@@ -4,6 +4,7 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import type { CreateTaskError } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
+import { openProject } from '@main/core/projects/operations/openProject';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { createTask } from '@main/core/tasks/operations/createTask';
@@ -37,8 +38,13 @@ async function resolveSourceBranch(projectId: string, taskName: string, action: 
     return ok({ sourceBranch: action.sourceBranch, strategy: action.strategy });
   }
 
-  const project = projectManager.getProject(projectId);
-  if (!project) return err('project_not_found');
+  let project = projectManager.getProject(projectId);
+  if (!project) {
+    const openResult = await openProject(projectId);
+    if (!openResult.success) return err('project_not_found');
+    project = projectManager.getProject(projectId);
+    if (!project) return err('project_not_found');
+  }
 
   const [branchesPayload, repoInfo] = await Promise.all([
     project.repository.getBranchesPayload(),

@@ -275,6 +275,39 @@ export function formatRunStatusLabel(status: AutomationRunStatus): string | null
   }
 }
 
+const ERROR_MESSAGES: Record<string, string> = {
+  project_not_found: 'Project could not be found or opened',
+  task_create_prompt_empty: 'Task prompt is empty',
+  no_actions_configured: 'No actions configured for this automation',
+  previous_still_running: 'Previous run is still in progress',
+};
+
+function formatInnerError(raw: string): string {
+  const exact = ERROR_MESSAGES[raw];
+  if (exact) return exact;
+
+  if (raw.startsWith('initial_commit_required:'))
+    return `Branch "${raw.slice(23)}" has no commits yet`;
+  if (raw.startsWith('branch_create_failed:'))
+    return `Failed to create branch "${raw.slice(21)}"`;
+  if (raw.startsWith('pr_fetch_failed:'))
+    return `Failed to fetch pull requests from "${raw.slice(16)}"`;
+  if (raw.startsWith('branch_not_found:'))
+    return `Branch "${raw.slice(17)}" was not found`;
+  if (raw.startsWith('worktree_setup_failed:'))
+    return `Failed to set up worktree for "${raw.slice(22)}"`;
+  if (raw.startsWith('provisioning timed out'))
+    return 'Task provisioning timed out';
+
+  return raw;
+}
+
+export function formatRunError(error: string): string {
+  const actionMatch = error.match(/^action_\d+_[^:]+:(.+)$/);
+  if (actionMatch) return formatInnerError(actionMatch[1]);
+  return formatInnerError(error);
+}
+
 export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): string {
   switch (kind) {
     case 'cron':

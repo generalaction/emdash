@@ -48,7 +48,11 @@ export const githubPoller: Poller = {
       })
     );
     for (const { key, prev, result } of results) {
-      if (!result.ok) allOk = false;
+      if (!result.ok) {
+        allOk = false;
+        if (prev) nextStates[key] = prev;
+        continue;
+      }
       collected.push(...result.issues);
       nextStates[key] = {
         etag: result.etag ?? prev?.etag,

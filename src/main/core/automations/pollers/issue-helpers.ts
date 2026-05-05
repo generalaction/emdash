@@ -40,14 +40,14 @@ function toIssueEvent(projectId: string, issue: GitHubIssue, occurredAt: number)
 }
 
 /**
- * First call (cursor.initialized falsy) seeds the seen-url set. We emit events
+ * First call (cursor.initializedIssues falsy) seeds the seen-url set. We emit events
  * only for issues created within SEED_RECENT_WINDOW_MS so a freshly created issue
  * still triggers automations even if we happen to seed right after it appears.
  * Later calls emit `issue.opened` for any new URL and update the seen set.
  * URLs are used as the dedup key so issues from different repos in the same project
  * (which can share #N) don't collide.
  *
- * `initialized` only flips to `true` when the fetch actually succeeded — otherwise a
+ * `initializedIssues` only flips to `true` when the fetch actually succeeded — otherwise a
  * failed first fetch (auth not ready, transient network error) would seed an empty
  * seen-set and the next successful fetch would spam `issue.opened` for every existing
  * issue.
@@ -62,7 +62,7 @@ export async function diffIssuesAgainstCursor(
   const seenSet = new Set(cursor?.seenIssueIds ?? []);
   const events: AutomationEvent[] = [];
   const fresh: string[] = [];
-  const initialized = cursor?.initialized === true;
+  const initialized = cursor?.initializedIssues === true;
 
   for (const issue of issues) {
     if (!issue.url || seenSet.has(issue.url)) continue;
@@ -76,7 +76,8 @@ export async function diffIssuesAgainstCursor(
     events,
     cursor: {
       ...(cursor ?? {}),
-      initialized: initialized || ok,
+      initialized: undefined,
+      initializedIssues: initialized || ok,
       seenIssueIds: trackSeenIssueIds(cursor?.seenIssueIds, fresh),
     },
   };

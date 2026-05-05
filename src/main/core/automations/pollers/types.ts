@@ -6,7 +6,10 @@ export type RepoEventState = {
 };
 
 export type PollerCursor = {
+  /** Legacy shared initialization flag. Kept only so parseCursor can migrate old rows. */
   initialized?: boolean;
+  initializedIssues?: boolean;
+  initializedPrs?: boolean;
   seenIssueIds?: string[];
   seenPrs?: Record<string, 'open' | 'closed' | 'merged'>;
   repoStates?: Record<string, RepoEventState>;

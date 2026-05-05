@@ -2,7 +2,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import { formatRunStatusLabel, formatRunTriggerKindLabel } from '@shared/automations/format';
+import {
+  formatRunError,
+  formatRunStatusLabel,
+  formatRunTriggerKindLabel,
+} from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -205,7 +209,9 @@ const RunRow = observer(function RunRow({
         <TooltipContent side="left">{tooltip}</TooltipContent>
       </Tooltip>
       {run.error && (
-        <p className="mx-3 mb-2 mt-0.5 line-clamp-2 text-xs text-destructive">{run.error}</p>
+        <p className="mx-3 mb-2 mt-0.5 line-clamp-2 text-xs text-destructive">
+          {formatRunError(run.error)}
+        </p>
       )}
     </li>
   );

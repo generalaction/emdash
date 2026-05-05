@@ -2,7 +2,11 @@ import { Bot, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import githubSvg from '@/assets/images/Github.svg?raw';
-import { formatRunStatusLabel, formatRunTriggerKindLabel } from '@shared/automations/format';
+import {
+  formatRunError,
+  formatRunStatusLabel,
+  formatRunTriggerKindLabel,
+} from '@shared/automations/format';
 import type { Automation, AutomationRunWithContext } from '@shared/automations/types';
 import {
   getProjectStore,
@@ -162,7 +166,9 @@ const RecentRunRow = observer(function RecentRunRow({ run, automation }: RecentR
         <TooltipContent side="left">{tooltip}</TooltipContent>
       </Tooltip>
       {run.error && (
-        <p className="mx-1 mb-2 mt-0.5 line-clamp-2 text-xs text-destructive">{run.error}</p>
+        <p className="mx-1 mb-2 mt-0.5 line-clamp-2 text-xs text-destructive">
+          {formatRunError(run.error)}
+        </p>
       )}
     </div>
   );

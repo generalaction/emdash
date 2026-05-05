@@ -67,7 +67,7 @@ async function processBatch(prs: PullRequest[]): Promise<void> {
 async function processProjectBatch(projectId: string, repoPrs: PullRequest[]): Promise<void> {
   const cursorRow = await getEventCursor(projectId);
   const cursor = parseCursor(cursorRow?.cursor ?? null) ?? {
-    initialized: false,
+    initializedPrs: false,
     seenPrs: {},
   };
   const seen = cursor.seenPrs ?? {};
@@ -76,7 +76,7 @@ async function processProjectBatch(projectId: string, repoPrs: PullRequest[]): P
 
   for (const pr of repoPrs) {
     const prev = seen[pr.url];
-    if (cursor.initialized) {
+    if (cursor.initializedPrs) {
       if (prev === undefined && pr.status === 'open') {
         eventsToEmit.push(toPrEvent(pr, projectId, 'pr.opened'));
       } else if (prev !== undefined && prev !== pr.status) {
@@ -92,7 +92,8 @@ async function processProjectBatch(projectId: string, repoPrs: PullRequest[]): P
 
   const nextSerialized = serializeCursor({
     ...cursor,
-    initialized: true,
+    initialized: undefined,
+    initializedPrs: true,
     seenPrs: trackSeenPrs(cursor.seenPrs, transitions),
   });
   if (eventsToEmit.length > 0 || nextSerialized !== cursorRow?.cursor) {

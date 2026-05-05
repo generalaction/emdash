@@ -14,6 +14,8 @@ function isPollerCursor(value: unknown): value is PollerCursor {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
   if (v.initialized !== undefined && typeof v.initialized !== 'boolean') return false;
+  if (v.initializedIssues !== undefined && typeof v.initializedIssues !== 'boolean') return false;
+  if (v.initializedPrs !== undefined && typeof v.initializedPrs !== 'boolean') return false;
   if (v.seenIssueIds !== undefined) {
     if (!Array.isArray(v.seenIssueIds)) return false;
     if (!v.seenIssueIds.every((id) => typeof id === 'string')) return false;
@@ -42,12 +44,21 @@ export function parseCursor(raw: string | null): PollerCursor | null {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!isPollerCursor(parsed)) return null;
+    const migrated: PollerCursor = {
+      ...parsed,
+      initializedIssues:
+        parsed.initializedIssues ??
+        (parsed.initialized === true && parsed.seenIssueIds !== undefined),
+      initializedPrs:
+        parsed.initializedPrs ?? (parsed.initialized === true && parsed.seenPrs !== undefined),
+      initialized: undefined,
+    };
     // Migrate legacy cursors that stored `#N` identifiers instead of issue URLs.
     // Reseed without emitting to avoid replaying every currently-open issue.
-    if (parsed.seenIssueIds && parsed.seenIssueIds.some((id) => !looksLikeIssueUrl(id))) {
-      return { ...parsed, initialized: false, seenIssueIds: [] };
+    if (migrated.seenIssueIds && migrated.seenIssueIds.some((id) => !looksLikeIssueUrl(id))) {
+      return { ...migrated, initializedIssues: false, seenIssueIds: [] };
     }
-    return parsed;
+    return migrated;
   } catch {
     return null;
   }
