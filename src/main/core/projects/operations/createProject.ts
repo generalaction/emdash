@@ -45,7 +45,7 @@ async function ensureGitRepository(
   if (!gitInfo.isGitRepo) {
     if (!initGitRepository) {
       throw new Error(
-        'Directory is not a git repository. Enable "Initialize git repository" to continue.'
+        'Directory is not a git repository. Enable "Initialize git repository" or "Continue without git" to proceed.'
       );
     }
     await git.initRepository();
@@ -62,6 +62,8 @@ export type CreateLocalProjectParams = {
   path: string;
   name: string;
   initGitRepository?: boolean;
+  /** Skip git entirely and create the project as a plain folder. */
+  noGit?: boolean;
 };
 
 export async function createLocalProject(params: CreateLocalProjectParams): Promise<LocalProject> {
@@ -70,21 +72,36 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     throw new Error('Invalid directory');
   }
 
-  const fs = new LocalFileSystem(params.path);
-  const baseCtx = new LocalExecutionContext({ root: params.path });
-  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
-  const git = new GitService(baseCtx, authCtx, fs);
-  const gitInfo = await ensureGitRepository(git, params.initGitRepository);
-  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
+  let isGitRepo: boolean;
+  let resolvedPath: string;
+  let baseRef: string;
+
+  if (params.noGit) {
+    isGitRepo = false;
+    resolvedPath = params.path;
+    baseRef = '';
+  } else {
+    const fs = new LocalFileSystem(params.path);
+    const baseCtx = new LocalExecutionContext({ root: params.path });
+    const authCtx = new GitHubAuthExecutionContext(baseCtx, () =>
+      githubConnectionService.getToken()
+    );
+    const git = new GitService(baseCtx, authCtx, fs);
+    const gitInfo = await ensureGitRepository(git, params.initGitRepository);
+    isGitRepo = true;
+    resolvedPath = gitInfo.rootPath;
+    baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
+  }
 
   const [row] = await db
     .insert(projects)
     .values({
       id: params.id ?? randomUUID(),
       name: params.name,
-      path: gitInfo.rootPath,
+      path: resolvedPath,
       workspaceProvider: 'local',
       baseRef,
+      isGitRepo: isGitRepo ? 1 : 0,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
@@ -95,6 +112,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     name: row.name,
     path: row.path,
     baseRef: row.baseRef ?? baseRef,
+    isGitRepo,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -125,6 +143,8 @@ export type CreateSshProjectParams = {
   path: string;
   connectionId: string;
   initGitRepository?: boolean;
+  /** Skip git entirely and create the project as a plain folder. */
+  noGit?: boolean;
 };
 
 export async function createSshProject(params: CreateSshProjectParams): Promise<SshProject> {
@@ -135,24 +155,38 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   if (!pathEntry || pathEntry.type !== 'dir') {
     throw new Error('Invalid directory');
   }
-  const baseSshCtx = new SshExecutionContext(sshProxy, { root: params.path });
-  const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
-    githubConnectionService.getToken()
-  );
-  const git = new GitService(baseSshCtx, authSshCtx, sshFs);
 
-  const gitInfo = await ensureGitRepository(git, params.initGitRepository);
-  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
+  let isGitRepo: boolean;
+  let resolvedPath: string;
+  let baseRef: string;
+
+  if (params.noGit) {
+    isGitRepo = false;
+    resolvedPath = params.path;
+    baseRef = '';
+  } else {
+    const baseSshCtx = new SshExecutionContext(sshProxy, { root: params.path });
+    const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
+      githubConnectionService.getToken()
+    );
+    const git = new GitService(baseSshCtx, authSshCtx, sshFs);
+
+    const gitInfo = await ensureGitRepository(git, params.initGitRepository);
+    isGitRepo = true;
+    resolvedPath = gitInfo.rootPath;
+    baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
+  }
 
   const [row] = await db
     .insert(projects)
     .values({
       id: params.id ?? randomUUID(),
       name: params.name,
-      path: gitInfo.rootPath,
+      path: resolvedPath,
       workspaceProvider: 'ssh',
       sshConnectionId: params.connectionId,
       baseRef,
+      isGitRepo: isGitRepo ? 1 : 0,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
@@ -164,6 +198,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
     path: row.path,
     connectionId: params.connectionId,
     baseRef: row.baseRef ?? baseRef,
+    isGitRepo,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

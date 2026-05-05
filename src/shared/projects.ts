@@ -15,6 +15,7 @@ export type LocalProject = {
   name: string;
   path: string;
   baseRef: string;
+  isGitRepo: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -25,6 +26,7 @@ export type SshProject = {
   name: string;
   path: string;
   baseRef: string;
+  isGitRepo: boolean;
   connectionId: string;
   createdAt: string;
   updatedAt: string;

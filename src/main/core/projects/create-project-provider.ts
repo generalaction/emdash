@@ -56,6 +56,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   return buildProvider(
     project.id,
     project.path,
+    project.isGitRepo,
     { kind: 'local', defaultWorkspaceType: { kind: 'local' }, ctx, authCtx },
     localFs,
     settings,
@@ -93,6 +94,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     const provider = buildProvider(
       project.id,
       project.path,
+      project.isGitRepo,
       {
         kind: 'ssh',
         defaultWorkspaceType: { kind: 'ssh', proxy, connectionId: project.connectionId },
@@ -127,6 +129,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
 function buildProvider(
   projectId: string,
   repoPath: string,
+  isGitRepo: boolean,
   transportMeta: Pick<
     ProjectProviderTransport,
     'kind' | 'defaultWorkspaceType' | 'ctx' | 'authCtx'
@@ -157,11 +160,15 @@ function buildProvider(
     host: worktreeHost,
   });
   const gitFetchService = new GitFetchService(repoGit, hasGitHubToken);
-  gitFetchService.start();
+  // For non-git projects, all git remote operations are no-ops; skip the periodic fetch loop.
+  if (isGitRepo) {
+    gitFetchService.start();
+  }
 
   return new ProjectProvider(
     projectId,
     repoPath,
+    isGitRepo,
     transport,
     repository,
     worktreeService,

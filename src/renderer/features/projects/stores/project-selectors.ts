@@ -58,6 +58,11 @@ export function mountedProjectData(
   return store?.mountedProject?.data ?? null;
 }
 
+/** True only when the project is mounted AND was imported as a plain folder (no git repo). */
+export function isNonGitProject(store: ProjectStore | undefined): boolean {
+  return mountedProjectData(store)?.isGitRepo === false;
+}
+
 /** Returns the display name from any project store variant. */
 export function projectDisplayName(store: ProjectStore | undefined): string | undefined {
   return store?.name ?? undefined;

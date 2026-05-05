@@ -45,6 +45,7 @@ export class ProvisionedTask {
   readonly _taskData: Task;
   readonly path: string;
   readonly workspaceId: string;
+  readonly projectId: string;
 
   private readonly _taskStore: TaskStore;
   private _snapshotDisposer: (() => void) | null = null;
@@ -71,6 +72,7 @@ export class ProvisionedTask {
     this._taskData = taskData;
     this.path = path;
     this.workspaceId = workspaceId;
+    this.projectId = taskData.projectId;
 
     this.workspace = workspaceRegistry.acquire(
       taskData.projectId,

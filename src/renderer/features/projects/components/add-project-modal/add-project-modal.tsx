@@ -144,8 +144,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const canCreate =
     activeMode.isValid &&
     (strategy === 'local' || !!selectedConnectionId) &&
-    !isCheckingPickPathStatus &&
-    (!requiresGitInitialization || pickState.initGitRepository);
+    !isCheckingPickPathStatus;
 
   const handleSubmit = async () => {
     try {
@@ -187,6 +186,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             name: pickState.name,
             path: pickState.path,
             initGitRepository: pickState.initGitRepository,
+            noGit: pickState.noGit,
           },
           id
         );

@@ -4,6 +4,7 @@ import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
   CreateTaskParams,
+  CreateTaskStrategy,
   CreateTaskSuccess,
   CreateTaskWarning,
   TaskLifecycleStatus,
@@ -42,7 +43,6 @@ function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
 export async function createTask(
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
-  const { strategy } = params;
   const suffix = Math.random().toString(36).slice(2, 7);
   const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
   const agentAutoApproveDefaults = await appSettingsService.get('agentAutoApproveDefaults');
@@ -52,10 +52,13 @@ export async function createTask(
   if (!project) {
     return err({ type: 'project-not-found' });
   }
-  const [, configuredRemote] = await Promise.all([
-    project.repository.getRemotes(),
-    project.repository.getConfiguredRemote(),
-  ]);
+
+  // Non-git projects share the project root for every task — branches and worktrees aren't available.
+  const strategy: CreateTaskStrategy = project.isGitRepo
+    ? params.strategy
+    : { kind: 'no-worktree' };
+
+  const configuredRemote = project.isGitRepo ? await project.repository.getConfiguredRemote() : '';
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;
@@ -64,6 +67,9 @@ export async function createTask(
 
   switch (strategy.kind) {
     case 'new-branch': {
+      if (!params.sourceBranch) {
+        return err({ type: 'branch-not-found', branch: strategy.taskBranch });
+      }
       const rawBranch = strategy.taskBranch;
       taskBranch = resolveTaskBranchName({
         rawBranch,
@@ -102,6 +108,9 @@ export async function createTask(
     }
 
     case 'checkout-existing': {
+      if (!params.sourceBranch) {
+        return err({ type: 'branch-not-found', branch: '' });
+      }
       // taskBranch === sourceBranch tells the provider to use checkoutExistingBranch.
       taskBranch = params.sourceBranch.branch;
       break;
@@ -192,7 +201,7 @@ export async function createTask(
       name: params.name,
       taskBranch,
       status: initialStatus,
-      sourceBranch: toStoredBranch(dbSourceBranch),
+      sourceBranch: dbSourceBranch ? toStoredBranch(dbSourceBranch) : null,
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
       workspaceProvider: params.workspaceProvider ?? null,
       updatedAt: sql`CURRENT_TIMESTAMP`,

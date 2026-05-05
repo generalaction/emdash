@@ -66,8 +66,11 @@ export type CreateTaskParams = {
   id: string;
   projectId: string;
   name: string;
-  /** The branch to fork the new worktree from (not used for `from-pull-request` strategy) */
-  sourceBranch: Branch;
+  /**
+   * The branch to fork the new worktree from (not used for `from-pull-request`
+   * strategy). Optional for `no-worktree` and for non-git projects.
+   */
+  sourceBranch?: Branch;
   /** Controls branch creation, worktree setup, and git fetch strategy */
   strategy: CreateTaskStrategy;
   /** The issue to link to the task */

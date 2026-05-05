@@ -1,4 +1,8 @@
 import { observer } from 'mobx-react-lite';
+import {
+  getProjectStore,
+  isNonGitProject,
+} from '@renderer/features/projects/stores/project-selectors';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { cn } from '@renderer/utils/utils';
@@ -11,6 +15,7 @@ import { UnstagedSection } from './unstaged-section';
 export const ChangesPanel = observer(function ChangesPanel() {
   const provisioned = useProvisionedTask();
   const changesView = provisioned.taskView.diffView.changesView;
+  const isNonGit = isNonGitProject(getProjectStore(provisioned.projectId));
 
   const {
     expanded,
@@ -22,6 +27,18 @@ export const ChangesPanel = observer(function ChangesPanel() {
     prRef,
     spacerRef,
   } = usePanelLayout(changesView);
+
+  if (isNonGit) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+        <p className="text-sm font-medium">Git is not configured for this project.</p>
+        <p className="text-xs text-foreground-muted">
+          File changes, branches, and pull requests are unavailable. Initialize a git repository in
+          this folder to enable them.
+        </p>
+      </div>
+    );
+  }
 
   if (!provisioned.workspace.git.hasData) return null;
 

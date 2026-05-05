@@ -5,9 +5,11 @@ import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   getProjectManagerStore,
   getRepositoryStore,
+  isNonGitProject,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -31,9 +33,11 @@ import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
 import { useInitialConversationState } from './initial-conversation-section';
+import { NoGitContent } from './no-git-content';
 import { useFromBranchMode } from './use-from-branch-mode';
 import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
+import { useNoGitMode } from './use-no-git-mode';
 
 type CreateTaskStrategy = 'from-branch' | 'from-issue' | 'from-pull-request';
 
@@ -97,23 +101,30 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
     : undefined;
 
+  const isNonGit = selectedProjectId
+    ? isNonGitProject(getProjectManagerStore().projects.get(selectedProjectId))
+    : false;
+
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, isUnborn, initialPR);
+  const noGit = useNoGitMode(selectedProjectId, isNonGit);
   const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !repositoryUrl;
 
-  const activeMode = {
-    'from-branch': fromBranch,
-    'from-issue': fromIssue,
-    'from-pull-request': fromPR,
-  }[selectedStrategy];
-  const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable;
+  const activeMode = isNonGit
+    ? noGit
+    : {
+        'from-branch': fromBranch,
+        'from-issue': fromIssue,
+        'from-pull-request': fromPR,
+      }[selectedStrategy];
+  const canCreate = !!selectedProjectId && activeMode.isValid && (isNonGit || !fromPrUnavailable);
 
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
+    const taskManager = getTaskManagerStore(selectedProjectId);
+    if (!taskManager) return;
     const id = crypto.randomUUID();
-    const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
-    if (projectStore?.state !== 'mounted') return;
 
     const builtInitialConversation = initialConversation.provider
       ? {
@@ -126,6 +137,19 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         }
       : undefined;
 
+    if (isNonGit) {
+      void taskManager.createTask({
+        id,
+        projectId: selectedProjectId,
+        name: noGit.taskName,
+        strategy: { kind: 'no-worktree' },
+        initialConversation: builtInitialConversation,
+      });
+      navigate('task', { projectId: selectedProjectId, taskId: id });
+      onClose();
+      return;
+    }
+
     switch (selectedStrategy) {
       case 'from-branch': {
         if (!fromBranch.selectedBranch) return;
@@ -135,7 +159,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           taskBranch: fromBranch.taskName,
           pushBranch: fromBranch.pushBranch,
         });
-        void projectStore.mountedProject!.taskManager.createTask({
+        void taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromBranch.taskName,
@@ -154,7 +178,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           taskBranch: fromIssue.taskName,
           pushBranch: fromIssue.pushBranch,
         });
-        void projectStore.mountedProject!.taskManager.createTask({
+        void taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromIssue.taskName,
@@ -178,7 +202,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           taskBranch: fromPR.taskName,
           pushBranch: fromPR.branchSelection.pushBranch,
         });
-        void projectStore.mountedProject!.taskManager.createTask({
+        void taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromPR.taskName,
@@ -201,6 +225,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     fromBranch,
     fromIssue,
     fromPR,
+    noGit,
+    isNonGit,
     isUnborn,
     useBYOI,
     initialConversation,
@@ -226,71 +252,83 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
       <DialogContentArea className="gap-4">
-        <ToggleGroup
-          className="w-full"
-          value={[selectedStrategy]}
-          onValueChange={([value]) => {
-            if (value) {
-              setSelectedStrategy(value as CreateTaskStrategy);
-            }
-          }}
-        >
-          <ToggleGroupItem className="flex-1" value="from-branch">
-            From Branch
-          </ToggleGroupItem>
-          <ToggleGroupItem className="flex-1" value="from-issue">
-            From Issue
-          </ToggleGroupItem>
-          <ToggleGroupItem className="flex-1" value="from-pull-request">
-            From Pull Request
-          </ToggleGroupItem>
-        </ToggleGroup>
-        {isWorkspaceProviderEnabled && (
+        {!isNonGit && (
+          <ToggleGroup
+            className="w-full"
+            value={[selectedStrategy]}
+            onValueChange={([value]) => {
+              if (value) {
+                setSelectedStrategy(value as CreateTaskStrategy);
+              }
+            }}
+          >
+            <ToggleGroupItem className="flex-1" value="from-branch">
+              From Branch
+            </ToggleGroupItem>
+            <ToggleGroupItem className="flex-1" value="from-issue">
+              From Issue
+            </ToggleGroupItem>
+            <ToggleGroupItem className="flex-1" value="from-pull-request">
+              From Pull Request
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
+        {!isNonGit && isWorkspaceProviderEnabled && (
           <div className="flex items-center gap-2">
             <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
             <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
           </div>
         )}
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
-          {selectedStrategy === 'from-branch' && (
-            <FromBranchContent
-              state={fromBranch}
-              projectId={selectedProjectId}
-              currentBranch={currentBranch}
-              isUnborn={isUnborn}
+          {isNonGit ? (
+            <NoGitContent
+              state={noGit}
               initialConversation={initialConversation}
               connectionId={connectionId}
             />
-          )}
-          {selectedStrategy === 'from-issue' && (
-            <FromIssueContent
-              state={fromIssue}
-              projectId={selectedProjectId}
-              currentBranch={currentBranch}
-              repositoryUrl={repositoryUrl}
-              projectPath={projectData?.path}
-              disabled={isTransitioning}
-              isUnborn={isUnborn}
-              initialConversation={initialConversation}
-              connectionId={connectionId}
-            />
-          )}
-          {selectedStrategy === 'from-pull-request' && (
-            <div className="flex flex-col gap-3">
-              {!repositoryUrl && (
-                <p className="text-sm text-muted-foreground">
-                  Pull requests are currently available only for configured GitHub remotes.
-                </p>
+          ) : (
+            <>
+              {selectedStrategy === 'from-branch' && (
+                <FromBranchContent
+                  state={fromBranch}
+                  projectId={selectedProjectId}
+                  currentBranch={currentBranch}
+                  isUnborn={isUnborn}
+                  initialConversation={initialConversation}
+                  connectionId={connectionId}
+                />
               )}
-              <FromPrContent
-                state={fromPR}
-                projectId={selectedProjectId}
-                repositoryUrl={repositoryUrl}
-                disabled={isTransitioning || fromPrUnavailable}
-                initialConversation={initialConversation}
-                connectionId={connectionId}
-              />
-            </div>
+              {selectedStrategy === 'from-issue' && (
+                <FromIssueContent
+                  state={fromIssue}
+                  projectId={selectedProjectId}
+                  currentBranch={currentBranch}
+                  repositoryUrl={repositoryUrl}
+                  projectPath={projectData?.path}
+                  disabled={isTransitioning}
+                  isUnborn={isUnborn}
+                  initialConversation={initialConversation}
+                  connectionId={connectionId}
+                />
+              )}
+              {selectedStrategy === 'from-pull-request' && (
+                <div className="flex flex-col gap-3">
+                  {!repositoryUrl && (
+                    <p className="text-sm text-muted-foreground">
+                      Pull requests are currently available only for configured GitHub remotes.
+                    </p>
+                  )}
+                  <FromPrContent
+                    state={fromPR}
+                    projectId={selectedProjectId}
+                    repositoryUrl={repositoryUrl}
+                    disabled={isTransitioning || fromPrUnavailable}
+                    initialConversation={initialConversation}
+                    connectionId={connectionId}
+                  />
+                </div>
+              )}
+            </>
           )}
         </AnimatedHeight>
       </DialogContentArea>
