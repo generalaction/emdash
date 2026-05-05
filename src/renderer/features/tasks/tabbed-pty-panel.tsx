@@ -132,6 +132,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
                   onClose={closeSearch}
                 />
                 <div
+                  aria-hidden={isAtBottom}
                   className={cn(
                     'absolute bottom-3 left-1/2 z-20 -translate-x-1/2 transition-all duration-200 ease-out',
                     isAtBottom
@@ -142,7 +143,12 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
                   <Button
                     variant="outline"
                     size="xs"
-                    onClick={() => activeSession?.pty?.terminal.scrollToBottom()}
+                    tabIndex={isAtBottom ? -1 : 0}
+                    aria-hidden={isAtBottom}
+                    onClick={() => {
+                      activeSession?.pty?.terminal.scrollToBottom();
+                      terminalRef.current?.focus();
+                    }}
                     className="rounded-full bg-background/90 shadow-md backdrop-blur-sm"
                   >
                     <ArrowDown className="size-3" />

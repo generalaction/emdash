@@ -5,8 +5,12 @@ export function useTerminalScrollAtBottom(terminal: Terminal | null | undefined)
   const subscribe = useCallback(
     (onStoreChange: () => void) => {
       if (!terminal) return () => {};
-      const disp = terminal.onScroll(() => onStoreChange());
-      return () => disp.dispose();
+      const scrollDisposable = terminal.onScroll(() => onStoreChange());
+      const lineFeedDisposable = terminal.onLineFeed(() => onStoreChange());
+      return () => {
+        scrollDisposable.dispose();
+        lineFeedDisposable.dispose();
+      };
     },
     [terminal]
   );
