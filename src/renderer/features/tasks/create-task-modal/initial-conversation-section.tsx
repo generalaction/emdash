@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { INITIAL_PROMPT_IMAGE_MAX_BYTES } from '@shared/conversations';
@@ -106,13 +106,28 @@ export function InitialConversationField({
     state.setPrompt(state.prompt ? `${state.prompt}\n${text}` : text);
   };
 
+  useEffect(() => {
+    return () => {
+      setPreview((current) => {
+        if (current) URL.revokeObjectURL(current.src);
+        return null;
+      });
+    };
+  }, []);
+
   const openPreview = (file: File, displayName: string) => {
-    setPreview({ name: displayName, src: URL.createObjectURL(file) });
+    const src = URL.createObjectURL(file);
+    setPreview((current) => {
+      if (current) URL.revokeObjectURL(current.src);
+      return { name: displayName, src };
+    });
   };
 
   const closePreview = () => {
-    if (preview) URL.revokeObjectURL(preview.src);
-    setPreview(null);
+    setPreview((current) => {
+      if (current) URL.revokeObjectURL(current.src);
+      return null;
+    });
   };
 
   const handlePreviewKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
