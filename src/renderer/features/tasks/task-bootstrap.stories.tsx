@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { type BootstrapStep, TaskBootstrapView } from './task-bootstrap-view';
+import { TaskBootstrapView, type BootstrapStep } from './task-bootstrap-view';
 
 const BOOTSTRAP_STEPS: BootstrapStep[] = [
   'creating',
@@ -42,7 +42,8 @@ const meta: Meta<typeof TaskBootstrapView> = {
     },
     isSkipping: {
       control: 'boolean',
-      description: 'Simulates the Skip button disabled state (running-setup-script without a real session)',
+      description:
+        'Simulates the Skip button disabled state (running-setup-script without a real session)',
     },
     onSkip: { action: 'skip' },
     ptyView: { table: { disable: true } },

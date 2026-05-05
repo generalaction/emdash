@@ -13,15 +13,15 @@ export type BootstrapStep =
   | 'teardown';
 
 const STEP_MESSAGES: Record<BootstrapStep, string> = {
-  'creating': 'Creating task…',
+  creating: 'Creating task…',
   'project-mounting': 'Opening project…',
-  'idle': 'Setting up workspace…',
-  'teardown': 'Setting up workspace…',
+  idle: 'Setting up workspace…',
+  teardown: 'Setting up workspace…',
   'resolving-worktree': 'Resolving worktree…',
   'initialising-workspace': 'Initialising workspace…',
   'running-provision-script': 'Running provision script…',
   'running-setup-script': 'Running setup script…',
-  'connecting': 'Connecting…',
+  connecting: 'Connecting…',
   'setting-up-workspace': 'Setting up workspace…',
   'starting-sessions': 'Starting sessions…',
   'create-error': '',
@@ -29,11 +29,7 @@ const STEP_MESSAGES: Record<BootstrapStep, string> = {
   'teardown-error': '',
 };
 
-const ERROR_STEPS = new Set<BootstrapStep>([
-  'create-error',
-  'provision-error',
-  'teardown-error',
-]);
+const ERROR_STEPS = new Set<BootstrapStep>(['create-error', 'provision-error', 'teardown-error']);
 
 export interface TaskBootstrapViewProps {
   step: BootstrapStep;
@@ -75,9 +71,7 @@ export function TaskBootstrapView({
     // Production: render the provided connected PTY view.
     if (ptyView != null) return <>{ptyView}</>;
     // Storybook / no session yet: graceful degradation — show the layout shell.
-    return (
-      <BootstrapPtyLayout message={resolvedMessage} isSkipping={isSkipping} onSkip={onSkip} />
-    );
+    return <BootstrapPtyLayout message={resolvedMessage} isSkipping={isSkipping} onSkip={onSkip} />;
   }
 
   return <BootstrapSpinner message={resolvedMessage} />;

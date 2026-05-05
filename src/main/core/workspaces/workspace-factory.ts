@@ -1,6 +1,6 @@
+import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import type { Task } from '@shared/tasks';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';

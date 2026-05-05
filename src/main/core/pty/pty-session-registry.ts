@@ -16,8 +16,8 @@ export class PtySessionRegistry {
   private ptyInputSubscriptions: Map<string, () => void> = new Map();
   private ringBuffers: Map<string, string> = new Map();
   private activeConsumers: Set<string> = new Set();
-  private readonly _hooks = new HookCore<PtyRegistryHooks>(
-    (name, e) => log.error(`PtySessionRegistry: ${String(name)} hook error`, e)
+  private readonly _hooks = new HookCore<PtyRegistryHooks>((name, e) =>
+    log.error(`PtySessionRegistry: ${String(name)} hook error`, e)
   );
   readonly hooks: Hookable<PtyRegistryHooks> = this._hooks;
 

@@ -25,7 +25,10 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
       const message = taskStore?.provisionProgressMessage ?? undefined;
       const ptyView =
         taskStore?.provisionStep === 'running-setup-script' && taskStore.setupSessionId ? (
-          <BootstrapPtyView sessionId={taskStore.setupSessionId} message={message ?? 'Running setup script…'} />
+          <BootstrapPtyView
+            sessionId={taskStore.setupSessionId}
+            message={message ?? 'Running setup script…'}
+          />
         ) : undefined;
       return <TaskBootstrapView step={step} message={message} ptyView={ptyView} />;
     }
@@ -49,7 +52,10 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
       const message = taskStore?.provisionProgressMessage ?? undefined;
       const ptyView =
         taskStore?.provisionStep === 'running-setup-script' && taskStore.setupSessionId ? (
-          <BootstrapPtyView sessionId={taskStore.setupSessionId} message={message ?? 'Running setup script…'} />
+          <BootstrapPtyView
+            sessionId={taskStore.setupSessionId}
+            message={message ?? 'Running setup script…'}
+          />
         ) : undefined;
       return <TaskBootstrapView step={step} message={message} ptyView={ptyView} />;
     }
@@ -65,10 +71,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     case 'idle':
     case 'teardown':
       return (
-        <TaskBootstrapView
-          step={kind}
-          message={taskStore?.provisionProgressMessage ?? undefined}
-        />
+        <TaskBootstrapView step={kind} message={taskStore?.provisionProgressMessage ?? undefined} />
       );
     case 'teardown-error':
       return (
