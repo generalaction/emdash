@@ -1455,19 +1455,11 @@ export class GitService implements GitProvider, IDisposable {
     }
 
     let remoteName: string | undefined;
-    let remote: string | undefined;
     try {
       const { stdout } = await this.ctx.exec('git', ['remote']);
       const remotes = stdout.trim().split('\n').filter(Boolean);
       remoteName = remotes.includes('origin') ? 'origin' : remotes[0];
     } catch {}
-
-    if (remoteName) {
-      try {
-        const { stdout } = await this.ctx.exec('git', ['remote', 'get-url', remoteName]);
-        remote = stdout.trim() || undefined;
-      } catch {}
-    }
 
     let branch: string | undefined;
     try {
@@ -1492,8 +1484,6 @@ export class GitService implements GitProvider, IDisposable {
 
     return {
       isGitRepo: true,
-      remote,
-      branch,
       baseRef: computeBaseRef(undefined, remoteName, branch),
       rootPath,
     };

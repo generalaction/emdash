@@ -66,6 +66,7 @@ export const keyboardSettingsSchema = z
       newConversation: z.string().nullable().optional(),
       newTerminal: z.string().nullable().optional(),
       confirm: z.string().nullable().optional(),
+      toggleTerminalDrawer: z.string().nullable().optional(),
     })
   )
   .default({});
