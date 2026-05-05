@@ -75,6 +75,7 @@ export type CreateTaskParams = {
   /**  */
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
+  runScriptOnCreate?: boolean;
   workspaceProvider?: 'byoi';
 };
 
