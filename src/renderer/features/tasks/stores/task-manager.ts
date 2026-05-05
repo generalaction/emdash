@@ -64,6 +64,8 @@ function formatCreateTaskError(error: CreateTaskError): string {
             return 'initialising the workspace';
           case 'running-provision-script':
             return 'running the provision script';
+          case 'running-setup-script':
+            return 'running the setup script';
           case 'connecting':
             return 'connecting to the workspace';
           case 'setting-up-workspace':
@@ -133,12 +135,14 @@ export class TaskManagerStore {
 
     this._unsubProvisionProgress = events.on(
       taskProvisionProgressChannel,
-      ({ taskId, projectId: evtProjectId, message }) => {
+      ({ taskId, projectId: evtProjectId, step, message, sessionId }) => {
         if (evtProjectId !== this.projectId) return;
         const store = this.tasks.get(taskId);
         if (store?.isBootstrapping) {
           runInAction(() => {
             store.provisionProgressMessage = message;
+            store.provisionStep = step;
+            if (sessionId) store.setupSessionId = sessionId;
           });
         }
       }

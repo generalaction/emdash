@@ -1,15 +1,25 @@
 import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/events/ptyEvents';
 import { events } from '@main/lib/events';
-import type { Pty } from './pty';
+import { HookCore, type Hookable } from '@main/lib/hookable';
+import { log } from '@main/lib/logger';
+import type { Pty, PtyExitInfo } from './pty';
 
 const FLUSH_INTERVAL_MS = 16; // ~60 fps
 const RING_BUFFER_CAP = 64 * 1024; // 64 KB per session
+
+type PtyRegistryHooks = {
+  'pty:exit': (sessionId: string, info: PtyExitInfo) => void;
+};
 
 export class PtySessionRegistry {
   private ptyMap: Map<string, Pty> = new Map();
   private ptyInputSubscriptions: Map<string, () => void> = new Map();
   private ringBuffers: Map<string, string> = new Map();
   private activeConsumers: Set<string> = new Set();
+  private readonly _hooks = new HookCore<PtyRegistryHooks>(
+    (name, e) => log.error(`PtySessionRegistry: ${String(name)} hook error`, e)
+  );
+  readonly hooks: Hookable<PtyRegistryHooks> = this._hooks;
 
   register(sessionId: string, pty: Pty, options?: { preserveBufferOnExit?: boolean }): void {
     const preserveBufferOnExit = options?.preserveBufferOnExit ?? false;
@@ -49,6 +59,7 @@ export class PtySessionRegistry {
         flush();
       }
       events.emit(ptyExitChannel, info, sessionId);
+      this._hooks.callHookBackground('pty:exit', sessionId, info);
       if (preserveBufferOnExit) {
         // Partial cleanup: keep ring buffer so late-connecting renderers can replay output
         this.ptyMap.delete(sessionId);

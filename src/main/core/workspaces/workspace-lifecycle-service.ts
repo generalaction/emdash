@@ -1,7 +1,5 @@
-import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createScriptTerminalId } from '@shared/terminals';
-import { events } from '@main/lib/events';
 import type { IDisposable } from '@main/lib/lifecycle';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';
@@ -34,7 +32,7 @@ export class LifecycleScriptService implements IDisposable {
     this.terminals = terminals;
   }
 
-  private async resolveIds(script: LifecycleScript): Promise<{
+  async resolveIds(script: LifecycleScript): Promise<{
     terminalId: string;
     sessionId: string;
   }> {
@@ -105,7 +103,12 @@ export class LifecycleScriptService implements IDisposable {
 
     const exitPromise = waitForExit
       ? new Promise<void>((resolve) => {
-          events.once(ptyExitChannel, () => resolve(), sessionId);
+          const off = ptySessionRegistry.hooks.on('pty:exit', (id) => {
+            if (id === sessionId) {
+              off();
+              resolve();
+            }
+          });
         })
       : null;
 
