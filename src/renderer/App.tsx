@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { AppMenuEvents } from './app/app-menu-events';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
@@ -54,6 +55,12 @@ function AppContent() {
     setView('welcome');
   };
 
+  const handleOpenSettingsFromMenu = useCallback(() => {
+    if (view === 'onboarding' && stepsNeeded.length > 0) return false;
+    setView('workspace');
+    return true;
+  }, [view, stepsNeeded.length]);
+
   const renderContent = () => {
     if (isLoading || (view === 'onboarding' && frozenSteps === null)) {
       return null;
@@ -77,6 +84,7 @@ function AppContent() {
             <GithubContextProvider>
               <IntegrationsProvider>
                 <WorkspaceViewProvider>
+                  <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
                   <RightSidebarProvider>
                     <ThemeProvider>{renderContent()}</ThemeProvider>
                   </RightSidebarProvider>

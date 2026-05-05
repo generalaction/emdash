@@ -136,7 +136,6 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 
   const baseline = useMemo(
     () => settingsToForm(initial, configuredRemote, remotes),
-
     [initial, configuredRemote, remotes]
   );
   const [form, setForm] = useState<FormState>(baseline);
@@ -185,9 +184,12 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   }
 
   return (
-    <div className="flex flex-col max-w-3xl mx-auto w-full h-full overflow-hidden px-10">
-      <h1 className="text-lg font-medium pt-10 pb-5">Project Settings</h1>
-      <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none' }}>
+    <div className="flex flex-col max-w-3xl mx-auto w-full h-full overflow-hidden">
+      <h1 className="text-lg font-medium pt-10 pb-5 px-10">Project Settings</h1>
+      <div
+        className="flex-1 overflow-y-auto overflow-x-hidden px-10"
+        style={{ scrollbarWidth: 'none' }}
+      >
         <FieldGroup>
           <Field>
             <FieldTitle>Preserve patterns</FieldTitle>
@@ -393,7 +395,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
           </>
         )}
       </div>
-      <div className="flex justify-end gap-2 pt-5 pb-10">
+      <div className="flex justify-end gap-2 pt-5 pb-10 px-10">
         <Button
           variant="outline"
           onClick={() => {

@@ -17,11 +17,13 @@ import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
+import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -89,13 +91,16 @@ export class LocalConversationProvider implements ConversationProvider {
     });
     await this.prepareHookConfig(conversation.providerId);
 
-    const { command, args } = await buildAgentCommand({
+    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const { command, args } = buildAgentCommand({
       providerId: conversation.providerId,
+      providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
       isResuming,
       initialPrompt,
     });
+    const providerEnv = resolveProviderEnv(providerConfig);
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
@@ -127,6 +132,7 @@ export class LocalConversationProvider implements ConversationProvider {
       env: {
         ...buildAgentEnv({
           hook: port > 0 ? { port, ptyId, token } : undefined,
+          providerVars: providerEnv,
         }),
         ...this.taskEnvVars,
       },

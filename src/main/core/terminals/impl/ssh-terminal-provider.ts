@@ -146,7 +146,8 @@ export class SshTerminalProvider implements TerminalProvider {
       args: command?.args,
     };
 
-    const sshCommand = resolveSshCommand('general', cfg, this.taskEnvVars);
+    const profile = await this.proxy.getRemoteShellProfile();
+    const sshCommand = resolveSshCommand('general', cfg, this.taskEnvVars, profile);
 
     const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,
