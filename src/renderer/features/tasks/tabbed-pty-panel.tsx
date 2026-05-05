@@ -1,11 +1,14 @@
+import { ArrowDown } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { type PtySession } from '@renderer/lib/pty/pty-session';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
+import { useTerminalScrollAtBottom } from '@renderer/lib/pty/use-terminal-scroll';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { Button } from '@renderer/lib/ui/button';
 import { cn } from '@renderer/utils/utils';
 import { getTabbedPtySessionIds } from './tabbed-pty-panel-sessions';
 
@@ -55,6 +58,8 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<{ focus: () => void }>(null);
   const focusPendingRef = useRef(false);
+  const isAtBottom = useTerminalScrollAtBottom(activeSession?.pty?.terminal);
+
   const {
     isSearchOpen,
     searchQuery,
@@ -126,6 +131,24 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
                   onStep={stepSearch}
                   onClose={closeSearch}
                 />
+                <div
+                  className={cn(
+                    'absolute bottom-3 left-1/2 z-20 -translate-x-1/2 transition-all duration-200 ease-out',
+                    isAtBottom
+                      ? 'pointer-events-none translate-y-2 opacity-0'
+                      : 'translate-y-0 opacity-100'
+                  )}
+                >
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => activeSession?.pty?.terminal.scrollToBottom()}
+                    className="rounded-full bg-background/90 shadow-md backdrop-blur-sm"
+                  >
+                    <ArrowDown className="size-3" />
+                    Scroll to bottom
+                  </Button>
+                </div>
                 <PtyPane
                   ref={terminalRef}
                   sessionId={activeSessionId}
