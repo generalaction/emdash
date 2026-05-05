@@ -2,6 +2,7 @@ import type { MermaidConfig } from 'mermaid';
 
 let idCounter = 0;
 let renderQueue: Promise<void> = Promise.resolve();
+let lastInitializedConfigKey: string | null = null;
 
 type MermaidTheme = NonNullable<MermaidConfig['theme']>;
 
@@ -25,12 +26,21 @@ export async function renderMermaidDiagram({
     const mermaid = (await import('mermaid')).default;
     const config: MermaidConfig = {
       startOnLoad: false,
+      htmlLabels: false,
       securityLevel: 'strict',
       suppressErrorRendering: true,
       theme,
+      flowchart: {
+        htmlLabels: false,
+      },
     };
+    const configKey = JSON.stringify(config);
 
-    mermaid.initialize(config);
+    if (lastInitializedConfigKey !== configKey) {
+      mermaid.initialize(config);
+      lastInitializedConfigKey = configKey;
+    }
+
     const { svg } = await mermaid.render(id, chart);
     return svg;
   };

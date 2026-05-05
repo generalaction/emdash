@@ -10,11 +10,18 @@ interface MermaidDiagramProps {
 
 type RenderState =
   | { kind: 'rendered'; key: string; svg: string }
-  | { kind: 'error'; key: string; message: string };
+  | { kind: 'error'; key: string; message: string | null };
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  return 'Unable to render Mermaid diagram.';
+const GENERIC_RENDER_ERROR = 'Unable to render Mermaid diagram.';
+
+function errorMessage(error: unknown): string | null {
+  if (error instanceof Error && error.message && error.message !== GENERIC_RENDER_ERROR) {
+    return error.message;
+  }
+  if (typeof error === 'string' && error && error !== GENERIC_RENDER_ERROR) {
+    return error;
+  }
+  return null;
 }
 
 export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, isDark, compact }) => {
@@ -50,8 +57,10 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, isDark, c
         )}
         role="alert"
       >
-        <div className="font-medium">Unable to render Mermaid diagram.</div>
-        <div className="mt-1 text-muted-foreground">{visibleState.message}</div>
+        <div className="font-medium">{GENERIC_RENDER_ERROR}</div>
+        {visibleState.message && (
+          <div className="mt-1 text-muted-foreground">{visibleState.message}</div>
+        )}
         <pre className="mt-2 overflow-x-auto rounded bg-muted/60 p-2 text-muted-foreground">
           <code>{chart}</code>
         </pre>
