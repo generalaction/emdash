@@ -5,12 +5,16 @@ import {
   taskErrorMessage,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
+import { useDebouncedValue } from '@renderer/lib/hooks/use-debounced-value';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import type { TaskStore } from '@renderer/features/tasks/stores/task';
 import { ConversationsPanel } from './conversations/conversations-panel';
 import { DiffView } from './diff-view/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
-import { BootstrapPtyView } from './task-bootstrap-pty';
+import { BootstrapPtyView, PtySkipButton } from './task-bootstrap-pty';
 import { TaskBootstrapView } from './task-bootstrap-view';
+
+const STEP_DEBOUNCE_MS = 500;
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -20,70 +24,75 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   switch (kind) {
     case 'missing':
       return null;
-    case 'creating': {
-      const step = taskStore?.provisionStep ?? 'creating';
-      const message = taskStore?.provisionProgressMessage ?? undefined;
-      const ptyView =
-        taskStore?.provisionStep === 'running-setup-script' && taskStore.setupSessionId ? (
-          <BootstrapPtyView
-            sessionId={taskStore.setupSessionId}
-            message={message ?? 'Running setup script…'}
-          />
-        ) : undefined;
-      return <TaskBootstrapView step={step} message={message} ptyView={ptyView} />;
-    }
+    case 'creating':
+      return <CreatingBootstrap taskStore={taskStore} />;
     case 'create-error':
       return (
-        <TaskBootstrapView
-          step="create-error"
-          errorTitle="Error creating task"
-          errorDetail={taskErrorMessage(taskStore)}
-        />
+        <TaskBootstrapView step="create-error" activeStepStatus="error">
+          <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
+        </TaskBootstrapView>
       );
     case 'project-mounting':
-      return (
-        <TaskBootstrapView
-          step="project-mounting"
-          message={taskStore?.provisionProgressMessage ?? undefined}
-        />
-      );
-    case 'provisioning': {
-      const step = taskStore?.provisionStep ?? 'setting-up-workspace';
-      const message = taskStore?.provisionProgressMessage ?? undefined;
-      const ptyView =
-        taskStore?.provisionStep === 'running-setup-script' && taskStore.setupSessionId ? (
-          <BootstrapPtyView
-            sessionId={taskStore.setupSessionId}
-            message={message ?? 'Running setup script…'}
-          />
-        ) : undefined;
-      return <TaskBootstrapView step={step} message={message} ptyView={ptyView} />;
-    }
+      return <TaskBootstrapView step="project-mounting" />;
+    case 'provisioning':
+      return <ProvisioningBootstrap taskStore={taskStore} />;
     case 'provision-error':
     case 'project-error':
       return (
-        <TaskBootstrapView
-          step="provision-error"
-          errorTitle="Failed to set up workspace"
-          errorDetail={taskErrorMessage(taskStore)}
-        />
+        <TaskBootstrapView step="provision-error" activeStepStatus="error">
+          <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
+        </TaskBootstrapView>
       );
     case 'idle':
     case 'teardown':
-      return (
-        <TaskBootstrapView step={kind} message={taskStore?.provisionProgressMessage ?? undefined} />
-      );
+      return <TaskBootstrapView step={kind} />;
     case 'teardown-error':
       return (
-        <TaskBootstrapView
-          step="teardown-error"
-          errorTitle="Failed to tear down workspace"
-          errorDetail={taskErrorMessage(taskStore)}
-        />
+        <TaskBootstrapView step="teardown-error" activeStepStatus="error">
+          <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
+        </TaskBootstrapView>
       );
     default:
       return <ReadyTaskMainPanel />;
   }
+});
+
+const CreatingBootstrap = observer(function CreatingBootstrap({
+  taskStore,
+}: {
+  taskStore: TaskStore | undefined;
+}) {
+  const rawStep = taskStore?.provisionStep ?? 'creating';
+  const step = useDebouncedValue(rawStep, STEP_DEBOUNCE_MS);
+  const isPtyStep = step === 'running-setup-script' && taskStore?.setupSessionId;
+
+  return (
+    <TaskBootstrapView
+      step={step}
+      actions={isPtyStep ? <PtySkipButton sessionId={taskStore!.setupSessionId!} /> : undefined}
+    >
+      {isPtyStep ? <BootstrapPtyView sessionId={taskStore!.setupSessionId!} /> : undefined}
+    </TaskBootstrapView>
+  );
+});
+
+const ProvisioningBootstrap = observer(function ProvisioningBootstrap({
+  taskStore,
+}: {
+  taskStore: TaskStore | undefined;
+}) {
+  const rawStep = taskStore?.provisionStep ?? 'setting-up-workspace';
+  const step = useDebouncedValue(rawStep, STEP_DEBOUNCE_MS);
+  const isPtyStep = step === 'running-setup-script' && taskStore?.setupSessionId;
+
+  return (
+    <TaskBootstrapView
+      step={step}
+      actions={isPtyStep ? <PtySkipButton sessionId={taskStore!.setupSessionId!} /> : undefined}
+    >
+      {isPtyStep ? <BootstrapPtyView sessionId={taskStore!.setupSessionId!} /> : undefined}
+    </TaskBootstrapView>
+  );
 });
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {

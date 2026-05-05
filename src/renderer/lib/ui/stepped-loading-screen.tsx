@@ -44,15 +44,15 @@ export function SteppedLoadingScreen<StepId extends string>({
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
       className={cn(
-        'flex min-w-0 flex-1 flex-col justify-center gap-6 p-8 max-w-2xl mx-auto max-h-full text-foreground-muted',
+        'flex min-w-0 w-full flex-1 flex-col justify-center gap-6 p-8 max-w-2xl mx-auto max-h-full text-foreground-muted',
         className
       )}
     >
       <div className="flex w-full min-w-0 flex-col gap-6">
-        <div className="flex w-full flex-col 3 bg-background-1 rounded-md">
+        <div className="flex w-full flex-col border rounded-md">
           <div
             className={cn(
-              'flex  gap-2  items-center text-sm overflow-hidden bg-background-1 p-3 rounded-md',
+              'flex  gap-2  items-center text-sm overflow-hidden p-3 rounded-md',
               children && 'rounded-b-none'
             )}
           >

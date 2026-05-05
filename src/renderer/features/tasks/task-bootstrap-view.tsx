@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ProvisionStep } from '@shared/events/taskEvents';
-import { BootstrapError, BootstrapPtyLayout, BootstrapSpinner } from './task-bootstrap';
+import { SteppedLoadingScreen } from '@renderer/lib/ui/stepped-loading-screen';
 
 export type BootstrapStep =
   | ProvisionStep
@@ -12,67 +12,44 @@ export type BootstrapStep =
   | 'idle'
   | 'teardown';
 
-const STEP_MESSAGES: Record<BootstrapStep, string> = {
-  creating: 'Creating task…',
-  'project-mounting': 'Opening project…',
-  idle: 'Setting up workspace…',
-  teardown: 'Setting up workspace…',
-  'resolving-worktree': 'Resolving worktree…',
-  'initialising-workspace': 'Initialising workspace…',
-  'running-provision-script': 'Running provision script…',
-  'running-setup-script': 'Running setup script…',
-  connecting: 'Connecting…',
-  'setting-up-workspace': 'Setting up workspace…',
-  'starting-sessions': 'Starting sessions…',
-  'create-error': '',
-  'provision-error': '',
-  'teardown-error': '',
+const BOOTSTRAP_STEPS: Record<BootstrapStep, { label: string }> = {
+  creating: { label: 'Creating task…' },
+  'project-mounting': { label: 'Opening project…' },
+  idle: { label: 'Setting up workspace…' },
+  teardown: { label: 'Tearing down…' },
+  'resolving-worktree': { label: 'Resolving worktree…' },
+  'initialising-workspace': { label: 'Initialising workspace…' },
+  'running-provision-script': { label: 'Running provision script…' },
+  'running-setup-script': { label: 'Running setup script…' },
+  connecting: { label: 'Connecting…' },
+  'setting-up-workspace': { label: 'Setting up workspace…' },
+  'starting-sessions': { label: 'Starting sessions…' },
+  'create-error': { label: 'Create failed' },
+  'provision-error': { label: 'Provision failed' },
+  'teardown-error': { label: 'Teardown failed' },
 };
-
-const ERROR_STEPS = new Set<BootstrapStep>(['create-error', 'provision-error', 'teardown-error']);
 
 export interface TaskBootstrapViewProps {
   step: BootstrapStep;
-  /** Overrides the default message derived from the step. */
-  message?: string;
-  /** Title shown for error steps. */
-  errorTitle?: string;
-  /** Optional detail shown below the error title. */
-  errorDetail?: string;
-  /**
-   * Real PTY view for the 'running-setup-script' step.
-   * When provided (production), rendered directly.
-   * When omitted (Storybook / no session yet), falls back to the
-   * BootstrapPtyLayout shell so the header and Skip button are still visible.
-   */
-  ptyView?: ReactNode;
-  /** Controls the Skip button disabled state when ptyView is not provided. */
-  isSkipping?: boolean;
-  /** Called when the Skip button is clicked when ptyView is not provided. */
-  onSkip?: () => void;
+  activeStepStatus?: 'pending' | 'error';
+  children?: ReactNode;
+  actions?: ReactNode;
 }
 
 export function TaskBootstrapView({
   step,
-  message,
-  errorTitle = '',
-  errorDetail,
-  ptyView,
-  isSkipping = false,
-  onSkip = () => {},
+  activeStepStatus = 'pending',
+  children,
+  actions,
 }: TaskBootstrapViewProps) {
-  const resolvedMessage = message ?? STEP_MESSAGES[step];
-
-  if (ERROR_STEPS.has(step)) {
-    return <BootstrapError title={errorTitle} detail={errorDetail} />;
-  }
-
-  if (step === 'running-setup-script') {
-    // Production: render the provided connected PTY view.
-    if (ptyView != null) return <>{ptyView}</>;
-    // Storybook / no session yet: graceful degradation — show the layout shell.
-    return <BootstrapPtyLayout message={resolvedMessage} isSkipping={isSkipping} onSkip={onSkip} />;
-  }
-
-  return <BootstrapSpinner message={resolvedMessage} />;
+  return (
+    <SteppedLoadingScreen
+      steps={BOOTSTRAP_STEPS}
+      activeStep={step}
+      activeStepStatus={activeStepStatus}
+      actions={actions}
+    >
+      {children}
+    </SteppedLoadingScreen>
+  );
 }

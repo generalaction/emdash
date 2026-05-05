@@ -1,6 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
+import { cn } from '@renderer/utils/utils';
 import type { FrontendPty, SessionTheme } from './pty';
 import { usePty } from './use-pty';
 
@@ -110,9 +111,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
 
     return (
       <div
-        className={['terminal-pane flex h-full w-full min-w-0', className]
-          .filter(Boolean)
-          .join(' ')}
+        className={cn('terminal-pane flex h-full w-full min-w-0 bg-background-1', className)}
         style={{
           width: '100%',
           height: '100%',
