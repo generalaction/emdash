@@ -23,7 +23,7 @@ const ResourceMonitorSettingsCard: React.FC = () => {
   return (
     <SettingRow
       title="Resource monitor"
-      description="Show CPU and memory usage for running agents in the sidebar. Samples every 1.5s while enabled."
+      description="Track CPU and memory usage for running agents. When enabled, open it from the command palette."
       control={<Switch checked={enabled} disabled={loading || saving} onCheckedChange={toggle} />}
     />
   );

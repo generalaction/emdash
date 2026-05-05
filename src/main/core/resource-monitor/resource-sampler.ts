@@ -57,6 +57,9 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
       ppid: u?.ppid,
       cpu: u?.cpu ?? 0,
       memory: u?.memory ?? 0,
+      paused: a.paused,
+      providerId: a.metadata?.providerId,
+      title: a.metadata?.title,
     });
   }
 
@@ -113,7 +116,7 @@ export function startResourceSampler(): void {
       log.warn('resource-sampler: sample failed', err);
     }
   };
-  timer = setInterval(tick, SAMPLE_INTERVAL_MS);
+  timer = setInterval(() => void tick(), SAMPLE_INTERVAL_MS);
   void tick();
 }
 

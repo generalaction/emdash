@@ -1,6 +1,6 @@
-import { Check, Copy, Folder, Gauge, GitBranch } from 'lucide-react';
+import { Check, Copy, Folder, GitBranch, Pause, Play, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type {
   ResourceAppProcess,
@@ -8,29 +8,29 @@ import type {
   ResourceSnapshot,
 } from '@shared/resource-monitor';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
-import { Toggle } from '@renderer/lib/ui/toggle';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
+import { cn } from '@renderer/utils/utils';
 
-type Entry = ResourcePtyEntry & {
+export type Entry = ResourcePtyEntry & {
   taskName?: string;
   providerId?: AgentProviderId;
   conversationTitle?: string;
 };
 
-type TaskBucket = {
+export type TaskBucket = {
   scopeId: string;
   taskName: string;
   entries: Entry[];
   cpuSum: number;
 };
 
-type Group = {
+export type Group = {
   projectId: string;
   projectName: string;
   tasks: TaskBucket[];
@@ -39,7 +39,22 @@ type Group = {
 
 const UNKNOWN_PROJECT_ID = '__unknown__';
 
-export const ResourceMonitor = observer(function ResourceMonitor() {
+export function ResourceMonitorModal({ onClose }: BaseModalProps) {
+  return (
+    <ResourceMonitorPanel
+      contentClassName="max-h-[60vh]"
+      closeControl={<ResourceMonitorCloseButton onClose={onClose} />}
+    />
+  );
+}
+
+export const ResourceMonitorPanel = observer(function ResourceMonitorPanel({
+  closeControl,
+  contentClassName,
+}: {
+  closeControl?: ReactNode;
+  contentClassName?: string;
+}) {
   const store = appState.resourceMonitor;
   const snapshot = store.snapshot;
   const memLabel = formatBytes(store.totalMemoryBytes);
@@ -54,45 +69,28 @@ export const ResourceMonitor = observer(function ResourceMonitor() {
   const hasProcesses = processes.length > 0;
 
   return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger>
-          <PopoverTrigger
-            render={
-              <Toggle
-                size="sm"
-                variant="outline"
-                aria-label="Resource monitor"
-                className="mr-1 gap-1.5 px-2 text-xs font-medium tabular-nums"
-              >
-                <Gauge className="size-3.5" />
-                <span>{memLabel}</span>
-              </Toggle>
-            }
-          />
-        </TooltipTrigger>
-        <TooltipContent>
-          Resource monitor · {store.entryCount} {store.entryCount === 1 ? 'agent' : 'agents'}
-        </TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="flex w-[24rem] flex-col gap-0 p-0">
-        <div className="flex items-start justify-between gap-2 border-b border-border p-3">
-          <div className="flex flex-col gap-1">
-            <MicroLabel className="text-foreground-passive">Resources</MicroLabel>
-            <div className="text-sm tabular-nums tracking-tight">
-              <span className="text-foreground-passive">CPU </span>
-              <span className="font-medium">{cpuLabel}</span>
-              <span className="ml-3 text-foreground-passive">Memory </span>
-              <span className="font-medium">{memLabel}</span>
-            </div>
+    <>
+      <div className="flex items-start justify-between gap-2 border-b border-border p-3">
+        <div className="flex flex-col gap-0.5">
+          <MicroLabel className="text-foreground-passive">Resources</MicroLabel>
+          <div className="text-sm tabular-nums tracking-tight">
+            <span className="text-foreground-passive">CPU </span>
+            <span className="font-medium">{cpuLabel}</span>
+            <span className="ml-3 text-foreground-passive">Memory </span>
+            <span className="font-medium">{memLabel}</span>
           </div>
-          <CopyReportButton snapshot={snapshot} groups={groups} />
         </div>
+        <div className="flex items-center gap-1">
+          <CopyReportButton snapshot={snapshot} groups={groups} />
+          {closeControl}
+        </div>
+      </div>
 
+      <div className={cn('overflow-y-auto', contentClassName)}>
         {hasProcesses ? (
           <div className="flex flex-col px-3 pb-2 pt-2">
             <ProcessTableHeader />
-            <div className="flex max-h-44 flex-col overflow-y-auto">
+            <div className="flex flex-col">
               {processes.map((p) => (
                 <ProcessRow key={p.pid} process={p} />
               ))}
@@ -103,7 +101,7 @@ export const ResourceMonitor = observer(function ResourceMonitor() {
         <div className="flex flex-col gap-1 border-t border-border px-3 pb-3 pt-2">
           <MicroLabel className="text-foreground-passive">By project</MicroLabel>
           {hasAny ? (
-            <div className="flex max-h-72 flex-col overflow-y-auto">
+            <div className="flex flex-col">
               {groups.map((g) => (
                 <ProjectNode key={g.projectId} group={g} />
               ))}
@@ -114,10 +112,28 @@ export const ResourceMonitor = observer(function ResourceMonitor() {
             </div>
           )}
         </div>
-      </PopoverContent>
-    </Popover>
+      </div>
+    </>
   );
 });
+
+function ResourceMonitorCloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Close resource monitor"
+          onClick={onClose}
+        >
+          <X className="size-3" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Close</TooltipContent>
+    </Tooltip>
+  );
+}
 
 function ProcessTableHeader() {
   return (
@@ -186,10 +202,26 @@ function TaskNode({ task }: { task: TaskBucket }) {
 }
 
 function AgentRow({ entry }: { entry: Entry }) {
+  const [pending, setPending] = useState(false);
   const norm = appState.resourceMonitor.normalizedCpu(entry);
   const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
   const label =
     entry.conversationTitle || meta?.label || entry.providerId || entry.leafId.slice(0, 8);
+  const canPause = entry.pid !== undefined;
+
+  const handleTogglePaused = useCallback(async () => {
+    if (!canPause || pending) return;
+    setPending(true);
+    try {
+      if (entry.paused) {
+        await appState.resourceMonitor.resumeSession(entry.sessionId);
+      } else {
+        await appState.resourceMonitor.pauseSession(entry.sessionId);
+      }
+    } finally {
+      setPending(false);
+    }
+  }, [canPause, entry.paused, entry.sessionId, pending]);
 
   return (
     <div
@@ -208,14 +240,44 @@ function AgentRow({ entry }: { entry: Entry }) {
         </span>
       ) : null}
       <div className="min-w-0 flex-1 truncate">
-        <span className="truncate text-foreground-muted">{label}</span>
+        <span
+          className={
+            entry.paused ? 'truncate text-foreground-passive' : 'truncate text-foreground-muted'
+          }
+        >
+          {label}
+        </span>
         {entry.pid === undefined ? (
           <span className="ml-1 text-[10px] text-foreground-passive">(ssh)</span>
+        ) : null}
+        {entry.paused ? (
+          <span className="ml-1 text-[10px] text-foreground-passive">(paused)</span>
         ) : null}
       </div>
       <span className="tabular-nums text-foreground-passive">
         {norm.toFixed(0)}% · {formatBytes(entry.memory)}
       </span>
+      <Tooltip>
+        <TooltipTrigger>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={entry.paused ? 'Resume process' : 'Pause process'}
+            disabled={!canPause || pending}
+            onClick={handleTogglePaused}
+            className="size-5 shrink-0 text-foreground-passive hover:text-foreground"
+          >
+            {entry.paused ? <Play className="size-3" /> : <Pause className="size-3" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {canPause
+            ? entry.paused
+              ? 'Resume process'
+              : 'Pause process'
+            : 'Remote processes cannot be paused'}
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }
@@ -270,7 +332,7 @@ function CopyReportButton({
   );
 }
 
-function formatReport(snapshot: ResourceSnapshot, groups: Group[]): string {
+export function formatReport(snapshot: ResourceSnapshot, groups: Group[]): string {
   const entryMem = snapshot.entries.reduce((n, e) => n + e.memory, 0);
   const entryCpu = snapshot.entries.reduce((n, e) => n + e.cpu, 0);
   const totalMem = snapshot.app.memoryBytes + entryMem;
@@ -295,6 +357,7 @@ function formatReport(snapshot: ResourceSnapshot, groups: Group[]): string {
         if (e.pid !== undefined) parts.push(`pid=${e.pid}`);
         if (e.ppid !== undefined) parts.push(`ppid=${e.ppid}`);
         if (e.pid === undefined) parts.push('ssh');
+        if (e.paused) parts.push('paused');
         const suffix = parts.length > 0 ? ` (${parts.join(' ')})` : '';
         const cpu = snapshot.cpuCount > 0 ? e.cpu / snapshot.cpuCount : 0;
         lines.push(`${path} ${cpu.toFixed(1)}% ${formatBytes(e.memory)}${suffix}`);
@@ -305,7 +368,7 @@ function formatReport(snapshot: ResourceSnapshot, groups: Group[]): string {
   return lines.join('\n');
 }
 
-function appProcessLabel(type: string, name?: string): string {
+export function appProcessLabel(type: string, name?: string): string {
   if (type === 'Browser') return 'Main';
   if (type === 'Tab') return 'Renderer';
   if (type === 'GPU') return 'GPU';
@@ -315,7 +378,7 @@ function appProcessLabel(type: string, name?: string): string {
   return name ?? type;
 }
 
-function buildGroups(entries: ResourcePtyEntry[]): Group[] {
+export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
   const projects = appState.projects.projects;
   const byProject = new Map<string, { projectName: string; tasks: Map<string, TaskBucket> }>();
 
@@ -339,6 +402,11 @@ function buildGroups(entries: ResourcePtyEntry[]): Group[] {
         conversationTitle = conv?.data.title;
       }
     }
+
+    // Fall back to metadata supplied by the sampler (covers cases where the
+    // owning project isn't mounted, so the conversation join above misses).
+    providerId ??= entry.providerId;
+    conversationTitle ??= entry.title;
 
     const project = byProject.get(projectKey) ?? {
       projectName,

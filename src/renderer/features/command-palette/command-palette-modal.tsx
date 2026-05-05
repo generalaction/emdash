@@ -1,13 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { FolderOpen, GitBranch, Zap } from 'lucide-react';
-import React, { useDeferredValue, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { SearchItem } from '@shared/search';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useModalContext, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { buildActions, type CommandActionWithHandler } from './actions';
+import { ResourceMonitorView } from './resource-monitor-view';
 import { applyContextAffinity, rrf } from './rrf';
 
 interface CommandPaletteProps {
@@ -39,13 +41,19 @@ function PaletteItem({
   onSelect: () => void;
 }) {
   const action = item.kind === 'action' ? (item as CommandActionWithHandler) : null;
+  const ActionIcon = action?.icon;
+  const iconNode = ActionIcon ? (
+    <ActionIcon size={14} className="shrink-0 text-foreground/40" />
+  ) : (
+    KIND_ICON[item.kind]
+  );
   return (
     <Command.Item
       value={value}
       onSelect={onSelect}
       className="flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2"
     >
-      {KIND_ICON[item.kind]}
+      {iconNode}
       <span className="flex-1 truncate">{item.title}</span>
       {action?.shortcut && (
         <kbd className="shrink-0 rounded bg-background-quaternary px-1.5 py-0.5 text-xs text-foreground/60">
@@ -61,10 +69,12 @@ export function CommandPaletteModal({
   taskId,
   onClose,
 }: CommandPaletteProps & BaseModalProps) {
+  const [view, setView] = useState<'search' | 'resource-monitor'>('search');
   const [query, setQuery] = useState('');
   const deferred = useDeferredValue(query);
   const { navigate } = useNavigate();
   const { showModal, closeModal } = useModalContext();
+  const { value: resourceMonitor } = useAppSettingsKey('resourceMonitor');
 
   const { data: dbResults = [] } = useQuery({
     queryKey: ['cmdk-search', deferred, projectId, taskId],
@@ -73,7 +83,23 @@ export function CommandPaletteModal({
     placeholderData: (prev) => prev,
   });
 
-  const actions = buildActions({ projectId, taskId, navigate, showModal, closeModal });
+  const allActions = buildActions({
+    projectId,
+    taskId,
+    navigate,
+    showModal,
+    closeModal,
+    resourceMonitorEnabled: resourceMonitor?.enabled ?? false,
+    onShowResourceMonitor: () => setView('resource-monitor'),
+  });
+  const actions = useMemo(() => {
+    const q = deferred.trim().toLowerCase();
+    if (!q) return allActions;
+    return allActions.filter((a) => {
+      const haystack = `${a.title} ${a.subtitle ?? ''}`.toLowerCase();
+      return q.split(/\s+/).every((token) => haystack.includes(token));
+    });
+  }, [allActions, deferred]);
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const merged = rrf<MergedResult>([rankedDb as MergedResult[], actions as MergedResult[]]);
 
@@ -97,6 +123,38 @@ export function CommandPaletteModal({
     if (item.kind === 'task') return handleNavigateToTask(item as SearchItem);
     if (item.kind === 'project') return handleNavigateToProject(item as SearchItem);
   };
+
+  useEffect(() => {
+    if (view !== 'resource-monitor') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Backspace') {
+        e.preventDefault();
+        e.stopPropagation();
+        setView('search');
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [view]);
+
+  if (view === 'resource-monitor') {
+    return (
+      <div className="flex flex-col overflow-hidden">
+        <ResourceMonitorView onBack={() => setView('search')} />
+        <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
+          <span className="flex items-center gap-1 text-xs text-foreground/40">
+            <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
+              Esc
+            </kbd>
+            <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
+              ⌫
+            </kbd>
+            Back
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Command className="flex flex-col overflow-hidden" shouldFilter={false} loop>

@@ -73,7 +73,24 @@ export class LocalPtySession implements Pty {
   }
 
   kill(): void {
+    if (canSignalProcess()) {
+      try {
+        signalProcessGroup(this.proc.pid, 'SIGCONT');
+      } catch {
+        // A paused process may need SIGCONT before node-pty's kill can take effect.
+      }
+    }
     this.proc.kill();
+  }
+
+  pause(): void {
+    if (!canSignalProcess()) throw new Error('Process pausing is not supported on this platform');
+    signalProcessGroup(this.proc.pid, 'SIGSTOP');
+  }
+
+  resume(): void {
+    if (!canSignalProcess()) throw new Error('Process pausing is not supported on this platform');
+    signalProcessGroup(this.proc.pid, 'SIGCONT');
   }
 
   onData(handler: (data: string) => void): void {
@@ -89,4 +106,24 @@ export class LocalPtySession implements Pty {
   getPid(): number {
     return this.proc.pid;
   }
+}
+
+function canSignalProcess(): boolean {
+  return process.platform !== 'win32';
+}
+
+function signalProcessGroup(pid: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(-pid, signal);
+  } catch (error) {
+    if (isNoSuchProcessError(error)) {
+      process.kill(pid, signal);
+      return;
+    }
+    throw error;
+  }
+}
+
+function isNoSuchProcessError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ESRCH';
 }

@@ -186,7 +186,9 @@ export class SshConversationProvider implements ConversationProvider {
       }
     });
 
-    ptySessionRegistry.register(sessionId, pty);
+    ptySessionRegistry.register(sessionId, pty, {
+      metadata: { providerId: conversation.providerId, title: conversation.title },
+    });
     this.sessions.set(sessionId, pty);
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,

@@ -1,7 +1,15 @@
+import type { AgentProviderId } from '@shared/agent-provider-registry';
+
 /**
  * Per-PTY resource sample. `cpu` is a percentage of one core (can exceed 100
  * on multi-core systems). `memory` is RSS in bytes. `pid` is undefined for
  * remote (SSH) PTYs where the owning process runs on the remote host.
+ *
+ * `providerId` and `title` are populated for agent-conversation PTYs and
+ * absent for plain shell terminals. They are sourced from the registry at
+ * register-time so the renderer can label entries even when the owning
+ * project isn't mounted (in which case the renderer-side conversation join
+ * would fail and the row would fall back to a leafId hex).
  */
 export interface ResourcePtyEntry {
   sessionId: string;
@@ -12,6 +20,9 @@ export interface ResourcePtyEntry {
   ppid?: number;
   cpu: number;
   memory: number;
+  paused: boolean;
+  providerId?: AgentProviderId;
+  title?: string;
 }
 
 /**

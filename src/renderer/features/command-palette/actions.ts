@@ -1,3 +1,4 @@
+import { Activity, type LucideIcon } from 'lucide-react';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import type { useModalContext } from '@renderer/lib/modal/modal-provider';
 
@@ -11,6 +12,7 @@ export interface CommandAction {
   shortcut?: string;
   projectId: null;
   score: number;
+  icon?: LucideIcon;
 }
 
 export interface CommandActionWithHandler extends CommandAction {
@@ -23,10 +25,12 @@ export interface ActionContext {
   navigate: NavigateFnTyped;
   showModal: ShowModalFn;
   closeModal: () => void;
+  resourceMonitorEnabled: boolean;
+  onShowResourceMonitor?: () => void;
 }
 
 export function buildActions(ctx: ActionContext): CommandActionWithHandler[] {
-  const { navigate, showModal, closeModal, projectId, taskId } = ctx;
+  const { navigate, showModal, closeModal, projectId, taskId, resourceMonitorEnabled } = ctx;
 
   const actions: CommandActionWithHandler[] = [
     {
@@ -79,6 +83,26 @@ export function buildActions(ctx: ActionContext): CommandActionWithHandler[] {
       execute: () => {
         closeModal();
         showModal('createConversationModal', { projectId, taskId });
+      },
+    });
+  }
+
+  if (resourceMonitorEnabled) {
+    actions.push({
+      kind: 'action',
+      id: 'resource-monitor',
+      title: 'Resource Monitor',
+      subtitle: 'Show CPU and memory performance for running agents',
+      projectId: null,
+      score: 0,
+      icon: Activity,
+      execute: () => {
+        if (ctx.onShowResourceMonitor) {
+          ctx.onShowResourceMonitor();
+        } else {
+          closeModal();
+          showModal('resourceMonitorModal', {});
+        }
       },
     });
   }
