@@ -1,3 +1,6 @@
+// For more info, see https://github.com/storybookjs/eslint-plugin-storybook#configuration-flat-config-format
+import storybook from "eslint-plugin-storybook";
+
 import eslint from '@eslint/js';
 import reactHooks from 'eslint-plugin-react-hooks';
 import { globalIgnores } from 'eslint/config';
@@ -6,11 +9,9 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   globalIgnores(['dist/**', 'out/**', 'build/**', 'node_modules/**', '**/_*/**']),
-
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   reactHooks.configs.flat.recommended,
-
   // Non-type-aware rules for all TS/TSX files
   {
     files: ['**/*.{ts,tsx}'],
@@ -32,7 +33,6 @@ export default tseslint.config(
       'no-control-regex': 'off',
     },
   },
-
   // Type-aware rules scoped to src/ only (config files like vitest.config.ts are not in tsconfig)
   {
     files: ['src/**/*.{ts,tsx}'],
@@ -52,12 +52,12 @@ export default tseslint.config(
       '@typescript-eslint/await-thenable': 'warn',
     },
   },
-
   // Relax rules for test files
   {
     files: ['**/*.test.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
     },
-  }
+  },
+  storybook.configs["flat/recommended"]
 );
