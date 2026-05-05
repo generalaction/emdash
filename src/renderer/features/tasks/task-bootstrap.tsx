@@ -38,20 +38,27 @@ export function BootstrapPtyLayout({
   children?: ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+    <div className="flex h-full flex-col p-8 items-center justify-center w-full">
+      <div className="border max-w-md min-h-[400px] w-full mt-4">
+        {children ?? (
+          <div className="flex-1 text-foreground-passive font-mono text-center items-center justify-center h-full flex">
+            PTY
+          </div>
+        )}
+      </div>
+      <div></div>
+      <div className="flex shrink-0 items-center gap-2 max-w-xs px-3 py-2">
         <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted" />
         <p className="flex-1 text-xs font-mono text-foreground-muted">{message}</p>
-        <button
-          onClick={onSkip}
-          disabled={isSkipping}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-foreground-muted transition-colors hover:bg-background-2 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-        >
-          <X className="h-3 w-3" />
-          Skip
-        </button>
       </div>
-      {children ?? <div className="flex-1" />}
+      <button
+        onClick={onSkip}
+        disabled={isSkipping}
+        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-foreground-muted transition-colors hover:bg-background-2 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+      >
+        <X className="h-3 w-3" />
+        Skip
+      </button>
     </div>
   );
 }
