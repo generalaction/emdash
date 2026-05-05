@@ -288,16 +288,13 @@ function formatInnerError(raw: string): string {
 
   if (raw.startsWith('initial_commit_required:'))
     return `Branch "${raw.slice(23)}" has no commits yet`;
-  if (raw.startsWith('branch_create_failed:'))
-    return `Failed to create branch "${raw.slice(21)}"`;
+  if (raw.startsWith('branch_create_failed:')) return `Failed to create branch "${raw.slice(21)}"`;
   if (raw.startsWith('pr_fetch_failed:'))
     return `Failed to fetch pull requests from "${raw.slice(16)}"`;
-  if (raw.startsWith('branch_not_found:'))
-    return `Branch "${raw.slice(17)}" was not found`;
+  if (raw.startsWith('branch_not_found:')) return `Branch "${raw.slice(17)}" was not found`;
   if (raw.startsWith('worktree_setup_failed:'))
     return `Failed to set up worktree for "${raw.slice(22)}"`;
-  if (raw.startsWith('provisioning timed out'))
-    return 'Task provisioning timed out';
+  if (raw.startsWith('provisioning timed out')) return 'Task provisioning timed out';
 
   return raw;
 }

@@ -217,9 +217,7 @@ export function AutomationsView() {
         {hasAutomations && (
           <div className="mb-6 space-y-5">
             {activeAutomations.length > 0 && (
-              <div className="divide-y divide-border/70 border-y border-border/70">
-                {activeAutomations.map(renderAutomationRow)}
-              </div>
+              <div>{activeAutomations.map(renderAutomationRow)}</div>
             )}
 
             {pausedAutomations.length > 0 && (
@@ -227,9 +225,7 @@ export function AutomationsView() {
                 <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
                   Paused
                 </h2>
-                <div className="divide-y divide-border/70 border-y border-border/70">
-                  {pausedAutomations.map(renderAutomationRow)}
-                </div>
+                <div>{pausedAutomations.map(renderAutomationRow)}</div>
               </section>
             )}
           </div>
