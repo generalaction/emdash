@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { clipboard, dialog, shell } from 'electron';
-import { INITIAL_PROMPT_IMAGE_MAX_BYTES } from '@shared/conversations';
+import { INITIAL_PROMPT_IMAGE_MAX_BYTES, RENDERER_FILE_MAX_BYTES } from '@shared/conversations';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
 import {
   getAppById,
@@ -52,7 +52,6 @@ const INITIAL_PROMPT_IMAGE_DIR = join(tmpdir(), 'emdash-initial-prompt-images');
 const INITIAL_PROMPT_IMAGE_TTL_MS = 24 * 60 * 60 * 1000;
 const RENDERER_FILE_DIR = join(tmpdir(), 'emdash-renderer-files');
 const RENDERER_FILE_TTL_MS = 60 * 60 * 1000;
-const RENDERER_FILE_MAX_BYTES = 100 * 1024 * 1024;
 
 function extensionForImage(name: string, mimeType: string): string {
   const nameExt = extname(name).toLowerCase();

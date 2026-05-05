@@ -121,6 +121,15 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
+    if (connectionId && initialConversation.imageAttachments.length > 0) {
+      toast({
+        title: 'Images are not supported for SSH projects yet',
+        description: 'Remove the attached images or create this task in a local project.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     let initialPromptImages: Awaited<ReturnType<typeof getInitialPromptImages>>;
     try {
       initialPromptImages = await getInitialPromptImages(initialConversation.imageAttachments);
@@ -228,6 +237,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     navigate,
     onClose,
     toast,
+    connectionId,
   ]);
 
   return (

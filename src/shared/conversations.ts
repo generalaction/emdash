@@ -1,6 +1,7 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 
 export const INITIAL_PROMPT_IMAGE_MAX_BYTES = 25 * 1024 * 1024;
+export const RENDERER_FILE_MAX_BYTES = 100 * 1024 * 1024;
 
 export type Conversation = {
   id: string;

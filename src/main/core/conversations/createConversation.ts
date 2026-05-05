@@ -11,6 +11,10 @@ import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { mapConversationRowToConversation } from './utils';
 
+function pathToImageReference(path: string): string {
+  return `file://${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+
 function buildInitialPrompt(
   prompt: string | undefined,
   images: Array<{ name: string; path: string }>
@@ -19,7 +23,9 @@ function buildInitialPrompt(
   const validImages = images.filter((image) => image.path);
   if (validImages.length === 0) return trimmedPrompt || undefined;
 
-  const imagePrompt = validImages.map((image) => `- ${image.name}: ${image.path}`).join('\n');
+  const imagePrompt = validImages
+    .map((image) => `- ${image.name}: ${pathToImageReference(image.path)}`)
+    .join('\n');
   return [trimmedPrompt, 'Attached images:', imagePrompt].filter(Boolean).join('\n\n');
 }
 
@@ -32,17 +38,19 @@ async function prepareInitialPrompt(params: CreateConversationParams): Promise<s
   const copyLocalFile = workspace?.fs.copyLocalFile?.bind(workspace.fs);
   if (!workspace || !copyLocalFile) {
     if (workspace && !copyLocalFile) {
-      log.warn('Workspace has no copyLocalFile — initial prompt images will use temp paths');
+      log.warn('Workspace has no copyLocalFile — omitting initial prompt images');
     }
-    return buildInitialPrompt(params.initialPrompt, images);
+    return buildInitialPrompt(params.initialPrompt, []);
   }
 
   const imageDir = '.emdash/initial-prompt-images';
   try {
     await workspace.fs.mkdir(imageDir, { recursive: true });
   } catch (error) {
-    log.warn('Failed to create image directory in workspace — using temp paths', { error });
-    return buildInitialPrompt(params.initialPrompt, images);
+    log.warn('Failed to create image directory in workspace — omitting initial prompt images', {
+      error,
+    });
+    return buildInitialPrompt(params.initialPrompt, []);
   }
   const remoteImages = await Promise.all(
     images.map(async (image) => {
@@ -53,7 +61,7 @@ async function prepareInitialPrompt(params: CreateConversationParams): Promise<s
         return { ...image, path: `${workspace.path}/${remotePath}` };
       } catch (error) {
         log.warn('Failed to copy initial prompt image to workspace', { image: image.name, error });
-        return image;
+        return { ...image, path: '' };
       }
     })
   );
