@@ -104,7 +104,9 @@ export class ConversationTabAdapter implements TabViewProvider<ConversationStore
     this.tabManager.closeTab(id);
   }
 
-  addTab(_args: never): void { /* not used — conversation tabs are opened via openConversation */ }
+  addTab(_args: never): void {
+    /* not used — conversation tabs are opened via openConversation */
+  }
 
   reorderTabs(fromIndex: number, toIndex: number): void {
     this.tabManager.reorderTabs(fromIndex, toIndex);
