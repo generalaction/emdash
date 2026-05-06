@@ -11,6 +11,7 @@ import {
   useParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
+import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 
 /**
@@ -54,9 +55,7 @@ export function AppKeyboardShortcuts() {
 
   useHotkey(
     getHotkeyRegistration('settings', keyboard),
-    () => {
-      if (currentView !== 'settings') navigate('settings');
-    },
+    () => toggleSettingsView(navigate, currentView),
     { enabled: settingsHotkey !== null }
   );
 
