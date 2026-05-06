@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
@@ -24,8 +25,36 @@ import * as telemetry from './lib/telemetry';
 import { rpcRouter } from './rpc';
 import { resolveUserEnv } from './utils/userEnv';
 
+function secretServiceAvailable(): boolean {
+  try {
+    const output = execFileSync('dbus-send', [
+      '--session',
+      '--print-reply=literal',
+      '--dest=org.freedesktop.DBus',
+      '/org/freedesktop/DBus',
+      'org.freedesktop.DBus.NameHasOwner',
+      'string:org.freedesktop.secrets',
+    ])
+      .toString()
+      .trim();
+
+    return output === 'true';
+  } catch {
+    return false;
+  }
+}
+
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+
+  // Work around Chromium falling back to 'basic_text' on some Linux desktops.
+  // If Secret Service is available, force libsecret unless overridden or on KDE.
+  const isKDE = process.env.XDG_CURRENT_DESKTOP?.toLowerCase().includes('kde');
+  const userOverrode = process.argv.some((a) => a.startsWith('--password-store='));
+
+  if (!isKDE && !userOverrode && secretServiceAvailable()) {
+    app.commandLine.appendSwitch('password-store', 'gnome-libsecret');
+  }
 }
 
 registerAppScheme();
