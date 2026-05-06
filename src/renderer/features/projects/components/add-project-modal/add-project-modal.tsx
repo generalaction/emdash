@@ -261,7 +261,6 @@ export const AddProjectModal = observer(function AddProjectModal({
             onValueChange={([value]) => {
               if (value) setStrategy(value as Strategy);
             }}
-            size="sm"
           >
             <Tooltip>
               <TooltipTrigger>

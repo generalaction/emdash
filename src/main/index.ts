@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
@@ -16,13 +17,18 @@ import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
+import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
-import * as telemetry from './lib/telemetry';
+import { telemetryService } from './lib/telemetry';
 import { rpcRouter } from './rpc';
 import { resolveUserEnv } from './utils/userEnv';
+
+if (import.meta.env.DEV) {
+  dotenvConfig({ path: '.env.local', override: false });
+}
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
@@ -69,6 +75,7 @@ void app.whenReady().then(async () => {
 
   try {
     await initializeDatabase();
+    searchService.initialize();
     void editorBufferService.pruneStale();
   } catch (error) {
     log.error('Failed to initialize database:', error);
@@ -81,10 +88,17 @@ void app.whenReady().then(async () => {
   }
 
   try {
-    await telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
+    await telemetryService.initialize({ installSource: app.isPackaged ? 'dmg' : 'dev' });
   } catch (e) {
     log.warn('telemetry init failed:', e);
   }
+
+  emdashAccountService.on('accountChanged', (username, userId, email) => {
+    void telemetryService.identify(username, userId, email);
+  });
+  emdashAccountService.on('accountCleared', () => {
+    telemetryService.clearIdentity();
+  });
 
   gitWatcherRegistry.initialize();
   prSyncScheduler.initialize();
@@ -120,15 +134,17 @@ void app.whenReady().then(async () => {
   }
 });
 
-app.on('before-quit', () => {
-  telemetry.capture('app_closed');
-  telemetry.shutdown();
-
-  agentHookService.dispose();
-  updateService.dispose();
-  prSyncScheduler.dispose();
-  void gitWatcherRegistry.dispose();
-  projectManager.dispose().catch((e) => {
-    log.error('Failed to shutdown project manager:', e);
+app.on('before-quit', (event) => {
+  event.preventDefault();
+  telemetryService.capture('app_closed');
+  void telemetryService.dispose().finally(() => {
+    agentHookService.dispose();
+    updateService.dispose();
+    prSyncScheduler.dispose();
+    void gitWatcherRegistry.dispose();
+    void projectManager.dispose().catch((e) => {
+      log.error('Failed to shutdown project manager:', e);
+    });
+    app.exit(0);
   });
 });

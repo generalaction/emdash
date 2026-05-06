@@ -8,7 +8,14 @@ function placeholders(values: readonly string[]): string {
   return values.map(() => '?').join(', ');
 }
 
+function listShadowTables(sqlite: Database.Database): Set<string> {
+  const rows = sqlite.prepare(`PRAGMA table_list`).all() as Array<{ name: string; type: string }>;
+
+  return new Set(rows.filter((row) => row.type === 'shadow').map((row) => row.name));
+}
+
 export function listUserTables(sqlite: Database.Database): string[] {
+  const shadowTables = listShadowTables(sqlite);
   const rows = sqlite
     .prepare(
       `
@@ -21,7 +28,7 @@ export function listUserTables(sqlite: Database.Database): string[] {
     )
     .all() as Array<{ name: string }>;
 
-  return rows.map((row) => row.name);
+  return rows.map((row) => row.name).filter((name) => !shadowTables.has(name));
 }
 
 export function clearDestinationDataPreservingSignIn(sqlite: Database.Database): void {

@@ -107,36 +107,49 @@ export function StickyDiffEditor({
   // Reactive content application — recreated when URIs change.
   // The autorun waits for both models to be 'ready' in the registry, then calls
   // setModel in-place without remounting the editor component.
-  useEffect(
-    () =>
-      autorun(() => {
-        const editor = editorBox.get(); // reactive: waits for editor to exist
-        if (!editor) return;
+  useEffect(() => {
+    // Clear the previously-attached models synchronously on URI change so the
+    // editor doesn't keep showing the previous file's content while the new
+    // models are still loading.
+    const current = editorBox.get();
+    if (current) {
+      const prev = current.getModel();
+      if (prev) {
+        current.setModel(null);
+        if (prev.original.uri.scheme === 'inmemory') prev.original.dispose();
+        if (prev.modified.uri.scheme === 'inmemory') prev.modified.dispose();
+      }
+    }
 
-        const origStatus = modelRegistry.modelStatus.get(originalUri); // reactive
-        const modStatus = modelRegistry.modelStatus.get(modifiedUri); // reactive
-        if (origStatus !== 'ready' || modStatus !== 'ready') return;
+    return autorun(() => {
+      const editor = editorBox.get(); // reactive: waits for editor to exist
+      if (!editor) return;
 
-        const origModel = modelRegistry.getModelByUri(originalUri);
-        const modModel = modelRegistry.getModelByUri(modifiedUri);
-        if (!origModel || !modModel) return;
+      const origStatus = modelRegistry.modelStatus.get(originalUri); // reactive
+      const modStatus = modelRegistry.modelStatus.get(modifiedUri); // reactive
+      if (origStatus !== 'ready' || modStatus !== 'ready') return;
 
-        // Clean up any previous inmemory models to avoid leaks (mirrors applyContent).
-        const prev = editor.getModel();
-        if (prev) {
-          editor.setModel(null);
-          if (prev.original.uri.scheme === 'inmemory') prev.original.dispose();
-          if (prev.modified.uri.scheme === 'inmemory') prev.modified.dispose();
-        }
+      const origModel = modelRegistry.getModelByUri(originalUri);
+      const modModel = modelRegistry.getModelByUri(modifiedUri);
+      if (!origModel || !modModel) return;
 
-        editor.setModel({ original: origModel, modified: modModel });
-        editor.layout();
-        onHeightChangeRef.current?.(editor.getModifiedEditor().getContentHeight());
-      }),
+      const attached = editor.getModel();
+      if (attached?.original === origModel && attached?.modified === modModel) return;
+
+      // Clean up any previous inmemory models to avoid leaks (mirrors applyContent).
+      if (attached) {
+        editor.setModel(null);
+        if (attached.original.uri.scheme === 'inmemory') attached.original.dispose();
+        if (attached.modified.uri.scheme === 'inmemory') attached.modified.dispose();
+      }
+
+      editor.setModel({ original: origModel, modified: modModel });
+      editor.layout();
+      onHeightChangeRef.current?.(editor.getModifiedEditor().getContentHeight());
+    });
     // editorBox is a stable ref created once; only URI changes recreate the autorun.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [originalUri, modifiedUri]
-  );
+  }, [originalUri, modifiedUri]);
 
   return <div ref={mountRef} className="h-full" />;
 }

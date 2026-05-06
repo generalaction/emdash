@@ -23,16 +23,20 @@ interface TaskViewResources {
 export class TaskViewStore {
   view: MainPanelView;
   rightPanelView: RightPanelView;
-  focusedRegion: 'main' | 'right';
+  focusedRegion: 'main' | 'right' | 'bottom';
+  isTerminalDrawerOpen: boolean;
   readonly conversationTabs: ConversationTabViewStore;
   readonly terminalTabs: TerminalTabViewStore;
   readonly editorView: EditorViewStore;
   readonly diffView: DiffViewStore;
+  private readonly terminalsMgr: TerminalManagerStore;
 
   constructor(resources: TaskViewResources, savedSnapshot?: TaskViewSnapshot) {
     this.view = (savedSnapshot?.view as MainPanelView) ?? 'agents';
     this.rightPanelView = (savedSnapshot?.rightPanelView as RightPanelView) ?? 'changes';
     this.focusedRegion = savedSnapshot?.focusedRegion ?? 'main';
+    this.isTerminalDrawerOpen = savedSnapshot?.isTerminalDrawerOpen ?? false;
+    this.terminalsMgr = resources.terminals;
 
     this.conversationTabs = new ConversationTabViewStore(resources.conversations);
     this.terminalTabs = new TerminalTabViewStore(resources.terminals);
@@ -65,6 +69,7 @@ export class TaskViewStore {
       view: this.view,
       rightPanelView: this.rightPanelView,
       focusedRegion: this.focusedRegion,
+      isTerminalDrawerOpen: this.isTerminalDrawerOpen,
       conversations: this.conversationTabs.snapshot,
       terminals: this.terminalTabs.snapshot,
       editor: this.editorView.snapshot,
@@ -86,11 +91,18 @@ export class TaskViewStore {
     this.rightPanelView = v;
   }
 
-  setFocusedRegion(region: 'main' | 'right'): void {
+  setFocusedRegion(region: 'main' | 'right' | 'bottom'): void {
     if (this.focusedRegion !== region) {
       focusTracker.transition({ focusedRegion: region }, 'region_switch');
     }
     this.focusedRegion = region;
+  }
+
+  setTerminalDrawerOpen(open: boolean): void {
+    this.isTerminalDrawerOpen = open;
+    if (open && this.terminalTabs.tabs.length === 0) {
+      void this.terminalsMgr.createDefaultTerminal();
+    }
   }
 
   dispose(): void {

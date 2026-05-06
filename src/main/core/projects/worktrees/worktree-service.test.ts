@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Remote } from '@shared/git';
 import { ok } from '@shared/result';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import { LocalWorktreeHost } from './hosts/local-worktree-host';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -16,7 +15,7 @@ async function git(
   opts: { cwd: string }
 ): Promise<{ stdout: string; stderr: string }> {
   const ctx = new LocalExecutionContext({ root: opts.cwd });
-  return ctx.exec(GIT_EXECUTABLE, args);
+  return ctx.exec('git', args);
 }
 
 async function initRepo(dir: string): Promise<void> {

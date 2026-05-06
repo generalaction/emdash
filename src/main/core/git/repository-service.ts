@@ -12,7 +12,7 @@ import type {
   RemoteBranchesPayload,
   RenameBranchError,
 } from '@shared/git';
-import { computeDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import { selectPreferredRemote } from '@shared/git-utils';
 import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/schema';
@@ -30,14 +30,6 @@ export class GitRepositoryService {
       this.git.getRemotes().catch(() => []),
     ]);
     return selectPreferredRemote(configured, remotes).name;
-  }
-
-  async getDefaultBranchName(): Promise<string> {
-    const configured = await this.settings.getDefaultBranch();
-    const remote = await this.getConfiguredRemote();
-    const branches = await this.git.getBranches();
-    const gitDefault = await this.git.getDefaultBranch(remote);
-    return computeDefaultBranch(configured, branches, remote, gitDefault);
   }
 
   async getRepositoryInfo(): Promise<{ isUnborn: boolean; currentBranch: string | null }> {

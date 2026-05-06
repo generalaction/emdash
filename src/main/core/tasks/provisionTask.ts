@@ -7,7 +7,7 @@ import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { conversations, tasks, terminals } from '@main/db/schema';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import { mapTaskRowToTask } from './utils/utils';
 
 export async function provisionTask(taskId: string) {
@@ -64,7 +64,7 @@ export async function provisionTask(taskId: string) {
         : null,
     })
     .where(eq(tasks.id, taskId));
-  capture('task_provisioned', {
+  telemetryService.capture('task_provisioned', {
     project_id: task.projectId,
     task_id: task.id,
   });
