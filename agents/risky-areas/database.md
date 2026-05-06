@@ -2,9 +2,8 @@
 
 ## Main Files
 
-- `src/main/services/DatabaseService.ts`
 - `src/main/db/schema.ts`
-- `src/main/db/`
+- `src/main/db/initialize.ts`
 - `drizzle/`
 
 ## Rules
@@ -18,11 +17,4 @@
 
 - database path is resolved by main-process db path helpers
 - `EMDASH_DB_FILE` overrides the default location
-- `DatabaseService.initialize()` validates schema expectations and can trigger a local reset flow on incompatibility
-
-## Verify With
-
-```bash
-sed -n '1,240p' src/main/services/DatabaseService.ts
-sed -n '1,240p' src/main/db/schema.ts
-```
+- database initialization happens in `src/main/db/initialize.ts`

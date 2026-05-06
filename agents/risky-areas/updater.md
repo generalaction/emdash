@@ -2,11 +2,12 @@
 
 ## Main Files
 
-- `src/main/services/AutoUpdateService.ts`
-- `src/main/services/ChangelogService.ts`
+- `src/main/core/updates/AutoUpdateService.ts`
+- `src/main/core/updates/controller.ts`
 - `build/`
 - `package.json`
-- `.github/workflows/release.yml`
+- `.github/workflows/release-prod.yml`
+- `.github/workflows/release-canary.yml`
 - `.github/workflows/windows-beta-build.yml`
 - `.github/workflows/nix-build.yml`
 

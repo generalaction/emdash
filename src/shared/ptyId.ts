@@ -1,40 +1,58 @@
-import { PROVIDER_IDS, type ProviderId } from './providers/registry';
+import { AGENT_PROVIDER_IDS, type AgentProviderId } from './agent-provider-registry';
 
-// Delimiter chosen to be unambiguous — providers are validated against PROVIDER_IDS
-const MAIN_SEP = '-main-';
-const CHAT_SEP = '-chat-';
+const CONV_SEP = '-conv-';
 
-export type PtyIdKind = 'main' | 'chat';
+// Legacy separators — used only for snapshot migration fallback lookups.
+const LEGACY_MAIN_SEP = '-main-';
+const LEGACY_CHAT_SEP = '-chat-';
 
-export function makePtyId(provider: ProviderId, kind: PtyIdKind, suffix: string): string {
-  const sep = kind === 'main' ? MAIN_SEP : CHAT_SEP;
-  return `${provider}${sep}${suffix}`;
+export function makePtyId(provider: AgentProviderId | 'shell', conversationId: string): string {
+  return `${provider}${CONV_SEP}${conversationId}`;
 }
 
 export function parsePtyId(id: string): {
-  providerId: ProviderId;
-  kind: PtyIdKind;
-  suffix: string; // taskId for 'main', conversationId for 'chat'
+  providerId: AgentProviderId | 'shell';
+  conversationId: string;
 } | null {
-  // Try each known provider prefix to avoid ambiguity from greedy matching.
-  // Longest-first so e.g. "continue" is tried before a hypothetical "co".
-  const sorted = [...PROVIDER_IDS].sort((a, b) => b.length - a.length);
-  for (const pid of sorted) {
-    if (id.startsWith(pid + MAIN_SEP)) {
-      return { providerId: pid, kind: 'main', suffix: id.slice(pid.length + MAIN_SEP.length) };
-    }
-    if (id.startsWith(pid + CHAT_SEP)) {
-      return { providerId: pid, kind: 'chat', suffix: id.slice(pid.length + CHAT_SEP.length) };
+  // Try 'shell' sentinel first, then all known provider IDs longest-first to avoid prefix collisions.
+  const candidates: Array<AgentProviderId | 'shell'> = [
+    'shell',
+    ...[...AGENT_PROVIDER_IDS].sort((a, b) => b.length - a.length),
+  ];
+  for (const pid of candidates) {
+    const prefix = pid + CONV_SEP;
+    if (id.startsWith(prefix)) {
+      return { providerId: pid, conversationId: id.slice(prefix.length) };
     }
   }
   return null;
 }
 
-/** Quick check without full parse */
-export function isMainPty(id: string): boolean {
-  return id.includes(MAIN_SEP);
-}
-
-export function isChatPty(id: string): boolean {
-  return id.includes(CHAT_SEP) && !id.includes(MAIN_SEP);
+/**
+ * Try to parse a legacy PTY ID (pre-refactor format: {prov}-main-{taskId} or {prov}-chat-{convId}).
+ * Used only by TerminalSnapshotService for one-time fallback lookups on existing snapshots.
+ */
+export function parseLegacyPtyId(id: string): {
+  providerId: AgentProviderId;
+  kind: 'main' | 'chat';
+  suffix: string;
+} | null {
+  const sorted = [...AGENT_PROVIDER_IDS].sort((a, b) => b.length - a.length);
+  for (const pid of sorted) {
+    if (id.startsWith(pid + LEGACY_MAIN_SEP)) {
+      return {
+        providerId: pid,
+        kind: 'main',
+        suffix: id.slice(pid.length + LEGACY_MAIN_SEP.length),
+      };
+    }
+    if (id.startsWith(pid + LEGACY_CHAT_SEP)) {
+      return {
+        providerId: pid,
+        kind: 'chat',
+        suffix: id.slice(pid.length + LEGACY_CHAT_SEP.length),
+      };
+    }
+  }
+  return null;
 }

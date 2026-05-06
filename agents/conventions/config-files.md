@@ -3,11 +3,10 @@
 ## Key Files
 
 - `package.json`
-- `vite.config.ts`
+- `electron.vite.config.ts`
+- `vitest.config.ts`
 - `tsconfig.json`
-- `tsconfig.main.json`
 - `drizzle.config.ts`
-- `tailwind.config.js`
 - `.emdash.json`
 - `.nvmrc`
 - `.husky/`

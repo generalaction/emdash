@@ -440,14 +440,4 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     docsUrl: 'https://support.devrev.ai/en-US/devrev/article/ART-21859-remote-mcp-server',
     credentialKeys: [],
   },
-  deepwiki: {
-    config: {
-      type: 'http',
-      url: 'https://mcp.deepwiki.com/mcp',
-    },
-    name: 'DeepWiki',
-    description: 'Context and Q&A for any GitHub repo via DeepWiki',
-    docsUrl: 'https://cognition.ai/blog/deepwiki-mcp-server',
-    credentialKeys: [],
-  },
 };

@@ -62,6 +62,8 @@ if (process.platform === 'linux') {
   if (!isKDE && !userOverrode && secretServiceAvailable()) {
     app.commandLine.appendSwitch('password-store', 'gnome-libsecret');
   }
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
 }
 
 registerAppScheme();

@@ -1,0 +1,74 @@
+import { createProviderClassifier, type ClassificationResult } from './base';
+
+/**
+ * Generic fallback classifier for providers without specific patterns.
+ * Uses common patterns across most CLI agents.
+ */
+export function createGenericClassifier() {
+  return createProviderClassifier((text: string): ClassificationResult => {
+    const tail = text.slice(-500);
+
+    // Permission/approval prompts (y/n, confirm, approve, etc.)
+    if (/\[y\/n\]|\[Y\/N\]|Continue\?/i.test(tail)) {
+      return {
+        type: 'notification',
+        notificationType: 'permission_prompt',
+      };
+    }
+
+    if (/approve|reject|permission|allow|confirm/i.test(tail)) {
+      return {
+        type: 'notification',
+        notificationType: 'permission_prompt',
+      };
+    }
+
+    // Task completion (stop signal)
+    if (/✓|✔|Task completed|Finished|Done\./i.test(tail)) {
+      return {
+        type: 'stop',
+        message: 'Task completed',
+      };
+    }
+
+    // Idle/ready prompts
+    if (/Ready|Awaiting|Press Enter|Next command/i.test(tail)) {
+      return {
+        type: 'notification',
+        notificationType: 'idle_prompt',
+      };
+    }
+
+    if (/Add a follow-up/i.test(tail)) {
+      return {
+        type: 'notification',
+        notificationType: 'idle_prompt',
+      };
+    }
+
+    // Auth success
+    if (/Successfully authenticated|Login successful|API key (accepted|valid)/i.test(text)) {
+      return {
+        type: 'notification',
+        notificationType: 'auth_success',
+      };
+    }
+
+    // Questions/elicitation
+    if (/What.*\?|How.*\?|Which.*\?|Please (provide|specify|clarify)/i.test(tail)) {
+      return {
+        type: 'notification',
+        notificationType: 'elicitation_dialog',
+      };
+    }
+
+    // Error detection
+    if (/error:|fatal:|exception|failed/i.test(text)) {
+      return {
+        type: 'error',
+      };
+    }
+
+    return undefined;
+  });
+}

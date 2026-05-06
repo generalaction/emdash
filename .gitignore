@@ -1,7 +1,8 @@
 # Dependencies
 node_modules/
 dist/
-release/
+out/
+/release/
 
 # Logs
 *.log
@@ -43,6 +44,7 @@ jspm_packages/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 
 # IDE
 .vscode/
@@ -59,9 +61,6 @@ Thumbs.db
 .notes
 .claude/
 
-# Local generated worktrees for perf experiments
-worktrees/
-
 # Checkouts directory
 .checkouts/
 
@@ -69,3 +68,7 @@ worktrees/
 
 .env
 .cursor
+.codex/config.toml
+
+src/main/appConfig.json
+.pi/extensions/emdash-hook.ts

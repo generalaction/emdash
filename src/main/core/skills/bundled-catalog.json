@@ -1,0 +1,631 @@
+{
+  "version": 2,
+  "lastUpdated": "2026-02-07T00:00:00Z",
+  "skills": [
+    {
+      "id": "cloudflare-deploy",
+      "displayName": "Cloudflare Deploy",
+      "description": "Deploy Workers, Pages, and platform services on Cloudflare",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/cloudflare-deploy",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/cloudflare-deploy/assets/cloudflare-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Deploy this app to Cloudflare (Workers or Pages) and return URL, config, and required env vars.",
+      "frontmatter": {
+        "name": "cloudflare-deploy",
+        "description": "Deploy Workers, Pages, and platform services on Cloudflare"
+      }
+    },
+    {
+      "id": "develop-web-game",
+      "displayName": "Develop Web Game",
+      "description": "Web game dev + Playwright test loop",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/develop-web-game",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/develop-web-game/assets/game-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Build and iterate a playable web game in this workspace, validating changes with a Playwright loop.",
+      "frontmatter": {
+        "name": "develop-web-game",
+        "description": "Web game dev + Playwright test loop"
+      }
+    },
+    {
+      "id": "doc",
+      "displayName": "Word Docs",
+      "description": "Edit and review docx files",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/doc",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/doc/assets/doc-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Edit or review this .docx file and return the updated file plus a concise change summary.",
+      "frontmatter": {
+        "name": "doc",
+        "description": "Edit and review docx files"
+      }
+    },
+    {
+      "id": "figma",
+      "displayName": "Figma",
+      "description": "Use Figma MCP for design-to-code work",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/figma",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/figma/assets/figma-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Use Figma MCP to inspect the target design and translate it into implementable UI decisions.",
+      "frontmatter": {
+        "name": "figma",
+        "description": "Use Figma MCP for design-to-code work"
+      }
+    },
+    {
+      "id": "figma-implement-design",
+      "displayName": "Figma Implement Design",
+      "description": "Turn Figma designs into production-ready code",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/figma-implement-design",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/figma-implement-design/assets/figma-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Implement this Figma design in this codebase, matching layout, states, and responsive behavior.",
+      "frontmatter": {
+        "name": "figma-implement-design",
+        "description": "Turn Figma designs into production-ready code"
+      }
+    },
+    {
+      "id": "gh-address-comments",
+      "displayName": "GitHub Address Comments",
+      "description": "Address comments in a GitHub PR review",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/gh-address-comments",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/gh-address-comments/assets/github-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Address all actionable GitHub PR review comments in this branch and summarize the updates.",
+      "frontmatter": {
+        "name": "gh-address-comments",
+        "description": "Address comments in a GitHub PR review"
+      }
+    },
+    {
+      "id": "gh-fix-ci",
+      "displayName": "GitHub Fix CI",
+      "description": "Debug failing GitHub Actions CI",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/gh-fix-ci",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/gh-fix-ci/assets/github-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Inspect failing GitHub Actions checks in this repo, summarize root cause, and propose a focused fix plan.",
+      "frontmatter": {
+        "name": "gh-fix-ci",
+        "description": "Debug failing GitHub Actions CI"
+      }
+    },
+    {
+      "id": "imagegen",
+      "displayName": "Image Gen",
+      "description": "Generate and edit images using OpenAI",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/imagegen",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/imagegen/assets/imagegen-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Generate or edit images for this task and return the final prompt plus selected outputs.",
+      "frontmatter": {
+        "name": "imagegen",
+        "description": "Generate and edit images using OpenAI"
+      }
+    },
+    {
+      "id": "jupyter-notebook",
+      "displayName": "Jupyter Notebooks",
+      "description": "Create Jupyter notebooks for experiments and tutorials",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/jupyter-notebook",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/jupyter-notebook/assets/jupyter-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Create a Jupyter notebook for this task with clear sections, runnable cells, and concise takeaways.",
+      "frontmatter": {
+        "name": "jupyter-notebook",
+        "description": "Create Jupyter notebooks for experiments and tutorials"
+      }
+    },
+    {
+      "id": "linear",
+      "displayName": "Linear",
+      "description": "Manage Linear issues in Codex",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/linear",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/linear/assets/linear-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Use Linear context to triage or update relevant issues for this task, with clear next actions.",
+      "frontmatter": {
+        "name": "linear",
+        "description": "Manage Linear issues in Codex"
+      }
+    },
+    {
+      "id": "netlify-deploy",
+      "displayName": "Netlify Deploy",
+      "description": "Deploy web projects to Netlify with the Netlify CLI",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/netlify-deploy",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/netlify-deploy/assets/netlify-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Deploy this project to Netlify and return the preview URL, build settings, and any required fixes.",
+      "frontmatter": {
+        "name": "netlify-deploy",
+        "description": "Deploy web projects to Netlify with the Netlify CLI"
+      }
+    },
+    {
+      "id": "notion-knowledge-capture",
+      "displayName": "Notion Knowledge Capture",
+      "description": "Capture conversations into structured Notion pages",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/notion-knowledge-capture",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/notion-knowledge-capture/assets/notion-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Capture this conversation into structured Notion pages with decisions, action items, and owners when known.",
+      "frontmatter": {
+        "name": "notion-knowledge-capture",
+        "description": "Capture conversations into structured Notion pages"
+      }
+    },
+    {
+      "id": "notion-meeting-intelligence",
+      "displayName": "Notion Meeting Intelligence",
+      "description": "Prep meetings with Notion context and tailored agendas",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/notion-meeting-intelligence",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/notion-meeting-intelligence/assets/notion-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Prepare this meeting from Notion context with a brief, agenda, decisions needed, and open questions.",
+      "frontmatter": {
+        "name": "notion-meeting-intelligence",
+        "description": "Prep meetings with Notion context and tailored agendas"
+      }
+    },
+    {
+      "id": "notion-research-documentation",
+      "displayName": "Notion Research & Documentation",
+      "description": "Research Notion content and produce briefs/reports",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/notion-research-documentation",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/notion-research-documentation/assets/notion-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Research this topic in Notion and produce a sourced brief with clear recommendations.",
+      "frontmatter": {
+        "name": "notion-research-documentation",
+        "description": "Research Notion content and produce briefs/reports"
+      }
+    },
+    {
+      "id": "notion-spec-to-implementation",
+      "displayName": "Notion Spec to Implementation",
+      "description": "Turn Notion specs into implementation plans, tasks, and progress tracking",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/notion-spec-to-implementation",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/notion-spec-to-implementation/assets/notion-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Turn this Notion spec into an implementation plan with milestones, tasks, and dependencies.",
+      "frontmatter": {
+        "name": "notion-spec-to-implementation",
+        "description": "Turn Notion specs into implementation plans, tasks, and progress tracking"
+      }
+    },
+    {
+      "id": "openai-docs",
+      "displayName": "OpenAI Docs",
+      "description": "Reference the official OpenAI Developer docs",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/openai-docs",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/openai-docs/assets/openai-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Look up official OpenAI docs for this task and answer with concise, cited guidance.",
+      "frontmatter": {
+        "name": "openai-docs",
+        "description": "Reference the official OpenAI Developer docs"
+      }
+    },
+    {
+      "id": "pdf",
+      "displayName": "PDF Skill",
+      "description": "Create, edit, and review PDFs",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/pdf",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/pdf/assets/pdf.png",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Create, edit, or review this PDF and summarize the key output or changes.",
+      "frontmatter": {
+        "name": "pdf",
+        "description": "Create, edit, and review PDFs"
+      }
+    },
+    {
+      "id": "playwright",
+      "displayName": "Playwright CLI Skill",
+      "description": "Automate real browsers from the terminal",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/playwright",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/playwright/assets/playwright-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Automate this browser workflow with Playwright and produce a reliable script with run steps.",
+      "frontmatter": {
+        "name": "playwright",
+        "description": "Automate real browsers from the terminal"
+      }
+    },
+    {
+      "id": "render-deploy",
+      "displayName": "Render Deploy",
+      "description": "Deploy applications to Render via Blueprints or MCP",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/render-deploy",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/render-deploy/assets/render-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Deploy this application to Render and provide service URL, env vars, and next checks.",
+      "frontmatter": {
+        "name": "render-deploy",
+        "description": "Deploy applications to Render via Blueprints or MCP"
+      }
+    },
+    {
+      "id": "screenshot",
+      "displayName": "Screenshot Capture",
+      "description": "Capture screenshots",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/screenshot",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/screenshot/assets/screenshot-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Capture the right screenshot for this task (target, area, and output path).",
+      "frontmatter": {
+        "name": "screenshot",
+        "description": "Capture screenshots"
+      }
+    },
+    {
+      "id": "security-best-practices",
+      "displayName": "Security Best Practices",
+      "description": "Security reviews and secure-by-default guidance",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/security-best-practices",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Review this codebase for security best practices and suggest secure-by-default improvements.",
+      "frontmatter": {
+        "name": "security-best-practices",
+        "description": "Security reviews and secure-by-default guidance"
+      }
+    },
+    {
+      "id": "security-ownership-map",
+      "displayName": "Security Ownership Map",
+      "description": "Map maintainers, bus factor, and sensitive code ownership",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/security-ownership-map",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Build a security ownership map for this repository and identify bus-factor risks in sensitive code.",
+      "frontmatter": {
+        "name": "security-ownership-map",
+        "description": "Map maintainers, bus factor, and sensitive code ownership"
+      }
+    },
+    {
+      "id": "security-threat-model",
+      "displayName": "Security Threat Model",
+      "description": "Repo-grounded threat modeling and abuse-path analysis",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/security-threat-model",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Create a repository-grounded threat model for this codebase with prioritized abuse paths and mitigations.",
+      "frontmatter": {
+        "name": "security-threat-model",
+        "description": "Repo-grounded threat modeling and abuse-path analysis"
+      }
+    },
+    {
+      "id": "sentry",
+      "displayName": "Sentry",
+      "description": "Read-only Sentry observability",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/sentry",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/sentry/assets/sentry-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Investigate this issue in read-only Sentry data and report likely root cause, impact, and next steps.",
+      "frontmatter": {
+        "name": "sentry",
+        "description": "Read-only Sentry observability"
+      }
+    },
+    {
+      "id": "sora",
+      "displayName": "Sora Video Generation Skill",
+      "description": "Generate and manage Sora videos",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/sora",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/sora/assets/sora-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Plan and generate a Sora video for this request, then iterate with concrete prompt edits.",
+      "frontmatter": {
+        "name": "sora",
+        "description": "Generate and manage Sora videos"
+      }
+    },
+    {
+      "id": "speech",
+      "displayName": "Speech Generation Skill",
+      "description": "Generate narrated audio from text",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/speech",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/speech/assets/speech-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Generate spoken audio for this text with the right voice style, pacing, and output format.",
+      "frontmatter": {
+        "name": "speech",
+        "description": "Generate narrated audio from text"
+      }
+    },
+    {
+      "id": "spreadsheet",
+      "displayName": "Spreadsheet Skill",
+      "description": "Create, edit, and analyze spreadsheets",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/spreadsheet",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/spreadsheet/assets/spreadsheet-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Create or update a spreadsheet for this task with the right formulas, structure, and formatting.",
+      "frontmatter": {
+        "name": "spreadsheet",
+        "description": "Create, edit, and analyze spreadsheets"
+      }
+    },
+    {
+      "id": "transcribe",
+      "displayName": "Audio Transcribe",
+      "description": "Transcribe audio using OpenAI, with optional speaker diarization",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/transcribe",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/transcribe/assets/transcribe-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Transcribe this audio or video, include speaker labels when possible, and provide a clean summary.",
+      "frontmatter": {
+        "name": "transcribe",
+        "description": "Transcribe audio using OpenAI, with optional speaker diarization"
+      }
+    },
+    {
+      "id": "vercel-deploy",
+      "displayName": "Vercel Deploy",
+      "description": "Deploy apps and agents with zero configuration on Vercel",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/vercel-deploy",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/vercel-deploy/assets/vercel-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Create a Vercel deployment for this project and share the URL.",
+      "frontmatter": {
+        "name": "vercel-deploy",
+        "description": "Deploy apps and agents with zero configuration on Vercel"
+      }
+    },
+    {
+      "id": "yeet",
+      "displayName": "Yeet",
+      "description": "Stage, commit, and open PR",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.curated/yeet",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.curated/yeet/assets/yeet-small.svg",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Prepare this branch for review: stage intended changes, write a focused commit, and open a PR.",
+      "frontmatter": {
+        "name": "yeet",
+        "description": "Stage, commit, and open PR"
+      }
+    },
+    {
+      "id": "skill-creator",
+      "displayName": "Skill Creator",
+      "description": "Create or update a skill",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.system/skill-creator",
+      "brandColor": "#10a37f",
+      "defaultPrompt": "Read my repository and create a skill to bootstrap new components for my project.",
+      "frontmatter": {
+        "name": "skill-creator",
+        "description": "Create or update a skill"
+      }
+    },
+    {
+      "id": "skill-installer",
+      "displayName": "Skill Installer",
+      "description": "Install curated skills from openai/skills or other repos",
+      "source": "openai",
+      "sourceUrl": "https://github.com/openai/skills/tree/main/skills/.system/skill-installer",
+      "iconUrl": "https://raw.githubusercontent.com/openai/skills/main/skills/.system/skill-installer/assets/skill-installer-small.svg",
+      "brandColor": "#10a37f",
+      "frontmatter": {
+        "name": "skill-installer",
+        "description": "Install curated skills from openai/skills or other repos"
+      }
+    },
+    {
+      "id": "pdf",
+      "displayName": "PDF",
+      "description": "Read, create, merge, split, and process PDF files",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/pdf",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Help me work with this PDF file",
+      "frontmatter": {
+        "name": "pdf",
+        "description": "Read, create, merge, split, and process PDF files"
+      }
+    },
+    {
+      "id": "docx",
+      "displayName": "Docx",
+      "description": "Create and edit Word documents programmatically",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/docx",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Help me create a Word document",
+      "frontmatter": {
+        "name": "docx",
+        "description": "Create and edit Word documents programmatically"
+      }
+    },
+    {
+      "id": "xlsx",
+      "displayName": "Xlsx",
+      "description": "Create and edit Excel spreadsheets programmatically",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/xlsx",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Help me create an Excel spreadsheet",
+      "frontmatter": {
+        "name": "xlsx",
+        "description": "Create and edit Excel spreadsheets programmatically"
+      }
+    },
+    {
+      "id": "pptx",
+      "displayName": "Pptx",
+      "description": "Create and edit PowerPoint presentations programmatically",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/pptx",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Help me create a PowerPoint presentation",
+      "frontmatter": {
+        "name": "pptx",
+        "description": "Create and edit PowerPoint presentations programmatically"
+      }
+    },
+    {
+      "id": "mcp-builder",
+      "displayName": "MCP Builder",
+      "description": "Build Model Context Protocol (MCP) servers and tools",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/mcp-builder",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Help me build an MCP server",
+      "frontmatter": {
+        "name": "mcp-builder",
+        "description": "Build Model Context Protocol (MCP) servers and tools"
+      }
+    },
+    {
+      "id": "frontend-design",
+      "displayName": "Frontend Design",
+      "description": "Design and build frontend UI components and layouts",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/frontend-design",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Design a frontend component for this feature",
+      "frontmatter": {
+        "name": "frontend-design",
+        "description": "Design and build frontend UI components and layouts"
+      }
+    },
+    {
+      "id": "webapp-testing",
+      "displayName": "Webapp Testing",
+      "description": "Write and run tests for web applications",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/webapp-testing",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Write tests for this web application",
+      "frontmatter": {
+        "name": "webapp-testing",
+        "description": "Write and run tests for web applications"
+      }
+    },
+    {
+      "id": "web-artifacts-builder",
+      "displayName": "Web Artifacts Builder",
+      "description": "Build interactive web artifacts and components",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/web-artifacts-builder",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Build a web artifact for this",
+      "frontmatter": {
+        "name": "web-artifacts-builder",
+        "description": "Build interactive web artifacts and components"
+      }
+    },
+    {
+      "id": "algorithmic-art",
+      "displayName": "Algorithmic Art",
+      "description": "Create generative and algorithmic art with code",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/algorithmic-art",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Create an algorithmic art piece",
+      "frontmatter": {
+        "name": "algorithmic-art",
+        "description": "Create generative and algorithmic art with code"
+      }
+    },
+    {
+      "id": "canvas-design",
+      "displayName": "Canvas Design",
+      "description": "Design and render graphics using HTML5 Canvas",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/canvas-design",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Create a Canvas-based design",
+      "frontmatter": {
+        "name": "canvas-design",
+        "description": "Design and render graphics using HTML5 Canvas"
+      }
+    },
+    {
+      "id": "theme-factory",
+      "displayName": "Theme Factory",
+      "description": "Create and customize UI themes and design tokens",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/theme-factory",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Create a custom theme for this application",
+      "frontmatter": {
+        "name": "theme-factory",
+        "description": "Create and customize UI themes and design tokens"
+      }
+    },
+    {
+      "id": "brand-guidelines",
+      "displayName": "Brand Guidelines",
+      "description": "Create and maintain brand guidelines and style guides",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/brand-guidelines",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Create brand guidelines for this project",
+      "frontmatter": {
+        "name": "brand-guidelines",
+        "description": "Create and maintain brand guidelines and style guides"
+      }
+    },
+    {
+      "id": "doc-coauthoring",
+      "displayName": "Doc Coauthoring",
+      "description": "Collaboratively write and edit documents",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/doc-coauthoring",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Help me write this document",
+      "frontmatter": {
+        "name": "doc-coauthoring",
+        "description": "Collaboratively write and edit documents"
+      }
+    },
+    {
+      "id": "internal-comms",
+      "displayName": "Internal Comms",
+      "description": "Draft internal communications and announcements",
+      "source": "anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/internal-comms",
+      "brandColor": "#d4a574",
+      "defaultPrompt": "Draft an internal communication",
+      "frontmatter": {
+        "name": "internal-comms",
+        "description": "Draft internal communications and announcements"
+      }
+    }
+  ]
+}

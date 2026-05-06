@@ -2,9 +2,9 @@
 
 ## Main Files
 
-- `src/main/services/WorktreeService.ts`
-- `src/main/services/WorktreePoolService.ts`
-- `src/main/services/LifecycleScriptsService.ts`
+- `src/main/core/projects/worktrees/worktree-service.ts`
+- `src/main/core/projects/project-manager.ts`
+- `src/main/core/terminals/runLifecycleScript.ts`
 - `.emdash.json`
 
 ## Current Behavior
@@ -12,7 +12,7 @@
 - task worktrees are created under `../worktrees/`
 - branch prefix defaults to `emdash` and is configurable in app settings
 - selected gitignored files are preserved into worktrees
-- reserve worktrees are pre-created to reduce task startup latency
+- worktree creation is managed by the project provider pattern
 
 ## `.emdash.json`
 
@@ -21,7 +21,6 @@ Current supported keys:
 - `preservePatterns`
 - `scripts.setup`
 - `scripts.run`
-- `scripts.stop`
 - `scripts.teardown`
 - `shellSetup`
 - `tmux`

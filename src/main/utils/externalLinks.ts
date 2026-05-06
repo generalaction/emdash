@@ -1,7 +1,7 @@
-import { BrowserWindow, shell } from 'electron';
+import { shell, type BrowserWindow } from 'electron';
 
 /**
- * Ensure any external HTTP(S) links open in the user’s default browser
+ * Ensure any external HTTP(S) links open in the user's default browser
  * rather than inside the Electron window. Keeps app navigation scoped
  * to our renderer while preserving expected link behavior.
  */
@@ -9,14 +9,14 @@ export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean)
   const wc = win.webContents;
 
   const isInternalAppUrl = (url: string) => {
-    if (isDev) return url.startsWith(`http://localhost:${process.env.EMDASH_DEV_PORT || 3000}`);
+    if (isDev) return url.startsWith(process.env.ELECTRON_RENDERER_URL!);
     return url.startsWith('file://') || /^http:\/\/(127\.0\.0\.1|localhost):\d+(?:\/|$)/i.test(url);
   };
 
   // Handle window.open and target="_blank"
   wc.setWindowOpenHandler(({ url }) => {
     if (!isInternalAppUrl(url) && /^https?:\/\//i.test(url)) {
-      shell.openExternal(url);
+      void shell.openExternal(url);
       return { action: 'deny' };
     }
     return { action: 'allow' };
@@ -26,7 +26,7 @@ export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean)
   wc.on('will-navigate', (event, url) => {
     if (!isInternalAppUrl(url) && /^https?:\/\//i.test(url)) {
       event.preventDefault();
-      shell.openExternal(url);
+      void shell.openExternal(url);
     }
   });
 }
