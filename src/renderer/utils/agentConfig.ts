@@ -18,6 +18,7 @@ import hermesLogo from '../../assets/images/hermesagent.jpg';
 import kilocodeLogo from '../../assets/images/kilocode.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import kiroLogo from '../../assets/images/kiro.png';
+import lettaLogoSvg from '../../assets/images/letta.svg?raw';
 import mistralLogo from '../../assets/images/mistral.png';
 import openaiLogoSvg from '../../assets/images/openai.svg?raw';
 import opencodeLogo from '../../assets/images/opencode.png';
@@ -50,6 +51,13 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
   kilocode: { name: 'Kilocode', logo: kilocodeLogo, alt: 'Kilocode CLI' },
+  letta: {
+    name: 'Letta',
+    logo: lettaLogoSvg,
+    alt: 'Letta Code CLI',
+    isSvg: true,
+    invertInDark: true,
+  },
   kiro: { name: 'Kiro', logo: kiroLogo, alt: 'Kiro CLI' },
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
   continue: { name: 'Continue', logo: continueLogo, alt: 'Continue CLI' },

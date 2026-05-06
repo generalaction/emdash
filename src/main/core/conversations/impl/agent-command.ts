@@ -27,6 +27,8 @@ export async function buildAgentCommand({
     }
   } else if (providerConfig?.sessionIdFlag) {
     args.push(providerConfig.sessionIdFlag, sessionId);
+  } else if (!isResuming && providerDef?.newConversationFlag) {
+    args.push(providerDef.newConversationFlag);
   }
 
   if (autoApprove && providerConfig?.autoApproveFlag) {

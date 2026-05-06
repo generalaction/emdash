@@ -17,6 +17,7 @@ import { createGooseClassifier } from './goose';
 import { createKilocodeClassifier } from './kilocode';
 import { createKimiClassifier } from './kimi';
 import { createKiroClassifier } from './kiro';
+import { createLettaClassifier } from './letta';
 import { createMistralClassifier } from './mistral';
 import { createOpenCodeClassifier } from './opencode';
 import { createPiClassifier } from './pi';
@@ -42,6 +43,7 @@ const classifierFactories: Partial<Record<AgentProviderId, () => ProviderClassif
   kilocode: createKilocodeClassifier,
   kimi: createKimiClassifier,
   kiro: createKiroClassifier,
+  letta: createLettaClassifier,
   mistral: createMistralClassifier,
   opencode: createOpenCodeClassifier,
   pi: createPiClassifier,
