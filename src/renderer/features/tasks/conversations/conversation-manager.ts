@@ -40,6 +40,10 @@ export class ConversationManagerStore {
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
+      if (event.type === 'working') {
+        conversationStore.setWorking();
+        return;
+      }
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;

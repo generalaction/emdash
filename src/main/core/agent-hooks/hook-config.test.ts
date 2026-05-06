@@ -22,6 +22,12 @@ function makeWriter(fs: MemoryFs): HookConfigWriter {
   return new HookConfigWriter(fs, makeExecutionContext());
 }
 
+function readRequiredFile(fs: MemoryFs, path: string): string {
+  const content = fs.files.get(path);
+  if (content === undefined) throw new Error(`Expected ${path} to be written`);
+  return content;
+}
+
 describe('HookConfigWriter', () => {
   beforeEach(() => {
     mockResolveCommandPath.mockReset();
@@ -98,6 +104,67 @@ describe('HookConfigWriter', () => {
     await writer.writeForProvider('opencode');
 
     expect(fs.files.has('.opencode/plugins/emdash-notifications.js')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
+  it('writes Claude hooks for Notification, Stop, UserPromptSubmit, and StopFailure', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/claude');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('claude');
+
+    const settings = JSON.parse(readRequiredFile(fs, '.claude/settings.local.json')) as {
+      hooks: Record<string, unknown>;
+    };
+    expect(Object.keys(settings.hooks).sort()).toEqual([
+      'Notification',
+      'Stop',
+      'StopFailure',
+      'UserPromptSubmit',
+    ]);
+    for (const key of ['Notification', 'Stop', 'UserPromptSubmit', 'StopFailure']) {
+      expect(JSON.stringify(settings.hooks[key])).toContain('EMDASH_HOOK_PORT');
+    }
+  });
+
+  it('skips Claude hooks when claude is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('claude');
+
+    expect(fs.files.has('.claude/settings.local.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
+  it('writes the Amp notifications plugin and ignores it in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/amp');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('amp');
+
+    const plugin = readRequiredFile(fs, '.amp/plugins/emdash-notifications.js');
+
+    expect(plugin).toContain('EMDASH_HOOK_PORT');
+    expect(plugin).toContain('@i-know-the-amp-plugin-api-is-wip-and-very-experimental-right-now');
+    expect(plugin).toContain("amp.on('agent.start'");
+    expect(plugin).toContain("amp.on('agent.end'");
+    expect(plugin).toContain("event.status === 'error' ? 'error' : 'stop'");
+    expect(plugin).toContain('return {};');
+    expect(fs.files.get('.gitignore')).toBe('.amp/plugins/emdash-notifications.js\n');
+  });
+
+  it('skips the Amp plugin when amp is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('amp');
+
+    expect(fs.files.has('.amp/plugins/emdash-notifications.js')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 });

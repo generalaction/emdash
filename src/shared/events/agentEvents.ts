@@ -1,6 +1,6 @@
 import { defineEvent } from '@shared/ipc/events';
 
-export type AgentEventType = 'notification' | 'stop' | 'error';
+export type AgentEventType = 'notification' | 'stop' | 'error' | 'working';
 
 export type NotificationType =
   | 'permission_prompt'
