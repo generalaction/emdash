@@ -1,6 +1,5 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { toast } from 'sonner';
-import { menuCheckForUpdatesChannel } from '@shared/events/appEvents';
 import {
   updateAvailableEvent,
   updateCheckingEvent,
@@ -127,10 +126,6 @@ export class UpdateStore {
       runInAction(() => {
         this.state = { status: 'error', message: d.message };
       });
-    });
-
-    events.on(menuCheckForUpdatesChannel, () => {
-      rpc.update.check().catch(() => {});
     });
 
     rpc.update.check().catch(() => {});
