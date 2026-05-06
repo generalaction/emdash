@@ -1,6 +1,6 @@
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
-import type { PullRequest } from '@shared/pull-requests';
+import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
@@ -30,7 +30,7 @@ export const PrRow = memo(function PrRow({
             <span className="text-sm text-foreground leading-snug truncate min-w-0">
               {pr.title}
             </span>
-            <PrNumberBadge number={pr.metadata.number} />
+            <PrNumberBadge number={getPrNumber(pr) ?? 0} />
             <Tooltip>
               <TooltipTrigger>
                 <Button

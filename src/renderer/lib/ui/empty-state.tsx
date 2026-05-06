@@ -11,7 +11,7 @@ export function EmptyState({ label, description, action }: EmptyStateProps) {
       <div className="flex max-w-xs flex-col items-center text-center">
         <h2 className="text-sm font-medium font-mono text-foreground-muted">{label}</h2>
         {description && (
-          <p className="mt-1.5 text-xs font-mono font-normal tracking-tight leading-relaxed text-foreground-passive">
+          <p className="mt-1.5 text-xs font-normal tracking-tight leading-relaxed text-foreground-passive">
             {description}
           </p>
         )}

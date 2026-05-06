@@ -1,18 +1,11 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useState } from 'react';
-import {
-  AGENT_PROVIDER_IDS,
-  AgentProviderId,
-  isValidProviderId,
-} from '@shared/agent-provider-registry';
-import { getProjectStore } from '@renderer/features/projects/stores/project-selectors';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useCallback } from 'react';
+import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { getPaneContainer } from '@renderer/lib/pty/pane-sizing-context';
 import { measureDimensions } from '@renderer/lib/pty/pty-dimensions';
-import { appState } from '@renderer/lib/stores/app-state';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -23,7 +16,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
-import { resolveConversationProviderSelection } from './provider-selection';
+import { useEffectiveProvider } from './use-effective-provider';
 
 function getConversationsPaneSize() {
   const container = getPaneContainer('conversations');
@@ -31,42 +24,20 @@ function getConversationsPaneSize() {
 }
 
 export const CreateConversationModal = observer(function CreateConversationModal({
+  connectionId,
   onSuccess,
   projectId,
   taskId,
 }: BaseModalProps<{ conversationId: string }> & {
+  connectionId?: string;
   projectId: string;
   taskId: string;
 }) {
-  const [providerOverride, setProviderOverride] = useState<AgentProviderId | null>(null);
-  const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
-  const defaultProviderId: AgentProviderId = isValidProviderId(defaultAgentValue)
-    ? defaultAgentValue
-    : 'claude';
-
-  const projectData = getProjectStore(projectId)?.data;
-  const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
-  const dependencyResource = connectionId
-    ? appState.dependencies.getRemote(connectionId)
-    : appState.dependencies.local;
-  const availabilityKnown = dependencyResource.data !== null;
-  const installedProviderIds = AGENT_PROVIDER_IDS.filter(
-    (id) => dependencyResource.data?.[id]?.status === 'available'
-  );
-  const { providerId, createDisabled } = resolveConversationProviderSelection({
-    defaultProviderId,
-    providerOverride,
-    installedProviderIds,
-    availabilityKnown,
-  });
+  const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
-  const { value: taskSettings } = useAppSettingsKey('tasks');
-  const defaultSkipPermissions = taskSettings?.autoApproveByDefault ?? false;
-  const [skipPermissionsOverride, setSkipPermissionsOverride] = useState<boolean | undefined>(
-    undefined
-  );
-  const skipPermissions = skipPermissionsOverride ?? defaultSkipPermissions;
-  const titleProviderId = providerId ?? defaultProviderId;
+  const autoApproveDefaults = useAgentAutoApproveDefaults();
+  const skipPermissions = providerId ? autoApproveDefaults.getDefault(providerId) : false;
+  const titleProviderId = providerId ?? 'claude';
   const title = nextDefaultConversationTitle(
     titleProviderId,
     Array.from(conversationMgr?.conversations.values() ?? [], (conversation) => conversation.data)
@@ -75,7 +46,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const handleCreateConversation = useCallback(() => {
     if (createDisabled || !conversationMgr || !providerId) return;
     const id = crypto.randomUUID();
-    conversationMgr.createConversation({
+    void conversationMgr.createConversation({
       projectId,
       taskId,
       id,
@@ -113,7 +84,13 @@ export const CreateConversationModal = observer(function CreateConversationModal
           </Field>
           <Field>
             <div className="flex items-center gap-2">
-              <Switch checked={skipPermissions} onCheckedChange={setSkipPermissionsOverride} />
+              <Switch
+                checked={skipPermissions}
+                disabled={!providerId || autoApproveDefaults.loading || autoApproveDefaults.saving}
+                onCheckedChange={(checked) => {
+                  if (providerId) autoApproveDefaults.setDefault(providerId, checked);
+                }}
+              />
               <FieldLabel>Dangerously skip permissions</FieldLabel>
             </div>
           </Field>

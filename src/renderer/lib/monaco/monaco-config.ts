@@ -5,18 +5,11 @@
 import type * as monaco from 'monaco-editor';
 import { log } from '@renderer/utils/logger';
 
-// Diagnostic codes to ignore for cleaner editor experience
-const DIAGNOSTIC_CODES_TO_IGNORE = [
-  2307, // Cannot find module (for project-specific imports)
-  2792, // Cannot find module (for path aliases)
-  2304, // Cannot find name (for global types)
-  1149, // File name differs from already included file (case sensitivity)
-];
-
 const DIAGNOSTICS_OPTIONS: monaco.typescript.DiagnosticsOptions = {
-  noSemanticValidation: false,
+  // Monaco runs without the full project/type environment here, so semantic
+  // errors are often misleading in the file editor.
+  noSemanticValidation: true,
   noSyntaxValidation: false,
-  diagnosticCodesToIgnore: DIAGNOSTIC_CODES_TO_IGNORE,
 };
 
 /**
@@ -82,6 +75,7 @@ function configureJavaScriptDefaults(monacoInstance: typeof monaco): void {
     module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.NodeJs,
   });
+  ts.javascriptDefaults.setDiagnosticsOptions(DIAGNOSTICS_OPTIONS);
   ts.javascriptDefaults.setEagerModelSync(true);
 }
 

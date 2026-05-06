@@ -14,12 +14,15 @@ interface PrefetchEntry {
  * Returns a stable callback that pre-warms Monaco models on hover so that when the user
  * clicks to open a diff the models are already loaded. Models are unregistered on unmount.
  * TTL eviction (60 s after last subscriber leaves) handles any remaining cleanup.
+ *
+ * Pass `modifiedRef` for the 'pr' group to pre-warm the PR head SHA instead of HEAD.
  */
 export function usePrefetchDiffModels(
   projectId: string,
   workspaceId: string,
   group: 'disk' | 'staged' | 'git' | 'pr',
-  originalRef: GitRef
+  originalRef: GitRef,
+  modifiedRef?: GitRef
 ) {
   const prefetchedRef = useRef(new Map<string, PrefetchEntry>());
 
@@ -63,20 +66,29 @@ export function usePrefetchDiffModels(
           modelRegistry.toGitUri(uri, STAGED_REF),
         ];
       } else {
+        const effectiveModifiedRef = group === 'pr' && modifiedRef ? modifiedRef : HEAD_REF;
         void modelRegistry
           .registerModel(projectId, workspaceId, root, filePath, language, 'git', originalRef)
           .catch(() => {});
         void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'git', HEAD_REF)
+          .registerModel(
+            projectId,
+            workspaceId,
+            root,
+            filePath,
+            language,
+            'git',
+            effectiveModifiedRef
+          )
           .catch(() => {});
         entry.gitUris = [
           modelRegistry.toGitUri(uri, originalRef),
-          modelRegistry.toGitUri(uri, HEAD_REF),
+          modelRegistry.toGitUri(uri, effectiveModifiedRef),
         ];
       }
 
       prefetchedRef.current.set(filePath, entry);
     },
-    [projectId, workspaceId, group, originalRef]
+    [projectId, workspaceId, group, originalRef, modifiedRef]
   );
 }

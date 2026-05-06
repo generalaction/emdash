@@ -4,7 +4,7 @@ import type {
   CreateBranchError,
   DeleteBranchError,
   FetchError,
-  FetchPrRefError,
+  FetchPrForReviewError,
   LocalBranch,
   LocalBranchesPayload,
   PushError,
@@ -12,7 +12,8 @@ import type {
   RemoteBranchesPayload,
   RenameBranchError,
 } from '@shared/git';
-import { computeDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import { selectPreferredRemote } from '@shared/git-utils';
+import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/schema';
 import type { RepositoryGitProvider } from './repository-git-provider';
@@ -29,14 +30,6 @@ export class GitRepositoryService {
       this.git.getRemotes().catch(() => []),
     ]);
     return selectPreferredRemote(configured, remotes).name;
-  }
-
-  async getDefaultBranchName(): Promise<string> {
-    const configured = await this.settings.getDefaultBranch();
-    const remote = await this.getConfiguredRemote();
-    const branches = await this.git.getBranches();
-    const gitDefault = await this.git.getDefaultBranch(remote);
-    return computeDefaultBranch(configured, branches, remote, gitDefault);
   }
 
   async getRepositoryInfo(): Promise<{ isUnborn: boolean; currentBranch: string | null }> {
@@ -101,12 +94,22 @@ export class GitRepositoryService {
     return this.git.deleteBranch(branch, force);
   }
 
-  async fetchPrRef(
+  async fetchPrForReview(
     prNumber: number,
-    localBranchName: string,
+    headRefName: string,
+    headRepositoryUrl: string,
+    localBranch: string,
+    isFork: boolean,
     remote?: string
-  ): Promise<Result<void, FetchPrRefError>> {
-    return this.git.fetchPrRef(prNumber, localBranchName, remote);
+  ): Promise<Result<void, FetchPrForReviewError>> {
+    return this.git.fetchPrForReview(
+      prNumber,
+      headRefName,
+      headRepositoryUrl,
+      localBranch,
+      isFork,
+      remote
+    );
   }
 
   async fetch(remote?: string): Promise<Result<void, FetchError>> {
@@ -149,5 +152,16 @@ export class GitRepositoryService {
     const remoteBranches = branches.filter((b): b is RemoteBranch => b.type === 'remote');
     const gitDefaultBranch = await this.git.getDefaultBranch(remote);
     return { remoteBranches, remotes, gitDefaultBranch };
+  }
+
+  async getRemoteState(): Promise<ProjectRemoteState> {
+    try {
+      const remotes = await this.getRemotes();
+      const remoteName = await this.getConfiguredRemote();
+      const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
+      return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
+    } catch {
+      return { hasRemote: false, selectedRemoteUrl: null };
+    }
   }
 }

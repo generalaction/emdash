@@ -1,5 +1,10 @@
 import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { log } from '@main/lib/logger';
+import { buildExternalToolEnv } from './childProcessEnv';
+import { getWindowsEnvValue, prependWindowsPathEntry } from './windows-env';
 
 /**
  * Keys that must never be overwritten from the shell env capture.
@@ -26,6 +31,22 @@ const PRESERVE_KEYS = new Set([
   'NODE_ENV',
 ]);
 
+export const SHELL_ENV_CAPTURE_GUARD: Record<string, string> = {
+  DISABLE_AUTO_UPDATE: 'true',
+  ZSH_TMUX_AUTOSTART: 'false',
+  ZSH_TMUX_AUTOSTARTED: 'true',
+};
+
+const USER_BIN_DIRS = [path.join(os.homedir(), '.local', 'bin')];
+
+function pathEntryExists(entry: string): boolean {
+  try {
+    return fs.statSync(entry).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function parseEnvOutput(raw: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const line of raw.split('\n')) {
@@ -51,10 +72,33 @@ function mergePath(shellPath: string, currentPath: string): string {
   return [...shellEntries, ...extra].join(sep);
 }
 
+export function ensureUserBinDirsInPath(candidates: string[] = USER_BIN_DIRS): string[] {
+  const currentPath = process.env.PATH ?? '';
+  const entries = currentPath.split(path.delimiter).filter(Boolean);
+  const existing = new Set(entries);
+  const additions = candidates.filter(
+    (candidate) => pathEntryExists(candidate) && !existing.has(candidate)
+  );
+
+  if (additions.length === 0) {
+    return [];
+  }
+
+  process.env.PATH = [...additions, ...entries].join(path.delimiter);
+  return additions;
+}
+
+export function ensureWindowsNpmGlobalBinInPath(
+  env: NodeJS.ProcessEnv = process.env
+): string | null {
+  const appData = getWindowsEnvValue(env, 'APPDATA');
+  if (!appData) return null;
+
+  const npmPath = path.win32.join(appData, 'npm');
+  return prependWindowsPathEntry(env, npmPath) ? npmPath : null;
+}
+
 /**
- * Resolves the user's full login-shell environment once at startup and merges
- * it into `process.env`.
- *
  * Spawns `$SHELL -ilc 'env'` with a 5 s timeout. On any error (timeout,
  * missing shell, restricted environment) the function logs a warning and
  * returns — the app continues with whatever `process.env` already contains.
@@ -66,22 +110,25 @@ function mergePath(shellPath: string, currentPath: string): string {
 export async function resolveUserEnv(): Promise<void> {
   if (process.platform === 'win32') {
     // Windows PATH is managed differently; no login-shell capture needed.
+    ensureWindowsNpmGlobalBinInPath();
     return;
   }
 
   const shell = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+  const baseEnv = buildExternalToolEnv();
 
   try {
     const raw = execSync(`${shell} -ilc 'env'`, {
       encoding: 'utf8',
       timeout: 5_000,
+      // Route through buildExternalToolEnv so AppImage runtime vars (APPIMAGE,
+      // APPDIR, ARGV0, ...) and `/tmp/.mount_*` PATH entries don't leak into
+      // the probe shell. Otherwise login-shell hooks that resolve a binary by
+      // name through PATH (mise/starship/oh-my-zsh) can re-enter the AppImage
+      // and fork-bomb the app on Linux. See #1679.
       env: {
-        ...process.env,
-        // Prevent oh-my-zsh and tmux plugins from producing extra output or
-        // blocking the env capture.
-        DISABLE_AUTO_UPDATE: 'true',
-        ZSH_TMUX_AUTOSTART: 'false',
-        ZSH_TMUX_AUTOSTARTED: 'true',
+        ...baseEnv,
+        ...SHELL_ENV_CAPTURE_GUARD,
       },
     });
 
@@ -91,7 +138,7 @@ export async function resolveUserEnv(): Promise<void> {
       if (PRESERVE_KEYS.has(key)) continue;
 
       if (key === 'PATH') {
-        const current = process.env.PATH ?? '';
+        const current = baseEnv.PATH ?? '';
         process.env.PATH = mergePath(value, current);
       } else {
         process.env[key] = value;

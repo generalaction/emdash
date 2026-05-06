@@ -5,7 +5,7 @@
   
 <br />
 
-[![MIT License](https://img.shields.io/badge/License-MIT-555555.svg?labelColor=333333&color=666666)](./LICENSE.md)
+[![Apache 2.0 License](https://img.shields.io/badge/License-Apache_2.0-555555.svg?labelColor=333333&color=666666)](./LICENSE.md)
 [![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash)
 [![Last Commit](https://img.shields.io/github/last-commit/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/commits/main)
@@ -17,15 +17,23 @@
 
 <br />
 
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/public/media/downloadforwindows.png" alt="Download for Windows" height="40">
+  <a href="https://emdash.sh/download" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+    <img src="https://emdash.sh/media/readme/downloadforwindows.png" alt="Download for Windows" height="40">
   </a>
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/public/media/downloadformacos.png" alt="Download for macOS" height="40">
+  <a href="https://emdash.sh/download" style="display:inline-block; margin-right:8px; text-decoration:none; outline:none; border:none;">
+    <img src="https://emdash.sh/media/readme/downloadformacos.png" alt="Download for macOS" height="40">
   </a>
-  <a href="https://github.com/generalaction/emdash/releases" style="display:inline-block; text-decoration:none; outline:none; border:none;">
-    <img src="./docs/public/media/downloadforlinux.png" alt="Download for Linux" height="40">
+  <a href="https://emdash.sh/download" style="display:inline-block; text-decoration:none; outline:none; border:none;">
+    <img src="https://emdash.sh/media/readme/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
+
+  <h3>
+    <a href="https://emdash.sh/download">Download Emdash v1</a>
+  </h3>
+  <p>
+    Stable v1 is now available for macOS, Windows, and Linux ·
+    <a href="https://emdash.sh/blog/emdash-v1-stable">Read the launch post</a>
+  </p>
 
 </div>
 
@@ -33,7 +41,7 @@
 
 Emdash is a provider-agnostic desktop app that lets you run multiple coding agents in parallel, each isolated in its own git worktree, either locally or over SSH on a remote machine. We call it an Agentic Development Environment (ADE).
 
-Emdash supports 22 (and growing) CLI agents, such as Claude Code, Qwen Code, Amp, and Codex. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge. 
+Emdash supports 24 CLI agents, including Claude Code, Codex, OpenCode, Gemini and Amp. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge.
 
 **Develop on remote servers via SSH**
 
@@ -45,24 +53,21 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 </div>
 
-<img alt="Emdash product" src="./docs/public/media/product.jpeg" />
+<img alt="Emdash product" src="https://emdash.sh/media/blog/public-v1-beta/v1beta.jpg" />
 
 # Installation
 
 ### macOS
-- Apple Silicon: https://github.com/generalaction/emdash/releases/latest/download/emdash-arm64.dmg
-- Intel x64: https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.dmg
-
-[![Homebrew](https://img.shields.io/badge/-Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040)](https://formulae.brew.sh/cask/emdash)
-> macOS users can also: `brew install --cask emdash`
+- Apple Silicon: https://releases.emdash.sh/emdash-arm64.dmg
+- Intel x64: https://releases.emdash.sh/emdash-x64.dmg
 
 ### Windows
-- Installer (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.msi
-- Portable (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x64.exe
+- Installer (x64): https://releases.emdash.sh/emdash-x64.msi
+- Portable (x64): https://releases.emdash.sh/emdash-x64.exe
 
 ### Linux
-- AppImage (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-x86_64.AppImage
-- Debian package (x64): https://github.com/generalaction/emdash/releases/latest/download/emdash-amd64.deb
+- AppImage (x64): https://releases.emdash.sh/emdash-x86_64.AppImage
+- Debian package (x64): https://releases.emdash.sh/emdash-amd64.deb
 
 ### Release Overview
 
@@ -74,42 +79,46 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 ### Supported CLI Providers
 
-Emdash currently supports twenty-two CLI providers and we are adding new providers regularly. If you miss one, let us know or create a PR.
+Emdash currently supports 24 CLI providers, and we are adding new ones regularly. If you miss one, let us know or create a PR.
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
-| [Amp](https://ampcode.com/manual) | ✅ Supported | <code>npm install -g @sourcegraph/amp@latest</code> |
+| [Amp](https://ampcode.com/manual#install) | ✅ Supported | <code>npm install -g @sourcegraph/amp@latest</code> |
 | [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | <code>npm install -g @augmentcode/auggie</code> |
 | [Autohand Code](https://autohand.ai/code/) | ✅ Supported | <code>npm install -g autohand-cli</code> |
 | [Charm](https://github.com/charmbracelet/crush) | ✅ Supported | <code>npm install -g @charmland/crush</code> |
 | [Claude Code](https://docs.anthropic.com/claude/docs/claude-code) | ✅ Supported | <code>curl -fsSL https://claude.ai/install.sh &#124; bash</code> |
 | [Cline](https://docs.cline.bot/cline-cli/overview) | ✅ Supported | <code>npm install -g cline</code> |
 | [Codebuff](https://www.codebuff.com/docs/help/quick-start) | ✅ Supported | <code>npm install -g codebuff</code> |
-| [Codex](https://developers.openai.com/codex/cli/) | ✅ Supported | <code>npm install -g @openai/codex</code> |
+| [Codex](https://github.com/openai/codex) | ✅ Supported | <code>npm install -g @openai/codex</code> |
 | [Continue](https://docs.continue.dev/guides/cli) | ✅ Supported | <code>npm i -g @continuedev/cli</code> |
 | [Cursor](https://cursor.com/cli) | ✅ Supported | <code>curl https://cursor.com/install -fsS &#124; bash</code> |
+| [Devin](https://cli.devin.ai/docs) | ✅ Supported | <code>curl -fsSL https://cli.devin.ai/install.sh &#124; bash</code> |
 | [Droid](https://docs.factory.ai/cli/getting-started/quickstart) | ✅ Supported | <code>curl -fsSL https://app.factory.ai/cli &#124; sh</code> |
 | [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | <code>npm install -g @google/gemini-cli</code> |
-| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/installing-github-copilot-in-the-cli) | ✅ Supported | <code>npm install -g @github/copilot</code> |
-| [Goose](https://github.com/block/goose) | ✅ Supported | <code>curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh &#124; bash</code> |
+| [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) | ✅ Supported | <code>npm install -g @github/copilot</code> |
+| [Goose](https://block.github.io/goose/docs/quickstart/) | ✅ Supported | <code>curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh &#124; bash</code> |
 | [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | <code>npm install -g @kilocode/cli</code> |
-| [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | <code>uv tool install --python 3.13 kimi-cli</code> |
-| [Kiro](https://kiro.dev/docs/cli/) | ✅ Supported | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
+| [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | <code>uv tool install kimi-cli</code> |
+| [Kiro (AWS)](https://kiro.dev/docs/cli/) | ✅ Supported | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
 | [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | <code>curl -LsSf https://mistral.ai/vibe/install.sh &#124; bash</code> |
-| [OpenCode](https://opencode.ai/docs/) | ✅ Supported | <code>npm install -g opencode-ai</code> |
+| [OpenCode](https://opencode.ai/docs/cli/) | ✅ Supported | <code>npm install -g opencode-ai</code> |
 | [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | <code>npm install -g @mariozechner/pi-coding-agent</code> |
 | [Qwen Code](https://github.com/QwenLM/qwen-code) | ✅ Supported | <code>npm install -g @qwen-code/qwen-code</code> |
 | [Rovo Dev](https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/) | ✅ Supported | <code>acli rovodev auth login</code> |
 
 ### Issues
 
-Emdash allows you to pass tickets straight from Linear, GitHub, or Jira to your coding agent. 
+Emdash allows you to pass issues, tickets, and support threads straight to your coding agent.
 
 | Tool | Status | Authentication |
 | ----------- | ------ | ----------- |
 | [Linear](https://linear.app) | ✅ Supported | Connect with a Linear API key. |
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
-| [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Authenticate via GitHub CLI (`gh auth login`). |
+| [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Connect your GitHub account or authenticate via GitHub CLI (`gh auth login`). |
+| [GitLab Issues](https://docs.gitlab.com/user/project/issues/) | ✅ Supported | Provide your GitLab instance URL and a personal access token with `read_api` scope. |
+| [Forgejo Issues](https://forgejo.org/) | ✅ Supported | Provide your Forgejo instance URL and API token. |
+| [Plain Threads](https://www.plain.com/) | ✅ Supported | Connect with a Plain API key. |
 
 # Contributing
 
@@ -132,7 +141,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > TELEMETRY_ENABLED=false
 > ```
 >
-> Full details: see `docs/telemetry.md`.
+> Full details: see [Telemetry](https://emdash.sh/docs/telemetry).
 </details>
 
 <details>
@@ -152,48 +161,15 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 </details>
 
 <details>
-<summary><b>Do I need GitHub CLI?</b></summary>
-
-> **Only if you want GitHub features** (open PRs from Emdash, fetch repo info, GitHub Issues integration).  
-> Install & sign in:
->
-> ```bash
-> gh auth login
-> ```
->
-> If you don’t use GitHub features, you can skip installing `gh`.
-</details>
-
-<details>
 <summary><b>How do I add a new provider?</b></summary>
 
 > Emdash is **provider‑agnostic** and built to add CLIs quickly.
 >
 > - Open a PR following the **Contributing Guide** (`CONTRIBUTING.md`).
 > - Include: provider name, how it’s invoked (CLI command), auth notes, and minimal setup steps.
-> - We’ll add it to the **Integrations** matrix and wire up provider selection in the UI.
+> - We’ll add it to the **Providers table** and wire up provider selection in the UI.
 >
 > If you’re unsure where to start, open an issue with the CLI’s link and typical commands.
-</details>
-
-<details>
-<summary><b>I hit a native‑module crash (sqlite3 / node‑pty ). What’s the fast fix?</b></summary>
-
-> This usually happens after switching Node/Electron versions.
->
-> 1) Rebuild native modules:
->
-> ```bash
-> npm run rebuild
-> ```
->
-> 2) If that fails, clean and reinstall:
->
-> ```bash
-> npm run reset
-> ```
->
-> (Resets `node_modules`, reinstalls, and re‑builds Electron native deps.)
 </details>
 
 <details>
@@ -222,7 +198,7 @@ Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md) to get star
 > - Git installed on the remote server
 > - For agent auth: SSH agent running with your key loaded (`ssh-add -l`)
 >
-> See [docs/ssh-setup.md](./docs/ssh-setup.md) for detailed setup instructions and [docs/ssh-architecture.md](./docs/ssh-architecture.md) for technical details.
+> See [Remote Projects](https://emdash.sh/docs/remote-projects) for detailed setup instructions and [Bring Your Own Infrastructure](https://emdash.sh/docs/bring-your-own-infrastructure) for technical details.
 </details>
 
 [![Follow @emdashsh](https://img.shields.io/twitter/follow/emdashsh?style=social&label=Follow%20%40emdashsh)](https://x.com/emdashsh)

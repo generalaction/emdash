@@ -50,6 +50,8 @@ describe('resolvePullRequestTaskStrategy', () => {
         checkoutMode: 'new-branch',
         prNumber: 42,
         headBranch: 'feature/pr-head',
+        headRepositoryUrl: 'https://github.com/contributor/repo',
+        isFork: false,
         taskBranch: 'pr-task',
         pushBranch: false,
       })
@@ -57,6 +59,8 @@ describe('resolvePullRequestTaskStrategy', () => {
       kind: 'from-pull-request',
       prNumber: 42,
       headBranch: 'feature/pr-head',
+      headRepositoryUrl: 'https://github.com/contributor/repo',
+      isFork: false,
       taskBranch: 'pr-task',
       pushBranch: false,
     });
@@ -68,6 +72,8 @@ describe('resolvePullRequestTaskStrategy', () => {
         checkoutMode: 'checkout',
         prNumber: 42,
         headBranch: 'feature/pr-head',
+        headRepositoryUrl: 'https://github.com/contributor/repo',
+        isFork: false,
         taskBranch: 'pr-task',
         pushBranch: false,
       })
@@ -75,6 +81,8 @@ describe('resolvePullRequestTaskStrategy', () => {
       kind: 'from-pull-request',
       prNumber: 42,
       headBranch: 'feature/pr-head',
+      headRepositoryUrl: 'https://github.com/contributor/repo',
+      isFork: false,
     });
   });
 });

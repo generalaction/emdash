@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { basenameFromAnyPath } from '@shared/path-name';
 import { rpc } from '@renderer/lib/ipc';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import { ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
+import type { ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
 
 export function usePickMode() {
   const [path, setPath] = useState('');
@@ -14,7 +15,7 @@ export function usePickMode() {
     setPath(newPath);
     setinitGitRepository(false);
     if (!nameIsTouched) {
-      const dirName = newPath.split('/').filter(Boolean).pop() ?? '';
+      const dirName = basenameFromAnyPath(newPath);
       if (dirName && !nameIsTouched) setName(dirName);
     }
   };

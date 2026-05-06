@@ -15,7 +15,7 @@ export function SelectedPrCard({ pr, onDeselect }: SelectedPrCardProps) {
           <div className="flex flex-col min-w-0 gap-0.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="font-mono text-xs text-foreground-muted shrink-0">
-                #{pr.metadata.number}
+                {pr.identifier ?? ''}
               </span>
               {pr.isDraft && (
                 <span className="text-xs text-foreground-muted border border-border rounded px-1 shrink-0">
@@ -25,7 +25,7 @@ export function SelectedPrCard({ pr, onDeselect }: SelectedPrCardProps) {
               <span className="text-sm truncate font-medium">{pr.title}</span>
             </div>
             <div className="flex items-center gap-1 text-xs text-foreground-muted">
-              <code className="text-xs">{pr.metadata.headRefName}</code>
+              <code className="text-xs">{pr.headRefName}</code>
               {pr.author && (
                 <>
                   <span>·</span>

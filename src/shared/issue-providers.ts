@@ -4,33 +4,33 @@ export type IssueProviderType = Issue['provider'];
 
 export type IssueProviderCapabilities = {
   requiresProjectPath: boolean;
-  requiresNameWithOwner: boolean;
+  requiresRepositoryUrl: boolean;
 };
 
 export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProviderCapabilities> = {
   linear: {
     requiresProjectPath: false,
-    requiresNameWithOwner: false,
+    requiresRepositoryUrl: false,
   },
   github: {
     requiresProjectPath: false,
-    requiresNameWithOwner: true,
+    requiresRepositoryUrl: true,
   },
   jira: {
     requiresProjectPath: false,
-    requiresNameWithOwner: false,
+    requiresRepositoryUrl: false,
   },
   gitlab: {
     requiresProjectPath: true,
-    requiresNameWithOwner: false,
+    requiresRepositoryUrl: false,
   },
   forgejo: {
     requiresProjectPath: true,
-    requiresNameWithOwner: false,
+    requiresRepositoryUrl: false,
   },
   plain: {
     requiresProjectPath: false,
-    requiresNameWithOwner: false,
+    requiresRepositoryUrl: false,
   },
 };
 

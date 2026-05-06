@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { useState } from 'react';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
@@ -52,7 +52,6 @@ export function AddRemoteModal({
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const [url, setUrl] = useState('');
 
-  const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ['owners'],
     queryFn: () => rpc.github.getOwners(),
@@ -124,7 +123,6 @@ export function AddRemoteModal({
           const repositoryStore = getRepositoryStore(projectId);
           repositoryStore?.refreshLocal();
           repositoryStore?.refreshRemote();
-          void queryClient.invalidateQueries({ queryKey: ['nameWithOwner', projectId] });
           setError(
             'Remote already has commits. Linking succeeded, but integrating histories must be resolved manually.'
           );
@@ -137,7 +135,6 @@ export function AddRemoteModal({
       const repositoryStore = getRepositoryStore(projectId);
       repositoryStore?.refreshLocal();
       repositoryStore?.refreshRemote();
-      void queryClient.invalidateQueries({ queryKey: ['nameWithOwner', projectId] });
       onSuccess();
     } catch (e) {
       setError(toErrorMessage(e, 'An error occurred'));

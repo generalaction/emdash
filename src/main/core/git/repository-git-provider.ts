@@ -3,7 +3,7 @@ import type {
   CreateBranchError,
   DeleteBranchError,
   FetchError,
-  FetchPrRefError,
+  FetchPrForReviewError,
   GitHeadState,
   PushError,
   RenameBranchError,
@@ -28,11 +28,14 @@ export interface RepositoryGitProvider {
     newBranch: string
   ): Promise<Result<{ remotePushed: boolean }, RenameBranchError>>;
   deleteBranch(branch: string, force?: boolean): Promise<Result<void, DeleteBranchError>>;
-  fetchPrRef(
+  fetchPrForReview(
     prNumber: number,
-    localBranchName: string,
-    remote?: string
-  ): Promise<Result<void, FetchPrRefError>>;
+    headRefName: string,
+    headRepositoryUrl: string,
+    localBranch: string,
+    isFork: boolean,
+    configuredRemote?: string
+  ): Promise<Result<void, FetchPrForReviewError>>;
   fetch(remote?: string): Promise<Result<void, FetchError>>;
   publishBranch(
     branchName: string,

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
-import { buildTmuxParams, resolveSpawnParams } from './spawn-utils';
-
-const SHELL = '/bin/bash';
+import type { RemoteShellProfile } from '@main/core/ssh/remote-shell-profile';
+import { resolveSshCommand } from './spawn-utils';
 
 function makeAgentConfig(overrides: Partial<AgentSessionConfig> = {}): AgentSessionConfig {
   return {
@@ -21,162 +20,90 @@ function makeAgentConfig(overrides: Partial<AgentSessionConfig> = {}): AgentSess
 
 function makeGeneralConfig(overrides: Partial<GeneralSessionConfig> = {}): GeneralSessionConfig {
   return {
+    taskId: 'task-1',
     cwd: '/workspace',
     ...overrides,
   };
 }
 
-describe('resolveSpawnParams – agent type', () => {
-  it('no tmux, no shellSetup → shell -c with command joined', () => {
-    const config = makeAgentConfig();
-    const result = resolveSpawnParams('agent', config);
+const zshProfile: RemoteShellProfile = {
+  shell: '/bin/zsh',
+  env: {
+    PATH: '/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin',
+  },
+};
 
-    expect(result.cwd).toBe('/workspace');
-    expect(result.command).toBe(process.env.SHELL ?? '/bin/sh');
-    expect(result.args[0]).toBe('-c');
-    expect(result.args[1]).toBe('claude --resume conv-1');
+describe('resolveSshCommand', () => {
+  it('runs remote commands through a login shell so PATH matches install/probe', () => {
+    const result = resolveSshCommand('agent', makeAgentConfig(), undefined, zshProfile);
+
+    expect(result).toBe(
+      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd "/workspace" && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
+    );
   });
 
-  it('with shellSetup → shellSetup prepended with &&', () => {
-    const config = makeAgentConfig({ shellSetup: 'source ~/.nvm/nvm.sh' });
-    const result = resolveSpawnParams('agent', config);
+  it('adds SSH env exports before the remote command', () => {
+    const result = resolveSshCommand(
+      'agent',
+      makeAgentConfig(),
+      {
+        FOO: 'bar',
+      },
+      zshProfile
+    );
 
-    expect(result.args[0]).toBe('-c');
-    expect(result.args[1]).toBe('source ~/.nvm/nvm.sh && claude --resume conv-1');
+    expect(result).toBe(
+      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export FOO='\\''bar'\\''; cd "/workspace" && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
+    );
   });
 
-  it('with tmuxSessionName → tmux command contains has-session and session name', () => {
-    const config = makeAgentConfig({ tmuxSessionName: 'my-session' });
-    const result = resolveSpawnParams('agent', config);
-
-    expect(result.args[0]).toBe('-c');
-    const cmd = result.args[1];
-    expect(cmd).toContain('tmux has-session');
-    expect(cmd).toContain('"my-session"');
-    expect(cmd).toContain('tmux attach-session');
-  });
-
-  it('with both shellSetup and tmuxSessionName → tmux command contains shellSetup', () => {
-    const config = makeAgentConfig({
-      shellSetup: 'export NVM_DIR="$HOME/.nvm"',
-      tmuxSessionName: 'agent-session',
+  it('uses the shared remote shell command builder for fallback SSH commands', () => {
+    const result = resolveSshCommand('agent', makeAgentConfig(), {
+      FOO: 'bar',
     });
-    const result = resolveSpawnParams('agent', config);
 
-    expect(result.args[0]).toBe('-c');
-    const cmd = result.args[1];
-    expect(cmd).toContain('tmux has-session');
-    expect(cmd).toContain('"agent-session"');
-    expect(cmd).toContain('export NVM_DIR=\\"$HOME/.nvm\\"');
-    expect(cmd).toContain('claude --resume conv-1');
-  });
-});
-
-describe('resolveSpawnParams – general type', () => {
-  it('no command, no shellSetup → shell -c exec shell -il', () => {
-    const config = makeGeneralConfig();
-    const result = resolveSpawnParams('general', config);
-
-    const shell = process.env.SHELL ?? '/bin/sh';
-    expect(result.command).toBe(shell);
-    expect(result.args[0]).toBe('-il');
-    expect(result.cwd).toBe('/workspace');
+    expect(result).toBe(
+      `'/bin/sh' -c 'export FOO='\\''bar'\\''; cd "/workspace" && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
+    );
   });
 
-  it('with shellSetup → shell -c with shellSetup && exec shell -il', () => {
-    const config = makeGeneralConfig({ shellSetup: 'source /opt/homebrew/bin/brew shellenv' });
-    const result = resolveSpawnParams('general', config);
+  it('quotes remote agent argv tokens independently', () => {
+    const result = resolveSshCommand(
+      'agent',
+      makeAgentConfig({
+        command: 'caffeinate',
+        args: ['-i', 'direnv', 'exec', '.', '/opt/Claude Code/bin/claude', 'Fix the bug'],
+      }),
+      undefined,
+      zshProfile
+    );
 
-    expect(result.args[0]).toBe('-c');
-    const cmd = result.args[1];
-    expect(cmd).toContain('source /opt/homebrew/bin/brew shellenv');
-    expect(cmd).toContain('exec');
-    expect(cmd).toContain('-il');
+    expect(result).toBe(
+      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd "/workspace" && '\\''caffeinate'\\'' '\\''-i'\\'' '\\''direnv'\\'' '\\''exec'\\'' '\\''.'\\'' '\\''/opt/Claude Code/bin/claude'\\'' '\\''Fix the bug'\\'''`
+    );
   });
 
-  it('with tmuxSessionName → tmux wrapping', () => {
-    const config = makeGeneralConfig({ tmuxSessionName: 'general-session' });
-    const result = resolveSpawnParams('general', config);
+  it('preserves remote tmux wrapping for SSH commands', () => {
+    const result = resolveSshCommand(
+      'agent',
+      makeAgentConfig({
+        tmuxSessionName: 'agent-session',
+      }),
+      undefined,
+      zshProfile
+    );
 
-    expect(result.args[0]).toBe('-c');
-    const cmd = result.args[1];
-    expect(cmd).toContain('tmux has-session');
-    expect(cmd).toContain('"general-session"');
-    expect(cmd).toContain('tmux attach-session');
+    expect(result).toContain('tmux has-session -t "agent-session"');
+    expect(result).toContain('tmux new-session -d -s "agent-session"');
+    expect(result).toContain('tmux attach-session -t "agent-session"');
+    expect(result).toContain("'\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\''");
   });
 
-  it('with both shellSetup and tmuxSessionName → tmux command contains shellSetup', () => {
-    const config = makeGeneralConfig({
-      shellSetup: 'eval "$(rbenv init -)"',
-      tmuxSessionName: 'ruby-session',
-    });
-    const result = resolveSpawnParams('general', config);
+  it('launches remote general terminals with the captured remote shell', () => {
+    const result = resolveSshCommand('general', makeGeneralConfig(), undefined, zshProfile);
 
-    expect(result.args[0]).toBe('-c');
-    const cmd = result.args[1];
-    expect(cmd).toContain('tmux has-session');
-    expect(cmd).toContain('"ruby-session"');
-    expect(cmd).toContain('rbenv init');
-  });
-
-  it('with command → shell -c with the command instead of interactive shell', () => {
-    const config = makeGeneralConfig({ command: 'npm', args: ['install'] });
-    const result = resolveSpawnParams('general', config);
-
-    expect(result.args[0]).toBe('-c');
-    expect(result.args[1]).toBe('npm install');
-  });
-
-  it('with command and shellSetup → shellSetup prepended to command', () => {
-    const config = makeGeneralConfig({ command: 'npm', args: ['install'], shellSetup: 'nvm use' });
-    const result = resolveSpawnParams('general', config);
-
-    expect(result.args[0]).toBe('-c');
-    expect(result.args[1]).toBe('nvm use && npm install');
-  });
-
-  it('with command and tmuxSessionName → tmux wrapping around the command', () => {
-    const config = makeGeneralConfig({
-      command: 'npm',
-      args: ['install'],
-      tmuxSessionName: 'setup-session',
-    });
-    const result = resolveSpawnParams('general', config);
-
-    expect(result.args[0]).toBe('-c');
-    const cmd = result.args[1];
-    expect(cmd).toContain('tmux has-session');
-    expect(cmd).toContain('"setup-session"');
-    expect(cmd).toContain('npm install');
-  });
-});
-
-describe('buildTmuxParams', () => {
-  it('produces attach-or-create command with has-session, new-session -d, and attach-session', () => {
-    const result = buildTmuxParams(SHELL, 'my-tmux-session', 'claude --resume conv-42', '/tmp');
-
-    expect(result.command).toBe(SHELL);
-    expect(result.cwd).toBe('/tmp');
-    expect(result.args[0]).toBe('-c');
-
-    const cmd = result.args[1];
-    expect(cmd).toContain('tmux has-session -t "my-tmux-session"');
-    expect(cmd).toContain('tmux new-session -d -s "my-tmux-session"');
-    expect(cmd).toContain('tmux attach-session -t "my-tmux-session"');
-    const attachCount = (cmd.match(/tmux attach-session/g) ?? []).length;
-    expect(attachCount).toBe(2);
-  });
-
-  it('JSON-encodes the session name and command', () => {
-    const result = buildTmuxParams(SHELL, 'session with spaces', 'echo hello', '/home/user');
-
-    const cmd = result.args[1];
-    expect(cmd).toContain('"session with spaces"');
-    expect(cmd).toContain('"echo hello"');
-  });
-
-  it('uses the provided cwd', () => {
-    const result = buildTmuxParams(SHELL, 'sess', 'cmd', '/custom/path');
-    expect(result.cwd).toBe('/custom/path');
+    expect(result).toBe(
+      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd "/workspace" && exec /bin/zsh -il'`
+    );
   });
 });

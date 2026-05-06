@@ -7,7 +7,7 @@ type EmptyProps = Record<string, never>;
 export type FocusView = 'home' | 'project' | 'task' | 'settings' | 'skills' | 'mcp';
 export type FocusMainPanel = 'agents' | 'editor' | 'diff';
 export type FocusRightPanel = 'changes' | 'terminals' | 'files';
-export type FocusedRegion = 'main' | 'right';
+export type FocusedRegion = 'main' | 'right' | 'bottom';
 
 export type FocusTrigger = 'navigation' | 'panel_switch' | 'region_switch';
 

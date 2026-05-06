@@ -1,4 +1,4 @@
-import { ChevronsUpDownIcon, PlusIcon } from 'lucide-react';
+import { ChevronsUpDownIcon, PencilIcon, PlusIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { appState } from '@renderer/lib/stores/app-state';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -8,12 +8,14 @@ interface SshConnectionSelectorProps {
   connectionId?: string;
   onConnectionIdChange: (connectionId: string) => void;
   onAddConnection: () => void;
+  onEditConnection?: (connectionId: string) => void;
 }
 
 export const SshConnectionSelector = observer(function SshConnectionSelector({
   connectionId,
   onConnectionIdChange,
   onAddConnection,
+  onEditConnection,
 }: SshConnectionSelectorProps) {
   const { connections } = appState.sshConnections;
 
@@ -28,19 +30,31 @@ export const SshConnectionSelector = observer(function SshConnectionSelector({
     ? (options.find((o) => o.value === connectionId) ?? null)
     : null;
 
+  const actions = [
+    {
+      id: 'add',
+      label: 'Add Connection',
+      icon: <PlusIcon className="size-4" />,
+      onClick: onAddConnection,
+    },
+    ...(connectionId && onEditConnection
+      ? [
+          {
+            id: 'edit',
+            label: 'Edit Connection',
+            icon: <PencilIcon className="size-4" />,
+            onClick: () => onEditConnection(connectionId),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <ComboboxPopover
       items={options}
       value={selectedOption}
       onValueChange={(conn) => onConnectionIdChange(conn.value)}
-      actions={[
-        {
-          id: 'add',
-          label: 'Add Connection',
-          icon: <PlusIcon className="size-4" />,
-          onClick: onAddConnection,
-        },
-      ]}
+      actions={actions}
       trigger={
         <ComboboxTrigger
           render={

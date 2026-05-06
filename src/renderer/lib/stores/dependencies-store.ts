@@ -1,22 +1,25 @@
-import { action, computed, makeObservable, runInAction } from 'mobx';
-import {
-  dependencyStatusUpdatedChannel,
-  type DependencyStatePayload,
-} from '@shared/events/appEvents';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import type {
+  DependencyId,
+  DependencyInstallResult,
+  DependencyState,
+  DependencyStatusMap,
+  DependencyStatusUpdatedEvent,
+} from '@shared/dependencies';
+import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { events, rpc } from '../../lib/ipc';
 import { Resource } from './resource';
 
-export type DependencyState = DependencyStatePayload;
-
-type StatusMap = Record<string, DependencyState>;
-
 export class DependenciesStore {
-  readonly local: Resource<StatusMap, { id: string; state: DependencyState }>;
+  readonly local: Resource<DependencyStatusMap, DependencyStatusUpdatedEvent>;
 
-  private readonly _remoteStores = new Map<string, Resource<StatusMap>>();
+  private readonly _remoteStores = new Map<string, Resource<DependencyStatusMap>>();
+  private readonly _installingDependencyKeys = observable.set<string>();
+  private readonly _inFlightInstalls = new Map<string, Promise<DependencyInstallResult>>();
 
   constructor() {
-    makeObservable(this, {
+    makeObservable<this, '_installingDependencyKeys'>(this, {
+      _installingDependencyKeys: observable,
       allStatuses: computed,
       agentStatuses: computed,
       localInstalledAgents: computed,
@@ -24,14 +27,19 @@ export class DependenciesStore {
       probeAll: action,
     });
 
-    this.local = new Resource<StatusMap, { id: string; state: DependencyState }>(async () => {
+    this.local = new Resource<DependencyStatusMap, DependencyStatusUpdatedEvent>(async () => {
       const result = await rpc.dependencies.getAll();
-      return (result ?? {}) as StatusMap;
+      return (result ?? {}) as DependencyStatusMap;
     }, [
       {
         kind: 'event',
         subscribe: (handler) => events.on(dependencyStatusUpdatedChannel, handler),
-        onEvent: ({ id, state }, ctx) => {
+        onEvent: ({ id, state, connectionId }, ctx) => {
+          if (connectionId) {
+            const remote = this.getRemote(connectionId);
+            remote.setValue({ ...(remote.data ?? {}), [id]: state as DependencyState });
+            return;
+          }
           ctx.set({ ...(ctx.data ?? {}), [id]: state as DependencyState });
         },
       },
@@ -42,11 +50,11 @@ export class DependenciesStore {
   // Computed
   // ---------------------------------------------------------------------------
 
-  get allStatuses(): StatusMap {
+  get allStatuses(): DependencyStatusMap {
     return this.local.data ?? {};
   }
 
-  get agentStatuses(): StatusMap {
+  get agentStatuses(): DependencyStatusMap {
     return Object.fromEntries(
       Object.entries(this.allStatuses).filter(([, s]) => s.category === 'agent')
     );
@@ -67,14 +75,13 @@ export class DependenciesStore {
    * The resource probes all agent-category dependencies over SSH then fetches
    * the results. It loads on first observer attachment.
    */
-  getRemote(connectionId: string): Resource<StatusMap> {
+  getRemote(connectionId: string): Resource<DependencyStatusMap> {
     let store = this._remoteStores.get(connectionId);
     if (!store) {
-      store = new Resource<StatusMap>(async () => {
-        await rpc.dependencies.probeCategory('agent', connectionId);
-        const all = await rpc.dependencies.getAll(connectionId);
-        return (all ?? {}) as StatusMap;
-      }, [{ kind: 'demand' }]);
+      store = new Resource<DependencyStatusMap>(
+        () => this.loadAgentStatuses(connectionId),
+        [{ kind: 'demand' }]
+      );
       this._remoteStores.set(connectionId, store);
     }
     return store;
@@ -96,19 +103,55 @@ export class DependenciesStore {
   // Actions
   // ---------------------------------------------------------------------------
 
-  async install(id: string): Promise<DependencyState> {
-    const updated = (await rpc.dependencies.install(
-      id as Parameters<typeof rpc.dependencies.install>[0]
-    )) as DependencyState;
+  isInstalling(id: DependencyId, connectionId?: string): boolean {
+    return this._installingDependencyKeys.has(this.installKey(id, connectionId));
+  }
+
+  async install(id: DependencyId, connectionId?: string): Promise<DependencyInstallResult> {
+    const key = this.installKey(id, connectionId);
+    const existing = this._inFlightInstalls.get(key);
+    if (existing) return existing;
+
+    const install = this.runInstall(id, connectionId, key);
+    this._inFlightInstalls.set(key, install);
+    return install;
+  }
+
+  private async runInstall(
+    id: DependencyId,
+    connectionId: string | undefined,
+    key: string
+  ): Promise<DependencyInstallResult> {
     runInAction(() => {
-      this.local.setValue({ ...this.allStatuses, [id]: updated });
+      this._installingDependencyKeys.add(key);
     });
-    return updated;
+
+    try {
+      const result = (await rpc.dependencies.install(id, connectionId)) as DependencyInstallResult;
+      if (!result.success) return result;
+
+      await this.refreshAgents(connectionId);
+      return result;
+    } finally {
+      this._inFlightInstalls.delete(key);
+      runInAction(() => {
+        this._installingDependencyKeys.delete(key);
+      });
+    }
   }
 
   async probeAll(): Promise<void> {
     await rpc.dependencies.probeAll();
     this.local.invalidate();
+  }
+
+  async refreshAgents(connectionId?: string): Promise<void> {
+    const statuses = await this.loadAgentStatuses(connectionId);
+    if (connectionId) {
+      this.getRemote(connectionId).setValue(statuses);
+      return;
+    }
+    this.local.setValue(statuses);
   }
 
   // ---------------------------------------------------------------------------
@@ -127,5 +170,15 @@ export class DependenciesStore {
       store.dispose();
     }
     this._remoteStores.clear();
+  }
+
+  private installKey(id: DependencyId, connectionId?: string): string {
+    return `${connectionId ?? 'local'}:${id}`;
+  }
+
+  private async loadAgentStatuses(connectionId?: string): Promise<DependencyStatusMap> {
+    await rpc.dependencies.probeCategory('agent', connectionId);
+    const all = await rpc.dependencies.getAll(connectionId);
+    return (all ?? {}) as DependencyStatusMap;
   }
 }

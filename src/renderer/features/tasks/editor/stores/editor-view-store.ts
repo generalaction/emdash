@@ -1,10 +1,10 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { HEAD_REF } from '@shared/git';
 import type { EditorViewSnapshot } from '@shared/view-state';
-import { FileRendererData } from '@renderer/features/tasks/types';
+import { type FileRendererData } from '@renderer/features/tasks/types';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { getDefaultRenderer } from '@renderer/lib/editor/renderer-utils';
-import { EditorTab } from '@renderer/lib/editor/types';
+import { type EditorTab } from '@renderer/lib/editor/types';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';

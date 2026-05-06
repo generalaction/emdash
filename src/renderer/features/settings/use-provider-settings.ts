@@ -21,16 +21,16 @@ export function useProviderSettings(providerId: string) {
   const updateMutation = useMutation<void, Error, Partial<ProviderCustomConfig>>({
     mutationFn: (config) => rpc.providerSettings.updateItem(providerId, config) as Promise<void>,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['providerSettings', providerId, 'meta'] });
-      queryClient.invalidateQueries({ queryKey: ['providerSettings', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['providerSettings', providerId, 'meta'] });
+      void queryClient.invalidateQueries({ queryKey: ['providerSettings', 'all'] });
     },
   });
 
   const resetMutation = useMutation<void, Error, void>({
     mutationFn: () => rpc.providerSettings.resetItem(providerId) as Promise<void>,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['providerSettings', providerId, 'meta'] });
-      queryClient.invalidateQueries({ queryKey: ['providerSettings', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['providerSettings', providerId, 'meta'] });
+      void queryClient.invalidateQueries({ queryKey: ['providerSettings', 'all'] });
     },
   });
 

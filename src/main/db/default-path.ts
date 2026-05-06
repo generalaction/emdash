@@ -1,13 +1,14 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { PRODUCT_NAME } from '@shared/app-identity';
 
-export const CURRENT_DB_FILENAME = 'emdash3.db';
+export const PREVIOUS_DB_FILENAME = 'emdash3.db';
+export const CURRENT_DB_FILENAME = 'emdash4.db';
+const USER_DATA_DIR_NAME = 'emdash';
 
 /**
- * Returns the platform-specific default userData directory for Emdash without
- * requiring the Electron `app` module. Matches what `app.getPath('userData')`
- * returns in a packaged build (productName = "Emdash").
+ * Returns the platform-specific default userData directory without requiring
+ * the Electron `app` module. This is pinned to the shared `emdash` directory
+ * regardless of product identity.
  *
  * Pass this result as `userDataPath` to `resolveDatabasePath()` when running
  * outside of Electron (e.g. drizzle-kit CLI).
@@ -17,16 +18,16 @@ export function resolveDefaultUserDataPath(): string {
   const platform = process.platform;
 
   if (platform === 'darwin') {
-    return join(home, 'Library', 'Application Support', PRODUCT_NAME);
+    return join(home, 'Library', 'Application Support', USER_DATA_DIR_NAME);
   }
 
   if (platform === 'win32') {
     const appData = process.env.APPDATA ?? join(home, 'AppData', 'Roaming');
-    return join(appData, PRODUCT_NAME);
+    return join(appData, USER_DATA_DIR_NAME);
   }
 
   const xdgConfig = process.env.XDG_CONFIG_HOME ?? join(home, '.config');
-  return join(xdgConfig, PRODUCT_NAME);
+  return join(xdgConfig, USER_DATA_DIR_NAME);
 }
 
 /**

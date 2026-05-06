@@ -57,6 +57,13 @@ const expectedIssue = {
   labels: [{ name: 'bug', color: 'fc2929' }],
 };
 
+const repository = {
+  owner: 'owner',
+  repo: 'repo',
+  nameWithOwner: 'owner/repo',
+  repositoryUrl: 'https://github.com/owner/repo',
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -67,7 +74,7 @@ describe('GitHubIssueServiceImpl', () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [restIssue] });
       mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
 
-      const result = await issueService.listIssues('owner/repo', 30);
+      const result = await issueService.listIssues(repository, 30);
 
       expect(listForRepo).toHaveBeenCalledWith({
         owner: 'owner',
@@ -85,7 +92,7 @@ describe('GitHubIssueServiceImpl', () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [restIssue, pr] });
       mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
 
-      const result = await issueService.listIssues('owner/repo');
+      const result = await issueService.listIssues(repository);
 
       expect(result).toHaveLength(1);
       expect(result[0].number).toBe(1);
@@ -95,18 +102,18 @@ describe('GitHubIssueServiceImpl', () => {
       const listForRepo = vi.fn().mockRejectedValue(new Error('Network error'));
       mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
 
-      expect(await issueService.listIssues('owner/repo')).toEqual([]);
+      expect(await issueService.listIssues(repository)).toEqual([]);
     });
 
     it('clamps limit to 1-100', async () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [] });
       mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
 
-      await issueService.listIssues('owner/repo', 0);
+      await issueService.listIssues(repository, 0);
       expect(listForRepo).toHaveBeenCalledWith(expect.objectContaining({ per_page: 1 }));
 
       listForRepo.mockClear();
-      await issueService.listIssues('owner/repo', 999);
+      await issueService.listIssues(repository, 999);
       expect(listForRepo).toHaveBeenCalledWith(expect.objectContaining({ per_page: 100 }));
     });
   });
@@ -116,7 +123,7 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesAndPullRequests = vi.fn().mockResolvedValue({ data: { items: [restIssue] } });
       mockGetOctokit.mockResolvedValue(makeOctokit({ issuesAndPullRequests }));
 
-      const result = await issueService.searchIssues('owner/repo', 'bug fix', 15);
+      const result = await issueService.searchIssues(repository, 'bug fix', 15);
 
       expect(issuesAndPullRequests).toHaveBeenCalledWith({
         q: 'bug fix repo:owner/repo is:issue is:open',
@@ -131,8 +138,8 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesAndPullRequests = vi.fn();
       mockGetOctokit.mockResolvedValue(makeOctokit({ issuesAndPullRequests }));
 
-      expect(await issueService.searchIssues('owner/repo', '   ')).toEqual([]);
-      expect(await issueService.searchIssues('owner/repo', '')).toEqual([]);
+      expect(await issueService.searchIssues(repository, '   ')).toEqual([]);
+      expect(await issueService.searchIssues(repository, '')).toEqual([]);
       expect(issuesAndPullRequests).not.toHaveBeenCalled();
     });
 
@@ -140,7 +147,7 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesAndPullRequests = vi.fn().mockRejectedValue(new Error('API error'));
       mockGetOctokit.mockResolvedValue(makeOctokit({ issuesAndPullRequests }));
 
-      expect(await issueService.searchIssues('owner/repo', 'query')).toEqual([]);
+      expect(await issueService.searchIssues(repository, 'query')).toEqual([]);
     });
   });
 
@@ -149,7 +156,7 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesGet = vi.fn().mockResolvedValue({ data: { ...restIssue, body: 'Issue body' } });
       mockGetOctokit.mockResolvedValue(makeOctokit({ issuesGet }));
 
-      const result = await issueService.getIssue('owner/repo', 42);
+      const result = await issueService.getIssue(repository, 42);
 
       expect(issuesGet).toHaveBeenCalledWith({
         owner: 'owner',
@@ -163,7 +170,7 @@ describe('GitHubIssueServiceImpl', () => {
       const issuesGet = vi.fn().mockRejectedValue(new Error('Not found'));
       mockGetOctokit.mockResolvedValue(makeOctokit({ issuesGet }));
 
-      expect(await issueService.getIssue('owner/repo', 99)).toBeNull();
+      expect(await issueService.getIssue(repository, 99)).toBeNull();
     });
   });
 });

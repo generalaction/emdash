@@ -6,6 +6,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ActionCard } from './components/action-card';
+import { CommitCard } from './components/commit-card';
 import { SectionHeader } from './components/section-header';
 import { VirtualizedChangesList } from './components/virtualized-changes-list';
 import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
@@ -19,6 +20,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
 
   const changes = git.unstagedFileChanges;
   const hasChanges = changes.length > 0;
+  const hasStagedChanges = git.stagedFileChanges.length > 0;
   const selectedPaths = changesView.unstagedSelection;
   const selectionState = changesView.unstagedSelectionState;
 
@@ -38,16 +40,16 @@ export const UnstagedSection = observer(function UnstagedSection() {
 
   const handleDiscardSelection = () => {
     const paths = [...selectedPaths];
-    const remaining = changes.length - paths.length;
     showConfirmActionModal({
       title: 'Discard Files Changes',
       variant: 'destructive',
       description:
         'Are you sure you want to discard the changes to the selected files? This can not be undone.',
-      onSuccess: async () => {
-        await git.discardFiles(paths);
-        changesView.clearUnstagedSelection();
-        changesView.setExpanded((prev) => ({ ...prev, unstaged: remaining > 0 }));
+      onSuccess: () => {
+        void (async () => {
+          await git.discardFiles(paths);
+          changesView.clearUnstagedSelection();
+        })();
       },
     });
   };
@@ -57,24 +59,18 @@ export const UnstagedSection = observer(function UnstagedSection() {
       title: 'Discard All Changes',
       variant: 'destructive',
       description: 'Are you sure you want to discard all changes? This can not be undone.',
-      onSuccess: async () => {
-        await git.discardAllFiles();
-        changesView.setExpanded((prev) => ({ ...prev, unstaged: false }));
-      },
+      onSuccess: () => void git.discardAllFiles(),
     });
   };
 
   const handleStageSelection = () => {
     const paths = [...selectedPaths];
-    const remaining = changes.length - paths.length;
     void git.stageFiles(paths);
     changesView.clearUnstagedSelection();
-    changesView.setExpanded({ unstaged: remaining > 0, staged: true, pullRequests: false });
   };
 
   const handleStageAll = () => {
     void git.stageAllFiles();
-    changesView.setExpanded({ unstaged: false, staged: true, pullRequests: false });
   };
 
   return (
@@ -155,6 +151,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
             onPrefetch={(change) => prefetch(change.path)}
           />
         </div>
+        {hasChanges && !hasStagedChanges && <CommitCard autoStage />}
       </div>
     </>
   );

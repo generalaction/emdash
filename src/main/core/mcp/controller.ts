@@ -1,8 +1,8 @@
 import { AGENT_PROVIDERS } from '@shared/agent-provider-registry';
+import type { DependencyId } from '@shared/dependencies';
 import { createRPCController } from '@shared/ipc/rpc';
 import type { McpProvidersResponse, McpServer } from '@shared/mcp/types';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
-import type { DependencyId } from '@main/core/dependencies/types';
 import { log } from '@main/lib/logger';
 import { mcpService } from './services/McpService';
 import { agentSupportsHttp, getAllMcpAgentIds } from './utils/config-paths';

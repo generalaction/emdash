@@ -8,11 +8,6 @@ export function requireProjectPath(projectPath?: string): string | null {
   return trimmed ? trimmed : null;
 }
 
-export function requireNameWithOwner(nameWithOwner?: string): string | null {
-  const trimmed = nameWithOwner?.trim();
-  return trimmed ? trimmed : null;
-}
-
 export function normalizeSearchTerm(searchTerm: string): string {
   return String(searchTerm || '').trim();
 }

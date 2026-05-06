@@ -1,0 +1,40 @@
+name: Upload to R2
+description: Upload release artifacts to Cloudflare R2
+
+inputs:
+  r2-account-id:
+    required: true
+    description: Cloudflare R2 account ID
+  r2-access-key-id:
+    required: true
+    description: Cloudflare R2 access key ID
+  r2-secret-access-key:
+    required: true
+    description: Cloudflare R2 secret access key
+  r2-bucket:
+    required: true
+    description: Cloudflare R2 bucket
+  channel:
+    description: Override update channel for manifest discovery (default uses stable channel)
+    required: false
+    default: ''
+  prefix:
+    description: Override artifact prefix for installer discovery (default uses stable prefix)
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Upload to R2
+      shell: bash
+      env:
+        R2_ACCOUNT_ID: ${{ inputs.r2-account-id }}
+        R2_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
+        R2_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
+        R2_BUCKET: ${{ inputs.r2-bucket }}
+      run: |
+        ARGS=""
+        if [ -n "${{ inputs.channel }}" ]; then ARGS="$ARGS --channel ${{ inputs.channel }}"; fi
+        if [ -n "${{ inputs.prefix }}" ]; then ARGS="$ARGS --prefix ${{ inputs.prefix }}"; fi
+        node --experimental-strip-types scripts/release/upload-r2.ts $ARGS

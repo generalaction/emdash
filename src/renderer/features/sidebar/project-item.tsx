@@ -1,4 +1,5 @@
 import {
+  CableIcon,
   ChevronRight,
   FolderClosed,
   FolderInput,
@@ -6,12 +7,13 @@ import {
   Plus,
   RotateCcw,
   Trash2,
+  TriangleAlert,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
 import {
   isUnregisteredProject,
-  UnregisteredProject,
+  type UnregisteredProject,
 } from '@renderer/features/projects/stores/project';
 import {
   getProjectManagerStore,
@@ -19,6 +21,7 @@ import {
   getRepositoryStore,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
+import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import {
   useNavigate,
   useParams,
@@ -55,6 +58,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const { params: taskParams } = useParams('task');
   const showCreateTaskModal = useShowModal('taskModal');
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
+  const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
 
   const project = getProjectStore(projectId);
 
@@ -89,14 +93,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     : null;
   const canReconnect = sshConnectionState !== 'connected';
   const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
-  const isReconnecting =
-    sshConnectionState === 'connecting' || sshConnectionState === 'reconnecting';
-  const sshStateDotClass =
-    sshConnectionState === 'connected'
-      ? 'bg-emerald-500'
-      : isReconnecting
-        ? 'bg-blue-500'
-        : 'bg-red-500';
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
@@ -154,14 +150,20 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               {isSshProject ? (
                 <span className="min-w-0 flex items-center gap-2">
                   <span className="truncate">{project.name}</span>
-                  <span
-                    className={cn('h-1.5 w-1.5 shrink-0 rounded-full', sshStateDotClass)}
-                    aria-label={`SSH connection ${sshConnectionState ?? 'disconnected'}`}
-                    title={`SSH connection ${sshConnectionState ?? 'disconnected'}`}
-                  />
+                  <ConnectionStatusDot state={sshConnectionState} />
                 </span>
               ) : (
-                project.name
+                <span className="min-w-0 flex items-center gap-1.5">
+                  <span className="truncate">{project.name}</span>
+                  {projectViewKind(project) === 'path_not_found' && (
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-foreground-destructive" />
+                      </TooltipTrigger>
+                      <TooltipContent>Project not found at path</TooltipContent>
+                    </Tooltip>
+                  )}
+                </span>
               )}
             </span>
           </div>
@@ -190,6 +192,17 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <RotateCcw className="size-4" />
               Reconnect
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => {
+                showChangeConnectionModal({
+                  projectId,
+                  currentConnectionId: sshConnectionId,
+                });
+              }}
+            >
+              <CableIcon className="size-4" />
+              Change SSH Connection
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>

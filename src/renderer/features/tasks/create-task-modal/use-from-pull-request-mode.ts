@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Branch } from '@shared/git';
+import { type Branch } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
@@ -31,11 +31,11 @@ export function useFromPullRequestMode(
   const shouldGenerate = autoGenerateName && linkedPR !== null;
 
   const { data: generatedName, isPending: isGenerating } = useQuery({
-    queryKey: ['generateTaskName', linkedPR?.title ?? null, linkedPR?.metadata.body ?? null],
+    queryKey: ['generateTaskName', linkedPR?.title ?? null, linkedPR?.description ?? null],
     queryFn: () =>
       rpc.tasks.generateTaskName({
         title: linkedPR!.title,
-        description: linkedPR!.metadata.body ?? undefined,
+        description: linkedPR!.description ?? undefined,
       }),
     enabled: shouldGenerate,
     refetchOnWindowFocus: false,

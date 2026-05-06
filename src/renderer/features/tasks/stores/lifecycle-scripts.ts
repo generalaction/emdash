@@ -1,9 +1,10 @@
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createScriptTerminalId } from '@shared/terminals';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
-import { TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
 import {
   addTabId,
   setNextTabActive,
@@ -24,14 +25,33 @@ export type LifecycleScriptData = {
 export class LifecycleScriptStore {
   data: LifecycleScriptData;
   session: PtySession;
+  isRunning = false;
+  private offPtyExit: (() => void) | null = null;
 
   constructor(data: LifecycleScriptData, projectId: string, workspaceId: string) {
     this.data = data;
     this.session = new PtySession(makePtySessionId(projectId, workspaceId, data.id));
-    makeObservable(this, { data: observable, session: observable });
+    this.offPtyExit = events.on(ptyExitChannel, () => this.markExited(), this.session.sessionId);
+    makeObservable(this, {
+      data: observable,
+      session: observable,
+      isRunning: observable,
+      markRunning: action,
+      markExited: action,
+    });
+  }
+
+  markRunning(): void {
+    this.isRunning = true;
+  }
+
+  markExited(): void {
+    this.isRunning = false;
   }
 
   dispose() {
+    this.offPtyExit?.();
+    this.offPtyExit = null;
     this.session.dispose();
   }
 }

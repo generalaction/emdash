@@ -8,4 +8,6 @@ export const viewStateService = {
   get: (key: string): Promise<unknown> => viewStateKV.get(key),
 
   del: (key: string): Promise<void> => viewStateKV.del(key),
+
+  reset: (): Promise<void> => viewStateKV.clear(),
 };

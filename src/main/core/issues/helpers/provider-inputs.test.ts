@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  clampIssueLimit,
-  normalizeSearchTerm,
-  requireNameWithOwner,
-  requireProjectPath,
-} from './provider-inputs';
+import { clampIssueLimit, normalizeSearchTerm, requireProjectPath } from './provider-inputs';
 
 describe('clampIssueLimit', () => {
   it('uses fallback and clamps bounds', () => {
@@ -18,13 +13,6 @@ describe('requireProjectPath', () => {
   it('returns trimmed project path', () => {
     expect(requireProjectPath('  /tmp/repo  ')).toBe('/tmp/repo');
     expect(requireProjectPath('')).toBeNull();
-  });
-});
-
-describe('requireNameWithOwner', () => {
-  it('returns trimmed repository name', () => {
-    expect(requireNameWithOwner('  owner/repo  ')).toBe('owner/repo');
-    expect(requireNameWithOwner('')).toBeNull();
   });
 });
 

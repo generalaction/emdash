@@ -1,4 +1,4 @@
-import { AGENT_PROVIDER_IDS, AgentProviderId } from '@shared/agent-provider-registry';
+import { AGENT_PROVIDER_IDS, type AgentProviderId } from '@shared/agent-provider-registry';
 
 type ResolveConversationProviderSelectionParams = {
   defaultProviderId: AgentProviderId;

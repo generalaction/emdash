@@ -1,14 +1,21 @@
 import { Settings2, Sparkles } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useMemo, useState } from 'react';
-import { AGENT_PROVIDERS } from '@shared/agent-provider-registry';
-import { CliAgentStatus } from '@renderer/features/settings/components/connections';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  AGENT_PROVIDERS,
+  isValidProviderId,
+  type AgentProviderId,
+} from '@shared/agent-provider-registry';
+import type { DependencyState } from '@shared/dependencies';
+import { type CliAgentStatus } from '@renderer/features/settings/components/connections';
 import CustomCommandModal from '@renderer/features/settings/components/CustomCommandModal';
 import IntegrationRow from '@renderer/features/settings/components/IntegrationRow';
+import { getAgentInstallErrorMessage } from '@renderer/lib/components/agent-selector/agent-install';
+import { AgentInstallButton } from '@renderer/lib/components/agent-selector/agent-install-button';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
-import { type DependencyState } from '@renderer/lib/stores/dependencies-store';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
 
@@ -46,8 +53,15 @@ function mapDependencyStatesToCli(
 const ICON_BUTTON =
   'rounded-md p-1.5 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
-const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => void) => {
+type AgentRowActions = {
+  isInstalling: (id: AgentProviderId) => boolean;
+  onInstallClick: (agent: CliAgentStatus) => void;
+  onSettingsClick: (id: string) => void;
+};
+
+const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
   const logo = agentMeta[agent.id as keyof typeof agentMeta]?.icon;
+  const providerId = isValidProviderId(agent.id) ? agent.id : null;
 
   const handleNameClick = agent.docUrl
     ? async () => {
@@ -91,7 +105,7 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
               <TooltipTrigger>
                 <button
                   type="button"
-                  onClick={() => onSettingsClick(agent.id)}
+                  onClick={() => actions.onSettingsClick(agent.id)}
                   className={ICON_BUTTON}
                   aria-label={`${agent.name} execution settings`}
                 >
@@ -103,6 +117,15 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+        ) : providerId ? (
+          <AgentInstallButton
+            agentId={providerId}
+            canInstall={!!agent.installCommand}
+            isInstalled={isDetected}
+            isInstalling={actions.isInstalling(providerId)}
+            tooltipSide="top"
+            onInstall={() => actions.onInstallClick(agent)}
+          />
         ) : null
       }
     />
@@ -111,6 +134,7 @@ const renderAgentRow = (agent: CliAgentStatus, onSettingsClick: (id: string) => 
 
 export const CliAgentsList: React.FC = observer(() => {
   const [customModalAgentId, setCustomModalAgentId] = useState<string | null>(null);
+  const { toast } = useToast();
   const agentStatuses = appState.dependencies.agentStatuses;
 
   const sortedAgents = useMemo(() => {
@@ -121,10 +145,46 @@ export const CliAgentsList: React.FC = observer(() => {
     });
   }, [agentStatuses]);
 
+  const handleInstall = useCallback(
+    async (agent: CliAgentStatus) => {
+      if (!isValidProviderId(agent.id) || appState.dependencies.isInstalling(agent.id)) {
+        return;
+      }
+
+      const result = await appState.dependencies.install(agent.id);
+
+      if (result.success) {
+        toast({
+          title: 'Agent installed',
+          description: `${agent.name} is ready.`,
+        });
+        return;
+      }
+
+      toast({
+        title: 'Install failed',
+        description: getAgentInstallErrorMessage(result.error),
+        variant: 'destructive',
+      });
+    },
+    [toast]
+  );
+
+  const rowActions = useMemo<AgentRowActions>(
+    () => ({
+      isInstalling: (id) => appState.dependencies.isInstalling(id),
+      onInstallClick: (agent) => {
+        void handleInstall(agent);
+      },
+      onSettingsClick: setCustomModalAgentId,
+    }),
+    [handleInstall]
+  );
+
   return (
     <div className="space-y-3">
       <div className="space-y-2">
-        {sortedAgents.map((agent) => renderAgentRow(agent, setCustomModalAgentId))}
+        {sortedAgents.map((agent) => renderAgentRow(agent, rowActions))}
       </div>
 
       <CustomCommandModal

@@ -64,10 +64,14 @@ function startProbe(url: string, onClosed: () => void): () => void {
         return;
       }
     }
-    timer = setTimeout(tick, PROBE_INTERVAL_MS);
+    timer = setTimeout(() => {
+      void tick();
+    }, PROBE_INTERVAL_MS);
   };
 
-  timer = setTimeout(tick, 0);
+  timer = setTimeout(() => {
+    void tick();
+  }, 0);
 
   return () => {
     stopped = true;

@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { InlinePrSelector } from '../components/inline-pr-selector';
 import { SelectedPrCard } from './selected-pr-card';
-import { FromPullRequestModeState } from './use-from-pull-request-mode';
+import { type FromPullRequestModeState } from './use-from-pull-request-mode';
 
 interface PrPickerFieldProps {
   state: FromPullRequestModeState;
   projectId?: string;
-  nameWithOwner?: string;
+  repositoryUrl?: string;
   disabled?: boolean;
 }
 
-export function PrPickerField({ state, projectId, nameWithOwner, disabled }: PrPickerFieldProps) {
+export function PrPickerField({ state, projectId, repositoryUrl, disabled }: PrPickerFieldProps) {
   const [isSelecting, setIsSelecting] = useState(!state.linkedPR);
 
   const handleValueChange = (pr: Parameters<typeof state.setLinkedPR>[0]) => {
@@ -29,7 +29,7 @@ export function PrPickerField({ state, projectId, nameWithOwner, disabled }: PrP
         value={state.linkedPR}
         onValueChange={handleValueChange}
         projectId={projectId}
-        nameWithOwner={nameWithOwner}
+        repositoryUrl={repositoryUrl}
         disabled={disabled}
       />
     );

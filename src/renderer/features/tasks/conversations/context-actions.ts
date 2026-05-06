@@ -3,14 +3,11 @@ import { ISSUE_PROVIDER_META } from '@renderer/features/integrations/issue-provi
 
 const MAX_LABEL_TITLE_LENGTH = 24;
 
-export type ContextActionBehavior = 'inject' | 'send';
-
-export type ContextActionKind = 'linked-issue' | 'review-prompt';
+export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'review-prompt';
 
 export interface ContextAction {
   id: string;
   kind: ContextActionKind;
-  behavior: ContextActionBehavior;
   label: string;
   text: string;
   provider?: Issue['provider'];
@@ -62,7 +59,6 @@ export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | nu
   return {
     id: `linked-issue:${issue.provider}:${normalizedIdentifier}`,
     kind: 'linked-issue',
-    behavior: 'inject',
     label: issueLabel(issue),
     text: issueInjectionText(issue),
     provider: issue.provider,
@@ -75,20 +71,37 @@ export function buildReviewPromptContextAction(reviewPrompt?: string): ContextAc
   return {
     id: 'review-prompt',
     kind: 'review-prompt',
-    behavior: 'send',
     label: 'Review prompt',
+    text,
+  };
+}
+
+export function buildDraftCommentsContextAction(args: {
+  count: number;
+  formattedComments?: string;
+}): ContextAction | null {
+  const text = (args.formattedComments ?? '').trim();
+  if (!text || args.count <= 0) return null;
+
+  return {
+    id: 'draft-comments',
+    kind: 'draft-comments',
+    label: `Comments (${args.count})`,
     text,
   };
 }
 
 export function buildTaskContextActions(
   linkedIssue?: Issue,
-  reviewPrompt?: string
+  reviewPrompt?: string,
+  draftComments?: { count: number; formattedComments?: string }
 ): ContextAction[] {
   const linkedIssueAction = buildLinkedIssueContextAction(linkedIssue);
+  const draftCommentsAction = draftComments ? buildDraftCommentsContextAction(draftComments) : null;
   const reviewPromptAction = buildReviewPromptContextAction(reviewPrompt);
   const actions: ContextAction[] = [];
   if (linkedIssueAction) actions.push(linkedIssueAction);
+  if (draftCommentsAction) actions.push(draftCommentsAction);
   if (reviewPromptAction) actions.push(reviewPromptAction);
   return actions;
 }

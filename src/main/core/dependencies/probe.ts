@@ -1,4 +1,4 @@
-import type { ExecFn } from '@main/core/utils/exec';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProbeResult } from './types';
 
 const WHICH_TIMEOUT_MS = 5_000;
@@ -12,9 +12,12 @@ const RESOLVE_CMD = process.platform === 'win32' ? 'where' : 'which';
  * Uses `where` on Windows and `which` on macOS/Linux.
  * Returns `null` if the command is not found or the resolution fails.
  */
-export async function resolveCommandPath(command: string, exec: ExecFn): Promise<string | null> {
+export async function resolveCommandPath(
+  command: string,
+  ctx: IExecutionContext
+): Promise<string | null> {
   try {
-    const { stdout } = await exec(RESOLVE_CMD, [command], { timeout: WHICH_TIMEOUT_MS });
+    const { stdout } = await ctx.exec(RESOLVE_CMD, [command], { timeout: WHICH_TIMEOUT_MS });
     const firstLine = stdout.trim().split('\n')[0]?.trim();
     return firstLine ?? null;
   } catch {
@@ -30,12 +33,12 @@ export async function runVersionProbe(
   command: string,
   resolvedPath: string | null,
   args: string[],
-  exec: ExecFn,
+  ctx: IExecutionContext,
   timeoutMs: number = VERSION_PROBE_TIMEOUT_MS
 ): Promise<ProbeResult> {
   const bin = resolvedPath ?? command;
   try {
-    const { stdout, stderr } = await exec(bin, args, { timeout: timeoutMs });
+    const { stdout, stderr } = await ctx.exec(bin, args, { timeout: timeoutMs });
     return { command, path: resolvedPath, stdout, stderr, exitCode: 0, timedOut: false };
   } catch (err: unknown) {
     const e = err as { stdout?: string; stderr?: string; code?: number; killed?: boolean };

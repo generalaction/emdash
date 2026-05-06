@@ -65,7 +65,7 @@ export class UpdateStore {
   }
 
   start(): void {
-    rpc.app.getAppVersion().then((v) => {
+    void rpc.app.getAppVersion().then((v) => {
       runInAction(() => {
         this.currentVersion = v;
       });

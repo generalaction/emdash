@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
-import { ViewDefinition } from '@renderer/app/view-registry';
+import { type ViewDefinition } from '@renderer/app/view-registry';
 import {
   getTaskManagerStore,
   getTaskStore,

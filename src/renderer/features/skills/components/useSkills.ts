@@ -63,7 +63,7 @@ export function useSkills() {
         title: 'Skill installed',
         description: `${skillId} is now available across your agents`,
       });
-      queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
     },
   });
 
@@ -96,7 +96,7 @@ export function useSkills() {
       captureTelemetry('skill_uninstalled');
 
       toast({ title: 'Skill removed', description: 'Skill has been uninstalled' });
-      queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
     },
   });
 

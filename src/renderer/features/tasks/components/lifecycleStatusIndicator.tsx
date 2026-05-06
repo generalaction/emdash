@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TaskLifecycleStatus } from '@shared/tasks';
+import { type TaskLifecycleStatus } from '@shared/tasks';
 import {
   Combobox,
   ComboboxCollection,

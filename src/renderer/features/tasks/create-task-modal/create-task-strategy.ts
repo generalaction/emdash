@@ -24,6 +24,8 @@ export function resolvePullRequestTaskStrategy(input: {
   checkoutMode: 'checkout' | 'new-branch';
   prNumber: number;
   headBranch: string;
+  headRepositoryUrl: string;
+  isFork: boolean;
   taskBranch: string;
   pushBranch: boolean;
 }): PullRequestTaskStrategy {
@@ -32,6 +34,8 @@ export function resolvePullRequestTaskStrategy(input: {
       kind: 'from-pull-request',
       prNumber: input.prNumber,
       headBranch: input.headBranch,
+      headRepositoryUrl: input.headRepositoryUrl,
+      isFork: input.isFork,
     };
   }
 
@@ -39,6 +43,8 @@ export function resolvePullRequestTaskStrategy(input: {
     kind: 'from-pull-request',
     prNumber: input.prNumber,
     headBranch: input.headBranch,
+    headRepositoryUrl: input.headRepositoryUrl,
+    isFork: input.isFork,
     taskBranch: input.taskBranch,
     pushBranch: input.pushBranch,
   };

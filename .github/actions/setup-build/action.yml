@@ -1,0 +1,64 @@
+name: Setup build environment
+description: Install toolchain, deps, and write production env
+
+inputs:
+  posthog-key:
+    description: PostHog project API key
+    required: false
+    default: ''
+  posthog-host:
+    description: PostHog host
+    required: false
+    default: ''
+  build-variant:
+    description: Build variant to embed (canary | prod)
+    required: false
+    default: 'prod'
+  windows-native:
+    description: Set to true on Windows to pass MSVC/gyp flags to pnpm install
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10.28.2
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+        cache: pnpm
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Python build tools
+      shell: bash
+      run: python -m pip install --upgrade pip setuptools wheel
+
+    - name: Install dependencies (Windows)
+      if: inputs.windows-native == 'true'
+      shell: bash
+      env:
+        npm_config_msvs_version: '2022'
+        GYP_MSVS_VERSION: '2022'
+      run: pnpm install --frozen-lockfile
+
+    - name: Install dependencies
+      if: inputs.windows-native != 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Write production env
+      shell: bash
+      env:
+        PH_KEY: ${{ inputs.posthog-key }}
+        PH_HOST: ${{ inputs.posthog-host }}
+        BUILD_VARIANT: ${{ inputs.build-variant }}
+      run: |
+        echo "VITE_POSTHOG_KEY=$PH_KEY" >> .env.production
+        echo "VITE_POSTHOG_HOST=$PH_HOST" >> .env.production
+        echo "VITE_BUILD=$BUILD_VARIANT" >> .env.production

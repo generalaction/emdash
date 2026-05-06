@@ -1,11 +1,9 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { LayoutList, Play, Terminal } from 'lucide-react';
+import { Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
-import { makePtySessionId } from '@shared/ptySessionId';
+import { useMemo, useState } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { TabbedPtyPanel } from '@renderer/features/tasks/tabbed-pty-panel';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import {
   getEffectiveHotkey,
@@ -13,26 +11,18 @@ import {
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { rpc } from '@renderer/lib/ipc';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { PtySession } from '@renderer/lib/pty/pty-session';
-import { TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
+import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
-import { cn } from '@renderer/utils/utils';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
-import {
-  getTerminalsPaneSize,
-  nextTerminalName,
-  ScriptsTabs,
-  TerminalsTabs,
-} from './terminal-tabs';
+import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
+import { TerminalPtyContent } from './terminal-pty-content';
+import { getTerminalsPaneSize, nextTerminalName } from './terminal-tabs';
 
-type PanelMode = 'terminals' | 'scripts';
-
-type AnyPtyEntity = { data: { id: string }; session: PtySession };
+type ActiveItem = { kind: 'terminal'; id: string } | { kind: 'script'; id: string };
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -41,20 +31,55 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const terminalTabView = provisionedTask.taskView.terminalTabs;
   const lifecycleScriptsMgr = provisionedTask.workspace.lifecycleScripts ?? null;
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const { isRightOpen } = useWorkspaceLayoutContext();
   const isActive = useIsActiveTask(taskId);
   const mountedProject = asMounted(getProjectStore(projectId));
   const remoteConnectionId =
     mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
   const [isPanelFocused, setIsPanelFocused] = useState(false);
-  const [mode, setMode] = useState<PanelMode>('terminals');
   const newTerminalHotkey = getEffectiveHotkey('newTerminal', keyboard);
 
-  const autoFocus = isActive && isRightOpen && provisionedTask.taskView.focusedRegion === 'right';
+  const autoFocus =
+    isActive &&
+    provisionedTask.taskView.isTerminalDrawerOpen &&
+    provisionedTask.taskView.focusedRegion === 'bottom';
+
+  // Unified active item — spans both terminals and scripts sections.
+  const [activeItem, setActiveItem] = useState<ActiveItem>(() => {
+    if (terminalTabView.activeTabId) {
+      return { kind: 'terminal', id: terminalTabView.activeTabId };
+    }
+    const firstScript = lifecycleScriptsMgr?.tabs[0];
+    if (firstScript) {
+      return { kind: 'script', id: firstScript.data.id };
+    }
+    return { kind: 'terminal', id: '' };
+  });
+
+  // Always derive the active terminal id from the MobX-authoritative store so that
+  // auto-selection (e.g. after removal) is reflected without stale local state.
+  const activeTerminalId =
+    activeItem.kind === 'terminal' ? (terminalTabView.activeTabId ?? activeItem.id) : undefined;
+
+  const activeSession =
+    activeItem.kind === 'terminal'
+      ? (terminalTabView.tabs.find((t) => t.data.id === activeTerminalId)?.session ?? null)
+      : (lifecycleScriptsMgr?.tabs.find((s) => s.data.id === activeItem.id)?.session ?? null);
+
+  const allSessionIds = useMemo(
+    () => [
+      ...terminalTabView.tabs.map((t) => t.session.sessionId),
+      ...(lifecycleScriptsMgr?.tabs ?? []).map((s) => s.session.sessionId),
+    ],
+    [terminalTabView.tabs, lifecycleScriptsMgr?.tabs]
+  );
+
+  const activeStore =
+    activeItem.kind === 'terminal' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
+  useTabShortcuts(activeStore, { focused: isPanelFocused });
 
   const handleCreate = async () => {
     if (!terminalMgr) return;
-    provisionedTask.taskView.setFocusedRegion('right');
+    provisionedTask.taskView.setFocusedRegion('bottom');
     const id = crypto.randomUUID();
     const name = nextTerminalName((terminalTabView.tabs ?? []).map((s) => s.data.name));
     try {
@@ -66,148 +91,120 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         initialSize: getTerminalsPaneSize(),
       });
       terminalTabView.setActiveTab(id);
+      setActiveItem({ kind: 'terminal', id });
     } catch (error) {
       log.error('Failed to create terminal:', error);
     }
   };
 
   const handleRunScript = () => {
-    const activeScript = lifecycleScriptsMgr?.activeTab;
+    const activeScript =
+      activeItem.kind === 'script'
+        ? lifecycleScriptsMgr?.tabs.find((s) => s.data.id === activeItem.id)
+        : null;
     if (!activeScript) return;
-    void rpc.terminals.runLifecycleScript({
-      projectId,
-      workspaceId: provisionedTask.workspaceId,
-      type: activeScript.data.type,
-    });
+    activeScript.markRunning();
+    void rpc.terminals
+      .runLifecycleScript({
+        projectId,
+        workspaceId: provisionedTask.workspaceId,
+        type: activeScript.data.type,
+      })
+      .catch(() => {
+        activeScript.markExited();
+      });
   };
 
-  const activeStore = mode === 'terminals' ? terminalTabView : lifecycleScriptsMgr;
-  useTabShortcuts(activeStore ?? undefined, { focused: isPanelFocused });
+  const handleStopScript = () => {
+    const activeScript =
+      activeItem.kind === 'script'
+        ? lifecycleScriptsMgr?.tabs.find((s) => s.data.id === activeItem.id)
+        : null;
+    if (!activeScript) return;
+    void rpc.pty.sendInput(activeScript.session.sessionId, '\x03');
+  };
+
   useHotkey(getHotkeyRegistration('newTerminal', keyboard), () => void handleCreate(), {
-    enabled: mode === 'terminals' && newTerminalHotkey !== null,
+    enabled: activeItem.kind === 'terminal' && newTerminalHotkey !== null,
   });
 
-  const runScriptButton = (
-    <Tooltip>
-      <TooltipTrigger>
-        <button
-          className="size-10 justify-center items-center flex border-l hover:bg-background text-foreground-muted hover:text-foreground"
-          onClick={handleRunScript}
+  const emptyState = (
+    <EmptyState
+      icon={<Terminal className="h-5 w-5 text-muted-foreground" />}
+      label="No terminals yet"
+      description="Add a terminal to run shell commands in this task's working directory."
+      action={
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleCreate}
+          className="flex items-center gap-2"
         >
-          <Play className="size-4" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>Run script</TooltipContent>
-    </Tooltip>
+          New terminal
+          <ShortcutHint settingsKey="newTerminal" />
+        </Button>
+      }
+    />
   );
 
-  const toggleButton = lifecycleScriptsMgr ? (
-    <div className="flex items-center border-l">
-      <Tooltip>
-        <TooltipTrigger>
-          <button
-            className={cn(
-              'size-10 flex items-center justify-center',
-              mode === 'terminals'
-                ? 'text-foreground bg-background-2'
-                : 'text-foreground-muted hover:text-foreground'
-            )}
-            onClick={() => setMode('terminals')}
-          >
-            <Terminal className="size-3.5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>Terminals</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger>
-          <button
-            className={cn(
-              'size-10 flex items-center justify-center',
-              mode === 'scripts'
-                ? 'text-foreground bg-background-2'
-                : 'text-foreground-muted hover:text-foreground'
-            )}
-            onClick={() => setMode('scripts')}
-          >
-            <LayoutList className="size-3.5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>Lifecycle Scripts</TooltipContent>
-      </Tooltip>
-    </div>
-  ) : null;
-
-  const store = (mode === 'terminals' ? terminalTabView : lifecycleScriptsMgr) as
-    | TabViewProvider<AnyPtyEntity, never>
-    | undefined;
-
-  const tabBar =
-    mode === 'terminals' ? (
-      <TerminalsTabs
-        projectId={projectId}
-        taskId={taskId}
-        terminalTabView={terminalTabView}
-        terminalMgr={terminalMgr}
-        actions={toggleButton}
-      />
-    ) : (
-      <ScriptsTabs
-        lifecycleScriptsMgr={lifecycleScriptsMgr}
-        actions={
-          <div className="flex items-center">
-            {lifecycleScriptsMgr?.tabs.length ? runScriptButton : null}
-            {toggleButton}
-          </div>
-        }
-      />
-    );
-
-  const emptyState =
-    mode === 'terminals' ? (
-      <EmptyState
-        icon={<Terminal className="h-5 w-5 text-muted-foreground" />}
-        label="No terminals yet"
-        description="Add a terminal to run shell commands in this task's working directory."
-        action={
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleCreate}
-            className="flex items-center gap-2"
-          >
-            New terminal
-            <ShortcutHint settingsKey="newTerminal" />
-          </Button>
-        }
-      />
-    ) : (
-      <EmptyState
-        icon={<LayoutList className="h-5 w-5 text-muted-foreground" />}
-        label="No lifecycle scripts"
-        description="Add setup or run scripts to .emdash.json to see them here."
-        action={
-          <Button size="sm" variant="outline" onClick={() => setMode('terminals')}>
-            Back to terminals
-          </Button>
-        }
-      />
-    );
-
   return (
-    <TabbedPtyPanel
-      autoFocus={autoFocus}
-      onFocusChange={(focused) => {
-        setIsPanelFocused(focused);
-        if (focused) provisionedTask.taskView.setFocusedRegion('right');
+    <ResizablePanelGroup
+      orientation="horizontal"
+      id="terminal-drawer-inner"
+      className="h-full"
+      onFocus={() => {
+        setIsPanelFocused(true);
+        provisionedTask.taskView.setFocusedRegion('bottom');
       }}
-      store={store}
-      paneId={mode === 'terminals' ? 'terminals' : 'lifecycle-scripts'}
-      getSessionId={(s) => makePtySessionId(projectId, taskId, s.data.id)}
-      getSession={(s) => s.session}
-      remoteConnectionId={remoteConnectionId}
-      tabBar={tabBar}
-      emptyState={emptyState}
-    />
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsPanelFocused(false);
+        }
+      }}
+    >
+      <ResizablePanel id="terminal-drawer-pty" minSize="30%">
+        <TerminalPtyContent
+          className="h-full"
+          activeSession={activeSession}
+          allSessionIds={allSessionIds}
+          paneId="terminal-drawer"
+          autoFocus={autoFocus}
+          emptyState={emptyState}
+          remoteConnectionId={remoteConnectionId}
+        />
+      </ResizablePanel>
+      <ResizableHandle
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          panelDragStore.setDragging(true);
+        }}
+        className="hover:bg-background-2 bg-transparent"
+        onPointerUp={() => panelDragStore.setDragging(false)}
+        onPointerCancel={() => panelDragStore.setDragging(false)}
+      />
+      <ResizablePanel id="terminal-drawer-sidebar" defaultSize="25%" minSize="150px" maxSize="50%">
+        <TerminalDrawerSidebar
+          className="h-full"
+          projectId={projectId}
+          lifecycleScriptsMgr={lifecycleScriptsMgr}
+          activeScriptId={activeItem.kind === 'script' ? activeItem.id : undefined}
+          onSelectScript={(id) => {
+            lifecycleScriptsMgr?.setActiveTab(id);
+            setActiveItem({ kind: 'script', id });
+          }}
+          onRunScript={handleRunScript}
+          onStopScript={handleStopScript}
+          terminalTabView={terminalTabView}
+          activeTerminalId={activeTerminalId}
+          onSelectTerminal={(id) => {
+            terminalTabView.setActiveTab(id);
+            setActiveItem({ kind: 'terminal', id });
+          }}
+          onAddTerminal={() => void handleCreate()}
+          onRemoveTerminal={(id) => terminalTabView.removeTab(id)}
+          onRenameTerminal={(id, name) => void terminalMgr?.renameTerminal(id, name)}
+        />
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 });

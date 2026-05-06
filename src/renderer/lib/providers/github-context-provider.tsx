@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   githubAuthErrorChannel,
   githubAuthSuccessChannel,
@@ -67,6 +67,18 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const needsGhAuth = isInitialized && !authenticated;
 
+  const prevAuthenticatedRef = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (!isInitialized) return;
+    if (prevAuthenticatedRef.current === authenticated) return;
+    prevAuthenticatedRef.current = authenticated;
+    log.info('[GithubContext] auth state changed', {
+      authenticated,
+      user: user?.login ?? null,
+      tokenSource,
+    });
+  }, [authenticated, isInitialized, tokenSource, user]);
+
   const loginMutation = useMutation({
     mutationFn: () => rpc.github.auth(),
   });
@@ -97,6 +109,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const handleDeviceFlowSuccess = useCallback(
     async (flowUser: GitHubUser) => {
+      log.info('[GithubContext] auth success via device flow', { user: flowUser?.login });
       void checkStatus();
       setTimeout(() => void checkStatus(), 500);
       void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
@@ -122,12 +135,19 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
   // Subscribe to GitHub auth IPC events from the main process
   useEffect(() => {
     const cleanupSuccess = events.on(githubAuthSuccessChannel, (data) => {
+      log.info('[GithubContext] received githubAuthSuccessChannel event', {
+        user: data.user?.login,
+      });
       void handleDeviceFlowSuccess(data.user);
     });
     const cleanupError = events.on(githubAuthErrorChannel, (data) => {
+      log.info('[GithubContext] received githubAuthErrorChannel event', {
+        message: data.message || data.error,
+      });
       handleDeviceFlowError(data.message || data.error);
     });
     const cleanupUserUpdated = events.on(githubAuthUserUpdatedChannel, () => {
+      log.info('[GithubContext] received githubAuthUserUpdatedChannel event');
       void checkStatus();
     });
 
@@ -201,7 +221,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     const flowLabel = githubStatusMessage ? 'OAuth flow' : 'Device flow';
     setGithubLoading(false);
     setGithubStatusMessage(undefined);
-    rpc.github.authCancel();
+    void rpc.github.authCancel();
     toast({
       title: 'GitHub connection unsuccessful',
       description: `${flowLabel} was canceled`,

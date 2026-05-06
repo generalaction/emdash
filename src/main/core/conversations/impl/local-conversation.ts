@@ -1,7 +1,6 @@
 import { homedir } from 'node:os';
 import { getProvider } from '@shared/agent-provider-registry';
-import type { AgentSessionConfig } from '@shared/agent-session';
-import { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -10,19 +9,21 @@ import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
-import { Pty } from '@main/core/pty/pty';
+import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { resolveSpawnParams } from '@main/core/pty/spawn-utils';
+import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import type { ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
+import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -37,7 +38,7 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly taskId: string;
   private readonly tmux: boolean;
   private readonly shellSetup?: string;
-  private readonly exec: ExecFn;
+  private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
   private readonly hookConfigWriter: HookConfigWriter;
   private readonly preparedHookProviders = new Map<string, boolean>();
@@ -48,7 +49,7 @@ export class LocalConversationProvider implements ConversationProvider {
     taskId,
     tmux = false,
     shellSetup,
-    exec,
+    ctx,
     taskEnvVars = {},
   }: {
     projectId: string;
@@ -56,7 +57,7 @@ export class LocalConversationProvider implements ConversationProvider {
     taskId: string;
     tmux?: boolean;
     shellSetup?: string;
-    exec: ExecFn;
+    ctx: IExecutionContext;
     taskEnvVars?: Record<string, string>;
   }) {
     this.projectId = projectId;
@@ -64,9 +65,9 @@ export class LocalConversationProvider implements ConversationProvider {
     this.taskId = taskId;
     this.tmux = tmux;
     this.shellSetup = shellSetup;
-    this.exec = exec;
+    this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
-    this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), exec);
+    this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), ctx);
   }
 
   async startSession(
@@ -90,42 +91,48 @@ export class LocalConversationProvider implements ConversationProvider {
     });
     await this.prepareHookConfig(conversation.providerId);
 
-    const { command, args } = await buildAgentCommand({
+    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const { command, args } = buildAgentCommand({
       providerId: conversation.providerId,
+      providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
       isResuming,
       initialPrompt,
     });
+    const providerEnv = resolveProviderEnv(providerConfig);
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
-    const cfg: AgentSessionConfig = {
-      taskId: this.taskId,
-      conversationId: conversation.id,
-      providerId: conversation.providerId,
-      command,
-      args,
-      cwd: this.taskPath,
-      shellSetup: this.shellSetup,
-      tmuxSessionName,
-      autoApprove: conversation.autoApprove ?? false,
-      resume: isResuming,
-    };
+    const resolved = resolveLocalPtySpawn({
+      platform: process.platform,
+      env: process.env,
+      intent: {
+        kind: 'run-command',
+        cwd: this.taskPath,
+        command: { kind: 'argv', command, args },
+        shellSetup: this.shellSetup,
+        tmuxSessionName,
+      },
+    });
 
-    const spawnParams = resolveSpawnParams('agent', cfg);
+    logLocalPtySpawnWarnings('LocalConversationProvider', resolved.warnings, {
+      conversationId: conversation.id,
+      sessionId,
+    });
 
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
     const pty = spawnLocalPty({
       id: sessionId,
-      command: spawnParams.command,
-      args: spawnParams.args,
-      cwd: this.taskPath,
+      command: resolved.command,
+      args: resolved.args,
+      cwd: resolved.cwd,
       env: {
         ...buildAgentEnv({
           hook: port > 0 ? { port, ptyId, token } : undefined,
+          providerVars: providerEnv,
         }),
         ...this.taskEnvVars,
       },
@@ -151,7 +158,7 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      capture('agent_run_finished', {
+      telemetryService.capture('agent_run_finished', {
         provider: conversation.providerId,
         exit_code: typeof exitCode === 'number' ? exitCode : -1,
         project_id: conversation.projectId,
@@ -193,7 +200,7 @@ export class LocalConversationProvider implements ConversationProvider {
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
-    capture('agent_run_started', {
+    telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,
       task_id: conversation.taskId,
@@ -238,7 +245,7 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     if (this.tmux) {
-      await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
+      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
   }
 
@@ -246,9 +253,7 @@ export class LocalConversationProvider implements ConversationProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(
-        sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
-      );
+      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
     }
     this.knownSessionIds.clear();
   }

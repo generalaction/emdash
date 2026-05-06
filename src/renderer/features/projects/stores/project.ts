@@ -3,6 +3,7 @@ import type { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { TaskManagerStore } from '@renderer/features/tasks/stores/task-manager';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
+import { PrSyncStore } from './pr-sync-store';
 import { ProjectSettingsStore } from './project-settings-store';
 import { ProjectViewStore } from './project-view';
 import { RepositoryStore } from './repository-store';
@@ -26,6 +27,7 @@ export class MountedProject {
   readonly view: ProjectViewStore;
   readonly settings: ProjectSettingsStore;
   readonly repository: RepositoryStore;
+  readonly prSync: PrSyncStore;
   readonly data: LocalProject | SshProject;
 
   private _snapshotDisposer: (() => void) | null = null;
@@ -42,7 +44,8 @@ export class MountedProject {
     this.view = new ProjectViewStore();
     this.settings = new ProjectSettingsStore(data.id);
     this.repository = new RepositoryStore(data.id, this.settings, data.baseRef);
-    this.taskManager = new TaskManagerStore(data.id, this.repository);
+    this.prSync = new PrSyncStore(data.id);
+    this.taskManager = new TaskManagerStore(data.id, this.repository, this.settings, data.baseRef);
 
     if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
 
@@ -51,6 +54,7 @@ export class MountedProject {
       view: false,
       settings: false,
       repository: false,
+      prSync: false,
     });
 
     this._snapshotDisposer = snapshotRegistry.register(`project:${data.id}`, () => this.snapshot);
@@ -58,6 +62,7 @@ export class MountedProject {
 
   dispose(): void {
     this.repository.dispose();
+    this.prSync.dispose();
     this.settings.dispose();
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
@@ -76,6 +81,7 @@ export class ProjectStore {
   data: LocalProject | SshProject | null;
   phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
   error: string | undefined = undefined;
+  errorCode: 'path-not-found' | 'ssh-disconnected' | undefined = undefined;
   mode: ProjectMode | null;
   mountedProject: MountedProject | null = null;
 
@@ -104,6 +110,7 @@ export class ProjectStore {
     this.state = 'mounted';
     this.phase = null;
     this.error = undefined;
+    this.errorCode = undefined;
   }
 
   transitionToUnmounted(
@@ -118,6 +125,7 @@ export class ProjectStore {
     this.state = 'unmounted';
     this.phase = phase;
     this.error = undefined;
+    this.errorCode = undefined;
   }
 
   transitionToUnregistered(
@@ -152,6 +160,7 @@ export type UnmountedProject = ProjectStore & {
   data: LocalProject | SshProject;
   phase: UnmountedProjectPhase;
   error: string | undefined;
+  errorCode: 'path-not-found' | 'ssh-disconnected' | undefined;
 };
 
 export function isUnregisteredProject(p: ProjectStore): p is UnregisteredProject {

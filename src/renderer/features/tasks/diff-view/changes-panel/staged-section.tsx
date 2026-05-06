@@ -21,8 +21,6 @@ export const StagedSection = observer(function StagedSection() {
   const hasChanges = changes.length > 0;
   const selectedPaths = changesView.stagedSelection;
   const selectionState = changesView.stagedSelectionState;
-  const hasPRs = changesView.expandedSections.pullRequests;
-
   const activePath =
     provisioned.taskView.view === 'diff' && diffView.activeFile?.group === 'staged'
       ? diffView.activeFile.path
@@ -37,19 +35,12 @@ export const StagedSection = observer(function StagedSection() {
 
   const handleUnstageSelection = () => {
     const paths = [...selectedPaths];
-    const remaining = changes.length - paths.length;
     void git.unstageFiles(paths);
     changesView.clearStagedSelection();
-    changesView.setExpanded({
-      unstaged: true,
-      staged: remaining > 0,
-      pullRequests: hasPRs,
-    });
   };
 
   const handleUnstageAll = () => {
     void git.unstageAllFiles();
-    changesView.setExpanded({ unstaged: true, staged: false, pullRequests: hasPRs });
   };
 
   return (

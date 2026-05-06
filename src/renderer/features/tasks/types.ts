@@ -1,5 +1,5 @@
 export type MainPanelView = 'agents' | 'editor' | 'diff';
-export type RightPanelView = 'changes' | 'files' | 'terminals';
+export type RightPanelView = 'changes' | 'files';
 
 export type FileRendererData =
   | { kind: 'text' }

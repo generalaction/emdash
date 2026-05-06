@@ -1,5 +1,5 @@
 import { FileQuestion } from 'lucide-react';
-import { ManagedFile } from './types';
+import { type ManagedFile } from './types';
 
 interface BinaryRendererProps {
   file: ManagedFile;

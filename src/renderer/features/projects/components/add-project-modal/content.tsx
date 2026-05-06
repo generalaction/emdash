@@ -8,9 +8,9 @@ import { Label } from '@renderer/lib/ui/label';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 import { Separator } from '@renderer/lib/ui/separator';
 import { Switch } from '@renderer/lib/ui/switch';
-import { Strategy } from './add-project-modal';
+import { type Strategy } from './add-project-modal';
 import { LocalDirectorySelector } from './local-directory-selector';
-import { CloneModeState, NewModeState, PickModeState } from './modes';
+import { type CloneModeState, type NewModeState, type PickModeState } from './modes';
 import { RemoteDirectorySelector } from './remote-directory-selector';
 
 export function PickExistingPanel({

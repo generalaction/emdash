@@ -1,6 +1,6 @@
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
-import { TaskNameState } from './use-task-name';
+import { type TaskNameState } from './use-task-name';
 
 interface TaskNameFieldProps {
   state: TaskNameState;

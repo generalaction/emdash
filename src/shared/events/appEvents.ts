@@ -1,3 +1,4 @@
+import type { DependencyStatusUpdatedEvent } from '@shared/dependencies';
 import { defineEvent } from '@shared/ipc/events';
 
 // App editing actions (renderer → main, no payload)
@@ -57,18 +58,7 @@ export const shellSessionStartedChannel = defineEvent<{
   title: string;
 }>('shell:session-started');
 
-export type DependencyStatePayload = {
-  id: string;
-  category: 'core' | 'agent';
-  status: 'available' | 'missing' | 'error';
-  version: string | null;
-  path: string | null;
-  checkedAt: number;
-  error?: string;
-};
-
 /** Emitted after each dependency probe completes (path resolution or version check). */
-export const dependencyStatusUpdatedChannel = defineEvent<{
-  id: string;
-  state: DependencyStatePayload;
-}>('dependency:status-updated');
+export const dependencyStatusUpdatedChannel = defineEvent<DependencyStatusUpdatedEvent>(
+  'dependency:status-updated'
+);

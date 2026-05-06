@@ -1,5 +1,7 @@
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
 import { KV } from '@main/db/kv';
+import { HookCore, type Hookable } from '@main/lib/hookable';
+import { log } from '@main/lib/logger';
 import { ACCOUNT_CONFIG } from '../config';
 import { providerTokenRegistry } from '../provider-token-registry';
 import { accountCredentialStore } from './credential-store';
@@ -36,11 +38,23 @@ interface AccountKVSchema extends Record<string, unknown> {
   profile: CachedProfile;
 }
 
+type AccountServiceHooks = {
+  accountChanged: (username: string, userId: string, email: string) => void | Promise<void>;
+  accountCleared: () => void | Promise<void>;
+};
+
 const accountKV = new KV<AccountKVSchema>('account');
 
-export class EmdashAccountService {
+export class EmdashAccountService implements Hookable<AccountServiceHooks> {
+  private readonly _hooks = new HookCore<AccountServiceHooks>((name, e) =>
+    log.error(`EmdashAccountService: ${String(name)} hook error`, e)
+  );
   private cachedProfile: CachedProfile | null = null;
   private sessionToken: string | null = null;
+
+  on<K extends keyof AccountServiceHooks>(name: K, handler: AccountServiceHooks[K]) {
+    return this._hooks.on(name, handler);
+  }
 
   async getSession(): Promise<SessionState> {
     this.cachedProfile = await accountKV.get('profile');
@@ -62,7 +76,18 @@ export class EmdashAccountService {
   }
 
   async loadSessionToken(): Promise<void> {
-    this.sessionToken = await accountCredentialStore.get();
+    [this.sessionToken, this.cachedProfile] = await Promise.all([
+      accountCredentialStore.get(),
+      accountKV.get('profile'),
+    ]);
+    if (this.sessionToken && this.cachedProfile?.hasAccount) {
+      this._hooks.callHookBackground(
+        'accountChanged',
+        this.cachedProfile.username,
+        this.cachedProfile.userId,
+        this.cachedProfile.email
+      );
+    }
   }
 
   /**  make provider optional and remove default in case emdash starts supporting more providers */
@@ -110,6 +135,8 @@ export class EmdashAccountService {
       await providerTokenRegistry.dispatch(providerId, accessToken);
     }
 
+    this._hooks.callHookBackground('accountChanged', user.username, user.userId, user.email);
+
     return {
       providerToken: accessToken || undefined,
       provider: providerId || undefined,
@@ -124,6 +151,7 @@ export class EmdashAccountService {
       this.cachedProfile.hasAccount = true;
       await accountKV.set('profile', this.cachedProfile);
     }
+    this._hooks.callHookBackground('accountCleared');
   }
 
   async checkServerHealth(): Promise<boolean> {

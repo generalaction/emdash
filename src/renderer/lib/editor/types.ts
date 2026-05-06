@@ -1,4 +1,4 @@
-import { FileRendererData } from '@renderer/features/tasks/types';
+import { type FileRendererData } from '@renderer/features/tasks/types';
 
 /** All possible states a file can be in once opened by the editor. */
 export type ManagedFileKind = 'text' | 'markdown' | 'svg' | 'image' | 'too-large' | 'binary';

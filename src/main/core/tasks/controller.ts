@@ -1,18 +1,17 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import { archiveTask } from './archiveTask';
-import { createTask } from './createTask';
-import { deleteTask } from './deleteTask';
-import { generateTaskName } from './generateTaskName';
-import { getBootstrapStatus } from './getBootstrapStatus';
-import { getTasks } from './getTasks';
-import { getWorkspaceSettings } from './getWorkspaceSettings';
+import { generateTaskName } from './name-generation/generateTaskName';
+import { archiveTask } from './operations/archiveTask';
+import { createTask } from './operations/createTask';
+import { deleteTask } from './operations/deleteTask';
+import { getTasks } from './operations/getTasks';
+import { getWorkspaceSettings } from './operations/getWorkspaceSettings';
+import { renameTask } from './operations/renameTask';
+import { restoreTask } from './operations/restoreTask';
+import { setTaskPinned } from './operations/setTaskPinned';
+import { teardownTask } from './operations/teardownTask';
+import { updateLinkedIssue } from './operations/updateLinkedIssue';
+import { updateTaskStatus } from './operations/updateTaskStatus';
 import { provisionTask } from './provisionTask';
-import { renameTask } from './renameTask';
-import { restoreTask } from './restoreTask';
-import { setTaskPinned } from './setTaskPinned';
-import { teardownTask } from './teardownTask';
-import { updateLinkedIssue } from './updateLinkedIssue';
-import { updateTaskStatus } from './updateTaskStatus';
 
 export const taskController = createRPCController({
   createTask,
@@ -24,7 +23,6 @@ export const taskController = createRPCController({
   renameTask,
   provisionTask,
   teardownTask,
-  getBootstrapStatus,
   getWorkspaceSettings,
   updateLinkedIssue,
   updateTaskStatus,

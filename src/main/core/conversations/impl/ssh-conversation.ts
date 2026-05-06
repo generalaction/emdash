@@ -1,22 +1,24 @@
 import type { AgentSessionConfig } from '@shared/agent-session';
-import { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { Pty } from '@main/core/pty/pty';
+import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import type { ExecFn } from '@main/core/utils/exec';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
+import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -32,7 +34,7 @@ export class SshConversationProvider implements ConversationProvider {
   private readonly taskEnvVars: Record<string, string>;
   private readonly tmux: boolean = false;
   private readonly shellSetup?: string;
-  private readonly exec: ExecFn;
+  private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
 
   constructor({
@@ -42,7 +44,7 @@ export class SshConversationProvider implements ConversationProvider {
     taskEnvVars = {},
     tmux = false,
     shellSetup,
-    exec,
+    ctx,
     proxy,
   }: {
     projectId: string;
@@ -51,7 +53,7 @@ export class SshConversationProvider implements ConversationProvider {
     taskEnvVars?: Record<string, string>;
     tmux?: boolean;
     shellSetup?: string;
-    exec: ExecFn;
+    ctx: IExecutionContext;
     proxy: SshClientProxy;
   }) {
     this.projectId = projectId;
@@ -60,7 +62,7 @@ export class SshConversationProvider implements ConversationProvider {
     this.taskEnvVars = taskEnvVars;
     this.tmux = tmux;
     this.shellSetup = shellSetup;
-    this.exec = exec;
+    this.ctx = ctx;
     this.proxy = proxy;
   }
 
@@ -82,17 +84,20 @@ export class SshConversationProvider implements ConversationProvider {
     await claudeTrustService.maybeAutoTrustSsh({
       providerId: conversation.providerId,
       cwd: this.taskPath,
-      exec: this.exec,
+      ctx: this.ctx,
       remoteFs: new SshFileSystem(this.proxy, '/'),
     });
 
-    const { command, args } = await buildAgentCommand({
+    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const { command, args } = buildAgentCommand({
       providerId: conversation.providerId,
+      providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
       isResuming,
       initialPrompt,
     });
+    const providerEnv = resolveProviderEnv(providerConfig);
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
@@ -109,7 +114,13 @@ export class SshConversationProvider implements ConversationProvider {
       resume: isResuming,
     };
 
-    const sshCommand = resolveSshCommand('agent', cfg, this.taskEnvVars);
+    const profile = await this.proxy.getRemoteShellProfile();
+    const sshCommand = resolveSshCommand(
+      'agent',
+      cfg,
+      { ...providerEnv, ...this.taskEnvVars },
+      profile
+    );
 
     const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,
@@ -141,7 +152,7 @@ export class SshConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      capture('agent_run_finished', {
+      telemetryService.capture('agent_run_finished', {
         provider: conversation.providerId,
         exit_code: typeof exitCode === 'number' ? exitCode : -1,
         project_id: conversation.projectId,
@@ -183,7 +194,7 @@ export class SshConversationProvider implements ConversationProvider {
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
-    capture('agent_run_started', {
+    telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,
       task_id: conversation.taskId,
@@ -205,7 +216,7 @@ export class SshConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     if (this.tmux) {
-      await killTmuxSession(this.exec, makeTmuxSessionName(sessionId));
+      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
   }
 
@@ -213,9 +224,7 @@ export class SshConversationProvider implements ConversationProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(
-        sessionIds.map((id) => killTmuxSession(this.exec, makeTmuxSessionName(id)))
-      );
+      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
     }
     this.knownSessionIds.clear();
   }

@@ -11,7 +11,6 @@ import { githubController } from './core/github/controller';
 import { gitlabController } from './core/gitlab/controller';
 import { issueController } from './core/issues/controller';
 import { jiraController } from './core/jira/controller';
-import { lineCommentsController } from './core/line-comments';
 import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
 import { plainController } from './core/plain/controller';
@@ -19,6 +18,7 @@ import { projectController } from './core/projects/controller';
 import { ptyController } from './core/pty/controller';
 import { pullRequestController } from './core/pull-requests/controller';
 import { repositoryController } from './core/repository/controller';
+import { searchController } from './core/search/controller';
 import { appSettingsController } from './core/settings/controller';
 import { providerSettingsController } from './core/settings/provider-settings-controller';
 import { skillsController } from './core/skills/controller';
@@ -28,9 +28,11 @@ import { telemetryController } from './core/telemetry/controller';
 import { terminalsController } from './core/terminals/controller';
 import { updateController } from './core/updates/controller';
 import { viewStateController } from './core/view-state/controller';
+import { legacyPortController } from './db/legacy-port/controller';
 
 export const rpcRouter = createRPCRouter({
   account: accountController,
+  legacyPort: legacyPortController,
   app: appController,
   appSettings: appSettingsController,
   providerSettings: providerSettingsController,
@@ -45,7 +47,6 @@ export const rpcRouter = createRPCRouter({
   jira: jiraController,
   linear: linearController,
   plain: plainController,
-  lineComments: lineCommentsController,
   skills: skillsController,
   ssh: sshController,
   projects: projectController,
@@ -59,6 +60,7 @@ export const rpcRouter = createRPCRouter({
   telemetry: telemetryController,
   pullRequests: pullRequestController,
   viewState: viewStateController,
+  search: searchController,
 });
 
 export type RpcRouter = typeof rpcRouter;
