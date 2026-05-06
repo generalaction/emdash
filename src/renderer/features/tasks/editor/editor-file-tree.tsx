@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import React, { useRef } from 'react';
 import type { FileNode } from '@shared/fs';
@@ -52,14 +53,16 @@ const FileTreeRow = observer(function FileTreeRow({
   };
 
   const toggleExpand = () => {
-    if (editorView.expandedPaths.has(node.path)) {
-      editorView.expandedPaths.delete(node.path);
-    } else {
-      editorView.expandedPaths.add(node.path);
-      if (!taskState.workspace.files.loadedPaths.has(node.path)) {
-        void taskState.workspace.files.loadDir(node.path);
+    runInAction(() => {
+      if (editorView.expandedPaths.has(node.path)) {
+        editorView.expandedPaths.delete(node.path);
+      } else {
+        editorView.expandedPaths.add(node.path);
+        if (!taskState.workspace.files.loadedPaths.has(node.path)) {
+          void taskState.workspace.files.loadDir(node.path);
+        }
       }
-    }
+    });
   };
 
   return (

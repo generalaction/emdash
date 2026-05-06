@@ -289,7 +289,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   get snapshot(): TabManagerSnapshot {
     return {
       tabs: this.tabs.map((t): TabDescriptor => {
-        if (t.kind === 'conversation') return t;
+        if (t.kind === 'conversation') return { kind: 'conversation', id: t.id, isPreview: t.isPreview };
         return { kind: 'file', tabId: t.tabId, path: t.path, isPreview: t.isPreview };
       }),
       activeTabId: this.activeTabId,

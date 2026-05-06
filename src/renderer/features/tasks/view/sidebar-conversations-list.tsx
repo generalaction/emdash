@@ -27,6 +27,7 @@ const ConversationRow = observer(function ConversationRow({
   isActive,
   isEditing,
   onClick,
+  onDoubleClick,
   onStartEditing,
   onRenameSubmit,
   onRenameCancel,
@@ -36,6 +37,7 @@ const ConversationRow = observer(function ConversationRow({
   isActive: boolean;
   isEditing: boolean;
   onClick: () => void;
+  onDoubleClick: () => void;
   onStartEditing: () => void;
   onRenameSubmit: (newTitle: string) => void;
   onRenameCancel: () => void;
@@ -85,7 +87,7 @@ const ConversationRow = observer(function ConversationRow({
       <ContextMenuTrigger>
         <button
           onClick={onClick}
-          onDoubleClick={onStartEditing}
+          onDoubleClick={onDoubleClick}
           className={cn(
             'flex h-full w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
@@ -205,6 +207,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
                   }
                   isEditing={editingId === conversation.data.id}
                   onClick={() => tabManager.openConversationPreview(conversation.data.id)}
+                  onDoubleClick={() => tabManager.openConversation(conversation.data.id)}
                   onStartEditing={() => setEditingId(conversation.data.id)}
                   onRenameSubmit={(newTitle) => handleRenameSubmit(conversation, newTitle)}
                   onRenameCancel={() => setEditingId(null)}
