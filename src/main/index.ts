@@ -38,7 +38,7 @@ function secretServiceAvailable(): boolean {
       .toString()
       .trim();
 
-    return output === 'true';
+    return output.includes('true');
   } catch {
     return false;
   }
