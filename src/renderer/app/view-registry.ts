@@ -22,6 +22,7 @@ export type ViewDefinition<TParams extends object = Record<never, never>> = {
   TitlebarSlot?: ComponentType;
   MainPanel: ComponentType;
   RightPanel?: ComponentType;
+  dismissToPrevious?: boolean;
 };
 
 type Views = typeof views;

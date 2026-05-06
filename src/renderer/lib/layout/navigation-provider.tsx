@@ -35,7 +35,15 @@ export type ViewParamsStoreContextValue = {
   viewParamsStore: Partial<{ [K in ViewId]: WrapParams<K> }>;
 };
 
+export type DismissCurrentViewContextValue = {
+  canDismissCurrentView: boolean;
+  dismissCurrentView: () => void;
+};
+
 export const WorkspaceNavigateContext = createContext<NavigateFnTyped | undefined>(undefined);
+export const WorkspaceDismissCurrentViewContext = createContext<
+  DismissCurrentViewContextValue | undefined
+>(undefined);
 export const WorkspaceSlotsContext = createContext<SlotsContextValue | undefined>(undefined);
 export const WorkspaceWrapParamsContext = createContext<WrapParamsContextValue | undefined>(
   undefined
@@ -54,6 +62,14 @@ export function useNavigate(): { navigate: NavigateFnTyped } {
     throw new Error('useNavigate must be used within a WorkspaceViewProvider');
   }
   return { navigate };
+}
+
+export function useDismissCurrentView(): DismissCurrentViewContextValue {
+  const context = useContext(WorkspaceDismissCurrentViewContext);
+  if (!context) {
+    throw new Error('useDismissCurrentView must be used within a WorkspaceViewProvider');
+  }
+  return context;
 }
 
 export function useWorkspaceSlots(): SlotsContextValue {

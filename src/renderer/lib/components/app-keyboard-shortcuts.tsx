@@ -8,11 +8,12 @@ import {
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
+  useDismissCurrentView,
   useNavigate,
   useParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { useModalContext } from '@renderer/lib/modal/modal-provider';
 
 /**
  * Mounts global keyboard shortcut handlers for the entire application.
@@ -21,13 +22,14 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
  */
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const showNewProject = useShowModal('addProjectModal');
-  const showCreateTask = useShowModal('taskModal');
+  const { showModal, isModalOpen } = useModalContext();
   const { toggleLeft, toggleRight } = useWorkspaceLayoutContext();
   const { toggleTheme } = useTheme();
   const { navigate } = useNavigate();
+  const { canDismissCurrentView, dismissCurrentView } = useDismissCurrentView();
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const settingsHotkey = getEffectiveHotkey('settings', keyboard);
+  const closeModalHotkey = getEffectiveHotkey('closeModal', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
   const toggleRightSidebarHotkey = getEffectiveHotkey('toggleRightSidebar', keyboard);
   const toggleThemeHotkey = getEffectiveHotkey('toggleTheme', keyboard);
@@ -55,6 +57,18 @@ export function AppKeyboardShortcuts() {
     enabled: settingsHotkey !== null,
   });
 
+  useHotkey(
+    getHotkeyRegistration('closeModal', keyboard),
+    (event) => {
+      event.preventDefault();
+      dismissCurrentView();
+    },
+    {
+      enabled: canDismissCurrentView && !isModalOpen && closeModalHotkey !== null,
+      ignoreInputs: true,
+    }
+  );
+
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,
   });
@@ -69,14 +83,14 @@ export function AppKeyboardShortcuts() {
 
   useHotkey(
     getHotkeyRegistration('newProject', keyboard),
-    () => showNewProject({ strategy: 'local', mode: 'pick' }),
+    () => showModal('addProjectModal', { strategy: 'local', mode: 'pick' }),
     { enabled: newProjectHotkey !== null }
   );
 
   useHotkey(
     getHotkeyRegistration('newTask', keyboard),
     () => {
-      if (currentProjectId) showCreateTask({ projectId: currentProjectId });
+      if (currentProjectId) showModal('taskModal', { projectId: currentProjectId });
     },
     { enabled: !!currentProjectId && newTaskHotkey !== null }
   );

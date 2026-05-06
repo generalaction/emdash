@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type ReactNode,
@@ -21,11 +22,13 @@ import { focusTracker } from '@renderer/utils/focus-tracker';
 import { clearTelemetryTaskScope, setTelemetryTaskScope } from '@renderer/utils/telemetry-scope';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import {
+  WorkspaceDismissCurrentViewContext,
   WorkspaceNavigateContext,
   WorkspaceSlotsContext,
   WorkspaceUpdateViewParamsContext,
   WorkspaceViewParamsStoreContext,
   WorkspaceWrapParamsContext,
+  type DismissCurrentViewContextValue,
   type NavigateFnTyped,
   type SlotsContextValue,
   type UpdateViewParamsFn,
@@ -33,6 +36,10 @@ import {
 } from './navigation-provider';
 
 type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
+
+function isDismissibleView(viewId: ViewId): boolean {
+  return Boolean((views[viewId] as ViewDefinition).dismissToPrevious);
+}
 
 function syncTelemetryScope(currentViewId: ViewId, viewParamsStore: ViewParamsStore): void {
   if (currentViewId !== 'task') {
@@ -79,6 +86,7 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   const [viewParamsStore, setViewParamsStore] = useState<ViewParamsStore>(
     () => appState.navigation.viewParamsStore as ViewParamsStore
   );
+  const dismissTargetViewIdRef = useRef<ViewId>('home');
   const [_, startTransition] = useTransition();
 
   // Sync React state back to the MobX persistence mirror after every commit.
@@ -98,9 +106,16 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
     syncTelemetryScope(currentViewId, viewParamsStore);
   }, [currentViewId, viewParamsStore]);
 
-  const navigate = useCallback(
-    (...args: unknown[]) => {
-      const [viewId, params] = args as [ViewId, Record<string, unknown> | undefined];
+  const navigateTo = useCallback(
+    (viewId: ViewId, params?: Record<string, unknown>) => {
+      if (
+        viewId !== currentViewId &&
+        isDismissibleView(viewId) &&
+        !isDismissibleView(currentViewId)
+      ) {
+        dismissTargetViewIdRef.current = currentViewId;
+      }
+
       if (viewId !== currentViewId) {
         const transition = focusTracker.transition(
           viewId === 'task'
@@ -130,7 +145,20 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
       });
     },
     [closeModal, currentViewId]
+  );
+
+  const navigate = useCallback(
+    (...args: unknown[]) => {
+      const [viewId, params] = args as [ViewId, Record<string, unknown> | undefined];
+      navigateTo(viewId, params);
+    },
+    [navigateTo]
   ) as NavigateFnTyped;
+
+  const dismissCurrentView = useCallback(() => {
+    if (!isDismissibleView(currentViewId)) return;
+    navigateTo(dismissTargetViewIdRef.current);
+  }, [currentViewId, navigateTo]);
 
   const updateViewParams = useCallback(
     <TId extends ViewId>(
@@ -169,18 +197,27 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   );
 
   const viewParamsStoreValue = useMemo(() => ({ viewParamsStore }), [viewParamsStore]);
+  const dismissCurrentViewValue = useMemo(
+    (): DismissCurrentViewContextValue => ({
+      canDismissCurrentView: isDismissibleView(currentViewId),
+      dismissCurrentView,
+    }),
+    [currentViewId, dismissCurrentView]
+  );
 
   return (
     <WorkspaceNavigateContext.Provider value={navigate}>
-      <WorkspaceSlotsContext.Provider value={slotsValue}>
-        <WorkspaceWrapParamsContext.Provider value={wrapParamsValue}>
-          <WorkspaceViewParamsStoreContext.Provider value={viewParamsStoreValue}>
-            <WorkspaceUpdateViewParamsContext.Provider value={updateViewParams}>
-              {children}
-            </WorkspaceUpdateViewParamsContext.Provider>
-          </WorkspaceViewParamsStoreContext.Provider>
-        </WorkspaceWrapParamsContext.Provider>
-      </WorkspaceSlotsContext.Provider>
+      <WorkspaceDismissCurrentViewContext.Provider value={dismissCurrentViewValue}>
+        <WorkspaceSlotsContext.Provider value={slotsValue}>
+          <WorkspaceWrapParamsContext.Provider value={wrapParamsValue}>
+            <WorkspaceViewParamsStoreContext.Provider value={viewParamsStoreValue}>
+              <WorkspaceUpdateViewParamsContext.Provider value={updateViewParams}>
+                {children}
+              </WorkspaceUpdateViewParamsContext.Provider>
+            </WorkspaceViewParamsStoreContext.Provider>
+          </WorkspaceWrapParamsContext.Provider>
+        </WorkspaceSlotsContext.Provider>
+      </WorkspaceDismissCurrentViewContext.Provider>
     </WorkspaceNavigateContext.Provider>
   );
 }

@@ -27,6 +27,7 @@ type ModalContext = {
   closeModal: () => void;
   showModal: <TId extends ModalId>(modal: TId, args: UserArgs<TId>) => void;
   transitionModal: <TId extends ModalId>(modal: TId, args: UserArgs<TId>) => void;
+  isModalOpen: boolean;
   hasActiveCloseGuard: boolean;
   setCloseGuard: (active: boolean) => void;
 };
@@ -78,6 +79,7 @@ export const ModalProvider = observer(function ModalProvider({
         closeModal,
         showModal,
         transitionModal,
+        isModalOpen: modalStore.isOpen,
         hasActiveCloseGuard: modalStore.closeGuardActive,
         setCloseGuard,
       }}
