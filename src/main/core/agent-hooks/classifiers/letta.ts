@@ -28,7 +28,7 @@ export function createLettaClassifier() {
     }
 
     // Auth success (e.g. /connect flow)
-    if (/Successfully authenticated|Connected to|Login successful/i.test(text)) {
+    if (/Successfully authenticated|Successfully connected|Login successful/i.test(text)) {
       return {
         type: 'notification',
         notificationType: 'auth_success',
