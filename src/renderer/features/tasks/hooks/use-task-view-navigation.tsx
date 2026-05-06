@@ -7,6 +7,7 @@ export function useTaskViewNavigation() {
 
   const openAgentsView = useCallback(() => {
     startTransition(() => {
+      // Close diff if open; active tab determines agents vs editor.
       provisionedTask.taskView.setView('agents');
     });
   }, [provisionedTask]);

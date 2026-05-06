@@ -1,51 +1,48 @@
-import { Loader2, Plus, X } from 'lucide-react';
-import { observer, Observer } from 'mobx-react-lite';
-import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
-import { type ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
+import { Loader2, X } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import type {
+  ResolvedConversationTab,
+  ResolvedFileTab,
+} from '@renderer/features/tasks/stores/tab-manager-store';
+import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
-import type { EditorTab } from '@renderer/lib/editor/types';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { useModelStatus } from '@renderer/lib/monaco/use-model';
 import { Separator } from '@renderer/lib/ui/separator';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
-
-type RichEditorTab = EditorTab & { isDirty: boolean; bufferUri: string };
 
 // ---------------------------------------------------------------------------
 // Conversation tab item
 // ---------------------------------------------------------------------------
 
 const ConversationTabItem = observer(function ConversationTabItem({
-  conversation,
-  isActive,
+  tab,
   onSelect,
-  onRemove,
+  onPin,
+  onClose,
 }: {
-  conversation: ConversationStore;
-  isActive: boolean;
+  tab: ResolvedConversationTab;
   onSelect: () => void;
-  onRemove: () => void;
+  onPin: () => void;
+  onClose: () => void;
 }) {
-  const config = agentConfig[conversation.data.providerId];
-  const title = formatConversationTitleForDisplay(
-    conversation.data.providerId,
-    conversation.data.title
-  );
+  const config = agentConfig[tab.store.data.providerId];
+  const title = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
 
   return (
     <>
       <button
         onClick={onSelect}
+        onDoubleClick={onPin}
+        title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm text-foreground-muted hover:bg-background-secondary-1/40',
-          isActive && 'bg-background-secondary-1 text-foreground hover:bg-background-secondary-1'
+          tab.isActive &&
+            'bg-background-secondary-1 text-foreground hover:bg-background-secondary-1'
         )}
       >
         <div className="flex h-full items-center gap-1.5 pl-3 pr-1">
@@ -56,16 +53,16 @@ const ConversationTabItem = observer(function ConversationTabItem({
             invertInDark={config.invertInDark}
             className="size-4 shrink-0"
           />
-          <span className="max-w-24 truncate p-1">{title}</span>
+          <span className={cn('max-w-24 truncate p-1', tab.isPreview && 'italic')}>{title}</span>
           <div className="relative flex size-5 shrink-0 items-center justify-center">
             <span className="transition-opacity group-hover:opacity-0">
-              <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
+              <AgentStatusIndicator status={tab.store.indicatorStatus} disableTooltip />
             </span>
             <button
               className="absolute inset-0 flex items-center justify-center rounded-md text-foreground-muted opacity-0 hover:bg-background-2 group-hover:opacity-100 transition-opacity"
               onClick={(e) => {
                 e.stopPropagation();
-                onRemove();
+                onClose();
               }}
               aria-label={`Close ${title}`}
             >
@@ -85,17 +82,19 @@ const ConversationTabItem = observer(function ConversationTabItem({
 
 const FileTabItem = observer(function FileTabItem({
   tab,
-  isActive,
   onSelect,
   onClose,
 }: {
-  tab: RichEditorTab;
-  isActive: boolean;
+  tab: ResolvedFileTab;
   onSelect: () => void;
   onClose: () => void;
 }) {
   const fileName = tab.path.split('/').pop() ?? 'Untitled';
-  const isMonacoFile = tab.kind === 'text' || tab.kind === 'markdown' || tab.kind === 'svg';
+  const isMonacoFile =
+    tab.path.endsWith('.md') ||
+    tab.path.endsWith('.svg') ||
+    !tab.path.includes('.') ||
+    /\.(ts|tsx|js|jsx|json|css|html|py|go|rs|sh|yml|yaml|toml|txt)$/.test(tab.path);
   const modelStatus = useModelStatus(tab.bufferUri);
   const showSpinner = useDelayedBoolean(isMonacoFile && modelStatus === 'loading', 200);
 
@@ -106,7 +105,7 @@ const FileTabItem = observer(function FileTabItem({
         title={tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
-          isActive && 'bg-background-secondary-1 [box-shadow:inset_0_1px_0_var(--primary)]'
+          tab.isActive && 'bg-background-secondary-1 [box-shadow:inset_0_1px_0_var(--primary)]'
         )}
       >
         <div className="flex h-full items-center gap-1.5 pl-3 pr-2">
@@ -150,86 +149,35 @@ const FileTabItem = observer(function FileTabItem({
 // ---------------------------------------------------------------------------
 
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
-  const { projectId, taskId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { taskView } = provisioned;
-  const conversationTabs = taskView.conversationTabs;
-  const editorView = taskView.editorView;
-  const showCreateConversationModal = useShowModal('createConversationModal');
-  const mountedProject = asMounted(getProjectStore(projectId));
-  const connectionId =
-    mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
+  const { taskView } = useProvisionedTask();
+  const { tabManager } = taskView;
 
-  const conversationTabList = conversationTabs.tabs;
-  const fileTabList = editorView.tabs;
-
-  if (conversationTabList.length === 0 && fileTabList.length === 0) {
-    return (
-      <div className="flex h-[41px] shrink-0 items-center border-b border-border bg-background-secondary px-2">
-        <span className="text-xs text-foreground-passive">No open tabs</span>
-      </div>
-    );
-  }
+  const resolvedTabs = tabManager.resolvedTabs;
 
   return (
     <div className="flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
       <div className="flex h-full overflow-x-auto">
-        {conversationTabList.map((conversation) => (
-          <Observer key={conversation.data.id}>
-            {() => (
+        {resolvedTabs.map((tab) => {
+          if (tab.kind === 'conversation') {
+            return (
               <ConversationTabItem
-                conversation={conversation}
-                isActive={
-                  taskView.view === 'agents' &&
-                  conversationTabs.activeTabId === conversation.data.id
-                }
-                onSelect={() => {
-                  conversationTabs.setActiveTab(conversation.data.id);
-                  taskView.setView('agents');
-                }}
-                onRemove={() => conversationTabs.removeTab(conversation.data.id)}
-              />
-            )}
-          </Observer>
-        ))}
-        {fileTabList.map((tab) => (
-          <Observer key={tab.tabId}>
-            {() => (
-              <FileTabItem
+                key={tab.id}
                 tab={tab}
-                isActive={taskView.view === 'editor' && editorView.activeTabId === tab.tabId}
-                onSelect={() => {
-                  editorView.setActiveTab(tab.tabId);
-                  taskView.setView('editor');
-                }}
-                onClose={() => editorView.removeTab(tab.tabId)}
+                onSelect={() => tabManager.setActiveTab(tab.id)}
+                onPin={() => tabManager.openConversation(tab.id)}
+                onClose={() => tabManager.closeTab(tab.id)}
               />
-            )}
-          </Observer>
-        ))}
-      </div>
-      <div className="shrink-0">
-        <Tooltip>
-          <TooltipTrigger>
-            <button
-              className="flex size-10 items-center justify-center border-l text-foreground-muted hover:bg-background hover:text-foreground"
-              onClick={() =>
-                showCreateConversationModal({
-                  connectionId,
-                  projectId,
-                  taskId,
-                  onSuccess: ({ conversationId }) => {
-                    conversationTabs.setActiveTab(conversationId);
-                    taskView.setView('agents');
-                  },
-                })
-              }
-            >
-              <Plus className="size-4" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>New conversation</TooltipContent>
-        </Tooltip>
+            );
+          }
+          return (
+            <FileTabItem
+              key={tab.tabId}
+              tab={tab}
+              onSelect={() => tabManager.setActiveTab(tab.tabId)}
+              onClose={() => tabManager.closeTab(tab.tabId)}
+            />
+          );
+        })}
       </div>
     </div>
   );

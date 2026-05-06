@@ -108,7 +108,6 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
             : {
                 view: viewId,
                 mainPanel: null,
-                rightPanel: null,
                 focusedRegion: null,
               },
           'navigation'
@@ -156,7 +155,6 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
       >,
       TitlebarSlot: def.TitlebarSlot ?? (() => null),
       MainPanel: def.MainPanel,
-      RightPanel: def.RightPanel ?? null,
       currentView: currentViewId,
     };
   }, [currentViewId]);

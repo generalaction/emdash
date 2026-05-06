@@ -2,7 +2,6 @@ import { LeftSidebar } from '@renderer/features/sidebar/left-sidebar';
 import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import {
-  useViewLayoutOverride,
   useWorkspaceSlots,
   useWorkspaceWrapParams,
 } from '@renderer/lib/layout/navigation-provider';
@@ -32,14 +31,6 @@ export function Workspace() {
 }
 
 function WorkspaceViewContent() {
-  const { TitlebarSlot, MainPanel, RightPanel } = useWorkspaceSlots();
-  const { hideRightPanel } = useViewLayoutOverride();
-  const EffectiveRightPanel = hideRightPanel ? null : RightPanel;
-  return (
-    <WorkspaceContentLayout
-      titlebarSlot={<TitlebarSlot />}
-      mainPanel={<MainPanel />}
-      rightPanel={EffectiveRightPanel ? <EffectiveRightPanel /> : null}
-    />
-  );
+  const { TitlebarSlot, MainPanel } = useWorkspaceSlots();
+  return <WorkspaceContentLayout titlebarSlot={<TitlebarSlot />} mainPanel={<MainPanel />} />;
 }

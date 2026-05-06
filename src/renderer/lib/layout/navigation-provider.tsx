@@ -23,7 +23,6 @@ export type SlotsContextValue = {
   WrapView: ComponentType<{ children: ReactNode } & Record<string, unknown>>;
   TitlebarSlot: ComponentType;
   MainPanel: ComponentType;
-  RightPanel: ComponentType | null;
   currentView: string;
 };
 
@@ -99,14 +98,4 @@ export function useParams<TId extends ViewId>(
 
 export function isCurrentView(currentView: string | null | undefined, target: string): boolean {
   return currentView === target;
-}
-
-export type ViewLayoutOverride = {
-  hideRightPanel?: boolean;
-};
-
-export const ViewLayoutOverrideContext = createContext<ViewLayoutOverride>({});
-
-export function useViewLayoutOverride(): ViewLayoutOverride {
-  return useContext(ViewLayoutOverrideContext);
 }

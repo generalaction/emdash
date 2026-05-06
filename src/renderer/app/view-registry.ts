@@ -21,7 +21,6 @@ export type ViewDefinition<TParams extends object = Record<never, never>> = {
   WrapView?: ComponentType<{ children: ReactNode } & TParams>;
   TitlebarSlot?: ComponentType;
   MainPanel: ComponentType;
-  RightPanel?: ComponentType;
 };
 
 type Views = typeof views;

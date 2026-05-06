@@ -20,26 +20,23 @@ const FileTreeRow = observer(function FileTreeRow({
   const editorView = taskView.editorView;
 
   const isExpanded = editorView.expandedPaths.has(node.path);
-  const isSelected = taskView.view === 'editor' && editorView.activeFilePath === node.path;
+  const isSelected = taskView.view === 'editor' && taskView.tabManager.activeFilePath === node.path;
   const fileStatus = taskState.workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = node.depth * 12 + 4;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (taskView.view !== 'editor') {
-      taskView.setView('editor');
-    }
     if (node.type === 'directory') {
       toggleExpand();
     } else {
-      editorView.openFilePreview(node.path);
+      taskView.tabManager.openFilePreview(node.path);
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.type === 'file') {
-      editorView.openFile(node.path);
+      taskView.tabManager.openFile(node.path);
     }
   };
 
@@ -49,7 +46,7 @@ const FileTreeRow = observer(function FileTreeRow({
       if (node.type === 'directory') {
         toggleExpand();
       } else {
-        editorView.openFilePreview(node.path);
+        taskView.tabManager.openFilePreview(node.path);
       }
     }
   };

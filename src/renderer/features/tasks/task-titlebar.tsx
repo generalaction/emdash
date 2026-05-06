@@ -269,7 +269,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         </div>
       }
       rightSlot={
-        <div className="flex items-center gap-2 mr-2">
+        <div className="flex items-center gap-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
           {!isRemoteProject && (
             <OpenInMenu path={provisionedTask.path} className="h-7  bg-background" />

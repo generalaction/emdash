@@ -14,10 +14,12 @@ const ConversationRow = observer(function ConversationRow({
   conversation,
   isActive,
   onClick,
+  onDoubleClick,
 }: {
   conversation: ConversationStore;
   isActive: boolean;
   onClick: () => void;
+  onDoubleClick: () => void;
 }) {
   const config = agentConfig[conversation.data.providerId];
   const title = formatConversationTitleForDisplay(
@@ -28,6 +30,7 @@ const ConversationRow = observer(function ConversationRow({
   return (
     <button
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-background-1 ${
         isActive ? 'bg-background-2' : ''
       }`}
@@ -53,7 +56,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const { projectId, taskId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const { taskView } = provisioned;
-  const conversationTabs = taskView.conversationTabs;
+  const { tabManager } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
   const conversations = Array.from(provisioned.conversations.conversations.values());
 
@@ -62,8 +65,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {
-        conversationTabs.setActiveTab(conversationId);
-        taskView.setView('agents');
+        tabManager.openConversation(conversationId);
       },
     });
   };
@@ -93,12 +95,11 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
             key={conversation.data.id}
             conversation={conversation}
             isActive={
-              taskView.view === 'agents' && conversationTabs.activeTabId === conversation.data.id
+              taskView.view === 'agents' &&
+              tabManager.activeConversation?.data.id === conversation.data.id
             }
-            onClick={() => {
-              conversationTabs.setActiveTab(conversation.data.id);
-              taskView.setView('agents');
-            }}
+            onClick={() => tabManager.openConversationPreview(conversation.data.id)}
+            onDoubleClick={() => tabManager.openConversation(conversation.data.id)}
           />
         ))}
       </div>

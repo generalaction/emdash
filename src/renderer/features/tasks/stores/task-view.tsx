@@ -1,15 +1,25 @@
-import { makeAutoObservable } from 'mobx';
+import { computed, makeAutoObservable, reaction, runInAction } from 'mobx';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
-import { ConversationTabViewStore } from '@renderer/features/tasks/conversations/conversation-tab-view-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git-store';
 import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
+import { TabManagerStore } from '@renderer/features/tasks/stores/tab-manager-store';
 import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
-import { type MainPanelView, type SidebarTab } from '@renderer/features/tasks/types';
+import { type SidebarTab } from '@renderer/features/tasks/types';
 import { focusTracker } from '@renderer/utils/focus-tracker';
+
+/**
+ * Identifies which content renderer is active in the main panel.
+ * - `'monaco'`      — persistent Monaco editor for plain text / code files
+ * - `'markdown'`    — markdown files (preview or source; MarkdownEditorPanel owns both)
+ * - `'diff'`        — git diff viewer
+ * - `'agents'`      — conversation / PTY view
+ * - `'other-file'`  — image, svg preview, binary, too-large
+ */
+export type RendererKind = 'monaco' | 'markdown' | 'diff' | 'agents' | 'other-file';
 
 interface TaskViewResources {
   conversations: ConversationManagerStore;
@@ -21,33 +31,72 @@ interface TaskViewResources {
 }
 
 export class TaskViewStore {
-  view: MainPanelView;
   sidebarTab: SidebarTab;
   isSidebarCollapsed: boolean;
-  focusedRegion: 'main' | 'right' | 'bottom';
+  focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen: boolean;
-  readonly conversationTabs: ConversationTabViewStore;
+  /** When true, the diff panel is shown regardless of the active tab. */
+  private _diffOpen: boolean;
+
+  readonly tabManager: TabManagerStore;
   readonly terminalTabs: TerminalTabViewStore;
   readonly editorView: EditorViewStore;
   readonly diffView: DiffViewStore;
   private readonly terminalsMgr: TerminalManagerStore;
+  private readonly disposers: (() => void)[] = [];
 
   constructor(resources: TaskViewResources, savedSnapshot?: TaskViewSnapshot) {
-    this.view = (savedSnapshot?.view as MainPanelView) ?? 'agents';
     this.sidebarTab = (savedSnapshot?.sidebarTab as SidebarTab) ?? 'conversations';
-    this.isSidebarCollapsed = savedSnapshot?.isSidebarCollapsed ?? false;
-    this.focusedRegion = savedSnapshot?.focusedRegion ?? 'main';
+    this.isSidebarCollapsed = savedSnapshot?.isSidebarCollapsed ?? true;
+    this.focusedRegion = savedSnapshot?.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot?.isTerminalDrawerOpen ?? false;
+    this._diffOpen = savedSnapshot?.view === 'diff';
     this.terminalsMgr = resources.terminals;
 
-    this.conversationTabs = new ConversationTabViewStore(resources.conversations);
-    this.terminalTabs = new TerminalTabViewStore(resources.terminals);
     this.editorView = new EditorViewStore(resources.projectId, resources.workspaceId);
+    this.tabManager = new TabManagerStore(resources.conversations, resources.workspaceId);
+    this.terminalTabs = new TerminalTabViewStore(resources.terminals);
     this.diffView = new DiffViewStore(resources.git, resources.pr);
 
-    if (savedSnapshot?.conversations) {
-      this.conversationTabs.restoreSnapshot(savedSnapshot.conversations);
+    // Restore tab state — prefer the new tabManager snapshot, fall back to legacy fields.
+    if (savedSnapshot?.tabManager) {
+      this.tabManager.restoreSnapshot(savedSnapshot.tabManager);
+    } else {
+      // Legacy restore: reconstruct from conversations + editor snapshots.
+      if (savedSnapshot?.conversations?.tabOrder) {
+        const descriptors = savedSnapshot.conversations.tabOrder.map((id) => ({
+          kind: 'conversation' as const,
+          id,
+          isPreview: false,
+        }));
+        this.tabManager.restoreSnapshot({
+          tabs: [
+            ...descriptors,
+            ...(savedSnapshot.editor?.tabs?.map((t) => ({
+              kind: 'file' as const,
+              tabId: t.tabId,
+              path: t.path,
+              isPreview: t.isPreview,
+            })) ?? []),
+          ],
+          activeTabId:
+            savedSnapshot.conversations.activeTabId ??
+            savedSnapshot.editor?.activeTabId ??
+            undefined,
+        });
+      } else if (savedSnapshot?.editor?.tabs) {
+        this.tabManager.restoreSnapshot({
+          tabs: savedSnapshot.editor.tabs.map((t) => ({
+            kind: 'file' as const,
+            tabId: t.tabId,
+            path: t.path,
+            isPreview: t.isPreview,
+          })),
+          activeTabId: savedSnapshot.editor.activeTabId ?? undefined,
+        });
+      }
     }
+
     if (savedSnapshot?.terminals) {
       this.terminalTabs.restoreSnapshot(savedSnapshot.terminals);
     }
@@ -58,12 +107,62 @@ export class TaskViewStore {
       this.diffView.restoreSnapshot(savedSnapshot.diffView);
     }
 
+    // Reactive model lifecycle: registers/unregisters Monaco models whenever the
+    // set of open file paths changes. Covers initial mount (fireImmediately), tab
+    // open/close, and in-place preview path mutation — no imperative calls needed.
+    this.disposers.push(
+      reaction(
+        () => this.tabManager.openFilePaths,
+        (current, previous = []) => {
+          const prev = new Set(previous);
+          const curr = new Set(current);
+          for (const path of curr) {
+            if (!prev.has(path)) {
+              void this.editorView.registerModels(path).then((result) => {
+                if (result?.imageContent !== undefined) {
+                  runInAction(() => this.tabManager.setImageContent(path, result.imageContent!));
+                }
+              });
+            }
+          }
+          for (const path of prev) {
+            if (!curr.has(path)) this.editorView.unregisterModels(path);
+          }
+        },
+        { fireImmediately: true }
+      )
+    );
+
     makeAutoObservable(this, {
-      conversationTabs: false,
+      tabManager: false,
       terminalTabs: false,
       editorView: false,
       diffView: false,
+      view: computed,
+      activeRenderer: computed,
     });
+  }
+
+  get view(): 'agents' | 'editor' | 'diff' {
+    if (this._diffOpen) return 'diff';
+    const desc = this.tabManager.activeDescriptor;
+    return desc?.kind === 'file' ? 'editor' : 'agents';
+  }
+
+  get activeRenderer(): RendererKind {
+    if (this._diffOpen) return 'diff';
+    const tab = this.tabManager.activeFileTab;
+    if (!tab) return 'agents';
+    switch (tab.renderer.kind) {
+      case 'text':
+      case 'svg-source':
+        return 'monaco';
+      case 'markdown':
+      case 'markdown-source':
+        return 'markdown';
+      default:
+        return 'other-file'; // image, svg, binary, too-large
+    }
   }
 
   get snapshot(): TaskViewSnapshot {
@@ -73,18 +172,26 @@ export class TaskViewStore {
       isSidebarCollapsed: this.isSidebarCollapsed,
       focusedRegion: this.focusedRegion,
       isTerminalDrawerOpen: this.isTerminalDrawerOpen,
-      conversations: this.conversationTabs.snapshot,
+      tabManager: this.tabManager.snapshot,
       terminals: this.terminalTabs.snapshot,
       editor: this.editorView.snapshot,
       diffView: this.diffView.snapshot,
     };
   }
 
-  setView(v: MainPanelView): void {
-    if (this.view !== v) {
-      focusTracker.transition({ mainPanel: v }, 'panel_switch');
+  setView(v: 'agents' | 'editor' | 'diff'): void {
+    if (v === 'diff') {
+      if (!this._diffOpen) {
+        focusTracker.transition({ mainPanel: 'diff' }, 'panel_switch');
+        this._diffOpen = true;
+      }
+      return;
     }
-    this.view = v;
+    if (this._diffOpen) {
+      focusTracker.transition({ mainPanel: v }, 'panel_switch');
+      this._diffOpen = false;
+    }
+    // 'agents' and 'editor' are now driven by active tab; no action needed beyond closing diff.
   }
 
   setSidebarTab(v: SidebarTab): void {
@@ -95,7 +202,7 @@ export class TaskViewStore {
     this.isSidebarCollapsed = collapsed;
   }
 
-  setFocusedRegion(region: 'main' | 'right' | 'bottom'): void {
+  setFocusedRegion(region: 'main' | 'bottom'): void {
     if (this.focusedRegion !== region) {
       focusTracker.transition({ focusedRegion: region }, 'region_switch');
     }
@@ -110,7 +217,8 @@ export class TaskViewStore {
   }
 
   dispose(): void {
-    this.conversationTabs.dispose();
+    for (const d of this.disposers) d();
+    this.tabManager.dispose();
     this.terminalTabs.dispose();
     this.editorView.dispose();
     this.diffView.dispose();

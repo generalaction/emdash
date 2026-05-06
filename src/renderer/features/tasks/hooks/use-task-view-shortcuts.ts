@@ -30,6 +30,10 @@ export function useTaskViewShortcuts() {
   const nextTaskHotkey = getEffectiveHotkey('nextProject', keyboard);
   const prevTaskHotkey = getEffectiveHotkey('prevProject', keyboard);
   const toggleTerminalDrawerHotkey = getEffectiveHotkey('toggleTerminalDrawer', keyboard);
+  const toggleRightSidebarHotkey = getEffectiveHotkey('toggleRightSidebar', keyboard);
+  const tabCloseHotkey = getEffectiveHotkey('tabClose', keyboard);
+  const tabNextHotkey = getEffectiveHotkey('tabNext', keyboard);
+  const tabPrevHotkey = getEffectiveHotkey('tabPrev', keyboard);
 
   useHotkey(getHotkeyRegistration('taskViewAgents', keyboard), openAgentsView, {
     enabled: agentsHotkey !== null,
@@ -74,5 +78,39 @@ export function useTaskViewShortcuts() {
       taskView.setTerminalDrawerOpen(!taskView.isTerminalDrawerOpen);
     },
     { enabled: toggleTerminalDrawerHotkey !== null }
+  );
+
+  useHotkey(
+    getHotkeyRegistration('toggleRightSidebar', keyboard),
+    () => {
+      const { taskView } = provisionedTask;
+      taskView.setSidebarCollapsed(!taskView.isSidebarCollapsed);
+    },
+    { enabled: toggleRightSidebarHotkey !== null }
+  );
+
+  useHotkey(
+    getHotkeyRegistration('tabClose', keyboard),
+    (e) => {
+      e.preventDefault();
+      provisionedTask.taskView.tabManager.closeActiveTab();
+    },
+    { enabled: tabCloseHotkey !== null, conflictBehavior: 'allow' }
+  );
+
+  useHotkey(
+    getHotkeyRegistration('tabNext', keyboard),
+    () => {
+      provisionedTask.taskView.tabManager.setNextTabActive();
+    },
+    { enabled: tabNextHotkey !== null, conflictBehavior: 'allow' }
+  );
+
+  useHotkey(
+    getHotkeyRegistration('tabPrev', keyboard),
+    () => {
+      provisionedTask.taskView.tabManager.setPreviousTabActive();
+    },
+    { enabled: tabPrevHotkey !== null, conflictBehavior: 'allow' }
   );
 }

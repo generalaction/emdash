@@ -5,9 +5,20 @@ export type TabViewSnapshot = {
   activeTabId: string | undefined;
 };
 
+export type TabDescriptor =
+  | { kind: 'conversation'; id: string; isPreview: boolean }
+  | { kind: 'file'; tabId: string; path: string; isPreview: boolean };
+
+export type TabManagerSnapshot = {
+  tabs: TabDescriptor[];
+  activeTabId: string | undefined;
+};
+
 export type EditorViewSnapshot = {
-  tabs: Array<{ tabId: string; path: string; isPreview: boolean }>;
-  activeTabId: string | null;
+  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
+  tabs?: Array<{ tabId: string; path: string; isPreview: boolean }>;
+  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
+  activeTabId?: string | null;
   expandedPaths: string[];
 };
 
@@ -44,8 +55,11 @@ export type TaskViewSnapshot = {
   view: string | null;
   sidebarTab?: string;
   isSidebarCollapsed?: boolean;
-  focusedRegion: 'main' | 'right' | 'bottom';
+  focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen?: boolean;
+  /** New unified tab manager snapshot. Takes precedence over legacy fields when present. */
+  tabManager?: TabManagerSnapshot;
+  /** Legacy: kept for backward-compat restore. */
   conversations?: TabViewSnapshot;
   terminals?: TabViewSnapshot;
   editor?: EditorViewSnapshot;
