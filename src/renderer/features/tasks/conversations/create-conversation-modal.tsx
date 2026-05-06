@@ -77,6 +77,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
           <Field>
             <FieldLabel>Agent</FieldLabel>
             <AgentSelector
+              autoFocus
               value={providerId}
               onChange={setProviderOverride}
               connectionId={connectionId}

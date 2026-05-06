@@ -52,9 +52,13 @@ export function AppKeyboardShortcuts() {
     { enabled: commandPaletteHotkey !== null }
   );
 
-  useHotkey(getHotkeyRegistration('settings', keyboard), () => navigate('settings'), {
-    enabled: settingsHotkey !== null,
-  });
+  useHotkey(
+    getHotkeyRegistration('settings', keyboard),
+    () => {
+      if (currentView !== 'settings') navigate('settings');
+    },
+    { enabled: settingsHotkey !== null }
+  );
 
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,
