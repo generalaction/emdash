@@ -75,7 +75,7 @@ export function useInitialConversationState(connectionId?: string): InitialConve
     setProvider: setProviderOverride,
     prompt,
     setPrompt,
-    imageAttachments: attachments,
+    imageAttachments: attachments.map((attachment) => attachment.file),
     removeImageAttachment: removeAttachment,
     handleImagePaste: handlePaste,
     handleImageDrop: handleDrop,
