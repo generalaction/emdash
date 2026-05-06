@@ -42,7 +42,8 @@ export interface ActiveFile {
 
 export type TaskViewSnapshot = {
   view: string | null;
-  rightPanelView: string | null;
+  sidebarTab?: string;
+  isSidebarCollapsed?: boolean;
   focusedRegion: 'main' | 'right' | 'bottom';
   isTerminalDrawerOpen?: boolean;
   conversations?: TabViewSnapshot;

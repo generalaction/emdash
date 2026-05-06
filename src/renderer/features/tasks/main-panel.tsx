@@ -14,6 +14,8 @@ import { ConversationsPanel } from './conversations/conversations-panel';
 import { DiffView } from './diff-view/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
 import { TerminalsPanel } from './terminals/terminal-panel';
+import { TaskSidebar } from './view/task-sidebar';
+import { UnifiedMainTabBar } from './view/unified-main-tab-bar';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -95,7 +97,45 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   return <ReadyTaskMainPanel />;
 });
 
+const SIDEBAR_COLLAPSED_SIZE = '32px';
+
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
+  const { taskView } = useProvisionedTask();
+  const sidebarPanelRef = usePanelRef();
+
+  useEffect(() => {
+    if (taskView.isSidebarCollapsed) {
+      sidebarPanelRef.current?.collapse();
+    } else {
+      sidebarPanelRef.current?.expand();
+    }
+  }, [taskView.isSidebarCollapsed, sidebarPanelRef]);
+
+  return (
+    <ResizablePanelGroup orientation="horizontal" id="task-sidebar-layout">
+      <ResizablePanel
+        id="task-sidebar"
+        panelRef={sidebarPanelRef}
+        defaultSize="25%"
+        minSize="15%"
+        maxSize="50%"
+        collapsible
+        collapsedSize={SIDEBAR_COLLAPSED_SIZE}
+        onResize={() =>
+          taskView.setSidebarCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
+        }
+      >
+        <TaskSidebar />
+      </ResizablePanel>
+      <ResizableHandle />
+      <ResizablePanel id="task-main-area">
+        <TaskMainColumn />
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  );
+});
+
+const TaskMainColumn = observer(function TaskMainColumn() {
   const { taskView } = useProvisionedTask();
   const bottomPanelRef = usePanelRef();
   const draggingRef = useRef(false);
@@ -111,17 +151,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   return (
     <ResizablePanelGroup orientation="vertical" id="task-main-vertical">
       <ResizablePanel id="task-main-content" minSize="30%">
-        <div className="flex h-full flex-col">
-          <Activity mode={taskView.view === 'agents' ? 'visible' : 'hidden'}>
-            <ConversationsPanel />
-          </Activity>
-          <Activity mode={taskView.view === 'editor' ? 'visible' : 'hidden'}>
-            <EditorMainPanel />
-          </Activity>
-          <Activity mode={taskView.view === 'diff' ? 'visible' : 'hidden'}>
-            <DiffView />
-          </Activity>
-        </div>
+        <UnifiedMainContent />
       </ResizablePanel>
       <ResizableHandle
         onPointerDown={(e) => {
@@ -157,5 +187,26 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
         <TerminalsPanel />
       </ResizablePanel>
     </ResizablePanelGroup>
+  );
+});
+
+const UnifiedMainContent = observer(function UnifiedMainContent() {
+  const { taskView } = useProvisionedTask();
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <UnifiedMainTabBar />
+      <div className="min-h-0 flex-1">
+        <Activity mode={taskView.view === 'agents' ? 'visible' : 'hidden'}>
+          <ConversationsPanel hideTabBar />
+        </Activity>
+        <Activity mode={taskView.view === 'editor' ? 'visible' : 'hidden'}>
+          <EditorMainPanel hideTabBar />
+        </Activity>
+        <Activity mode={taskView.view === 'diff' ? 'visible' : 'hidden'}>
+          <DiffView />
+        </Activity>
+      </div>
+    </div>
   );
 });

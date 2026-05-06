@@ -2,12 +2,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
-  FileDiff,
-  Files,
   GitBranch,
-  GitCommit,
-  ListTree,
-  MessageSquare,
   Pin,
   RefreshCcw,
   Terminal,
@@ -25,23 +20,19 @@ import {
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import type { RightPanelView } from '@renderer/features/tasks/types';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
-import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Toggle } from '@renderer/lib/ui/toggle';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector } from './components/issue-selector/issue-selector';
-import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
 import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
 import { useGitActions } from './use-git-actions';
 
@@ -94,9 +85,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const taskPayload = getRegisteredTaskData(projectId, taskId)!;
   const provisionedTask = useProvisionedTask();
   const { taskView } = provisionedTask;
-  const { view, rightPanelView } = taskView;
-  const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
-  const delayedIsPending = useDelayedBoolean(isPending, 200);
   useTaskViewShortcuts();
 
   const {
@@ -286,84 +274,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
           {!isRemoteProject && (
             <OpenInMenu path={provisionedTask.path} className="h-7  bg-background" />
           )}
-          <ToggleGroup
-            disabled={delayedIsPending}
-            variant="outline"
-            value={[view]}
-            size="sm"
-            onValueChange={([value]) => {
-              if (value === 'agents') openAgentsView();
-              if (value === 'editor') openEditorView();
-              if (value === 'diff') openDiffView();
-            }}
-          >
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="agents" size="sm">
-                  <MessageSquare className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>Conversations view</span>
-                  <ShortcutHint settingsKey="taskViewAgents" />
-                </div>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="diff" size="sm">
-                  <FileDiff className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>Diff view</span>
-                  <ShortcutHint settingsKey="taskViewDiff" />
-                </div>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="editor" size="sm">
-                  <Files className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>File view</span>
-                  <ShortcutHint settingsKey="taskViewEditor" />
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </ToggleGroup>
-          <ToggleGroup
-            disabled={delayedIsPending}
-            variant="outline"
-            value={[rightPanelView]}
-            size="sm"
-            onValueChange={([value]) => {
-              if (!value) return;
-              taskView.setRightPanelView(value as RightPanelView);
-            }}
-          >
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="changes" size="sm">
-                  <GitCommit className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>Git changes</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="files" size="sm">
-                  <ListTree className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>File explorer</TooltipContent>
-            </Tooltip>
-          </ToggleGroup>
           <Tooltip>
             <TooltipTrigger>
               <Toggle

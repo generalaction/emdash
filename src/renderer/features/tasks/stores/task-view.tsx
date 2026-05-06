@@ -8,7 +8,7 @@ import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-v
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
-import { type MainPanelView, type RightPanelView } from '@renderer/features/tasks/types';
+import { type MainPanelView, type SidebarTab } from '@renderer/features/tasks/types';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 
 interface TaskViewResources {
@@ -22,7 +22,8 @@ interface TaskViewResources {
 
 export class TaskViewStore {
   view: MainPanelView;
-  rightPanelView: RightPanelView;
+  sidebarTab: SidebarTab;
+  isSidebarCollapsed: boolean;
   focusedRegion: 'main' | 'right' | 'bottom';
   isTerminalDrawerOpen: boolean;
   readonly conversationTabs: ConversationTabViewStore;
@@ -33,7 +34,8 @@ export class TaskViewStore {
 
   constructor(resources: TaskViewResources, savedSnapshot?: TaskViewSnapshot) {
     this.view = (savedSnapshot?.view as MainPanelView) ?? 'agents';
-    this.rightPanelView = (savedSnapshot?.rightPanelView as RightPanelView) ?? 'changes';
+    this.sidebarTab = (savedSnapshot?.sidebarTab as SidebarTab) ?? 'conversations';
+    this.isSidebarCollapsed = savedSnapshot?.isSidebarCollapsed ?? false;
     this.focusedRegion = savedSnapshot?.focusedRegion ?? 'main';
     this.isTerminalDrawerOpen = savedSnapshot?.isTerminalDrawerOpen ?? false;
     this.terminalsMgr = resources.terminals;
@@ -67,7 +69,8 @@ export class TaskViewStore {
   get snapshot(): TaskViewSnapshot {
     return {
       view: this.view,
-      rightPanelView: this.rightPanelView,
+      sidebarTab: this.sidebarTab,
+      isSidebarCollapsed: this.isSidebarCollapsed,
       focusedRegion: this.focusedRegion,
       isTerminalDrawerOpen: this.isTerminalDrawerOpen,
       conversations: this.conversationTabs.snapshot,
@@ -84,11 +87,12 @@ export class TaskViewStore {
     this.view = v;
   }
 
-  setRightPanelView(v: RightPanelView): void {
-    if (this.rightPanelView !== v) {
-      focusTracker.transition({ rightPanel: v }, 'panel_switch');
-    }
-    this.rightPanelView = v;
+  setSidebarTab(v: SidebarTab): void {
+    this.sidebarTab = v;
+  }
+
+  setSidebarCollapsed(collapsed: boolean): void {
+    this.isSidebarCollapsed = collapsed;
   }
 
   setFocusedRegion(region: 'main' | 'right' | 'bottom'): void {

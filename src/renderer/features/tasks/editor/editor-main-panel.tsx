@@ -13,7 +13,11 @@ import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { useEditorContext } from './editor-provider';
 
-export const EditorMainPanel = observer(function EditorMainPanel() {
+export const EditorMainPanel = observer(function EditorMainPanel({
+  hideTabBar = false,
+}: {
+  hideTabBar?: boolean;
+}) {
   const { setEditorHost } = useEditorContext();
 
   const editorView = useProvisionedTask().taskView.editorView;
@@ -41,14 +45,16 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <FileTabs
-        tabs={tabs}
-        activeTabId={editorView.activeTabId}
-        onTabClick={(tabId) => editorView.setActiveTab(tabId)}
-        onTabClose={(tabId) => editorView.removeTab(tabId)}
-        onPinTab={(tabId) => editorView.pinTab(tabId)}
-        onReorder={(from, to) => editorView.reorderTabs(from, to)}
-      />
+      {!hideTabBar && (
+        <FileTabs
+          tabs={tabs}
+          activeTabId={editorView.activeTabId}
+          onTabClick={(tabId) => editorView.setActiveTab(tabId)}
+          onTabClose={(tabId) => editorView.removeTab(tabId)}
+          onPinTab={(tabId) => editorView.pinTab(tabId)}
+          onReorder={(from, to) => editorView.reorderTabs(from, to)}
+        />
+      )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {/* Stable Monaco host — always in DOM, shown/hidden by CSS only. Never re-parented. */}
         <div

@@ -12,7 +12,6 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { EditorProvider } from './editor/editor-provider';
 import { TaskMainPanel } from './main-panel';
-import { TaskRightSidebar } from './right-panel';
 import { TaskTitlebar } from './task-titlebar';
 
 const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProviders({
@@ -62,5 +61,4 @@ export const taskView = {
   WrapView: TaskViewWrapperWithProviders,
   TitlebarSlot: TaskTitlebar,
   MainPanel: TaskMainPanel,
-  RightPanel: TaskRightSidebar,
 } satisfies ViewDefinition<{ projectId: string; taskId: string }>;

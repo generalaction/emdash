@@ -20,7 +20,11 @@ import { ContextBar } from './context-bar';
 import { type ConversationStore } from './conversation-manager';
 import { ConversationsTabs } from './conversation-tabs';
 
-export const ConversationsPanel = observer(function ConversationsPanel() {
+export const ConversationsPanel = observer(function ConversationsPanel({
+  hideTabBar = false,
+}: {
+  hideTabBar?: boolean;
+}) {
   const { projectId, taskId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const conversationTabs = provisioned.taskView.conversationTabs;
@@ -75,7 +79,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           onInterruptPress={(s) => s.clearWorking()}
           mapShiftEnterToCtrlJ
           remoteConnectionId={remoteConnectionId}
-          tabBar={<ConversationsTabs projectId={projectId} taskId={taskId} />}
+          tabBar={hideTabBar ? <></> : <ConversationsTabs projectId={projectId} taskId={taskId} />}
           emptyState={
             <EmptyState
               icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
