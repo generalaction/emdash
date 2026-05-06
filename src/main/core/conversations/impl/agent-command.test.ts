@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import { providerConfigDefaults } from '@main/core/settings/schema';
 import { buildAgentCommand } from './agent-command';
@@ -113,6 +114,45 @@ describe('buildAgentCommand', () => {
     });
 
     expect(result.args).toEqual(['--session-id', 'conv-1']);
+  });
+
+  it.each<{
+    providerId: AgentProviderId;
+    freshArgs: string[];
+    resumeArgs: string[];
+  }>([
+    { providerId: 'cursor', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    { providerId: 'opencode', freshArgs: [], resumeArgs: ['--continue'] },
+    { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    {
+      providerId: 'auggie',
+      freshArgs: ['--allow-indexing', 'Fix the bug'],
+      resumeArgs: ['--allow-indexing', '--continue'],
+    },
+    {
+      providerId: 'goose',
+      freshArgs: ['run', '-s', '-t', 'Fix the bug'],
+      resumeArgs: ['run', '-s', '--resume'],
+    },
+    { providerId: 'kimi', freshArgs: ['-c', 'Fix the bug'], resumeArgs: ['--continue'] },
+    { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
+  ])('builds fresh and resume args for $providerId', ({ providerId, freshArgs, resumeArgs }) => {
+    const fresh = buildAgentCommand({
+      providerId,
+      providerConfig: providerConfigDefaults[providerId],
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    const resume = buildAgentCommand({
+      providerId,
+      providerConfig: providerConfigDefaults[providerId],
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(fresh.args).toEqual(freshArgs);
+    expect(resume.args).toEqual(resumeArgs);
   });
 
   it('appends extra args', () => {

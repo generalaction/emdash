@@ -111,12 +111,15 @@ export function buildAgentCommand({
 
   args.push(...(providerConfig?.defaultArgs ?? []));
 
+  const shouldPassSessionId =
+    providerConfig?.sessionIdFlag && (!providerConfig.sessionIdOnResumeOnly || isResuming);
+
   if (isResuming && providerConfig?.resumeFlag) {
     args.push(...parseArgField(providerConfig.resumeFlag));
     if (providerConfig.sessionIdFlag) {
       args.push(sessionId);
     }
-  } else if ((isResuming || providerId !== 'droid') && providerConfig?.sessionIdFlag) {
+  } else if (shouldPassSessionId) {
     args.push(...parseArgField(providerConfig.sessionIdFlag), sessionId);
   }
 

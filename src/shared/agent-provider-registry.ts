@@ -56,6 +56,7 @@ export type AgentProviderDefinition = {
    * e.g. '--session-id' for Claude Code.
    */
   sessionIdFlag?: string;
+  sessionIdOnResumeOnly?: boolean;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
@@ -187,6 +188,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'droid',
     initialPromptFlag: '',
     sessionIdFlag: '--session-id',
+    sessionIdOnResumeOnly: true,
     icon: 'droid.svg',
     alt: 'Factory Droid',
     terminalOnly: true,
