@@ -12,7 +12,7 @@ import {
   useParams,
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
-import { useModalContext } from '@renderer/lib/modal/modal-provider';
+import { useModalContext, useShowModal } from '@renderer/lib/modal/modal-provider';
 
 /**
  * Mounts global keyboard shortcut handlers for the entire application.
@@ -21,7 +21,7 @@ import { useModalContext } from '@renderer/lib/modal/modal-provider';
  */
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const { showModal, isModalOpen } = useModalContext();
+  const { isModalOpen } = useModalContext();
   const showNewProject = useShowModal('addProjectModal');
   const showCreateTask = useShowModal('taskModal');
   const showCommandPalette = useShowModal('commandPaletteModal');
@@ -86,14 +86,14 @@ export function AppKeyboardShortcuts() {
 
   useHotkey(
     getHotkeyRegistration('newProject', keyboard),
-    () => showModal('addProjectModal', { strategy: 'local', mode: 'pick' }),
+    () => showNewProject({ strategy: 'local', mode: 'pick' }),
     { enabled: newProjectHotkey !== null }
   );
 
   useHotkey(
     getHotkeyRegistration('newTask', keyboard),
     () => {
-      if (currentProjectId) showModal('taskModal', { projectId: currentProjectId });
+      if (currentProjectId) showCreateTask({ projectId: currentProjectId });
     },
     { enabled: !!currentProjectId && newTaskHotkey !== null }
   );
