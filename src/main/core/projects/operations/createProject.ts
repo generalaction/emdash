@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
+import { remoteNameFromQualifiedRef, resolveBaseRefFromRemoteDefault } from '@shared/git-utils';
 import { type LocalProject, type ProjectPathStatus, type SshProject } from '@shared/projects';
 import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
@@ -13,7 +14,28 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { checkIsValidDirectory } from '../path-utils';
+
+async function resolveProjectBaseRef(git: GitService, detectedBaseRef: string): Promise<string> {
+  const remoteName = remoteNameFromQualifiedRef(detectedBaseRef);
+  if (!remoteName) return detectedBaseRef;
+
+  try {
+    const [gitDefaultBranch, branches] = await Promise.all([
+      git.getDefaultBranch(remoteName),
+      git.getBranches(),
+    ]);
+    return resolveBaseRefFromRemoteDefault({ detectedBaseRef, gitDefaultBranch, branches });
+  } catch (error) {
+    log.debug('Failed to resolve project base ref, using detected base ref', {
+      detectedBaseRef,
+      error,
+    });
+  }
+
+  return detectedBaseRef;
+}
 
 async function ensureGitRepository(
   git: GitService,
@@ -53,6 +75,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
   const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
   const git = new GitService(baseCtx, authCtx, fs);
   const gitInfo = await ensureGitRepository(git, params.initGitRepository);
+  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
 
   const [row] = await db
     .insert(projects)
@@ -61,7 +84,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
       name: params.name,
       path: gitInfo.rootPath,
       workspaceProvider: 'local',
-      baseRef: gitInfo.baseRef,
+      baseRef,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
@@ -71,7 +94,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     id: row.id,
     name: row.name,
     path: row.path,
-    baseRef: row.baseRef ?? gitInfo.baseRef,
+    baseRef: row.baseRef ?? baseRef,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -119,6 +142,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
   const git = new GitService(baseSshCtx, authSshCtx, sshFs);
 
   const gitInfo = await ensureGitRepository(git, params.initGitRepository);
+  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
 
   const [row] = await db
     .insert(projects)
@@ -128,7 +152,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
       path: gitInfo.rootPath,
       workspaceProvider: 'ssh',
       sshConnectionId: params.connectionId,
-      baseRef: gitInfo.baseRef,
+      baseRef,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
@@ -139,7 +163,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
     name: row.name,
     path: row.path,
     connectionId: params.connectionId,
-    baseRef: row.baseRef ?? gitInfo.baseRef,
+    baseRef: row.baseRef ?? baseRef,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

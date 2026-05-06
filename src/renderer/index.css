@@ -210,7 +210,6 @@
     --xterm-cursor-accent: #ffffff;
     --xterm-selection-bg: rgba(96, 165, 250, 0.3);
     --xterm-selection-fg: #0f172a;
-    --xterm-bg-mistral: #ffffff;
 
     --foreground-diff-added: color(display-p3 0.426 0.694 0.426);
     --foreground-diff-modified: color(display-p3 1 0.77 0.26);
@@ -304,11 +303,11 @@
 
     /* xterm terminals */
     --xterm-bg: var(--background-1);
-    --xterm-fg: var(--foreground) --xterm-cursor: #1e293b;
+    --xterm-fg: var(--foreground);
+    --xterm-cursor: #1e293b;
     --xterm-cursor-accent: color(display-p3 0.484 0.484 0.484);
     --xterm-selection-bg: color(display-p3 0.033 0.197 0.37);
     --xterm-selection-fg: color(display-p3 0.49 0.72 1);
-    --xterm-bg-mistral: #ffffff;
 
     --foreground-diff-added: color(display-p3 0.426 0.694 0.426);
     --foreground-diff-modified: color(display-p3 1 0.77 0.26);

@@ -146,6 +146,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Create a new terminal in the current task',
     category: 'Task View',
   },
+  toggleTerminalDrawer: {
+    defaultHotkey: 'Mod+J',
+    label: 'Toggle Terminal Drawer',
+    description: 'Show or hide the terminal drawer',
+    category: 'Task View',
+  },
   confirm: {
     defaultHotkey: 'Mod+Enter',
     label: 'Confirm',
