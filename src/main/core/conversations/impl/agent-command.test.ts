@@ -82,6 +82,39 @@ describe('buildAgentCommand', () => {
     expect(result.args).toEqual(['--session', 'id', 'conv-1']);
   });
 
+  it('puts default args before resume flags for CLIs with subcommands', () => {
+    const result = buildAgentCommand({
+      providerId: 'goose',
+      providerConfig: providerConfigDefaults.goose,
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['run', '-s', '--resume']);
+  });
+
+  it('does not pass Droid session id on fresh sessions', () => {
+    const result = buildAgentCommand({
+      providerId: 'droid',
+      providerConfig: providerConfigDefaults.droid,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    expect(result.args).toEqual(['Fix the bug']);
+  });
+
+  it('passes Droid session id when resuming', () => {
+    const result = buildAgentCommand({
+      providerId: 'droid',
+      providerConfig: providerConfigDefaults.droid,
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--session-id', 'conv-1']);
+  });
+
   it('appends extra args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',

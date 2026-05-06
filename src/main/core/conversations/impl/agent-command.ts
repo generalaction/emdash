@@ -109,12 +109,14 @@ export function buildAgentCommand({
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
 
+  args.push(...(providerConfig?.defaultArgs ?? []));
+
   if (isResuming && providerConfig?.resumeFlag) {
     args.push(...parseArgField(providerConfig.resumeFlag));
     if (providerConfig.sessionIdFlag) {
       args.push(sessionId);
     }
-  } else if (providerConfig?.sessionIdFlag) {
+  } else if ((isResuming || providerId !== 'droid') && providerConfig?.sessionIdFlag) {
     args.push(...parseArgField(providerConfig.sessionIdFlag), sessionId);
   }
 
@@ -126,7 +128,6 @@ export function buildAgentCommand({
     args.push(...parseArgField(providerConfig?.initialPromptFlag), initialPrompt);
   }
 
-  args.push(...(providerConfig?.defaultArgs ?? []));
   args.push(...parseArgField(providerConfig?.extraArgs));
 
   return { command, args };
