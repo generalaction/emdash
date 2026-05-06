@@ -71,7 +71,14 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           store={conversationTabs}
           paneId="conversations"
           getSession={(s) => s.session}
-          onEnterPress={shouldSetWorkingOnEnter ? (s) => s.setWorking() : undefined}
+          onEnterPress={
+            shouldSetWorkingOnEnter
+              ? (s) => {
+                  s.setWorking();
+                  void provisioned.conversations.touchConversation(s.data.id);
+                }
+              : undefined
+          }
           onInterruptPress={(s) => s.clearWorking()}
           mapShiftEnterToCtrlJ
           remoteConnectionId={remoteConnectionId}

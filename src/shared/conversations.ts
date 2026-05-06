@@ -6,6 +6,7 @@ export type Conversation = {
   taskId: string;
   providerId: AgentProviderId;
   title: string;
+  lastInteractedAt: string | null;
   resume?: boolean;
   autoApprove?: boolean;
 };

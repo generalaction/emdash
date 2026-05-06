@@ -35,6 +35,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
@@ -356,14 +357,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem value="terminals" size="sm">
-                  <Terminal className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>Terminals</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
                 <ToggleGroupItem value="files" size="sm">
                   <ListTree className="size-3.5" />
                 </ToggleGroupItem>
@@ -371,6 +364,22 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <TooltipContent>File explorer</TooltipContent>
             </Tooltip>
           </ToggleGroup>
+          <Tooltip>
+            <TooltipTrigger>
+              <Toggle
+                size="sm"
+                pressed={taskView.isTerminalDrawerOpen}
+                onPressedChange={() =>
+                  taskView.setTerminalDrawerOpen(!taskView.isTerminalDrawerOpen)
+                }
+              >
+                <Terminal className="size-3.5" />
+              </Toggle>
+            </TooltipTrigger>
+            <TooltipContent>
+              Toggle terminal <ShortcutHint settingsKey="toggleTerminalDrawer" />
+            </TooltipContent>
+          </Tooltip>
         </div>
       }
     />

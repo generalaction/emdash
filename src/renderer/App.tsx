@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { AppMenuEvents } from './app/app-menu-events';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
@@ -9,8 +10,8 @@ import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
 import { ModalProvider } from './lib/modal/modal-provider';
+import { FeatureFlagProvider } from './lib/providers/feature-flag-override-context';
 import { GithubContextProvider } from './lib/providers/github-context-provider';
-import { PostHogFeatureFlagsProvider } from './lib/providers/posthog-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
 import { TerminalPoolProvider } from './lib/pty/pty-pool-provider';
 import { queryClient } from './lib/query-client';
@@ -54,6 +55,12 @@ function AppContent() {
     setView('welcome');
   };
 
+  const handleOpenSettingsFromMenu = useCallback(() => {
+    if (view === 'onboarding' && stepsNeeded.length > 0) return false;
+    setView('workspace');
+    return true;
+  }, [view, stepsNeeded.length]);
+
   const renderContent = () => {
     if (isLoading || (view === 'onboarding' && frozenSteps === null)) {
       return null;
@@ -77,6 +84,7 @@ function AppContent() {
             <GithubContextProvider>
               <IntegrationsProvider>
                 <WorkspaceViewProvider>
+                  <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
                   <RightSidebarProvider>
                     <ThemeProvider>{renderContent()}</ThemeProvider>
                   </RightSidebarProvider>
@@ -93,9 +101,9 @@ function AppContent() {
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <PostHogFeatureFlagsProvider>
+      <FeatureFlagProvider>
         <AppContent />
-      </PostHogFeatureFlagsProvider>
+      </FeatureFlagProvider>
     </QueryClientProvider>
   );
 }

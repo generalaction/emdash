@@ -5,6 +5,7 @@
 
 import type { SFTPWrapper } from 'ssh2';
 import type { FileWatchEvent } from '@shared/fs';
+import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
@@ -83,8 +84,11 @@ export class SshFileSystem implements FileSystemProvider {
     });
   }
 
-  private exec(command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    const full = `bash -l -c ${quoteShellArg(command)}`;
+  private async exec(
+    command: string
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const profile = await this.proxy.getRemoteShellProfile();
+    const full = buildRemoteShellCommand(profile, command);
     return new Promise((resolve, reject) => {
       this.proxy.client.exec(full, (err, stream) => {
         if (err) return reject(err);

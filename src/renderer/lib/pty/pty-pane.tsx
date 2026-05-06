@@ -1,6 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
+import { cn } from '@renderer/utils/utils';
 import type { FrontendPty, SessionTheme } from './pty';
 import { usePty } from './use-pty';
 
@@ -12,11 +13,11 @@ type Props = {
   /** Pre-connected FrontendPty owned by the entity's PtySession store. */
   pty: FrontendPty;
   className?: string;
-  themeOverride?: SessionTheme['override'];
   contentFilter?: string;
   mapShiftEnterToCtrlJ?: boolean;
   /** SSH connection ID — used for remote file drag-and-drop only. */
   remoteConnectionId?: string;
+  themeOverride?: SessionTheme['override'];
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
@@ -30,10 +31,10 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
       sessionId,
       pty,
       className,
-      themeOverride,
       contentFilter,
       mapShiftEnterToCtrlJ,
       remoteConnectionId,
+      themeOverride,
       onActivity,
       onExit,
       onFirstMessage,
@@ -110,25 +111,22 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
 
     return (
       <div
-        className={['terminal-pane flex h-full w-full min-w-0', className]
-          .filter(Boolean)
-          .join(' ')}
+        className={cn('terminal-pane flex h-full w-full min-w-0 bg', className)}
         style={{
           width: '100%',
           height: '100%',
           minHeight: 0,
-          backgroundColor: themeOverride?.background ?? 'var(--background)',
           boxSizing: 'border-box',
+          backgroundColor: themeOverride?.background ?? 'var(--background-1)',
         }}
       >
         <div
           ref={containerRef}
           data-terminal-container
-          className="p-2 bg-background-secondary-1"
+          className="p-2"
           style={{
             width: '100%',
             height: '100%',
-
             minHeight: 0,
             overflow: 'hidden',
             filter: contentFilter || undefined,

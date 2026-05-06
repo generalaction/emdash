@@ -116,10 +116,9 @@ export interface AgentEnvOptions {
   };
 
   /**
-   * Per-provider custom env vars configured by the user.
-   * Keys are validated against ^[A-Za-z_][A-Za-z0-9_]*$.
+   * Per-provider variables configured in custom execution settings.
    */
-  customVars?: Record<string, string>;
+  providerVars?: Record<string, string>;
 }
 
 /**
@@ -175,7 +174,7 @@ export function buildTerminalEnv(): Record<string, string> {
  * find its own dependencies.
  */
 export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, string> {
-  const { agentApiVars = true, includeShellVar = false, hook, customVars } = options;
+  const { agentApiVars = true, includeShellVar = false, hook, providerVars } = options;
 
   // process.env.PATH is enriched at startup by resolveUserEnv() so it already
   // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
@@ -212,18 +211,14 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     }
   }
 
+  if (providerVars) {
+    Object.assign(env, providerVars);
+  }
+
   if (hook && hook.port > 0) {
     env.EMDASH_HOOK_PORT = String(hook.port);
     env.EMDASH_PTY_ID = hook.ptyId;
     env.EMDASH_HOOK_TOKEN = hook.token;
-  }
-
-  if (customVars) {
-    for (const [key, val] of Object.entries(customVars)) {
-      if (typeof val === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-        env[key] = val;
-      }
-    }
   }
 
   return env;

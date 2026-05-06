@@ -33,10 +33,19 @@ interface AgentSelectorProps {
   className?: string;
   connectionId?: string;
   installable?: boolean;
+  autoFocus?: boolean;
 }
 
 export const AgentSelector: React.FC<AgentSelectorProps> = observer(
-  ({ value, onChange, disabled = false, className = '', connectionId, installable = true }) => {
+  ({
+    value,
+    onChange,
+    disabled = false,
+    className = '',
+    connectionId,
+    installable = true,
+    autoFocus = false,
+  }) => {
     const [open, setOpen] = useState(false);
     const { groups, installingAgents, installAgent } = useAgentAvailability({
       connectionId,
@@ -67,6 +76,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
         autoHighlight
       >
         <ComboboxTrigger
+          data-autofocus={autoFocus || undefined}
           disabled={disabled}
           className={cn(
             'flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 text-sm outline-none',

@@ -19,7 +19,7 @@ export function MicroLabel({ className, ...props }: React.ComponentProps<'label'
     <label
       data-slot="label"
       className={cn(
-        'cursor-default uppercase font-mono tracking-widest select-none text-xs',
+        'cursor-default uppercase font-mono tracking-widest text-foreground-passive select-none text-xs',
         className
       )}
       {...props}

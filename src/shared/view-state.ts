@@ -43,7 +43,8 @@ export interface ActiveFile {
 export type TaskViewSnapshot = {
   view: string | null;
   rightPanelView: string | null;
-  focusedRegion: 'main' | 'right';
+  focusedRegion: 'main' | 'right' | 'bottom';
+  isTerminalDrawerOpen?: boolean;
   conversations?: TabViewSnapshot;
   terminals?: TabViewSnapshot;
   editor?: EditorViewSnapshot;

@@ -254,6 +254,7 @@ export const conversations = sqliteTable(
     updatedAt: text('updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
+    lastInteractedAt: text('last_interacted_at'),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),

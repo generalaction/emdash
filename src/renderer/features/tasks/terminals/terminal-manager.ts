@@ -3,10 +3,11 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import { nextTerminalName } from './terminal-tabs';
 
 export class TerminalManagerStore {
-  private readonly projectId: string;
-  private readonly taskId: string;
+  readonly projectId: string;
+  readonly taskId: string;
   private _loaded = false;
   terminals = observable.map<string, TerminalStore>();
 
@@ -64,6 +65,13 @@ export class TerminalManagerStore {
       });
       throw err;
     }
+  }
+
+  async createDefaultTerminal(): Promise<Terminal> {
+    const names = Array.from(this.terminals.values()).map((t) => t.data.name);
+    const name = nextTerminalName(names);
+    const id = crypto.randomUUID();
+    return this.createTerminal({ id, projectId: this.projectId, taskId: this.taskId, name });
   }
 
   async deleteTerminal(terminalId: string): Promise<void> {

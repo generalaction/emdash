@@ -1,23 +1,16 @@
 import { createRPCController } from '@shared/ipc/rpc';
 import type { TelemetryEvent } from '@shared/telemetry';
-import {
-  capture,
-  getTelemetryStatus,
-  identify,
-  setTelemetryEnabledViaUser,
-} from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 
 export const telemetryController = createRPCController({
   capture: (args: { event: TelemetryEvent; properties?: Record<string, unknown> }) => {
-    capture(args.event, args.properties);
+    telemetryService.capture(args.event, args.properties);
   },
   getStatus: () => {
-    return { status: getTelemetryStatus() };
+    return { status: telemetryService.getTelemetryStatus() };
   },
   setEnabled: (enabled: boolean) => {
-    setTelemetryEnabledViaUser(enabled);
+    telemetryService.setTelemetryEnabledViaUser(enabled);
   },
-  identify: (username: string) => {
-    identify(username);
-  },
+  getFeatureFlags: () => telemetryService.getFeatureFlags(),
 });

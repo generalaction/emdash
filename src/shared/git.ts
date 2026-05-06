@@ -27,8 +27,6 @@ export interface DiffResult {
 
 export interface GitInfo {
   isGitRepo: boolean;
-  remote?: string;
-  branch?: string;
   baseRef: string;
   rootPath: string;
 }
