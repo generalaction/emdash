@@ -83,10 +83,12 @@ const ConversationTabItem = observer(function ConversationTabItem({
 const FileTabItem = observer(function FileTabItem({
   tab,
   onSelect,
+  onPin,
   onClose,
 }: {
   tab: ResolvedFileTab;
   onSelect: () => void;
+  onPin: () => void;
   onClose: () => void;
 }) {
   const fileName = tab.path.split('/').pop() ?? 'Untitled';
@@ -102,6 +104,7 @@ const FileTabItem = observer(function FileTabItem({
     <>
       <button
         onClick={onSelect}
+        onDoubleClick={onPin}
         title={tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
@@ -174,6 +177,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
               key={tab.tabId}
               tab={tab}
               onSelect={() => tabManager.setActiveTab(tab.tabId)}
+              onPin={() => tabManager.pinTab(tab.tabId)}
               onClose={() => tabManager.closeTab(tab.tabId)}
             />
           );
