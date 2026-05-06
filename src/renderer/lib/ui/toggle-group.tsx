@@ -37,6 +37,8 @@ function ToggleGroup({
       data-size={size}
       data-spacing={spacing}
       data-orientation={orientation}
+      data-vertical={orientation === 'vertical' ? '' : undefined}
+      data-horizontal={orientation === 'horizontal' ? '' : undefined}
       style={{ '--gap': spacing } as React.CSSProperties}
       className={cn(
         'group/toggle-group border border-border bg-background overflow-hidden flex h-8 data-[size=sm]:h-6 data-vertical:h-auto w-fit flex-row items-center gap-[--spacing(var(--gap))] rounded-md data-vertical:flex-col data-vertical:items-stretch',
