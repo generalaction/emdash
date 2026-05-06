@@ -1,11 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 
 export async function deleteTask(projectId: string, taskId: string): Promise<void> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
@@ -27,7 +28,8 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
 
   await db.delete(tasks).where(eq(tasks.id, taskId));
   void viewStateService.del(`task:${taskId}`);
-  capture('task_deleted', { project_id: projectId, task_id: taskId });
+  taskEvents._emit('task:deleted', taskId, projectId);
+  telemetryService.capture('task_deleted', { project_id: projectId, task_id: taskId });
 
   if (project) {
     if (task.taskBranch) {

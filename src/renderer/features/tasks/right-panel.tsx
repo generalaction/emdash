@@ -4,7 +4,6 @@ import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { ChangesPanel } from './diff-view/changes-panel/changes-panel';
 import { EditorFileTree } from './editor/editor-file-tree';
-import { TerminalsPanel } from './terminals/terminal-panel';
 
 export const TaskRightSidebar = observer(function TaskRightSidebar() {
   const { taskView } = useProvisionedTask();
@@ -23,7 +22,5 @@ export const TaskRightSidebar = observer(function TaskRightSidebar() {
       return <ChangesPanel />;
     case 'files':
       return <EditorFileTree />;
-    case 'terminals':
-      return <TerminalsPanel />;
   }
 });

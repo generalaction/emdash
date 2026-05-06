@@ -2,7 +2,7 @@ import { LinearClient } from '@linear/sdk';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 
 export class LinearConnectionService {
   private readonly LINEAR_TOKEN_SECRET_KEY = 'emdash-linear-token';
@@ -25,7 +25,7 @@ export class LinearConnectionService {
       const org = await viewer.organization;
 
       await this.storeToken(clean);
-      capture('integration_connected', { provider: 'linear' });
+      telemetryService.capture('integration_connected', { provider: 'linear' });
 
       return {
         success: true,
@@ -46,7 +46,7 @@ export class LinearConnectionService {
       this.cachedToken = null;
       this.client = null;
       this.clientToken = null;
-      capture('integration_disconnected', { provider: 'linear' });
+      telemetryService.capture('integration_disconnected', { provider: 'linear' });
       return { success: true };
     } catch (error) {
       log.error('Failed to clear Linear token:', error);

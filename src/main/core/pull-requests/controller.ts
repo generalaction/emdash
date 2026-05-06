@@ -3,7 +3,7 @@ import { createRPCController } from '@shared/ipc/rpc';
 import type { ListPrOptions, PullRequestError, PullRequestFile } from '@shared/pull-requests';
 import { err, ok } from '@shared/result';
 import { log } from '@main/lib/logger';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
 
@@ -164,11 +164,11 @@ export const pullRequestController = createRPCController({
       }
       // Sync the newly created PR into the DB
       void prSyncEngine.syncSingle(params.repositoryUrl, result.data.number);
-      capture('pr_created', { is_draft: params.draft });
+      telemetryService.capture('pr_created', { is_draft: params.draft });
       return ok({ url: result.data.url, number: result.data.number });
     } catch (error) {
       log.error('Failed to create pull request:', error);
-      capture('pr_creation_failed', {
+      telemetryService.capture('pr_creation_failed', {
         error_type: error instanceof Error ? error.name || 'error' : 'unknown_error',
       });
       const ghErrors =

@@ -1,3 +1,4 @@
+import { CommandPaletteModal } from '@renderer/features/command-palette/command-palette-modal';
 import { IntegrationSetupModal } from '@renderer/features/integrations/integration-setup-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
 import { AddProjectModal } from '@renderer/features/projects/components/add-project-modal/add-project-modal';
@@ -16,10 +17,12 @@ import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-de
 import { type ModalComponent } from '@renderer/lib/modal/modal-provider';
 
 export type ModalSize = 'xs' | 'sm' | 'md' | 'lg';
+export type ModalPosition = 'center' | 'top';
 
 export type ModalRegistryEntry<TProps = unknown, TResult = unknown> = {
   component: ModalComponent<TProps, TResult>;
   size?: ModalSize;
+  position?: ModalPosition;
 };
 
 export function createModal<TProps, TResult>(
@@ -30,6 +33,7 @@ export function createModal<TProps, TResult>(
 }
 
 export const modalRegistry = {
+  commandPaletteModal: createModal(CommandPaletteModal, { size: 'md' }),
   taskModal: createModal(CreateTaskModal),
   addProjectModal: createModal(AddProjectModal),
   addSshConnModal: createModal(AddSshConnModal),

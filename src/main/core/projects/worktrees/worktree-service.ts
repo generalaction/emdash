@@ -4,7 +4,6 @@ import type { Branch } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
 import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 import type { ProjectSettingsProvider } from '../settings/schema';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -34,7 +33,7 @@ export class WorktreeService {
     this.ctx = args.ctx;
     this.host = args.host;
 
-    this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'prune']).catch(() => {});
+    this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
   }
 
   private enqueueGitOp<T>(fn: () => Promise<T>): Promise<T> {
@@ -73,7 +72,7 @@ export class WorktreeService {
 
   private async findCheckedOutPathForBranch(branchName: string): Promise<string | undefined> {
     try {
-      const { stdout } = await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'list', '--porcelain']);
+      const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
       const branchLine = `branch refs/heads/${branchName}`;
       for (const block of stdout.split('\n\n')) {
         if (!block.split('\n').some((line) => line === branchLine)) {
@@ -85,7 +84,7 @@ export class WorktreeService {
         if (await this.isValidWorktree(candidatePath)) {
           return candidatePath;
         }
-        await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'prune']).catch(() => {});
+        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       }
     } catch {}
     return undefined;
@@ -99,7 +98,7 @@ export class WorktreeService {
     if (sourceBranch.type === 'local') {
       const localRef = `refs/heads/${sourceBranch.branch}`;
       try {
-        await this.ctx.exec(GIT_EXECUTABLE, ['rev-parse', '--verify', localRef]);
+        await this.ctx.exec('git', ['rev-parse', '--verify', localRef]);
         return localRef;
       } catch {
         return undefined;
@@ -107,10 +106,10 @@ export class WorktreeService {
     }
 
     const remoteName = sourceBranch.remote.name;
-    await this.ctx.exec(GIT_EXECUTABLE, ['fetch', remoteName]).catch(() => {});
+    await this.ctx.exec('git', ['fetch', remoteName]).catch(() => {});
     const remoteRef = `refs/remotes/${remoteName}/${sourceBranch.branch}`;
     try {
-      await this.ctx.exec(GIT_EXECUTABLE, ['rev-parse', '--verify', remoteRef]);
+      await this.ctx.exec('git', ['rev-parse', '--verify', remoteRef]);
       return remoteRef;
     } catch {
       return undefined;
@@ -126,7 +125,7 @@ export class WorktreeService {
 
     try {
       const realPoolPath = await this.host.realPathAbsolute(this.worktreePoolPath);
-      const { stdout } = await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'list', '--porcelain']);
+      const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
       const branchLine = `branch refs/heads/${branchName}`;
       for (const block of stdout.split('\n\n')) {
         if (block.split('\n').some((line) => line === branchLine)) {
@@ -159,13 +158,13 @@ export class WorktreeService {
     if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
       await this.host.removeAbsolute(targetPath, { recursive: true }).catch(() => {});
-      await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'prune']).catch(() => {});
+      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
     }
 
     try {
       let localExists = false;
       try {
-        await this.ctx.exec(GIT_EXECUTABLE, ['rev-parse', '--verify', `refs/heads/${branchName}`]);
+        await this.ctx.exec('git', ['rev-parse', '--verify', `refs/heads/${branchName}`]);
         localExists = true;
       } catch {}
 
@@ -174,12 +173,12 @@ export class WorktreeService {
         if (!sourceRef) {
           return err({ type: 'branch-not-found', branch: sourceBranch?.branch ?? branchName });
         }
-        await this.ctx.exec(GIT_EXECUTABLE, ['branch', '--no-track', branchName, sourceRef]);
+        await this.ctx.exec('git', ['branch', '--no-track', branchName, sourceRef]);
       }
 
       await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
-      await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'prune']).catch(() => {});
-      await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'add', targetPath, branchName]);
+      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause });
     }
@@ -213,17 +212,17 @@ export class WorktreeService {
     if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
       await this.host.removeAbsolute(targetPath, { recursive: true });
-      await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'prune']).catch(() => {});
+      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
     }
 
     try {
       await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
       for (const remoteName of remoteCandidates) {
-        await this.ctx.exec(GIT_EXECUTABLE, ['fetch', remoteName]).catch(() => {});
+        await this.ctx.exec('git', ['fetch', remoteName]).catch(() => {});
       }
       let localExists = false;
       try {
-        await this.ctx.exec(GIT_EXECUTABLE, ['rev-parse', '--verify', `refs/heads/${branchName}`]);
+        await this.ctx.exec('git', ['rev-parse', '--verify', `refs/heads/${branchName}`]);
         localExists = true;
       } catch {}
 
@@ -231,7 +230,7 @@ export class WorktreeService {
         let trackingRemote: string | undefined;
         for (const remoteName of remoteCandidates) {
           try {
-            await this.ctx.exec(GIT_EXECUTABLE, [
+            await this.ctx.exec('git', [
               'rev-parse',
               '--verify',
               `refs/remotes/${remoteName}/${branchName}`,
@@ -243,7 +242,7 @@ export class WorktreeService {
         if (!trackingRemote) {
           return err({ type: 'branch-not-found', branch: branchName });
         }
-        await this.ctx.exec(GIT_EXECUTABLE, [
+        await this.ctx.exec('git', [
           'branch',
           '--track',
           branchName,
@@ -251,8 +250,8 @@ export class WorktreeService {
         ]);
       }
 
-      await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'prune']).catch(() => {});
-      await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'add', targetPath, branchName]);
+      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
     } catch (cause) {
       return err({ type: 'worktree-setup-failed', cause });
     }
@@ -268,12 +267,12 @@ export class WorktreeService {
   }
 
   async moveWorktree(oldPath: string, newPath: string): Promise<void> {
-    await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'move', oldPath, newPath]);
+    await this.ctx.exec('git', ['worktree', 'move', oldPath, newPath]);
   }
 
   async removeWorktree(worktreePath: string): Promise<void> {
     await this.host.removeAbsolute(worktreePath, { recursive: true }).catch(() => {});
-    await this.ctx.exec(GIT_EXECUTABLE, ['worktree', 'prune']).catch(() => {});
+    await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
   }
 
   private async copyPreservedFiles(targetPath: string): Promise<void> {

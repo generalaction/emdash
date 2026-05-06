@@ -1,3 +1,8 @@
+import {
+  buildRemoteShellCommand,
+  FALLBACK_REMOTE_SHELL_PROFILE,
+  type RemoteShellProfile,
+} from '@main/core/ssh/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
@@ -7,11 +12,16 @@ import type { ExecOptions, ExecResult, IExecutionContext } from './types';
  * When `root` is provided the command runs inside `cd root &&`.
  * Args are shell-escaped for safe remote execution.
  */
-export function buildSshCommand(root: string | undefined, command: string, args: string[]): string {
+export function buildSshCommand(
+  root: string | undefined,
+  command: string,
+  args: string[],
+  profile?: RemoteShellProfile
+): string {
   const escaped = args.map(quoteShellArg).join(' ');
   const inner = args.length ? `${command} ${escaped}` : command;
   const body = root ? `cd ${quoteShellArg(root)} && ${inner}` : inner;
-  return `bash -l -c ${quoteShellArg(body)}`;
+  return buildRemoteShellCommand(profile ?? FALLBACK_REMOTE_SHELL_PROFILE, body);
 }
 
 export class SshExecutionContext implements IExecutionContext {
@@ -27,9 +37,10 @@ export class SshExecutionContext implements IExecutionContext {
     this.root = opts.root;
   }
 
-  exec(command: string, args: string[] = [], opts: ExecOptions = {}): Promise<ExecResult> {
+  async exec(command: string, args: string[] = [], opts: ExecOptions = {}): Promise<ExecResult> {
     const { signal } = opts;
-    const full = buildSshCommand(this.root, command, args);
+    const profile = await this.proxy.getRemoteShellProfile();
+    const full = buildSshCommand(this.root, command, args, profile);
     const combined = this._signal(signal);
 
     return new Promise((resolve, reject) => {
@@ -87,14 +98,15 @@ export class SshExecutionContext implements IExecutionContext {
     });
   }
 
-  execStreaming(
+  async execStreaming(
     command: string,
     args: string[],
     onChunk: (chunk: string) => boolean,
     opts: { signal?: AbortSignal } = {}
   ): Promise<void> {
     const { signal } = opts;
-    const full = buildSshCommand(this.root, command, args);
+    const profile = await this.proxy.getRemoteShellProfile();
+    const full = buildSshCommand(this.root, command, args, profile);
     const combined = this._signal(signal);
 
     return new Promise((resolve, reject) => {

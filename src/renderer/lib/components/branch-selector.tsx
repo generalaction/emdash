@@ -17,6 +17,12 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
+type BranchSelectorTab = 'local' | 'remote';
+
+function getBranchLabel(branch: Branch): string {
+  return branch.type === 'remote' ? `${branch.remote.name}/${branch.branch}` : branch.branch;
+}
+
 interface BranchSelectorProps {
   branches: Branch[];
   value?: Branch;
@@ -36,7 +42,15 @@ export function BranchSelector({
   onRefresh,
   isRefreshing = false,
 }: BranchSelectorProps) {
-  const [tab, setTab] = useState<'local' | 'remote'>(remoteOnly ? 'remote' : 'local');
+  const valueKey =
+    value?.type === 'remote'
+      ? `${value.type}:${value.remote.name}/${value.branch}`
+      : `${value?.type ?? 'none'}:${value?.branch ?? ''}`;
+  const [tabOverride, setTabOverride] = useState<
+    { tab: BranchSelectorTab; valueKey: string } | undefined
+  >(undefined);
+  const overriddenTab = tabOverride?.valueKey === valueKey ? tabOverride.tab : undefined;
+  const tab = remoteOnly ? 'remote' : (overriddenTab ?? value?.type ?? 'local');
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const localCount = useMemo(() => branches.filter((b) => b.type === 'local').length, [branches]);
@@ -45,7 +59,12 @@ export function BranchSelector({
   const filteredBranches = useMemo(() => branches.filter((b) => b.type === tab), [branches, tab]);
 
   const options = useMemo(
-    () => filteredBranches.map((branch) => ({ value: branch, label: branch.branch })),
+    () =>
+      filteredBranches.map((branch) => ({
+        value: branch,
+        label: getBranchLabel(branch),
+        disabled: branch.branch.startsWith('_reserve'),
+      })),
     [filteredBranches]
   );
 
@@ -53,7 +72,14 @@ export function BranchSelector({
     <Combobox
       items={options}
       autoHighlight
-      value={value ? { value: value, label: value.branch } : undefined}
+      value={
+        value
+          ? {
+              value,
+              label: getBranchLabel(value),
+            }
+          : undefined
+      }
       onValueChange={(v) => v !== null && onValueChange(v.value)}
       isItemEqualToValue={(a, b) => {
         if (a.value.type !== b.value.type) return false;
@@ -78,7 +104,7 @@ export function BranchSelector({
             value={[tab]}
             onValueChange={([value]) => {
               if (value) {
-                setTab(value as 'local' | 'remote');
+                setTabOverride({ tab: value as BranchSelectorTab, valueKey });
                 inputRef.current?.focus();
               }
             }}
@@ -134,7 +160,7 @@ export function BranchSelector({
         />
         <ComboboxList>
           {(item) => (
-            <ComboboxItem value={item} disabled={item.label.startsWith('_reserve')}>
+            <ComboboxItem value={item} disabled={item.disabled}>
               {item.label}
             </ComboboxItem>
           )}
