@@ -1,4 +1,5 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
+import type { ProvisionStep } from '@shared/events/taskEvents';
 import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
@@ -136,6 +137,8 @@ export class TaskStore {
   errorMessage: string | undefined = undefined;
   provisionedTask: ProvisionedTask | null = null;
   provisionProgressMessage: string | null = null;
+  provisionStep: ProvisionStep | null = null;
+  setupSessionId: string | null = null;
 
   get displayName(): string {
     return this.data.name;
@@ -187,6 +190,8 @@ export class TaskStore {
     this.phase = null;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
+    this.provisionStep = null;
+    this.setupSessionId = null;
   }
 
   transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
@@ -197,6 +202,8 @@ export class TaskStore {
     this.phase = phase;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
+    this.provisionStep = null;
+    this.setupSessionId = null;
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {

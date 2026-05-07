@@ -1,3 +1,4 @@
+import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import type { Task } from '@shared/tasks';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
@@ -19,6 +20,7 @@ import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import type { ProjectSettingsProvider } from '../projects/settings/schema';
 import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
@@ -157,12 +159,6 @@ export function createWorkspaceFactory(
         if (ownsFetchService) {
           fetchService.start();
         }
-        if (scripts?.setup) {
-          void ws.lifecycleService.prepareAndRunLifecycleScript({
-            type: 'setup',
-            script: scripts.setup,
-          });
-        }
         if (scripts?.run) {
           void ws.lifecycleService.prepareLifecycleScript({ type: 'run', script: scripts.run });
         }
@@ -174,7 +170,30 @@ export function createWorkspaceFactory(
         }
       },
 
-      onCreate: context.extraHooks?.onCreate,
+      onCreate: async (ws) => {
+        if (scripts?.setup) {
+          await ws.lifecycleService.prepareLifecycleScript({
+            type: 'setup',
+            script: scripts.setup,
+          });
+          const { sessionId } = await ws.lifecycleService.resolveIds({
+            type: 'setup',
+            script: scripts.setup,
+          });
+          events.emit(taskProvisionProgressChannel, {
+            taskId: context.task.id,
+            projectId: context.projectId,
+            step: 'running-setup-script',
+            message: 'Running setup script…',
+            sessionId,
+          });
+          await ws.lifecycleService.runLifecycleScript(
+            { type: 'setup', script: scripts.setup },
+            { waitForExit: true, exit: true }
+          );
+        }
+        await context.extraHooks?.onCreate?.(ws);
+      },
 
       onDestroy: async (ws) => {
         if (ownsFetchService) {

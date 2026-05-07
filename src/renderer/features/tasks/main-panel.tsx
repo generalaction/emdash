@@ -1,98 +1,102 @@
-import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { Activity, useEffect, useRef } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
+import type { TaskStore } from '@renderer/features/tasks/stores/task';
 import {
   getTaskStore,
   taskErrorMessage,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import { useDebouncedValue } from '@renderer/lib/hooks/use-debounced-value';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { ConversationsPanel } from './conversations/conversations-panel';
 import { DiffView } from './diff-view/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
+import { BootstrapPtyView, PtySkipButton } from './task-bootstrap-pty';
+import { TaskBootstrapView } from './task-bootstrap-view';
 import { TerminalsPanel } from './terminals/terminal-panel';
+
+const STEP_DEBOUNCE_MS = 500;
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
 
-  if (kind === 'creating') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">Creating task</p>
-      </div>
-    );
-  }
-
-  if (kind === 'create-error') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center p-8">
-        <div className="flex max-w-xs flex-col items-center text-center gap-2">
-          <p className="text-sm font-medium font-mono text-foreground-destructive">
-            Error creating task
-          </p>
-          <p className="text-xs font-mono text-foreground-passive">{taskErrorMessage(taskStore)}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (kind === 'project-mounting' || kind === 'provisioning') {
-    const progressMessage = taskStore?.provisionProgressMessage ?? 'Setting up workspace…';
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
-      </div>
-    );
-  }
-
-  if (kind === 'provision-error' || kind === 'project-error') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center p-8">
-        <div className="flex max-w-xs flex-col items-center text-center gap-2">
-          <p className="text-sm font-medium font-mono text-foreground-destructive">
-            Failed to set up workspace
-          </p>
+  switch (kind) {
+    case 'missing':
+      return null;
+    case 'creating':
+      return <CreatingBootstrap taskStore={taskStore} />;
+    case 'create-error':
+      return (
+        <TaskBootstrapView step="create-error" activeStepStatus="error">
           <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (kind === 'idle' || kind === 'teardown') {
-    const progressMessage = taskStore?.provisionProgressMessage ?? 'Setting up workspace…';
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
-      </div>
-    );
-  }
-
-  if (kind === 'teardown-error') {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center p-8">
-        <div className="flex max-w-xs flex-col items-center text-center gap-2">
-          <p className="text-sm font-medium font-mono text-foreground-destructive">
-            Failed to tear down workspace
-          </p>
+        </TaskBootstrapView>
+      );
+    case 'project-mounting':
+      return <TaskBootstrapView step="project-mounting" />;
+    case 'provisioning':
+      return <ProvisioningBootstrap taskStore={taskStore} />;
+    case 'provision-error':
+    case 'project-error':
+      return (
+        <TaskBootstrapView step="provision-error" activeStepStatus="error">
           <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
-        </div>
-      </div>
-    );
+        </TaskBootstrapView>
+      );
+    case 'idle':
+    case 'teardown':
+      return <TaskBootstrapView step={kind} />;
+    case 'teardown-error':
+      return (
+        <TaskBootstrapView step="teardown-error" activeStepStatus="error">
+          <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
+        </TaskBootstrapView>
+      );
+    default:
+      return <ReadyTaskMainPanel />;
   }
+});
 
-  if (kind === 'missing') {
-    return null;
-  }
+const CreatingBootstrap = observer(function CreatingBootstrap({
+  taskStore,
+}: {
+  taskStore: TaskStore | undefined;
+}) {
+  const rawStep = taskStore?.provisionStep ?? 'creating';
+  const step = useDebouncedValue(rawStep, STEP_DEBOUNCE_MS);
+  const isPtyStep = step === 'running-setup-script' && taskStore?.setupSessionId;
 
-  return <ReadyTaskMainPanel />;
+  return (
+    <TaskBootstrapView
+      step={step}
+      actions={isPtyStep ? <PtySkipButton sessionId={taskStore!.setupSessionId!} /> : undefined}
+    >
+      {isPtyStep ? <BootstrapPtyView sessionId={taskStore!.setupSessionId!} /> : undefined}
+    </TaskBootstrapView>
+  );
+});
+
+const ProvisioningBootstrap = observer(function ProvisioningBootstrap({
+  taskStore,
+}: {
+  taskStore: TaskStore | undefined;
+}) {
+  const rawStep = taskStore?.provisionStep ?? 'setting-up-workspace';
+  const step = useDebouncedValue(rawStep, STEP_DEBOUNCE_MS);
+  const isPtyStep = step === 'running-setup-script' && taskStore?.setupSessionId;
+
+  return (
+    <TaskBootstrapView
+      step={step}
+      actions={isPtyStep ? <PtySkipButton sessionId={taskStore!.setupSessionId!} /> : undefined}
+    >
+      {isPtyStep ? <BootstrapPtyView sessionId={taskStore!.setupSessionId!} /> : undefined}
+    </TaskBootstrapView>
+  );
 });
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {

@@ -18,6 +18,7 @@ export type ProvisionStep =
   | 'resolving-worktree'
   | 'initialising-workspace'
   | 'running-provision-script'
+  | 'running-setup-script'
   | 'connecting'
   | 'setting-up-workspace'
   | 'starting-sessions';
@@ -27,4 +28,5 @@ export const taskProvisionProgressChannel = defineEvent<{
   projectId: string;
   step: ProvisionStep;
   message: string;
+  sessionId?: string;
 }>('task:provision-progress');
