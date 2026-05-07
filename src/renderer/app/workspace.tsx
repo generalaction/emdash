@@ -1,4 +1,5 @@
 import { LeftSidebar } from '@renderer/features/sidebar/left-sidebar';
+import { CommandShortcutBinder } from '@renderer/lib/commands/command-shortcut-binder';
 import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import {
@@ -13,9 +14,11 @@ export function Workspace() {
   useTheme();
   const { WrapView } = useWorkspaceSlots();
   const { wrapParams } = useWorkspaceWrapParams();
+
   return (
     <>
       <AppKeyboardShortcuts />
+      <CommandShortcutBinder />
       <WorkspaceLayout
         leftSidebar={<LeftSidebar />}
         mainContent={

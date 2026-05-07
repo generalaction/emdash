@@ -15,6 +15,12 @@ export interface AppShortcutDef {
   description: string;
   category: string;
   hideFromSettings?: boolean;
+  /**
+   * 'allow' — permit other listeners on the same key (needed for shortcuts
+   * that Monaco / xterm also intercept, e.g. Mod+W, Mod+Alt+Arrow).
+   * Defaults to 'prevent'.
+   */
+  conflictBehavior?: 'prevent' | 'allow';
 }
 
 type ShortcutOverrides = Partial<Record<ShortcutSettingsKey, string | null>>;
@@ -136,18 +142,21 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'Next Tab',
     description: 'Switch to the next tab',
     category: 'Tab Navigation',
+    conflictBehavior: 'allow',
   },
   tabPrev: {
     defaultHotkey: 'Mod+Alt+ArrowLeft',
     label: 'Previous Tab',
     description: 'Switch to the previous tab',
     category: 'Tab Navigation',
+    conflictBehavior: 'allow',
   },
   tabClose: {
     defaultHotkey: 'Mod+W',
     label: 'Close Tab',
     description: 'Close the active tab',
     category: 'Tab Navigation',
+    conflictBehavior: 'allow',
   },
   newConversation: {
     defaultHotkey: 'Mod+Shift+C',

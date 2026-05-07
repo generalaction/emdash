@@ -38,7 +38,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { cn } from '@renderer/utils/utils';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector } from './components/issue-selector/issue-selector';
-import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
 import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
 
@@ -91,7 +90,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const taskPayload = getRegisteredTaskData(projectId, taskId)!;
   const provisionedTask = useProvisionedTask();
   const { taskView } = provisionedTask;
-  useTaskViewShortcuts();
 
   const {
     hasUpstream,
