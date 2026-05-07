@@ -85,6 +85,27 @@ const TerminalSettingsCard: React.FC = () => {
     return Array.from(byValue.values());
   }, [installedOptions, popularOptions]);
 
+  // Lowercased set of installed font names, or null while we haven't loaded yet.
+  // We use null to distinguish "not loaded" from "loaded and empty" so the
+  // picker doesn't flag every popular font as missing on first paint.
+  const installedSet = useMemo<Set<string> | null>(() => {
+    if (installedFonts === null) return null;
+    return new Set(installedFonts.map((font) => font.toLowerCase()));
+  }, [installedFonts]);
+
+  // A font is "missing" only when we know the installed list and the value
+  // resolves to a real font name that isn't there. Empty fontValue ('Default')
+  // always resolves via xterm's default stack so it's never missing.
+  const isFontMissing = useCallback(
+    (fontValue: string) => {
+      if (!installedSet) return false;
+      const normalized = fontValue.trim().toLowerCase();
+      if (!normalized) return false;
+      return !installedSet.has(normalized);
+    },
+    [installedSet]
+  );
+
   const findPreset = useCallback(
     (font: string) => {
       const normalized = font.trim().toLowerCase();
@@ -202,6 +223,7 @@ const TerminalSettingsCard: React.FC = () => {
                           const selected =
                             selectedPreset?.fontValue.toLowerCase() ===
                             option.fontValue.toLowerCase();
+                          const missing = isFontMissing(option.fontValue);
                           return (
                             <button
                               key={option.id}
@@ -213,7 +235,16 @@ const TerminalSettingsCard: React.FC = () => {
                                 applyFont(option.fontValue);
                               }}
                             >
-                              <span>{option.label}</span>
+                              <span className="flex min-w-0 items-center gap-2">
+                                <span className={missing ? 'text-muted-foreground' : ''}>
+                                  {option.label}
+                                </span>
+                                {missing ? (
+                                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                                    not installed
+                                  </span>
+                                ) : null}
+                              </span>
                               {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
                             </button>
                           );

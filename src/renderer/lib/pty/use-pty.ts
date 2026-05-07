@@ -7,7 +7,13 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
 import { usePaneSizingContext } from './pane-sizing-context';
-import { buildTheme, type FrontendPty, type SessionTheme } from './pty';
+import {
+  buildTheme,
+  resolveTerminalFontFamily,
+  setCachedFontFamily,
+  type FrontendPty,
+  type SessionTheme,
+} from './pty';
 import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
@@ -342,12 +348,20 @@ export function usePty(
       measureAndResize();
 
       // ── Load settings ──────────────────────────────────────────────────────
+      // The pool provider prefetches terminal settings before the first
+      // FrontendPty is constructed, so the cached fontFamily is normally
+      // already applied at construction time. This re-read keeps the settings
+      // in sync if they changed since the prefetch and refreshes the glyph
+      // atlas if the live terminal still has a stale font (ENG-1123).
       let customFontFamily = '';
       void (rpc.appSettings.get('terminal') as Promise<AppSettings['terminal']>).then(
         (terminalSettings) => {
-          if (terminalSettings?.fontFamily) {
-            customFontFamily = terminalSettings.fontFamily.trim();
-            if (customFontFamily) frontendPty.terminal.options.fontFamily = customFontFamily;
+          customFontFamily = terminalSettings?.fontFamily?.trim() ?? '';
+          setCachedFontFamily(customFontFamily);
+          const currentFontFamily = (frontendPty.terminal.options.fontFamily ?? '') as string;
+          if (currentFontFamily !== resolveTerminalFontFamily(customFontFamily)) {
+            frontendPty.setFontFamily(customFontFamily);
+            measureAndResize();
           }
           autoCopyOnSelectionRef.current = terminalSettings?.autoCopyOnSelection ?? false;
         }
@@ -530,7 +544,8 @@ export function usePty(
       const handleFontChange = (e: Event) => {
         const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
         customFontFamily = detail?.fontFamily?.trim() ?? '';
-        terminal.options.fontFamily = customFontFamily || undefined;
+        setCachedFontFamily(customFontFamily);
+        frontendPty.setFontFamily(customFontFamily);
         measureAndResize();
       };
       const handleAutoCopyChange = (e: Event) => {
