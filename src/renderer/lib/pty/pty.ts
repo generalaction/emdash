@@ -11,129 +11,71 @@ import { ensureXtermHost } from './xterm-host';
 const SCROLLBACK_LINES = 100_000;
 const DEFAULT_TERMINAL_FONT_FAMILY = 'Menlo, Monaco, Consolas, "Liberation Mono", monospace';
 
-// Font setting cache.
-// Cached so FrontendPty can apply the user's custom font in its constructor
-// before connect() writes the historical buffer. Without this, the CanvasAddon
-// builds its glyph atlas using the default font, then keeps stale metrics when
-// fontFamily is mutated post-mount, producing the stretched / wrong-font look
-// reported in old chats (ENG-1123).
+// Cached so FrontendPty can apply the user's font in its constructor before
+// connect() writes the historical buffer. Mutating fontFamily post-mount
+// leaves the CanvasAddon glyph atlas with stale metrics, producing the
+// stretched / wrong-font look reported in old chats (ENG-1123).
 let cachedFontFamily = DEFAULT_TERMINAL_FONT_FAMILY;
+let installedFontNames: Set<string> | null = null;
 let prefetchPromise: Promise<void> | null = null;
-
-// When a chosen fontFamily is not actually installed, the browser substitutes
-// a proportional fallback (Times). xterm samples one glyph (e.g. 'W') to set
-// the cell width, then narrow glyphs like 'i'/'l' get drawn in cells far wider
-// than they are — that's the stretched look users see when they pick a font
-// they don't have installed. Detect substitution via canvas measureText:
-// render the candidate against three different generic fallbacks and keep it
-// only if at least one width differs (a real font cannot match monospace,
-// serif, AND sans-serif simultaneously).
-const FONT_PROBE_TEXT = 'mwlioWMABCxyz0123';
-const FONT_PROBE_SIZE = '72px';
-const FONT_PROBE_FALLBACKS = ['monospace', 'serif', 'sans-serif'] as const;
-
-export function isFontAvailable(fontFamily: string): boolean {
-  const candidate = fontFamily.trim();
-  if (!candidate) return false;
-  if (typeof document === 'undefined') return false;
-  const quoted = `"${candidate.replace(/"/g, '\\"')}"`;
-
-  // Layer 1: FontFaceSet.check(). In Chromium this returns false for missing
-  // system fonts and is the cheapest probe — but it is documented as best-effort
-  // for system fonts, so a true result must still be corroborated below.
-  try {
-    if (typeof document.fonts?.check === 'function') {
-      if (!document.fonts.check(`${FONT_PROBE_SIZE} ${quoted}`)) return false;
-    }
-  } catch {
-    // ignore; rely on canvas probe
-  }
-
-  // Layer 2: canvas measureText probe. Real font cannot collide with all three
-  // generic fallbacks; a substituted font matches whichever fallback caught it.
-  let ctx: CanvasRenderingContext2D | null = null;
-  try {
-    ctx = document.createElement('canvas').getContext('2d');
-  } catch {
-    return false;
-  }
-  if (!ctx) return false;
-  for (const fallback of FONT_PROBE_FALLBACKS) {
-    ctx.font = `${FONT_PROBE_SIZE} ${fallback}`;
-    const fallbackWidth = ctx.measureText(FONT_PROBE_TEXT).width;
-    ctx.font = `${FONT_PROBE_SIZE} ${quoted}, ${fallback}`;
-    const candidateWidth = ctx.measureText(FONT_PROBE_TEXT).width;
-    if (Math.abs(candidateWidth - fallbackWidth) > 0.5) return true;
-  }
-  return false;
-}
-
-async function fontsReady(): Promise<void> {
-  if (typeof document === 'undefined') return;
-  try {
-    await document.fonts?.ready;
-  } catch {
-    // ignore
-  }
-}
 
 export function resolveTerminalFontFamily(fontFamily: string): string {
   const trimmed = fontFamily.trim();
   if (!trimmed) return DEFAULT_TERMINAL_FONT_FAMILY;
-  if (!isFontAvailable(trimmed)) {
-    log.warn('FrontendPty: requested font is not available, falling back to default', {
-      fontFamily: trimmed,
-    });
-    return DEFAULT_TERMINAL_FONT_FAMILY;
-  }
-  return trimmed;
+  if (!installedFontNames) return trimmed;
+  if (isFontFamilyInstalled(trimmed, installedFontNames)) return trimmed;
+  log.warn('FrontendPty: requested font is not installed, falling back to default', {
+    fontFamily: trimmed,
+  });
+  return DEFAULT_TERMINAL_FONT_FAMILY;
 }
 
-async function clearMissingFontFromSettings(current: AppSettings['terminal']): Promise<void> {
-  // Remove the unusable saved font so the picker no longer shows
-  // "Custom: <missing>" and the next launch does not re-trigger the warning.
-  try {
-    await rpc.appSettings.update('terminal', { ...current, fontFamily: '' });
-  } catch (error) {
-    log.warn('FrontendPty: failed to clear missing font from settings', { error });
+function isFontFamilyInstalled(fontFamily: string, installed: Set<string>): boolean {
+  const primaryFamily = fontFamily
+    .split(',')[0]
+    ?.trim()
+    .replace(/^["']|["']$/g, '')
+    .toLowerCase();
+  if (!primaryFamily) return false;
+  if (
+    primaryFamily === 'monospace' ||
+    primaryFamily === 'serif' ||
+    primaryFamily === 'sans-serif'
+  ) {
+    return true;
   }
+  return installed.has(primaryFamily);
 }
 
-async function runTerminalSettingsPrefetch(self: { promise: Promise<void> | null }): Promise<void> {
+async function runTerminalSettingsPrefetch(): Promise<void> {
   try {
-    const terminalSettings = (await rpc.appSettings.get('terminal')) as AppSettings['terminal'];
-    const requested = terminalSettings?.fontFamily?.trim() ?? '';
-    // Wait for the browser font subsystem to be ready before probing —
-    // measureText results can be unreliable on cold start otherwise.
-    await fontsReady();
-    const resolved = resolveTerminalFontFamily(requested);
-    cachedFontFamily = resolved;
-    if (terminalSettings && requested && resolved === DEFAULT_TERMINAL_FONT_FAMILY) {
-      void clearMissingFontFromSettings(terminalSettings);
+    const [terminalSettings, fontsResult] = await Promise.all([
+      rpc.appSettings.get('terminal') as Promise<AppSettings['terminal']>,
+      rpc.app.listInstalledFonts(),
+    ]);
+    if (fontsResult.success) {
+      installedFontNames = new Set(fontsResult.fonts.map((font) => font.trim().toLowerCase()));
     }
+    const requested = terminalSettings?.fontFamily?.trim() ?? '';
+    cachedFontFamily = resolveTerminalFontFamily(requested);
   } catch (error) {
     log.warn('prefetchTerminalSettings: failed to load terminal settings', { error });
-    // Allow the next caller to retry; otherwise a transient failure on the
-    // module-load prefetch would leave every subsequent PTY constructed with
-    // the default font for the rest of the app lifetime.
-    if (prefetchPromise === self.promise) prefetchPromise = null;
+    // Allow retry; otherwise a transient failure pins every PTY to the default
+    // font for the rest of the app lifetime.
+    prefetchPromise = null;
   }
 }
 
 export function prefetchTerminalSettings(): Promise<void> {
-  if (prefetchPromise) return prefetchPromise;
-  const handle: { promise: Promise<void> | null } = { promise: null };
-  const pending = runTerminalSettingsPrefetch(handle);
-  handle.promise = pending;
-  prefetchPromise = pending;
-  return pending;
+  if (!prefetchPromise) prefetchPromise = runTerminalSettingsPrefetch();
+  return prefetchPromise;
 }
 
 export function setCachedFontFamily(font: string): void {
   cachedFontFamily = resolveTerminalFontFamily(font);
 }
 
-// Theme helpers.
+// ── Theme helpers ─────────────────────────────────────────────────────────────
 
 export interface SessionTheme {
   override?: ITerminalOptions['theme'];
@@ -155,7 +97,7 @@ export function buildTheme(theme?: SessionTheme): ITerminalOptions['theme'] {
   return readXtermCssVars();
 }
 
-// FrontendPty.
+// ── FrontendPty ───────────────────────────────────────────────────────────────
 
 /**
  * Frontend counterpart to the main-process Pty interface.
@@ -329,7 +271,7 @@ export class FrontendPty {
   }
 }
 
-// App-wide helpers.
+// ── App-wide helpers ──────────────────────────────────────────────────────────
 
 /** Apply a theme to all live terminals. Called on app-level theme change. */
 export function applyThemeToAll(theme?: SessionTheme): void {

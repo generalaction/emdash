@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const harness = vi.hoisted(() => {
   const state: {
     next: () => Promise<{ fontFamily?: string } | undefined>;
+    fonts: string[];
     calls: number;
   } = {
     next: () => Promise.resolve({ fontFamily: 'Cached Mono' }),
+    fonts: ['Cached Mono', 'Recovered Mono'],
     calls: 0,
   };
   return { state };
@@ -19,6 +21,13 @@ vi.mock('@renderer/lib/ipc', () => ({
         return harness.state.next();
       }),
       update: vi.fn(async () => undefined),
+    },
+    app: {
+      listInstalledFonts: vi.fn(async () => ({
+        success: true,
+        fonts: harness.state.fonts,
+        cached: false,
+      })),
     },
   },
   events: { on: () => () => {} },
@@ -39,6 +48,7 @@ vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: class {} }));
 beforeEach(async () => {
   harness.state.calls = 0;
   harness.state.next = () => Promise.resolve({ fontFamily: 'Cached Mono' });
+  harness.state.fonts = ['Cached Mono', 'Recovered Mono'];
   vi.resetModules();
 });
 
@@ -69,5 +79,31 @@ describe('prefetchTerminalSettings', () => {
     // Subsequent successful calls memoize again.
     await prefetchTerminalSettings();
     expect(harness.state.calls).toBe(2);
+  });
+
+  it('falls back to the default terminal stack when the saved font is not installed', async () => {
+    harness.state.next = () => Promise.resolve({ fontFamily: 'Missing Mono' });
+    harness.state.fonts = ['Cached Mono'];
+
+    const { prefetchTerminalSettings, resolveTerminalFontFamily } = await import(
+      '@renderer/lib/pty/pty'
+    );
+    await prefetchTerminalSettings();
+
+    expect(resolveTerminalFontFamily('Missing Mono')).toBe(
+      'Menlo, Monaco, Consolas, "Liberation Mono", monospace'
+    );
+  });
+
+  it('keeps custom fonts when the installed font list contains the family', async () => {
+    harness.state.next = () => Promise.resolve({ fontFamily: 'Berkeley Mono' });
+    harness.state.fonts = ['Berkeley Mono'];
+
+    const { prefetchTerminalSettings, resolveTerminalFontFamily } = await import(
+      '@renderer/lib/pty/pty'
+    );
+    await prefetchTerminalSettings();
+
+    expect(resolveTerminalFontFamily('Berkeley Mono')).toBe('Berkeley Mono');
   });
 });

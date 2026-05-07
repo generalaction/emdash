@@ -37,17 +37,15 @@ export class PtySession {
     });
     try {
       await prefetchTerminalSettings();
-      // dispose() may have been called while prefetch was pending. Without this
-      // guard we would resurrect the session: dispose() has nothing to clean up
-      // because this.pty is still null, then we'd build a fresh FrontendPty and
-      // mark the disposed session 'ready', leaking xterm + IPC subscriptions.
+      // Guard against dispose() during the await: without this we'd build a
+      // fresh FrontendPty after dispose() found nothing to clean up, leaking
+      // xterm + IPC subscriptions on the disposed session.
       if (this.disposed) return;
       if (this.pty) return;
       const pty = new FrontendPty(this.sessionId);
       this.pty = pty;
       await pty.connect();
-      // Re-check after connect() — dispose() during the await would have set
-      // this.pty back to null but cannot reach the local `pty` we just created.
+      // dispose() during pty.connect() nulls this.pty but cannot reach `pty`.
       if (this.disposed) {
         pty.dispose();
         this.pty = null;
