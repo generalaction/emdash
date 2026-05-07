@@ -44,11 +44,7 @@ const GROUP_CLASS = cn(
 /** Converts a TanStack hotkey string (e.g. 'Mod+Shift+C') to a display label. */
 function formatHotkey(hotkey: string | undefined): string | undefined {
   if (!hotkey) return undefined;
-  return hotkey
-    .replace('Mod', '⌘')
-    .replace('Shift', '⇧')
-    .replace('Alt', '⌥')
-    .replace(/\+/g, '');
+  return hotkey.replace('Mod', '⌘').replace('Shift', '⇧').replace('Alt', '⌥').replace(/\+/g, '');
 }
 
 function PaletteItem({

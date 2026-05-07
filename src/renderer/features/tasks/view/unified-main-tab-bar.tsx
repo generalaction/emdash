@@ -8,14 +8,11 @@ import type {
   ResolvedDiffTab,
   ResolvedFileTab,
 } from '@renderer/features/tasks/stores/tab-manager-store';
-import {
-  useProvisionedTask,
-  useTaskViewContext,
-} from '@renderer/features/tasks/task-view-context';
+import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { useModelStatus } from '@renderer/lib/monaco/use-model';
 import { Separator } from '@renderer/lib/ui/separator';
 import { agentConfig } from '@renderer/utils/agentConfig';

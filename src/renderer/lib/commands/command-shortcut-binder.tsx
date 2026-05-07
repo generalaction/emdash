@@ -46,9 +46,7 @@ function SingleKeyBinder({ shortcutKey }: { shortcutKey: ShortcutSettingsKey }) 
 export const CommandShortcutBinder = observer(function CommandShortcutBinder() {
   const keys = [
     ...new Set(
-      commandRegistry.activeCommands
-        .filter((c) => c.shortcutKey != null)
-        .map((c) => c.shortcutKey!)
+      commandRegistry.activeCommands.filter((c) => c.shortcutKey != null).map((c) => c.shortcutKey!)
     ),
   ];
 

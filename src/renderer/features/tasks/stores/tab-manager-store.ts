@@ -621,7 +621,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   // ---------------------------------------------------------------------------
 
   pinTab(tabId: string): void {
-    const tab = this.tabs.find((t): t is FileTabState => t.kind === 'file' && t.tabId === tabId);
+    const tab = this.tabs.find(
+      (t): t is FileTabState | DiffTabState =>
+        (t.kind === 'file' || t.kind === 'diff') && t.tabId === tabId
+    );
     if (tab) tab.isPreview = false;
   }
 

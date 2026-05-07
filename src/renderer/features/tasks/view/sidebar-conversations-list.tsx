@@ -216,9 +216,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
               >
                 <ConversationRow
                   conversation={conversation}
-                  isActive={
-                    tabManager.lastActiveConversationId === conversation.data.id
-                  }
+                  isActive={tabManager.lastActiveConversationId === conversation.data.id}
                   isEditing={editingId === conversation.data.id}
                   onClick={() => tabManager.openConversationPreview(conversation.data.id)}
                   onDoubleClick={() => tabManager.openConversation(conversation.data.id)}

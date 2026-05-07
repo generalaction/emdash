@@ -67,7 +67,9 @@ export function setupViewCommandProvider(): void {
     },
     ({ viewId, params }) => {
       commandRegistry.unregister('task');
-      const def = (views as unknown as Record<string, { commandProvider?: (p: unknown) => CommandProvider }>)[viewId];
+      const def = (
+        views as unknown as Record<string, { commandProvider?: (p: unknown) => CommandProvider }>
+      )[viewId];
       if (def?.commandProvider) commandRegistry.register(def.commandProvider(params));
     },
     { fireImmediately: true, equals: comparer.structural }
