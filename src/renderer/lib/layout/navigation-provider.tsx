@@ -1,12 +1,5 @@
 import { useObserver } from 'mobx-react-lite';
-import {
-  createContext,
-  Fragment,
-  useCallback,
-  useContext,
-  type ComponentType,
-  type ReactNode,
-} from 'react';
+import { Fragment, useCallback, type ComponentType, type ReactNode } from 'react';
 import {
   views,
   type ViewDefinition,
@@ -68,7 +61,6 @@ export function useWorkspaceSlots(): SlotsContextValue {
       >,
       TitlebarSlot: def.TitlebarSlot ?? (() => null),
       MainPanel: def.MainPanel,
-      RightPanel: def.RightPanel ?? null,
       currentView: viewId,
     };
   });
