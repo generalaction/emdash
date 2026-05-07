@@ -16,6 +16,7 @@ import {
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
@@ -89,7 +90,7 @@ const ConversationRow = observer(function ConversationRow({
           onClick={onClick}
           onDoubleClick={onDoubleClick}
           className={cn(
-            'flex h-full w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
+            'flex h-full w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
@@ -104,7 +105,15 @@ const ConversationRow = observer(function ConversationRow({
           </span>
           <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
           <span className="shrink-0">
-            <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
+            {conversation.indicatorStatus ? (
+              <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
+            ) : (
+              <RelativeTime
+                value={conversation.data.lastInteractedAt ?? ''}
+                className="text-xs text-foreground-passive font-mono pr-1 h-full flex items-center"
+                compact
+              />
+            )}
           </span>
         </button>
       </ContextMenuTrigger>
@@ -130,7 +139,13 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const { tabManager } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
   const showConfirm = useShowModal('confirmActionModal');
-  const conversations = Array.from(provisioned.conversations.conversations.values());
+  const conversations = Array.from(provisioned.conversations.conversations.values()).sort(
+    (a, b) => {
+      const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
+      const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
+      return bTime - aTime;
+    }
+  );
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
