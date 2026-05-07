@@ -6,11 +6,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import {
-  horizontalListSortingStrategy,
-  SortableContext,
-  useSortable,
-} from '@dnd-kit/sortable';
+import { horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { Loader2, Plus, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -289,9 +285,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   useEffect(() => {
     const id = tabManager.activeTabId;
