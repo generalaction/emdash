@@ -6,16 +6,16 @@ import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
   const { navigate } = useNavigate();
-  const { currentView } = useWorkspaceSlots();
+  const { currentView, lastNonSettingsView } = useWorkspaceSlots();
 
   useEffect(() => {
     return events.on(menuOpenSettingsChannel, () => {
       const shouldOpen = onOpenSettings?.() ?? true;
       if (shouldOpen === false) return;
 
-      toggleSettingsView(navigate, currentView);
+      toggleSettingsView(navigate, currentView, lastNonSettingsView);
     });
-  }, [navigate, onOpenSettings, currentView]);
+  }, [navigate, onOpenSettings, currentView, lastNonSettingsView]);
 
   return null;
 }

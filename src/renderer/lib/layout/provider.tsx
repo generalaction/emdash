@@ -27,6 +27,7 @@ import {
   WorkspaceViewParamsStoreContext,
   WorkspaceWrapParamsContext,
   type NavigateFnTyped,
+  type NonSettingsViewId,
   type SlotsContextValue,
   type UpdateViewParamsFn,
   type WrapParamsContextValue,
@@ -79,6 +80,10 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
   const [viewParamsStore, setViewParamsStore] = useState<ViewParamsStore>(
     () => appState.navigation.viewParamsStore as ViewParamsStore
   );
+  const [lastNonSettingsView, setLastNonSettingsView] = useState<NonSettingsViewId>(() => {
+    const v = appState.navigation.currentViewId;
+    return v === 'settings' ? 'home' : v;
+  });
   const [_, startTransition] = useTransition();
 
   // Sync React state back to the MobX persistence mirror after every commit.
@@ -121,6 +126,9 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
 
       startTransition(() => {
         setCurrentViewId(viewId);
+        if (viewId !== 'settings') {
+          setLastNonSettingsView(viewId);
+        }
         // Only overwrite stored params when the caller explicitly passes them;
         // navigating without params preserves whatever was stored for that view.
         if (params !== undefined) {
@@ -158,8 +166,9 @@ export function WorkspaceViewProvider({ children }: { children: ReactNode }) {
       MainPanel: def.MainPanel,
       RightPanel: def.RightPanel ?? null,
       currentView: currentViewId,
+      lastNonSettingsView,
     };
-  }, [currentViewId]);
+  }, [currentViewId, lastNonSettingsView]);
 
   const wrapParamsValue = useMemo(
     (): WrapParamsContextValue => ({

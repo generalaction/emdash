@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, type ComponentType, type ReactNode } from 'react';
 import type { ViewId, WrapParams } from '@renderer/app/view-registry';
 
+export type NonSettingsViewId = Exclude<ViewId, 'settings'>;
+
 /**
  * NavArgs makes the params argument optional when all fields are optional,
  * and omits it entirely for views with no params (home, skills).
@@ -24,7 +26,8 @@ export type SlotsContextValue = {
   TitlebarSlot: ComponentType;
   MainPanel: ComponentType;
   RightPanel: ComponentType | null;
-  currentView: string;
+  currentView: ViewId;
+  lastNonSettingsView: NonSettingsViewId;
 };
 
 export type WrapParamsContextValue = {

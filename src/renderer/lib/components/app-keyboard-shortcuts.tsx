@@ -36,7 +36,7 @@ export function AppKeyboardShortcuts() {
   const newTaskHotkey = getEffectiveHotkey('newTask', keyboard);
 
   // Resolve current project context from whichever view is active
-  const { currentView } = useWorkspaceSlots();
+  const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
   const { params: projectParams } = useParams('project');
   const currentProjectId =
@@ -55,7 +55,7 @@ export function AppKeyboardShortcuts() {
 
   useHotkey(
     getHotkeyRegistration('settings', keyboard),
-    () => toggleSettingsView(navigate, currentView),
+    () => toggleSettingsView(navigate, currentView, lastNonSettingsView),
     { enabled: settingsHotkey !== null }
   );
 
