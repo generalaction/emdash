@@ -1,9 +1,7 @@
 import { Info } from 'lucide-react';
 import React from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { Switch } from '@renderer/lib/ui/switch';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
@@ -49,36 +47,6 @@ export const AutoGenerateTaskNamesRow: React.FC = () => {
             disabled={taskSettings.loading || taskSettings.saving}
             onCheckedChange={taskSettings.updateAutoGenerateName}
           />
-        </>
-      }
-    />
-  );
-};
-
-export const TaskSidebarPositionRow: React.FC = () => {
-  const { value, update, isFieldOverridden, resetField } = useAppSettingsKey('interface');
-  const position = value?.taskSidebarPosition ?? 'right';
-
-  return (
-    <SettingRow
-      title="Task sidebar position"
-      description="Show the task sidebar on the left or right side of the task view."
-      control={
-        <>
-          <ResetToDefaultButton
-            visible={isFieldOverridden('taskSidebarPosition')}
-            defaultLabel="right"
-            onReset={() => resetField('taskSidebarPosition')}
-            disabled={false}
-          />
-          <ToggleGroup
-            value={[position]}
-            onValueChange={([v]) => v && update({ taskSidebarPosition: v as 'left' | 'right' })}
-            size="sm"
-          >
-            <ToggleGroupItem value="left">Left</ToggleGroupItem>
-            <ToggleGroupItem value="right">Right</ToggleGroupItem>
-          </ToggleGroup>
         </>
       }
     />

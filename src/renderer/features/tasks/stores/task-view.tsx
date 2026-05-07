@@ -252,7 +252,6 @@ export class TaskViewStore {
 
   setView(v: 'agents' | 'editor' | 'diff'): void {
     if (v === 'diff') {
-      // Activate the most recently opened diff tab, if any.
       const diffTab = [...this.tabManager.tabs].reverse().find((t) => t.kind === 'diff');
       if (diffTab) {
         focusTracker.transition({ mainPanel: 'diff' }, 'panel_switch');
@@ -260,8 +259,21 @@ export class TaskViewStore {
       }
       return;
     }
-    // 'agents' and 'editor' — active tab drives the renderer; no extra work needed.
-    focusTracker.transition({ mainPanel: v }, 'panel_switch');
+    if (v === 'agents') {
+      const convTab = [...this.tabManager.tabs].reverse().find((t) => t.kind === 'conversation');
+      if (convTab) {
+        focusTracker.transition({ mainPanel: 'agents' }, 'panel_switch');
+        this.tabManager.setActiveTab(convTab.id);
+      }
+      return;
+    }
+    if (v === 'editor') {
+      const fileTab = [...this.tabManager.tabs].reverse().find((t) => t.kind === 'file');
+      if (fileTab) {
+        focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
+        this.tabManager.setActiveTab(fileTab.tabId);
+      }
+    }
   }
 
   setSidebarTab(v: SidebarTab): void {
