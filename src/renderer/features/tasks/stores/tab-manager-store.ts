@@ -1,5 +1,6 @@
 import { action, autorun, computed, makeObservable, observable, reaction } from 'mobx';
-import type { TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
+import type { GitChangeStatus, GitObjectRef } from '@shared/git';
+import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 import type {
   ConversationManagerStore,
   ConversationStore,
@@ -43,7 +44,23 @@ type ConversationTabState = {
   isPreview: boolean;
 };
 
-export type TabState = FileTabState | ConversationTabState;
+/** Runtime state for an open diff tab. Stores the full ActiveFile payload so
+ * the tab bar can render labels and so the TaskViewStore reaction can re-sync
+ * DiffViewStore when the user clicks a diff tab. */
+export type DiffTabState = {
+  kind: 'diff';
+  tabId: string;
+  path: string;
+  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+  originalRef: GitObjectRef;
+  modifiedRef?: GitObjectRef;
+  prNumber?: number;
+  /** Git change status used to render the correct icon in the tab bar. */
+  status?: GitChangeStatus;
+  isPreview: boolean;
+};
+
+export type TabState = FileTabState | ConversationTabState | DiffTabState;
 
 export type ResolvedConversationTab = {
   kind: 'conversation';
@@ -63,7 +80,20 @@ export type ResolvedFileTab = {
   isActive: boolean;
 };
 
-export type ResolvedTab = ResolvedConversationTab | ResolvedFileTab;
+export type ResolvedDiffTab = {
+  kind: 'diff';
+  tabId: string;
+  path: string;
+  diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+  originalRef: GitObjectRef;
+  modifiedRef?: GitObjectRef;
+  prNumber?: number;
+  status?: GitChangeStatus;
+  isPreview: boolean;
+  isActive: boolean;
+};
+
+export type ResolvedTab = ResolvedConversationTab | ResolvedFileTab | ResolvedDiffTab;
 
 function getTabId(tab: TabState): string {
   return tab.kind === 'conversation' ? tab.id : tab.tabId;
@@ -158,6 +188,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       activeConversation: computed,
       activeFileTab: computed,
       activeFilePath: computed,
+      activeDiffTab: computed,
       previewFileTab: computed,
       openFilePaths: computed,
       resolvedTabs: computed,
@@ -166,6 +197,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       openConversationPreview: action,
       openFile: action,
       openFilePreview: action,
+      openDiff: action,
       closeTab: action,
       closeActiveTab: action,
       setActiveTab: action,
@@ -224,11 +256,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
 
   get activeDescriptor(): TabState | undefined {
     if (!this.activeTabId) return undefined;
-    return this.tabs.find(
-      (t) =>
-        (t.kind === 'conversation' && t.id === this.activeTabId) ||
-        (t.kind === 'file' && t.tabId === this.activeTabId)
-    );
+    return this.tabs.find((t) => getTabId(t) === this.activeTabId);
   }
 
   get activeConversation(): ConversationStore | undefined {
@@ -246,6 +274,11 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return this.activeFileTab?.path ?? null;
   }
 
+  get activeDiffTab(): DiffTabState | undefined {
+    const desc = this.activeDescriptor;
+    return desc?.kind === 'diff' ? (desc as DiffTabState) : undefined;
+  }
+
   get previewFileTab(): FileTabState | undefined {
     return this.tabs.find((t): t is FileTabState => t.kind === 'file' && t.isPreview);
   }
@@ -253,6 +286,8 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   /**
    * The set of currently open file paths. Used by the model-lifecycle reaction
    * in TaskViewStore to drive Monaco model registration/unregistration.
+   * Diff tabs are intentionally excluded — their model lifecycle is managed by
+   * FileDiffView's own useEffect.
    */
   get openFilePaths(): string[] {
     return this.tabs.filter((t): t is FileTabState => t.kind === 'file').map((t) => t.path);
@@ -270,6 +305,20 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
             store,
             isPreview: tab.isPreview,
             isActive: this.activeTabId === tab.id,
+          };
+        }
+        if (tab.kind === 'diff') {
+          return {
+            kind: 'diff',
+            tabId: tab.tabId,
+            path: tab.path,
+            diffGroup: tab.diffGroup,
+            originalRef: tab.originalRef,
+            modifiedRef: tab.modifiedRef,
+            prNumber: tab.prNumber,
+            status: tab.status,
+            isPreview: tab.isPreview,
+            isActive: this.activeTabId === tab.tabId,
           };
         }
         const bufferUri = buildMonacoModelPath(this.modelRootPath, tab.path);
@@ -290,6 +339,19 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return {
       tabs: this.tabs.map((t): TabDescriptor => {
         if (t.kind === 'conversation') return { kind: 'conversation', id: t.id, isPreview: t.isPreview };
+        if (t.kind === 'diff') {
+          return {
+            kind: 'diff',
+            tabId: t.tabId,
+            path: t.path,
+            diffGroup: t.diffGroup,
+            originalRef: t.originalRef,
+            modifiedRef: t.modifiedRef,
+            prNumber: t.prNumber,
+            status: t.status,
+            isPreview: t.isPreview,
+          };
+        }
         return { kind: 'file', tabId: t.tabId, path: t.path, isPreview: t.isPreview };
       }),
       activeTabId: this.activeTabId,
@@ -394,6 +456,32 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   }
 
   // ---------------------------------------------------------------------------
+  // Actions — opening diff tabs
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Opens a stable diff tab for the given ActiveFile. If a tab for the same
+   * path+diffGroup already exists, it is activated (and its status updated);
+   * otherwise a new stable tab is pushed. The TaskViewStore reaction will sync
+   * DiffViewStore.activeFile automatically when this tab becomes active.
+   */
+  openDiff(activeFile: ActiveFile, status?: GitChangeStatus): void {
+    const existing = this.tabs.find(
+      (t): t is DiffTabState =>
+        t.kind === 'diff' && t.path === activeFile.path && t.diffGroup === activeFile.group
+    );
+    if (existing) {
+      existing.isPreview = false;
+      if (status !== undefined) existing.status = status;
+      this.activeTabId = existing.tabId;
+      return;
+    }
+    const tab = this._makeDiffTab(activeFile, false, undefined, status);
+    this.tabs.push(tab);
+    this.activeTabId = tab.tabId;
+  }
+
+  // ---------------------------------------------------------------------------
   // Actions — renderer state
   // ---------------------------------------------------------------------------
 
@@ -479,6 +567,19 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       this.tabs = snapshot.tabs.map((t): TabState => {
         if (t.kind === 'conversation')
           return { kind: 'conversation', id: t.id, isPreview: t.isPreview };
+        if (t.kind === 'diff') {
+          return {
+            kind: 'diff',
+            tabId: t.tabId,
+            path: t.path,
+            diffGroup: t.diffGroup,
+            originalRef: t.originalRef,
+            modifiedRef: t.modifiedRef,
+            prNumber: t.prNumber,
+            status: t.status,
+            isPreview: t.isPreview,
+          };
+        }
         return this._makeFileTab(t.path, t.isPreview, t.tabId);
       });
     }
@@ -492,6 +593,25 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  private _makeDiffTab(
+    activeFile: ActiveFile,
+    isPreview: boolean,
+    tabId?: string,
+    status?: GitChangeStatus
+  ): DiffTabState {
+    return {
+      kind: 'diff',
+      tabId: tabId ?? crypto.randomUUID(),
+      path: activeFile.path,
+      diffGroup: activeFile.group,
+      originalRef: activeFile.originalRef,
+      modifiedRef: activeFile.modifiedRef,
+      prNumber: activeFile.prNumber,
+      status,
+      isPreview,
+    };
+  }
 
   private _makeFileTab(filePath: string, isPreview: boolean, tabId?: string): FileTabState {
     const fileKind = getFileKind(filePath);

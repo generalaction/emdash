@@ -1,8 +1,10 @@
 import { Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { GitChangeStatusIcon } from '@renderer/features/tasks/diff-view/changes-panel/components/changes-list-item';
 import type {
   ResolvedConversationTab,
+  ResolvedDiffTab,
   ResolvedFileTab,
 } from '@renderer/features/tasks/stores/tab-manager-store';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
@@ -148,6 +150,84 @@ const FileTabItem = observer(function FileTabItem({
 });
 
 // ---------------------------------------------------------------------------
+// Diff tab item
+// ---------------------------------------------------------------------------
+
+function diffGroupSuffix(diffGroup: ResolvedDiffTab['diffGroup']): string {
+  switch (diffGroup) {
+    case 'disk':
+      return '(Working Tree)';
+    case 'staged':
+      return '(Index)';
+    case 'pr':
+      return '(PR)';
+    case 'git':
+      return '(Git)';
+  }
+}
+
+const DiffTabItem = observer(function DiffTabItem({
+  tab,
+  onSelect,
+  onPin,
+  onClose,
+}: {
+  tab: ResolvedDiffTab;
+  onSelect: () => void;
+  onPin: () => void;
+  onClose: () => void;
+}) {
+  const fileName = tab.path.split('/').pop() ?? 'Untitled';
+  const suffix = diffGroupSuffix(tab.diffGroup);
+
+  return (
+    <>
+      <button
+        onClick={onSelect}
+        onDoubleClick={onPin}
+        title={
+          tab.isPreview
+            ? `${tab.path} ${suffix} (preview — double-click to keep)`
+            : `${tab.path} ${suffix}`
+        }
+        className={cn(
+          'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
+          tab.isActive && 'bg-background-secondary-1 [box-shadow:inset_0_1px_0_var(--primary)]'
+        )}
+      >
+        <div className="flex h-full items-center gap-1.5 pl-3 pr-2">
+          <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
+            <FileIcon filename={fileName} />
+          </span>
+          <span className={cn('max-w-[200px] truncate p-1 text-sm', tab.isPreview && 'italic')}>
+            {fileName}
+            <span className="ml-1 text-xs text-foreground-muted">{suffix}</span>
+          </span>
+          <div className="relative flex size-5 shrink-0 items-center justify-center">
+            {tab.status && (
+              <span className="transition-opacity group-hover:opacity-0">
+                <GitChangeStatusIcon status={tab.status} className="size-4" />
+              </span>
+            )}
+            <button
+              className="absolute inset-0 flex items-center justify-center rounded-md text-foreground-muted opacity-0 hover:bg-background-2 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              aria-label={`Close ${fileName} ${suffix}`}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+      </button>
+      <Separator orientation="vertical" />
+    </>
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Main unified tab bar
 // ---------------------------------------------------------------------------
 
@@ -169,6 +249,17 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
                 onSelect={() => tabManager.setActiveTab(tab.id)}
                 onPin={() => tabManager.openConversation(tab.id)}
                 onClose={() => tabManager.closeTab(tab.id)}
+              />
+            );
+          }
+          if (tab.kind === 'diff') {
+            return (
+              <DiffTabItem
+                key={tab.tabId}
+                tab={tab}
+                onSelect={() => tabManager.setActiveTab(tab.tabId)}
+                onPin={() => tabManager.pinTab(tab.tabId)}
+                onClose={() => tabManager.closeTab(tab.tabId)}
               />
             );
           }

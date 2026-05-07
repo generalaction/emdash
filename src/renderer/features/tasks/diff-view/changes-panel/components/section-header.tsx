@@ -26,7 +26,7 @@ export function SectionHeader({
   onToggleCollapsed,
 }: SectionHeaderProps) {
   return (
-    <div className="shrink-0 flex items-center justify-between px-2.5 h-10">
+    <div className="shrink-0 flex items-center justify-between px-3.5 h-10">
       <div className="flex items-center gap-2 justify-between w-full">
         <button onClick={onToggleCollapsed}>
           <span className="text-sm text-foreground-muted flex items-center gap-2">
@@ -72,7 +72,7 @@ export function PullRequestSectionHeader({
   isRefreshing?: boolean;
 }) {
   return (
-    <div className="shrink-0 flex items-center justify-between px-2.5 h-10">
+    <div className="shrink-0 flex items-center justify-between px-3.5 h-10">
       <div className="flex items-center gap-2 justify-between w-full min-w-0">
         <button onClick={onToggleCollapsed} className="min-w-0">
           <span className="text-sm text-foreground-muted flex items-center gap-2 min-w-0">

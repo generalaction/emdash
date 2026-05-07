@@ -1,5 +1,5 @@
 import { computed, makeAutoObservable, reaction, runInAction } from 'mobx';
-import type { TaskViewSnapshot } from '@shared/view-state';
+import type { ActiveFile, TaskViewSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git-store';
@@ -35,8 +35,6 @@ export class TaskViewStore {
   isSidebarCollapsed: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen: boolean;
-  /** When true, the diff panel is shown regardless of the active tab. */
-  private _diffOpen: boolean;
 
   readonly tabManager: TabManagerStore;
   readonly terminalTabs: TerminalTabViewStore;
@@ -50,7 +48,6 @@ export class TaskViewStore {
     this.isSidebarCollapsed = savedSnapshot?.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot?.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot?.isTerminalDrawerOpen ?? false;
-    this._diffOpen = savedSnapshot?.view === 'diff';
     this.terminalsMgr = resources.terminals;
 
     this.editorView = new EditorViewStore(resources.projectId, resources.workspaceId);
@@ -61,40 +58,38 @@ export class TaskViewStore {
     // Restore tab state — prefer the new tabManager snapshot, fall back to legacy fields.
     if (savedSnapshot?.tabManager) {
       this.tabManager.restoreSnapshot(savedSnapshot.tabManager);
-    } else {
+    } else if (savedSnapshot?.conversations?.tabOrder) {
       // Legacy restore: reconstruct from conversations + editor snapshots.
-      if (savedSnapshot?.conversations?.tabOrder) {
-        const descriptors = savedSnapshot.conversations.tabOrder.map((id) => ({
-          kind: 'conversation' as const,
-          id,
-          isPreview: false,
-        }));
-        this.tabManager.restoreSnapshot({
-          tabs: [
-            ...descriptors,
-            ...(savedSnapshot.editor?.tabs?.map((t) => ({
-              kind: 'file' as const,
-              tabId: t.tabId,
-              path: t.path,
-              isPreview: t.isPreview,
-            })) ?? []),
-          ],
-          activeTabId:
-            savedSnapshot.conversations.activeTabId ??
-            savedSnapshot.editor?.activeTabId ??
-            undefined,
-        });
-      } else if (savedSnapshot?.editor?.tabs) {
-        this.tabManager.restoreSnapshot({
-          tabs: savedSnapshot.editor.tabs.map((t) => ({
+      const descriptors = savedSnapshot.conversations.tabOrder.map((id) => ({
+        kind: 'conversation' as const,
+        id,
+        isPreview: false,
+      }));
+      this.tabManager.restoreSnapshot({
+        tabs: [
+          ...descriptors,
+          ...(savedSnapshot.editor?.tabs?.map((t) => ({
             kind: 'file' as const,
             tabId: t.tabId,
             path: t.path,
             isPreview: t.isPreview,
-          })),
-          activeTabId: savedSnapshot.editor.activeTabId ?? undefined,
-        });
-      }
+          })) ?? []),
+        ],
+        activeTabId:
+          savedSnapshot.conversations.activeTabId ??
+          savedSnapshot.editor?.activeTabId ??
+          undefined,
+      });
+    } else if (savedSnapshot?.editor?.tabs) {
+      this.tabManager.restoreSnapshot({
+        tabs: savedSnapshot.editor.tabs.map((t) => ({
+          kind: 'file' as const,
+          tabId: t.tabId,
+          path: t.path,
+          isPreview: t.isPreview,
+        })),
+        activeTabId: savedSnapshot.editor.activeTabId ?? undefined,
+      });
     }
 
     if (savedSnapshot?.terminals) {
@@ -133,6 +128,29 @@ export class TaskViewStore {
       )
     );
 
+    // Sync DiffViewStore.activeFile whenever the user activates a diff tab (e.g. clicking in the tab bar).
+    this.disposers.push(
+      reaction(
+        () => {
+          const desc = this.tabManager.activeDescriptor;
+          return desc?.kind === 'diff' ? desc : null;
+        },
+        (tab) => {
+          if (tab) {
+            const activeFile: ActiveFile = {
+              path: tab.path,
+              type: tab.diffGroup === 'disk' ? 'disk' : 'git',
+              group: tab.diffGroup,
+              originalRef: tab.originalRef,
+              modifiedRef: tab.modifiedRef,
+              prNumber: tab.prNumber,
+            };
+            this.diffView.setActiveFile(activeFile);
+          }
+        }
+      )
+    );
+
     makeAutoObservable(this, {
       tabManager: false,
       terminalTabs: false,
@@ -144,13 +162,14 @@ export class TaskViewStore {
   }
 
   get view(): 'agents' | 'editor' | 'diff' {
-    if (this._diffOpen) return 'diff';
     const desc = this.tabManager.activeDescriptor;
+    if (desc?.kind === 'diff') return 'diff';
     return desc?.kind === 'file' ? 'editor' : 'agents';
   }
 
   get activeRenderer(): RendererKind {
-    if (this._diffOpen) return 'diff';
+    const desc = this.tabManager.activeDescriptor;
+    if (desc?.kind === 'diff') return 'diff';
     const tab = this.tabManager.activeFileTab;
     if (!tab) return 'agents';
     switch (tab.renderer.kind) {
@@ -181,17 +200,16 @@ export class TaskViewStore {
 
   setView(v: 'agents' | 'editor' | 'diff'): void {
     if (v === 'diff') {
-      if (!this._diffOpen) {
+      // Activate the most recently opened diff tab, if any.
+      const diffTab = [...this.tabManager.tabs].reverse().find((t) => t.kind === 'diff');
+      if (diffTab) {
         focusTracker.transition({ mainPanel: 'diff' }, 'panel_switch');
-        this._diffOpen = true;
+        this.tabManager.setActiveTab(diffTab.tabId);
       }
       return;
     }
-    if (this._diffOpen) {
-      focusTracker.transition({ mainPanel: v }, 'panel_switch');
-      this._diffOpen = false;
-    }
-    // 'agents' and 'editor' are now driven by active tab; no action needed beyond closing diff.
+    // 'agents' and 'editor' — active tab drives the renderer; no extra work needed.
+    focusTracker.transition({ mainPanel: v }, 'panel_switch');
   }
 
   setSidebarTab(v: SidebarTab): void {

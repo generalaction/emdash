@@ -1,4 +1,4 @@
-import type { GitObjectRef } from '@shared/git';
+import type { GitChangeStatus, GitObjectRef } from '@shared/git';
 
 export type TabViewSnapshot = {
   tabOrder: string[];
@@ -7,7 +7,18 @@ export type TabViewSnapshot = {
 
 export type TabDescriptor =
   | { kind: 'conversation'; id: string; isPreview: boolean }
-  | { kind: 'file'; tabId: string; path: string; isPreview: boolean };
+  | { kind: 'file'; tabId: string; path: string; isPreview: boolean }
+  | {
+      kind: 'diff';
+      tabId: string;
+      path: string;
+      diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+      originalRef: GitObjectRef;
+      modifiedRef?: GitObjectRef;
+      prNumber?: number;
+      status?: GitChangeStatus;
+      isPreview: boolean;
+    };
 
 export type TabManagerSnapshot = {
   tabs: TabDescriptor[];

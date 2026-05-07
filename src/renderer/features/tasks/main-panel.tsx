@@ -103,7 +103,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   return <ReadyTaskMainPanel />;
 });
 
-const SIDEBAR_COLLAPSED_SIZE = '40px';
+const SIDEBAR_COLLAPSED_SIZE = '0px';
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   const { taskView } = useProvisionedTask();
@@ -119,6 +119,10 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
 
   return (
     <ResizablePanelGroup orientation="horizontal" id="task-sidebar-layout">
+      <ResizablePanel id="task-main-area">
+        <TaskMainColumn />
+      </ResizablePanel>
+      <ResizableHandle />
       <ResizablePanel
         id="task-sidebar"
         panelRef={sidebarPanelRef}
@@ -132,10 +136,6 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
         }
       >
         <TaskSidebar />
-      </ResizablePanel>
-      <ResizableHandle />
-      <ResizablePanel id="task-main-area">
-        <TaskMainColumn />
       </ResizablePanel>
     </ResizablePanelGroup>
   );

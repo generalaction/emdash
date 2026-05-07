@@ -12,7 +12,11 @@ import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
-import { AutoGenerateTaskNamesRow, AutoTrustWorktreesRow } from './TaskSettingsRows';
+import {
+  AutoGenerateTaskNamesRow,
+  AutoTrustWorktreesRow,
+  TaskSidebarPositionRow,
+} from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
@@ -124,6 +128,7 @@ export function SettingsPage({
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
+        { component: <TaskSidebarPositionRow /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Tools',

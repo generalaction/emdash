@@ -10,7 +10,6 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const { projectId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const prStore = provisioned.workspace.pr;
-  const diffView = provisioned.taskView.diffView;
 
   const repo = getRepositoryStore(projectId);
   const baseRef = remoteRef(repo?.configuredRemote ?? 'origin', pr.baseRefName);
@@ -25,19 +24,24 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
     modifiedRef
   );
 
-  // Use diffView.activeFile to derive the active path — avoids separate React state.
-  const activePath = diffView.activeFile?.group === 'pr' ? diffView.activeFile.path : undefined;
+  const activePath =
+    provisioned.taskView.tabManager.activeDescriptor?.kind === 'diff' &&
+    provisioned.taskView.tabManager.activeDescriptor.diffGroup === 'pr'
+      ? provisioned.taskView.tabManager.activeDescriptor.path
+      : undefined;
 
   const handleSelectChange = (change: GitChange) => {
-    diffView.setActiveFile({
-      path: change.path,
-      type: 'git',
-      group: 'pr',
-      originalRef: baseRef,
-      modifiedRef,
-      prNumber: getPrNumber(pr) ?? undefined,
-    });
-    provisioned.taskView.setView('diff');
+    provisioned.taskView.tabManager.openDiff(
+      {
+        path: change.path,
+        type: 'git',
+        group: 'pr',
+        originalRef: baseRef,
+        modifiedRef,
+        prNumber: getPrNumber(pr) ?? undefined,
+      },
+      change.status
+    );
   };
 
   return (
