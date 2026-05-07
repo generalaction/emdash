@@ -1,5 +1,7 @@
+import { when } from 'mobx';
 import { useEffect } from 'react';
-import { menuOpenSettingsChannel } from '@shared/events/appEvents';
+import { menuOpenSettingsChannel, notificationFocusTaskChannel } from '@shared/events/appEvents';
+import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { events } from '@renderer/lib/ipc';
 import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 
@@ -16,6 +18,23 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
       navigate('settings');
     });
   }, [navigate, onOpenSettings, currentView]);
+
+  useEffect(() => {
+    return events.on(notificationFocusTaskChannel, ({ projectId, taskId, conversationId }) => {
+      navigate('task', { projectId, taskId });
+      if (!conversationId) return;
+
+      // Task view may not be provisioned yet — wait for the conversation tab to exist.
+      when(
+        () => {
+          const view = getTaskView(projectId, taskId);
+          return !!view && view.conversationTabs.tabOrder.includes(conversationId);
+        },
+        () => getTaskView(projectId, taskId)?.conversationTabs.setActiveTab(conversationId),
+        { timeout: 10_000, onError: () => {} }
+      );
+    });
+  }, [navigate]);
 
   return null;
 }
