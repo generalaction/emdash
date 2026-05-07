@@ -31,6 +31,20 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
       : undefined;
 
   const handleSelectChange = (change: GitChange) => {
+    provisioned.taskView.tabManager.openDiffPreview(
+      {
+        path: change.path,
+        type: 'git',
+        group: 'pr',
+        originalRef: baseRef,
+        modifiedRef,
+        prNumber: getPrNumber(pr) ?? undefined,
+      },
+      change.status
+    );
+  };
+
+  const handleDoubleClickChange = (change: GitChange) => {
     provisioned.taskView.tabManager.openDiff(
       {
         path: change.path,
@@ -50,6 +64,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
       changes={prFiles}
       activePath={activePath}
       onSelectChange={handleSelectChange}
+      onDoubleClickChange={handleDoubleClickChange}
       onPrefetch={(change) => prefetchPrDiff(change.path)}
     />
   );

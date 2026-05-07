@@ -1,4 +1,4 @@
-import { Loader2, X } from 'lucide-react';
+import { Loader2, Plus, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { GitChangeStatusIcon } from '@renderer/features/tasks/diff-view/changes-panel/components/changes-list-item';
@@ -7,8 +7,12 @@ import type {
   ResolvedDiffTab,
   ResolvedFileTab,
 } from '@renderer/features/tasks/stores/tab-manager-store';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import {
+  useProvisionedTask,
+  useTaskViewContext,
+} from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { useModelStatus } from '@renderer/lib/monaco/use-model';
@@ -233,7 +237,9 @@ const DiffTabItem = observer(function DiffTabItem({
 
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const { taskView } = useProvisionedTask();
+  const { projectId, taskId } = useTaskViewContext();
   const { tabManager } = taskView;
+  const showCommandPalette = useShowModal('commandPaletteModal');
 
   const resolvedTabs = tabManager.resolvedTabs;
 
@@ -274,6 +280,13 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
           );
         })}
       </div>
+      <button
+        onClick={() => showCommandPalette({ projectId, taskId })}
+        className="flex h-full shrink-0 items-center justify-center px-2 text-foreground-muted hover:text-foreground hover:bg-background-secondary-1/40"
+        aria-label="Open command palette"
+      >
+        <Plus className="size-4" />
+      </button>
     </div>
   );
 });

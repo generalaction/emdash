@@ -34,6 +34,13 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const showConfirmActionModal = useShowModal('confirmActionModal');
 
   const handleSelectChange = (change: GitChange) => {
+    provisioned.taskView.tabManager.openDiffPreview(
+      { path: change.path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') },
+      change.status
+    );
+  };
+
+  const handleDoubleClickChange = (change: GitChange) => {
     provisioned.taskView.tabManager.openDiff(
       { path: change.path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') },
       change.status
@@ -150,6 +157,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
             onToggleSelect={(path) => changesView.toggleUnstagedItem(path)}
             activePath={activePath}
             onSelectChange={handleSelectChange}
+            onDoubleClickChange={handleDoubleClickChange}
             onPrefetch={(change) => prefetch(change.path)}
           />
         </div>

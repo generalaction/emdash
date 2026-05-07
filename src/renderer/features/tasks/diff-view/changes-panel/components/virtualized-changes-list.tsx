@@ -7,6 +7,7 @@ import { ChangesListItem } from './changes-list-item';
 export interface VirtualizedChangesListProps {
   changes: GitChange[];
   onSelectChange?: (change: GitChange) => void;
+  onDoubleClickChange?: (change: GitChange) => void;
   isSelected?: (path: string) => boolean;
   onToggleSelect?: (path: string) => void;
   onPrefetch?: (change: GitChange) => void;
@@ -19,6 +20,7 @@ const ITEM_HEIGHT = 28;
 export function VirtualizedChangesList({
   changes,
   onSelectChange,
+  onDoubleClickChange,
   isSelected,
   onToggleSelect,
   onPrefetch,
@@ -57,6 +59,7 @@ export function VirtualizedChangesList({
                 height: ITEM_HEIGHT,
               }}
               onClick={() => onSelectChange?.(change)}
+              onDoubleClick={() => onDoubleClickChange?.(change)}
               onMouseEnter={() => onPrefetch?.(change)}
             />
           );

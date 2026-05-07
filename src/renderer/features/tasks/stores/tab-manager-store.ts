@@ -190,6 +190,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       activeFilePath: computed,
       activeDiffTab: computed,
       previewFileTab: computed,
+      previewDiffTab: computed,
       openFilePaths: computed,
       resolvedTabs: computed,
       snapshot: computed,
@@ -198,6 +199,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       openFile: action,
       openFilePreview: action,
       openDiff: action,
+      openDiffPreview: action,
       transitionDiffTab: action,
       closeTab: action,
       closeActiveTab: action,
@@ -282,6 +284,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
 
   get previewFileTab(): FileTabState | undefined {
     return this.tabs.find((t): t is FileTabState => t.kind === 'file' && t.isPreview);
+  }
+
+  get previewDiffTab(): DiffTabState | undefined {
+    return this.tabs.find((t): t is DiffTabState => t.kind === 'diff' && t.isPreview);
   }
 
   /**
@@ -481,6 +487,35 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     const tab = this._makeDiffTab(activeFile, false, undefined, status);
     this.tabs.push(tab);
     this.activeTabId = tab.tabId;
+  }
+
+  /**
+   * Opens a preview diff tab for the given ActiveFile (single-click).
+   * If the diff is already open (stable or preview), just activates it.
+   * If a preview diff tab already exists, replaces it in-place so the same
+   * tab slot is reused. Otherwise pushes a new preview tab.
+   */
+  openDiffPreview(activeFile: ActiveFile, status?: GitChangeStatus): void {
+    const existing = this.tabs.find(
+      (t): t is DiffTabState =>
+        t.kind === 'diff' && t.path === activeFile.path && t.diffGroup === activeFile.group
+    );
+    if (existing) {
+      this.activeTabId = existing.tabId;
+      return;
+    }
+    const previewIdx = this.tabs.findIndex(
+      (t): t is DiffTabState => t.kind === 'diff' && t.isPreview
+    );
+    if (previewIdx !== -1) {
+      const tab = this._makeDiffTab(activeFile, true, undefined, status);
+      this.tabs[previewIdx] = tab;
+      this.activeTabId = tab.tabId;
+    } else {
+      const tab = this._makeDiffTab(activeFile, true, undefined, status);
+      this.tabs.push(tab);
+      this.activeTabId = tab.tabId;
+    }
   }
 
   /**

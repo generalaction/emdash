@@ -30,6 +30,13 @@ export const StagedSection = observer(function StagedSection() {
   const prefetch = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'staged', HEAD_REF);
 
   const handleSelectChange = (change: GitChange) => {
+    provisioned.taskView.tabManager.openDiffPreview(
+      { path: change.path, type: 'git', group: 'staged', originalRef: commitRef('HEAD') },
+      change.status
+    );
+  };
+
+  const handleDoubleClickChange = (change: GitChange) => {
     provisioned.taskView.tabManager.openDiff(
       { path: change.path, type: 'git', group: 'staged', originalRef: commitRef('HEAD') },
       change.status
@@ -99,6 +106,7 @@ export const StagedSection = observer(function StagedSection() {
             onToggleSelect={(path) => changesView.toggleStagedItem(path)}
             activePath={activePath}
             onSelectChange={handleSelectChange}
+            onDoubleClickChange={handleDoubleClickChange}
             onPrefetch={(change) => prefetch(change.path)}
           />
         </div>
