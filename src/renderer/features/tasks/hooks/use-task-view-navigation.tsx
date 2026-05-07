@@ -1,37 +1,28 @@
 import { useCallback, useTransition } from 'react';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 
 export function useTaskViewNavigation() {
   const provisionedTask = useProvisionedTask();
-  const { setCollapsed } = useWorkspaceLayoutContext();
   const [isPending, startTransition] = useTransition();
 
   const openAgentsView = useCallback(() => {
     startTransition(() => {
-      const { taskView } = provisionedTask;
-      taskView.setView('agents');
-      if (taskView.rightPanelView === 'files') taskView.setRightPanelView('changes');
+      // Close diff if open; active tab determines agents vs editor.
+      provisionedTask.taskView.setView('agents');
     });
   }, [provisionedTask]);
 
   const openEditorView = useCallback(() => {
     startTransition(() => {
-      const { taskView } = provisionedTask;
-      taskView.setView('editor');
-      taskView.setRightPanelView('files');
+      provisionedTask.taskView.setView('editor');
     });
-    setCollapsed('right', false);
-  }, [provisionedTask, setCollapsed]);
+  }, [provisionedTask]);
 
   const openDiffView = useCallback(() => {
     startTransition(() => {
-      const { taskView } = provisionedTask;
-      taskView.setView('diff');
-      taskView.setRightPanelView('changes');
+      provisionedTask.taskView.setView('diff');
     });
-    setCollapsed('right', false);
-  }, [provisionedTask, setCollapsed]);
+  }, [provisionedTask]);
 
   return {
     isPending,

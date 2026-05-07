@@ -1,12 +1,5 @@
 import { useObserver } from 'mobx-react-lite';
-import {
-  createContext,
-  Fragment,
-  useCallback,
-  useContext,
-  type ComponentType,
-  type ReactNode,
-} from 'react';
+import { Fragment, useCallback, type ComponentType, type ReactNode } from 'react';
 import {
   views,
   type ViewDefinition,
@@ -37,7 +30,6 @@ export type SlotsContextValue = {
   WrapView: ComponentType<{ children: ReactNode } & Record<string, unknown>>;
   TitlebarSlot: ComponentType;
   MainPanel: ComponentType;
-  RightPanel: ComponentType | null;
   currentView: string;
 };
 
@@ -69,7 +61,6 @@ export function useWorkspaceSlots(): SlotsContextValue {
       >,
       TitlebarSlot: def.TitlebarSlot ?? (() => null),
       MainPanel: def.MainPanel,
-      RightPanel: def.RightPanel ?? null,
       currentView: viewId,
     };
   });
@@ -105,14 +96,4 @@ export function useParams<TId extends ViewId>(
 
 export function isCurrentView(currentView: string | null | undefined, target: string): boolean {
   return currentView === target;
-}
-
-export type ViewLayoutOverride = {
-  hideRightPanel?: boolean;
-};
-
-export const ViewLayoutOverrideContext = createContext<ViewLayoutOverride>({});
-
-export function useViewLayoutOverride(): ViewLayoutOverride {
-  return useContext(ViewLayoutOverrideContext);
 }

@@ -42,7 +42,6 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
           : {
               view: viewId,
               mainPanel: null,
-              rightPanel: null,
               focusedRegion: null,
             },
         'navigation'

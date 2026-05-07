@@ -43,7 +43,6 @@ function wrapArgs<TId extends ModalId>(args: UserArgs<TId>): Record<string, any>
 export function useModalContext() {
   const showModal = useCallback(<TId extends ModalId>(id: TId, args: UserArgs<TId>) => {
     modalStore.setModal(id, wrapArgs(args));
-    window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open: true } }));
   }, []);
 
   const transitionModal = useCallback(<TId extends ModalId>(id: TId, args: UserArgs<TId>) => {
@@ -68,7 +67,6 @@ export function useShowModal<MId extends ModalId>(id: MId) {
   return useCallback(
     (args: UserArgs<MId>) => {
       modalStore.setModal(id, wrapArgs(args));
-      window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open: true } }));
     },
     [id]
   );
@@ -81,4 +79,13 @@ export function useTransitionModal<MId extends ModalId>(id: MId) {
     },
     [id]
   );
+}
+
+/**
+ * Standalone (non-hook) alternative to useShowModal.
+ * Safe to call from MobX reactions, command providers, and any code outside
+ * of the React tree.
+ */
+export function showModal<TId extends ModalId>(id: TId, args: UserArgs<TId>): void {
+  modalStore.setModal(id, wrapArgs(args));
 }

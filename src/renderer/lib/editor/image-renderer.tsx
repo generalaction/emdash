@@ -1,7 +1,5 @@
-import type { ManagedFile } from './types';
-
 interface ImageRendererProps {
-  file: ManagedFile;
+  file: { path: string; content: string };
 }
 
 /** Renders raster image files (png, jpg, gif, webp, ico, bmp). */
