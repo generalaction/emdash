@@ -11,6 +11,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import type { Issue } from '@shared/tasks';
 import {
   asMounted,
   getProjectStore,
@@ -26,6 +27,7 @@ import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
+import { rpc } from '@renderer/lib/ipc';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
@@ -37,7 +39,7 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { DevServerPills } from './components/dev-server-pills';
-import { IssueSelector } from './components/issue-selector/issue-selector';
+import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
 
@@ -255,9 +257,11 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 projectId={projectId}
                 repositoryUrl={provisionedTask.repositoryStore.repositoryUrl ?? ''}
                 projectPath={provisionedTask.path}
+                excludeTaskId={taskId}
               />
             </PopoverContent>
           </Popover>
+          {taskPayload.linkedIssue ? <LinkedIssueBadge issue={taskPayload.linkedIssue} /> : null}
           <button
             className={cn(
               'text-foreground-muted ml-1',
@@ -340,3 +344,26 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     />
   );
 });
+
+function LinkedIssueBadge({ issue }: { issue: Issue }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            disabled={!issue.url}
+            onClick={() => {
+              if (issue.url) void rpc.app.openExternal(issue.url);
+            }}
+            className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted hover:bg-muted/30 disabled:cursor-default disabled:opacity-60"
+          >
+            <ProviderLogo provider={issue.provider} className="h-3 w-3" />
+            <span className="font-mono">{issue.identifier}</span>
+          </button>
+        }
+      />
+      <TooltipContent>{issue.title || issue.identifier}</TooltipContent>
+    </Tooltip>
+  );
+}
