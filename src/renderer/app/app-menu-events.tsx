@@ -20,20 +20,40 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
   }, [navigate, onOpenSettings, currentView]);
 
   useEffect(() => {
-    return events.on(notificationFocusTaskChannel, ({ projectId, taskId, conversationId }) => {
-      navigate('task', { projectId, taskId });
-      if (!conversationId) return;
+    const disposers = new Set<() => void>();
 
-      // Task view may not be provisioned yet — wait for the conversation tab to exist.
-      when(
-        () => {
-          const view = getTaskView(projectId, taskId);
-          return !!view && view.conversationTabs.tabOrder.includes(conversationId);
-        },
-        () => getTaskView(projectId, taskId)?.conversationTabs.setActiveTab(conversationId),
-        { timeout: 10_000, onError: () => {} }
-      );
-    });
+    const unlisten = events.on(
+      notificationFocusTaskChannel,
+      ({ projectId, taskId, conversationId }) => {
+        navigate('task', { projectId, taskId });
+        if (!conversationId) return;
+
+        // Task view may not be provisioned yet — wait for the conversation tab to exist.
+        const dispose = when(
+          () => {
+            const view = getTaskView(projectId, taskId);
+            return !!view && view.conversationTabs.tabOrder.includes(conversationId);
+          },
+          () => {
+            disposers.delete(dispose);
+            getTaskView(projectId, taskId)?.conversationTabs.setActiveTab(conversationId);
+          },
+          {
+            timeout: 10_000,
+            onError: () => {
+              disposers.delete(dispose);
+            },
+          }
+        );
+        disposers.add(dispose);
+      }
+    );
+
+    return () => {
+      unlisten();
+      disposers.forEach((dispose) => dispose());
+      disposers.clear();
+    };
   }, [navigate]);
 
   return null;
