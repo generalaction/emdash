@@ -72,6 +72,21 @@ export const projectRemotes = sqliteTable(
   })
 );
 
+export const projectSettings = sqliteTable('project_settings', {
+  projectId: text('project_id')
+    .primaryKey()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  baseProjectSettingsJson: text('base_project_settings_json').notNull().default('{}'),
+  shareableProjectSettingsJson: text('shareable_project_settings_json').notNull().default('{}'),
+  legacyConfigMigratedAt: text('legacy_config_migrated_at'),
+  createdAt: text('created_at')
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at')
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const appSettings = sqliteTable(
   'app_settings',
   {
@@ -356,9 +371,20 @@ export const sshConnectionsRelations = relations(sshConnections, ({ many }) => (
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   tasks: many(tasks),
+  settings: one(projectSettings, {
+    fields: [projects.id],
+    references: [projectSettings.projectId],
+  }),
   sshConnection: one(sshConnections, {
     fields: [projects.sshConnectionId],
     references: [sshConnections.id],
+  }),
+}));
+
+export const projectSettingsRelations = relations(projectSettings, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectSettings.projectId],
+    references: [projects.id],
   }),
 }));
 
@@ -388,6 +414,8 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
+export type ProjectSettingsRow = typeof projectSettings.$inferSelect;
+export type ProjectSettingsInsert = typeof projectSettings.$inferInsert;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type TerminalRow = typeof terminals.$inferSelect;
