@@ -41,7 +41,6 @@ export class PtySession {
       // fresh FrontendPty after dispose() found nothing to clean up, leaking
       // xterm + IPC subscriptions on the disposed session.
       if (this.disposed) return;
-      if (this.pty) return;
       const pty = new FrontendPty(this.sessionId);
       this.pty = pty;
       await pty.connect();

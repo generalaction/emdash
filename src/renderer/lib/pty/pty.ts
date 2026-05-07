@@ -246,6 +246,10 @@ export class FrontendPty {
     try {
       this.canvasAddon.clearTextureAtlas();
       this.terminal.clearTextureAtlas();
+    } catch (error) {
+      log.warn('FrontendPty: atlas clear failed', { error });
+    }
+    try {
       this.terminal.refresh(0, this.terminal.rows - 1);
     } catch (error) {
       log.warn('FrontendPty: font refresh failed', { error });
