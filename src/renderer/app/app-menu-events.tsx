@@ -35,14 +35,10 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
             return !!view && view.conversationTabs.tabOrder.includes(conversationId);
           },
           () => {
-            disposers.delete(dispose);
             getTaskView(projectId, taskId)?.conversationTabs.setActiveTab(conversationId);
           },
           {
             timeout: 10_000,
-            onError: () => {
-              disposers.delete(dispose);
-            },
           }
         );
         disposers.add(dispose);
