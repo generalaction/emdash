@@ -1,3 +1,17 @@
+import {
+  closestCenter,
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { Loader2, Plus, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
@@ -18,6 +32,34 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
+
+// ---------------------------------------------------------------------------
+// Sortable wrapper — gives any tab item drag-and-drop behaviour
+// ---------------------------------------------------------------------------
+
+function SortableTabWrapper({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: DndCSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : undefined,
+        display: 'flex',
+        height: '100%',
+        alignItems: 'center',
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Conversation tab item
@@ -243,8 +285,13 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const showCommandPalette = useShowModal('commandPaletteModal');
 
   const resolvedTabs = tabManager.resolvedTabs;
+  const tabIds = resolvedTabs.map((t) => (t.kind === 'conversation' ? t.id : t.tabId));
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  );
 
   useEffect(() => {
     const id = tabManager.activeTabId;
@@ -255,43 +302,60 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
     el?.scrollIntoView({ behavior: 'instant', inline: 'nearest', block: 'nearest' });
   }, [tabManager.activeTabId]);
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const fromIndex = tabIds.indexOf(active.id as string);
+    const toIndex = tabIds.indexOf(over.id as string);
+    if (fromIndex !== -1 && toIndex !== -1) {
+      tabManager.reorderTabs(fromIndex, toIndex);
+    }
+  }
+
   return (
     <div className="flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
-      <div ref={scrollContainerRef} className="flex h-full overflow-x-auto">
-        {resolvedTabs.map((tab) => {
-          if (tab.kind === 'conversation') {
-            return (
-              <ConversationTabItem
-                key={tab.id}
-                tab={tab}
-                onSelect={() => tabManager.setActiveTab(tab.id)}
-                onPin={() => tabManager.openConversation(tab.id)}
-                onClose={() => tabManager.closeTab(tab.id)}
-              />
-            );
-          }
-          if (tab.kind === 'diff') {
-            return (
-              <DiffTabItem
-                key={tab.tabId}
-                tab={tab}
-                onSelect={() => tabManager.setActiveTab(tab.tabId)}
-                onPin={() => tabManager.pinTab(tab.tabId)}
-                onClose={() => tabManager.closeTab(tab.tabId)}
-              />
-            );
-          }
-          return (
-            <FileTabItem
-              key={tab.tabId}
-              tab={tab}
-              onSelect={() => tabManager.setActiveTab(tab.tabId)}
-              onPin={() => tabManager.pinTab(tab.tabId)}
-              onClose={() => tabManager.closeTab(tab.tabId)}
-            />
-          );
-        })}
-      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
+          <div ref={scrollContainerRef} className="flex h-full overflow-x-auto">
+            {resolvedTabs.map((tab) => {
+              if (tab.kind === 'conversation') {
+                return (
+                  <SortableTabWrapper key={tab.id} id={tab.id}>
+                    <ConversationTabItem
+                      tab={tab}
+                      onSelect={() => tabManager.setActiveTab(tab.id)}
+                      onPin={() => tabManager.openConversation(tab.id)}
+                      onClose={() => tabManager.closeTab(tab.id)}
+                    />
+                  </SortableTabWrapper>
+                );
+              }
+              if (tab.kind === 'diff') {
+                return (
+                  <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
+                    <DiffTabItem
+                      tab={tab}
+                      onSelect={() => tabManager.setActiveTab(tab.tabId)}
+                      onPin={() => tabManager.pinTab(tab.tabId)}
+                      onClose={() => tabManager.closeTab(tab.tabId)}
+                    />
+                  </SortableTabWrapper>
+                );
+              }
+              return (
+                <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
+                  <FileTabItem
+                    tab={tab}
+                    onSelect={() => tabManager.setActiveTab(tab.tabId)}
+                    onPin={() => tabManager.pinTab(tab.tabId)}
+                    onClose={() => tabManager.closeTab(tab.tabId)}
+                  />
+                </SortableTabWrapper>
+              );
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
       <button
         onClick={() => showCommandPalette({ projectId, taskId })}
         className="flex h-full shrink-0 items-center justify-center px-2 text-foreground-muted hover:text-foreground hover:bg-background-secondary-1/40"
