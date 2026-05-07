@@ -71,6 +71,13 @@
       "when": 1778013476015,
       "tag": "0009_dusty_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1778136581718,
+      "tag": "0010_new_exiles",
+      "breakpoints": true
     }
   ]
 }

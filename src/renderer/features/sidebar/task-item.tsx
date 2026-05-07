@@ -75,7 +75,11 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const canPin = task.state !== 'unregistered';
 
-  const workspace = asProvisioned(task)?.workspace;
+  const provisionedTask = asProvisioned(task);
+  const branchName =
+    provisionedTask?.workspace.git.branchName ??
+    ('taskBranch' in task.data ? task.data.taskBranch : undefined);
+  const workspace = provisionedTask?.workspace;
   const handleReconnect =
     workspace?.connectionState != null ? () => workspace.reconnect() : undefined;
 
@@ -84,6 +88,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       isPinned={task.data.isPinned}
       canPin={canPin}
       isArchived={false}
+      branchName={branchName}
       onPin={() => void task.setPinned(true)}
       onUnpin={() => void task.setPinned(false)}
       onRename={handleRename}
