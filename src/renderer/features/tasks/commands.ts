@@ -2,6 +2,8 @@ import { startTransition } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import {
   asProvisioned,
+  getRegisteredTaskData,
+  getTaskGitStore,
   getTaskManagerStore,
   getTaskStore,
   getTaskView,
@@ -39,7 +41,11 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const taskIds = taskMgr ? Array.from(taskMgr.tasks.keys()) : [];
       const currentIdx = taskIds.indexOf(taskId);
 
+      const git = getTaskGitStore(projectId, taskId);
+      const taskData = getRegisteredTaskData(projectId, taskId);
+
       return [
+        // ── Conversations ──────────────────────────────────────────────────
         {
           id: 'task.newConversation',
           label: 'New Conversation',
@@ -58,6 +64,8 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             });
           },
         },
+
+        // ── Main panel view switches ───────────────────────────────────────
         {
           id: 'task.switchToConversations',
           label: 'Switch to Conversations view',
@@ -89,13 +97,13 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           },
         },
 
-        // ── Sidebar tab switches ───────────────────────────────────────────
+        // ── View sidebar panels ────────────────────────────────────────────
         {
           id: 'task.sidebarChanges',
-          label: 'Sidebar: Changes',
-          description: 'Switch the right sidebar to the Changes panel',
+          label: 'View Changes',
+          description: 'Open the Changes panel in the right sidebar',
           shortcutKey: 'sidebarChanges',
-          group: 'Panel',
+          group: 'View',
           execute() {
             taskView?.setSidebarTab('changes');
             taskView?.setSidebarCollapsed(false);
@@ -103,10 +111,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
         },
         {
           id: 'task.sidebarConversations',
-          label: 'Sidebar: Conversations',
-          description: 'Switch the right sidebar to the Conversations panel',
+          label: 'View Conversations',
+          description: 'Open the Conversations panel in the right sidebar',
           shortcutKey: 'sidebarConversations',
-          group: 'Panel',
+          group: 'View',
           execute() {
             taskView?.setSidebarTab('conversations');
             taskView?.setSidebarCollapsed(false);
@@ -114,13 +122,22 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
         },
         {
           id: 'task.sidebarFiles',
-          label: 'Sidebar: Files',
-          description: 'Switch the right sidebar to the Files panel',
+          label: 'View Files',
+          description: 'Open the Files panel in the right sidebar',
           shortcutKey: 'sidebarFiles',
-          group: 'Panel',
+          group: 'View',
           execute() {
             taskView?.setSidebarTab('files');
             taskView?.setSidebarCollapsed(false);
+          },
+        },
+        {
+          id: 'task.viewTerminals',
+          label: 'View Terminals',
+          description: 'Open the terminal drawer',
+          group: 'View',
+          execute() {
+            taskView?.setTerminalDrawerOpen(true);
           },
         },
 
@@ -143,6 +160,18 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Panel',
           execute() {
             taskView?.setSidebarCollapsed(!taskView.isSidebarCollapsed);
+          },
+        },
+
+        // ── Terminals ─────────────────────────────────────────────────────
+        {
+          id: 'task.newTerminal',
+          label: 'New Terminal',
+          description: 'Create a new terminal session',
+          shortcutKey: 'newTerminal',
+          group: 'Terminals',
+          execute() {
+            taskView?.openNewTerminal();
           },
         },
 
@@ -180,6 +209,60 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             tabManager?.setPreviousTabActive();
           },
         },
+
+        // ── Git ────────────────────────────────────────────────────────────
+        {
+          id: 'task.gitFetch',
+          label: 'Git Fetch',
+          description: 'Fetch latest changes from remote',
+          group: 'Git',
+          enabled: git != null,
+          execute() {
+            void git?.fetchRemote();
+          },
+        },
+        {
+          id: 'task.gitPull',
+          label: 'Git Pull',
+          description: 'Pull latest changes from remote',
+          group: 'Git',
+          enabled: git != null,
+          execute() {
+            void git?.pull();
+          },
+        },
+        {
+          id: 'task.gitPush',
+          label: git?.isBranchPublished ? 'Git Push' : 'Git Publish Branch',
+          description: git?.isBranchPublished
+            ? 'Push commits to remote'
+            : 'Publish this branch to remote',
+          group: 'Git',
+          enabled: git != null,
+          execute() {
+            if (git?.isBranchPublished) {
+              void git.push();
+            } else {
+              void git?.publishBranch();
+            }
+          },
+        },
+
+        // ── Task actions ───────────────────────────────────────────────────
+        {
+          id: 'task.pin',
+          label: taskData?.isPinned ? 'Unpin Task' : 'Pin Task',
+          description: taskData?.isPinned
+            ? 'Remove this task from pinned'
+            : 'Pin this task to keep it at the top',
+          group: 'Task',
+          enabled: taskData != null,
+          execute() {
+            if (taskData) void taskStore?.setPinned(!taskData.isPinned);
+          },
+        },
+
+        // ── Navigation ─────────────────────────────────────────────────────
         {
           id: 'task.nextTask',
           label: 'Next Task',

@@ -121,20 +121,20 @@ export const APP_SHORTCUTS = defineShortcuts({
   },
   sidebarChanges: {
     defaultHotkey: 'Mod+Shift+1',
-    label: 'Sidebar: Changes',
-    description: 'Switch the right sidebar to the Changes panel',
+    label: 'View Changes',
+    description: 'Open the right sidebar to the Changes panel',
     category: 'Task View',
   },
   sidebarConversations: {
     defaultHotkey: 'Mod+Shift+2',
-    label: 'Sidebar: Conversations',
-    description: 'Switch the right sidebar to the Conversations panel',
+    label: 'View Conversations',
+    description: 'Open the right sidebar to the Conversations panel',
     category: 'Task View',
   },
   sidebarFiles: {
     defaultHotkey: 'Mod+Shift+3',
-    label: 'Sidebar: Files',
-    description: 'Switch the right sidebar to the Files panel',
+    label: 'View Files',
+    description: 'Open the right sidebar to the Files panel',
     category: 'Task View',
   },
   tabNext: {

@@ -4,6 +4,7 @@ import { ErrorBoundary } from './lib/components/error-boundary';
 import './index.css';
 import 'devicon/devicon.min.css';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
+import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
 import { rpc } from '@renderer/lib/ipc';
@@ -41,6 +42,7 @@ async function bootstrap() {
   ]);
 
   if (navResult) appState.navigation.restoreSnapshot(navResult);
+  setupAppCommandProvider();
   setupViewCommandProvider();
   if (sidebarResult) {
     appState.sidebar.restoreSnapshot(sidebarResult as Partial<SidebarSnapshot>);

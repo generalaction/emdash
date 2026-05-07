@@ -286,6 +286,12 @@ export class TaskViewStore {
     }
   }
 
+  /** Opens the terminal drawer and always creates a new terminal session. */
+  openNewTerminal(): void {
+    this.isTerminalDrawerOpen = true;
+    void this.terminalsMgr.createDefaultTerminal();
+  }
+
   dispose(): void {
     for (const d of this.disposers) d();
     this.tabManager.dispose();
