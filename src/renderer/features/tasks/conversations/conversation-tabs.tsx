@@ -39,6 +39,7 @@ export const ConversationsTabs = observer(function ConversationsTabs({
       }}
       renderTabPrefix={(s) => {
         const config = agentConfig[s.data.providerId];
+        if (!config) return null;
         return (
           <AgentLogo
             logo={config.logo}
