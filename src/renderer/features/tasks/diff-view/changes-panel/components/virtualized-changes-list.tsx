@@ -35,7 +35,10 @@ export function VirtualizedChangesList({
     overscan: 5,
   });
   return (
-    <div ref={parentRef} className={cn('h-full overflow-y-auto overflow-x-hidden py-2 px-1', className)}>
+    <div
+      ref={parentRef}
+      className={cn('h-full overflow-y-auto overflow-x-hidden py-2 px-1', className)}
+    >
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const change = changes[virtualItem.index]!;

@@ -1,11 +1,16 @@
 import { computed, makeAutoObservable, reaction, runInAction } from 'mobx';
+import { commitRef } from '@shared/git';
+import { getPrNumber } from '@shared/pull-requests';
 import type { ActiveFile, TaskViewSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git-store';
 import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { TabManagerStore } from '@renderer/features/tasks/stores/tab-manager-store';
+import {
+  TabManagerStore,
+  type DiffTabState,
+} from '@renderer/features/tasks/stores/tab-manager-store';
 import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
@@ -76,9 +81,7 @@ export class TaskViewStore {
           })) ?? []),
         ],
         activeTabId:
-          savedSnapshot.conversations.activeTabId ??
-          savedSnapshot.editor?.activeTabId ??
-          undefined,
+          savedSnapshot.conversations.activeTabId ?? savedSnapshot.editor?.activeTabId ?? undefined,
       });
     } else if (savedSnapshot?.editor?.tabs) {
       this.tabManager.restoreSnapshot({
@@ -148,6 +151,55 @@ export class TaskViewStore {
             this.diffView.setActiveFile(activeFile);
           }
         }
+      )
+    );
+
+    // Auto-close diff tabs whose file is no longer present in the corresponding
+    // git category. 'git' tabs compare arbitrary fixed refs and are never auto-closed.
+    this.disposers.push(
+      reaction(
+        () => {
+          const valid = new Set<string>();
+          for (const c of resources.git.unstagedFileChanges) valid.add(`disk:${c.path}`);
+          for (const c of resources.git.stagedFileChanges) valid.add(`staged:${c.path}`);
+          for (const t of this.tabManager.tabs) {
+            if (t.kind !== 'diff' || t.diffGroup !== 'pr' || t.prNumber == null) continue;
+            const pr = resources.pr.pullRequests.find((p) => getPrNumber(p) === t.prNumber);
+            if (pr) {
+              for (const f of resources.pr.getFiles(pr).data ?? []) valid.add(`pr:${f.path}`);
+            }
+          }
+          return valid;
+        },
+        (validKeys) => {
+          const stale = this.tabManager.tabs.filter(
+            (t): t is DiffTabState =>
+              t.kind === 'diff' &&
+              t.diffGroup !== 'git' &&
+              !validKeys.has(`${t.diffGroup}:${t.path}`)
+          );
+          for (const tab of stale) {
+            const counterpartGroup: 'disk' | 'staged' | null =
+              tab.diffGroup === 'disk' ? 'staged' : tab.diffGroup === 'staged' ? 'disk' : null;
+
+            if (counterpartGroup && validKeys.has(`${counterpartGroup}:${tab.path}`)) {
+              const changes =
+                counterpartGroup === 'staged'
+                  ? resources.git.stagedFileChanges
+                  : resources.git.unstagedFileChanges;
+              const match = changes.find((c) => c.path === tab.path);
+              this.tabManager.transitionDiffTab(
+                tab.tabId,
+                counterpartGroup,
+                commitRef('HEAD'),
+                match?.status
+              );
+            } else {
+              this.tabManager.closeTab(tab.tabId);
+            }
+          }
+        },
+        { equals: (a, b) => a.size === b.size && [...a].every((k) => b.has(k)) }
       )
     );
 

@@ -198,6 +198,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       openFile: action,
       openFilePreview: action,
       openDiff: action,
+      transitionDiffTab: action,
       closeTab: action,
       closeActiveTab: action,
       setActiveTab: action,
@@ -338,7 +339,8 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   get snapshot(): TabManagerSnapshot {
     return {
       tabs: this.tabs.map((t): TabDescriptor => {
-        if (t.kind === 'conversation') return { kind: 'conversation', id: t.id, isPreview: t.isPreview };
+        if (t.kind === 'conversation')
+          return { kind: 'conversation', id: t.id, isPreview: t.isPreview };
         if (t.kind === 'diff') {
           return {
             kind: 'diff',
@@ -479,6 +481,26 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     const tab = this._makeDiffTab(activeFile, false, undefined, status);
     this.tabs.push(tab);
     this.activeTabId = tab.tabId;
+  }
+
+  /**
+   * Transitions an existing diff tab between 'disk' and 'staged' in-place,
+   * preserving tab identity, position, and isPreview state. `activeTabId` is
+   * not changed so background tabs transition silently.
+   */
+  transitionDiffTab(
+    tabId: string,
+    newGroup: 'disk' | 'staged',
+    newOriginalRef: GitObjectRef,
+    status?: GitChangeStatus
+  ): void {
+    const tab = this.tabs.find((t): t is DiffTabState => t.kind === 'diff' && t.tabId === tabId);
+    if (!tab) return;
+    tab.diffGroup = newGroup;
+    tab.originalRef = newOriginalRef;
+    tab.modifiedRef = undefined;
+    tab.prNumber = undefined;
+    tab.status = status;
   }
 
   // ---------------------------------------------------------------------------

@@ -2,8 +2,8 @@ import { AlignJustify, Columns2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
 export const DiffToolbar = observer(function DiffToolbar() {
   const diffView = useProvisionedTask().taskView.diffView;

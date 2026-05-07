@@ -27,6 +27,9 @@ export function useTaskViewShortcuts() {
   const agentsHotkey = getEffectiveHotkey('taskViewAgents', keyboard);
   const diffHotkey = getEffectiveHotkey('taskViewDiff', keyboard);
   const editorHotkey = getEffectiveHotkey('taskViewEditor', keyboard);
+  const sidebarChangesHotkey = getEffectiveHotkey('sidebarChanges', keyboard);
+  const sidebarConversationsHotkey = getEffectiveHotkey('sidebarConversations', keyboard);
+  const sidebarFilesHotkey = getEffectiveHotkey('sidebarFiles', keyboard);
   const nextTaskHotkey = getEffectiveHotkey('nextProject', keyboard);
   const prevTaskHotkey = getEffectiveHotkey('prevProject', keyboard);
   const toggleTerminalDrawerHotkey = getEffectiveHotkey('toggleTerminalDrawer', keyboard);
@@ -44,6 +47,36 @@ export function useTaskViewShortcuts() {
   useHotkey(getHotkeyRegistration('taskViewEditor', keyboard), openEditorView, {
     enabled: editorHotkey !== null,
   });
+
+  useHotkey(
+    getHotkeyRegistration('sidebarChanges', keyboard),
+    () => {
+      const { taskView } = provisionedTask;
+      taskView.setSidebarTab('changes');
+      taskView.setSidebarCollapsed(false);
+    },
+    { enabled: sidebarChangesHotkey !== null }
+  );
+
+  useHotkey(
+    getHotkeyRegistration('sidebarConversations', keyboard),
+    () => {
+      const { taskView } = provisionedTask;
+      taskView.setSidebarTab('conversations');
+      taskView.setSidebarCollapsed(false);
+    },
+    { enabled: sidebarConversationsHotkey !== null }
+  );
+
+  useHotkey(
+    getHotkeyRegistration('sidebarFiles', keyboard),
+    () => {
+      const { taskView } = provisionedTask;
+      taskView.setSidebarTab('files');
+      taskView.setSidebarCollapsed(false);
+    },
+    { enabled: sidebarFilesHotkey !== null }
+  );
 
   useHotkey(
     getHotkeyRegistration('nextProject', keyboard),

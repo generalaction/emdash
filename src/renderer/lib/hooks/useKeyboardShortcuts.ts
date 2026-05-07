@@ -10,7 +10,7 @@
 import type { Hotkey } from '@tanstack/react-hotkeys';
 
 export interface AppShortcutDef {
-  defaultHotkey: string;
+  defaultHotkey?: string;
   label: string;
   description: string;
   category: string;
@@ -99,21 +99,36 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Navigation',
   },
   taskViewAgents: {
-    defaultHotkey: 'Mod+Shift+1',
     label: 'Conversations view',
     description: 'Switch to the conversations view in the task panel',
     category: 'Task View',
   },
   taskViewDiff: {
-    defaultHotkey: 'Mod+Shift+2',
     label: 'Diff view',
     description: 'Switch to the diff view in the task panel',
     category: 'Task View',
   },
   taskViewEditor: {
-    defaultHotkey: 'Mod+Shift+3',
     label: 'Editor view',
     description: 'Switch to the editor view in the task panel',
+    category: 'Task View',
+  },
+  sidebarChanges: {
+    defaultHotkey: 'Mod+Shift+1',
+    label: 'Sidebar: Changes',
+    description: 'Switch the right sidebar to the Changes panel',
+    category: 'Task View',
+  },
+  sidebarConversations: {
+    defaultHotkey: 'Mod+Shift+2',
+    label: 'Sidebar: Conversations',
+    description: 'Switch the right sidebar to the Conversations panel',
+    category: 'Task View',
+  },
+  sidebarFiles: {
+    defaultHotkey: 'Mod+Shift+3',
+    label: 'Sidebar: Files',
+    description: 'Switch the right sidebar to the Files panel',
     category: 'Task View',
   },
   tabNext: {
@@ -167,6 +182,7 @@ export type ShortcutSettingsKey = keyof typeof APP_SHORTCUTS;
  * Returns the currently assigned hotkey for an action.
  * - `undefined` override -> falls back to default
  * - `null` override -> unassigned (disabled)
+ * - no `defaultHotkey` and no override -> `null` (not bound)
  */
 export function getEffectiveHotkey(
   key: ShortcutSettingsKey,
@@ -174,7 +190,8 @@ export function getEffectiveHotkey(
 ): Hotkey | null {
   const configured = custom?.[key];
   if (configured === null) return null;
-  return (configured ?? APP_SHORTCUTS[key].defaultHotkey) as Hotkey;
+  const resolved = configured ?? APP_SHORTCUTS[key].defaultHotkey;
+  return resolved != null ? (resolved as Hotkey) : null;
 }
 
 /**
@@ -185,5 +202,5 @@ export function getHotkeyRegistration(
   key: ShortcutSettingsKey,
   custom?: ShortcutOverrides
 ): Hotkey {
-  return (getEffectiveHotkey(key, custom) ?? APP_SHORTCUTS[key].defaultHotkey) as Hotkey;
+  return (getEffectiveHotkey(key, custom) ?? APP_SHORTCUTS[key].defaultHotkey ?? '') as Hotkey;
 }
