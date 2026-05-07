@@ -1,5 +1,6 @@
 import { Check, Loader2, Plus } from 'lucide-react';
 import React, { useEffect } from 'react';
+import featurebaseSvg from '@/assets/images/Featurebase.svg?raw';
 import forgejoSvg from '@/assets/images/Forgejo.svg?raw';
 import githubSvg from '@/assets/images/Github.svg?raw';
 import gitlabSvg from '@/assets/images/GitLab.svg?raw';
@@ -60,6 +61,9 @@ const IntegrationsCard: React.FC = () => {
     isForgejoConnected,
     isForgejoLoading,
     disconnectForgejo,
+    isFeaturebaseConnected,
+    isFeaturebaseLoading,
+    disconnectFeaturebase,
   } = useIntegrationsContext();
 
   const showIntegrationSetup = useShowModal('integrationSetupModal');
@@ -146,6 +150,16 @@ const IntegrationsCard: React.FC = () => {
       loading: isForgejoLoading,
       onConnect: () => showIntegrationSetup({ integration: 'forgejo' }),
       onDisconnect: disconnectForgejo,
+    },
+    {
+      id: 'featurebase',
+      name: 'Featurebase',
+      description: 'Work on Featurebase posts',
+      logoSvg: featurebaseSvg,
+      connected: !!isFeaturebaseConnected,
+      loading: isFeaturebaseLoading,
+      onConnect: () => showIntegrationSetup({ integration: 'featurebase' }),
+      onDisconnect: disconnectFeaturebase,
     },
   ];
 

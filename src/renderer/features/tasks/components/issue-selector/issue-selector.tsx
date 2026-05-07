@@ -92,9 +92,17 @@ export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }
   );
 }
 
-export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedIssueInfo }) {
+export function IssueRow({
+  issue,
+  linkedTo,
+  muted,
+}: {
+  issue: Issue;
+  linkedTo?: LinkedIssueInfo;
+  muted?: boolean;
+}) {
   return (
-    <span className="flex min-w-0 items-center gap-2 w-full">
+    <span className={cn('flex min-w-0 items-center gap-2 w-full', muted && 'opacity-60')}>
       <Tooltip>
         <TooltipTrigger render={<StatusDot status={issue.status} />} />
         <TooltipContent>{issue.status}</TooltipContent>
@@ -250,8 +258,13 @@ export const IssueSelector = observer(function IssueSelector({
               {(issue: Issue) => {
                 const linkedTo = linkedIssueMap.get(issue.url);
                 return (
-                  <ComboboxItem key={issue.identifier} value={issue} className="pr-2">
-                    <IssueRow issue={issue} linkedTo={linkedTo} />
+                  <ComboboxItem
+                    key={issue.identifier}
+                    value={issue}
+                    disabled={!!linkedTo}
+                    className={cn('pr-2', linkedTo && 'cursor-not-allowed')}
+                  >
+                    <IssueRow issue={issue} linkedTo={linkedTo} muted={!!linkedTo} />
                   </ComboboxItem>
                 );
               }}
