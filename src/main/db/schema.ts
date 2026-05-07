@@ -350,11 +350,6 @@ export const appSecrets = sqliteTable(
   })
 );
 
-export type KvRow = typeof kv.$inferSelect;
-export type KvInsert = typeof kv.$inferInsert;
-export type AppSecretRow = typeof appSecrets.$inferSelect;
-export type AppSecretInsert = typeof appSecrets.$inferInsert;
-
 export const sshConnectionsRelations = relations(sshConnections, ({ many }) => ({
   projects: many(projects),
 }));
@@ -399,3 +394,7 @@ export type TerminalRow = typeof terminals.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type EditorBufferRow = typeof editorBuffers.$inferSelect;
 export type EditorBufferInsert = typeof editorBuffers.$inferInsert;
+export type KvRow = typeof kv.$inferSelect;
+export type KvInsert = typeof kv.$inferInsert;
+export type AppSecretRow = typeof appSecrets.$inferSelect;
+export type AppSecretInsert = typeof appSecrets.$inferInsert;
