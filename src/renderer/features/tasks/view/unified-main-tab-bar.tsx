@@ -1,5 +1,6 @@
 import { Loader2, Plus, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useEffect, useRef } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { GitChangeStatusIcon } from '@renderer/features/tasks/diff-view/changes-panel/components/changes-list-item';
 import type {
@@ -45,6 +46,7 @@ const ConversationTabItem = observer(function ConversationTabItem({
         onClick={onSelect}
         onDoubleClick={onPin}
         title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
+        data-tabid={tab.id}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm text-foreground-muted hover:bg-background-secondary-1/40',
           tab.isActive &&
@@ -112,6 +114,7 @@ const FileTabItem = observer(function FileTabItem({
         onClick={onSelect}
         onDoubleClick={onPin}
         title={tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path}
+        data-tabid={tab.tabId}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
           tab.isActive && 'bg-background-secondary-1 [box-shadow:inset_0_1px_0_var(--primary)]'
@@ -194,6 +197,7 @@ const DiffTabItem = observer(function DiffTabItem({
             ? `${tab.path} ${suffix} (preview — double-click to keep)`
             : `${tab.path} ${suffix}`
         }
+        data-tabid={tab.tabId}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
           tab.isActive && 'bg-background-secondary-1 [box-shadow:inset_0_1px_0_var(--primary)]'
@@ -243,9 +247,20 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
 
   const resolvedTabs = tabManager.resolvedTabs;
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const id = tabManager.activeTabId;
+    if (!id || !scrollContainerRef.current) return;
+    const el = scrollContainerRef.current.querySelector<HTMLElement>(
+      `[data-tabid="${CSS.escape(id)}"]`
+    );
+    el?.scrollIntoView({ behavior: 'instant', inline: 'nearest', block: 'nearest' });
+  }, [tabManager.activeTabId]);
+
   return (
     <div className="flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
-      <div className="flex h-full overflow-x-auto">
+      <div ref={scrollContainerRef} className="flex h-full overflow-x-auto">
         {resolvedTabs.map((tab) => {
           if (tab.kind === 'conversation') {
             return (

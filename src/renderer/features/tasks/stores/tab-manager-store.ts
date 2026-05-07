@@ -166,6 +166,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   tabs: TabState[] = [];
   activeTabId: string | undefined = undefined;
   isVisible = false;
+  lastActiveConversationId: string | undefined = undefined;
 
   /** Computed once from workspaceId; used by resolvedTabs to build bufferUri. */
   readonly modelRootPath: string;
@@ -184,6 +185,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       tabs: observable,
       activeTabId: observable,
       isVisible: observable,
+      lastActiveConversationId: observable,
       activeDescriptor: computed,
       activeConversation: computed,
       activeFileTab: computed,
@@ -214,6 +216,17 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       pinTab: action,
       restoreSnapshot: action,
     });
+
+    // Track the last conversation tab that was active so the sidebar can
+    // highlight it even when a file/diff tab is currently focused.
+    this.disposers.push(
+      reaction(
+        () => this.activeConversation?.data.id,
+        (id) => {
+          if (id !== undefined) this.lastActiveConversationId = id;
+        }
+      )
+    );
 
     // Auto-close conversation tabs when the conversation is deleted from the manager.
     this.disposers.push(
