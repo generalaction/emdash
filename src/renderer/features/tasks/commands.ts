@@ -9,6 +9,7 @@ import {
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
 import type { CommandProvider } from '@renderer/lib/commands/types';
+import type { ShortcutSettingsKey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 
@@ -209,6 +210,17 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             tabManager?.setPreviousTabActive();
           },
         },
+        ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((n) => ({
+          id: `task.tab${n}`,
+          label: `Go to Tab ${n}`,
+          description: `Switch to tab ${n}`,
+          shortcutKey: `tab${n}` as ShortcutSettingsKey,
+          group: 'Tabs',
+          enabled: hasTabs,
+          execute() {
+            tabManager?.setTabActiveIndex(n - 1);
+          },
+        })),
 
         // ── Git ────────────────────────────────────────────────────────────
         {
