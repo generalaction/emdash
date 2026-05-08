@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
-import { FolderOpen, GitBranch, Zap } from 'lucide-react';
+import { FolderOpen, GitBranch, MessageSquare, Zap } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import React, { useDeferredValue, useState } from 'react';
 import type { SearchItem } from '@shared/search';
+import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
 import { APP_SHORTCUTS } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
@@ -33,6 +34,7 @@ const KIND_ICON: Record<string, React.ReactNode> = {
   action: <Zap size={14} className="shrink-0 text-foreground/40" />,
   task: <GitBranch size={14} className="shrink-0 text-foreground/40" />,
   project: <FolderOpen size={14} className="shrink-0 text-foreground/40" />,
+  conversation: <MessageSquare size={14} className="shrink-0 text-foreground/40" />,
 };
 
 const GROUP_CLASS = cn(
@@ -115,6 +117,7 @@ export function CommandPaletteModal({
   const actionResults = merged.filter((r): r is PaletteAction => r.kind === 'action');
   const taskResults = merged.filter((r): r is SearchItem => r.kind === 'task');
   const projectResults = merged.filter((r): r is SearchItem => r.kind === 'project');
+  const conversationResults = merged.filter((r): r is SearchItem => r.kind === 'conversation');
 
   const handleNavigateToTask = (item: SearchItem) => {
     if (!item.projectId) return;
@@ -127,10 +130,18 @@ export function CommandPaletteModal({
     navigate('project', { projectId: item.id });
   };
 
+  const handleNavigateToConversation = (item: SearchItem) => {
+    if (!item.projectId || !item.taskId) return;
+    getTaskView(item.projectId, item.taskId)?.tabManager.openConversation(item.id);
+    onClose();
+    navigate('task', { projectId: item.projectId, taskId: item.taskId });
+  };
+
   const handleSelect = (item: MergedResult) => {
     if (item.kind === 'action') return (item as PaletteAction).execute();
     if (item.kind === 'task') return handleNavigateToTask(item as SearchItem);
     if (item.kind === 'project') return handleNavigateToProject(item as SearchItem);
+    if (item.kind === 'conversation') return handleNavigateToConversation(item as SearchItem);
   };
 
   return (
@@ -188,6 +199,18 @@ export function CommandPaletteModal({
                     value={item.id}
                     item={item}
                     onSelect={() => handleNavigateToProject(item)}
+                  />
+                ))}
+              </Command.Group>
+            )}
+            {taskId && conversationResults.length > 0 && (
+              <Command.Group heading="Conversations" className={GROUP_CLASS}>
+                {conversationResults.map((item) => (
+                  <PaletteItem
+                    key={item.id}
+                    value={item.id}
+                    item={item}
+                    onSelect={() => handleNavigateToConversation(item)}
                   />
                 ))}
               </Command.Group>
