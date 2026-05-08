@@ -36,6 +36,8 @@ async function getLocalDefaultWorktreeDirectory(): Promise<string> {
   return (await appSettingsService.get('localProject')).defaultWorktreeDirectory;
 }
 
+const localPathPlatform = process.platform === 'win32' ? 'win32' : 'posix';
+
 abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
   private legacyMigrationPromise: Promise<void> | undefined;
 
@@ -288,8 +290,8 @@ export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
     worktreeDirectory: string | undefined
   ): Promise<Result<string | undefined, UpdateProjectSettingsError>> {
     return resolveAndValidateWorktreeDirectory(worktreeDirectory, {
-      projectPath: this.projectPath,
       pathApi: path,
+      pathPlatform: localPathPlatform,
       fs: {
         mkdir: async (p, options) => {
           await fs.promises.mkdir(p, options);
@@ -304,8 +306,8 @@ export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
     worktreeDirectory: string
   ): Promise<Result<string, UpdateProjectSettingsError>> {
     return normalizeWorktreeDirectory(worktreeDirectory, {
-      projectPath: this.projectPath,
       pathApi: path,
+      pathPlatform: localPathPlatform,
       homeDirectory: os.homedir(),
     });
   }
@@ -349,8 +351,8 @@ export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
       return err({ type: 'error' });
     }
     return resolveAndValidateWorktreeDirectory(worktreeDirectory, {
-      projectPath: this.projectPath,
       pathApi: path.posix,
+      pathPlatform: 'posix',
       fs: this.rootFs,
       resolveHomeDirectory: async () => {
         const homeDirectory = await this.getHomeDirectory();
@@ -363,8 +365,8 @@ export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
     worktreeDirectory: string
   ): Promise<Result<string, UpdateProjectSettingsError>> {
     const normalized = await normalizeWorktreeDirectory(worktreeDirectory, {
-      projectPath: this.projectPath,
       pathApi: path.posix,
+      pathPlatform: 'posix',
       resolveHomeDirectory: async () => {
         const homeDirectory = await this.getHomeDirectory();
         return homeDirectory.success ? homeDirectory.data : '';

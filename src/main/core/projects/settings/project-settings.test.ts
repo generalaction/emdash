@@ -114,10 +114,14 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
     const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
-    const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
+    const expectedOverridePath = path.resolve(projectPath, 'worktrees');
+    const result = await provider.update({
+      preservePatterns: [],
+      worktreeDirectory: expectedOverridePath,
+    });
     expect(result.success).toBe(true);
 
-    const expectedOverride = fs.realpathSync(path.resolve(projectPath, 'worktrees'));
+    const expectedOverride = fs.realpathSync(expectedOverridePath);
     await expect(provider.get()).resolves.toMatchObject({ worktreeDirectory: expectedOverride });
     await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
     await expect(provider.getWorktreeDirectory()).resolves.toBe(expectedOverride);
@@ -197,19 +201,46 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     });
   });
 
-  it('normalizes and canonicalizes local worktreeDirectory on update', async () => {
+  it('normalizes and canonicalizes local absolute worktreeDirectory on update', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const expectedPath = path.resolve(projectPath, 'worktrees');
+    const result = await provider.update({ preservePatterns: [], worktreeDirectory: expectedPath });
+    expect(result.success).toBe(true);
+
+    expect(fs.existsSync(expectedPath)).toBe(true);
+
+    await expect(provider.get()).resolves.toMatchObject({
+      worktreeDirectory: fs.realpathSync(expectedPath),
+    });
+  });
+
+  it('rejects local relative worktreeDirectory values', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
     const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
-    expect(result.success).toBe(true);
 
-    const expectedPath = path.resolve(projectPath, 'worktrees');
-    expect(fs.existsSync(expectedPath)).toBe(true);
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'invalid-worktree-directory' },
+    });
+  });
 
-    await expect(provider.get()).resolves.toMatchObject({
-      worktreeDirectory: fs.realpathSync(expectedPath),
+  it('rejects foreign absolute worktreeDirectory values for local projects', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const foreignPath = process.platform === 'win32' ? '/tmp/worktrees' : 'C:\\worktrees';
+    const result = await provider.update({ preservePatterns: [], worktreeDirectory: foreignPath });
+
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'invalid-worktree-directory' },
     });
   });
 
@@ -240,7 +271,39 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     await expect(provider.get()).resolves.not.toHaveProperty('worktreeDirectory');
   });
 
-  it('normalizes and canonicalizes ssh worktreeDirectory on update', async () => {
+  it('normalizes and canonicalizes ssh absolute worktreeDirectory on update', async () => {
+    const projectFs = {
+      exists: vi.fn().mockResolvedValue(false),
+    } as unknown as SshFileSystem;
+    const rootFs = {
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      realPath: vi.fn().mockResolvedValue('/canonical/ssh-worktrees'),
+    };
+
+    const provider = new SshProjectSettingsProvider(
+      projectId(),
+      projectFs,
+      'main',
+      rootFs,
+      '/remote/repo',
+      undefined,
+      storage()
+    );
+    const result = await provider.update({
+      preservePatterns: [],
+      worktreeDirectory: '/remote/repo/worktrees',
+    });
+    expect(result.success).toBe(true);
+
+    expect(rootFs.mkdir).toHaveBeenCalledWith('/remote/repo/worktrees', { recursive: true });
+    expect(rootFs.realPath).toHaveBeenCalledWith('/remote/repo/worktrees');
+
+    await expect(provider.get()).resolves.toMatchObject({
+      worktreeDirectory: '/canonical/ssh-worktrees',
+    });
+  });
+
+  it('rejects ssh relative worktreeDirectory values', async () => {
     const projectFs = {
       exists: vi.fn().mockResolvedValue(false),
     } as unknown as SshFileSystem;
@@ -259,14 +322,12 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       storage()
     );
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
-    expect(result.success).toBe(true);
 
-    expect(rootFs.mkdir).toHaveBeenCalledWith('/remote/repo/worktrees', { recursive: true });
-    expect(rootFs.realPath).toHaveBeenCalledWith('/remote/repo/worktrees');
-
-    await expect(provider.get()).resolves.toMatchObject({
-      worktreeDirectory: '/canonical/ssh-worktrees',
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'invalid-worktree-directory' },
     });
+    expect(rootFs.mkdir).not.toHaveBeenCalled();
   });
 
   it('uses project-scoped ssh default worktree directory when not configured', async () => {
