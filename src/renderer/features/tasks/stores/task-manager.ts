@@ -291,6 +291,8 @@ export class TaskManagerStore {
       }
     });
 
+    this._settingsStore.pageData.invalidate();
+
     if (result.data.warning) {
       toast.error(formatCreateTaskWarning(result.data.warning));
     }
