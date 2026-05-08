@@ -3,7 +3,8 @@ import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secre
 import { log } from '@main/lib/logger';
 import { FeaturebaseClient, FeaturebaseHttpError } from './featurebase-client';
 
-const NOT_CONFIGURED_ERROR = 'Featurebase is not configured. Connect Featurebase in settings.';
+export const NOT_CONFIGURED_ERROR =
+  'Featurebase is not configured. Connect Featurebase in settings.';
 
 export function toFeaturebaseErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof FeaturebaseHttpError) {

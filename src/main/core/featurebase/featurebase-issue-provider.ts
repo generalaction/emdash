@@ -5,6 +5,7 @@ import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { log } from '@main/lib/logger';
 import {
   featurebaseConnectionService,
+  NOT_CONFIGURED_ERROR,
   toFeaturebaseErrorMessage,
 } from './featurebase-connection-service';
 
@@ -36,6 +37,8 @@ function stripHtml(value: string | undefined): string | undefined {
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
     .trim();
 
   return stripped || undefined;
@@ -62,7 +65,7 @@ async function fetchPosts(opts: { limit: number; searchTerm?: string }): Promise
   if (!client) {
     return {
       success: false,
-      error: 'Featurebase is not configured. Connect Featurebase in settings.',
+      error: NOT_CONFIGURED_ERROR,
     };
   }
 
@@ -98,7 +101,7 @@ async function searchIssues(searchTerm: string, limit: number): Promise<IssueLis
   const result = await fetchPosts({ limit, searchTerm: term });
   if (!result.success) {
     log.error('[Featurebase] searchIssues error:', result.error);
-    return { success: true, issues: [] };
+    return result;
   }
   return result;
 }
