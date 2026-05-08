@@ -213,8 +213,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       setVisible: action,
       updateRenderer: action,
       setImageContent: action,
+      setFileTotalSize: action,
       pinTab: action,
       restoreSnapshot: action,
+      initializeDefault: action,
     });
 
     // Track the last conversation tab that was active so the sidebar can
@@ -571,6 +573,15 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     }
   }
 
+  /**
+   * Called by the model-lifecycle reaction in TaskViewStore after a too-large file is detected.
+   * Stores the total file size so TooLargeRenderer can display it.
+   */
+  setFileTotalSize(path: string, totalSize: number): void {
+    const tab = this.tabs.find((t): t is FileTabState => t.kind === 'file' && t.path === path);
+    if (tab) tab.totalSize = totalSize;
+  }
+
   // ---------------------------------------------------------------------------
   // Actions — closing / navigation
   // ---------------------------------------------------------------------------
@@ -657,6 +668,15 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       });
     }
     if (snapshot.activeTabId !== undefined) this.activeTabId = snapshot.activeTabId;
+  }
+
+  initializeDefault(): void {
+    for (const [id, store] of this.conversations.conversations) {
+      if (store.isInitialConversation) {
+        this.openConversation(id);
+        return;
+      }
+    }
   }
 
   dispose(): void {

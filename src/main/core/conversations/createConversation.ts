@@ -29,6 +29,7 @@ export async function createConversation(params: CreateConversationParams): Prom
       title: params.title,
       provider: params.provider,
       config,
+      isInitialConversation: params.isInitialConversation ?? false,
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: new Date().toISOString(),

@@ -15,5 +15,6 @@ export function mapConversationRowToConversation(
     autoApprove: row.config ? JSON.parse(row.config).autoApprove : undefined,
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
+    isInitialConversation: row.isInitialConversation,
   };
 }

@@ -1,4 +1,5 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
+import type { Conversation } from '@shared/conversations';
 import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
@@ -64,7 +65,8 @@ export class ProvisionedTask {
     settingsStore: ProjectSettingsStore,
     baseRef: string,
     savedSnapshot?: TaskViewSnapshot,
-    sshConnectionId?: string
+    sshConnectionId?: string,
+    preloadedConversations?: Conversation[]
   ) {
     this._taskStore = taskStore;
     const taskData = taskStore.data as Task;
@@ -82,7 +84,11 @@ export class ProvisionedTask {
     );
     this.repositoryStore = this.workspace.repository;
     this.devServers = new DevServerStore(taskData.id, this.workspaceId);
-    this.conversations = new ConversationManagerStore(taskData.projectId, taskData.id);
+    this.conversations = new ConversationManagerStore(
+      taskData.projectId,
+      taskData.id,
+      preloadedConversations
+    );
     this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
     this.draftComments = new DraftCommentsStore(taskData.id);
     this.taskView = new TaskViewStore(
@@ -171,7 +177,8 @@ export class TaskStore {
     settingsStore: ProjectSettingsStore,
     baseRef: string,
     savedSnapshot?: TaskViewSnapshot,
-    sshConnectionId?: string
+    sshConnectionId?: string,
+    preloadedConversations?: Conversation[]
   ): void {
     this.data = data;
     this.provisionedTask = new ProvisionedTask(
@@ -181,7 +188,8 @@ export class TaskStore {
       settingsStore,
       baseRef,
       savedSnapshot,
-      sshConnectionId
+      sshConnectionId,
+      preloadedConversations
     );
     this.state = 'provisioned';
     this.phase = null;

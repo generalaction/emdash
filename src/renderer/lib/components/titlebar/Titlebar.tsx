@@ -26,7 +26,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                     pressed={isLeftOpen}
                     variant="outline"
                     size="sm"
-                    className="ml-2 size-7"
+                    className="ml-2 size-7 border-none"
                     onPressedChange={() => setCollapsed('left', isLeftOpen)}
                   >
                     <PanelLeft className="h-4 w-4" />
