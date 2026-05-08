@@ -74,8 +74,7 @@ function imageMimeForPath(filePath: string): string | null {
 
 const LFS_POINTER_PREFIX = Buffer.from('version https://git-lfs.github.com/spec/');
 
-// When the LFS smudge filter isn't installed, `git cat-file --filters` returns
-// the small pointer text instead of the image bytes — render as unavailable.
+// Without an LFS smudge filter, cat-file returns pointer text instead of image bytes.
 function looksLikeLfsPointer(buffer: Buffer): boolean {
   if (buffer.length > 1024) return false;
   return buffer.slice(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
@@ -423,8 +422,7 @@ export class GitService implements GitProvider, IDisposable {
     return this._readImageBlob(`:0:${filePath}`, filePath);
   }
 
-  // SSH workspaces cannot route binary stdout through the string-based exec
-  // contract — the renderer surfaces this as a neutral "unavailable" state.
+  // SSH workspaces have no binary-safe exec channel.
   private async _readImageBlob(spec: string, filePath: string): Promise<ImageReadResult> {
     if (!this.ctx.supportsLocalSpawn) return { kind: 'unavailable', reason: 'ssh' };
     const mimeType = imageMimeForPath(filePath);

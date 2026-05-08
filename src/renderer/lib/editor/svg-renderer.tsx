@@ -1,5 +1,6 @@
 import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useMemo } from 'react';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -9,21 +10,18 @@ interface SvgRendererProps {
   filePath: string;
 }
 
-/**
- * Renders an SVG file as an image.
- * A floating "Edit source" button in the top-right corner toggles to Monaco source view.
- */
 export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRendererProps) {
   const editorView = useProvisionedTask().taskView.editorView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
 
-  // Reading bufferVersions creates a MobX tracking dependency so this observer()
-  // component re-renders when the buffer is first populated. Without this, SVG
-  // preview can render once with an empty src and stay as a broken image until
-  // some unrelated navigation causes a re-render.
-  const _version = modelRegistry.bufferVersions.get(bufferUri);
+  // Touch bufferVersions so this observer re-renders when the buffer is first
+  // populated — otherwise the preview can stick on an empty src.
+  void modelRegistry.bufferVersions.get(bufferUri);
   const content = modelRegistry.getValue(bufferUri) ?? '';
-  const svgUrl = content ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}` : '';
+  const svgUrl = useMemo(
+    () => (content ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}` : ''),
+    [content]
+  );
   const fileName = filePath.split('/').pop() ?? filePath;
 
   return (

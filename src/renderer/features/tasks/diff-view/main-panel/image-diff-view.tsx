@@ -8,11 +8,11 @@ import {
   type ImageReadResult,
   type ImageUnavailableReason,
 } from '@shared/git';
+import type { Result } from '@shared/result';
 import type { ActiveFile } from '@shared/view-state';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { formatBytes } from '@renderer/utils/formatBytes';
-import { log } from '@renderer/utils/logger';
 
 interface ImageDiffViewProps {
   projectId: string;
@@ -60,25 +60,23 @@ function fromImageReadResult(result: ImageReadResult): SideState {
   }
 }
 
-async function loadFromRef(
+type ImageRpcResult = Result<{ result: ImageReadResult }, unknown>;
+
+async function loadGitImage(call: () => Promise<ImageRpcResult>): Promise<SideState> {
+  const res = await call();
+  if (!res.success) return { status: 'error', message: 'Failed to load image' };
+  return fromImageReadResult(res.data.result);
+}
+
+function loadFromRef(
   projectId: string,
   workspaceId: string,
   filePath: string,
   ref: GitRef
 ): Promise<SideState> {
-  const res = await rpc.git.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref));
-  if (!res.success) return { status: 'error', message: 'Failed to load image' };
-  return fromImageReadResult(res.data.result);
-}
-
-async function loadFromIndex(
-  projectId: string,
-  workspaceId: string,
-  filePath: string
-): Promise<SideState> {
-  const res = await rpc.git.getImageAtIndex(projectId, workspaceId, filePath);
-  if (!res.success) return { status: 'error', message: 'Failed to load image' };
-  return fromImageReadResult(res.data.result);
+  return loadGitImage(() =>
+    rpc.git.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
+  );
 }
 
 async function loadFromDisk(
@@ -121,7 +119,7 @@ function loadModified(
     case 'disk':
       return loadFromDisk(projectId, workspaceId, activeFile.path);
     case 'staged':
-      return loadFromIndex(projectId, workspaceId, activeFile.path);
+      return loadGitImage(() => rpc.git.getImageAtIndex(projectId, workspaceId, activeFile.path));
     case 'git':
     case 'pr':
       return loadFromRef(
@@ -210,7 +208,6 @@ function PreviewImage({
   state: Extract<SideState, { status: 'ready' }>;
   alt: string;
 }) {
-  const [reloadKey, setReloadKey] = useState(0);
   const [decodeFailed, setDecodeFailed] = useState(false);
 
   if (decodeFailed) {
@@ -219,19 +216,11 @@ function PreviewImage({
 
   return (
     <img
-      key={`${state.dataUrl.length}:${reloadKey}`}
+      key={state.dataUrl}
       src={state.dataUrl}
       alt={alt}
       className="max-h-full max-w-full object-contain"
-      onLoad={() => setDecodeFailed(false)}
-      onError={() => {
-        if (reloadKey < 2) {
-          window.setTimeout(() => setReloadKey((key) => key + 1), 100);
-          return;
-        }
-        log.warn('[ImageDiffView] image decode failed', { alt, mimeType: state.mimeType });
-        setDecodeFailed(true);
-      }}
+      onError={() => setDecodeFailed(true)}
     />
   );
 }
@@ -252,20 +241,24 @@ export const ImageDiffView = observer(function ImageDiffView({
   const reactiveRevision =
     activeFile.group === 'disk' || activeFile.group === 'staged' ? git.fullStatus.lastUpdatedAt : 0;
 
+  const placeholder: SideState = { status: 'loading' };
+
   const originalQuery = useQuery({
     queryKey: ['image-diff', 'original', projectId, workspaceId, fileKey, reactiveRevision],
-    queryFn: async () => loadOriginal(projectId, workspaceId, activeFile),
-    placeholderData: { status: 'loading' } as SideState,
+    queryFn: () => loadOriginal(projectId, workspaceId, activeFile),
+    placeholderData: placeholder,
+    staleTime: Infinity,
   });
 
   const modifiedQuery = useQuery({
     queryKey: ['image-diff', 'modified', projectId, workspaceId, fileKey, reactiveRevision],
-    queryFn: async () => loadModifiedWithTransientRetry(projectId, workspaceId, activeFile),
-    placeholderData: { status: 'loading' } as SideState,
+    queryFn: () => loadModifiedWithTransientRetry(projectId, workspaceId, activeFile),
+    placeholderData: placeholder,
+    staleTime: Infinity,
   });
 
-  const original = originalQuery.data ?? { status: 'loading' };
-  const modified = modifiedQuery.data ?? { status: 'loading' };
+  const original = originalQuery.data ?? placeholder;
+  const modified = modifiedQuery.data ?? placeholder;
 
   return (
     <div className="flex h-full min-h-0 w-full">
