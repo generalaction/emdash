@@ -35,11 +35,11 @@ class SearchService {
   initialize(): void {
     taskEvents.on('task:created', (task) => this.upsertTask(task));
     taskEvents.on('task:updated', (task) => this.upsertTask(task));
-    taskEvents.on('task:archived', (taskId) => this.remove(taskId));
-    taskEvents.on('task:deleted', (taskId) => this.remove(taskId));
+    taskEvents.on('task:archived', (taskId) => this.removeByType('task', taskId));
+    taskEvents.on('task:deleted', (taskId) => this.removeByType('task', taskId));
 
     projectEvents.on('project:created', (project) => this.upsertProject(project));
-    projectEvents.on('project:deleted', (projectId) => this.remove(projectId));
+    projectEvents.on('project:deleted', (projectId) => this.removeByType('project', projectId));
 
     conversationEvents.on('conversation:created', (conversation) =>
       this.upsertConversation(conversation)
@@ -47,7 +47,9 @@ class SearchService {
     conversationEvents.on('conversation:renamed', (conversationId, projectId, taskId, newTitle) => {
       this.upsertConversationById(conversationId, projectId, taskId, newTitle);
     });
-    conversationEvents.on('conversation:deleted', (conversationId) => this.remove(conversationId));
+    conversationEvents.on('conversation:deleted', (conversationId) =>
+      this.removeByType('conversation', conversationId)
+    );
 
     this.backfill();
   }
@@ -231,11 +233,13 @@ class SearchService {
     }
   }
 
-  private remove(itemId: string): void {
+  private removeByType(itemType: string, itemId: string): void {
     try {
-      sqlite.prepare(`DELETE FROM search_index WHERE item_id = ?`).run(itemId);
+      sqlite
+        .prepare(`DELETE FROM search_index WHERE item_id = ? AND item_type = ?`)
+        .run(itemId, itemType);
     } catch (e) {
-      log.warn('SearchService: remove failed', { itemId, error: String(e) });
+      log.warn('SearchService: removeByType failed', { itemType, itemId, error: String(e) });
     }
   }
 
