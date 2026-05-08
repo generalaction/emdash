@@ -147,7 +147,12 @@ abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
       });
     })();
 
-    await this.legacyMigrationPromise;
+    try {
+      await this.legacyMigrationPromise;
+    } catch (error) {
+      this.legacyMigrationPromise = undefined;
+      throw error;
+    }
   }
 
   async ensure(): Promise<void> {
