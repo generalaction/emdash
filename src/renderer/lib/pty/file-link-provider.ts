@@ -3,6 +3,7 @@ import type { ILink, ILinkProvider, Terminal } from '@xterm/xterm';
 // Lookbehind on `:` keeps URLs (`https://...`) with WebLinksAddon.
 const FILE_PATH_PATTERN =
   '(?<![\\w\\-./@:])(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
+const URL_PROTOCOL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
 
 export class FileLinkProvider implements ILinkProvider {
   constructor(
@@ -31,6 +32,7 @@ export class FileLinkProvider implements ILinkProvider {
     while ((match = regex.exec(text)) !== null) {
       const matched = match[0];
       const startCol = match.index;
+      if (isEmbeddedInUrl(text, startCol)) continue;
       const endCol = startCol + matched.length;
       const isExternal = matched.startsWith('~/') || matched.startsWith('/');
 
@@ -56,4 +58,10 @@ export class FileLinkProvider implements ILinkProvider {
 
 function normalizeFilePath(filePath: string): string {
   return filePath.replace(/^\.\//, '');
+}
+
+function isEmbeddedInUrl(text: string, startCol: number): boolean {
+  const prefix = text.slice(0, startCol);
+  const tokenStart = Math.max(prefix.lastIndexOf(' '), prefix.lastIndexOf('\t'), -1) + 1;
+  return URL_PROTOCOL_PATTERN.test(prefix.slice(tokenStart));
 }

@@ -483,7 +483,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     }
 
     const prevPreview = this.previewFileTab;
-    const prevUri = prevPreview ? buildMonacoModelPath(this.modelRootPath, prevPreview.path) : null;
+    const prevUri =
+      prevPreview && !prevPreview.isExternal
+        ? buildMonacoModelPath(this.modelRootPath, prevPreview.path)
+        : null;
     const canReplace = prevPreview && prevUri && !modelRegistry.isDirty(prevUri);
 
     if (canReplace && prevPreview) {
