@@ -50,7 +50,7 @@ export const SHAREABLE_FIELD_DESCRIPTORS: ShareableFieldDescriptor[] = [
     formKey: 'shellSetup',
     modalLabel: 'Shell setup',
     leafLabel: 'shell setup',
-    defaultWrite: false,
+    defaultWrite: true,
     normalizeText: trimText,
     placeholder: 'nvm use\nsource .envrc',
     description: 'Shell commands run before the agent starts in each worktree session',

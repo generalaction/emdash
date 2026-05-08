@@ -73,16 +73,16 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             worktreeDirectoryError={formModel.worktreeDirectoryError}
             update={formModel.update}
           />
-          <ShareableSettingsSection
-            form={formModel.form}
-            update={formModel.update}
-            getOverrideSources={formModel.getOverrideSources}
-          />
           <WorkspaceProviderSettingsSection
             enabled={isWorkspaceProviderEnabled}
             form={formModel.form}
             errors={formModel.workspaceProviderErrors}
             update={formModel.update}
+          />
+          <ShareableSettingsSection
+            form={formModel.form}
+            update={formModel.update}
+            getOverrideSources={formModel.getOverrideSources}
           />
         </FieldGroup>
       </div>
