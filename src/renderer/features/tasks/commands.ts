@@ -70,31 +70,40 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
         {
           id: 'task.switchToConversations',
           label: 'Switch to Conversations view',
-          description: 'Show the conversations panel in the main area',
+          description: 'Open the right sidebar to the Conversations panel',
           shortcutKey: 'taskViewAgents',
           group: 'Panel',
           execute() {
-            startTransition(() => taskView?.setView('agents'));
+            startTransition(() => {
+              taskView?.setSidebarTab('conversations');
+              taskView?.setSidebarCollapsed(false);
+            });
           },
         },
         {
           id: 'task.switchToDiff',
           label: 'Switch to Diff view',
-          description: 'Show the diff panel in the main area',
+          description: 'Open the right sidebar to the Changes panel',
           shortcutKey: 'taskViewDiff',
           group: 'Panel',
           execute() {
-            startTransition(() => taskView?.setView('diff'));
+            startTransition(() => {
+              taskView?.setSidebarTab('changes');
+              taskView?.setSidebarCollapsed(false);
+            });
           },
         },
         {
           id: 'task.switchToEditor',
           label: 'Switch to Editor view',
-          description: 'Show the editor panel in the main area',
+          description: 'Open the right sidebar to the Files panel',
           shortcutKey: 'taskViewEditor',
           group: 'Panel',
           execute() {
-            startTransition(() => taskView?.setView('editor'));
+            startTransition(() => {
+              taskView?.setSidebarTab('files');
+              taskView?.setSidebarCollapsed(false);
+            });
           },
         },
 

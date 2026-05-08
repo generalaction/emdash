@@ -90,7 +90,7 @@ const ConversationRow = observer(function ConversationRow({
           onClick={onClick}
           onDoubleClick={onDoubleClick}
           className={cn(
-            'flex h-full w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
+            'flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
@@ -216,7 +216,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
               >
                 <ConversationRow
                   conversation={conversation}
-                  isActive={tabManager.lastActiveConversationId === conversation.data.id}
+                  isActive={tabManager.activeConversationId === conversation.data.id}
                   isEditing={editingId === conversation.data.id}
                   onClick={() => tabManager.openConversationPreview(conversation.data.id)}
                   onDoubleClick={() => tabManager.openConversation(conversation.data.id)}

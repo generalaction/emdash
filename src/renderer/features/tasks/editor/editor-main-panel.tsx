@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import type { FileTabState } from '@renderer/features/tasks/stores/tab-manager-store';
+import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
 import { FileErrorRenderer } from '@renderer/lib/editor/file-error-renderer';
@@ -13,7 +13,7 @@ import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
  */
 export const EditorMainPanel = observer(function EditorMainPanel() {
   const { taskView } = useProvisionedTask();
-  const activeTab = taskView.tabManager.activeFileTab;
+  const activeTab = taskView.tabManager.activeFileEntry;
 
   if (!activeTab) return null;
 
@@ -25,7 +25,7 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
 });
 
 interface OtherFileRendererProps {
-  file: FileTabState;
+  file: FileTabStore;
 }
 
 function OtherFileRenderer({ file }: OtherFileRendererProps) {

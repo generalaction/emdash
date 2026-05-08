@@ -1,4 +1,3 @@
-export type MainPanelView = 'agents' | 'editor' | 'diff';
 export type SidebarTab = 'conversations' | 'changes' | 'files';
 
 export type FileRendererData =
