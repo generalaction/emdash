@@ -1,5 +1,7 @@
 import z from 'zod';
 
+export const PROJECT_CONFIG_FILE = '.emdash.json';
+
 export const DEFAULT_PRESERVE_PATTERNS = [
   '.env',
   '.env.keys',
@@ -18,7 +20,7 @@ export type DefaultBranchSetting = z.infer<typeof defaultBranchSettingSchema>;
 
 const preservePatternsSchema = z
   .array(z.string())
-  .transform((patterns) => patterns.filter((pattern) => pattern !== '.emdash.json'));
+  .transform((patterns) => patterns.filter((pattern) => pattern !== PROJECT_CONFIG_FILE));
 
 export const shareableProjectScriptsSettingsSchema = z.object({
   setup: z.string().optional(),

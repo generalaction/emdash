@@ -1,17 +1,20 @@
-import type {
-  ProjectSettings,
-  ProjectSettingsOverrideState,
-  ProjectSettingsPage,
-  ProjectSettingsWriteTargetOption,
-  WriteProjectConfigRequest,
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import {
+  PROJECT_CONFIG_FILE,
+  type ProjectSettings,
+  type ProjectSettingsOverrideState,
+  type ProjectSettingsPage,
+  type ProjectSettingsWriteTargetOption,
+  type WriteProjectConfigRequest,
 } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 
 export class ProjectSettingsStore {
   readonly pageData: Resource<ProjectSettingsPage>;
+  private readonly _unsubscribeConfigWatch: () => void;
 
   constructor(private readonly projectId: string) {
     this.pageData = new Resource(async () => {
@@ -25,6 +28,17 @@ export class ProjectSettingsStore {
       }
       return result.data;
     }, [{ kind: 'demand' }]);
+
+    this._unsubscribeConfigWatch = events.on(fsWatchEventChannel, (data) => {
+      if (data.projectId !== projectId) return;
+      if (
+        data.events.some(
+          (event) => event.path === PROJECT_CONFIG_FILE || event.oldPath === PROJECT_CONFIG_FILE
+        )
+      ) {
+        this.pageData.invalidate();
+      }
+    });
   }
 
   get settings(): ProjectSettings | null {
@@ -66,6 +80,7 @@ export class ProjectSettingsStore {
   }
 
   dispose(): void {
+    this._unsubscribeConfigWatch();
     this.pageData.dispose();
   }
 }
