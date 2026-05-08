@@ -7,6 +7,7 @@ import {
   type NotificationType,
 } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-task-editor';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { log } from '@renderer/utils/logger';
@@ -209,8 +210,11 @@ export class ConversationStore {
 
   constructor(conversation: Conversation) {
     this.data = conversation;
+    const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
     this.session = new PtySession(
-      makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
+      makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
+      handlers.onOpenFile,
+      handlers.onOpenExternal
     );
     makeObservable(this, {
       data: observable,

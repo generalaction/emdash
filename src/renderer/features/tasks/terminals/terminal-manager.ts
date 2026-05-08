@@ -1,6 +1,7 @@
 import { makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-task-editor';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { nextTerminalName } from './terminal-tabs';
@@ -124,8 +125,11 @@ export class TerminalStore {
 
   constructor(terminal: Terminal) {
     this.data = terminal;
+    const handlers = makeFileLinkHandlers(terminal.projectId, terminal.taskId);
     this.session = new PtySession(
-      makePtySessionId(terminal.projectId, terminal.taskId, terminal.id)
+      makePtySessionId(terminal.projectId, terminal.taskId, terminal.id),
+      handlers.onOpenFile,
+      handlers.onOpenExternal
     );
     makeObservable(this, { data: observable, session: observable });
   }

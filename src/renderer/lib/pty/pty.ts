@@ -5,6 +5,7 @@ import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { events, rpc } from '@renderer/lib/ipc';
 import { cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
+import { FileLinkProvider } from './file-link-provider';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
@@ -62,7 +63,9 @@ export class FrontendPty {
 
   constructor(
     readonly sessionId: string,
-    theme?: SessionTheme
+    theme?: SessionTheme,
+    onOpenFile?: (filePath: string) => void,
+    onOpenExternal?: (filePath: string) => void
   ) {
     this.ownedContainer = document.createElement('div');
     Object.assign(this.ownedContainer.style, {
@@ -98,6 +101,11 @@ export class FrontendPty {
 
     this.terminal.loadAddon(canvasAddon);
     this.terminal.loadAddon(webLinksAddon);
+    if (onOpenFile && onOpenExternal) {
+      this.terminal.registerLinkProvider(
+        new FileLinkProvider(this.terminal, onOpenFile, onOpenExternal)
+      );
+    }
     this.terminal.open(this.ownedContainer);
 
     const el = (this.terminal as unknown as { element?: HTMLElement }).element;

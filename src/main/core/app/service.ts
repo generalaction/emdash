@@ -1,4 +1,7 @@
 import { exec } from 'node:child_process';
+import { readFile, realpath, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { isAbsolute, join, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { clipboard, dialog, shell } from 'electron';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
@@ -33,6 +36,13 @@ import {
 } from './utils';
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
+
+function expandAbsoluteOrTildePath(rawPath: string): string {
+  if (!rawPath || typeof rawPath !== 'string') throw new Error('Invalid path');
+  const expanded = rawPath.startsWith('~/') ? join(homedir(), rawPath.slice(2)) : rawPath;
+  if (!isAbsolute(expanded)) throw new Error('Path must be absolute or start with ~/');
+  return expanded;
+}
 
 type RemoteTerminalLaunchAttempt = {
   file: string;
@@ -165,6 +175,33 @@ class AppService implements IInitializable, IDisposable {
       );
     }
     await shell.openExternal(url);
+  }
+
+  async openPath(rawPath: string): Promise<void> {
+    const expanded = expandAbsoluteOrTildePath(rawPath);
+    const errorMessage = await shell.openPath(expanded);
+    if (errorMessage) throw new Error(errorMessage);
+  }
+
+  /**
+   * Restricted to the user home directory: terminal output drives these reads,
+   * and AI-injected paths must not be a vector for reading e.g. `/etc/passwd`.
+   * Symlinks are resolved before the home-jail check so they can't escape.
+   */
+  async readUserFile(rawPath: string, maxBytes = 1_048_576): Promise<{ content: string }> {
+    const expanded = expandAbsoluteOrTildePath(rawPath);
+    const realPath = await realpath(expanded);
+    const realHome = await realpath(homedir());
+    const realHomeWithSep = realHome.endsWith(sep) ? realHome : realHome + sep;
+    if (realPath !== realHome && !realPath.startsWith(realHomeWithSep)) {
+      throw new Error('Path must be inside the user home directory');
+    }
+    const stats = await stat(realPath);
+    if (stats.size > maxBytes) {
+      throw new Error(`File too large (${stats.size} bytes, max ${maxBytes})`);
+    }
+    const buffer = await readFile(realPath);
+    return { content: buffer.toString('utf8') };
   }
 
   clipboardWriteText(text: string): void {

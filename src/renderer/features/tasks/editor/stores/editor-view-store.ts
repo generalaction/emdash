@@ -38,6 +38,9 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
 
   get tabs(): Array<EditorTab & { isDirty: boolean; bufferUri: string }> {
     return this._tabs.map((tab) => {
+      if (tab.isExternal) {
+        return { ...tab, bufferUri: '', isDirty: false };
+      }
       const bufferUri = buildMonacoModelPath(this.modelRootPath, tab.path);
       return { ...tab, bufferUri, isDirty: modelRegistry.dirtyUris.has(bufferUri) };
     });
@@ -61,7 +64,12 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
 
   get snapshot(): EditorViewSnapshot {
     return {
-      tabs: this._tabs.map((t) => ({ tabId: t.tabId, path: t.path, isPreview: t.isPreview })),
+      tabs: this._tabs.map((t) => ({
+        tabId: t.tabId,
+        path: t.path,
+        isPreview: t.isPreview,
+        isExternal: t.isExternal,
+      })),
       activeTabId: this.activeTabId,
       expandedPaths: [...this.expandedPaths],
     };
@@ -69,7 +77,16 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
 
   restoreSnapshot(snapshot: Partial<EditorViewSnapshot>): void {
     if (snapshot.tabs) {
-      this._tabs.replace(snapshot.tabs.map((t) => this._makeTab(t.path, t.isPreview, t.tabId)));
+      this._tabs.replace(
+        snapshot.tabs.map((t) => {
+          const tab = this._makeTab(t.path, t.isPreview, t.tabId);
+          if (t.isExternal) {
+            tab.isExternal = true;
+            tab.isLoading = true;
+          }
+          return tab;
+        })
+      );
     }
     if (snapshot.activeTabId !== undefined) this.activeTabId = snapshot.activeTabId;
     if (snapshot.expandedPaths) {
@@ -135,6 +152,22 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     void this._registerModels(filePath);
   }
 
+  /** Read-only tab for a file outside the workspace; bypasses Monaco. */
+  openExternalFile(absolutePath: string): void {
+    const existing = this._tabs.find((t) => t.path === absolutePath);
+    if (existing) {
+      existing.isPreview = false;
+      this.activeTabId = existing.tabId;
+      return;
+    }
+    const tab = this._makeTab(absolutePath, false);
+    tab.isExternal = true;
+    tab.isLoading = true;
+    this._tabs.push(tab);
+    this.activeTabId = tab.tabId;
+    void this._loadExternalContent(absolutePath);
+  }
+
   /**
    * Opens a file as an unstable preview tab (single-click).
    * If a clean preview tab already exists, mutates it in place so that the
@@ -184,9 +217,11 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
     const idx = this._tabs.findIndex((t) => t.tabId === tabId);
     if (idx === -1) return;
     const tab = this._tabs[idx];
-    const uri = buildMonacoModelPath(this.modelRootPath, tab.path);
-    this._unregisterModels(uri);
-    void rpc.editorBuffer.clearBuffer(this.projectId, this.workspaceId, tab.path);
+    if (!tab.isExternal) {
+      const uri = buildMonacoModelPath(this.modelRootPath, tab.path);
+      this._unregisterModels(uri);
+      void rpc.editorBuffer.clearBuffer(this.projectId, this.workspaceId, tab.path);
+    }
     this._tabs.splice(idx, 1);
     if (this.activeTabId === tabId) {
       this.activeTabId = (this._tabs[idx] ?? this._tabs[idx - 1])?.tabId ?? null;
@@ -292,7 +327,11 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
    */
   async restore(): Promise<void> {
     for (const tab of this._tabs) {
-      void this._registerModels(tab.path);
+      if (tab.isExternal) {
+        void this._loadExternalContent(tab.path);
+      } else {
+        void this._registerModels(tab.path);
+      }
     }
     try {
       const buffers = await rpc.editorBuffer.listBuffers(this.projectId, this.workspaceId);
@@ -308,6 +347,7 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
 
   dispose(): void {
     for (const tab of this._tabs) {
+      if (tab.isExternal) continue;
       const uri = buildMonacoModelPath(this.modelRootPath, tab.path);
       this._unregisterModels(uri);
     }
@@ -382,6 +422,22 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
         'buffer'
       );
     }
+  }
+
+  private async _loadExternalContent(absolutePath: string): Promise<void> {
+    const result = await rpc.app.readUserFile(absolutePath);
+    runInAction(() => {
+      const tab = this._tabs.find((t) => t.path === absolutePath);
+      if (!tab) return;
+      tab.isLoading = false;
+      if (result.success) {
+        tab.content = result.content;
+        tab.externalError = undefined;
+      } else {
+        tab.content = '';
+        tab.externalError = result.error;
+      }
+    });
   }
 
   private _unregisterModels(bufferUri: string): void {

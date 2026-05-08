@@ -92,9 +92,11 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
   onClose,
 }) {
   const fileName = tab.path.split('/').pop() || 'Untitled';
-  const isMonacoFile = tab.kind === 'text' || tab.kind === 'markdown' || tab.kind === 'svg';
+  const isMonacoFile =
+    !tab.isExternal && (tab.kind === 'text' || tab.kind === 'markdown' || tab.kind === 'svg');
   const modelStatus = useModelStatus(tab.bufferUri);
-  const showSpinner = useDelayedBoolean(isMonacoFile && modelStatus === 'loading', 200);
+  const isLoading = tab.isExternal ? tab.isLoading : isMonacoFile && modelStatus === 'loading';
+  const showSpinner = useDelayedBoolean(isLoading, 200);
 
   return (
     <>

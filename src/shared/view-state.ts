@@ -6,7 +6,7 @@ export type TabViewSnapshot = {
 };
 
 export type EditorViewSnapshot = {
-  tabs: Array<{ tabId: string; path: string; isPreview: boolean }>;
+  tabs: Array<{ tabId: string; path: string; isPreview: boolean; isExternal?: boolean }>;
   activeTabId: string | null;
   expandedPaths: string[];
 };
