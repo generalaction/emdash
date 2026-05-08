@@ -67,12 +67,14 @@ export function isPreviewableKind(kind: ManagedFileKind): boolean {
   return kind === 'svg' || kind === 'markdown';
 }
 
-/**
- * Returns true if the file should be treated as binary for diff views.
- * Binary and image files cannot be shown in Monaco; callers should skip
- * model registration and show a "Binary file" placeholder instead.
- */
+/** True for files the diff viewer must not load into Monaco. */
 export function isBinaryForDiff(filePath: string): boolean {
   const kind = getFileKind(filePath);
-  return kind === 'binary' || kind === 'image';
+  return kind === 'binary' || kind === 'image' || kind === 'svg';
+}
+
+/** True for files the diff viewer renders as an `<img>` preview instead of text. */
+export function isImageForDiff(filePath: string): boolean {
+  const kind = getFileKind(filePath);
+  return kind === 'image' || kind === 'svg';
 }
