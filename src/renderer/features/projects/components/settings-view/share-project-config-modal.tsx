@@ -131,16 +131,16 @@ export function ShareProjectConfigModal({
   return (
     <>
       <DialogHeader showCloseButton={false}>
-        <DialogTitle>Share project configuration</DialogTitle>
+        <DialogTitle>Share settings with your team</DialogTitle>
       </DialogHeader>
       <DialogContentArea className="pt-0">
         <FieldGroup>
           <p className="text-sm text-foreground-muted">
-            Share your config with your team by adding an .emdash.json file to your repository.
-            Commit to version control and your team will have the same configuration after pulling.
+            This writes the selected settings to .emdash.json in the chosen working directory.
+            Commit that file so teammates get the same project defaults after pulling.
           </p>
           <Field>
-            <FieldTitle>Destination</FieldTitle>
+            <FieldTitle>Write to</FieldTitle>
             <Select
               value={selectedTargetValue}
               onValueChange={(value) => {
@@ -177,7 +177,7 @@ export function ShareProjectConfigModal({
           </Field>
 
           <Field>
-            <FieldTitle>Settings</FieldTitle>
+            <FieldTitle>Settings to share</FieldTitle>
             <div className="grid grid-cols-2 gap-2">
               {availableFields.map((field) => (
                 <label

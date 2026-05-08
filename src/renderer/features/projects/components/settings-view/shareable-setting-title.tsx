@@ -16,6 +16,9 @@ type Props = {
 };
 
 export function ShareableSettingTitle({ children, leafLabel, overrideSources, onRestore }: Props) {
+  const overridePlaceCount = `${overrideSources.length} ${overrideSources.length === 1 ? 'place' : 'places'}`;
+  const teamConfigLabel = overrideSources.length === 1 ? 'team config' : 'team configs';
+
   return (
     <div className="flex min-h-5 items-center justify-between gap-3">
       <FieldTitle className="min-w-0 flex-1">{children}</FieldTitle>
@@ -32,8 +35,7 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
                 </Badge>
               </TooltipTrigger>
               <TooltipContent side="top" align="start" className="max-w-sm">
-                This is overriding {leafLabel} in{' '}
-                {overrideSources.map((source) => source.label).join(', ')}.
+                This overrides {teamConfigLabel} in {overridePlaceCount}.
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -43,14 +45,14 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
                   variant="ghost"
                   size="icon-xs"
                   className="size-4.5 rounded-full p-0 text-muted-foreground hover:text-foreground"
-                  aria-label={`Restore ${leafLabel} from .emdash.json`}
+                  aria-label={`Use team settings for ${leafLabel}`}
                   onClick={onRestore}
                 >
                   <RotateCcw className="size-3" aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" align="end">
-                Restore from .emdash.json
+                Use team settings
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

@@ -40,7 +40,7 @@ export const SHAREABLE_FIELD_DESCRIPTORS: ShareableFieldDescriptor[] = [
     leafLabel: 'preserve patterns',
     defaultWrite: true,
     normalizeText: normalizePatternList,
-    placeholder: '.env\n.env.local\n.envrc',
+    placeholder: '.env\n.env.local',
     description:
       'Gitignored and untracked files matching these glob patterns are copied from the main repo into each worktree. One pattern per line.',
     multiline: true,

@@ -29,8 +29,6 @@ import {
   SHAREABLE_FIELD_FORM_KEY,
 } from './shareable-project-settings-fields';
 
-type ProjectSettingsShareStatus = 'idle' | 'shared';
-
 type UseProjectSettingsFormArgs = {
   initial: ProjectSettings;
   configuredRemote: string;
@@ -77,7 +75,6 @@ export function useProjectSettingsForm({
     savedForm: baseline,
   });
   const [saveStatus, setSaveStatus] = useState<ProjectSettingsSaveStatus>('idle');
-  const [shareStatus, setShareStatus] = useState<ProjectSettingsShareStatus>('idle');
   const [worktreeDirectoryError, setWorktreeDirectoryError] = useState<string | null>(null);
   const [workspaceProviderErrors, setWorkspaceProviderErrors] =
     useState<WorkspaceProviderValidationErrors>({});
@@ -106,7 +103,6 @@ export function useProjectSettingsForm({
         form: { ...form, [key]: value },
       });
       setSaveStatus((current) => (current === 'idle' ? current : 'idle'));
-      setShareStatus('idle');
       if (key === 'worktreeDirectory' && visibleWorktreeDirectoryError) {
         setWorktreeDirectoryError(null);
       }
@@ -183,7 +179,6 @@ export function useProjectSettingsForm({
           form: nextForm,
           savedForm: nextForm,
         });
-        setShareStatus('shared');
         onSuccess();
       },
     });
@@ -215,7 +210,6 @@ export function useProjectSettingsForm({
     form,
     dirty,
     saveStatus,
-    shareStatus,
     canShareConfig,
     shareDisabled,
     worktreeDirectoryError: visibleWorktreeDirectoryError,

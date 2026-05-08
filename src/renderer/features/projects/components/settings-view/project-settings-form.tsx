@@ -89,7 +89,6 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
       <ProjectSettingsFooter
         dirty={formModel.dirty}
         saveStatus={formModel.saveStatus}
-        shareStatus={formModel.shareStatus}
         canShareConfig={formModel.canShareConfig}
         shareDisabled={formModel.shareDisabled}
         onShare={formModel.openShareConfigModal}

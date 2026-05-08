@@ -4,12 +4,10 @@ import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export type ProjectSettingsSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
-type ProjectSettingsShareStatus = 'idle' | 'shared';
 
 export interface ProjectSettingsFooterProps {
   dirty: boolean;
   saveStatus: ProjectSettingsSaveStatus;
-  shareStatus: ProjectSettingsShareStatus;
   canShareConfig: boolean;
   shareDisabled: boolean;
   onShare: () => void;
@@ -20,7 +18,6 @@ export interface ProjectSettingsFooterProps {
 export function ProjectSettingsFooter({
   dirty,
   saveStatus,
-  shareStatus,
   canShareConfig,
   shareDisabled,
   onShare,
@@ -44,12 +41,12 @@ export function ProjectSettingsFooter({
               hidden={!canShareConfig}
               onClick={onShare}
             >
-              {shareStatus === 'shared' ? 'Wrote .emdash.json' : 'Write .emdash.json'}
+              Share with team
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" align="end">
-            Add this config as an .emdash.json file in the repo so you can share it with your team
-            via version control.
+            Writes selected settings to .emdash.json. Commit that file to share these defaults with
+            your team.
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
