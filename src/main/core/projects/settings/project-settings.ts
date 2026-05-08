@@ -4,6 +4,7 @@ import path from 'node:path';
 import { remoteNameFromQualifiedRef } from '@shared/git-utils';
 import {
   baseProjectSettingsSchema,
+  DEFAULT_PRESERVE_PATTERNS,
   projectSettingsSchema,
   shareableProjectSettingsSchema,
   type BaseProjectSettings,
@@ -20,9 +21,10 @@ import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-def
 import { resolveRemoteHome } from '@main/core/ssh/utils';
 import { log } from '@main/lib/logger';
 import { migrateLegacyProjectSettingsIfNeeded } from './legacy-project-settings-migration';
-import { compactUndefined, readJson } from './project-settings-json';
+import { compactUndefined, parseJsonObject, readJson } from './project-settings-json';
 import { ProjectSettingsRepository, type ProjectSettingsStorage } from './project-settings-storage';
 import type { ProjectSettingsProvider } from './provider';
+import { CONFIG_FILE } from './workspace-config-file';
 import {
   canonicalizeWorktreeDirectory,
   normalizeWorktreeDirectory,
@@ -65,13 +67,33 @@ abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
     };
   }
 
+  private async hasSharedPreservePatterns(): Promise<boolean> {
+    if (!this.configReader) return false;
+    try {
+      if (!(await this.configReader.exists(CONFIG_FILE))) return false;
+      const { content } = await this.configReader.read(CONFIG_FILE);
+      const parsed = shareableProjectSettingsSchema.safeParse(parseJsonObject(content));
+      if (!parsed.success) {
+        log.warn('Failed to inspect shared project settings during initialization', parsed.error);
+        return false;
+      }
+      return parsed.data.preservePatterns !== undefined;
+    } catch (error) {
+      log.warn('Failed to inspect shared project settings during initialization', error);
+      return false;
+    }
+  }
+
   private async ensureRow(): Promise<void> {
     if (await this.storage.get(this.projectId)) return;
 
     const baseSettings = await this.initialBaseProjectSettings();
+    const shareableSettings = (await this.hasSharedPreservePatterns())
+      ? {}
+      : { preservePatterns: [...DEFAULT_PRESERVE_PATTERNS] };
     await this.storage.insert(this.projectId, {
       baseProjectSettingsJson: JSON.stringify(compactUndefined(baseSettings)),
-      shareableProjectSettingsJson: '{}',
+      shareableProjectSettingsJson: JSON.stringify(compactUndefined(shareableSettings)),
       legacyConfigMigratedAt: null,
     });
   }

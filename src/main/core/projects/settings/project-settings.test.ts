@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_PRESERVE_PATTERNS } from '@shared/project-settings';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { LocalProjectSettingsProvider, SshProjectSettingsProvider } from './project-settings';
@@ -57,6 +58,45 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     for (const dir of tempDirs.splice(0)) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('seeds default preserve patterns when the repo has no shared config', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+
+    await expect(provider.get()).resolves.toMatchObject({
+      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+    });
+  });
+
+  it('seeds default preserve patterns when shared config omits preservePatterns', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    fs.writeFileSync(
+      path.join(projectPath, '.emdash.json'),
+      JSON.stringify({ shellSetup: 'nvm use' })
+    );
+
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+
+    await expect(provider.get()).resolves.toMatchObject({
+      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+    });
+  });
+
+  it('does not seed default preserve patterns when shared config defines preservePatterns', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    fs.writeFileSync(
+      path.join(projectPath, '.emdash.json'),
+      JSON.stringify({ preservePatterns: ['.env.shared'] })
+    );
+
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+
+    await expect(provider.get()).resolves.not.toHaveProperty('preservePatterns');
   });
 
   it('normalizes and canonicalizes local worktreeDirectory on update', async () => {
