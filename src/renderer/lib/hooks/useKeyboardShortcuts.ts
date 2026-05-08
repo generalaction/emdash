@@ -10,11 +10,17 @@
 import type { Hotkey } from '@tanstack/react-hotkeys';
 
 export interface AppShortcutDef {
-  defaultHotkey: string;
+  defaultHotkey?: string;
   label: string;
   description: string;
   category: string;
   hideFromSettings?: boolean;
+  /**
+   * 'allow' — permit other listeners on the same key (needed for shortcuts
+   * that Monaco / xterm also intercept, e.g. Mod+W, Mod+Alt+Arrow).
+   * Defaults to 'prevent'.
+   */
+  conflictBehavior?: 'prevent' | 'allow';
 }
 
 type ShortcutOverrides = Partial<Record<ShortcutSettingsKey, string | null>>;
@@ -99,21 +105,36 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Navigation',
   },
   taskViewAgents: {
-    defaultHotkey: 'Mod+Shift+1',
     label: 'Conversations view',
     description: 'Switch to the conversations view in the task panel',
     category: 'Task View',
   },
   taskViewDiff: {
-    defaultHotkey: 'Mod+Shift+2',
     label: 'Diff view',
     description: 'Switch to the diff view in the task panel',
     category: 'Task View',
   },
   taskViewEditor: {
-    defaultHotkey: 'Mod+Shift+3',
     label: 'Editor view',
     description: 'Switch to the editor view in the task panel',
+    category: 'Task View',
+  },
+  sidebarChanges: {
+    defaultHotkey: 'Mod+Shift+1',
+    label: 'View Changes',
+    description: 'Open the right sidebar to the Changes panel',
+    category: 'Task View',
+  },
+  sidebarConversations: {
+    defaultHotkey: 'Mod+Shift+2',
+    label: 'View Conversations',
+    description: 'Open the right sidebar to the Conversations panel',
+    category: 'Task View',
+  },
+  sidebarFiles: {
+    defaultHotkey: 'Mod+Shift+3',
+    label: 'View Files',
+    description: 'Open the right sidebar to the Files panel',
     category: 'Task View',
   },
   tabNext: {
@@ -121,18 +142,84 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'Next Tab',
     description: 'Switch to the next tab',
     category: 'Tab Navigation',
+    conflictBehavior: 'allow',
   },
   tabPrev: {
     defaultHotkey: 'Mod+Alt+ArrowLeft',
     label: 'Previous Tab',
     description: 'Switch to the previous tab',
     category: 'Tab Navigation',
+    conflictBehavior: 'allow',
   },
   tabClose: {
     defaultHotkey: 'Mod+W',
     label: 'Close Tab',
     description: 'Close the active tab',
     category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  },
+  tab1: {
+    defaultHotkey: 'Mod+1',
+    label: 'Tab 1',
+    description: 'Switch to tab 1',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab2: {
+    defaultHotkey: 'Mod+2',
+    label: 'Tab 2',
+    description: 'Switch to tab 2',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab3: {
+    defaultHotkey: 'Mod+3',
+    label: 'Tab 3',
+    description: 'Switch to tab 3',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab4: {
+    defaultHotkey: 'Mod+4',
+    label: 'Tab 4',
+    description: 'Switch to tab 4',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab5: {
+    defaultHotkey: 'Mod+5',
+    label: 'Tab 5',
+    description: 'Switch to tab 5',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab6: {
+    defaultHotkey: 'Mod+6',
+    label: 'Tab 6',
+    description: 'Switch to tab 6',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab7: {
+    defaultHotkey: 'Mod+7',
+    label: 'Tab 7',
+    description: 'Switch to tab 7',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab8: {
+    defaultHotkey: 'Mod+8',
+    label: 'Tab 8',
+    description: 'Switch to tab 8',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab9: {
+    defaultHotkey: 'Mod+9',
+    label: 'Tab 9',
+    description: 'Switch to tab 9',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
   },
   newConversation: {
     defaultHotkey: 'Mod+Shift+C',
@@ -167,6 +254,7 @@ export type ShortcutSettingsKey = keyof typeof APP_SHORTCUTS;
  * Returns the currently assigned hotkey for an action.
  * - `undefined` override -> falls back to default
  * - `null` override -> unassigned (disabled)
+ * - no `defaultHotkey` and no override -> `null` (not bound)
  */
 export function getEffectiveHotkey(
   key: ShortcutSettingsKey,
@@ -174,7 +262,8 @@ export function getEffectiveHotkey(
 ): Hotkey | null {
   const configured = custom?.[key];
   if (configured === null) return null;
-  return (configured ?? APP_SHORTCUTS[key].defaultHotkey) as Hotkey;
+  const resolved = configured ?? APP_SHORTCUTS[key].defaultHotkey;
+  return resolved != null ? (resolved as Hotkey) : null;
 }
 
 /**
@@ -185,5 +274,5 @@ export function getHotkeyRegistration(
   key: ShortcutSettingsKey,
   custom?: ShortcutOverrides
 ): Hotkey {
-  return (getEffectiveHotkey(key, custom) ?? APP_SHORTCUTS[key].defaultHotkey) as Hotkey;
+  return (getEffectiveHotkey(key, custom) ?? APP_SHORTCUTS[key].defaultHotkey ?? '') as Hotkey;
 }

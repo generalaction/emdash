@@ -20,7 +20,7 @@ export async function openFileInTaskEditor(
   }
 
   provisioned.taskView.setView('editor');
-  provisioned.taskView.editorView.openFile(filePath);
+  provisioned.taskView.tabManager.openFile(filePath);
 }
 
 export async function openExternalFilePath(
@@ -32,7 +32,7 @@ export async function openExternalFilePath(
     const provisioned = asProvisioned(getTaskStore(projectId, taskId));
     if (!provisioned) return;
     provisioned.taskView.setView('editor');
-    provisioned.taskView.editorView.openExternalFile(filePath);
+    void provisioned.taskView.tabManager.openExternalFile(filePath);
     return;
   }
   const result = await rpc.app.openPath(filePath);

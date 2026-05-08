@@ -9,7 +9,6 @@ import { useAccountSession } from './lib/hooks/useAccount';
 import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
-import { ModalProvider } from './lib/modal/modal-provider';
 import { FeatureFlagProvider } from './lib/providers/feature-flag-override-context';
 import { GithubContextProvider } from './lib/providers/github-context-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
@@ -78,22 +77,20 @@ function AppContent() {
 
   return (
     <TooltipProvider delay={300}>
-      <ModalProvider>
-        <WorkspaceLayoutContextProvider>
-          <TerminalPoolProvider>
-            <GithubContextProvider>
-              <IntegrationsProvider>
-                <WorkspaceViewProvider>
-                  <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
-                  <RightSidebarProvider>
-                    <ThemeProvider>{renderContent()}</ThemeProvider>
-                  </RightSidebarProvider>
-                </WorkspaceViewProvider>
-              </IntegrationsProvider>
-            </GithubContextProvider>
-          </TerminalPoolProvider>
-        </WorkspaceLayoutContextProvider>
-      </ModalProvider>
+      <WorkspaceLayoutContextProvider>
+        <TerminalPoolProvider>
+          <GithubContextProvider>
+            <IntegrationsProvider>
+              <WorkspaceViewProvider>
+                <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
+                <RightSidebarProvider>
+                  <ThemeProvider>{renderContent()}</ThemeProvider>
+                </RightSidebarProvider>
+              </WorkspaceViewProvider>
+            </IntegrationsProvider>
+          </GithubContextProvider>
+        </TerminalPoolProvider>
+      </WorkspaceLayoutContextProvider>
     </TooltipProvider>
   );
 }

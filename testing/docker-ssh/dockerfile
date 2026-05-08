@@ -87,6 +87,8 @@ RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/
     && echo 'PermitUserEnvironment yes' >> /etc/ssh/sshd_config \
     && echo 'ClientAliveInterval 60' >> /etc/ssh/sshd_config \
     && echo 'ClientAliveCountMax 10' >> /etc/ssh/sshd_config \
+    && echo 'MaxSessions 100' >> /etc/ssh/sshd_config \
+    && echo 'MaxStartups 100:30:200' >> /etc/ssh/sshd_config \
     && echo 'X11Forwarding no' >> /etc/ssh/sshd_config
 
 # ── Git global defaults for devuser ─────────────────────────────────────────
