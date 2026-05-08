@@ -60,4 +60,15 @@ describe('getEffectiveTaskSettings', () => {
     expect(settings.preservePatterns).not.toContain('.emdash.json');
     expect(settings.shellSetup).toBe('nvm use');
   });
+
+  it('falls back to defaults when project settings are invalid', async () => {
+    const settings = await getEffectiveTaskSettings({
+      projectSettings: makeProjectSettings({
+        preservePatterns: 'not-an-array',
+      } as never),
+      taskFs: makeTaskFs(null),
+    });
+
+    expect(settings.preservePatterns).toContain('.env');
+  });
 });

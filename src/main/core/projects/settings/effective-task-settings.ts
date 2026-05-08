@@ -13,7 +13,8 @@ export async function getEffectiveTaskSettings(args: {
   taskFs: FileSystemProvider;
 }): Promise<ProjectSettings> {
   const { projectSettings, taskFs } = args;
-  const localShareableSettings = shareableProjectSettingsSchema.parse(await projectSettings.get());
+  const parsedSettings = shareableProjectSettingsSchema.safeParse(await projectSettings.get());
+  const localShareableSettings = parsedSettings.success ? parsedSettings.data : {};
   const defaults = defaultShareableProjectSettings();
   const exists = await taskFs.exists('.emdash.json');
   if (!exists) {
