@@ -1,5 +1,10 @@
 import type { Branch } from '@shared/git';
-import type { ProjectSettings, ShareableProjectSettingsWriteField } from '@shared/project-settings';
+import { projectDefaultBranchToBranch } from '@shared/git-utils';
+import {
+  SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
+  type ProjectSettings,
+  type ShareableProjectSettingsWriteField,
+} from '@shared/project-settings';
 
 export type FormState = {
   preservePatterns: string;
@@ -28,63 +33,34 @@ export type ShareableFieldFormKey =
   | 'scriptRun'
   | 'scriptTeardown';
 
-export const DEFAULT_WRITE_FIELDS: ShareableProjectSettingsWriteField[] = [
-  'preservePatterns',
-  'scripts.setup',
-  'scripts.run',
-  'scripts.teardown',
-];
+type ShareableFormFieldConfig = {
+  formKey: keyof FormState;
+  defaultWrite: boolean;
+};
 
-export const SHAREABLE_FIELD_FORM_KEY = {
-  preservePatterns: 'preservePatterns',
-  shellSetup: 'shellSetup',
-  'scripts.setup': 'scriptSetup',
-  'scripts.run': 'scriptRun',
-  'scripts.teardown': 'scriptTeardown',
-} satisfies Record<ShareableProjectSettingsWriteField, ShareableFieldFormKey>;
+const SHAREABLE_FORM_FIELD_CONFIG = {
+  preservePatterns: { formKey: 'preservePatterns', defaultWrite: true },
+  shellSetup: { formKey: 'shellSetup', defaultWrite: false },
+  'scripts.setup': { formKey: 'scriptSetup', defaultWrite: true },
+  'scripts.run': { formKey: 'scriptRun', defaultWrite: true },
+  'scripts.teardown': { formKey: 'scriptTeardown', defaultWrite: true },
+} satisfies Record<ShareableProjectSettingsWriteField, ShareableFormFieldConfig>;
+
+export const DEFAULT_WRITE_FIELDS: ShareableProjectSettingsWriteField[] =
+  SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS.filter(
+    (field) => SHAREABLE_FORM_FIELD_CONFIG[field].defaultWrite
+  );
+
+export const SHAREABLE_FIELD_FORM_KEY = Object.fromEntries(
+  SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS.map((field) => [
+    field,
+    SHAREABLE_FORM_FIELD_CONFIG[field].formKey,
+  ])
+) as Record<ShareableProjectSettingsWriteField, ShareableFieldFormKey>;
 
 function normalizeScript(val: string | string[] | undefined): string {
   if (Array.isArray(val)) return val.join('\n');
   return val ?? '';
-}
-
-function branchSettingToBranch(
-  setting: ProjectSettings['defaultBranch'],
-  configuredRemote: string,
-  remotes: { name: string; url: string }[]
-): Branch | null {
-  if (!setting) return null;
-  const configuredRemoteMeta = remotes.find((remote) => remote.name === configuredRemote) ?? {
-    name: configuredRemote,
-    url: '',
-  };
-  if (typeof setting !== 'string') {
-    return {
-      type: 'remote',
-      branch: setting.name,
-      remote: configuredRemoteMeta,
-    };
-  }
-
-  const matchingRemote = remotes.find((remote) => setting.startsWith(`${remote.name}/`));
-  if (matchingRemote) {
-    return {
-      type: 'remote',
-      branch: setting.slice(matchingRemote.name.length + 1),
-      remote: matchingRemote,
-    };
-  }
-
-  const slash = setting.indexOf('/');
-  if (slash > 0) {
-    return {
-      type: 'remote',
-      branch: setting.slice(slash + 1),
-      remote: { name: setting.slice(0, slash), url: '' },
-    };
-  }
-
-  return { type: 'local', branch: setting };
 }
 
 export function settingsToForm(
@@ -92,6 +68,11 @@ export function settingsToForm(
   configuredRemote: string,
   remotes: { name: string; url: string }[]
 ): FormState {
+  const configuredRemoteMeta = remotes.find((remote) => remote.name === configuredRemote) ?? {
+    name: configuredRemote,
+    url: '',
+  };
+
   return {
     preservePatterns: (s.preservePatterns ?? []).join('\n'),
     shellSetup: s.shellSetup ?? '',
@@ -100,7 +81,8 @@ export function settingsToForm(
     scriptRun: normalizeScript(s.scripts?.run),
     scriptTeardown: normalizeScript(s.scripts?.teardown),
     worktreeDirectory: s.worktreeDirectory ?? '',
-    defaultBranch: branchSettingToBranch(s.defaultBranch, configuredRemote, remotes),
+    defaultBranch:
+      projectDefaultBranchToBranch(s.defaultBranch, configuredRemoteMeta, remotes) ?? null,
     remote: s.remote ?? '',
     provisionCommand: s.workspaceProvider?.provisionCommand ?? '',
     terminateCommand: s.workspaceProvider?.terminateCommand ?? '',
@@ -179,13 +161,9 @@ export function normalizeShareableFieldValue(
 }
 
 export function getAvailableWriteFields(form: FormState): ShareableProjectSettingsWriteField[] {
-  const fields: ShareableProjectSettingsWriteField[] = [];
-  if (form.preservePatterns.trim()) fields.push('preservePatterns');
-  if (form.scriptSetup.trim()) fields.push('scripts.setup');
-  if (form.scriptRun.trim()) fields.push('scripts.run');
-  if (form.scriptTeardown.trim()) fields.push('scripts.teardown');
-  if (form.shellSetup.trim()) fields.push('shellSetup');
-  return fields;
+  return SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS.filter((field) =>
+    String(form[SHAREABLE_FORM_FIELD_CONFIG[field].formKey]).trim()
+  );
 }
 
 export function clearFormShareableFields(
@@ -197,4 +175,8 @@ export function clearFormShareableFields(
     next[SHAREABLE_FIELD_FORM_KEY[field]] = '';
   }
   return next;
+}
+
+export function areFormStatesEqual(a: FormState, b: FormState): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }

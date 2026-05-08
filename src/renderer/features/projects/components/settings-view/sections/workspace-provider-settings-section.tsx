@@ -20,7 +20,7 @@ export function WorkspaceProviderSettingsSection({
   errors,
   update,
 }: WorkspaceProviderSettingsSectionProps) {
-  if (enabled) return null;
+  if (!enabled) return null;
 
   return (
     <>
