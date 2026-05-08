@@ -92,21 +92,6 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open the project in the default editor',
     category: 'Navigation',
   },
-  taskViewAgents: {
-    label: 'Conversations view',
-    description: 'Switch to the conversations view in the task panel',
-    category: 'Task View',
-  },
-  taskViewDiff: {
-    label: 'Diff view',
-    description: 'Switch to the diff view in the task panel',
-    category: 'Task View',
-  },
-  taskViewEditor: {
-    label: 'Editor view',
-    description: 'Switch to the editor view in the task panel',
-    category: 'Task View',
-  },
   sidebarChanges: {
     defaultHotkey: 'Mod+Shift+1',
     label: 'View Changes',

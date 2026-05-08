@@ -63,6 +63,19 @@ export class TaskViewStore {
     // Restore tab state from the unified tabManager snapshot.
     if (savedSnapshot?.tabManager) {
       this.tabManager.restoreSnapshot(savedSnapshot.tabManager);
+    } else if (savedSnapshot?.conversations?.tabOrder?.length) {
+      // Legacy migration: old blobs stored conversation tabs under a separate
+      // `conversations` field before the unified tab refactor. Reconstruct a
+      // TabManagerSnapshot so existing open conversations are preserved.
+      this.tabManager.restoreSnapshot({
+        tabs: savedSnapshot.conversations.tabOrder.map((id) => ({
+          kind: 'conversation' as const,
+          tabId: crypto.randomUUID(),
+          conversationId: id,
+          isPreview: false,
+        })),
+        activeTabId: undefined,
+      });
     } else {
       // No saved snapshot — brand-new task view. Open any conversation marked as
       // the initial conversation so it appears as a tab by default.
@@ -96,6 +109,7 @@ export class TaskViewStore {
     );
 
     // Push tab-level history entries whenever the active tab changes.
+    // fireImmediately captures the initial tab when the store is first constructed.
     this.disposers.push(
       reaction(
         () => this.tabManager.resolvedActiveTabId,
@@ -107,7 +121,8 @@ export class TaskViewStore {
             taskId: resources.taskId,
             tabId,
           });
-        }
+        },
+        { fireImmediately: true }
       )
     );
 

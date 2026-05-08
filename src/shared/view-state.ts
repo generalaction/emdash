@@ -64,6 +64,8 @@ export type TaskViewSnapshot = {
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen?: boolean;
   tabManager?: TabManagerSnapshot;
+  /** @deprecated Legacy field from before the unified tab refactor. Used only for migration. */
+  conversations?: TabViewSnapshot;
   terminals?: TabViewSnapshot;
   editor?: EditorViewSnapshot;
   diffView?: DiffViewSnapshot;

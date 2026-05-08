@@ -1,4 +1,3 @@
-import { startTransition } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import {
   asProvisioned,
@@ -62,47 +61,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
                 tabManager?.openConversation(conversationId);
                 taskView?.setFocusedRegion('main');
               },
-            });
-          },
-        },
-
-        // ── Main panel view switches ───────────────────────────────────────
-        {
-          id: 'task.switchToConversations',
-          label: 'Switch to Conversations view',
-          description: 'Open the right sidebar to the Conversations panel',
-          shortcutKey: 'taskViewAgents',
-          group: 'Panel',
-          execute() {
-            startTransition(() => {
-              taskView?.setSidebarTab('conversations');
-              taskView?.setSidebarCollapsed(false);
-            });
-          },
-        },
-        {
-          id: 'task.switchToDiff',
-          label: 'Switch to Diff view',
-          description: 'Open the right sidebar to the Changes panel',
-          shortcutKey: 'taskViewDiff',
-          group: 'Panel',
-          execute() {
-            startTransition(() => {
-              taskView?.setSidebarTab('changes');
-              taskView?.setSidebarCollapsed(false);
-            });
-          },
-        },
-        {
-          id: 'task.switchToEditor',
-          label: 'Switch to Editor view',
-          description: 'Open the right sidebar to the Files panel',
-          shortcutKey: 'taskViewEditor',
-          group: 'Panel',
-          execute() {
-            startTransition(() => {
-              taskView?.setSidebarTab('files');
-              taskView?.setSidebarCollapsed(false);
             });
           },
         },

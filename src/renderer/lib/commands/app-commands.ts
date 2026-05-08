@@ -1,6 +1,6 @@
+import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
-import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
 import { commandRegistry } from './registry';
 import type { AppCommand, CommandProvider } from './types';
 
