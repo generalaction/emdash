@@ -31,6 +31,10 @@ export class ProjectSettingsStore {
     return this.pageData.data?.settings ?? null;
   }
 
+  get defaults(): ProjectSettingsPage['defaults'] | null {
+    return this.pageData.data?.defaults ?? null;
+  }
+
   get writeTargets(): ProjectSettingsWriteTargetOption[] | null {
     return this.pageData.data?.writeTargets ?? null;
   }

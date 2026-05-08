@@ -12,7 +12,7 @@ import type { ProjectSettingsStorage } from './project-settings-storage';
 vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: {
     get: vi.fn().mockImplementation((key: string) => {
-      if (key === 'projects') return Promise.resolve({ tmuxByDefault: false });
+      if (key === 'project') return Promise.resolve({ tmuxByDefault: false });
       return Promise.resolve({
         defaultWorktreeDirectory: '/tmp/emdash/worktrees',
       });
@@ -97,6 +97,30 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
 
     await expect(provider.get()).resolves.not.toHaveProperty('preservePatterns');
+  });
+
+  it('does not seed computed worktreeDirectory into project settings', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+
+    await expect(provider.get()).resolves.not.toHaveProperty('worktreeDirectory');
+    await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
+    await expect(provider.getWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
+  });
+
+  it('keeps computed worktreeDirectory default separate from configured overrides', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
+    expect(result.success).toBe(true);
+
+    const expectedOverride = fs.realpathSync(path.resolve(projectPath, 'worktrees'));
+    await expect(provider.get()).resolves.toMatchObject({ worktreeDirectory: expectedOverride });
+    await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
+    await expect(provider.getWorktreeDirectory()).resolves.toBe(expectedOverride);
   });
 
   it('retries legacy config migration after a failed attempt', async () => {

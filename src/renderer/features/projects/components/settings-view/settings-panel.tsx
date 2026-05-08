@@ -10,10 +10,11 @@ export const SettingsPanel = observer(function SettingsPanel() {
   } = useParams('project');
   const store = getProjectSettingsStore(projectId);
   const settings = store?.settings;
+  const defaults = store?.defaults;
   const writeTargets = store?.writeTargets;
   const overrideState = store?.overrideState;
 
-  if (!store || !settings || !writeTargets || !overrideState) {
+  if (!store || !settings || !defaults || !writeTargets || !overrideState) {
     return (
       <div className="flex items-center justify-center py-10">
         <Spinner />
@@ -26,6 +27,7 @@ export const SettingsPanel = observer(function SettingsPanel() {
       key={projectId}
       projectId={projectId}
       initial={settings}
+      defaults={defaults}
       writeTargets={writeTargets}
       overrideState={overrideState}
       onSuccess={() => {}}

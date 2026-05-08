@@ -11,6 +11,7 @@ import type { FormState, FormUpdate } from '../project-settings-form-model';
 type BaseProjectSettingsSectionProps = {
   projectId: string;
   form: FormState;
+  defaultWorktreeDirectory: string;
   remotes: Remote[];
   worktreeDirectoryError: string | null;
   update: FormUpdate;
@@ -19,6 +20,7 @@ type BaseProjectSettingsSectionProps = {
 export function BaseProjectSettingsSection({
   projectId,
   form,
+  defaultWorktreeDirectory,
   remotes,
   worktreeDirectoryError,
   update,
@@ -37,7 +39,7 @@ export function BaseProjectSettingsSection({
           <Input
             aria-invalid={worktreeDirectoryError ? true : undefined}
             className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
-            placeholder="Leave blank to use the default"
+            placeholder={defaultWorktreeDirectory}
             value={form.worktreeDirectory}
             onChange={(e) => update('worktreeDirectory', e.target.value)}
           />

@@ -21,6 +21,7 @@ import { useProjectSettingsForm } from './use-project-settings-form';
 export interface ProjectSettingsFormProps {
   projectId: string;
   initial: ProjectSettings;
+  defaults: ProjectSettingsPage['defaults'];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   onSuccess: () => void;
@@ -34,6 +35,7 @@ const EMPTY_REMOTES: Remote[] = [];
 export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
   initial,
+  defaults,
   writeTargets,
   overrideState,
   onSuccess,
@@ -66,6 +68,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
           <BaseProjectSettingsSection
             projectId={projectId}
             form={formModel.form}
+            defaultWorktreeDirectory={defaults.worktreeDirectory}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}
             update={formModel.update}

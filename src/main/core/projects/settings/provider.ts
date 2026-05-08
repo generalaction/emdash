@@ -9,6 +9,7 @@ export type ProjectSettingsPatch = {
 export interface ProjectSettingsProvider {
   getDefaultBranch(): Promise<string>;
   getRemote(): Promise<string>;
+  getDefaultWorktreeDirectory(): Promise<string>;
   getWorktreeDirectory(): Promise<string>;
   get(): Promise<ProjectSettings>;
   update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>>;

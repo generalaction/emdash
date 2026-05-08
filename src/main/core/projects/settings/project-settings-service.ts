@@ -23,10 +23,13 @@ async function getProjectSettingsPageForProject(
   project: ProjectProvider
 ): Promise<ProjectSettingsPage> {
   const settings = await project.settings.get();
+  const defaults = {
+    worktreeDirectory: await project.settings.getDefaultWorktreeDirectory(),
+  };
   const resolvedTargets = await resolveAllProjectSettingsTargets(project);
   const writeTargets = getProjectSettingsWriteTargets(resolvedTargets);
   const overrideState = await computeProjectSettingsOverrideState(resolvedTargets);
-  return { settings, writeTargets, overrideState };
+  return { settings, defaults, writeTargets, overrideState };
 }
 
 export async function getProjectSettingsPage(

@@ -61,7 +61,6 @@ abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
     const defaultBranch = this.defaultBranchFallback.trim() || 'main';
     const projectDefaults = await appSettingsService.get('project');
     return {
-      worktreeDirectory: await this.defaultWorktreeDirectory(),
       defaultBranch,
       remote: remoteNameFromQualifiedRef(defaultBranch) ?? 'origin',
       tmux: projectDefaults.tmuxByDefault,
@@ -237,9 +236,13 @@ abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
     return settings.remote ?? 'origin';
   }
 
+  async getDefaultWorktreeDirectory(): Promise<string> {
+    return this.defaultWorktreeDirectory();
+  }
+
   async getWorktreeDirectory(): Promise<string> {
     const settings = await this.get();
-    const defaultWorktreeDirectory = await this.defaultWorktreeDirectory();
+    const defaultWorktreeDirectory = await this.getDefaultWorktreeDirectory();
     if (settings.worktreeDirectory) {
       const normalized = await this.normalizeStoredWorktreeDirectory(settings.worktreeDirectory);
       if (normalized.success) {

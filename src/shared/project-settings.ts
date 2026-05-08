@@ -68,6 +68,9 @@ export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
 export type ProjectSettingsPage = {
   settings: ProjectSettings;
+  defaults: {
+    worktreeDirectory: string;
+  };
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
 };
