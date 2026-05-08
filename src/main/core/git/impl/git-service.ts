@@ -452,7 +452,9 @@ export class GitService implements GitProvider, IDisposable {
       child.on('close', (code) => {
         if (aborted) return;
         if (code !== 0) {
-          resolve({ kind: 'missing' });
+          resolve(
+            code === 128 ? { kind: 'missing' } : { kind: 'unavailable', reason: 'git-error' }
+          );
           return;
         }
         const buffer = Buffer.concat(chunks);
