@@ -21,7 +21,7 @@ const FileTreeRow = observer(function FileTreeRow({
   const editorView = taskView.editorView;
 
   const isExpanded = editorView.expandedPaths.has(node.path);
-  const isSelected = taskView.view === 'editor' && taskView.tabManager.activeFilePath === node.path;
+  const isSelected = taskView.tabManager.activeFilePath === node.path;
   const fileStatus = taskState.workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = node.depth * 12 + 4;
 

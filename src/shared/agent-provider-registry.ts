@@ -24,6 +24,7 @@ export const AGENT_PROVIDER_IDS = [
   'jules',
   'junie',
   'pi',
+  'letta',
   'autohand',
 ] as const;
 
@@ -57,6 +58,7 @@ export type AgentProviderDefinition = {
    * e.g. '--session-id' for Claude Code.
    */
   sessionIdFlag?: string;
+  newConversationFlag?: string;
   sessionIdOnResumeOnly?: boolean;
   defaultArgs?: string[];
   planActivateCommand?: string;
@@ -489,6 +491,27 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '-c',
     icon: 'pi.png',
     alt: 'Pi CLI',
+    terminalOnly: true,
+  },
+  {
+    id: 'letta',
+    name: 'Letta',
+    description:
+      'Memory-first coding agent CLI with persistent agents that learn across sessions and portable memory across models.',
+    docUrl: 'https://docs.letta.com/letta-code/cli',
+    installCommand: 'npm install -g @letta-ai/letta-code',
+    commands: ['letta'],
+    versionArgs: ['--version'],
+    cli: 'letta',
+    autoApproveFlag: '--yolo',
+    initialPromptFlag: '',
+    // Bare `letta` auto-resumes the cwd's last conversation; `--new` is
+    // required to start a fresh one when emdash spins up a new chat.
+    newConversationFlag: '--new',
+    useKeystrokeInjection: true,
+    icon: 'letta.svg',
+    alt: 'Letta Code CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {

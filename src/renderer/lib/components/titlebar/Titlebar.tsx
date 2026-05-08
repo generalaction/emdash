@@ -1,5 +1,6 @@
 import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
+import { NavButtons } from '@renderer/lib/components/nav-buttons';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Toggle } from '@renderer/lib/ui/toggle';
@@ -20,23 +21,26 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
             {!isLeftOpen && (
-              <Tooltip>
-                <TooltipTrigger>
-                  <Toggle
-                    pressed={isLeftOpen}
-                    variant="outline"
-                    size="sm"
-                    className="ml-2 size-7"
-                    onPressedChange={() => setCollapsed('left', isLeftOpen)}
-                  >
-                    <PanelLeft className="h-4 w-4" />
-                  </Toggle>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Toggle left sidebar
-                  <ShortcutHint settingsKey="toggleLeftSidebar" />
-                </TooltipContent>
-              </Tooltip>
+              <>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Toggle
+                      pressed={isLeftOpen}
+                      variant="outline"
+                      size="sm"
+                      className="ml-2 size-7 border-none"
+                      onPressedChange={() => setCollapsed('left', isLeftOpen)}
+                    >
+                      <PanelLeft className="h-4 w-4" />
+                    </Toggle>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Toggle left sidebar
+                    <ShortcutHint settingsKey="toggleLeftSidebar" />
+                  </TooltipContent>
+                </Tooltip>
+                <NavButtons />
+              </>
             )}
             {leftSlot}
           </div>
