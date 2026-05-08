@@ -1,5 +1,5 @@
+import { type ProjectSettings } from '@shared/project-settings';
 import { projectManager } from '../project-manager';
-import { type ProjectSettings } from '../settings/schema';
 
 export async function getProjectSettings(projectId: string): Promise<ProjectSettings> {
   const project = projectManager.getProject(projectId);

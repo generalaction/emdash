@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { bareRefName } from '@shared/git-utils';
 import { safePathSegment } from '@shared/path-name';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
@@ -23,7 +22,7 @@ import {
   LocalProjectSettingsProvider,
   SshProjectSettingsProvider,
 } from './settings/project-settings';
-import type { ProjectSettingsProvider } from './settings/schema';
+import type { ProjectSettingsProvider } from './settings/provider';
 import { LocalWorktreeHost } from './worktrees/hosts/local-worktree-host';
 import { SshWorktreeHost } from './worktrees/hosts/ssh-worktree-host';
 import type { WorktreeHost } from './worktrees/hosts/worktree-host';
@@ -45,7 +44,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
   const ctx = baseCtx;
 
-  const settings = new LocalProjectSettingsProvider(project.path, bareRefName(project.baseRef));
+  const settings = new LocalProjectSettingsProvider(project.id, project.path, project.baseRef);
   const worktreeDirectory = await settings.getWorktreeDirectory();
   await fs.promises.mkdir(worktreeDirectory, { recursive: true });
   const worktreePoolPath = path.join(worktreeDirectory, safePathSegment(project.name, project.id));
@@ -78,8 +77,9 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     const ctx = baseCtx;
 
     const settings = new SshProjectSettingsProvider(
+      project.id,
       projectFs,
-      bareRefName(project.baseRef),
+      project.baseRef,
       rootFs,
       project.path,
       baseCtx

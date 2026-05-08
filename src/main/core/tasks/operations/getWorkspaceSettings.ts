@@ -1,4 +1,4 @@
-import type { ProjectSettings } from '@main/core/projects/settings/schema';
+import type { ProjectSettings } from '@shared/project-settings';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/task-settings';
 import { resolveWorkspace } from '@main/core/projects/utils';
 

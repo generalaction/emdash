@@ -20,7 +20,7 @@ import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
 import { log } from '@main/lib/logger';
-import type { ProjectSettingsProvider } from '../projects/settings/schema';
+import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
 import { TimeoutSignal, withTimeout } from '../projects/utils';
 import { TEARDOWN_SCRIPT_WAIT_MS } from '../tasks/provision-task-error';
