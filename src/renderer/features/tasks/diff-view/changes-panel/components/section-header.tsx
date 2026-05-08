@@ -83,7 +83,6 @@ export function PullRequestSectionHeader({
     {
       value: 'create-draft-pr',
       label: 'Create draft PR',
-      description: 'Open a draft pull request that cannot be merged until marked ready for review',
       action: () => onCreateDraftPr?.(),
     },
   ];
