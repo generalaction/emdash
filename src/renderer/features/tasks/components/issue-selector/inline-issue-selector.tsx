@@ -97,7 +97,6 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
           e.preventDefault();
           const issue = issues[highlightedIndex];
           if (!issue) break;
-          if (linkedIssueMap.has(issue.url)) break;
           onValueChange(issue === value ? null : issue);
           break;
         }
@@ -111,7 +110,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
           break;
       }
     },
-    [issues, highlightedIndex, value, query, linkedIssueMap, onValueChange, handleSetSearchTerm]
+    [issues, highlightedIndex, value, query, onValueChange, handleSetSearchTerm]
   );
 
   const providerAddon = issueProvider ? (
@@ -179,24 +178,19 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
             const isSelected = value?.identifier === issue.identifier;
             const isHighlighted = index === highlightedIndex;
             const linkedTo = linkedIssueMap.get(issue.url);
-            const isLinkedElsewhere = !!linkedTo;
             return (
               <button
                 key={issue.identifier}
                 type="button"
-                disabled={isLinkedElsewhere}
                 className={cn(
                   'relative flex min-w-0 w-full cursor-default items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none select-none',
-                  isLinkedElsewhere && 'cursor-not-allowed opacity-50',
                   isHighlighted && !isSelected && 'bg-background-2',
                   isSelected && 'bg-background-2'
                 )}
                 onMouseEnter={() => setHighlightedIndex(index)}
-                onClick={() => {
-                  if (!isLinkedElsewhere) onValueChange(isSelected ? null : issue);
-                }}
+                onClick={() => onValueChange(isSelected ? null : issue)}
               >
-                <IssueRow issue={issue} linkedTo={linkedTo} muted={isLinkedElsewhere} />
+                <IssueRow issue={issue} linkedTo={linkedTo} />
                 {isSelected && (
                   <Check className="absolute right-2 size-3.5 shrink-0 text-foreground-muted" />
                 )}
