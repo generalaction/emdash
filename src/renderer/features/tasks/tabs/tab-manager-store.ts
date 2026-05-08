@@ -8,9 +8,9 @@ import type {
 import { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
 import type { FileRendererData } from '@renderer/features/tasks/types';
+import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
-import { rpc } from '@renderer/lib/ipc';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import {
   addTabId,
@@ -307,7 +307,9 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           isActive: effectiveActiveId === entry.tabId,
         });
       } else {
-        const bufferUri = entry.isExternal ? '' : buildMonacoModelPath(this.modelRootPath, entry.path);
+        const bufferUri = entry.isExternal
+          ? ''
+          : buildMonacoModelPath(this.modelRootPath, entry.path);
         result.push({
           kind: 'file',
           tabId: entry.tabId,
