@@ -13,6 +13,7 @@ import {
 } from '@renderer/lib/layout/navigation-provider';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { modalStore } from '@renderer/lib/modal/modal-store';
 
 /**
  * Mounts global keyboard shortcut handlers for the entire application.
@@ -29,6 +30,7 @@ export function AppKeyboardShortcuts() {
   const { navigate } = useNavigate();
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const settingsHotkey = getEffectiveHotkey('settings', keyboard);
+  const closeModalHotkey = getEffectiveHotkey('closeModal', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
   const toggleRightSidebarHotkey = getEffectiveHotkey('toggleRightSidebar', keyboard);
   const toggleThemeHotkey = getEffectiveHotkey('toggleTheme', keyboard);
@@ -57,6 +59,16 @@ export function AppKeyboardShortcuts() {
     getHotkeyRegistration('settings', keyboard),
     () => toggleSettingsView(navigate, currentView, lastNonSettingsView),
     { enabled: settingsHotkey !== null }
+  );
+
+  useHotkey(
+    getHotkeyRegistration('closeModal', keyboard),
+    () => {
+      if (currentView === 'settings' && !modalStore.isOpen) {
+        (navigate as (viewId: typeof lastNonSettingsView) => void)(lastNonSettingsView);
+      }
+    },
+    { enabled: currentView === 'settings' && closeModalHotkey !== null }
   );
 
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
