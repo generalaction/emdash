@@ -1,4 +1,4 @@
-import { computed, makeAutoObservable } from 'mobx';
+import { computed, makeAutoObservable, reaction } from 'mobx';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
@@ -10,6 +10,7 @@ import { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store
 import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
+import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 
 /**
@@ -28,6 +29,7 @@ interface TaskViewResources {
   git: GitStore;
   pr: PrStore;
   projectId: string;
+  taskId: string;
   workspaceId: string;
 }
 
@@ -44,8 +46,10 @@ export class TaskViewStore {
   private readonly diffTabLifecycle: DiffTabLifecycleStore;
   private readonly terminalsMgr: TerminalManagerStore;
   private readonly disposers: (() => void)[] = [];
+  private readonly taskId: string;
 
   constructor(resources: TaskViewResources, savedSnapshot?: TaskViewSnapshot) {
+    this.taskId = resources.taskId;
     this.sidebarTab = (savedSnapshot?.sidebarTab as SidebarTab) ?? 'conversations';
     this.isSidebarCollapsed = savedSnapshot?.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot?.focusedRegion === 'bottom' ? 'bottom' : 'main';
@@ -89,6 +93,22 @@ export class TaskViewStore {
       resources.git,
       resources.pr,
       this.diffView
+    );
+
+    // Push tab-level history entries whenever the active tab changes.
+    this.disposers.push(
+      reaction(
+        () => this.tabManager.resolvedActiveTabId,
+        (tabId) => {
+          if (!tabId) return;
+          appState.history.push({
+            kind: 'tab',
+            projectId: resources.projectId,
+            taskId: resources.taskId,
+            tabId,
+          });
+        }
+      )
     );
 
     makeAutoObservable(this, {
@@ -170,6 +190,9 @@ export class TaskViewStore {
 
   dispose(): void {
     for (const d of this.disposers) d();
+    // Remove any tab history entries for this task so back/forward doesn't
+    // navigate to a task that no longer has an active view.
+    appState.history.prune((e) => e.kind === 'tab' && e.taskId === this.taskId);
     this.tabManager.dispose();
     this.terminalTabs.dispose();
     this.editorView.dispose();

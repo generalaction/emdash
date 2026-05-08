@@ -1,5 +1,6 @@
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
+import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
 import { commandRegistry } from './registry';
 import type { AppCommand, CommandProvider } from './types';
 
@@ -51,6 +52,31 @@ function createAppCommandProvider(): CommandProvider {
           },
         });
       }
+
+      commands.push(
+        {
+          id: 'app.navigateBack',
+          label: 'Go Back',
+          description: 'Navigate to the previous location',
+          shortcutKey: 'navigateBack',
+          group: 'Navigation',
+          enabled: appState.history.canGoBack,
+          execute() {
+            appState.history.back(applyHistoryEntry);
+          },
+        },
+        {
+          id: 'app.navigateForward',
+          label: 'Go Forward',
+          description: 'Navigate to the next location',
+          shortcutKey: 'navigateForward',
+          group: 'Navigation',
+          enabled: appState.history.canGoForward,
+          execute() {
+            appState.history.forward(applyHistoryEntry);
+          },
+        }
+      );
 
       return commands;
     },

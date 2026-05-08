@@ -98,6 +98,7 @@ export class ProvisionedTask {
         git: this.workspace.git,
         pr: this.workspace.pr,
         projectId: taskData.projectId,
+        taskId: taskData.id,
         workspaceId: this.workspaceId,
       },
       savedSnapshot

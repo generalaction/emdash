@@ -74,18 +74,6 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Navigation',
     hideFromSettings: true,
   },
-  nextProject: {
-    defaultHotkey: 'Mod+]',
-    label: 'Next Task',
-    description: 'Switch to the next task',
-    category: 'Navigation',
-  },
-  prevProject: {
-    defaultHotkey: 'Mod+[',
-    label: 'Previous Task',
-    description: 'Switch to the previous task',
-    category: 'Navigation',
-  },
   newTask: {
     defaultHotkey: 'Mod+N',
     label: 'New Task',
@@ -243,6 +231,18 @@ export const APP_SHORTCUTS = defineShortcuts({
     defaultHotkey: 'Mod+Enter',
     label: 'Confirm',
     description: 'Confirm the current dialog action',
+    category: 'Navigation',
+  },
+  navigateBack: {
+    defaultHotkey: 'Mod+[',
+    label: 'Go Back',
+    description: 'Navigate to the previous location',
+    category: 'Navigation',
+  },
+  navigateForward: {
+    defaultHotkey: 'Mod+]',
+    label: 'Go Forward',
+    description: 'Navigate to the next location',
     category: 'Navigation',
   },
 });

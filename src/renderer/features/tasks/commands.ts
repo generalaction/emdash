@@ -288,7 +288,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           id: 'task.nextTask',
           label: 'Next Task',
           description: 'Switch to the next task',
-          shortcutKey: 'nextProject',
           group: 'Navigation',
           enabled: currentIdx !== -1 && currentIdx < taskIds.length - 1,
           execute() {
@@ -300,7 +299,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           id: 'task.prevTask',
           label: 'Previous Task',
           description: 'Switch to the previous task',
-          shortcutKey: 'prevProject',
           group: 'Navigation',
           enabled: currentIdx > 0,
           execute() {
