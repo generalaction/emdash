@@ -1,5 +1,6 @@
-import { observer } from 'mobx-react-lite';
-import { createContext, useCallback, useContext, type ReactNode } from 'react';
+import { runInAction } from 'mobx';
+import { useObserver } from 'mobx-react-lite';
+import { useCallback, type ReactNode } from 'react';
 import { type modalRegistry } from '@renderer/app/modal-registry';
 import { modalStore } from './modal-store';
 
@@ -23,16 +24,6 @@ type ModalId = keyof typeof modalRegistry;
 
 type ModalArgs<TId extends ModalId> = Parameters<(typeof modalRegistry)[TId]['component']>[0];
 
-type ModalContext = {
-  closeModal: () => void;
-  showModal: <TId extends ModalId>(modal: TId, args: UserArgs<TId>) => void;
-  transitionModal: <TId extends ModalId>(modal: TId, args: UserArgs<TId>) => void;
-  hasActiveCloseGuard: boolean;
-  setCloseGuard: (active: boolean) => void;
-};
-
-const ModalContext = createContext<ModalContext | undefined>(undefined);
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function wrapArgs<TId extends ModalId>(args: UserArgs<TId>): Record<string, any> {
   return {
@@ -49,14 +40,9 @@ function wrapArgs<TId extends ModalId>(args: UserArgs<TId>): Record<string, any>
   };
 }
 
-export const ModalProvider = observer(function ModalProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function useModalContext() {
   const showModal = useCallback(<TId extends ModalId>(id: TId, args: UserArgs<TId>) => {
     modalStore.setModal(id, wrapArgs(args));
-    window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open: true } }));
   }, []);
 
   const transitionModal = useCallback(<TId extends ModalId>(id: TId, args: UserArgs<TId>) => {
@@ -64,43 +50,42 @@ export const ModalProvider = observer(function ModalProvider({
     // No overlay event — the dialog stays open; AnimatedHeight handles the content swap.
   }, []);
 
-  const closeModal = useCallback(() => {
-    modalStore.closeModal('dismissed');
-  }, []);
+  const closeModal = useCallback(() => modalStore.closeModal('dismissed'), []);
 
   const setCloseGuard = useCallback((active: boolean) => {
-    modalStore.closeGuardActive = active;
+    runInAction(() => {
+      modalStore.closeGuardActive = active;
+    });
   }, []);
 
-  return (
-    <ModalContext.Provider
-      value={{
-        closeModal,
-        showModal,
-        transitionModal,
-        hasActiveCloseGuard: modalStore.closeGuardActive,
-        setCloseGuard,
-      }}
-    >
-      {children}
-    </ModalContext.Provider>
-  );
-});
+  const hasActiveCloseGuard = useObserver(() => modalStore.closeGuardActive);
 
-export function useModalContext() {
-  const context = useContext(ModalContext);
-  if (!context) {
-    throw new Error('useWorkspaceOverlayContext must be used within a WorkspaceOverlayProvider');
-  }
-  return context;
+  return { closeModal, showModal, transitionModal, hasActiveCloseGuard, setCloseGuard };
 }
 
 export function useShowModal<MId extends ModalId>(id: MId) {
-  const { showModal } = useModalContext();
-  return (args: UserArgs<MId>) => showModal(id, args);
+  return useCallback(
+    (args: UserArgs<MId>) => {
+      modalStore.setModal(id, wrapArgs(args));
+    },
+    [id]
+  );
 }
 
 export function useTransitionModal<MId extends ModalId>(id: MId) {
-  const { transitionModal } = useModalContext();
-  return (args: UserArgs<MId>) => transitionModal(id, args);
+  return useCallback(
+    (args: UserArgs<MId>) => {
+      modalStore.setModal(id, wrapArgs(args));
+    },
+    [id]
+  );
+}
+
+/**
+ * Standalone (non-hook) alternative to useShowModal.
+ * Safe to call from MobX reactions, command providers, and any code outside
+ * of the React tree.
+ */
+export function showModal<TId extends ModalId>(id: TId, args: UserArgs<TId>): void {
+  modalStore.setModal(id, wrapArgs(args));
 }

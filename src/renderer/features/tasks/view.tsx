@@ -10,9 +10,9 @@ import {
   ProvisionedTaskProvider,
   TaskViewWrapper,
 } from '@renderer/features/tasks/task-view-context';
+import { createTaskCommandProvider } from './commands';
 import { EditorProvider } from './editor/editor-provider';
 import { TaskMainPanel } from './main-panel';
-import { TaskRightSidebar } from './right-panel';
 import { TaskTitlebar } from './task-titlebar';
 
 const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProviders({
@@ -62,5 +62,6 @@ export const taskView = {
   WrapView: TaskViewWrapperWithProviders,
   TitlebarSlot: TaskTitlebar,
   MainPanel: TaskMainPanel,
-  RightPanel: TaskRightSidebar,
+  commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
+    createTaskCommandProvider(projectId, taskId),
 } satisfies ViewDefinition<{ projectId: string; taskId: string }>;

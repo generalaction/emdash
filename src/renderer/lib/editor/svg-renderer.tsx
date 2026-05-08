@@ -10,8 +10,12 @@ interface SvgRendererProps {
   filePath: string;
 }
 
+/**
+ * Renders an SVG file as an image.
+ */
 export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRendererProps) {
-  const editorView = useProvisionedTask().taskView.editorView;
+  const { taskView } = useProvisionedTask();
+  const { editorView, tabManager } = taskView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
 
   // Touch bufferVersions so this observer re-renders when the buffer is first
@@ -35,7 +39,7 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
         value={['svg']}
         onValueChange={(value) => {
           if (value.includes('svg-source')) {
-            editorView.updateRenderer(filePath, () => ({ kind: 'svg-source' }));
+            tabManager.updateRenderer(filePath, () => ({ kind: 'svg-source' }));
           }
         }}
         size="sm"
