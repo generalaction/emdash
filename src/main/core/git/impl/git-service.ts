@@ -447,6 +447,7 @@ export class GitService implements GitProvider, IDisposable {
         }
         chunks.push(chunk);
       });
+      child.stderr.resume();
       child.on('error', () => resolve({ kind: 'unavailable', reason: 'git-error' }));
       child.on('close', (code) => {
         if (aborted) return;

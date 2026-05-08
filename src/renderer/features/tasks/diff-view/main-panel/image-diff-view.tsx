@@ -137,9 +137,7 @@ function delay(ms: number): Promise<void> {
 
 function shouldRetryModifiedLoad(state: SideState): boolean {
   return (
-    state.status === 'error' ||
-    state.status === 'missing' ||
-    (state.status === 'unavailable' && state.reason === 'git-error')
+    state.status === 'error' || (state.status === 'unavailable' && state.reason === 'git-error')
   );
 }
 
