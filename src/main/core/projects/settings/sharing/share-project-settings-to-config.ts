@@ -2,7 +2,7 @@ import type { WriteProjectConfigRequest } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { log } from '@main/lib/logger';
-import type { ProjectProvider } from '../project-provider';
+import type { ProjectProvider } from '../../project-provider';
 import {
   resolveProjectSettingsTarget,
   type ProjectSettingsResolvedTarget,

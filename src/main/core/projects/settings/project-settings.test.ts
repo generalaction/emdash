@@ -6,8 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PRESERVE_PATTERNS } from '@shared/project-settings';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { LocalProjectSettingsProvider, SshProjectSettingsProvider } from './project-settings';
 import type { ProjectSettingsStorage } from './project-settings-storage';
+import { LocalProjectSettingsProvider } from './providers/local-project-settings-provider';
+import { SshProjectSettingsProvider } from './providers/ssh-project-settings-provider';
 
 vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: {

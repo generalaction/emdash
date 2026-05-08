@@ -7,12 +7,12 @@ import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { projectManager } from '../project-manager';
 import type { ProjectProvider } from '../project-provider';
-import { computeProjectSettingsOverrideState } from './project-settings-override-state';
+import { computeProjectSettingsOverrideState } from './sharing/project-settings-override-state';
 import {
   getProjectSettingsWriteTargets,
   resolveAllProjectSettingsTargets,
-} from './project-settings-target-resolver';
-import { shareProjectSettingsToConfig as writeSharedProjectSettingsToConfig } from './share-project-settings-to-config';
+} from './sharing/project-settings-target-resolver';
+import { shareProjectSettingsToConfig as writeSharedProjectSettingsToConfig } from './sharing/share-project-settings-to-config';
 
 function requireProject(projectId: string): Result<ProjectProvider, UpdateProjectSettingsError> {
   const project = projectManager.getProject(projectId);

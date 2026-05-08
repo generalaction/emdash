@@ -1,6 +1,3 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { remoteNameFromQualifiedRef } from '@shared/git-utils';
 import {
   baseProjectSettingsSchema,
@@ -14,31 +11,19 @@ import {
 import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
-import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';
-import { resolveRemoteHome } from '@main/core/ssh/utils';
 import { log } from '@main/lib/logger';
-import { migrateLegacyProjectSettingsIfNeeded } from './legacy-project-settings-migration';
-import { compactUndefined, parseJsonObject, readJson } from './project-settings-json';
-import { ProjectSettingsRepository, type ProjectSettingsStorage } from './project-settings-storage';
-import type { ProjectSettingsPatch, ProjectSettingsProvider } from './provider';
-import { CONFIG_FILE } from './workspace-config-file';
+import { migrateLegacyProjectSettingsIfNeeded } from '../legacy-project-settings-migration';
+import { compactUndefined, parseJsonObject, readJson } from '../project-settings-json';
 import {
-  canonicalizeWorktreeDirectory,
-  normalizeWorktreeDirectory,
-  resolveAndValidateWorktreeDirectory,
-} from './worktree-directory';
+  ProjectSettingsRepository,
+  type ProjectSettingsStorage,
+} from '../project-settings-storage';
+import type { ProjectSettingsPatch, ProjectSettingsProvider } from '../provider';
+import { CONFIG_FILE } from '../sharing/workspace-config-file';
 
-async function getLocalDefaultWorktreeDirectory(): Promise<string> {
-  return (await appSettingsService.get('localProject')).defaultWorktreeDirectory;
-}
-
-const localPathPlatform = process.platform === 'win32' ? 'win32' : 'posix';
-
-abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
+export abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
   private legacyMigrationPromise: Promise<void> | undefined;
 
   protected constructor(
@@ -257,126 +242,5 @@ abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
       });
     }
     return defaultWorktreeDirectory;
-  }
-}
-
-export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
-  constructor(
-    projectId: string,
-    projectPath: string,
-    defaultBranchFallback: string = 'main',
-    storage?: ProjectSettingsStorage
-  ) {
-    super(
-      projectId,
-      projectPath,
-      defaultBranchFallback,
-      {
-        exists: async (filePath) => fs.existsSync(path.join(projectPath, filePath)),
-        read: async (filePath) => {
-          const content = await fs.promises.readFile(path.join(projectPath, filePath), 'utf8');
-          return { content, truncated: false, totalSize: Buffer.byteLength(content) };
-        },
-      },
-      storage
-    );
-  }
-
-  protected defaultWorktreeDirectory(): Promise<string> {
-    return getLocalDefaultWorktreeDirectory();
-  }
-
-  protected validateWorktreeDirectory(
-    worktreeDirectory: string | undefined
-  ): Promise<Result<string | undefined, UpdateProjectSettingsError>> {
-    return resolveAndValidateWorktreeDirectory(worktreeDirectory, {
-      pathApi: path,
-      pathPlatform: localPathPlatform,
-      fs: {
-        mkdir: async (p, options) => {
-          await fs.promises.mkdir(p, options);
-        },
-        realPath: async (p) => fs.promises.realpath(p),
-      },
-      homeDirectory: os.homedir(),
-    });
-  }
-
-  protected normalizeStoredWorktreeDirectory(
-    worktreeDirectory: string
-  ): Promise<Result<string, UpdateProjectSettingsError>> {
-    return normalizeWorktreeDirectory(worktreeDirectory, {
-      pathApi: path,
-      pathPlatform: localPathPlatform,
-      homeDirectory: os.homedir(),
-    });
-  }
-}
-
-export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
-  private homeDirectory?: Promise<string>;
-
-  constructor(
-    projectId: string,
-    private readonly fs: SshFileSystem,
-    defaultBranchFallback: string = 'main',
-    private readonly rootFs?: Pick<FileSystemProvider, 'mkdir' | 'realPath'>,
-    projectPath: string = '/',
-    private readonly ctx?: IExecutionContext,
-    storage?: ProjectSettingsStorage
-  ) {
-    super(projectId, projectPath, defaultBranchFallback, fs, storage);
-  }
-
-  private async getHomeDirectory(): Promise<Result<string, UpdateProjectSettingsError>> {
-    if (!this.ctx) {
-      return err({ type: 'invalid-worktree-directory' });
-    }
-    try {
-      this.homeDirectory ??= resolveRemoteHome(this.ctx);
-      return ok(await this.homeDirectory);
-    } catch {
-      return err({ type: 'invalid-worktree-directory' });
-    }
-  }
-
-  protected async defaultWorktreeDirectory(): Promise<string> {
-    return getDefaultSshWorktreeDirectory(this.projectPath);
-  }
-
-  protected async validateWorktreeDirectory(
-    worktreeDirectory: string | undefined
-  ): Promise<Result<string | undefined, UpdateProjectSettingsError>> {
-    if (!this.rootFs) {
-      return err({ type: 'error' });
-    }
-    return resolveAndValidateWorktreeDirectory(worktreeDirectory, {
-      pathApi: path.posix,
-      pathPlatform: 'posix',
-      fs: this.rootFs,
-      resolveHomeDirectory: async () => {
-        const homeDirectory = await this.getHomeDirectory();
-        return homeDirectory.success ? homeDirectory.data : '';
-      },
-    });
-  }
-
-  protected async normalizeStoredWorktreeDirectory(
-    worktreeDirectory: string
-  ): Promise<Result<string, UpdateProjectSettingsError>> {
-    const normalized = await normalizeWorktreeDirectory(worktreeDirectory, {
-      pathApi: path.posix,
-      pathPlatform: 'posix',
-      resolveHomeDirectory: async () => {
-        const homeDirectory = await this.getHomeDirectory();
-        return homeDirectory.success ? homeDirectory.data : '';
-      },
-    });
-    if (!normalized.success) return normalized;
-
-    if (this.rootFs) {
-      return canonicalizeWorktreeDirectory(normalized.data, this.rootFs);
-    }
-    return normalized;
   }
 }

@@ -3,7 +3,7 @@ import {
   type ShareableProjectSettingsWriteField,
 } from '@shared/project-settings';
 import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
-import { parseJsonObject } from './project-settings-json';
+import { parseJsonObject } from '../project-settings-json';
 
 export const CONFIG_FILE = '.emdash.json';
 

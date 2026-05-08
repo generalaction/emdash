@@ -10,8 +10,8 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { projects as projectsTable, tasks as tasksTable } from '@main/db/schema';
-import type { ProjectProvider } from '../project-provider';
-import { resolveWorkspace } from '../utils';
+import type { ProjectProvider } from '../../project-provider';
+import { resolveWorkspace } from '../../utils';
 
 export type ProjectSettingsResolvedTarget = ProjectSettingsWriteTargetOption & {
   fs: FileSystemProvider;

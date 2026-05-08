@@ -18,11 +18,9 @@ import {
 } from '@main/core/ssh/ssh-connection-manager';
 import { log } from '@main/lib/logger';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
-import {
-  LocalProjectSettingsProvider,
-  SshProjectSettingsProvider,
-} from './settings/project-settings';
 import type { ProjectSettingsProvider } from './settings/provider';
+import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';
+import { SshProjectSettingsProvider } from './settings/providers/ssh-project-settings-provider';
 import { LocalWorktreeHost } from './worktrees/hosts/local-worktree-host';
 import { SshWorktreeHost } from './worktrees/hosts/ssh-worktree-host';
 import type { WorktreeHost } from './worktrees/hosts/worktree-host';
