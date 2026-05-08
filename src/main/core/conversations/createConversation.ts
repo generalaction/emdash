@@ -5,6 +5,7 @@ import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
+import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
 
 export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
@@ -42,6 +43,8 @@ export async function createConversation(params: CreateConversationParams): Prom
   }
 
   const conversation = mapConversationRowToConversation(row);
+
+  conversationEvents._emit('conversation:created', conversation);
 
   await task.conversations.startSession(
     conversation,
