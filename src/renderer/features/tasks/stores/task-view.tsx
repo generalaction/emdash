@@ -93,6 +93,10 @@ export class TaskViewStore {
         })),
         activeTabId: savedSnapshot.editor.activeTabId ?? undefined,
       });
+    } else {
+      // No saved snapshot — brand-new task view. Open any conversation marked as
+      // the initial conversation so it appears as a tab by default.
+      this.tabManager.initializeDefault();
     }
 
     if (savedSnapshot?.terminals) {

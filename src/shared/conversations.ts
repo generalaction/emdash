@@ -9,6 +9,7 @@ export type Conversation = {
   lastInteractedAt: string | null;
   resume?: boolean;
   autoApprove?: boolean;
+  isInitialConversation: boolean | null;
 };
 
 export type RenameConversationParams = {
@@ -23,6 +24,7 @@ export type CreateConversationParams = {
   provider: AgentProviderId;
   title: string;
   autoApprove?: boolean;
+  isInitialConversation?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;
 };

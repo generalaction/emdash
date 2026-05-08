@@ -215,6 +215,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       setImageContent: action,
       pinTab: action,
       restoreSnapshot: action,
+      initializeDefault: action,
     });
 
     // Track the last conversation tab that was active so the sidebar can
@@ -657,6 +658,15 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       });
     }
     if (snapshot.activeTabId !== undefined) this.activeTabId = snapshot.activeTabId;
+  }
+
+  initializeDefault(): void {
+    for (const [id, store] of this.conversations.conversations) {
+      if (store.isInitialConversation) {
+        this.openConversation(id);
+        return;
+      }
+    }
   }
 
   dispose(): void {
