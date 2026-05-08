@@ -107,13 +107,20 @@ export function PullRequestSectionHeader({
           </span>
         </button>
         <div className="flex items-center gap-1.5">
-          <SplitButton
-            variant="outline"
-            size="xs"
-            actions={prActions}
-            disabled={hasOpenPr || !onCreatePr}
-            icon={<Plus className="size-3" />}
-          />
+          <Tooltip>
+            <TooltipTrigger>
+              <SplitButton
+                variant="outline"
+                size="xs"
+                actions={prActions}
+                disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
+                icon={<Plus className="size-3" />}
+              />
+            </TooltipTrigger>
+            <TooltipContent>
+              {hasOpenPr ? 'A pull request is already open' : 'Create a pull request'}
+            </TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger>
               <Button variant="outline" size="icon-xs" onClick={onRefresh} disabled={isRefreshing}>
