@@ -1,13 +1,35 @@
-import type { GitObjectRef } from '@shared/git';
+import type { GitChangeStatus, GitObjectRef } from '@shared/git';
 
 export type TabViewSnapshot = {
   tabOrder: string[];
   activeTabId: string | undefined;
 };
 
+export type TabDescriptor =
+  | { kind: 'conversation'; id: string; isPreview: boolean }
+  | { kind: 'file'; tabId: string; path: string; isPreview: boolean }
+  | {
+      kind: 'diff';
+      tabId: string;
+      path: string;
+      diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+      originalRef: GitObjectRef;
+      modifiedRef?: GitObjectRef;
+      prNumber?: number;
+      status?: GitChangeStatus;
+      isPreview: boolean;
+    };
+
+export type TabManagerSnapshot = {
+  tabs: TabDescriptor[];
+  activeTabId: string | undefined;
+};
+
 export type EditorViewSnapshot = {
-  tabs: Array<{ tabId: string; path: string; isPreview: boolean }>;
-  activeTabId: string | null;
+  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
+  tabs?: Array<{ tabId: string; path: string; isPreview: boolean }>;
+  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
+  activeTabId?: string | null;
   expandedPaths: string[];
 };
 
@@ -42,9 +64,13 @@ export interface ActiveFile {
 
 export type TaskViewSnapshot = {
   view: string | null;
-  rightPanelView: string | null;
-  focusedRegion: 'main' | 'right' | 'bottom';
+  sidebarTab?: string;
+  isSidebarCollapsed?: boolean;
+  focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen?: boolean;
+  /** New unified tab manager snapshot. Takes precedence over legacy fields when present. */
+  tabManager?: TabManagerSnapshot;
+  /** Legacy: kept for backward-compat restore. */
   conversations?: TabViewSnapshot;
   terminals?: TabViewSnapshot;
   editor?: EditorViewSnapshot;

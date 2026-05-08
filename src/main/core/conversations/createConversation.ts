@@ -31,6 +31,7 @@ export async function createConversation(params: CreateConversationParams): Prom
       config,
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,
+      lastInteractedAt: new Date().toISOString(),
     })
     .returning();
 

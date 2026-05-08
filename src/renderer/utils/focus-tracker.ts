@@ -2,7 +2,6 @@ import type {
   FocusContext,
   FocusedRegion,
   FocusMainPanel,
-  FocusRightPanel,
   FocusTrigger,
   FocusView,
   TelemetryEventProperties,
@@ -11,7 +10,6 @@ import type {
 interface FocusState {
   view: FocusView | null;
   mainPanel: FocusMainPanel | null;
-  rightPanel: FocusRightPanel | null;
   focusedRegion: FocusedRegion | null;
 }
 
@@ -28,7 +26,6 @@ export class FocusTracker {
   private state: FocusState = {
     view: null,
     mainPanel: null,
-    rightPanel: null,
     focusedRegion: null,
   };
 
@@ -65,7 +62,6 @@ export class FocusTracker {
     this.transitionEmitter?.({
       view: previous.view,
       main_panel: previous.mainPanel,
-      right_panel: previous.rightPanel,
       focused_region: previous.focusedRegion,
       trigger,
     });
@@ -85,7 +81,6 @@ export class FocusTracker {
     return {
       active_view: this.state.view,
       active_main_panel: this.state.mainPanel,
-      active_right_panel: this.state.rightPanel,
       focused_region: this.state.focusedRegion,
     };
   }
