@@ -61,6 +61,7 @@ export function InlinePrSelector({
         limit: 50,
         offset: 0,
         filters: { status: statusFilter },
+        repositoryUrl,
       });
       if (!response?.success) {
         throw new Error(
