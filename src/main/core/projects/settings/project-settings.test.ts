@@ -43,8 +43,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     >();
     return {
       get: async (projectId) => rows.get(projectId),
-      insert: async (projectId, settings) => {
-        rows.set(projectId, settings);
+      insertIfMissing: async (projectId, settings) => {
+        if (!rows.has(projectId)) rows.set(projectId, settings);
       },
       update: async (projectId, settings) => {
         rows.set(projectId, { ...rows.get(projectId)!, ...settings });
@@ -97,6 +97,38 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
 
     await expect(provider.get()).resolves.not.toHaveProperty('preservePatterns');
+  });
+
+  it('retries legacy config migration after a failed attempt', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    const row = {
+      baseProjectSettingsJson: '{}',
+      shareableProjectSettingsJson: '{}',
+      legacyConfigMigratedAt: null,
+    };
+    let updateAttempts = 0;
+    const settingsStorage: ProjectSettingsStorage = {
+      get: async () => row,
+      insertIfMissing: vi.fn(),
+      update: async (_projectId, settings) => {
+        updateAttempts += 1;
+        if (updateAttempts === 1) throw new Error('db write failed');
+        Object.assign(row, settings);
+      },
+    };
+    const provider = new LocalProjectSettingsProvider(
+      projectId(),
+      projectPath,
+      'main',
+      settingsStorage
+    );
+
+    await expect(provider.ensure()).rejects.toThrow('db write failed');
+    await expect(provider.ensure()).resolves.toBeUndefined();
+    await expect(provider.ensure()).resolves.toBeUndefined();
+
+    expect(updateAttempts).toBe(2);
   });
 
   it('normalizes and canonicalizes local worktreeDirectory on update', async () => {

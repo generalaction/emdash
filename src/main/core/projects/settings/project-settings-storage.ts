@@ -10,7 +10,7 @@ export type StoredProjectSettings = {
 
 export interface ProjectSettingsStorage {
   get(projectId: string): Promise<StoredProjectSettings | undefined>;
-  insert(projectId: string, settings: StoredProjectSettings): Promise<void>;
+  insertIfMissing(projectId: string, settings: StoredProjectSettings): Promise<void>;
   update(projectId: string, settings: Partial<StoredProjectSettings>): Promise<void>;
 }
 
@@ -29,14 +29,17 @@ export class ProjectSettingsRepository implements ProjectSettingsStorage {
     };
   }
 
-  async insert(projectId: string, settings: StoredProjectSettings): Promise<void> {
-    await db.insert(projectSettingsTable).values({
-      projectId,
-      baseProjectSettingsJson: settings.baseProjectSettingsJson,
-      shareableProjectSettingsJson: settings.shareableProjectSettingsJson,
-      legacyConfigMigratedAt: settings.legacyConfigMigratedAt,
-      updatedAt: sql`CURRENT_TIMESTAMP`,
-    });
+  async insertIfMissing(projectId: string, settings: StoredProjectSettings): Promise<void> {
+    await db
+      .insert(projectSettingsTable)
+      .values({
+        projectId,
+        baseProjectSettingsJson: settings.baseProjectSettingsJson,
+        shareableProjectSettingsJson: settings.shareableProjectSettingsJson,
+        legacyConfigMigratedAt: settings.legacyConfigMigratedAt,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .onConflictDoNothing();
   }
 
   async update(projectId: string, settings: Partial<StoredProjectSettings>): Promise<void> {

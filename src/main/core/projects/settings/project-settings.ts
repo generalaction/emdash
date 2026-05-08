@@ -91,7 +91,7 @@ abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
     const shareableSettings = (await this.hasSharedPreservePatterns())
       ? {}
       : { preservePatterns: [...DEFAULT_PRESERVE_PATTERNS] };
-    await this.storage.insert(this.projectId, {
+    await this.storage.insertIfMissing(this.projectId, {
       baseProjectSettingsJson: JSON.stringify(compactUndefined(baseSettings)),
       shareableProjectSettingsJson: JSON.stringify(compactUndefined(shareableSettings)),
       legacyConfigMigratedAt: null,
