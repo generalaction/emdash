@@ -31,8 +31,8 @@ export interface UseTabShortcutsOptions {
  *   tabClose  (default Mod+W)      — close active tab
  *   Mod+1–9                        — jump to tab by index (not configurable)
  *
- * Note: Mod+] and Mod+[ are reserved for task-level navigation
- * (nextProject / prevProject) in useKeyboardShortcuts.ts.
+ * Note: Mod+] and Mod+[ are reserved for history back/forward navigation
+ * (navigateForward / navigateBack) in useKeyboardShortcuts.ts.
  *
  * Pass `focused: false` to disable shortcuts when the panel is not focused,
  * preventing conflicts when multiple tab panels are mounted simultaneously.

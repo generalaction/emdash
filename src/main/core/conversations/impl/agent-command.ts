@@ -109,12 +109,17 @@ export function buildAgentCommand({
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
 
+  args.push(...(providerConfig?.defaultArgs ?? []));
+
+  const shouldPassSessionId =
+    providerConfig?.sessionIdFlag && (!providerConfig.sessionIdOnResumeOnly || isResuming);
+
   if (isResuming && providerConfig?.resumeFlag) {
     args.push(...parseArgField(providerConfig.resumeFlag));
     if (providerConfig.sessionIdFlag) {
       args.push(sessionId);
     }
-  } else if (providerConfig?.sessionIdFlag) {
+  } else if (shouldPassSessionId) {
     args.push(...parseArgField(providerConfig.sessionIdFlag), sessionId);
   } else if (!isResuming && providerDef?.newConversationFlag) {
     args.push(providerDef.newConversationFlag);
@@ -128,7 +133,6 @@ export function buildAgentCommand({
     args.push(...parseArgField(providerConfig?.initialPromptFlag), initialPrompt);
   }
 
-  args.push(...(providerConfig?.defaultArgs ?? []));
   args.push(...parseArgField(providerConfig?.extraArgs));
 
   return { command, args };

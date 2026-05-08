@@ -21,6 +21,7 @@ export const AGENT_PROVIDER_IDS = [
   'continue',
   'codebuff',
   'mistral',
+  'jules',
   'junie',
   'pi',
   'letta',
@@ -57,12 +58,8 @@ export type AgentProviderDefinition = {
    * e.g. '--session-id' for Claude Code.
    */
   sessionIdFlag?: string;
-  /**
-   * CLI flag for providers whose default invocation auto-resumes the last
-   * conversation (e.g. `letta --new`). Emitted only when starting a fresh
-   * session and the provider has no sessionIdFlag to address by ID.
-   */
   newConversationFlag?: string;
+  sessionIdOnResumeOnly?: boolean;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
@@ -144,6 +141,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'cursor-agent',
     autoApproveFlag: '-f',
     initialPromptFlag: '',
+    resumeFlag: '--resume',
     icon: 'cursor.svg',
     alt: 'Cursor CLI',
     terminalOnly: true,
@@ -192,7 +190,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'droid',
     initialPromptFlag: '',
-    resumeFlag: '-r',
+    sessionIdFlag: '--session-id',
+    sessionIdOnResumeOnly: true,
     icon: 'droid.svg',
     alt: 'Factory Droid',
     terminalOnly: true,
@@ -226,6 +225,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'opencode',
     initialPromptFlag: '',
     useKeystrokeInjection: true,
+    resumeFlag: '--continue',
     icon: 'opencode.png',
     alt: 'OpenCode CLI',
     invertInDark: true,
@@ -261,6 +261,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'copilot',
     autoApproveFlag: '--allow-all-tools',
+    resumeFlag: '--resume',
     icon: 'gh-copilot.svg',
     alt: 'GitHub Copilot CLI',
     terminalOnly: true,
@@ -291,6 +292,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'auggie',
     initialPromptFlag: '',
+    resumeFlag: '--continue',
     // otherwise user is prompted each time before prompt is passed
     defaultArgs: ['--allow-indexing'],
     icon: 'Auggie.svg',
@@ -310,6 +312,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     // run subcommand with -s for interactive mode after initial prompt
     defaultArgs: ['run', '-s'],
     initialPromptFlag: '-t',
+    resumeFlag: '--resume',
     icon: 'goose.png',
     alt: 'Goose CLI',
     terminalOnly: true,
@@ -326,6 +329,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'kimi',
     autoApproveFlag: '--yolo',
     initialPromptFlag: '-c',
+    resumeFlag: '--continue',
     icon: 'kimi.png',
     alt: 'Kimi CLI',
     terminalOnly: true,
@@ -436,14 +440,30 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['-h'],
     cli: 'vibe',
     autoApproveFlag: '--auto-approve',
-    initialPromptFlag: '--prompt',
+    initialPromptFlag: '',
     icon: 'mistral.png',
     alt: 'Mistral Vibe CLI',
     terminalOnly: true,
   },
   {
+    id: 'jules',
+    name: 'Jules',
+    description:
+      "Google's Jules CLI for managing asynchronous remote coding sessions and a terminal dashboard.",
+    docUrl: 'https://jules.google/docs/cli/reference/',
+    installCommand: 'npm install -g @google/jules',
+    commands: ['jules'],
+    versionArgs: ['version'],
+    cli: 'jules',
+    initialPromptFlag: '',
+    useKeystrokeInjection: true,
+    icon: 'jules.svg',
+    alt: 'Jules CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'junie',
-    name: 'Junie CLI',
+    name: 'Junie',
     description:
       'JetBrains agentic coding CLI for interactive terminal and headless project workflows.',
     docUrl: 'https://junie.jetbrains.com/docs/junie-cli.html',

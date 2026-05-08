@@ -27,14 +27,6 @@
     <img src="https://emdash.sh/media/readme/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
 
-  <h3>
-    <a href="https://emdash.sh/download">Download Emdash v1</a>
-  </h3>
-  <p>
-    Stable v1 is now available for macOS, Windows, and Linux ·
-    <a href="https://emdash.sh/blog/emdash-v1-stable">Read the launch post</a>
-  </p>
-
 </div>
 
 <br />
@@ -58,6 +50,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 # Installation
 
 ### macOS
+- Homebrew: `brew install --cask emdash`
 - Apple Silicon: https://releases.emdash.sh/emdash-arm64.dmg
 - Intel x64: https://releases.emdash.sh/emdash-x64.dmg
 

@@ -229,6 +229,7 @@ export async function createTask(
   if (params.initialConversation) {
     await createConversation({
       ...params.initialConversation,
+      isInitialConversation: true,
       autoApprove: resolveAgentAutoApprove(
         params.initialConversation.autoApprove,
         agentAutoApproveDefaults,
