@@ -27,7 +27,7 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
  */
 export const MarkdownEditorPanel = observer(function MarkdownEditorPanel() {
   const { taskView } = useProvisionedTask();
-  const activeTab = taskView.tabManager.activeFileTab;
+  const activeTab = taskView.tabManager.activeFileEntry;
 
   if (!activeTab) return null;
 
@@ -50,7 +50,7 @@ const MarkdownSourceEditor = observer(function MarkdownSourceEditor({
   filePath,
 }: MarkdownSourceEditorProps) {
   const { taskView } = useProvisionedTask();
-  const { editorView, tabManager } = taskView;
+  const { editorView } = taskView;
   const { effectiveTheme } = useTheme();
 
   const leaseBox = useMonacoLease(codeEditorPool);
@@ -87,7 +87,7 @@ const MarkdownSourceEditor = observer(function MarkdownSourceEditor({
                 if (filePath) void editorView.saveFile(filePath);
               },
               onSaveAll: () => {
-                void editorView.saveAllFiles(tabManager.openFilePaths);
+                void editorView.saveAllFiles();
               },
             });
           }

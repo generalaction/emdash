@@ -46,6 +46,18 @@ export const PullRequestsSection = observer(function PullRequestsSection({
                 })
             : undefined
         }
+        onCreateDraftPr={
+          taskBranch
+            ? () =>
+                showCreatePrModal({
+                  repositoryUrl: repositoryUrl ?? '',
+                  branchName: taskBranch,
+                  draft: true,
+                  workspaceId: provisioned.workspaceId,
+                  onSuccess: () => {},
+                })
+            : undefined
+        }
         onRefresh={() => {
           void rpc.pullRequests.syncPullRequests(projectId);
         }}

@@ -262,7 +262,7 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
           <DiffView />
         </Activity>
         <Activity mode={renderer === 'agents' ? 'visible' : 'hidden'}>
-          <ConversationsPanel hideTabBar />
+          <ConversationsPanel />
         </Activity>
         <Activity mode={renderer === 'other-file' ? 'visible' : 'hidden'}>
           <EditorMainPanel />
@@ -279,7 +279,7 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
 const SvgSourceToggleOverlay = observer(function SvgSourceToggleOverlay() {
   const { taskView } = useProvisionedTask();
   const { tabManager } = taskView;
-  const activeTab = tabManager.activeFileTab;
+  const activeTab = tabManager.activeFileEntry;
 
   if (!activeTab || activeTab.renderer.kind !== 'svg-source') return null;
 

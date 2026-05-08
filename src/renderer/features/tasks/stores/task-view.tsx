@@ -1,19 +1,16 @@
-import { computed, makeAutoObservable, reaction, runInAction } from 'mobx';
-import { commitRef } from '@shared/git';
-import { getPrNumber } from '@shared/pull-requests';
-import type { ActiveFile, TaskViewSnapshot } from '@shared/view-state';
+import { computed, makeAutoObservable, reaction } from 'mobx';
+import type { TaskViewSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
+import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git-store';
-import { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
+import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
-import {
-  TabManagerStore,
-  type DiffTabState,
-} from '@renderer/features/tasks/stores/tab-manager-store';
+import { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
+import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 
 /**
@@ -22,7 +19,7 @@ import { focusTracker } from '@renderer/utils/focus-tracker';
  * - `'markdown'`    — markdown files (preview or source; MarkdownEditorPanel owns both)
  * - `'diff'`        — git diff viewer
  * - `'agents'`      — conversation / PTY view
- * - `'other-file'`  — image, svg preview, binary, too-large
+ * - `'other-file'`  — image, svg preview, binary, too-large, file-error
  */
 export type RendererKind = 'monaco' | 'markdown' | 'diff' | 'agents' | 'other-file';
 
@@ -32,6 +29,7 @@ interface TaskViewResources {
   git: GitStore;
   pr: PrStore;
   projectId: string;
+  taskId: string;
   workspaceId: string;
 }
 
@@ -43,57 +41,54 @@ export class TaskViewStore {
 
   readonly tabManager: TabManagerStore;
   readonly terminalTabs: TerminalTabViewStore;
-  readonly editorView: EditorViewStore;
+  readonly editorView: FileModelLifecycleStore;
   readonly diffView: DiffViewStore;
+  private readonly diffTabLifecycle: DiffTabLifecycleStore;
   private readonly terminalsMgr: TerminalManagerStore;
   private readonly disposers: (() => void)[] = [];
+  private readonly taskId: string;
 
   constructor(resources: TaskViewResources, savedSnapshot?: TaskViewSnapshot) {
+    this.taskId = resources.taskId;
     this.sidebarTab = (savedSnapshot?.sidebarTab as SidebarTab) ?? 'conversations';
     this.isSidebarCollapsed = savedSnapshot?.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot?.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot?.isTerminalDrawerOpen ?? false;
     this.terminalsMgr = resources.terminals;
 
-    this.editorView = new EditorViewStore(resources.projectId, resources.workspaceId);
     this.tabManager = new TabManagerStore(resources.conversations, resources.workspaceId);
     this.terminalTabs = new TerminalTabViewStore(resources.terminals);
     this.diffView = new DiffViewStore(resources.git, resources.pr);
 
-    // Restore tab state — prefer the new tabManager snapshot, fall back to legacy fields.
+    // Restore tab state from the unified tabManager snapshot.
     if (savedSnapshot?.tabManager) {
       this.tabManager.restoreSnapshot(savedSnapshot.tabManager);
-    } else if (savedSnapshot?.conversations?.tabOrder) {
-      // Legacy restore: reconstruct from conversations + editor snapshots.
-      const descriptors = savedSnapshot.conversations.tabOrder.map((id) => ({
-        kind: 'conversation' as const,
-        id,
-        isPreview: false,
-      }));
+    } else if (savedSnapshot?.conversations?.tabOrder?.length) {
+      // Legacy migration: old blobs stored conversation tabs under a separate
+      // `conversations` field before the unified tab refactor. Reconstruct a
+      // TabManagerSnapshot so existing open conversations are preserved.
       this.tabManager.restoreSnapshot({
-        tabs: [
-          ...descriptors,
-          ...(savedSnapshot.editor?.tabs?.map((t) => ({
-            kind: 'file' as const,
-            tabId: t.tabId,
-            path: t.path,
-            isPreview: t.isPreview,
-          })) ?? []),
-        ],
-        activeTabId:
-          savedSnapshot.conversations.activeTabId ?? savedSnapshot.editor?.activeTabId ?? undefined,
-      });
-    } else if (savedSnapshot?.editor?.tabs) {
-      this.tabManager.restoreSnapshot({
-        tabs: savedSnapshot.editor.tabs.map((t) => ({
-          kind: 'file' as const,
-          tabId: t.tabId,
-          path: t.path,
-          isPreview: t.isPreview,
+        tabs: savedSnapshot.conversations.tabOrder.map((id) => ({
+          kind: 'conversation' as const,
+          tabId: crypto.randomUUID(),
+          conversationId: id,
+          isPreview: false,
         })),
-        activeTabId: savedSnapshot.editor.activeTabId ?? undefined,
+        activeTabId: undefined,
       });
+    } else {
+      // No saved snapshot — brand-new task view. Open any conversation marked as
+      // the initial conversation so it appears as a tab by default.
+      this.tabManager.initializeDefault();
     }
+
+    // Create FileModelLifecycleStore after tab snapshot restore so the initial
+    // model registration fires with the correct set of open file paths.
+    this.editorView = new FileModelLifecycleStore(
+      this.tabManager,
+      resources.projectId,
+      resources.workspaceId
+    );
 
     if (savedSnapshot?.terminals) {
       this.terminalTabs.restoreSnapshot(savedSnapshot.terminals);
@@ -105,101 +100,29 @@ export class TaskViewStore {
       this.diffView.restoreSnapshot(savedSnapshot.diffView);
     }
 
-    // Reactive model lifecycle: registers/unregisters Monaco models whenever the
-    // set of open file paths changes. Covers initial mount (fireImmediately), tab
-    // open/close, and in-place preview path mutation — no imperative calls needed.
+    // Diff tab lifecycle: syncs DiffViewStore and auto-closes stale diff tabs.
+    this.diffTabLifecycle = new DiffTabLifecycleStore(
+      this.tabManager,
+      resources.git,
+      resources.pr,
+      this.diffView
+    );
+
+    // Push tab-level history entries whenever the active tab changes.
+    // fireImmediately captures the initial tab when the store is first constructed.
     this.disposers.push(
       reaction(
-        () => this.tabManager.openFilePaths,
-        (current, previous = []) => {
-          const prev = new Set(previous);
-          const curr = new Set(current);
-          for (const path of curr) {
-            if (!prev.has(path)) {
-              void this.editorView.registerModels(path).then((result) => {
-                if (result?.imageContent !== undefined) {
-                  runInAction(() => this.tabManager.setImageContent(path, result.imageContent!));
-                }
-              });
-            }
-          }
-          for (const path of prev) {
-            if (!curr.has(path)) this.editorView.unregisterModels(path);
-          }
+        () => this.tabManager.resolvedActiveTabId,
+        (tabId) => {
+          if (!tabId) return;
+          appState.history.push({
+            kind: 'tab',
+            projectId: resources.projectId,
+            taskId: resources.taskId,
+            tabId,
+          });
         },
         { fireImmediately: true }
-      )
-    );
-
-    // Sync DiffViewStore.activeFile whenever the user activates a diff tab (e.g. clicking in the tab bar).
-    this.disposers.push(
-      reaction(
-        () => {
-          const desc = this.tabManager.activeDescriptor;
-          return desc?.kind === 'diff' ? desc : null;
-        },
-        (tab) => {
-          if (tab) {
-            const activeFile: ActiveFile = {
-              path: tab.path,
-              type: tab.diffGroup === 'disk' ? 'disk' : 'git',
-              group: tab.diffGroup,
-              originalRef: tab.originalRef,
-              modifiedRef: tab.modifiedRef,
-              prNumber: tab.prNumber,
-            };
-            this.diffView.setActiveFile(activeFile);
-          }
-        }
-      )
-    );
-
-    // Auto-close diff tabs whose file is no longer present in the corresponding
-    // git category. 'git' tabs compare arbitrary fixed refs and are never auto-closed.
-    this.disposers.push(
-      reaction(
-        () => {
-          const valid = new Set<string>();
-          for (const c of resources.git.unstagedFileChanges) valid.add(`disk:${c.path}`);
-          for (const c of resources.git.stagedFileChanges) valid.add(`staged:${c.path}`);
-          for (const t of this.tabManager.tabs) {
-            if (t.kind !== 'diff' || t.diffGroup !== 'pr' || t.prNumber == null) continue;
-            const pr = resources.pr.pullRequests.find((p) => getPrNumber(p) === t.prNumber);
-            if (pr) {
-              for (const f of resources.pr.getFiles(pr).data ?? []) valid.add(`pr:${f.path}`);
-            }
-          }
-          return valid;
-        },
-        (validKeys) => {
-          const stale = this.tabManager.tabs.filter(
-            (t): t is DiffTabState =>
-              t.kind === 'diff' &&
-              t.diffGroup !== 'git' &&
-              !validKeys.has(`${t.diffGroup}:${t.path}`)
-          );
-          for (const tab of stale) {
-            const counterpartGroup: 'disk' | 'staged' | null =
-              tab.diffGroup === 'disk' ? 'staged' : tab.diffGroup === 'staged' ? 'disk' : null;
-
-            if (counterpartGroup && validKeys.has(`${counterpartGroup}:${tab.path}`)) {
-              const changes =
-                counterpartGroup === 'staged'
-                  ? resources.git.stagedFileChanges
-                  : resources.git.unstagedFileChanges;
-              const match = changes.find((c) => c.path === tab.path);
-              this.tabManager.transitionDiffTab(
-                tab.tabId,
-                counterpartGroup,
-                commitRef('HEAD'),
-                match?.status
-              );
-            } else {
-              this.tabManager.closeTab(tab.tabId);
-            }
-          }
-        },
-        { equals: (a, b) => a.size === b.size && [...a].every((k) => b.has(k)) }
       )
     );
 
@@ -208,21 +131,14 @@ export class TaskViewStore {
       terminalTabs: false,
       editorView: false,
       diffView: false,
-      view: computed,
       activeRenderer: computed,
     });
-  }
-
-  get view(): 'agents' | 'editor' | 'diff' {
-    const desc = this.tabManager.activeDescriptor;
-    if (desc?.kind === 'diff') return 'diff';
-    return desc?.kind === 'file' ? 'editor' : 'agents';
   }
 
   get activeRenderer(): RendererKind {
     const desc = this.tabManager.activeDescriptor;
     if (desc?.kind === 'diff') return 'diff';
-    const tab = this.tabManager.activeFileTab;
+    const tab = this.tabManager.activeFileEntry;
     if (!tab) return 'agents';
     switch (tab.renderer.kind) {
       case 'text':
@@ -238,7 +154,6 @@ export class TaskViewStore {
 
   get snapshot(): TaskViewSnapshot {
     return {
-      view: this.view,
       sidebarTab: this.sidebarTab,
       isSidebarCollapsed: this.isSidebarCollapsed,
       focusedRegion: this.focusedRegion,
@@ -250,30 +165,14 @@ export class TaskViewStore {
     };
   }
 
-  setView(v: 'agents' | 'editor' | 'diff'): void {
-    if (v === 'diff') {
-      const diffTab = [...this.tabManager.tabs].reverse().find((t) => t.kind === 'diff');
-      if (diffTab) {
-        focusTracker.transition({ mainPanel: 'diff' }, 'panel_switch');
-        this.tabManager.setActiveTab(diffTab.tabId);
-      }
-      return;
-    }
-    if (v === 'agents') {
-      const convTab = [...this.tabManager.tabs].reverse().find((t) => t.kind === 'conversation');
-      if (convTab) {
-        focusTracker.transition({ mainPanel: 'agents' }, 'panel_switch');
-        this.tabManager.setActiveTab(convTab.id);
-      }
-      return;
-    }
-    if (v === 'editor') {
-      const fileTab = [...this.tabManager.tabs].reverse().find((t) => t.kind === 'file');
-      if (fileTab) {
-        focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-        this.tabManager.setActiveTab(fileTab.tabId);
-      }
-    }
+  activateLastTabOfKind(kind: 'conversation' | 'file' | 'diff'): void {
+    const tabId = [...this.tabManager.tabOrder]
+      .reverse()
+      .find((id) => this.tabManager.entries.get(id)?.kind === kind);
+    if (!tabId) return;
+    const panelView = kind === 'conversation' ? 'agents' : kind === 'file' ? 'editor' : 'diff';
+    focusTracker.transition({ mainPanel: panelView }, 'panel_switch');
+    this.tabManager.setActiveTab(tabId);
   }
 
   setSidebarTab(v: SidebarTab): void {
@@ -306,9 +205,13 @@ export class TaskViewStore {
 
   dispose(): void {
     for (const d of this.disposers) d();
+    // Remove any tab history entries for this task so back/forward doesn't
+    // navigate to a task that no longer has an active view.
+    appState.history.prune((e) => e.kind === 'tab' && e.taskId === this.taskId);
     this.tabManager.dispose();
     this.terminalTabs.dispose();
     this.editorView.dispose();
+    this.diffTabLifecycle.dispose();
     this.diffView.dispose();
   }
 }
