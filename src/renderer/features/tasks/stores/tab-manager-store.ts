@@ -708,21 +708,33 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   // ---------------------------------------------------------------------------
 
   private async _loadExternalFile(path: string): Promise<void> {
-    const result = await rpc.app.readUserFile(path);
-    runInAction(() => {
-      const current = this.tabs.find(
-        (t): t is FileTabState => t.kind === 'file' && t.path === path
-      );
-      if (!current) return;
-      current.isLoading = false;
-      if (result.success) {
-        current.content = result.content;
-        current.externalError = undefined;
-      } else {
+    try {
+      const result = await rpc.app.readUserFile(path);
+      runInAction(() => {
+        const current = this.tabs.find(
+          (t): t is FileTabState => t.kind === 'file' && t.path === path
+        );
+        if (!current) return;
+        current.isLoading = false;
+        if (result.success) {
+          current.content = result.content;
+          current.externalError = undefined;
+        } else {
+          current.content = '';
+          current.externalError = result.error;
+        }
+      });
+    } catch (error) {
+      runInAction(() => {
+        const current = this.tabs.find(
+          (t): t is FileTabState => t.kind === 'file' && t.path === path
+        );
+        if (!current) return;
+        current.isLoading = false;
         current.content = '';
-        current.externalError = result.error;
-      }
-    });
+        current.externalError = error instanceof Error ? error.message : String(error);
+      });
+    }
   }
 
   private _makeDiffTab(
