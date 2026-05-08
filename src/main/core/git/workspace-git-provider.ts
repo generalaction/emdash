@@ -8,6 +8,7 @@ import type {
   FullGitStatus,
   GitChange,
   GitObjectRef,
+  ImageReadResult,
   MergeBaseRange,
   PullError,
   PushError,
@@ -39,6 +40,9 @@ export interface WorkspaceGitProvider {
   getFileAtHead(filePath: string): Promise<string | null>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;
+  /** Reads a binary image blob via `git cat-file --filters` so smudge filters (LFS) apply. */
+  getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult>;
+  getImageAtIndex(filePath: string): Promise<ImageReadResult>;
   getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult>;
 
   stageFiles(filePaths: string[]): Promise<void>;
