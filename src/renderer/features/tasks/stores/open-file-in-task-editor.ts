@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { rpc } from '@renderer/lib/ipc';
+import { focusTracker } from '@renderer/utils/focus-tracker';
 
 export async function openFileInTaskEditor(
   projectId: string,
@@ -19,7 +20,7 @@ export async function openFileInTaskEditor(
     return;
   }
 
-  provisioned.taskView.setView('editor');
+  focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
   provisioned.taskView.tabManager.openFile(filePath);
 }
 
@@ -31,7 +32,7 @@ export async function openExternalFilePath(
   if (filePath.toLowerCase().endsWith('.md')) {
     const provisioned = asProvisioned(getTaskStore(projectId, taskId));
     if (!provisioned) return;
-    provisioned.taskView.setView('editor');
+    focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
     void provisioned.taskView.tabManager.openExternalFile(filePath);
     return;
   }

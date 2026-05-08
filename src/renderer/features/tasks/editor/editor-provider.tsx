@@ -13,7 +13,6 @@ import {
 } from '@renderer/lib/monaco/monaco-config';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco/monaco-themes';
-import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { useMonacoLease } from '@renderer/lib/monaco/use-monaco-lease';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 
@@ -109,7 +108,7 @@ export const EditorProvider = observer(function EditorProvider({
                 if (path) void editorView.saveFile(path);
               },
               onSaveAll: () => {
-                void editorView.saveAllFiles(tabManager.openFilePaths);
+                void editorView.saveAllFiles();
               },
             });
           }
@@ -137,23 +136,16 @@ export const EditorProvider = observer(function EditorProvider({
   );
 
   // ---------------------------------------------------------------------------
-  // Model attachment — single autorun that re-evaluates whenever any of the
-  // three inputs changes: lease, activeFilePath, or modelStatus.
-  // Replaces the reaction+onceBufferReady pattern and the restore-effect
-  // onceBufferReady. Covers: initial mount, remount, tab switching, and the
-  // async model-registration race on first file open.
+  // Model attachment — single autorun that re-evaluates whenever the lease,
+  // active file, or model registration status changes.
   // ---------------------------------------------------------------------------
   useEffect(
     () =>
       autorun(() => {
         const lease = leaseBox.get(); // reactive
-        const activePath = tabManager.activeFilePath; // reactive
+        const newBufUri = editorView.activeBufferUri; // reactive (derived from active file entry)
 
         if (!lease) return;
-
-        const newBufUri = activePath
-          ? buildMonacoModelPath(editorView.modelRootPath, activePath)
-          : null;
 
         if (!newBufUri) {
           lease.editor.setModel(null);
@@ -173,7 +165,7 @@ export const EditorProvider = observer(function EditorProvider({
 
   // ---------------------------------------------------------------------------
   // Restore — re-apply crash-recovery buffer content for persisted open tabs.
-  // Model registration is handled reactively by TaskViewStore (fireImmediately).
+  // Model registration is handled reactively by FileModelLifecycleStore.
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!taskId) return;
@@ -191,8 +183,7 @@ export const EditorProvider = observer(function EditorProvider({
         (uri) => {
           if (!uri) return;
           const filePath = uri.replace(`file://${editorView.modelRootPath}/`, '');
-          const tab = tabManager.tabs.find((t) => t.kind === 'file' && t.path === filePath);
-          if (!tab) return;
+          if (!editorView.openFilePaths.includes(filePath)) return;
           showConflictModal({
             filePath,
             onSuccess: (accept) => {

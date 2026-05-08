@@ -1,7 +1,7 @@
 import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
-import type { FileTabState } from '@renderer/features/tasks/stores/tab-manager-store';
+import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { rpc } from '@renderer/lib/ipc';
@@ -26,8 +26,8 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const provisioned = useProvisionedTask();
   const { workspaceId } = provisioned;
   const { editorView, tabManager } = provisioned.taskView;
-  const tab = tabManager.tabs.find(
-    (t): t is FileTabState => t.kind === 'file' && t.path === filePath
+  const tab = Array.from(tabManager.entries.values()).find(
+    (entry): entry is FileTabStore => entry.kind === 'file' && entry.path === filePath
   );
   const showExternalSpinner = useDelayedBoolean(!!(tab?.isExternal && tab.isLoading), 200);
   const bufferUri = tab?.isExternal ? '' : buildMonacoModelPath(editorView.modelRootPath, filePath);

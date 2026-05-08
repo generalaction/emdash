@@ -1,4 +1,3 @@
-import { startTransition } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import {
   asProvisioned,
@@ -63,38 +62,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
                 taskView?.setFocusedRegion('main');
               },
             });
-          },
-        },
-
-        // ── Main panel view switches ───────────────────────────────────────
-        {
-          id: 'task.switchToConversations',
-          label: 'Switch to Conversations view',
-          description: 'Show the conversations panel in the main area',
-          shortcutKey: 'taskViewAgents',
-          group: 'Panel',
-          execute() {
-            startTransition(() => taskView?.setView('agents'));
-          },
-        },
-        {
-          id: 'task.switchToDiff',
-          label: 'Switch to Diff view',
-          description: 'Show the diff panel in the main area',
-          shortcutKey: 'taskViewDiff',
-          group: 'Panel',
-          execute() {
-            startTransition(() => taskView?.setView('diff'));
-          },
-        },
-        {
-          id: 'task.switchToEditor',
-          label: 'Switch to Editor view',
-          description: 'Show the editor panel in the main area',
-          shortcutKey: 'taskViewEditor',
-          group: 'Panel',
-          execute() {
-            startTransition(() => taskView?.setView('editor'));
           },
         },
 
@@ -279,7 +246,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           id: 'task.nextTask',
           label: 'Next Task',
           description: 'Switch to the next task',
-          shortcutKey: 'nextProject',
           group: 'Navigation',
           enabled: currentIdx !== -1 && currentIdx < taskIds.length - 1,
           execute() {
@@ -291,7 +257,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           id: 'task.prevTask',
           label: 'Previous Task',
           description: 'Switch to the previous task',
-          shortcutKey: 'prevProject',
           group: 'Navigation',
           enabled: currentIdx > 0,
           execute() {

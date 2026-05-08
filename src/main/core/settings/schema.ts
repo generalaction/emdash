@@ -52,14 +52,9 @@ export const keyboardSettingsSchema = z
       toggleRightSidebar: z.string().nullable().optional(),
       toggleTheme: z.string().nullable().optional(),
       closeModal: z.string().nullable().optional(),
-      nextProject: z.string().nullable().optional(),
-      prevProject: z.string().nullable().optional(),
       newTask: z.string().nullable().optional(),
       newProject: z.string().nullable().optional(),
       openInEditor: z.string().nullable().optional(),
-      taskViewAgents: z.string().nullable().optional(),
-      taskViewDiff: z.string().nullable().optional(),
-      taskViewEditor: z.string().nullable().optional(),
       sidebarChanges: z.string().nullable().optional(),
       sidebarConversations: z.string().nullable().optional(),
       sidebarFiles: z.string().nullable().optional(),
@@ -79,6 +74,8 @@ export const keyboardSettingsSchema = z
       newTerminal: z.string().nullable().optional(),
       confirm: z.string().nullable().optional(),
       toggleTerminalDrawer: z.string().nullable().optional(),
+      navigateBack: z.string().nullable().optional(),
+      navigateForward: z.string().nullable().optional(),
     })
   )
   .default({});

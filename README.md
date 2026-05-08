@@ -72,7 +72,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 ### Supported CLI Providers
 
-Emdash currently supports 24 CLI providers, and we are adding new ones regularly. If you miss one, let us know or create a PR.
+Emdash currently supports 26 CLI providers, and we are adding new ones regularly. If you miss one, let us know or create a PR.
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
@@ -94,6 +94,7 @@ Emdash currently supports 24 CLI providers, and we are adding new ones regularly
 | [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | <code>npm install -g @kilocode/cli</code> |
 | [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | <code>uv tool install kimi-cli</code> |
 | [Kiro (AWS)](https://kiro.dev/docs/cli/) | ✅ Supported | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
+| [Letta](https://docs.letta.com/letta-code/cli) | ✅ Supported | <code>npm install -g @letta-ai/letta-code</code> |
 | [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | <code>curl -LsSf https://mistral.ai/vibe/install.sh &#124; bash</code> |
 | [OpenCode](https://opencode.ai/docs/cli/) | ✅ Supported | <code>npm install -g opencode-ai</code> |
 | [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | <code>npm install -g @mariozechner/pi-coding-agent</code> |
