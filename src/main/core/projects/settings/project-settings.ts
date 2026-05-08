@@ -11,6 +11,7 @@ import {
   type ProjectSettings,
   type ShareableProjectSettings,
 } from '@shared/project-settings';
+import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -23,7 +24,7 @@ import { log } from '@main/lib/logger';
 import { migrateLegacyProjectSettingsIfNeeded } from './legacy-project-settings-migration';
 import { compactUndefined, parseJsonObject, readJson } from './project-settings-json';
 import { ProjectSettingsRepository, type ProjectSettingsStorage } from './project-settings-storage';
-import type { ProjectSettingsProvider } from './provider';
+import type { ProjectSettingsPatch, ProjectSettingsProvider } from './provider';
 import { CONFIG_FILE } from './workspace-config-file';
 import {
   canonicalizeWorktreeDirectory,
@@ -192,6 +193,32 @@ abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
       return ok();
     } catch (error) {
       log.warn('Failed to update project settings', error);
+      return err({ type: 'error' });
+    }
+  }
+
+  async patch(patch: ProjectSettingsPatch): Promise<Result<void, UpdateProjectSettingsError>> {
+    try {
+      await this.ensure();
+      const row = await this.storage.get(this.projectId);
+      const shareable = row
+        ? readJson(
+            row.shareableProjectSettingsJson,
+            shareableProjectSettingsSchema,
+            'shareable project settings'
+          )
+        : {};
+
+      for (const field of patch.clearShareableFields ?? []) {
+        SHAREABLE_FIELD_ACCESSORS[field].clear(shareable);
+      }
+
+      await this.storage.update(this.projectId, {
+        shareableProjectSettingsJson: JSON.stringify(compactUndefined(shareable)),
+      });
+      return ok();
+    } catch (error) {
+      log.warn('Failed to clear shareable project settings', error);
       return err({ type: 'error' });
     }
   }

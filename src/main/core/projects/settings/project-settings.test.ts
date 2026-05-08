@@ -131,6 +131,48 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     expect(updateAttempts).toBe(2);
   });
 
+  it('clears shareable fields without validating base settings', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    const row = {
+      baseProjectSettingsJson: JSON.stringify({
+        worktreeDirectory: path.join(projectPath, 'not-yet-created'),
+      }),
+      shareableProjectSettingsJson: JSON.stringify({
+        preservePatterns: ['.env'],
+        scripts: {
+          setup: 'pnpm install',
+          run: 'pnpm dev',
+        },
+      }),
+      legacyConfigMigratedAt: new Date().toISOString(),
+    };
+    const settingsStorage: ProjectSettingsStorage = {
+      get: async () => row,
+      insertIfMissing: vi.fn(),
+      update: async (_projectId, settings) => {
+        Object.assign(row, settings);
+      },
+    };
+    const provider = new LocalProjectSettingsProvider(
+      projectId(),
+      projectPath,
+      'main',
+      settingsStorage
+    );
+
+    const result = await provider.patch({
+      clearShareableFields: ['preservePatterns', 'scripts.run'],
+    });
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(row.shareableProjectSettingsJson)).toEqual({
+      scripts: {
+        setup: 'pnpm install',
+      },
+    });
+  });
+
   it('normalizes and canonicalizes local worktreeDirectory on update', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);

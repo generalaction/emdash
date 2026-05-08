@@ -30,6 +30,7 @@ function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider 
   return {
     get: async () => ({ preservePatterns }),
     update: async () => ok(),
+    patch: async () => ok(),
     ensure: async () => {},
     getWorktreeDirectory: async () => '',
     getDefaultBranch: async () => 'main',

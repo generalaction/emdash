@@ -1,5 +1,4 @@
 import type { WriteProjectConfigRequest } from '@shared/project-settings';
-import { clearShareableProjectSettingsFields } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { log } from '@main/lib/logger';
@@ -36,9 +35,12 @@ export async function shareProjectSettingsToConfig(
     const localSettings = await project.settings.get();
     let config: Record<string, unknown>;
     try {
-      config = (await target.fs.exists(CONFIG_FILE))
-        ? parseWorkspaceConfigObject((await target.fs.read(CONFIG_FILE)).content)
-        : {};
+      if (await target.fs.exists(CONFIG_FILE)) {
+        const { content } = await target.fs.read(CONFIG_FILE);
+        config = parseWorkspaceConfigObject(content);
+      } else {
+        config = {};
+      }
     } catch (error) {
       const message = `Could not read existing ${CONFIG_FILE}: ${errorMessage(error)}`;
       log.warn('Failed to read project config before writing', error);
@@ -53,9 +55,7 @@ export async function shareProjectSettingsToConfig(
       return writeConfigFailed(writeResult.error ?? `Failed to write ${CONFIG_FILE}.`);
     }
 
-    const clearResult = await project.settings.update(
-      clearShareableProjectSettingsFields(localSettings, request.fields)
-    );
+    const clearResult = await project.settings.patch({ clearShareableFields: request.fields });
     if (!clearResult.success) {
       log.warn('Failed to clear shareable project settings', clearResult.error);
       return writeConfigFailed(

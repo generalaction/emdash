@@ -44,7 +44,7 @@ describe('shareProjectSettingsToConfig', () => {
 
   it('writes selected shareable project settings to .emdash.json', async () => {
     const write = vi.fn().mockResolvedValue({ success: true, bytesWritten: 100 });
-    const update = vi.fn().mockResolvedValue({ success: true });
+    const patch = vi.fn().mockResolvedValue({ success: true });
     const project = {
       fs: {
         exists: vi.fn().mockResolvedValue(false),
@@ -62,7 +62,7 @@ describe('shareProjectSettingsToConfig', () => {
             run: 'pnpm dev',
           },
         }),
-        update,
+        patch,
       },
     };
 
@@ -91,15 +91,13 @@ describe('shareProjectSettingsToConfig', () => {
         2
       )}\n`
     );
-    expect(update).toHaveBeenCalledWith({
-      defaultBranch: 'origin/main',
-      remote: 'origin',
-      tmux: true,
+    expect(patch).toHaveBeenCalledWith({
+      clearShareableFields: ['preservePatterns', 'shellSetup', 'scripts.setup', 'scripts.run'],
     });
   });
 
   it('returns an error when the filesystem reports an unsuccessful write', async () => {
-    const update = vi.fn();
+    const patch = vi.fn();
     const project = {
       fs: {
         exists: vi.fn().mockResolvedValue(false),
@@ -113,7 +111,7 @@ describe('shareProjectSettingsToConfig', () => {
         get: vi.fn().mockResolvedValue({
           preservePatterns: ['.env'],
         }),
-        update,
+        patch,
       },
     };
 
@@ -130,7 +128,48 @@ describe('shareProjectSettingsToConfig', () => {
       success: false,
       error: { type: 'write-config-failed', message: 'permission denied' },
     });
-    expect(update).not.toHaveBeenCalled();
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it('returns an error when clearing shared fields fails after writing config', async () => {
+    const write = vi.fn().mockResolvedValue({ success: true, bytesWritten: 100 });
+    const patch = vi.fn().mockResolvedValue({
+      success: false,
+      error: { type: 'error' },
+    });
+    const project = {
+      fs: {
+        exists: vi.fn().mockResolvedValue(true),
+        read: vi.fn().mockResolvedValue({
+          content: `${JSON.stringify({ shellSetup: 'old setup' }, null, 2)}\n`,
+        }),
+        write,
+      },
+      settings: {
+        get: vi.fn().mockResolvedValue({
+          preservePatterns: ['.env'],
+        }),
+        patch,
+      },
+    };
+
+    const result = await shareProjectSettingsToConfig(
+      project as never,
+      {
+        target: { type: 'project' },
+        fields: ['preservePatterns'],
+      },
+      [{ type: 'project', label: 'Repo Name', path: '/repo', fs: project.fs as never }]
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'write-config-failed',
+        message: 'Wrote .emdash.json, but failed to clear shared project settings.',
+      },
+    });
+    expect(write).toHaveBeenCalledTimes(1);
   });
 
   it('returns the read/parse failure when existing .emdash.json cannot be parsed', async () => {
@@ -235,6 +274,34 @@ describe('shareProjectSettingsToConfig', () => {
       },
     ]);
     expect(getWorktree).toHaveBeenCalledWith('emdash/task-one');
+  });
+
+  it('skips task target resolution when the project row no longer exists', async () => {
+    const getWorktree = vi.fn();
+    const project = {
+      projectId: 'project-1',
+      repoPath: '/repo',
+      fs: {},
+      defaultWorkspaceType: { kind: 'local' },
+      worktreeService: {
+        getWorktree,
+      },
+    };
+    mocks.select.mockReturnValueOnce({
+      from: () => ({
+        where: () => ({
+          limit: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    });
+
+    const targets = getProjectSettingsWriteTargets(
+      await resolveAllProjectSettingsTargets(project as never)
+    );
+
+    expect(targets).toEqual([{ type: 'project', label: 'Project repository', path: '/repo' }]);
+    expect(mocks.select).toHaveBeenCalledTimes(1);
+    expect(getWorktree).not.toHaveBeenCalled();
   });
 
   it('detects workspace setting overrides from .emdash.json files', async () => {
