@@ -15,6 +15,7 @@ import geminiLogo from '../../assets/images/gemini.png';
 import copilotLogoSvg from '../../assets/images/gh-copilot.svg?raw';
 import gooseLogo from '../../assets/images/goose.png';
 import hermesLogo from '../../assets/images/hermesagent.jpg';
+import julesLogoSvg from '../../assets/images/jules.svg?raw';
 import junieLogo from '../../assets/images/junie-color.png';
 import kilocodeLogo from '../../assets/images/kilocode.png';
 import kimiLogo from '../../assets/images/kimi.png';
@@ -55,8 +56,14 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
   continue: { name: 'Continue', logo: continueLogo, alt: 'Continue CLI' },
   codebuff: { name: 'Codebuff', logo: codebuffLogo, alt: 'Codebuff CLI' },
+  jules: {
+    name: 'Jules',
+    logo: julesLogoSvg,
+    alt: 'Jules CLI',
+    isSvg: true,
+  },
   junie: {
-    name: 'Junie CLI',
+    name: 'Junie',
     logo: junieLogo,
     alt: 'Junie CLI',
   },

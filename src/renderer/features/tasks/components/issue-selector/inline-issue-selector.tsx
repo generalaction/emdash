@@ -1,4 +1,5 @@
 import { Check, Loader2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Issue } from '@shared/tasks';
 import {
@@ -10,6 +11,7 @@ import { Kbd } from '@renderer/lib/ui/kbd';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { cn } from '@renderer/utils/utils';
 import { ConnectIssueIntegrationPlaceholder, IssueRow, ProviderLogo } from './issue-selector';
+import { getLinkedIssueMap } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
 export interface InlineIssueSelectorProps {
@@ -19,16 +21,20 @@ export interface InlineIssueSelectorProps {
   repositoryUrl?: string;
   projectPath?: string;
   disabled?: boolean;
+  /** Skip "already linked" indicator for this task — useful when re-selecting the same task's issue. */
+  excludeTaskId?: string;
 }
 
-export function InlineIssueSelector({
+export const InlineIssueSelector = observer(function InlineIssueSelector({
   value,
   onValueChange,
   projectId,
   repositoryUrl = '',
   projectPath = '',
   disabled,
+  excludeTaskId,
 }: InlineIssueSelectorProps) {
+  const linkedIssueMap = getLinkedIssueMap(projectId, excludeTaskId);
   const {
     issues,
     issueProvider,
@@ -90,7 +96,8 @@ export function InlineIssueSelector({
         case 'Enter': {
           e.preventDefault();
           const issue = issues[highlightedIndex];
-          if (issue) onValueChange(issue === value ? null : issue);
+          if (!issue) break;
+          onValueChange(issue === value ? null : issue);
           break;
         }
         case 'Escape':
@@ -170,6 +177,7 @@ export function InlineIssueSelector({
           issues.map((issue, index) => {
             const isSelected = value?.identifier === issue.identifier;
             const isHighlighted = index === highlightedIndex;
+            const linkedTo = linkedIssueMap.get(issue.url);
             return (
               <button
                 key={issue.identifier}
@@ -182,7 +190,7 @@ export function InlineIssueSelector({
                 onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => onValueChange(isSelected ? null : issue)}
               >
-                <IssueRow issue={issue} />
+                <IssueRow issue={issue} linkedTo={linkedTo} />
                 {isSelected && (
                   <Check className="absolute right-2 size-3.5 shrink-0 text-foreground-muted" />
                 )}
@@ -201,4 +209,4 @@ export function InlineIssueSelector({
       </div>
     </div>
   );
-}
+});

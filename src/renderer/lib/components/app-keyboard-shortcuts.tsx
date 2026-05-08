@@ -25,14 +25,13 @@ export function AppKeyboardShortcuts() {
   const showNewProject = useShowModal('addProjectModal');
   const showCreateTask = useShowModal('taskModal');
   const showCommandPalette = useShowModal('commandPaletteModal');
-  const { toggleLeft, toggleRight } = useWorkspaceLayoutContext();
+  const { toggleLeft } = useWorkspaceLayoutContext();
   const { toggleTheme } = useTheme();
   const { navigate } = useNavigate();
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const settingsHotkey = getEffectiveHotkey('settings', keyboard);
   const closeModalHotkey = getEffectiveHotkey('closeModal', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
-  const toggleRightSidebarHotkey = getEffectiveHotkey('toggleRightSidebar', keyboard);
   const toggleThemeHotkey = getEffectiveHotkey('toggleTheme', keyboard);
   const newProjectHotkey = getEffectiveHotkey('newProject', keyboard);
   const newTaskHotkey = getEffectiveHotkey('newTask', keyboard);
@@ -73,10 +72,6 @@ export function AppKeyboardShortcuts() {
 
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,
-  });
-
-  useHotkey(getHotkeyRegistration('toggleRightSidebar', keyboard), () => toggleRight(), {
-    enabled: toggleRightSidebarHotkey !== null,
   });
 
   useHotkey(getHotkeyRegistration('toggleTheme', keyboard), () => toggleTheme(), {
