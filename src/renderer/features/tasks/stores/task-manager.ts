@@ -15,6 +15,7 @@ import { getProjectManagerStore } from '@renderer/features/projects/stores/proje
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import {
   createUnprovisionedTask,
@@ -319,7 +320,7 @@ export class TaskManagerStore {
 
     const promise = Promise.all([
       rpc.tasks.provisionTask(taskId),
-      rpc.viewState.get(`task:${taskId}`),
+      viewStateCache.get(`task:${taskId}`),
       rpc.conversations.getConversationsForTask(this.projectId, taskId).catch((err: unknown) => {
         log.warn('TaskManagerStore: failed to pre-load conversations during provision', {
           taskId,
