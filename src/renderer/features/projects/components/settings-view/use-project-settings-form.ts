@@ -11,6 +11,7 @@ import {
 } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, type Result } from '@shared/result';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useModalContext } from '@renderer/lib/modal/modal-provider';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
 import {
@@ -65,6 +66,7 @@ export function useProjectSettingsForm({
   writeConfigToRepo,
 }: UseProjectSettingsFormArgs) {
   const { showModal } = useModalContext();
+  const { toast } = useToast();
   const baseline = useMemo(
     () => settingsToForm(initial, configuredRemote, remotes),
     [initial, configuredRemote, remotes]
@@ -179,6 +181,10 @@ export function useProjectSettingsForm({
           form: nextForm,
           savedForm: nextForm,
         });
+        toast({
+          title: 'Team config shared',
+          description: '.emdash.json was written successfully.',
+        });
         onSuccess();
       },
     });
@@ -192,6 +198,7 @@ export function useProjectSettingsForm({
     remotes,
     shareDisabled,
     showModal,
+    toast,
     writeConfigToRepo,
     writeTargets,
   ]);

@@ -47,23 +47,22 @@ async function resolveTaskTarget(
   project: ProjectProvider,
   task: TaskTargetRow
 ): Promise<ProjectSettingsResolvedTarget | null> {
+  let targetPath: string | null = null;
+  let fs: FileSystemProvider | null = null;
+
   if (task.workspaceId) {
     const activeWorkspace = workspaceRegistry.get(task.workspaceId);
     if (activeWorkspace) {
-      return {
-        type: 'task',
-        taskId: task.id,
-        label: task.name,
-        path: activeWorkspace.path,
-        fs: activeWorkspace.fs,
-      };
+      targetPath = activeWorkspace.path;
+      fs = activeWorkspace.fs;
     }
   }
 
-  const targetPath = task.taskBranch
-    ? await project.worktreeService.getWorktree(task.taskBranch)
-    : project.repoPath;
+  if (!targetPath && task.taskBranch) {
+    targetPath = (await project.worktreeService.getWorktree(task.taskBranch)) ?? null;
+  }
   if (!targetPath) return null;
+  if (targetPath === project.repoPath) return null;
 
   return {
     type: 'task',
@@ -71,11 +70,10 @@ async function resolveTaskTarget(
     label: task.name,
     path: targetPath,
     fs:
-      targetPath === project.repoPath
-        ? project.fs
-        : project.defaultWorkspaceType.kind === 'ssh'
-          ? new SshFileSystem(project.defaultWorkspaceType.proxy, targetPath)
-          : new LocalFileSystem(targetPath),
+      fs ??
+      (project.defaultWorkspaceType.kind === 'ssh'
+        ? new SshFileSystem(project.defaultWorkspaceType.proxy, targetPath)
+        : new LocalFileSystem(targetPath)),
   };
 }
 

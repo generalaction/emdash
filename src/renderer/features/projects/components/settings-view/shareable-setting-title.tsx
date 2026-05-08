@@ -16,8 +16,10 @@ type Props = {
 };
 
 export function ShareableSettingTitle({ children, leafLabel, overrideSources, onRestore }: Props) {
-  const overridePlaceCount = `${overrideSources.length} ${overrideSources.length === 1 ? 'place' : 'places'}`;
-  const teamConfigLabel = overrideSources.length === 1 ? 'team config' : 'team configs';
+  const overrideWorkingDirectoryCount = `${overrideSources.length} ${
+    overrideSources.length === 1 ? 'working directory' : 'working directories'
+  }`;
+  const teamConfigLabel = overrideSources.length === 1 ? 'team settings' : 'team settings';
 
   return (
     <div className="flex min-h-5 items-center justify-between gap-3">
@@ -35,7 +37,7 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
                 </Badge>
               </TooltipTrigger>
               <TooltipContent side="top" align="start" className="max-w-sm">
-                This overrides {teamConfigLabel} in {overridePlaceCount}.
+                This overrides {teamConfigLabel} in {overrideWorkingDirectoryCount}.
               </TooltipContent>
             </Tooltip>
             <Tooltip>

@@ -180,10 +180,7 @@ export function ShareProjectConfigModal({
             <FieldTitle>Settings to share</FieldTitle>
             <div className="grid grid-cols-2 gap-2">
               {availableFields.map((field) => (
-                <label
-                  key={field}
-                  className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
-                >
+                <label key={field} className="flex items-center gap-2 rounded-md py-2 text-sm">
                   <Checkbox
                     checked={selectedFields.includes(field)}
                     onCheckedChange={(checked) => toggleField(field, checked === true)}

@@ -27,12 +27,14 @@ export function patchShareableProjectSettingsFields(
   config: Record<string, unknown>,
   settings: ProjectSettings,
   fields: ShareableProjectSettingsWriteField[]
-): Record<string, unknown> {
+): ShareableProjectSettingsWriteField[] {
+  const writtenFields: ShareableProjectSettingsWriteField[] = [];
   for (const field of fields) {
     const accessor = SHAREABLE_FIELD_ACCESSORS[field];
     const value = accessor.get(settings);
     if (value === undefined) continue;
     setNested(config, accessor.path, value);
+    writtenFields.push(field);
   }
-  return config;
+  return writtenFields;
 }

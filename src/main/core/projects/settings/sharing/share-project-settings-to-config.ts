@@ -47,7 +47,11 @@ export async function shareProjectSettingsToConfig(
       return writeConfigFailed(message);
     }
 
-    patchShareableProjectSettingsFields(config, localSettings, request.fields);
+    const writtenFields = patchShareableProjectSettingsFields(
+      config,
+      localSettings,
+      request.fields
+    );
 
     const writeResult = await target.fs.write(CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`);
     if (!writeResult.success) {
@@ -55,7 +59,7 @@ export async function shareProjectSettingsToConfig(
       return writeConfigFailed(writeResult.error ?? `Failed to write ${CONFIG_FILE}.`);
     }
 
-    const clearResult = await project.settings.patch({ clearShareableFields: request.fields });
+    const clearResult = await project.settings.patch({ clearShareableFields: writtenFields });
     if (!clearResult.success) {
       log.warn('Failed to clear shareable project settings', clearResult.error);
       return writeConfigFailed(

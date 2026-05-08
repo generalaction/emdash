@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ShareableProjectSettings } from '@shared/project-settings';
 import { computeProjectSettingsOverrideState } from './sharing/project-settings-override-state';
 import {
   getProjectSettingsWriteTargets,
@@ -93,6 +94,107 @@ describe('shareProjectSettingsToConfig', () => {
     );
     expect(patch).toHaveBeenCalledWith({
       clearShareableFields: ['preservePatterns', 'shellSetup', 'scripts.setup', 'scripts.run'],
+    });
+  });
+
+  it('preserves existing config fields when sharing a later script field to the same target', async () => {
+    let configContent = '';
+    let shareableSettings: ShareableProjectSettings = {
+      preservePatterns: ['.env', '.env.local'],
+    };
+    const fs = {
+      exists: vi.fn().mockImplementation(() => Promise.resolve(configContent !== '')),
+      read: vi.fn().mockImplementation(() => Promise.resolve({ content: configContent })),
+      write: vi.fn().mockImplementation((_path: string, content: string) => {
+        configContent = content;
+        return Promise.resolve({ success: true, bytesWritten: content.length });
+      }),
+    };
+    const project = {
+      fs,
+      settings: {
+        get: vi.fn().mockImplementation(() => Promise.resolve(shareableSettings)),
+        patch: vi.fn().mockImplementation(({ clearShareableFields }) => {
+          if (clearShareableFields.includes('preservePatterns')) {
+            shareableSettings = {};
+          }
+          if (clearShareableFields.includes('scripts.run')) {
+            shareableSettings = {};
+          }
+          return Promise.resolve({ success: true });
+        }),
+      },
+    };
+    const targets = [{ type: 'project' as const, label: 'Repo Name', path: '/repo', fs }];
+
+    await shareProjectSettingsToConfig(
+      project as never,
+      {
+        target: { type: 'project' },
+        fields: ['preservePatterns'],
+      },
+      targets as never
+    );
+
+    shareableSettings = {
+      scripts: {
+        run: 'pnpm dev',
+      },
+    };
+
+    const result = await shareProjectSettingsToConfig(
+      project as never,
+      {
+        target: { type: 'project' },
+        fields: ['scripts.run'],
+      },
+      targets as never
+    );
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(configContent)).toEqual({
+      preservePatterns: ['.env', '.env.local'],
+      scripts: {
+        run: 'pnpm dev',
+      },
+    });
+  });
+
+  it('only clears fields that were actually written to .emdash.json', async () => {
+    const write = vi.fn().mockResolvedValue({ success: true, bytesWritten: 100 });
+    const patch = vi.fn().mockResolvedValue({ success: true });
+    const project = {
+      fs: {
+        exists: vi.fn().mockResolvedValue(true),
+        read: vi.fn().mockResolvedValue({
+          content: JSON.stringify({ preservePatterns: ['.env'] }),
+        }),
+        write,
+      },
+      settings: {
+        get: vi.fn().mockResolvedValue({
+          preservePatterns: ['.env.local'],
+        }),
+        patch,
+      },
+    };
+
+    const result = await shareProjectSettingsToConfig(
+      project as never,
+      {
+        target: { type: 'project' },
+        fields: ['preservePatterns', 'scripts.run'],
+      },
+      [{ type: 'project', label: 'Repo Name', path: '/repo', fs: project.fs as never }]
+    );
+
+    expect(result.success).toBe(true);
+    expect(write).toHaveBeenCalledWith(
+      '.emdash.json',
+      `${JSON.stringify({ preservePatterns: ['.env.local'] }, null, 2)}\n`
+    );
+    expect(patch).toHaveBeenCalledWith({
+      clearShareableFields: ['preservePatterns'],
     });
   });
 
@@ -274,6 +376,87 @@ describe('shareProjectSettingsToConfig', () => {
       },
     ]);
     expect(getWorktree).toHaveBeenCalledWith('emdash/task-one');
+  });
+
+  it('excludes task targets that use the project root working directory', async () => {
+    const projectRootFs = {
+      exists: vi.fn().mockResolvedValue(true),
+      read: vi.fn().mockResolvedValue({
+        content: JSON.stringify({ shellSetup: 'root setup' }),
+      }),
+    };
+    const worktreeFs = {
+      exists: vi.fn().mockResolvedValue(true),
+      read: vi.fn().mockResolvedValue({
+        content: JSON.stringify({ shellSetup: 'worktree setup' }),
+      }),
+    };
+    const getWorktree = vi.fn();
+    const project = {
+      projectId: 'project-1',
+      repoPath: '/repo',
+      fs: projectRootFs,
+      defaultWorkspaceType: { kind: 'local' },
+      worktreeService: {
+        getWorktree,
+      },
+    };
+    mocks.workspaceGet.mockImplementation((workspaceId: string) => {
+      if (workspaceId === 'root-workspace') return { path: '/repo', fs: projectRootFs };
+      if (workspaceId === 'worktree-workspace') {
+        return { path: '/repo/.emdash/worktrees/task-two', fs: worktreeFs };
+      }
+      return undefined;
+    });
+    mocks.select
+      .mockReturnValueOnce({
+        from: () => ({
+          where: () => ({
+            limit: vi.fn().mockResolvedValue([{ name: 'Repo Name' }]),
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          where: vi.fn().mockResolvedValue([
+            {
+              id: 'task-1',
+              name: 'Root Task',
+              taskBranch: null,
+              workspaceId: 'root-workspace',
+            },
+            {
+              id: 'task-2',
+              name: 'Task Two',
+              taskBranch: 'emdash/task-two',
+              workspaceId: 'worktree-workspace',
+            },
+          ]),
+        }),
+      });
+
+    const resolvedTargets = await resolveAllProjectSettingsTargets(project as never);
+    const targets = getProjectSettingsWriteTargets(resolvedTargets);
+    const overrideState = await computeProjectSettingsOverrideState(resolvedTargets);
+
+    expect(targets).toEqual([
+      { type: 'project', label: 'Repo Name', path: '/repo' },
+      {
+        type: 'task',
+        taskId: 'task-2',
+        label: 'Task Two',
+        path: '/repo/.emdash/worktrees/task-two',
+      },
+    ]);
+    expect(getWorktree).not.toHaveBeenCalled();
+    expect(overrideState.shellSetup).toEqual([
+      { label: 'Repo Name', path: '/repo', value: 'root setup' },
+      {
+        label: 'Task Two',
+        path: '/repo/.emdash/worktrees/task-two',
+        value: 'worktree setup',
+      },
+    ]);
   });
 
   it('skips task target resolution when the project row no longer exists', async () => {
