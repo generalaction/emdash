@@ -10,8 +10,8 @@ export const SettingsPanel = observer(function SettingsPanel() {
   } = useParams('project');
   const store = getProjectSettingsStore(projectId);
   const settings = store?.settings;
-  const writeTargets = store?.writeTargetsData.data;
-  const overrideState = store?.overrideStateData.data;
+  const writeTargets = store?.writeTargets;
+  const overrideState = store?.overrideState;
 
   if (!store || !settings || !writeTargets || !overrideState) {
     return (

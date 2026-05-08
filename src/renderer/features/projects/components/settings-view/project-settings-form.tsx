@@ -3,6 +3,7 @@ import type { Remote } from '@shared/git';
 import type {
   ProjectSettings,
   ProjectSettingsOverrideState,
+  ProjectSettingsPage,
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
 } from '@shared/project-settings';
@@ -23,10 +24,10 @@ export interface ProjectSettingsFormProps {
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   onSuccess: () => void;
-  save: (settings: ProjectSettings) => Promise<Result<void, UpdateProjectSettingsError>>;
+  save: (settings: ProjectSettings) => Promise<Result<ProjectSettings, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
-  ) => Promise<Result<void, UpdateProjectSettingsError>>;
+  ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
 }
 
 const EMPTY_REMOTES: Remote[] = [];

@@ -5,9 +5,14 @@ import type {
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
+import { Input } from '@renderer/lib/ui/input';
 import { Separator } from '@renderer/lib/ui/separator';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
+import {
+  SHAREABLE_FIELD_DESCRIPTORS,
+  type ShareableFieldDescriptor,
+} from '../shareable-project-settings-fields';
 import { ShareableSettingTitle } from '../shareable-setting-title';
 
 type ShareableSettingsSectionProps = {
@@ -18,55 +23,76 @@ type ShareableSettingsSectionProps = {
   ) => ProjectSettingsOverrideState[ShareableProjectSettingsWriteField];
 };
 
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function ShareableField({
+  descriptor,
+  form,
+  update,
+  getOverrideSources,
+}: {
+  descriptor: ShareableFieldDescriptor;
+  form: FormState;
+  update: FormUpdate;
+  getOverrideSources: ShareableSettingsSectionProps['getOverrideSources'];
+}) {
+  return (
+    <Field>
+      <ShareableSettingTitle
+        leafLabel={descriptor.leafLabel}
+        overrideSources={getOverrideSources(descriptor.id)}
+        onRestore={() => update(descriptor.formKey, '')}
+      >
+        {descriptor.group ? titleCase(descriptor.leafLabel) : descriptor.modalLabel}
+      </ShareableSettingTitle>
+      {descriptor.description ? (
+        <FieldDescription className="text-foreground-muted">
+          {descriptor.description}
+        </FieldDescription>
+      ) : null}
+      {descriptor.multiline ? (
+        <Textarea
+          rows={descriptor.id === 'preservePatterns' ? 5 : 3}
+          placeholder={descriptor.placeholder}
+          value={form[descriptor.formKey]}
+          onChange={(e) => update(descriptor.formKey, e.target.value)}
+        />
+      ) : (
+        <Input
+          placeholder={descriptor.placeholder}
+          value={form[descriptor.formKey]}
+          onChange={(e) => update(descriptor.formKey, e.target.value)}
+        />
+      )}
+    </Field>
+  );
+}
+
 export function ShareableSettingsSection({
   form,
   update,
   getOverrideSources,
 }: ShareableSettingsSectionProps) {
+  const topLevelFields = SHAREABLE_FIELD_DESCRIPTORS.filter((descriptor) => !descriptor.group);
+  const lifecycleFields = SHAREABLE_FIELD_DESCRIPTORS.filter(
+    (descriptor) => descriptor.group === 'lifecycle'
+  );
+
   return (
     <>
       <Separator />
 
-      <Field>
-        <ShareableSettingTitle
-          field="preservePatterns"
-          overrideSources={getOverrideSources('preservePatterns')}
-          onRestore={() => update('preservePatterns', '')}
-        >
-          Preserve patterns
-        </ShareableSettingTitle>
-        <FieldDescription className="text-foreground-muted">
-          Gitignored and untracked files matching these glob patterns are copied from the main repo
-          into each worktree. One pattern per line.
-        </FieldDescription>
-        <Textarea
-          rows={5}
-          placeholder={'.env\n.env.local\n.envrc'}
-          value={form.preservePatterns}
-          onChange={(e) => update('preservePatterns', e.target.value)}
+      {topLevelFields.map((descriptor) => (
+        <ShareableField
+          key={descriptor.id}
+          descriptor={descriptor}
+          form={form}
+          update={update}
+          getOverrideSources={getOverrideSources}
         />
-      </Field>
-
-      <Separator />
-
-      <Field>
-        <ShareableSettingTitle
-          field="shellSetup"
-          overrideSources={getOverrideSources('shellSetup')}
-          onRestore={() => update('shellSetup', '')}
-        >
-          Shell setup
-        </ShareableSettingTitle>
-        <FieldDescription className="text-foreground-muted">
-          Shell commands run before the agent starts in each worktree session
-        </FieldDescription>
-        <Textarea
-          rows={3}
-          placeholder={'nvm use\nsource .envrc'}
-          value={form.shellSetup}
-          onChange={(e) => update('shellSetup', e.target.value)}
-        />
-      </Field>
+      ))}
 
       <Separator />
 
@@ -94,53 +120,15 @@ export function ShareableSettingsSection({
           </FieldDescription>
         </div>
 
-        <Field>
-          <ShareableSettingTitle
-            field="scripts.setup"
-            overrideSources={getOverrideSources('scripts.setup')}
-            onRestore={() => update('scriptSetup', '')}
-          >
-            Setup
-          </ShareableSettingTitle>
-          <Textarea
-            rows={3}
-            placeholder={'npm install\ncp .env.example .env'}
-            value={form.scriptSetup}
-            onChange={(e) => update('scriptSetup', e.target.value)}
+        {lifecycleFields.map((descriptor) => (
+          <ShareableField
+            key={descriptor.id}
+            descriptor={descriptor}
+            form={form}
+            update={update}
+            getOverrideSources={getOverrideSources}
           />
-        </Field>
-
-        <Field>
-          <ShareableSettingTitle
-            field="scripts.run"
-            overrideSources={getOverrideSources('scripts.run')}
-            onRestore={() => update('scriptRun', '')}
-          >
-            Run
-          </ShareableSettingTitle>
-          <Textarea
-            rows={3}
-            placeholder="npm run dev"
-            value={form.scriptRun}
-            onChange={(e) => update('scriptRun', e.target.value)}
-          />
-        </Field>
-
-        <Field>
-          <ShareableSettingTitle
-            field="scripts.teardown"
-            overrideSources={getOverrideSources('scripts.teardown')}
-            onRestore={() => update('scriptTeardown', '')}
-          >
-            Teardown
-          </ShareableSettingTitle>
-          <Textarea
-            rows={3}
-            placeholder="docker compose down"
-            value={form.scriptTeardown}
-            onChange={(e) => update('scriptTeardown', e.target.value)}
-          />
-        </Field>
+        ))}
       </div>
     </>
   );

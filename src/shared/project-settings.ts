@@ -66,6 +66,12 @@ export function defaultShareableProjectSettings(): ShareableProjectSettings {
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
+export type ProjectSettingsPage = {
+  settings: ProjectSettings;
+  writeTargets: ProjectSettingsWriteTargetOption[];
+  overrideState: ProjectSettingsOverrideState;
+};
+
 export type ProjectSettingsWriteTarget =
   | { type: 'project' }
   | { type: 'task'; taskId: string }
@@ -115,85 +121,4 @@ export function emptyProjectSettingsOverrideState(): ProjectSettingsOverrideStat
     'scripts.run': [],
     'scripts.teardown': [],
   };
-}
-
-export function shareableProjectSettingsFieldPath(
-  field: ShareableProjectSettingsWriteField
-): string[] {
-  return field.split('.');
-}
-
-export function getShareableProjectSettingsFieldValue(
-  settings: ShareableProjectSettings,
-  field: ShareableProjectSettingsWriteField
-): unknown {
-  switch (field) {
-    case 'preservePatterns':
-      return settings.preservePatterns;
-    case 'shellSetup':
-      return settings.shellSetup;
-    case 'scripts.setup':
-      return settings.scripts?.setup;
-    case 'scripts.run':
-      return settings.scripts?.run;
-    case 'scripts.teardown':
-      return settings.scripts?.teardown;
-  }
-}
-
-export function getShareableProjectSettingsFieldDisplayValue(
-  settings: ShareableProjectSettings,
-  field: ShareableProjectSettingsWriteField
-): string | null {
-  switch (field) {
-    case 'preservePatterns': {
-      const value = settings.preservePatterns?.filter((pattern) => pattern.trim());
-      return value?.length ? value.join('\n') : null;
-    }
-    case 'shellSetup':
-      return settings.shellSetup?.trim() ? settings.shellSetup : null;
-    case 'scripts.setup':
-      return settings.scripts?.setup?.trim() ? settings.scripts.setup : null;
-    case 'scripts.run':
-      return settings.scripts?.run?.trim() ? settings.scripts.run : null;
-    case 'scripts.teardown':
-      return settings.scripts?.teardown?.trim() ? settings.scripts.teardown : null;
-  }
-}
-
-export function clearShareableProjectSettingsFields<T extends ProjectSettings>(
-  settings: T,
-  fields: ShareableProjectSettingsWriteField[]
-): T {
-  const next: ProjectSettings = {
-    ...settings,
-    preservePatterns: settings.preservePatterns ? [...settings.preservePatterns] : undefined,
-    scripts: settings.scripts ? { ...settings.scripts } : undefined,
-  };
-
-  for (const field of fields) {
-    switch (field) {
-      case 'preservePatterns':
-        delete next.preservePatterns;
-        break;
-      case 'shellSetup':
-        delete next.shellSetup;
-        break;
-      case 'scripts.setup':
-        if (next.scripts) delete next.scripts.setup;
-        break;
-      case 'scripts.run':
-        if (next.scripts) delete next.scripts.run;
-        break;
-      case 'scripts.teardown':
-        if (next.scripts) delete next.scripts.teardown;
-        break;
-    }
-  }
-
-  if (next.scripts && Object.values(next.scripts).every((value) => value === undefined)) {
-    delete next.scripts;
-  }
-
-  return next as T;
 }

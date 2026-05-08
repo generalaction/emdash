@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -5,13 +6,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { LocalProjectSettingsProvider, SshProjectSettingsProvider } from './project-settings';
+import type { ProjectSettingsStorage } from './project-settings-storage';
 
 vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: {
-    get: vi.fn().mockResolvedValue({
-      defaultWorktreeDirectory: '/tmp/emdash/worktrees',
+    get: vi.fn().mockImplementation((key: string) => {
+      if (key === 'projects') return Promise.resolve({ tmuxByDefault: false });
+      return Promise.resolve({
+        defaultWorktreeDirectory: '/tmp/emdash/worktrees',
+      });
     }),
   },
+}));
+
+vi.mock('@main/db/client', () => ({
+  db: {},
 }));
 
 vi.mock('electron', () => ({
@@ -22,6 +31,27 @@ vi.mock('electron', () => ({
 
 describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   const tempDirs: string[] = [];
+  const storage = (): ProjectSettingsStorage => {
+    const rows = new Map<
+      string,
+      {
+        baseProjectSettingsJson: string;
+        shareableProjectSettingsJson: string;
+        legacyConfigMigratedAt: string | null;
+      }
+    >();
+    return {
+      get: async (projectId) => rows.get(projectId),
+      insert: async (projectId, settings) => {
+        rows.set(projectId, settings);
+      },
+      update: async (projectId, settings) => {
+        rows.set(projectId, { ...rows.get(projectId)!, ...settings });
+      },
+    };
+  };
+
+  const projectId = () => `project-${randomUUID()}`;
 
   afterEach(() => {
     for (const dir of tempDirs.splice(0)) {
@@ -33,15 +63,16 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectPath, 'main');
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
     expect(result.success).toBe(true);
 
     const expectedPath = path.resolve(projectPath, 'worktrees');
     expect(fs.existsSync(expectedPath)).toBe(true);
 
-    const persisted = JSON.parse(fs.readFileSync(path.join(projectPath, '.emdash.json'), 'utf8'));
-    expect(persisted.worktreeDirectory).toBe(fs.realpathSync(expectedPath));
+    await expect(provider.get()).resolves.toMatchObject({
+      worktreeDirectory: fs.realpathSync(expectedPath),
+    });
   });
 
   it('surfaces local worktreeDirectory validation errors', async () => {
@@ -49,7 +80,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     tempDirs.push(projectPath);
     fs.writeFileSync(path.join(projectPath, 'not-a-directory'), 'file');
 
-    const provider = new LocalProjectSettingsProvider(projectPath, 'main');
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
     const result = await provider.update({
       preservePatterns: [],
       worktreeDirectory: path.join(projectPath, 'not-a-directory', 'worktrees'),
@@ -64,34 +95,40 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectPath, 'main');
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: '   ' });
     expect(result.success).toBe(true);
 
-    const persisted = JSON.parse(fs.readFileSync(path.join(projectPath, '.emdash.json'), 'utf8'));
-    expect(persisted.worktreeDirectory).toBeUndefined();
+    await expect(provider.get()).resolves.not.toHaveProperty('worktreeDirectory');
   });
 
   it('normalizes and canonicalizes ssh worktreeDirectory on update', async () => {
-    const writeMock = vi.fn().mockResolvedValue(undefined);
     const projectFs = {
-      write: writeMock,
+      exists: vi.fn().mockResolvedValue(false),
     } as unknown as SshFileSystem;
     const rootFs = {
       mkdir: vi.fn().mockResolvedValue(undefined),
       realPath: vi.fn().mockResolvedValue('/canonical/ssh-worktrees'),
     };
 
-    const provider = new SshProjectSettingsProvider(projectFs, 'main', rootFs, '/remote/repo');
+    const provider = new SshProjectSettingsProvider(
+      projectId(),
+      projectFs,
+      'main',
+      rootFs,
+      '/remote/repo',
+      undefined,
+      storage()
+    );
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
     expect(result.success).toBe(true);
 
     expect(rootFs.mkdir).toHaveBeenCalledWith('/remote/repo/worktrees', { recursive: true });
     expect(rootFs.realPath).toHaveBeenCalledWith('/remote/repo/worktrees');
 
-    expect(writeMock).toHaveBeenCalledTimes(1);
-    const persisted = JSON.parse(writeMock.mock.calls[0][1]);
-    expect(persisted.worktreeDirectory).toBe('/canonical/ssh-worktrees');
+    await expect(provider.get()).resolves.toMatchObject({
+      worktreeDirectory: '/canonical/ssh-worktrees',
+    });
   });
 
   it('uses project-scoped ssh default worktree directory when not configured', async () => {
@@ -99,21 +136,36 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       exists: vi.fn().mockResolvedValue(false),
     } as unknown as SshFileSystem;
 
-    const provider = new SshProjectSettingsProvider(projectFs, 'main', undefined, '/remote/repo');
+    const provider = new SshProjectSettingsProvider(
+      projectId(),
+      projectFs,
+      'main',
+      undefined,
+      '/remote/repo',
+      undefined,
+      storage()
+    );
     await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.emdash/worktrees');
   });
 
   it('rejects tilde worktreeDirectory for ssh projects', async () => {
-    const writeMock = vi.fn().mockResolvedValue(undefined);
     const projectFs = {
-      write: writeMock,
+      exists: vi.fn().mockResolvedValue(false),
     } as unknown as SshFileSystem;
     const rootFs = {
       mkdir: vi.fn().mockResolvedValue(undefined),
       realPath: vi.fn().mockResolvedValue('/canonical/ssh-worktrees'),
     };
 
-    const provider = new SshProjectSettingsProvider(projectFs, 'main', rootFs, '/remote/repo');
+    const provider = new SshProjectSettingsProvider(
+      projectId(),
+      projectFs,
+      'main',
+      rootFs,
+      '/remote/repo',
+      undefined,
+      storage()
+    );
     const result = await provider.update({
       preservePatterns: [],
       worktreeDirectory: '~/worktrees',
@@ -122,7 +174,6 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       success: false,
       error: { type: 'invalid-worktree-directory' },
     });
-    expect(writeMock).not.toHaveBeenCalled();
   });
 
   it('falls back to project-scoped ssh default when configured directory is invalid', async () => {
@@ -133,14 +184,21 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       }),
     } as unknown as SshFileSystem;
 
-    const provider = new SshProjectSettingsProvider(projectFs, 'main', undefined, '/remote/repo');
+    const provider = new SshProjectSettingsProvider(
+      projectId(),
+      projectFs,
+      'main',
+      undefined,
+      '/remote/repo',
+      undefined,
+      storage()
+    );
     await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.emdash/worktrees');
   });
 
   it('expands and caches ssh home for tilde worktreeDirectory values', async () => {
-    const writeMock = vi.fn().mockResolvedValue(undefined);
     const projectFs = {
-      write: writeMock,
+      exists: vi.fn().mockResolvedValue(false),
     } as unknown as SshFileSystem;
     const rootFs = {
       mkdir: vi.fn().mockResolvedValue(undefined),
@@ -154,7 +212,15 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       dispose: vi.fn(),
     } as unknown as IExecutionContext;
 
-    const provider = new SshProjectSettingsProvider(projectFs, 'main', rootFs, '/remote/repo', ctx);
+    const provider = new SshProjectSettingsProvider(
+      projectId(),
+      projectFs,
+      'main',
+      rootFs,
+      '/remote/repo',
+      ctx,
+      storage()
+    );
     const first = await provider.update({ preservePatterns: [], worktreeDirectory: '~/worktrees' });
     const second = await provider.update({ preservePatterns: [], worktreeDirectory: '~' });
     expect(first.success).toBe(true);
@@ -163,6 +229,5 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     expect(ctx.exec).toHaveBeenCalledTimes(1);
     expect(rootFs.mkdir).toHaveBeenCalledWith('/home/ubuntu/worktrees', { recursive: true });
     expect(rootFs.realPath).toHaveBeenCalledWith('/home/ubuntu/worktrees');
-    expect(writeMock).toHaveBeenCalledTimes(2);
   });
 });

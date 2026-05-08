@@ -1,6 +1,15 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { remoteNameFromQualifiedRef } from '@shared/git-utils';
+import {
+  baseProjectSettingsSchema,
+  projectSettingsSchema,
+  shareableProjectSettingsSchema,
+  type BaseProjectSettings,
+  type ProjectSettings,
+  type ShareableProjectSettings,
+} from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -10,39 +19,123 @@ import { appSettingsService } from '@main/core/settings/settings-service';
 import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';
 import { resolveRemoteHome } from '@main/core/ssh/utils';
 import { log } from '@main/lib/logger';
+import { migrateLegacyProjectSettingsIfNeeded } from './legacy-project-settings-migration';
+import { compactUndefined, readJson } from './project-settings-json';
+import { ProjectSettingsRepository, type ProjectSettingsStorage } from './project-settings-storage';
+import type { ProjectSettingsProvider } from './provider';
 import {
-  projectSettingsSchema,
-  type ProjectSettings,
-  type ProjectSettingsProvider,
-} from './schema';
-import {
+  canonicalizeWorktreeDirectory,
   normalizeWorktreeDirectory,
   resolveAndValidateWorktreeDirectory,
 } from './worktree-directory';
 
-const defaults = () => projectSettingsSchema.parse({});
-
-function parseSettingsOrDefault(raw: string, source: string): ProjectSettings {
-  try {
-    return projectSettingsSchema.parse(JSON.parse(raw));
-  } catch (err) {
-    log.warn(`Failed to parse ${source}, using defaults`, err);
-    return defaults();
-  }
+async function getLocalDefaultWorktreeDirectory(): Promise<string> {
+  return (await appSettingsService.get('localProject')).defaultWorktreeDirectory;
 }
 
-export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
-  constructor(
-    private readonly projectPath: string,
-    private readonly defaultBranchFallback: string = 'main'
+abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
+  private legacyMigrationPromise: Promise<void> | undefined;
+
+  protected constructor(
+    private readonly projectId: string,
+    protected readonly projectPath: string,
+    protected readonly defaultBranchFallback: string = 'main',
+    private readonly configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined,
+    private readonly storage: ProjectSettingsStorage = new ProjectSettingsRepository()
   ) {}
 
-  async get(): Promise<ProjectSettings> {
-    const settingsPath = path.join(this.projectPath, '.emdash.json');
-    if (!fs.existsSync(settingsPath)) {
-      return defaults();
+  protected abstract defaultWorktreeDirectory(): Promise<string>;
+
+  protected abstract validateWorktreeDirectory(
+    worktreeDirectory: string | undefined
+  ): Promise<Result<string | undefined, UpdateProjectSettingsError>>;
+
+  protected abstract normalizeStoredWorktreeDirectory(
+    worktreeDirectory: string
+  ): Promise<Result<string, UpdateProjectSettingsError>>;
+
+  protected async initialBaseProjectSettings(): Promise<BaseProjectSettings> {
+    const defaultBranch = this.defaultBranchFallback.trim() || 'main';
+    const projectDefaults = await appSettingsService.get('project');
+    return {
+      worktreeDirectory: await this.defaultWorktreeDirectory(),
+      defaultBranch,
+      remote: remoteNameFromQualifiedRef(defaultBranch) ?? 'origin',
+      tmux: projectDefaults.tmuxByDefault,
+    };
+  }
+
+  private async ensureRow(): Promise<void> {
+    if (await this.storage.get(this.projectId)) return;
+
+    const baseSettings = await this.initialBaseProjectSettings();
+    await this.storage.insert(this.projectId, {
+      baseProjectSettingsJson: JSON.stringify(compactUndefined(baseSettings)),
+      shareableProjectSettingsJson: '{}',
+      legacyConfigMigratedAt: null,
+    });
+  }
+
+  private async readSettingsRow(): Promise<{
+    base: BaseProjectSettings;
+    shareable: ShareableProjectSettings;
+    legacyConfigMigratedAt: string | null;
+  }> {
+    await this.ensureRow();
+    await this.migrateLegacyConfigIfNeeded();
+    const row = await this.storage.get(this.projectId);
+    if (!row) {
+      return {
+        base: await this.initialBaseProjectSettings(),
+        shareable: {},
+        legacyConfigMigratedAt: null,
+      };
     }
-    return parseSettingsOrDefault(fs.readFileSync(settingsPath, 'utf8'), settingsPath);
+    return {
+      base: readJson(
+        row.baseProjectSettingsJson,
+        baseProjectSettingsSchema,
+        'base project settings'
+      ),
+      shareable: readJson(
+        row.shareableProjectSettingsJson,
+        shareableProjectSettingsSchema,
+        'shareable project settings'
+      ),
+      legacyConfigMigratedAt: row.legacyConfigMigratedAt,
+    };
+  }
+
+  private async migrateLegacyConfigIfNeeded(): Promise<void> {
+    if (this.legacyMigrationPromise) {
+      await this.legacyMigrationPromise;
+      return;
+    }
+
+    this.legacyMigrationPromise = (async () => {
+      const row = await this.storage.get(this.projectId);
+      await migrateLegacyProjectSettingsIfNeeded({
+        projectId: this.projectId,
+        row,
+        configReader: this.configReader,
+        defaultBranchFallback: this.defaultBranchFallback,
+        storage: this.storage,
+        normalizeStoredWorktreeDirectory: (worktreeDirectory) =>
+          this.normalizeStoredWorktreeDirectory(worktreeDirectory),
+      });
+    })();
+
+    await this.legacyMigrationPromise;
+  }
+
+  async ensure(): Promise<void> {
+    await this.ensureRow();
+    await this.migrateLegacyConfigIfNeeded();
+  }
+
+  async get(): Promise<ProjectSettings> {
+    const { base, shareable } = await this.readSettingsRow();
+    return projectSettingsSchema.parse({ ...base, ...shareable });
   }
 
   async update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>> {
@@ -50,40 +143,29 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
     if (!parsed.success) {
       return err({ type: 'invalid-settings' });
     }
+
     const nextSettings = parsed.data;
-    const worktreeDirectoryResult = await resolveAndValidateWorktreeDirectory(
-      nextSettings.worktreeDirectory,
-      {
-        projectPath: this.projectPath,
-        pathApi: path,
-        fs: {
-          mkdir: async (p, options) => {
-            await fs.promises.mkdir(p, options);
-          },
-          realPath: async (p) => fs.promises.realpath(p),
-        },
-        homeDirectory: os.homedir(),
-      }
+    const worktreeDirectoryResult = await this.validateWorktreeDirectory(
+      nextSettings.worktreeDirectory
     );
     if (!worktreeDirectoryResult.success) {
       return worktreeDirectoryResult;
     }
-
     nextSettings.worktreeDirectory = worktreeDirectoryResult.data;
 
-    try {
-      const settingsPath = path.join(this.projectPath, '.emdash.json');
-      fs.writeFileSync(settingsPath, JSON.stringify(nextSettings, null, 2));
-      return ok();
-    } catch {
-      return err({ type: 'error' });
-    }
-  }
+    const base = baseProjectSettingsSchema.parse(nextSettings);
+    const shareable = shareableProjectSettingsSchema.parse(nextSettings);
 
-  async ensure(): Promise<void> {
-    const settingsPath = path.join(this.projectPath, '.emdash.json');
-    if (!fs.existsSync(settingsPath)) {
-      fs.writeFileSync(settingsPath, JSON.stringify(defaults(), null, 2));
+    try {
+      await this.ensure();
+      await this.storage.update(this.projectId, {
+        baseProjectSettingsJson: JSON.stringify(compactUndefined(base)),
+        shareableProjectSettingsJson: JSON.stringify(compactUndefined(shareable)),
+      });
+      return ok();
+    } catch (error) {
+      log.warn('Failed to update project settings', error);
+      return err({ type: 'error' });
     }
   }
 
@@ -91,7 +173,9 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
     const settings = await this.get();
     const branch = settings.defaultBranch;
     if (!branch) return this.defaultBranchFallback;
-    return typeof branch === 'string' ? branch : branch.name;
+    if (typeof branch === 'string') return branch;
+    const remote = settings.remote ?? 'origin';
+    return `${remote}/${branch.name}`;
   }
 
   async getRemote(): Promise<string> {
@@ -101,42 +185,89 @@ export class LocalProjectSettingsProvider implements ProjectSettingsProvider {
 
   async getWorktreeDirectory(): Promise<string> {
     const settings = await this.get();
-    const defaultWorktreeDirectory = (await appSettingsService.get('localProject'))
-      .defaultWorktreeDirectory;
+    const defaultWorktreeDirectory = await this.defaultWorktreeDirectory();
     if (settings.worktreeDirectory) {
-      const normalized = await normalizeWorktreeDirectory(settings.worktreeDirectory, {
-        projectPath: this.projectPath,
-        pathApi: path,
-        homeDirectory: os.homedir(),
-      });
+      const normalized = await this.normalizeStoredWorktreeDirectory(settings.worktreeDirectory);
       if (normalized.success) {
         return normalized.data;
       }
-      {
-        log.warn(
-          'LocalProjectSettingsProvider: invalid worktreeDirectory, falling back to default',
-          {
-            worktreeDirectory: settings.worktreeDirectory,
-            defaultWorktreeDirectory,
-            error: normalized.error.type,
-          }
-        );
-      }
+      log.warn('ProjectSettingsProvider: invalid worktreeDirectory, falling back to default', {
+        worktreeDirectory: settings.worktreeDirectory,
+        defaultWorktreeDirectory,
+        error: normalized.error.type,
+      });
     }
     return defaultWorktreeDirectory;
   }
 }
 
-export class SshProjectSettingsProvider implements ProjectSettingsProvider {
+export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
   constructor(
-    private readonly fs: SshFileSystem,
-    private readonly defaultBranchFallback: string = 'main',
-    private readonly rootFs?: Pick<FileSystemProvider, 'mkdir' | 'realPath'>,
-    private readonly projectPath: string = '/',
-    private readonly ctx?: IExecutionContext
-  ) {}
+    projectId: string,
+    projectPath: string,
+    defaultBranchFallback: string = 'main',
+    storage?: ProjectSettingsStorage
+  ) {
+    super(
+      projectId,
+      projectPath,
+      defaultBranchFallback,
+      {
+        exists: async (filePath) => fs.existsSync(path.join(projectPath, filePath)),
+        read: async (filePath) => {
+          const content = await fs.promises.readFile(path.join(projectPath, filePath), 'utf8');
+          return { content, truncated: false, totalSize: Buffer.byteLength(content) };
+        },
+      },
+      storage
+    );
+  }
 
+  protected defaultWorktreeDirectory(): Promise<string> {
+    return getLocalDefaultWorktreeDirectory();
+  }
+
+  protected validateWorktreeDirectory(
+    worktreeDirectory: string | undefined
+  ): Promise<Result<string | undefined, UpdateProjectSettingsError>> {
+    return resolveAndValidateWorktreeDirectory(worktreeDirectory, {
+      projectPath: this.projectPath,
+      pathApi: path,
+      fs: {
+        mkdir: async (p, options) => {
+          await fs.promises.mkdir(p, options);
+        },
+        realPath: async (p) => fs.promises.realpath(p),
+      },
+      homeDirectory: os.homedir(),
+    });
+  }
+
+  protected normalizeStoredWorktreeDirectory(
+    worktreeDirectory: string
+  ): Promise<Result<string, UpdateProjectSettingsError>> {
+    return normalizeWorktreeDirectory(worktreeDirectory, {
+      projectPath: this.projectPath,
+      pathApi: path,
+      homeDirectory: os.homedir(),
+    });
+  }
+}
+
+export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
   private homeDirectory?: Promise<string>;
+
+  constructor(
+    projectId: string,
+    private readonly fs: SshFileSystem,
+    defaultBranchFallback: string = 'main',
+    private readonly rootFs?: Pick<FileSystemProvider, 'mkdir' | 'realPath'>,
+    projectPath: string = '/',
+    private readonly ctx?: IExecutionContext,
+    storage?: ProjectSettingsStorage
+  ) {
+    super(projectId, projectPath, defaultBranchFallback, fs, storage);
+  }
 
   private async getHomeDirectory(): Promise<Result<string, UpdateProjectSettingsError>> {
     if (!this.ctx) {
@@ -150,108 +281,43 @@ export class SshProjectSettingsProvider implements ProjectSettingsProvider {
     }
   }
 
-  async get(): Promise<ProjectSettings> {
-    const exists = await this.fs.exists('.emdash.json');
-    if (!exists) {
-      return defaults();
-    }
-
-    return parseSettingsOrDefault(
-      (await this.fs.read('.emdash.json')).content,
-      '.emdash.json (ssh)'
-    );
+  protected async defaultWorktreeDirectory(): Promise<string> {
+    return getDefaultSshWorktreeDirectory(this.projectPath);
   }
 
-  async update(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>> {
-    const parsed = projectSettingsSchema.safeParse(settings);
-    if (!parsed.success) {
-      return err({ type: 'invalid-settings' });
-    }
-    const nextSettings = parsed.data;
+  protected async validateWorktreeDirectory(
+    worktreeDirectory: string | undefined
+  ): Promise<Result<string | undefined, UpdateProjectSettingsError>> {
     if (!this.rootFs) {
       return err({ type: 'error' });
     }
-    const worktreeDirectoryResult = await resolveAndValidateWorktreeDirectory(
-      nextSettings.worktreeDirectory,
-      {
-        projectPath: this.projectPath,
-        pathApi: path.posix,
-        fs: this.rootFs,
-        resolveHomeDirectory: async () => {
-          const homeDirectory = await this.getHomeDirectory();
-          return homeDirectory.success ? homeDirectory.data : '';
-        },
-      }
-    );
-    if (!worktreeDirectoryResult.success) {
-      return worktreeDirectoryResult;
-    }
-
-    nextSettings.worktreeDirectory = worktreeDirectoryResult.data;
-    try {
-      await this.fs.write('.emdash.json', JSON.stringify(nextSettings, null, 2));
-      return ok();
-    } catch {
-      return err({ type: 'error' });
-    }
+    return resolveAndValidateWorktreeDirectory(worktreeDirectory, {
+      projectPath: this.projectPath,
+      pathApi: path.posix,
+      fs: this.rootFs,
+      resolveHomeDirectory: async () => {
+        const homeDirectory = await this.getHomeDirectory();
+        return homeDirectory.success ? homeDirectory.data : '';
+      },
+    });
   }
 
-  async ensure(): Promise<void> {
-    const exists = await this.fs.exists('.emdash.json');
-    if (!exists) {
-      await this.fs.write('.emdash.json', JSON.stringify(defaults(), null, 2));
+  protected async normalizeStoredWorktreeDirectory(
+    worktreeDirectory: string
+  ): Promise<Result<string, UpdateProjectSettingsError>> {
+    const normalized = await normalizeWorktreeDirectory(worktreeDirectory, {
+      projectPath: this.projectPath,
+      pathApi: path.posix,
+      resolveHomeDirectory: async () => {
+        const homeDirectory = await this.getHomeDirectory();
+        return homeDirectory.success ? homeDirectory.data : '';
+      },
+    });
+    if (!normalized.success) return normalized;
+
+    if (this.rootFs) {
+      return canonicalizeWorktreeDirectory(normalized.data, this.rootFs);
     }
-  }
-
-  async getDefaultBranch(): Promise<string> {
-    const settings = await this.get();
-    const branch = settings.defaultBranch;
-    if (!branch) return this.defaultBranchFallback;
-    return typeof branch === 'string' ? branch : branch.name;
-  }
-
-  async getRemote(): Promise<string> {
-    const settings = await this.get();
-    return settings.remote ?? 'origin';
-  }
-
-  async getWorktreeDirectory(): Promise<string> {
-    const settings = await this.get();
-    const defaultWorktreeDirectory = getDefaultSshWorktreeDirectory(this.projectPath);
-    if (settings.worktreeDirectory) {
-      const normalized = await normalizeWorktreeDirectory(settings.worktreeDirectory, {
-        projectPath: this.projectPath,
-        pathApi: path.posix,
-        resolveHomeDirectory: async () => {
-          const homeDirectory = await this.getHomeDirectory();
-          return homeDirectory.success ? homeDirectory.data : '';
-        },
-      });
-      if (normalized.success) {
-        if (this.rootFs) {
-          try {
-            await this.rootFs.mkdir(normalized.data, { recursive: true });
-          } catch {
-            log.warn(
-              'SshProjectSettingsProvider: inaccessible worktreeDirectory, falling back to default',
-              {
-                worktreeDirectory: settings.worktreeDirectory,
-                defaultWorktreeDirectory,
-              }
-            );
-            return defaultWorktreeDirectory;
-          }
-        }
-        return normalized.data;
-      }
-      {
-        log.warn('SshProjectSettingsProvider: invalid worktreeDirectory, falling back to default', {
-          worktreeDirectory: settings.worktreeDirectory,
-          defaultWorktreeDirectory,
-          error: normalized.error.type,
-        });
-      }
-    }
-    return defaultWorktreeDirectory;
+    return normalized;
   }
 }

@@ -1,6 +1,8 @@
 import { Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import type {
+  ProjectSettingsPage,
+  ProjectSettingsWriteTarget,
   ProjectSettingsWriteTargetOption,
   ShareableProjectSettingsWriteField,
   WriteProjectConfigRequest,
@@ -19,6 +21,7 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldGroup, FieldTitle } from '@renderer/lib/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
+import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type WriteStatus = 'idle' | 'writing' | 'written' | 'error';
 
@@ -29,11 +32,12 @@ export type ShareProjectConfigModalArgs = {
   targets: ProjectSettingsWriteTargetOption[];
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
-  ) => Promise<Result<void, UpdateProjectSettingsError>>;
+  ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
 };
 
 type ShareProjectConfigModalResult = {
   fields: ShareableProjectSettingsWriteField[];
+  page: ProjectSettingsPage;
 };
 
 type Props = BaseModalProps<ShareProjectConfigModalResult> & ShareProjectConfigModalArgs;
@@ -45,29 +49,16 @@ export function projectConfigTargetValue(target: ProjectSettingsWriteTargetOptio
 }
 
 function parseTargetValue(
-  value: string,
-  targets: ProjectSettingsWriteTargetOption[]
-): WriteProjectConfigRequest['target'] {
-  const target = targets.find((candidate) => projectConfigTargetValue(candidate) === value);
-  if (!target) return { type: 'project' };
+  target: ProjectSettingsWriteTargetOption | null
+): ProjectSettingsWriteTarget | null {
+  if (!target) return null;
   if (target.type === 'project') return { type: 'project' };
   if (target.type === 'task') return { type: 'task', taskId: target.taskId };
   return { type: 'workspace', workspaceId: target.workspaceId };
 }
 
 export function projectConfigWriteFieldLabel(field: ShareableProjectSettingsWriteField): string {
-  switch (field) {
-    case 'preservePatterns':
-      return 'Preserve patterns';
-    case 'shellSetup':
-      return 'Shell setup';
-    case 'scripts.setup':
-      return 'Setup script';
-    case 'scripts.run':
-      return 'Run script';
-    case 'scripts.teardown':
-      return 'Teardown script';
-  }
+  return SHAREABLE_FIELD_DESCRIPTOR_BY_ID[field].modalLabel;
 }
 
 function unknownErrorMessage(error: unknown): string {
@@ -83,23 +74,22 @@ export function ShareProjectConfigModal({
   onSuccess,
   onClose,
 }: Props) {
-  const firstTarget = targets[0] ? projectConfigTargetValue(targets[0]) : 'project';
-  const initialTargetIsAvailable = targets.some(
+  const firstTarget = targets[0] ?? null;
+  const initialTargetOption = targets.find(
     (target) => projectConfigTargetValue(target) === initialTarget
   );
-  const [selectedTarget, setSelectedTarget] = useState(
-    initialTargetIsAvailable ? initialTarget : firstTarget
+  const [selectedTarget, setSelectedTarget] = useState<ProjectSettingsWriteTargetOption | null>(
+    initialTargetOption ?? firstTarget
   );
   const [selectedFields, setSelectedFields] =
     useState<ShareableProjectSettingsWriteField[]>(defaultFields);
   const [status, setStatus] = useState<WriteStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const selectedTargetLabel =
-    targets.find((target) => projectConfigTargetValue(target) === selectedTarget)?.label ??
-    'Select a working copy';
+  const selectedTargetValue = selectedTarget ? projectConfigTargetValue(selectedTarget) : '';
+  const selectedTargetLabel = selectedTarget?.label ?? 'Select a working copy';
 
-  const disabled = status === 'writing' || selectedFields.length === 0 || targets.length === 0;
+  const disabled = status === 'writing' || selectedFields.length === 0 || !selectedTarget;
 
   function toggleField(field: ShareableProjectSettingsWriteField, checked: boolean) {
     setStatus((current) => (current === 'idle' ? current : 'idle'));
@@ -110,11 +100,14 @@ export function ShareProjectConfigModal({
   }
 
   async function handleWrite() {
+    const target = parseTargetValue(selectedTarget);
+    if (!target) return;
+
     setStatus('writing');
     setErrorMessage(null);
     const fields = selectedFields;
     const result = await writeConfigToRepo({
-      target: parseTargetValue(selectedTarget, targets),
+      target,
       fields,
     }).catch((error) =>
       err({
@@ -125,7 +118,7 @@ export function ShareProjectConfigModal({
 
     if (result.success) {
       setStatus('written');
-      onSuccess({ fields });
+      onSuccess({ fields, page: result.data });
       return;
     }
 
@@ -149,9 +142,11 @@ export function ShareProjectConfigModal({
           <Field>
             <FieldTitle>Destination</FieldTitle>
             <Select
-              value={selectedTarget}
+              value={selectedTargetValue}
               onValueChange={(value) => {
-                if (value) setSelectedTarget(value);
+                setSelectedTarget(
+                  targets.find((target) => projectConfigTargetValue(target) === value) ?? null
+                );
               }}
             >
               <SelectTrigger className="w-full min-w-0">

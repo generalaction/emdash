@@ -1,32 +1,67 @@
+import type {
+  ProjectSettings,
+  ProjectSettingsOverrideState,
+  ProjectSettingsPage,
+  ProjectSettingsWriteTargetOption,
+  WriteProjectConfigRequest,
+} from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import type { ProjectSettings } from '@main/core/projects/settings/schema';
 import { rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 
 export class ProjectSettingsStore {
-  readonly settingsData: Resource<ProjectSettings>;
+  readonly pageData: Resource<ProjectSettingsPage>;
 
   constructor(private readonly projectId: string) {
-    this.settingsData = new Resource(
-      () => rpc.projects.getProjectSettings(projectId),
-      [{ kind: 'demand' }]
-    );
+    this.pageData = new Resource(async () => {
+      const result = await rpc.projects.getProjectSettingsPage(projectId);
+      if (!result.success) {
+        throw new Error(
+          result.error.type === 'project-not-found'
+            ? `Project ${projectId} not found`
+            : 'Failed to load project settings'
+        );
+      }
+      return result.data;
+    }, [{ kind: 'demand' }]);
   }
 
   get settings(): ProjectSettings | null {
-    return this.settingsData.data;
+    return this.pageData.data?.settings ?? null;
   }
 
-  async save(settings: ProjectSettings): Promise<Result<void, UpdateProjectSettingsError>> {
+  get writeTargets(): ProjectSettingsWriteTargetOption[] | null {
+    return this.pageData.data?.writeTargets ?? null;
+  }
+
+  get overrideState(): ProjectSettingsOverrideState | null {
+    return this.pageData.data?.overrideState ?? null;
+  }
+
+  async save(
+    settings: ProjectSettings
+  ): Promise<Result<ProjectSettings, UpdateProjectSettingsError>> {
     const result = await rpc.projects.updateProjectSettings(this.projectId, settings);
     if (result.success) {
-      this.settingsData.invalidate();
+      const current = this.pageData.data;
+      if (current) this.pageData.setValue({ ...current, settings: result.data });
+      else this.pageData.invalidate();
+    }
+    return result;
+  }
+
+  async writeConfigToRepo(
+    request: WriteProjectConfigRequest
+  ): Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>> {
+    const result = await rpc.projects.shareProjectSettingsToConfig(this.projectId, request);
+    if (result.success) {
+      this.pageData.setValue(result.data);
     }
     return result;
   }
 
   dispose(): void {
-    this.settingsData.dispose();
+    this.pageData.dispose();
   }
 }

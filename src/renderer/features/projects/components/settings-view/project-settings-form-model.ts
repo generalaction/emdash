@@ -1,10 +1,11 @@
 import type { Branch } from '@shared/git';
 import { projectDefaultBranchToBranch } from '@shared/git-utils';
+import type { ProjectSettings, ShareableProjectSettingsWriteField } from '@shared/project-settings';
 import {
-  SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
-  type ProjectSettings,
-  type ShareableProjectSettingsWriteField,
-} from '@shared/project-settings';
+  SHAREABLE_FIELD_DESCRIPTOR_BY_ID,
+  SHAREABLE_FIELD_DESCRIPTORS,
+  SHAREABLE_FIELD_FORM_KEY,
+} from './shareable-project-settings-fields';
 
 export type FormState = {
   preservePatterns: string;
@@ -26,41 +27,14 @@ export type WorkspaceProviderValidationErrors = Partial<
   Record<'provisionCommand' | 'terminateCommand', string>
 >;
 
-export type ShareableFieldFormKey =
-  | 'preservePatterns'
-  | 'shellSetup'
-  | 'scriptSetup'
-  | 'scriptRun'
-  | 'scriptTeardown';
-
-type ShareableFormFieldConfig = {
-  formKey: keyof FormState;
-  defaultWrite: boolean;
-};
-
-const SHAREABLE_FORM_FIELD_CONFIG = {
-  preservePatterns: { formKey: 'preservePatterns', defaultWrite: true },
-  shellSetup: { formKey: 'shellSetup', defaultWrite: false },
-  'scripts.setup': { formKey: 'scriptSetup', defaultWrite: true },
-  'scripts.run': { formKey: 'scriptRun', defaultWrite: true },
-  'scripts.teardown': { formKey: 'scriptTeardown', defaultWrite: true },
-} satisfies Record<ShareableProjectSettingsWriteField, ShareableFormFieldConfig>;
-
-export const DEFAULT_WRITE_FIELDS: ShareableProjectSettingsWriteField[] =
-  SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS.filter(
-    (field) => SHAREABLE_FORM_FIELD_CONFIG[field].defaultWrite
-  );
-
-export const SHAREABLE_FIELD_FORM_KEY = Object.fromEntries(
-  SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS.map((field) => [
-    field,
-    SHAREABLE_FORM_FIELD_CONFIG[field].formKey,
-  ])
-) as Record<ShareableProjectSettingsWriteField, ShareableFieldFormKey>;
-
 function normalizeScript(val: string | string[] | undefined): string {
   if (Array.isArray(val)) return val.join('\n');
   return val ?? '';
+}
+
+function blankToUndefined(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }
 
 export function settingsToForm(
@@ -102,21 +76,21 @@ export function formToSettings(f: FormState): ProjectSettings {
     .map((p) => p.trim())
     .filter(Boolean);
   const scripts = {
-    setup: f.scriptSetup || undefined,
-    run: f.scriptRun || undefined,
-    teardown: f.scriptTeardown || undefined,
+    setup: blankToUndefined(f.scriptSetup),
+    run: blankToUndefined(f.scriptRun),
+    teardown: blankToUndefined(f.scriptTeardown),
   };
-  const provisionCommand = f.provisionCommand.trim();
-  const terminateCommand = f.terminateCommand.trim();
+  const provisionCommand = blankToUndefined(f.provisionCommand);
+  const terminateCommand = blankToUndefined(f.terminateCommand);
   const hasScripts = Object.values(scripts).some((value) => value !== undefined);
   return {
     preservePatterns: preservePatterns.length > 0 ? preservePatterns : undefined,
-    shellSetup: f.shellSetup || undefined,
+    shellSetup: blankToUndefined(f.shellSetup),
     tmux: f.tmux,
     scripts: hasScripts ? scripts : undefined,
-    worktreeDirectory: f.worktreeDirectory || undefined,
+    worktreeDirectory: blankToUndefined(f.worktreeDirectory),
     defaultBranch,
-    remote: f.remote || undefined,
+    remote: blankToUndefined(f.remote),
     workspaceProvider:
       provisionCommand && terminateCommand
         ? {
@@ -150,31 +124,13 @@ export function normalizeShareableFieldValue(
   field: ShareableProjectSettingsWriteField,
   value: string
 ): string {
-  if (field === 'preservePatterns') {
-    return value
-      .split('\n')
-      .map((pattern) => pattern.trim())
-      .filter(Boolean)
-      .join('\n');
-  }
-  return value.trim();
+  return SHAREABLE_FIELD_DESCRIPTOR_BY_ID[field].normalizeText(value);
 }
 
 export function getAvailableWriteFields(form: FormState): ShareableProjectSettingsWriteField[] {
-  return SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS.filter((field) =>
-    String(form[SHAREABLE_FORM_FIELD_CONFIG[field].formKey]).trim()
+  return SHAREABLE_FIELD_DESCRIPTORS.map((descriptor) => descriptor.id).filter((field) =>
+    String(form[SHAREABLE_FIELD_FORM_KEY[field]]).trim()
   );
-}
-
-export function clearFormShareableFields(
-  form: FormState,
-  fields: ShareableProjectSettingsWriteField[]
-): FormState {
-  const next = { ...form };
-  for (const field of fields) {
-    next[SHAREABLE_FIELD_FORM_KEY[field]] = '';
-  }
-  return next;
 }
 
 export function areFormStatesEqual(a: FormState, b: FormState): boolean {

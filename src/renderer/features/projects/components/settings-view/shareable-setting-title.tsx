@@ -8,24 +8,14 @@ import { Button } from '@renderer/lib/ui/button';
 import { FieldTitle } from '@renderer/lib/ui/field';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
-const SHAREABLE_FIELD_LEAF_LABEL = {
-  preservePatterns: 'preserve patterns',
-  shellSetup: 'shell setup',
-  'scripts.setup': 'setup',
-  'scripts.run': 'run',
-  'scripts.teardown': 'teardown',
-} satisfies Record<ShareableProjectSettingsWriteField, string>;
-
 type Props = {
   children: React.ReactNode;
-  field: ShareableProjectSettingsWriteField;
+  leafLabel: string;
   overrideSources: ProjectSettingsOverrideState[ShareableProjectSettingsWriteField];
   onRestore: () => void;
 };
 
-export function ShareableSettingTitle({ children, field, overrideSources, onRestore }: Props) {
-  const leafLabel = SHAREABLE_FIELD_LEAF_LABEL[field];
-
+export function ShareableSettingTitle({ children, leafLabel, overrideSources, onRestore }: Props) {
   return (
     <div className="flex min-h-5 items-center justify-between gap-3">
       <FieldTitle className="min-w-0 flex-1">{children}</FieldTitle>

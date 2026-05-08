@@ -3,7 +3,6 @@ import type { Remote } from '@shared/git';
 import type { ProjectSettings } from '@shared/project-settings';
 import {
   areFormStatesEqual,
-  clearFormShareableFields,
   formToSettings,
   getAvailableWriteFields,
   normalizeShareableFieldValue,
@@ -156,7 +155,7 @@ describe('project settings form model', () => {
     expect(normalizeShareableFieldValue('scripts.run', ' pnpm dev \n')).toBe('pnpm dev');
   });
 
-  it('detects and clears shareable form fields', () => {
+  it('detects shareable form fields', () => {
     const form = makeForm({
       preservePatterns: '.env',
       shellSetup: 'source .envrc',
@@ -171,12 +170,6 @@ describe('project settings form model', () => {
       'scripts.setup',
       'scripts.run',
     ]);
-    expect(clearFormShareableFields(form, ['preservePatterns', 'scripts.run'])).toEqual(
-      makeForm({
-        shellSetup: 'source .envrc',
-        scriptSetup: 'pnpm install',
-      })
-    );
   });
 
   it('compares form states through a named helper', () => {

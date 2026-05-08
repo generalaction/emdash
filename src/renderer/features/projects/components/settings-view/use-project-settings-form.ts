@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Remote } from '@shared/git';
-import type {
-  ProjectSettings,
-  ProjectSettingsOverrideState,
-  ProjectSettingsWriteTargetOption,
-  ShareableProjectSettingsWriteField,
-  WriteProjectConfigRequest,
+import {
+  emptyProjectSettingsOverrideState,
+  type ProjectSettings,
+  type ProjectSettingsOverrideState,
+  type ProjectSettingsPage,
+  type ProjectSettingsWriteTargetOption,
+  type ShareableProjectSettingsWriteField,
+  type WriteProjectConfigRequest,
 } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, type Result } from '@shared/result';
@@ -13,18 +15,19 @@ import { useModalContext } from '@renderer/lib/modal/modal-provider';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
 import {
   areFormStatesEqual,
-  clearFormShareableFields,
-  DEFAULT_WRITE_FIELDS,
   formToSettings,
   getAvailableWriteFields,
   normalizeShareableFieldValue,
   settingsToForm,
-  SHAREABLE_FIELD_FORM_KEY,
   validateWorkspaceProviderCommands,
   type FormState,
   type WorkspaceProviderValidationErrors,
 } from './project-settings-form-model';
 import { projectConfigTargetValue } from './share-project-config-modal';
+import {
+  DEFAULT_WRITE_FIELDS,
+  SHAREABLE_FIELD_FORM_KEY,
+} from './shareable-project-settings-fields';
 
 type ProjectSettingsShareStatus = 'idle' | 'shared';
 
@@ -35,19 +38,23 @@ type UseProjectSettingsFormArgs = {
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
   onSuccess: () => void;
-  save: (settings: ProjectSettings) => Promise<Result<void, UpdateProjectSettingsError>>;
+  save: (settings: ProjectSettings) => Promise<Result<ProjectSettings, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
-  ) => Promise<Result<void, UpdateProjectSettingsError>>;
+  ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
 };
 
-const EMPTY_OVERRIDE_STATE: ProjectSettingsOverrideState = {
-  preservePatterns: [],
-  shellSetup: [],
-  'scripts.setup': [],
-  'scripts.run': [],
-  'scripts.teardown': [],
+type FormSnapshot = {
+  baseline: FormState;
+  form: FormState;
+  savedForm: FormState;
 };
+
+function resolveFormSnapshot(snapshot: FormSnapshot, baseline: FormState): FormSnapshot {
+  if (snapshot.baseline === baseline) return snapshot;
+  if (!areFormStatesEqual(snapshot.form, snapshot.savedForm)) return snapshot;
+  return { baseline, form: baseline, savedForm: baseline };
+}
 
 export function useProjectSettingsForm({
   initial,
@@ -64,18 +71,22 @@ export function useProjectSettingsForm({
     () => settingsToForm(initial, configuredRemote, remotes),
     [initial, configuredRemote, remotes]
   );
-  const [form, setForm] = useState<FormState>(baseline);
-  const [savedForm, setSavedForm] = useState<FormState>(baseline);
+  const [formSnapshot, setFormSnapshot] = useState<FormSnapshot>({
+    baseline,
+    form: baseline,
+    savedForm: baseline,
+  });
   const [saveStatus, setSaveStatus] = useState<ProjectSettingsSaveStatus>('idle');
   const [shareStatus, setShareStatus] = useState<ProjectSettingsShareStatus>('idle');
   const [worktreeDirectoryError, setWorktreeDirectoryError] = useState<string | null>(null);
   const [workspaceProviderErrors, setWorkspaceProviderErrors] =
     useState<WorkspaceProviderValidationErrors>({});
 
-  const availableWriteFields = useMemo(() => getAvailableWriteFields(savedForm), [savedForm]);
-  const defaultSelectedWriteFields = useMemo(
-    () => availableWriteFields.filter((field) => DEFAULT_WRITE_FIELDS.includes(field)),
-    [availableWriteFields]
+  const resolvedSnapshot = resolveFormSnapshot(formSnapshot, baseline);
+  const { form, savedForm } = resolvedSnapshot;
+  const availableWriteFields = getAvailableWriteFields(savedForm);
+  const defaultSelectedWriteFields = availableWriteFields.filter((field) =>
+    DEFAULT_WRITE_FIELDS.includes(field)
   );
   const dirty = !areFormStatesEqual(form, savedForm);
   const canShareConfig = availableWriteFields.length > 0 && writeTargets.length > 0;
@@ -83,21 +94,27 @@ export function useProjectSettingsForm({
   const initialWriteTarget = writeTargets[0]
     ? projectConfigTargetValue(writeTargets[0])
     : 'project:repository';
-  const overrides = overrideState ?? EMPTY_OVERRIDE_STATE;
+  const overrides = overrideState ?? emptyProjectSettingsOverrideState();
+  const baselineResynced = resolvedSnapshot !== formSnapshot && areFormStatesEqual(form, savedForm);
+  const visibleWorktreeDirectoryError = baselineResynced ? null : worktreeDirectoryError;
+  const visibleWorkspaceProviderErrors = baselineResynced ? {} : workspaceProviderErrors;
 
   const update = useCallback(
     <K extends keyof FormState>(key: K, value: FormState[K]) => {
-      setForm((current) => ({ ...current, [key]: value }));
+      setFormSnapshot({
+        ...resolvedSnapshot,
+        form: { ...form, [key]: value },
+      });
       setSaveStatus((current) => (current === 'idle' ? current : 'idle'));
       setShareStatus('idle');
-      if (key === 'worktreeDirectory' && worktreeDirectoryError) {
+      if (key === 'worktreeDirectory' && visibleWorktreeDirectoryError) {
         setWorktreeDirectoryError(null);
       }
       if (key === 'provisionCommand' || key === 'terminateCommand') {
         setWorkspaceProviderErrors({});
       }
     },
-    [worktreeDirectoryError]
+    [form, resolvedSnapshot, visibleWorktreeDirectoryError]
   );
 
   const getOverrideSources = useCallback(
@@ -129,9 +146,13 @@ export function useProjectSettingsForm({
     const result = await save(formToSettings(formAtSubmit)).catch(() => err({ type: 'error' }));
 
     if (result.success) {
+      const canonicalForm = settingsToForm(result.data, configuredRemote, remotes);
       setWorktreeDirectoryError(null);
-      setForm(formAtSubmit);
-      setSavedForm(formAtSubmit);
+      setFormSnapshot({
+        baseline: canonicalForm,
+        form: canonicalForm,
+        savedForm: canonicalForm,
+      });
       setSaveStatus('saved');
       onSuccess();
       return;
@@ -145,7 +166,7 @@ export function useProjectSettingsForm({
 
     setWorktreeDirectoryError(null);
     setSaveStatus('error');
-  }, [form, onSuccess, save]);
+  }, [configuredRemote, form, onSuccess, remotes, save]);
 
   const openShareConfigModal = useCallback(() => {
     if (!canShareConfig || shareDisabled) return;
@@ -155,9 +176,13 @@ export function useProjectSettingsForm({
       initialTarget: initialWriteTarget,
       targets: writeTargets,
       writeConfigToRepo,
-      onSuccess: ({ fields }) => {
-        setForm((current) => clearFormShareableFields(current, fields));
-        setSavedForm((current) => clearFormShareableFields(current, fields));
+      onSuccess: ({ page }) => {
+        const nextForm = settingsToForm(page.settings, configuredRemote, remotes);
+        setFormSnapshot({
+          baseline: nextForm,
+          form: nextForm,
+          savedForm: nextForm,
+        });
         setShareStatus('shared');
         onSuccess();
       },
@@ -165,9 +190,11 @@ export function useProjectSettingsForm({
   }, [
     availableWriteFields,
     canShareConfig,
+    configuredRemote,
     defaultSelectedWriteFields,
     initialWriteTarget,
     onSuccess,
+    remotes,
     shareDisabled,
     showModal,
     writeConfigToRepo,
@@ -175,11 +202,14 @@ export function useProjectSettingsForm({
   ]);
 
   const handleUndo = useCallback(() => {
-    setForm(savedForm);
+    setFormSnapshot({
+      ...resolvedSnapshot,
+      form: savedForm,
+    });
     setWorktreeDirectoryError(null);
     setWorkspaceProviderErrors({});
     if (saveStatus === 'error') setSaveStatus('idle');
-  }, [savedForm, saveStatus]);
+  }, [resolvedSnapshot, savedForm, saveStatus]);
 
   return {
     form,
@@ -188,8 +218,8 @@ export function useProjectSettingsForm({
     shareStatus,
     canShareConfig,
     shareDisabled,
-    worktreeDirectoryError,
-    workspaceProviderErrors,
+    worktreeDirectoryError: visibleWorktreeDirectoryError,
+    workspaceProviderErrors: visibleWorkspaceProviderErrors,
     update,
     getOverrideSources,
     handleSave,
