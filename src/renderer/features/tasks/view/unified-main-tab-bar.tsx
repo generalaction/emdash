@@ -8,7 +8,7 @@ import {
 } from '@dnd-kit/core';
 import { horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
-import { Loader2, Plus, X } from 'lucide-react';
+import { FileSearch, Loader2, MessageSquarePlus, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
@@ -24,7 +24,10 @@ import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { useModelStatus } from '@renderer/lib/monaco/use-model';
+import { Button } from '@renderer/lib/ui/button';
 import { Separator } from '@renderer/lib/ui/separator';
+import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
@@ -56,10 +59,6 @@ function SortableTabWrapper({ id, children }: { id: string; children: React.Reac
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Conversation tab item
-// ---------------------------------------------------------------------------
 
 const ConversationTabItem = observer(function ConversationTabItem({
   tab,
@@ -118,10 +117,6 @@ const ConversationTabItem = observer(function ConversationTabItem({
     </>
   );
 });
-
-// ---------------------------------------------------------------------------
-// File tab item
-// ---------------------------------------------------------------------------
 
 const FileTabItem = observer(function FileTabItem({
   tab,
@@ -190,10 +185,6 @@ const FileTabItem = observer(function FileTabItem({
     </>
   );
 });
-
-// ---------------------------------------------------------------------------
-// Diff tab item
-// ---------------------------------------------------------------------------
 
 function diffGroupSuffix(diffGroup: ResolvedDiffTab['diffGroup']): string {
   switch (diffGroup) {
@@ -270,15 +261,12 @@ const DiffTabItem = observer(function DiffTabItem({
   );
 });
 
-// ---------------------------------------------------------------------------
-// Main unified tab bar
-// ---------------------------------------------------------------------------
-
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const { taskView } = useProvisionedTask();
   const { projectId, taskId } = useTaskViewContext();
   const { tabManager } = taskView;
   const showCommandPalette = useShowModal('commandPaletteModal');
+  const showCreateConversationModal = useShowModal('createConversationModal');
 
   const resolvedTabs = tabManager.resolvedTabs;
   const tabIds = resolvedTabs.map((t) => (t.kind === 'conversation' ? t.id : t.tabId));
@@ -350,13 +338,40 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
           </div>
         </SortableContext>
       </DndContext>
-      <button
-        onClick={() => showCommandPalette({ projectId, taskId })}
-        className="flex h-full shrink-0 items-center justify-center px-2 text-foreground-muted hover:text-foreground hover:bg-background-secondary-1/40"
-        aria-label="Open command palette"
-      >
-        <Plus className="size-4" />
-      </button>
+      <div className="flex h-full shrink-0 items-center px-1">
+        <Tooltip>
+          <TooltipTrigger>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() =>
+                showCreateConversationModal({
+                  projectId,
+                  taskId,
+                  onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
+                })
+              }
+              aria-label="New conversation"
+              title="New conversation"
+            >
+              <MessageSquarePlus className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            New Conversations <ShortcutHint settingsKey="newConversation" />
+          </TooltipContent>
+        </Tooltip>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => showCommandPalette({ projectId, taskId })}
+          className="flex h-full items-center justify-center px-2 text-foreground-muted hover:text-foreground hover:bg-background-secondary-1/40"
+          aria-label="Open files"
+          title="Open files"
+        >
+          <FileSearch className="size-4" />
+        </Button>
+      </div>
     </div>
   );
 });
