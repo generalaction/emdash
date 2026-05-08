@@ -121,6 +121,8 @@ export function buildAgentCommand({
     }
   } else if (shouldPassSessionId) {
     args.push(...parseArgField(providerConfig.sessionIdFlag), sessionId);
+  } else if (!isResuming && providerDef?.newConversationFlag) {
+    args.push(providerDef.newConversationFlag);
   }
 
   if (autoApprove && providerConfig?.autoApproveFlag) {
