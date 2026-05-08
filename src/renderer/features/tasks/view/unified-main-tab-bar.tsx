@@ -17,7 +17,7 @@ import type {
   ResolvedConversationTab,
   ResolvedDiffTab,
   ResolvedFileTab,
-} from '@renderer/features/tasks/stores/tab-manager-store';
+} from '@renderer/features/tasks/tabs/tab-manager-store';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
@@ -31,10 +31,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
-
-// ---------------------------------------------------------------------------
-// Sortable wrapper — gives any tab item drag-and-drop behaviour
-// ---------------------------------------------------------------------------
 
 function SortableTabWrapper({ id, children }: { id: string; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -80,7 +76,7 @@ const ConversationTabItem = observer(function ConversationTabItem({
         onClick={onSelect}
         onDoubleClick={onPin}
         title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
-        data-tabid={tab.id}
+        data-tabid={tab.tabId}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm text-foreground-muted hover:bg-background-secondary-1/40',
           tab.isActive &&
@@ -294,7 +290,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const showCreateConversationModal = useShowModal('createConversationModal');
 
   const resolvedTabs = tabManager.resolvedTabs;
-  const tabIds = resolvedTabs.map((t) => (t.kind === 'conversation' ? t.id : t.tabId));
+  const tabIds = resolvedTabs.map((t) => t.tabId);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -327,12 +323,12 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
             {resolvedTabs.map((tab) => {
               if (tab.kind === 'conversation') {
                 return (
-                  <SortableTabWrapper key={tab.id} id={tab.id}>
+                  <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
                     <ConversationTabItem
                       tab={tab}
-                      onSelect={() => tabManager.setActiveTab(tab.id)}
-                      onPin={() => tabManager.openConversation(tab.id)}
-                      onClose={() => tabManager.closeTab(tab.id)}
+                      onSelect={() => tabManager.setActiveTab(tab.tabId)}
+                      onPin={() => tabManager.openConversation(tab.conversationId)}
+                      onClose={() => tabManager.closeTab(tab.tabId)}
                     />
                   </SortableTabWrapper>
                 );

@@ -6,7 +6,7 @@ export type TabViewSnapshot = {
 };
 
 export type TabDescriptor =
-  | { kind: 'conversation'; id: string; isPreview: boolean }
+  | { kind: 'conversation'; tabId: string; conversationId: string; isPreview: boolean }
   | { kind: 'file'; tabId: string; path: string; isPreview: boolean }
   | {
       kind: 'diff';
@@ -26,10 +26,6 @@ export type TabManagerSnapshot = {
 };
 
 export type EditorViewSnapshot = {
-  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
-  tabs?: Array<{ tabId: string; path: string; isPreview: boolean }>;
-  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
-  activeTabId?: string | null;
   expandedPaths: string[];
 };
 
@@ -63,14 +59,12 @@ export interface ActiveFile {
 }
 
 export type TaskViewSnapshot = {
-  view: string | null;
   sidebarTab?: string;
   isSidebarCollapsed?: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen?: boolean;
-  /** New unified tab manager snapshot. Takes precedence over legacy fields when present. */
   tabManager?: TabManagerSnapshot;
-  /** Legacy: kept for backward-compat restore. */
+  /** @deprecated Legacy field from before the unified tab refactor. Used only for migration. */
   conversations?: TabViewSnapshot;
   terminals?: TabViewSnapshot;
   editor?: EditorViewSnapshot;

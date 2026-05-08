@@ -4,6 +4,8 @@ import { type ViewId, type WrapParams } from '@renderer/app/view-registry';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+// Resolved at call-site (not at module init); circular with app-state is safe.
+import { appState } from './app-state';
 import type { Snapshottable } from './snapshottable';
 
 type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
@@ -35,6 +37,13 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
   }
 
   navigate<T extends ViewId>(viewId: T, params?: WrapParams<T>): void {
+    if (viewId !== 'task') {
+      appState.history.push({ kind: 'view', viewId, params: params ?? ({} as WrapParams<T>) });
+    }
+    this._applyNavigation(viewId, params);
+  }
+
+  _applyNavigation<T extends ViewId>(viewId: T, params?: WrapParams<T>): void {
     if (viewId !== this.currentViewId) {
       const transition = focusTracker.transition(
         viewId === 'task'
