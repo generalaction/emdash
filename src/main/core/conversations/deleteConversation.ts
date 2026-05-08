@@ -3,6 +3,7 @@ import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
+import { conversationEvents } from './conversation-events';
 
 export async function deleteConversation(
   projectId: string,
@@ -18,6 +19,8 @@ export async function deleteConversation(
         eq(conversations.taskId, taskId)
       )
     );
+
+  conversationEvents._emit('conversation:deleted', conversationId);
 
   const task = resolveTask(projectId, taskId);
   await task?.conversations.stopSession(conversationId);
