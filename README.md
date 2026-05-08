@@ -72,7 +72,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 ### Supported CLI Providers
 
-Emdash currently supports 24 CLI providers, and we are adding new ones regularly. If you miss one, let us know or create a PR.
+Emdash currently supports 26 CLI providers, and we are adding new ones regularly. If you miss one, let us know or create a PR.
 
 | CLI Provider | Status | Install |
 | ----------- | ------ | ----------- |
