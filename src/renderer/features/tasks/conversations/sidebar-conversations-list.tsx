@@ -2,7 +2,6 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef, useState } from 'react';
-import { type ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
@@ -24,32 +23,42 @@ import { AgentStatusIndicator } from '../components/agent-status-indicator';
 const ROW_HEIGHT = 32;
 
 const ConversationRow = observer(function ConversationRow({
-  conversation,
-  isActive,
-  isEditing,
-  onClick,
-  onDoubleClick,
-  onStartEditing,
-  onRenameSubmit,
-  onRenameCancel,
-  onDelete,
+  conversationId,
 }: {
-  conversation: ConversationStore;
-  isActive: boolean;
-  isEditing: boolean;
-  onClick: () => void;
-  onDoubleClick: () => void;
-  onStartEditing: () => void;
-  onRenameSubmit: (newTitle: string) => void;
-  onRenameCancel: () => void;
-  onDelete: () => void;
+  conversationId: string;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const provisioned = useProvisionedTask();
+  const { tabManager } = provisioned.taskView;
+  const showConfirm = useShowModal('confirmActionModal');
+
+  const conversation = provisioned.conversations.conversations.get(conversationId);
+  if (!conversation) return null;
+
+  const isActive = tabManager.activeConversationId === conversationId;
   const config = agentConfig[conversation.data.providerId];
   const displayTitle = formatConversationTitleForDisplay(
     conversation.data.providerId,
     conversation.data.title
   );
   const rawTitle = conversation.data.title ?? '';
+
+  const handleRenameSubmit = (newTitle: string) => {
+    setIsEditing(false);
+    void provisioned.conversations.renameConversation(conversationId, newTitle);
+  };
+
+  const handleDelete = () => {
+    showConfirm({
+      title: 'Delete conversation',
+      description: `"${displayTitle}" will be permanently deleted. This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+      onSuccess: () => {
+        void provisioned.conversations.deleteConversation(conversationId);
+      },
+    });
+  };
 
   if (isEditing) {
     return (
@@ -61,21 +70,21 @@ const ConversationRow = observer(function ConversationRow({
           onBlur={(e) => {
             const value = e.target.value.trim();
             if (value && value !== rawTitle) {
-              onRenameSubmit(value);
+              handleRenameSubmit(value);
             } else {
-              onRenameCancel();
+              setIsEditing(false);
             }
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               const value = e.currentTarget.value.trim();
               if (value && value !== rawTitle) {
-                onRenameSubmit(value);
+                handleRenameSubmit(value);
               } else {
-                onRenameCancel();
+                setIsEditing(false);
               }
             } else if (e.key === 'Escape') {
-              onRenameCancel();
+              setIsEditing(false);
             }
           }}
         />
@@ -87,8 +96,8 @@ const ConversationRow = observer(function ConversationRow({
     <ContextMenu>
       <ContextMenuTrigger>
         <button
-          onClick={onClick}
-          onDoubleClick={onDoubleClick}
+          onClick={() => tabManager.openConversationPreview(conversationId)}
+          onDoubleClick={() => tabManager.openConversation(conversationId)}
           className={cn(
             'flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
@@ -118,12 +127,12 @@ const ConversationRow = observer(function ConversationRow({
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onClick={onStartEditing}>
+        <ContextMenuItem onClick={() => setIsEditing(true)}>
           <Pencil className="size-4" />
           Rename
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" onClick={onDelete}>
+        <ContextMenuItem variant="destructive" onClick={handleDelete}>
           <Trash2 className="size-4" />
           Delete
         </ContextMenuItem>
@@ -135,24 +144,20 @@ const ConversationRow = observer(function ConversationRow({
 export const SidebarConversationsList = observer(function SidebarConversationsList() {
   const { projectId, taskId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
-  const { taskView } = provisioned;
-  const { tabManager } = taskView;
+  const { tabManager } = provisioned.taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
-  const showConfirm = useShowModal('confirmActionModal');
-  const conversations = Array.from(provisioned.conversations.conversations.values()).sort(
-    (a, b) => {
+  const conversationIds = Array.from(provisioned.conversations.conversations.values())
+    .sort((a, b) => {
       const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
       const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
       return bTime - aTime;
-    }
-  );
-
-  const [editingId, setEditingId] = useState<string | null>(null);
+    })
+    .map((c) => c.data.id);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
-    count: conversations.length,
+    count: conversationIds.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 5,
@@ -168,27 +173,6 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     });
   };
 
-  const handleDelete = (conversation: ConversationStore) => {
-    const title = formatConversationTitleForDisplay(
-      conversation.data.providerId,
-      conversation.data.title
-    );
-    showConfirm({
-      title: 'Delete conversation',
-      description: `"${title}" will be permanently deleted. This action cannot be undone.`,
-      confirmLabel: 'Delete',
-      variant: 'destructive',
-      onSuccess: () => {
-        void provisioned.conversations.deleteConversation(conversation.data.id);
-      },
-    });
-  };
-
-  const handleRenameSubmit = (conversation: ConversationStore, newTitle: string) => {
-    setEditingId(null);
-    void provisioned.conversations.renameConversation(conversation.data.id, newTitle);
-  };
-
   return (
     <div className="flex h-full flex-col w-full">
       <div className="shrink-0 pl-4 pr-2 pt-2 pb-1 flex items-center justify-between">
@@ -201,7 +185,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto px-2">
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((virtualItem) => {
-            const conversation = conversations[virtualItem.index]!;
+            const conversationId = conversationIds[virtualItem.index]!;
             return (
               <div
                 key={virtualItem.key}
@@ -214,17 +198,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <ConversationRow
-                  conversation={conversation}
-                  isActive={tabManager.activeConversationId === conversation.data.id}
-                  isEditing={editingId === conversation.data.id}
-                  onClick={() => tabManager.openConversationPreview(conversation.data.id)}
-                  onDoubleClick={() => tabManager.openConversation(conversation.data.id)}
-                  onStartEditing={() => setEditingId(conversation.data.id)}
-                  onRenameSubmit={(newTitle) => handleRenameSubmit(conversation, newTitle)}
-                  onRenameCancel={() => setEditingId(null)}
-                  onDelete={() => handleDelete(conversation)}
-                />
+                <ConversationRow conversationId={conversationId} />
               </div>
             );
           })}
