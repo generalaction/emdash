@@ -66,8 +66,19 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
    * Registers Monaco models (disk, git, buffer) for a file path.
    * For image files, returns the loaded data-URL so the caller (TaskViewStore)
    * can update the tab's content field in TabManagerStore.
+   * For too-large text files, returns `{ tooLarge: true, totalSize }` so the caller
+   * can update the tab renderer and totalSize.
+   * For unreadable files (not found, permission error, etc.), returns `{ fileError: true }`
+   * so the caller can update the tab renderer to show an error state.
    */
-  async registerModels(filePath: string): Promise<{ imageContent: string } | undefined> {
+  async registerModels(
+    filePath: string
+  ): Promise<
+    | { imageContent: string }
+    | { tooLarge: true; totalSize?: number }
+    | { fileError: true }
+    | undefined
+  > {
     const kind = getFileKind(filePath);
 
     if (kind === 'image') {
@@ -77,14 +88,30 @@ export class EditorViewStore implements Snapshottable<EditorViewSnapshot> {
 
     if (kind === 'text' || kind === 'markdown' || kind === 'svg') {
       const language = getMonacoLanguageId(filePath);
-      await modelRegistry.registerModel(
-        this.projectId,
-        this.workspaceId,
-        this.modelRootPath,
-        filePath,
-        language,
-        'disk'
-      );
+      try {
+        await modelRegistry.registerModel(
+          this.projectId,
+          this.workspaceId,
+          this.modelRootPath,
+          filePath,
+          language,
+          'disk'
+        );
+      } catch {
+        // Disk model registration failed (e.g. file not found). The model registry
+        // has already set the disk URI status to 'error'. Signal the caller to
+        // update the renderer without re-throwing.
+        return { fileError: true };
+      }
+
+      // If the disk model was too large, skip git and buffer registration —
+      // there is nothing to diff or edit.
+      const bufferUri = buildMonacoModelPath(this.modelRootPath, filePath);
+      const diskUri = modelRegistry.toDiskUri(bufferUri);
+      if (modelRegistry.modelStatus.get(diskUri) === 'too-large') {
+        return { tooLarge: true, totalSize: modelRegistry.modelTotalSizes.get(diskUri) };
+      }
+
       await modelRegistry.registerModel(
         this.projectId,
         this.workspaceId,

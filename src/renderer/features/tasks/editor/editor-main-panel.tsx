@@ -2,12 +2,13 @@ import { observer } from 'mobx-react-lite';
 import type { FileTabState } from '@renderer/features/tasks/stores/tab-manager-store';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
+import { FileErrorRenderer } from '@renderer/lib/editor/file-error-renderer';
 import { ImageRenderer } from '@renderer/lib/editor/image-renderer';
 import { SvgRenderer } from '@renderer/lib/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
 
 /**
- * Renders file types that do not use Monaco: image, svg preview, binary, too-large.
+ * Renders file types that do not use Monaco: image, svg preview, binary, too-large, file-error.
  * Shown inside Activity(other-file) in main-panel.tsx.
  */
 export const EditorMainPanel = observer(function EditorMainPanel() {
@@ -17,10 +18,8 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
   if (!activeTab) return null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        <OtherFileRenderer file={activeTab} />
-      </div>
+    <div className="h-full overflow-hidden">
+      <OtherFileRenderer file={activeTab} />
     </div>
   );
 });
@@ -39,6 +38,8 @@ function OtherFileRenderer({ file }: OtherFileRendererProps) {
       return <TooLargeRenderer file={file} />;
     case 'binary':
       return <BinaryRenderer file={file} />;
+    case 'file-error':
+      return <FileErrorRenderer file={file} />;
     default:
       return null;
   }

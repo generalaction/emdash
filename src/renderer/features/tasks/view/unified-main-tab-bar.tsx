@@ -23,7 +23,7 @@ import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { useModelStatus } from '@renderer/lib/monaco/use-model';
+import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { Button } from '@renderer/lib/ui/button';
 import { Separator } from '@renderer/lib/ui/separator';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
@@ -118,6 +118,18 @@ const ConversationTabItem = observer(function ConversationTabItem({
   );
 });
 
+function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | undefined {
+  if (diskStatus === 'error') return 'File not found';
+  if (diskStatus === 'too-large') {
+    const bytes = modelRegistry.modelTotalSizes.get(diskUri);
+    if (bytes == null) return 'File too large to display';
+    if (bytes < 1024) return `File too large to display (${bytes} B)`;
+    if (bytes < 1024 * 1024) return `File too large to display (${(bytes / 1024).toFixed(1)} KB)`;
+    return `File too large to display (${(bytes / (1024 * 1024)).toFixed(1)} MB)`;
+  }
+  return undefined;
+}
+
 const FileTabItem = observer(function FileTabItem({
   tab,
   onSelect,
@@ -135,15 +147,22 @@ const FileTabItem = observer(function FileTabItem({
     tab.path.endsWith('.svg') ||
     !tab.path.includes('.') ||
     /\.(ts|tsx|js|jsx|json|css|html|py|go|rs|sh|yml|yaml|toml|txt)$/.test(tab.path);
-  const modelStatus = useModelStatus(tab.bufferUri);
-  const showSpinner = useDelayedBoolean(isMonacoFile && modelStatus === 'loading', 200);
+
+  const diskUri = modelRegistry.toDiskUri(tab.bufferUri);
+  const diskStatus = modelRegistry.modelStatus.get(diskUri) ?? 'loading';
+  const hasFileIssue = diskStatus === 'error' || diskStatus === 'too-large';
+  const showSpinner = useDelayedBoolean(isMonacoFile && diskStatus === 'loading', 200);
+
+  const errorTooltip = hasFileIssue ? fileTabErrorTooltip(diskStatus, diskUri) : undefined;
+  const baseTitle = tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path;
+  const tabTitle = errorTooltip ? `${tab.path} — ${errorTooltip}` : baseTitle;
 
   return (
     <>
       <button
         onClick={onSelect}
         onDoubleClick={onPin}
-        title={tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path}
+        title={tabTitle}
         data-tabid={tab.tabId}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
@@ -158,7 +177,13 @@ const FileTabItem = observer(function FileTabItem({
               <FileIcon filename={fileName} />
             )}
           </span>
-          <span className={cn('max-w-[200px] truncate p-1 text-sm', tab.isPreview && 'italic')}>
+          <span
+            className={cn(
+              'max-w-[200px] truncate p-1 text-sm',
+              tab.isPreview && 'italic',
+              hasFileIssue && 'text-foreground-destructive'
+            )}
+          >
             {fileName}
           </span>
           <div className="relative flex size-5 shrink-0 items-center justify-center">

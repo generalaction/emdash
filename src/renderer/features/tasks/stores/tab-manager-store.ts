@@ -213,6 +213,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       setVisible: action,
       updateRenderer: action,
       setImageContent: action,
+      setFileTotalSize: action,
       pinTab: action,
       restoreSnapshot: action,
       initializeDefault: action,
@@ -570,6 +571,15 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       tab.content = content;
       tab.isLoading = false;
     }
+  }
+
+  /**
+   * Called by the model-lifecycle reaction in TaskViewStore after a too-large file is detected.
+   * Stores the total file size so TooLargeRenderer can display it.
+   */
+  setFileTotalSize(path: string, totalSize: number): void {
+    const tab = this.tabs.find((t): t is FileTabState => t.kind === 'file' && t.path === path);
+    if (tab) tab.totalSize = totalSize;
   }
 
   // ---------------------------------------------------------------------------

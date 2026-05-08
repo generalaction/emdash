@@ -22,9 +22,15 @@ import { focusTracker } from '@renderer/utils/focus-tracker';
  * - `'markdown'`    — markdown files (preview or source; MarkdownEditorPanel owns both)
  * - `'diff'`        — git diff viewer
  * - `'agents'`      — conversation / PTY view
- * - `'other-file'`  — image, svg preview, binary, too-large
+ * - `'other-file'`  — image, svg preview, binary, too-large, file-error
  */
 export type RendererKind = 'monaco' | 'markdown' | 'diff' | 'agents' | 'other-file';
+
+/** Stable renderer descriptor for too-large files — extracted to avoid deep lambda nesting. */
+const tooLargeRenderer = () => ({ kind: 'too-large' as const });
+
+/** Stable renderer descriptor for file-error state — extracted to avoid deep lambda nesting. */
+const fileErrorRenderer = () => ({ kind: 'file-error' as const });
 
 interface TaskViewResources {
   conversations: ConversationManagerStore;
@@ -121,8 +127,17 @@ export class TaskViewStore {
           for (const path of curr) {
             if (!prev.has(path)) {
               void this.editorView.registerModels(path).then((result) => {
-                if (result?.imageContent !== undefined) {
+                if (!result) return;
+                if ('imageContent' in result && result.imageContent !== undefined) {
                   runInAction(() => this.tabManager.setImageContent(path, result.imageContent!));
+                } else if ('tooLarge' in result) {
+                  const totalSize = result.totalSize;
+                  runInAction(() => {
+                    this.tabManager.updateRenderer(path, tooLargeRenderer);
+                    if (totalSize != null) this.tabManager.setFileTotalSize(path, totalSize);
+                  });
+                } else if ('fileError' in result) {
+                  runInAction(() => this.tabManager.updateRenderer(path, fileErrorRenderer));
                 }
               });
             }
