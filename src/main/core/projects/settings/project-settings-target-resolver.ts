@@ -88,6 +88,14 @@ export async function resolveAllProjectSettingsTargets(
     .where(eq(projectsTable.id, project.projectId))
     .limit(1);
 
+  const projectTarget: ProjectSettingsResolvedTarget = {
+    type: 'project',
+    label: projectRow?.name ?? 'Project repository',
+    path: project.repoPath,
+    fs: project.fs,
+  };
+  if (!projectRow) return [projectTarget];
+
   const taskRows = await db
     .select({
       id: tasksTable.id,
@@ -102,15 +110,7 @@ export async function resolveAllProjectSettingsTargets(
     await Promise.all(taskRows.map((task) => resolveTaskTarget(project, task)))
   ).filter((target): target is ProjectSettingsResolvedTarget => target !== null);
 
-  return [
-    {
-      type: 'project',
-      label: projectRow?.name ?? 'Project repository',
-      path: project.repoPath,
-      fs: project.fs,
-    },
-    ...taskTargets,
-  ];
+  return [projectTarget, ...taskTargets];
 }
 
 export function getProjectSettingsWriteTargets(
