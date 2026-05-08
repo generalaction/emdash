@@ -150,18 +150,23 @@ export function ShareProjectConfigModal({
               }}
             >
               <SelectTrigger className="w-full min-w-0">
-                <span className="min-w-0 flex-1 truncate text-left">{selectedTargetLabel}</span>
+                <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                  <span className="min-w-0 truncate">{selectedTargetLabel}</span>
+                </div>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
                 {targets.map((target) => (
                   <SelectItem
                     key={projectConfigTargetValue(target)}
                     value={projectConfigTargetValue(target)}
+                    className="py-2"
                     title={`${target.label} ${target.path}`}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <span className="min-w-0 max-w-[45%] truncate">{target.label}</span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                      <span className="relative -top-px min-w-0 max-w-[45%] truncate">
+                        {target.label}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">
                         {target.path}
                       </span>
                     </div>
