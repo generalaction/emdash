@@ -113,6 +113,16 @@ export async function relocateLocalProject(
     });
   }
 
+  try {
+    await baseCtx.exec('git', ['worktree', 'repair']);
+  } catch (e) {
+    log.warn('relocateLocalProject: git worktree repair failed', {
+      projectId,
+      path: resolvedPath,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
   return ok({
     type: 'local' as const,
     id: row.id,
