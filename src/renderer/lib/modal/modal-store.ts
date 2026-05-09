@@ -22,7 +22,6 @@ class ModalStore {
     this.closeGuardActive = false;
     this.activeModalId = null;
     this.activeModalArgs = null;
-    window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open: false } }));
   }
 
   get isOpen(): boolean {

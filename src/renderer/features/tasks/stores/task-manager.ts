@@ -1,5 +1,6 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
+import type { Conversation } from '@shared/conversations';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import { taskProvisionProgressChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type {
@@ -14,6 +15,7 @@ import { getProjectManagerStore } from '@renderer/features/projects/stores/proje
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import {
   createUnprovisionedTask,
@@ -318,9 +320,17 @@ export class TaskManagerStore {
 
     const promise = Promise.all([
       rpc.tasks.provisionTask(taskId),
-      rpc.viewState.get(`task:${taskId}`),
+      viewStateCache.get(`task:${taskId}`),
+      rpc.conversations.getConversationsForTask(this.projectId, taskId).catch((err: unknown) => {
+        log.warn('TaskManagerStore: failed to pre-load conversations during provision', {
+          taskId,
+          error: err,
+        });
+        toast.error('Failed to load conversations');
+        return [] as Conversation[];
+      }),
     ])
-      .then(([result, savedSnapshot]) => {
+      .then(([result, savedSnapshot, preloadedConversations]) => {
         runInAction(() => {
           const current = this.tasks.get(taskId);
           if (current && isUnprovisioned(current)) {
@@ -331,7 +341,8 @@ export class TaskManagerStore {
               this._settingsStore,
               this._baseRef,
               savedSnapshot as TaskViewSnapshot | undefined,
-              result.sshConnectionId ?? undefined
+              result.sshConnectionId ?? undefined,
+              preloadedConversations
             );
             current.activate();
           }
