@@ -10,6 +10,8 @@ import { getProjectBootstrapStatus } from './operations/getProjectBootstrapStatu
 import { getLocalProjectByPath, getProjects, getSshProjectByPath } from './operations/getProjects';
 import { getProjectSettings } from './operations/getProjectSettings';
 import { openProject } from './operations/openProject';
+import { setProjectArchived } from './operations/setProjectArchived';
+import { updateProjectAppearance } from './operations/updateProjectAppearance';
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { updateProjectSettings } from './operations/updateProjectSettings';
 
@@ -27,4 +29,6 @@ export const projectController = createRPCController({
   updateProjectConnection,
   getProjectBootstrapStatus,
   openProject,
+  setProjectArchived,
+  updateProjectAppearance,
 });
