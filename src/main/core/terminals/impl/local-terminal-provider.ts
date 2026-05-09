@@ -143,7 +143,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       command: resolved.command,
       args: resolved.args,
       cwd: resolved.cwd,
-      env: withThemeColorFgBg({ ...buildTerminalEnv({ theme }), ...this.taskEnvVars }, theme),
+      env: withThemeColorFgBg({ ...buildTerminalEnv(), ...this.taskEnvVars }, theme),
       cols: initialSize.cols,
       rows: initialSize.rows,
     });

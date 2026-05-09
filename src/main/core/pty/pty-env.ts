@@ -18,13 +18,6 @@ export function withThemeColorFgBg(
   return { ...env, COLORFGBG: colorFgBgFor(theme) };
 }
 
-export function terminalColorQueryResponseFor(theme: EffectiveTheme): string {
-  if (theme === 'emdark') {
-    return '\x1b]10;rgb:eeee/eeee/eeee\x07\x1b]11;rgb:1919/1919/1919\x07';
-  }
-  return '\x1b]10;rgb:1f1f/2929/3737\x07\x1b]11;rgb:fcfc/fcfc/fcfc\x07';
-}
-
 export const AGENT_ENV_VARS = [
   'AMP_API_KEY',
   'ANTHROPIC_API_KEY',

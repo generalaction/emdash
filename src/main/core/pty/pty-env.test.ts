@@ -75,13 +75,6 @@ describe('pty env Windows shell handling', () => {
     expect(noTheme.COLORFGBG).toBeUndefined();
   });
 
-  it('builds terminal color query responses from theme', async () => {
-    const { terminalColorQueryResponseFor } = await loadPtyEnv();
-
-    expect(terminalColorQueryResponseFor('emlight')).toContain(']11;rgb:fcfc/fcfc/fcfc');
-    expect(terminalColorQueryResponseFor('emdark')).toContain(']11;rgb:1919/1919/1919');
-  });
-
   it('keeps theme COLORFGBG authoritative over provider env vars', async () => {
     setPlatform('linux');
     const { buildAgentEnv } = await loadPtyEnv();

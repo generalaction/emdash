@@ -13,11 +13,7 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
-import {
-  buildAgentEnv,
-  terminalColorQueryResponseFor,
-  withThemeColorFgBg,
-} from '@main/core/pty/pty-env';
+import { buildAgentEnv, withThemeColorFgBg } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
@@ -150,10 +146,6 @@ export class LocalConversationProvider implements ConversationProvider {
       rows: initialSize.rows,
     });
 
-    if (conversation.providerId === 'opencode') {
-      this.primeTerminalColorDetection(pty, theme);
-    }
-
     const hookActive = port > 0;
     const provider = getProvider(conversation.providerId);
     const useHooksOnly = hookActive && provider?.supportsHooks;
@@ -220,20 +212,6 @@ export class LocalConversationProvider implements ConversationProvider {
       task_id: conversation.taskId,
       conversation_id: conversation.id,
     });
-  }
-
-  private primeTerminalColorDetection(
-    pty: Pty,
-    theme: Awaited<ReturnType<typeof resolveEffectiveTheme>>
-  ) {
-    const response = terminalColorQueryResponseFor(theme);
-    for (const delayMs of [0, 50, 150]) {
-      setTimeout(() => {
-        try {
-          pty.write(response);
-        } catch {}
-      }, delayMs);
-    }
   }
 
   private async prepareHookConfig(providerId: Conversation['providerId']): Promise<void> {
