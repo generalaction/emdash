@@ -20,7 +20,7 @@ const LINK_INTERCEPT_SCRIPT = `
     if (!a) return;
     var href = a.getAttribute('href');
     if (!href) return;
-    if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('#')) return;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//') || href.startsWith('#')) return;
     e.preventDefault();
     try { parent.postMessage({ type: ${JSON.stringify(LINK_INTERCEPT_MESSAGE_TYPE)}, href: href }, '*'); } catch(_){}
   }, true);
@@ -175,7 +175,9 @@ async function processHtmlForPreview(
       const css = await fetchText(resolved);
       if (css == null) return;
       const style = doc.createElement('style');
-      style.textContent = await inlineCssUrls(css, getParentDir(resolved), fetchImage);
+      style.textContent = escapeStyleText(
+        await inlineCssUrls(css, getParentDir(resolved), fetchImage)
+      );
       el.replaceWith(style);
     }),
     // <script src="..."> → inline <script>
@@ -192,7 +194,7 @@ async function processHtmlForPreview(
         if (attr.name === 'src') continue;
         script.setAttribute(attr.name, attr.value);
       }
-      script.textContent = js;
+      script.textContent = escapeScriptText(js);
       el.replaceWith(script);
     }),
     // <img src="...">, <picture><source src="..."> → data URL.
@@ -212,6 +214,14 @@ async function processHtmlForPreview(
   (doc.body ?? doc.documentElement).appendChild(interceptor);
 
   return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+}
+
+function escapeScriptText(js: string): string {
+  return js.replace(/<\/script>/gi, '<\\/script>');
+}
+
+function escapeStyleText(css: string): string {
+  return css.replace(/<\/style>/gi, '<\\/style>');
 }
 
 async function inlineCssUrls(
