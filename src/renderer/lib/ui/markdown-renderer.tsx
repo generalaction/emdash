@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { rpc } from '@renderer/lib/ipc';
@@ -24,12 +26,26 @@ interface MarkdownRendererProps {
   resolveImage?: (src: string) => Promise<string | null>;
 }
 
-/** Sanitize schema that also allows data: URIs on images */
+/**
+ * Sanitize schema that allows data: URIs on images and the math classes that
+ * remark-math emits, so rehype-katex can find them after sanitization runs.
+ */
 const sanitizeSchema = {
   ...defaultSchema,
   protocols: {
     ...defaultSchema.protocols,
     src: [...(defaultSchema.protocols?.src || []), 'data'],
+  },
+  attributes: {
+    ...defaultSchema.attributes,
+    span: [
+      ...(defaultSchema.attributes?.span || []),
+      ['className', 'math', 'math-inline', 'math-display'],
+    ],
+    div: [
+      ...(defaultSchema.attributes?.div || []),
+      ['className', 'math', 'math-inline', 'math-display'],
+    ],
   },
 };
 
@@ -280,12 +296,16 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   const components = variant === 'full' ? fullComponents : compactComponents;
   const rehypePlugins: PluggableList =
     variant === 'full'
-      ? [rehypeRaw, [rehypeSanitize, sanitizeSchema]]
-      : [[rehypeSanitize, sanitizeSchema]];
+      ? [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex]
+      : [[rehypeSanitize, sanitizeSchema], rehypeKatex];
 
   return (
     <div className={cn(className)}>
-      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} components={components}>
+      <Markdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={rehypePlugins}
+        components={components}
+      >
         {content}
       </Markdown>
     </div>
