@@ -92,16 +92,15 @@ export class ProjectManagerStore {
     data: ModeData,
     id?: string
   ): Promise<string | undefined> {
-    if (projectType.type === 'local') {
-      const existing = await rpc.projects.getLocalProjectByPath(data.path);
-      if (existing) return existing.id;
-    } else {
-      const existing = await rpc.projects.getSshProjectByPath(data.path, projectType.connectionId);
-      if (existing) return existing.id;
-    }
-
     const projectId = id ?? crypto.randomUUID();
     const isSsh = projectType.type === 'ssh';
+    const inspection = await rpc.projects.inspectProjectPath(
+      isSsh
+        ? { type: 'ssh', path: data.path, connectionId: projectType.connectionId }
+        : { type: 'local', path: data.path }
+    );
+    if (inspection.existingProject) return inspection.existingProject.id;
+
     const projectTelemetryType: 'local' | 'ssh' = isSsh ? 'ssh' : 'local';
     const projectTelemetryStrategy: 'open' | 'create' | 'clone' =
       data.mode === 'clone' ? 'clone' : data.mode === 'new' ? 'create' : 'open';
@@ -116,7 +115,8 @@ export class ProjectManagerStore {
         });
         try {
           const project = isSsh
-            ? await rpc.projects.createSshProject({
+            ? await rpc.projects.createProject({
+                type: 'ssh',
                 id: projectId,
                 path: data.path,
                 name: data.name,
@@ -124,7 +124,8 @@ export class ProjectManagerStore {
                 initGitRepository: data.initGitRepository,
                 noGit: data.noGit,
               })
-            : await rpc.projects.createLocalProject({
+            : await rpc.projects.createProject({
+                type: 'local',
                 id: projectId,
                 path: data.path,
                 name: data.name,
@@ -167,13 +168,15 @@ export class ProjectManagerStore {
           if (!cloneResult.success) throw new Error(cloneResult.error);
           this._updatePhase(projectId, 'registering');
           const project = isSsh
-            ? await rpc.projects.createSshProject({
+            ? await rpc.projects.createProject({
+                type: 'ssh',
                 id: projectId,
                 path: clonePath,
                 name: data.name,
                 connectionId: projectType.connectionId,
               })
-            : await rpc.projects.createLocalProject({
+            : await rpc.projects.createProject({
+                type: 'local',
                 id: projectId,
                 path: clonePath,
                 name: data.name,
@@ -227,13 +230,15 @@ export class ProjectManagerStore {
 
           this._updatePhase(projectId, 'registering');
           const project = isSsh
-            ? await rpc.projects.createSshProject({
+            ? await rpc.projects.createProject({
+                type: 'ssh',
                 id: projectId,
                 path: clonePath,
                 name: data.name,
                 connectionId: projectType.connectionId,
               })
-            : await rpc.projects.createLocalProject({
+            : await rpc.projects.createProject({
+                type: 'local',
                 id: projectId,
                 path: clonePath,
                 name: data.name,

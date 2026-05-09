@@ -44,7 +44,7 @@ export async function createTask(
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
   const suffix = Math.random().toString(36).slice(2, 7);
-  const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
+  const branchPrefix = (await appSettingsService.get('project')).branchPrefix ?? '';
   const agentAutoApproveDefaults = await appSettingsService.get('agentAutoApproveDefaults');
   let warning: CreateTaskWarning | undefined;
 

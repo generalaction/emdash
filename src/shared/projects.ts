@@ -1,9 +1,3 @@
-export type ProjectBootstrapStatus =
-  | { status: 'ready' }
-  | { status: 'bootstrapping' }
-  | { status: 'error'; message: string }
-  | { status: 'not-started' };
-
 export type ProjectPathStatus = {
   isDirectory: boolean;
   isGitRepo: boolean;
@@ -34,6 +28,44 @@ export type SshProject = {
 
 export type Project = LocalProject | SshProject;
 
+export type CreateLocalProjectParams = {
+  type: 'local';
+  id?: string;
+  path: string;
+  name: string;
+  initGitRepository?: boolean;
+  noGit?: boolean;
+};
+
+export type CreateSshProjectParams = {
+  type: 'ssh';
+  id?: string;
+  name: string;
+  path: string;
+  connectionId: string;
+  initGitRepository?: boolean;
+  noGit?: boolean;
+};
+
+export type CreateProjectParams = CreateLocalProjectParams | CreateSshProjectParams;
+
+export type InspectLocalProjectPathParams = {
+  type: 'local';
+  path: string;
+};
+
+export type InspectSshProjectPathParams = {
+  type: 'ssh';
+  path: string;
+  connectionId: string;
+};
+
+export type InspectProjectPathParams = InspectLocalProjectPathParams | InspectSshProjectPathParams;
+
+export type ProjectPathInspection = ProjectPathStatus & {
+  existingProject?: Project;
+};
+
 export type OpenProjectError =
   | { type: 'path-not-found'; path: string }
   | { type: 'ssh-disconnected'; connectionId: string }
@@ -43,6 +75,7 @@ export type UpdateProjectSettingsError =
   | { type: 'project-not-found' }
   | { type: 'invalid-settings' }
   | { type: 'invalid-worktree-directory' }
+  | { type: 'write-config-failed'; message: string }
   | { type: 'error' };
 
 export type ProjectRemoteState = {

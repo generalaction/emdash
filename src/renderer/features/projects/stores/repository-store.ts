@@ -8,7 +8,11 @@ import type {
   RemoteBranch,
   RemoteBranchesPayload,
 } from '@shared/git';
-import { resolveDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import {
+  projectDefaultBranchToBranch,
+  resolveDefaultBranch,
+  selectPreferredRemote,
+} from '@shared/git-utils';
 import { parseGitHubRepository } from '@shared/github-repository';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
@@ -152,10 +156,11 @@ export class RepositoryStore {
   }
 
   private get defaultBranchPreference(): Branch | undefined {
-    const raw = this.settingsStore.settings?.defaultBranch;
-    if (raw === undefined) return undefined;
-    if (typeof raw === 'string') return { type: 'local', branch: raw };
-    return { type: 'remote', branch: raw.name, remote: this.configuredRemote };
+    return projectDefaultBranchToBranch(
+      this.settingsStore.settings?.defaultBranch,
+      this.configuredRemote,
+      this.remotes
+    );
   }
 
   get defaultBranch(): LocalBranch | RemoteBranch | undefined {

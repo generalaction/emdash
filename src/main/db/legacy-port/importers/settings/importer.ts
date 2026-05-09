@@ -118,20 +118,20 @@ export async function portLegacySettings(
     const branchPrefix = readTrimmedString(repository.branchPrefix);
     if (branchPrefix) {
       patch.branchPrefix = branchPrefix;
-      summary.imported.push('localProject.branchPrefix');
+      summary.imported.push('project.branchPrefix');
     }
 
     const pushOnCreate = readBoolean(repository.pushOnCreate);
     if (pushOnCreate !== null) {
       patch.pushOnCreate = pushOnCreate;
-      summary.imported.push('localProject.pushOnCreate');
+      summary.imported.push('project.pushOnCreate');
     }
 
     if (Object.keys(patch).length > 0) {
       try {
-        await updateObjectSetting(settingsStore, 'localProject', patch);
+        await updateObjectSetting(settingsStore, 'project', patch);
       } catch {
-        summary.skipped.push('localProject:validation-failed');
+        summary.skipped.push('project:validation-failed');
       }
     }
   }
