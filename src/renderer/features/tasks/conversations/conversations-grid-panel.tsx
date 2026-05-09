@@ -1,12 +1,4 @@
-import {
-  Columns2,
-  LayoutGrid,
-  MessageSquare,
-  MessageSquarePlus,
-  Rows2,
-  Rows3,
-  X,
-} from 'lucide-react';
+import { Columns2, LayoutGrid, MessageSquare, Pencil, Rows2, Rows3, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { AgentLayoutMode } from '@shared/view-state';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
@@ -16,22 +8,23 @@ import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { Button } from '@renderer/lib/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { formatConversationTitleForDisplay } from './conversation-title-utils';
 
 const TileCell = observer(function TileCell({ conversationId }: { conversationId: string }) {
+  const { projectId, taskId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const { taskView } = provisioned;
   const conversation = provisioned.conversations.conversations.get(conversationId);
+  const showRenameConversationModal = useShowModal('renameConversationModal');
 
   if (!conversation) {
     return (
@@ -64,27 +57,50 @@ const TileCell = observer(function TileCell({ conversationId }: { conversationId
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex h-7 shrink-0 items-center justify-between gap-2 border-b border-border bg-background-secondary px-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <AgentLogo
-            logo={config.logo}
-            alt={config.alt}
-            isSvg={config.isSvg}
-            invertInDark={config.invertInDark}
-            className="size-3.5 shrink-0"
-          />
-          <span className="truncate text-xs">{title}</span>
-        </div>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          onClick={() => taskView.removeConversationFromLayout(conversationId)}
-          aria-label={`Remove ${title} from layout`}
-          title="Remove from layout"
-        >
-          <X className="size-3.5" />
-        </Button>
-      </div>
+      <ContextMenu>
+        <ContextMenuTrigger className="flex h-7 shrink-0 border-b border-border bg-background-secondary">
+          <div className="flex h-full w-full items-center justify-between gap-2 px-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <AgentLogo
+                logo={config.logo}
+                alt={config.alt}
+                isSvg={config.isSvg}
+                invertInDark={config.invertInDark}
+                className="size-3.5 shrink-0"
+              />
+              <span className="truncate text-xs">{title}</span>
+            </div>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => taskView.removeConversationFromLayout(conversationId)}
+              aria-label={`Remove ${title} from layout`}
+              title="Remove from layout"
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            onClick={() =>
+              showRenameConversationModal({
+                projectId,
+                taskId,
+                conversationId,
+                currentName: conversation.data.title,
+              })
+            }
+          >
+            <Pencil className="size-4" />
+            Rename
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => taskView.removeConversationFromLayout(conversationId)}>
+            <X className="size-4" />
+            Remove from layout
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
       <div className="relative flex min-h-0 flex-1">
         {sessionId && session.status === 'ready' && session.pty ? (
           <PtyPane
@@ -109,66 +125,6 @@ export const LAYOUT_MODE_ITEMS: { id: AgentLayoutMode; label: string; Icon: type
   { id: 'stacked', label: 'Stacked', Icon: Rows2 },
   { id: 'tile', label: 'Tile', Icon: LayoutGrid },
 ];
-
-export const LayoutToolbar = observer(function LayoutToolbar() {
-  const { projectId, taskId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { taskView } = provisioned;
-  const showCreateConversationModal = useShowModal('createConversationModal');
-  const current = LAYOUT_MODE_ITEMS.find((m) => m.id === taskView.agentLayoutMode);
-  const CurrentIcon = current?.Icon ?? Rows3;
-
-  return (
-    <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-md border border-border bg-background-secondary/95 p-0.5 shadow-sm backdrop-blur">
-      <Tooltip>
-        <TooltipTrigger>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label="New conversation"
-            title="New conversation"
-            onClick={() =>
-              showCreateConversationModal({
-                projectId,
-                taskId,
-                onSuccess: ({ conversationId }) => {
-                  taskView.tabManager.openConversation(conversationId);
-                  taskView.addConversationToLayout(conversationId);
-                },
-              })
-            }
-          >
-            <MessageSquarePlus className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>New conversation</TooltipContent>
-      </Tooltip>
-      <DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger>
-            <DropdownMenuTrigger>
-              <Button size="icon-sm" variant="ghost" aria-label="Change layout" title="Layout">
-                <CurrentIcon className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Layout</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="end">
-          {LAYOUT_MODE_ITEMS.map(({ id, label, Icon }) => (
-            <DropdownMenuItem key={id} onClick={() => taskView.setAgentLayoutMode(id)}>
-              <Icon className="size-4" />
-              {label}
-              {taskView.agentLayoutMode === id && (
-                <span className="ml-auto text-xs text-foreground-muted">●</span>
-              )}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-});
 
 function ResizableCell({
   index,
@@ -263,12 +219,11 @@ export const ConversationsGridPanel = observer(function ConversationsGridPanel()
   if (slots.length === 0) {
     return (
       <div className="relative flex h-full flex-col">
-        <LayoutToolbar />
         <div className="flex flex-1 items-center justify-center">
           <EmptyState
             icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
             label="No conversations in layout"
-            description="Use the + button to add one, or switch back to Tabs."
+            description="Open a conversation from the sidebar, or switch back to Tabs."
           />
         </div>
       </div>
@@ -289,7 +244,6 @@ export const ConversationsGridPanel = observer(function ConversationsGridPanel()
       <PaneSizingProvider paneId={`agent-grid-${mode}`} sessionIds={sessionIdHints}>
         <div className={cn('flex min-h-0 flex-1')}>{body}</div>
       </PaneSizingProvider>
-      <LayoutToolbar />
     </div>
   );
 });
