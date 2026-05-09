@@ -30,6 +30,12 @@ export type ResourceStrategy<T, TEventData = void> =
        */
       onEvent: 'reload' | ((event: TEventData, ctx: ResourceContext<T>) => void);
       debounceMs?: number;
+      /**
+       * Upper bound on how long a sustained burst of events can postpone a reload.
+       * Without this, a pure trailing debounce never fires while events keep arriving
+       * (e.g. an agent continuously writing files), so the UI appears frozen.
+       */
+      maxWaitMs?: number;
     };
 
 export interface ResourceContext<T> {
@@ -261,12 +267,42 @@ export class Resource<T, TEventData = void> {
 
   private _startEvent(strategy: Extract<ResourceStrategy<T, TEventData>, { kind: 'event' }>): void {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let maxWaitTimer: ReturnType<typeof setTimeout> | null = null;
+    let reloadAfterInFlight = false;
+    let stopped = false;
+
+    const fire = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+      if (maxWaitTimer) {
+        clearTimeout(maxWaitTimer);
+        maxWaitTimer = null;
+      }
+
+      if (this._inFlight) {
+        if (reloadAfterInFlight) return;
+
+        reloadAfterInFlight = true;
+        void this._inFlight.finally(() => {
+          reloadAfterInFlight = false;
+          if (!stopped) void this.load();
+        });
+        return;
+      }
+
+      void this.load();
+    };
 
     const rawHandler = (event: TEventData) => {
       if (strategy.onEvent === 'reload') {
         if (strategy.debounceMs) {
           if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => void this.load(), strategy.debounceMs);
+          debounceTimer = setTimeout(fire, strategy.debounceMs);
+          if (strategy.maxWaitMs && !maxWaitTimer) {
+            maxWaitTimer = setTimeout(fire, strategy.maxWaitMs);
+          }
         } else {
           void this.load();
         }
@@ -283,10 +319,15 @@ export class Resource<T, TEventData = void> {
     const unsubscribe = strategy.subscribe(rawHandler);
 
     this._stopFns.push(() => {
+      stopped = true;
       unsubscribe();
       if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;
+      }
+      if (maxWaitTimer) {
+        clearTimeout(maxWaitTimer);
+        maxWaitTimer = null;
       }
     });
   }
