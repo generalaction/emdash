@@ -10,7 +10,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   isUnregisteredProject,
   type UnregisteredProject,
@@ -22,6 +22,7 @@ import {
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
+import { rpc } from '@renderer/lib/ipc';
 import {
   useNavigate,
   useParams,
@@ -84,10 +85,31 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   const isExpanded = sidebarStore.expandedProjectIds.has(projectId);
 
+  const [isRelocating, setIsRelocating] = useState(false);
+
   if (!project) return null;
 
   const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
   const isSshProject = sshConnectionId !== null;
+  const isLocalProject = project.data?.type === 'local';
+
+  const handleRelocate = async () => {
+    if (isRelocating) return;
+    const dialogTitle = project.name ? `Relocate ${project.name}` : 'Relocate Project';
+    const newPath = await rpc.app.openSelectDirectoryDialog({
+      title: dialogTitle,
+      message: 'Select the new location of this project',
+    });
+    if (!newPath) return;
+    setIsRelocating(true);
+    try {
+      await getProjectManagerStore().relocateLocalProject(projectId, newPath);
+    } catch (err) {
+      console.error('Failed to relocate project', err);
+    } finally {
+      setIsRelocating(false);
+    }
+  };
   const sshConnectionState = sshConnectionId
     ? appState.sshConnections.stateFor(sshConnectionId)
     : null;
@@ -203,6 +225,20 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <CableIcon className="size-4" />
               Change SSH Connection
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+        {isLocalProject && (
+          <>
+            <ContextMenuItem
+              disabled={isRelocating}
+              onClick={() => {
+                void handleRelocate();
+              }}
+            >
+              <FolderInput className="size-4" />
+              Relocate Project
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>

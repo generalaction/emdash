@@ -1,7 +1,10 @@
-import { Loader2, TriangleAlert, Unplug } from 'lucide-react';
+import { FolderInput, Loader2, TriangleAlert, Unplug } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useState } from 'react';
+import { rpc } from '@renderer/lib/ipc';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
+import { Button } from '@renderer/lib/ui/button';
 import { isUnregisteredProject } from '../../stores/project';
 import {
   getProjectManagerStore,
@@ -28,7 +31,13 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   }
 
   if (kind === 'path_not_found') {
-    return <ProjectPathNotFoundPanel path={store?.error ?? ''} projectId={projectId} />;
+    return (
+      <ProjectPathNotFoundPanel
+        path={store?.error ?? ''}
+        projectId={projectId}
+        projectName={store?.name ?? store?.data?.name ?? ''}
+      />
+    );
   }
 
   if (kind === 'ssh_disconnected') {
@@ -103,7 +112,36 @@ function ProjectSshDisconnectedPanel({
   );
 }
 
-function ProjectPathNotFoundPanel({ path, projectId }: { path: string; projectId: string }) {
+function ProjectPathNotFoundPanel({
+  path,
+  projectId,
+  projectName,
+}: {
+  path: string;
+  projectId: string;
+  projectName: string;
+}) {
+  const [isRelocating, setIsRelocating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleRelocate = async () => {
+    setErrorMessage(null);
+    const dialogTitle = projectName ? `Relocate ${projectName}` : 'Relocate Project';
+    const newPath = await rpc.app.openSelectDirectoryDialog({
+      title: dialogTitle,
+      message: 'Select the new location of this project',
+    });
+    if (!newPath) return;
+    setIsRelocating(true);
+    try {
+      await getProjectManagerStore().relocateLocalProject(projectId, newPath);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsRelocating(false);
+    }
+  };
+
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center text-center gap-3">
@@ -115,13 +153,29 @@ function ProjectPathNotFoundPanel({ path, projectId }: { path: string; projectId
         <p className="text-xs text-foreground-passive">
           The project directory no longer exists at the configured path.
         </p>
-        <button
-          type="button"
-          className="mt-2 text-xs text-foreground-destructive underline underline-offset-2 hover:text-foreground-destructive/80 transition-colors"
-          onClick={() => void getProjectManagerStore().deleteProject(projectId)}
-        >
-          Remove Project
-        </button>
+        {errorMessage && (
+          <p className="text-xs font-mono text-foreground-destructive break-all">{errorMessage}</p>
+        )}
+        <div className="mt-2 flex flex-col items-center gap-3">
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={() => void handleRelocate()}
+            disabled={isRelocating}
+          >
+            <FolderInput className="size-3.5" data-icon="inline-start" />
+            {isRelocating ? 'Relocating…' : 'Relocate Project'}
+          </Button>
+          <button
+            type="button"
+            className="text-xs text-foreground-passive underline underline-offset-2 hover:text-foreground-destructive transition-colors disabled:opacity-50"
+            onClick={() => void getProjectManagerStore().deleteProject(projectId)}
+            disabled={isRelocating}
+          >
+            Remove Project
+          </button>
+        </div>
       </div>
     </div>
   );
