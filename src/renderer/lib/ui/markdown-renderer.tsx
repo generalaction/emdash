@@ -26,10 +26,10 @@ interface MarkdownRendererProps {
   resolveImage?: (src: string) => Promise<string | null>;
 }
 
-/**
- * Sanitize schema that allows data: URIs on images and the math classes that
- * remark-math emits, so rehype-katex can find them after sanitization runs.
- */
+// Sanitize runs before rehype-katex so user input is sanitized but KaTeX's
+// (trusted) output passes through untouched. The schema preserves the
+// math-inline/math-display classes that remark-math emits so rehype-katex can
+// still recognize them post-sanitize.
 const sanitizeSchema = {
   ...defaultSchema,
   protocols: {
@@ -48,6 +48,14 @@ const sanitizeSchema = {
     ],
   },
 };
+
+const REMARK_PLUGINS: PluggableList = [remarkGfm, remarkMath];
+const FULL_REHYPE_PLUGINS: PluggableList = [
+  rehypeRaw,
+  [rehypeSanitize, sanitizeSchema],
+  rehypeKatex,
+];
+const COMPACT_REHYPE_PLUGINS: PluggableList = [[rehypeSanitize, sanitizeSchema], rehypeKatex];
 
 /** Resolves a local image src via the provided callback and renders as a base64 data URI. */
 const ResolvedImage: React.FC<{
@@ -294,15 +302,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   const compactComponents = useCompactComponents();
 
   const components = variant === 'full' ? fullComponents : compactComponents;
-  const rehypePlugins: PluggableList =
-    variant === 'full'
-      ? [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex]
-      : [[rehypeSanitize, sanitizeSchema], rehypeKatex];
+  const rehypePlugins = variant === 'full' ? FULL_REHYPE_PLUGINS : COMPACT_REHYPE_PLUGINS;
 
   return (
     <div className={cn(className)}>
       <Markdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={rehypePlugins}
         components={components}
       >
