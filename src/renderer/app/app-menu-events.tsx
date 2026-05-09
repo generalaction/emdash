@@ -40,10 +40,11 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
             );
           },
           () => {
-            const tab = getTaskView(projectId, taskId)?.tabManager.resolvedTabs.find(
+            const view = getTaskView(projectId, taskId);
+            const tab = view?.tabManager.resolvedTabs.find(
               (entry) => entry.kind === 'conversation' && entry.conversationId === conversationId
             );
-            if (tab) getTaskView(projectId, taskId)?.tabManager.setActiveTab(tab.tabId);
+            if (tab) view?.tabManager.setActiveTab(tab.tabId);
           },
           {
             timeout: 10_000,

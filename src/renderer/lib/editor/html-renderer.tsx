@@ -52,6 +52,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
   useEffect(() => {
     if (!rawContent) {
       setProcessedHtml(null);
+      setIsProcessing(false);
       return;
     }
     let cancelled = false;
@@ -174,7 +175,7 @@ async function processHtmlForPreview(
       const css = await fetchText(resolved);
       if (css == null) return;
       const style = doc.createElement('style');
-      style.textContent = css;
+      style.textContent = await inlineCssUrls(css, getParentDir(resolved), fetchImage);
       el.replaceWith(style);
     }),
     // <script src="..."> → inline <script>
@@ -211,6 +212,30 @@ async function processHtmlForPreview(
   (doc.body ?? doc.documentElement).appendChild(interceptor);
 
   return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+}
+
+async function inlineCssUrls(
+  css: string,
+  cssDir: string,
+  fetchImage: (path: string) => Promise<string | null>
+): Promise<string> {
+  const urlPattern = /url\(\s*(['"]?)([^'"()]+)\1\s*\)/g;
+  const replacements = await Promise.all(
+    Array.from(css.matchAll(urlPattern), async (match) => {
+      const rawUrl = match[2]?.trim();
+      if (!rawUrl || isAbsoluteOrSpecial(rawUrl)) return null;
+
+      const resolved = resolveRelativePath(cssDir, rawUrl);
+      if (!resolved) return null;
+
+      const dataUrl = await fetchImage(resolved);
+      return dataUrl ? { from: match[0], to: `url("${dataUrl}")` } : null;
+    })
+  );
+
+  return replacements.reduce((nextCss, replacement) => {
+    return replacement ? nextCss.replace(replacement.from, replacement.to) : nextCss;
+  }, css);
 }
 
 async function readWorkspaceText(
@@ -270,4 +295,8 @@ function resolveRelativePath(fileDir: string, href: string): string | null {
     normalized.push(seg);
   }
   return normalized.join('/');
+}
+
+function getParentDir(filePath: string): string {
+  return filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
 }
