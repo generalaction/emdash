@@ -1,0 +1,263 @@
+/**
+ * APP_SHORTCUTS — central registry of keyboard shortcut metadata.
+ *
+ * `defaultHotkey` uses TanStack Hotkeys string format (e.g. 'Mod+K').
+ * Defaults are resolved here in the renderer rather than in schema.ts because
+ * some are platform-specific.
+ *
+ * All event handling is done in AppKeyboardShortcuts.tsx via useHotkey().
+ */
+import type { Hotkey } from '@tanstack/react-hotkeys';
+
+export interface AppShortcutDef {
+  defaultHotkey?: string;
+  label: string;
+  description: string;
+  category: string;
+  hideFromSettings?: boolean;
+  /**
+   * 'allow' — permit other listeners on the same key (needed for shortcuts
+   * that Monaco / xterm also intercept, e.g. Mod+W, Mod+Alt+Arrow).
+   * Defaults to 'prevent'.
+   */
+  conflictBehavior?: 'prevent' | 'allow';
+}
+
+type ShortcutOverrides = Partial<Record<ShortcutSettingsKey, string | null>>;
+
+/**
+ * Preserves literal key types for `keyof` inference while widening each value
+ * to the full `AppShortcutDef` interface (so optional fields like
+ * `hideFromSettings` are accessible on every entry without a union problem).
+ */
+function defineShortcuts<T extends Record<string, AppShortcutDef>>(
+  shortcuts: T
+): Record<keyof T, AppShortcutDef> {
+  return shortcuts as Record<keyof T, AppShortcutDef>;
+}
+
+export const APP_SHORTCUTS = defineShortcuts({
+  commandPalette: {
+    defaultHotkey: 'Mod+K',
+    label: 'Command Palette',
+    description: 'Open the command palette to quickly search and navigate',
+    category: 'Navigation',
+  },
+  settings: {
+    defaultHotkey: 'Mod+,',
+    label: 'Settings',
+    description: 'Open application settings',
+    category: 'Navigation',
+  },
+  toggleLeftSidebar: {
+    defaultHotkey: 'Mod+B',
+    label: 'Toggle Left Sidebar',
+    description: 'Show or hide the left sidebar',
+    category: 'View',
+  },
+  toggleRightSidebar: {
+    defaultHotkey: 'Mod+.',
+    label: 'Toggle Right Sidebar',
+    description: 'Show or hide the right sidebar',
+    category: 'View',
+  },
+  toggleTheme: {
+    defaultHotkey: 'Mod+T',
+    label: 'Toggle Theme',
+    description: 'Cycle through light, dark navy, and dark black themes',
+    category: 'View',
+  },
+  closeModal: {
+    defaultHotkey: 'Escape',
+    label: 'Close Modal',
+    description: 'Close the current modal or dialog',
+    category: 'Navigation',
+    hideFromSettings: true,
+  },
+  newTask: {
+    defaultHotkey: 'Mod+N',
+    label: 'New Task',
+    description: 'Create a new task',
+    category: 'Navigation',
+  },
+  newProject: {
+    defaultHotkey: 'Mod+Shift+N',
+    label: 'New Project',
+    description: 'Create a new project',
+    category: 'Navigation',
+  },
+  openInEditor: {
+    defaultHotkey: 'Mod+O',
+    label: 'Open in Editor',
+    description: 'Open the project in the default editor',
+    category: 'Navigation',
+  },
+  sidebarChanges: {
+    defaultHotkey: 'Mod+Shift+1',
+    label: 'View Changes',
+    description: 'Open the right sidebar to the Changes panel',
+    category: 'Task View',
+  },
+  sidebarConversations: {
+    defaultHotkey: 'Mod+Shift+2',
+    label: 'View Conversations',
+    description: 'Open the right sidebar to the Conversations panel',
+    category: 'Task View',
+  },
+  sidebarFiles: {
+    defaultHotkey: 'Mod+Shift+3',
+    label: 'View Files',
+    description: 'Open the right sidebar to the Files panel',
+    category: 'Task View',
+  },
+  tabNext: {
+    defaultHotkey: 'Mod+Alt+ArrowRight',
+    label: 'Next Tab',
+    description: 'Switch to the next tab',
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  },
+  tabPrev: {
+    defaultHotkey: 'Mod+Alt+ArrowLeft',
+    label: 'Previous Tab',
+    description: 'Switch to the previous tab',
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  },
+  tabClose: {
+    defaultHotkey: 'Mod+W',
+    label: 'Close Tab',
+    description: 'Close the active tab',
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  },
+  tab1: {
+    defaultHotkey: 'Mod+1',
+    label: 'Tab 1',
+    description: 'Switch to tab 1',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab2: {
+    defaultHotkey: 'Mod+2',
+    label: 'Tab 2',
+    description: 'Switch to tab 2',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab3: {
+    defaultHotkey: 'Mod+3',
+    label: 'Tab 3',
+    description: 'Switch to tab 3',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab4: {
+    defaultHotkey: 'Mod+4',
+    label: 'Tab 4',
+    description: 'Switch to tab 4',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab5: {
+    defaultHotkey: 'Mod+5',
+    label: 'Tab 5',
+    description: 'Switch to tab 5',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab6: {
+    defaultHotkey: 'Mod+6',
+    label: 'Tab 6',
+    description: 'Switch to tab 6',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab7: {
+    defaultHotkey: 'Mod+7',
+    label: 'Tab 7',
+    description: 'Switch to tab 7',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab8: {
+    defaultHotkey: 'Mod+8',
+    label: 'Tab 8',
+    description: 'Switch to tab 8',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  tab9: {
+    defaultHotkey: 'Mod+9',
+    label: 'Tab 9',
+    description: 'Switch to tab 9',
+    category: 'Tab Navigation',
+    hideFromSettings: true,
+  },
+  newConversation: {
+    defaultHotkey: 'Mod+Shift+C',
+    label: 'New Conversation',
+    description: 'Create a new conversation in the current task',
+    category: 'Task View',
+  },
+  newTerminal: {
+    defaultHotkey: 'Mod+Shift+T',
+    label: 'New Terminal',
+    description: 'Create a new terminal in the current task',
+    category: 'Task View',
+  },
+  toggleTerminalDrawer: {
+    defaultHotkey: 'Mod+J',
+    label: 'Toggle Terminal Drawer',
+    description: 'Show or hide the terminal drawer',
+    category: 'Task View',
+  },
+  confirm: {
+    defaultHotkey: 'Mod+Enter',
+    label: 'Confirm',
+    description: 'Confirm the current dialog action',
+    category: 'Navigation',
+  },
+  navigateBack: {
+    defaultHotkey: 'Mod+[',
+    label: 'Go Back',
+    description: 'Navigate to the previous location',
+    category: 'Navigation',
+  },
+  navigateForward: {
+    defaultHotkey: 'Mod+]',
+    label: 'Go Forward',
+    description: 'Navigate to the next location',
+    category: 'Navigation',
+  },
+});
+
+/** All valid shortcut keys — inferred directly from the registry, never redeclared. */
+export type ShortcutSettingsKey = keyof typeof APP_SHORTCUTS;
+
+/**
+ * Returns the currently assigned hotkey for an action.
+ * - `undefined` override -> falls back to default
+ * - `null` override -> unassigned (disabled)
+ * - no `defaultHotkey` and no override -> `null` (not bound)
+ */
+export function getEffectiveHotkey(
+  key: ShortcutSettingsKey,
+  custom?: ShortcutOverrides
+): Hotkey | null {
+  const configured = custom?.[key];
+  if (configured === null) return null;
+  const resolved = configured ?? APP_SHORTCUTS[key].defaultHotkey;
+  return resolved != null ? (resolved as Hotkey) : null;
+}
+
+/**
+ * Always returns a valid hotkey string for hook registration.
+ * Pair this with `getEffectiveHotkey(...) !== null` in `enabled`.
+ */
+export function getHotkeyRegistration(
+  key: ShortcutSettingsKey,
+  custom?: ShortcutOverrides
+): Hotkey {
+  return (getEffectiveHotkey(key, custom) ?? APP_SHORTCUTS[key].defaultHotkey ?? '') as Hotkey;
+}

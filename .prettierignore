@@ -7,6 +7,7 @@
 **/.next
 **/build
 **/.turbo
+**/out
 
 # ignore config files that shouldn't be formatted
 **/.env*

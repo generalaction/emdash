@@ -1,0 +1,92 @@
+import type { GitChangeStatus, GitObjectRef } from '@shared/git';
+
+export type TabViewSnapshot = {
+  tabOrder: string[];
+  activeTabId: string | undefined;
+};
+
+export type TabDescriptor =
+  | { kind: 'conversation'; tabId: string; conversationId: string; isPreview: boolean }
+  | { kind: 'file'; tabId: string; path: string; isPreview: boolean }
+  | {
+      kind: 'diff';
+      tabId: string;
+      path: string;
+      diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+      originalRef: GitObjectRef;
+      modifiedRef?: GitObjectRef;
+      prNumber?: number;
+      status?: GitChangeStatus;
+      isPreview: boolean;
+    };
+
+export type TabManagerSnapshot = {
+  tabs: TabDescriptor[];
+  activeTabId: string | undefined;
+};
+
+export type EditorViewSnapshot = {
+  expandedPaths: string[];
+};
+
+export type DiffViewSnapshot = {
+  diffStyle: 'unified' | 'split';
+  viewMode: 'file';
+  activeFile?: ActiveFile;
+  commitAction: 'commit' | 'commit-push' | null;
+  prTab?: 'files' | 'commits' | 'checks';
+};
+
+export interface ActiveFile {
+  path: string;
+  /** Storage layer: how content is fetched.
+   *  'disk' = working-tree read (disk://)
+   *  'git'  = git-object read (git://) */
+  type: 'disk' | 'git';
+  /** Semantic context: which diff panel/group this file belongs to.
+   *  Determines which side is original/modified and which events make it stale.
+   *  'disk'   = working tree vs HEAD
+   *  'staged' = index vs HEAD
+   *  'git'    = arbitrary ref-to-ref comparison
+   *  'pr'     = PR diff (originalRef is remote-tracking base) */
+  group: 'disk' | 'staged' | 'git' | 'pr';
+  originalRef: GitObjectRef;
+  /** PR head SHA for the modified side of a 'pr' group diff.
+   *  When absent the diff stack falls back to HEAD_REF. */
+  modifiedRef?: GitObjectRef;
+  /** Set only when group === 'pr'. Identifies the PR for store lookups. */
+  prNumber?: number;
+}
+
+export type TaskViewSnapshot = {
+  sidebarTab?: string;
+  isSidebarCollapsed?: boolean;
+  focusedRegion: 'main' | 'bottom';
+  isTerminalDrawerOpen?: boolean;
+  tabManager?: TabManagerSnapshot;
+  /** @deprecated Legacy field from before the unified tab refactor. Used only for migration. */
+  conversations?: TabViewSnapshot;
+  terminals?: TabViewSnapshot;
+  editor?: EditorViewSnapshot;
+  diffView?: DiffViewSnapshot;
+};
+
+export type ProjectViewSnapshot = {
+  activeView: string;
+  taskViewTab: 'active' | 'archived';
+};
+
+export type NavigationSnapshot = {
+  currentViewId: string;
+  viewParams: Record<string, unknown>;
+};
+
+export type SidebarTaskSortBy = 'created-at' | 'updated-at';
+
+/** Persisted sidebar UI state; fields may be absent in older DB blobs. */
+export type SidebarSnapshot = {
+  expandedProjectIds?: string[];
+  projectOrder?: string[];
+  taskOrderByProject?: Record<string, string[]>;
+  taskSortBy?: SidebarTaskSortBy;
+};

@@ -1,14 +1,13 @@
-import { Menu, shell, app, BrowserWindow, nativeImage } from 'electron';
-import { EMDASH_RELEASES_URL, EMDASH_DOCS_URL } from '@shared/urls';
-
-function getFocusedWindow(): BrowserWindow | null {
-  return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
-}
-
-function sendToRenderer(channel: string) {
-  const win = getFocusedWindow();
-  if (win) win.webContents.send(channel);
-}
+import { app, Menu, shell } from 'electron';
+import {
+  menuCheckForUpdatesChannel,
+  menuCloseTabChannel,
+  menuOpenSettingsChannel,
+  menuRedoChannel,
+  menuUndoChannel,
+} from '@shared/events/appEvents';
+import { EMDASH_DOCS_URL, EMDASH_RELEASES_URL } from '@shared/urls';
+import { events } from '@main/lib/events';
 
 export function setupApplicationMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -28,11 +27,11 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => sendToRenderer('menu:open-settings'),
+                click: () => events.emit(menuOpenSettingsChannel, undefined),
               },
               {
                 label: 'Check for Updates\u2026',
-                click: () => sendToRenderer('menu:check-for-updates'),
+                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
               },
               { type: 'separator' as const },
               { role: 'services' as const },
@@ -60,7 +59,7 @@ export function setupApplicationMenu(): void {
               {
                 label: 'Settings\u2026',
                 accelerator: 'CmdOrCtrl+,',
-                click: () => sendToRenderer('menu:open-settings'),
+                click: () => events.emit(menuOpenSettingsChannel, undefined),
               },
               { type: 'separator' as const },
             ]
@@ -69,7 +68,7 @@ export function setupApplicationMenu(): void {
           ? {
               label: 'Close Tab',
               accelerator: 'CmdOrCtrl+W',
-              click: () => sendToRenderer('menu:close-tab'),
+              click: () => events.emit(menuCloseTabChannel, undefined),
             }
           : { role: 'quit' as const },
       ],
@@ -81,12 +80,12 @@ export function setupApplicationMenu(): void {
         {
           label: 'Undo',
           accelerator: 'CmdOrCtrl+Z',
-          click: () => sendToRenderer('menu:undo'),
+          click: () => events.emit(menuUndoChannel, undefined),
         },
         {
           label: 'Redo',
           accelerator: isMac ? 'Shift+CmdOrCtrl+Z' : 'CmdOrCtrl+Y',
-          click: () => sendToRenderer('menu:redo'),
+          click: () => events.emit(menuRedoChannel, undefined),
         },
         { type: 'separator' as const },
         { role: 'cut' as const },
@@ -120,18 +119,22 @@ export function setupApplicationMenu(): void {
       submenu: [
         {
           label: 'Docs',
-          click: () => shell.openExternal(EMDASH_DOCS_URL),
+          click: () => {
+            void shell.openExternal(EMDASH_DOCS_URL);
+          },
         },
         {
           label: 'Changelog',
-          click: () => shell.openExternal(EMDASH_RELEASES_URL),
+          click: () => {
+            void shell.openExternal(EMDASH_RELEASES_URL);
+          },
         },
         ...(!isMac
           ? [
               { type: 'separator' as const },
               {
                 label: 'Check for Updates\u2026',
-                click: () => sendToRenderer('menu:check-for-updates'),
+                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
               },
             ]
           : []),
