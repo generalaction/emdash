@@ -21,7 +21,6 @@ import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { ModalLayout } from '@renderer/lib/ui/modal-layout';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { log } from '@renderer/utils/logger';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { useCloneMode, useNewMode, usePickMode } from './modes';
 
@@ -152,19 +151,19 @@ export const AddProjectModal = observer(function AddProjectModal({
     !isCheckingPickPathStatus;
 
   const handleSubmit = async () => {
-    try {
-      const inspection = await rpc.projects.inspectProjectPath(
-        strategy === 'ssh'
-          ? { type: 'ssh', path: pickState.path, connectionId: selectedConnectionId! }
-          : { type: 'local', path: pickState.path }
-      );
-      if (inspection.existingProject) {
-        navigate('project', { projectId: inspection.existingProject.id });
-        onClose();
-        return;
-      }
-    } catch (e) {
-      log.error(e);
+    const freshPickInspection =
+      mode === 'pick'
+        ? await rpc.projects.inspectProjectPath(
+            strategy === 'ssh'
+              ? { type: 'ssh', path: pickState.path, connectionId: selectedConnectionId! }
+              : { type: 'local', path: pickState.path }
+          )
+        : undefined;
+
+    if (freshPickInspection?.existingProject) {
+      navigate('project', { projectId: freshPickInspection.existingProject.id });
+      onClose();
+      return;
     }
 
     const id = crypto.randomUUID();
@@ -182,7 +181,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             name: pickState.name,
             path: pickState.path,
             initGitRepository: pickState.initGitRepository,
-            noGit: pickNoGit,
+            noGit: freshPickInspection?.isGitRepo === true ? false : pickNoGit,
           },
           id
         );
