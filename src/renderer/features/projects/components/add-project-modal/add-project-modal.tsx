@@ -139,6 +139,7 @@ export const AddProjectModal = observer(function AddProjectModal({
     mode === 'pick' &&
     pickPathStatusQuery.data?.isDirectory === true &&
     pickPathStatusQuery.data.isGitRepo === false;
+  const pickNoGit = pickPathStatusQuery.data?.isGitRepo === true ? false : pickState.noGit;
   const isCheckingPickPathStatus = shouldCheckPickPathStatus && pickPathStatusQuery.isPending;
 
   const canCreate =
@@ -186,7 +187,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             name: pickState.name,
             path: pickState.path,
             initGitRepository: pickState.initGitRepository,
-            noGit: pickState.noGit,
+            noGit: pickNoGit,
           },
           id
         );

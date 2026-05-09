@@ -218,6 +218,40 @@ describe('createLocalProject', () => {
     expect(created.baseRef).toBe('origin/main');
   });
 
+  it('skips git detection entirely when noGit is set', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-project-'));
+    tempDirs.push(projectPath);
+    const row = {
+      id: 'project-id',
+      name: 'Project',
+      path: projectPath,
+      baseRef: '',
+      createdAt: '2026-04-16T00:00:00.000Z',
+      updatedAt: '2026-04-16T00:00:00.000Z',
+    };
+    mocks.returningMock.mockResolvedValue([row]);
+
+    const created = await createLocalProject({
+      id: 'project-id',
+      name: 'Project',
+      path: projectPath,
+      noGit: true,
+    });
+
+    expect(mocks.detectInfoMock).not.toHaveBeenCalled();
+    expect(mocks.initRepositoryMock).not.toHaveBeenCalled();
+    expect(mocks.valuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ isGitRepo: 0, baseRef: '', path: projectPath })
+    );
+    expect(created).toMatchObject({
+      id: 'project-id',
+      isGitRepo: false,
+      baseRef: '',
+      path: projectPath,
+      type: 'local',
+    });
+  });
+
   it('keeps the detected baseRef when the git default branch is not present on the remote', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-project-'));
     tempDirs.push(projectPath);
@@ -345,6 +379,36 @@ describe('createSshProject', () => {
 
     expect(mocks.detectInfoMock).not.toHaveBeenCalled();
     expect(mocks.initRepositoryMock).not.toHaveBeenCalled();
+  });
+
+  it('skips git detection on SSH when noGit is set', async () => {
+    const rowNonGit = {
+      ...row,
+      path: projectPath,
+      baseRef: '',
+    };
+    mocks.returningMock.mockResolvedValue([rowNonGit]);
+
+    const created = await createSshProject({
+      id: 'project-id',
+      name: 'Project',
+      path: projectPath,
+      connectionId: 'connection-id',
+      noGit: true,
+    });
+
+    expect(mocks.sshStatMock).toHaveBeenCalledWith('');
+    expect(mocks.detectInfoMock).not.toHaveBeenCalled();
+    expect(mocks.initRepositoryMock).not.toHaveBeenCalled();
+    expect(mocks.valuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ isGitRepo: 0, baseRef: '', path: projectPath })
+    );
+    expect(created).toMatchObject({
+      id: 'project-id',
+      isGitRepo: false,
+      type: 'ssh',
+      connectionId: 'connection-id',
+    });
   });
 
   it('stores the git remote default branch as the SSH project baseRef', async () => {

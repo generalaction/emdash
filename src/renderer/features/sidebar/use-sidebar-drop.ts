@@ -65,15 +65,6 @@ export function useSidebarDrop() {
               });
               return null;
             }
-            if (!status.isGitRepo) {
-              toast({
-                title: 'Cannot add project',
-                description: `${basenameFromAnyPath(filePath)} is not a git repository.`,
-                variant: 'destructive',
-              });
-              return null;
-            }
-
             const name = basenameFromAnyPath(filePath);
             return await projectManager.createProject(
               { type: 'local' },
@@ -82,6 +73,7 @@ export function useSidebarDrop() {
                 name,
                 path: filePath,
                 initGitRepository: false,
+                noGit: !status.isGitRepo,
               }
             );
           } catch (err) {

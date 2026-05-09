@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useCallback, useContext } from 'react';
+import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import {
   ISSUE_PROVIDER_CAPABILITIES,
   type ConnectionStatusMap,
@@ -174,40 +174,50 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
 
   const connectionStatus = statusData ?? DEFAULT_CONNECTION_STATUS;
 
-  return (
-    <IntegrationsContext.Provider
-      value={{
-        connectionStatus,
-        isCheckingConnections,
-        isLinearConnected: isConnected(statusData, 'linear'),
-        isJiraConnected: isConnected(statusData, 'jira'),
-        isGitlabConnected: isConnected(statusData, 'gitlab'),
-        isPlainConnected: isConnected(statusData, 'plain'),
-        isForgejoConnected: isConnected(statusData, 'forgejo'),
-        isFeaturebaseConnected: isConnected(statusData, 'featurebase'),
-        isLinearLoading: isInitialConnectionCheck || linearConnection.isLoading,
-        isJiraLoading: isInitialConnectionCheck || jiraConnection.isLoading,
-        isGitlabLoading: isInitialConnectionCheck || gitlabConnection.isLoading,
-        isPlainLoading: isInitialConnectionCheck || plainConnection.isLoading,
-        isForgejoLoading: isInitialConnectionCheck || forgejoConnection.isLoading,
-        isFeaturebaseLoading: isInitialConnectionCheck || featurebaseConnection.isLoading,
-        connectLinear: linearConnection.connect,
-        disconnectLinear: linearConnection.disconnect,
-        connectJira: jiraConnection.connect,
-        disconnectJira: jiraConnection.disconnect,
-        connectGitlab: gitlabConnection.connect,
-        disconnectGitlab: gitlabConnection.disconnect,
-        connectPlain: plainConnection.connect,
-        disconnectPlain: plainConnection.disconnect,
-        connectForgejo: forgejoConnection.connect,
-        disconnectForgejo: forgejoConnection.disconnect,
-        connectFeaturebase: featurebaseConnection.connect,
-        disconnectFeaturebase: featurebaseConnection.disconnect,
-      }}
-    >
-      {children}
-    </IntegrationsContext.Provider>
+  const value = useMemo<IntegrationsContextValue>(
+    () => ({
+      connectionStatus,
+      isCheckingConnections,
+      isLinearConnected: isConnected(statusData, 'linear'),
+      isJiraConnected: isConnected(statusData, 'jira'),
+      isGitlabConnected: isConnected(statusData, 'gitlab'),
+      isPlainConnected: isConnected(statusData, 'plain'),
+      isForgejoConnected: isConnected(statusData, 'forgejo'),
+      isFeaturebaseConnected: isConnected(statusData, 'featurebase'),
+      isLinearLoading: isInitialConnectionCheck || linearConnection.isLoading,
+      isJiraLoading: isInitialConnectionCheck || jiraConnection.isLoading,
+      isGitlabLoading: isInitialConnectionCheck || gitlabConnection.isLoading,
+      isPlainLoading: isInitialConnectionCheck || plainConnection.isLoading,
+      isForgejoLoading: isInitialConnectionCheck || forgejoConnection.isLoading,
+      isFeaturebaseLoading: isInitialConnectionCheck || featurebaseConnection.isLoading,
+      connectLinear: linearConnection.connect,
+      disconnectLinear: linearConnection.disconnect,
+      connectJira: jiraConnection.connect,
+      disconnectJira: jiraConnection.disconnect,
+      connectGitlab: gitlabConnection.connect,
+      disconnectGitlab: gitlabConnection.disconnect,
+      connectPlain: plainConnection.connect,
+      disconnectPlain: plainConnection.disconnect,
+      connectForgejo: forgejoConnection.connect,
+      disconnectForgejo: forgejoConnection.disconnect,
+      connectFeaturebase: featurebaseConnection.connect,
+      disconnectFeaturebase: featurebaseConnection.disconnect,
+    }),
+    [
+      connectionStatus,
+      isCheckingConnections,
+      statusData,
+      isInitialConnectionCheck,
+      linearConnection,
+      jiraConnection,
+      gitlabConnection,
+      plainConnection,
+      forgejoConnection,
+      featurebaseConnection,
+    ]
   );
+
+  return <IntegrationsContext.Provider value={value}>{children}</IntegrationsContext.Provider>;
 }
 
 export function useIntegrationsContext() {

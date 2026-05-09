@@ -58,7 +58,15 @@ export async function createTask(
     ? params.strategy
     : { kind: 'no-worktree' };
 
-  const configuredRemote = project.isGitRepo ? await project.repository.getConfiguredRemote() : '';
+  // Lazily resolved — only the new-branch and from-pull-request strategies need it,
+  // and those strategies never run for non-git projects (forced to no-worktree above).
+  let configuredRemote: string | undefined;
+  const getConfiguredRemote = async (): Promise<string> => {
+    if (configuredRemote === undefined) {
+      configuredRemote = await project.repository.getConfiguredRemote();
+    }
+    return configuredRemote;
+  };
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;
@@ -94,12 +102,13 @@ export async function createTask(
         return err({ type: 'branch-create-failed', branch: taskBranch, error: createResult.error });
       }
       if (strategy.pushBranch) {
-        const publishResult = await project.repository.publishBranch(taskBranch, configuredRemote);
+        const remote = await getConfiguredRemote();
+        const publishResult = await project.repository.publishBranch(taskBranch, remote);
         if (!publishResult.success) {
           warning = {
             type: 'branch-publish-failed',
             branch: taskBranch,
-            remote: configuredRemote,
+            remote,
             error: publishResult.error,
           };
         }
@@ -109,7 +118,10 @@ export async function createTask(
 
     case 'checkout-existing': {
       if (!params.sourceBranch) {
-        return err({ type: 'branch-not-found', branch: '' });
+        return err({
+          type: 'provision-failed',
+          message: 'Cannot check out an existing branch without a source branch.',
+        });
       }
       // taskBranch === sourceBranch tells the provider to use checkoutExistingBranch.
       taskBranch = params.sourceBranch.branch;
@@ -122,6 +134,7 @@ export async function createTask(
       const existingWorktree = await project.getWorktreeForBranch(strategy.headBranch);
 
       if (!existingWorktree) {
+        const remote = await getConfiguredRemote();
         // Fetch the PR head — handles same-repo and fork PRs.
         // Uses headRefName directly as the local branch name (same as `gh pr checkout`).
         const fetchResult = await project.repository.fetchPrForReview(
@@ -130,13 +143,13 @@ export async function createTask(
           strategy.headRepositoryUrl,
           strategy.headBranch,
           strategy.isFork,
-          configuredRemote
+          remote
         );
         if (!fetchResult.success) {
           return err({
             type: 'pr-fetch-failed',
             error: fetchResult.error,
-            remote: configuredRemote,
+            remote,
           });
         }
       }
@@ -164,15 +177,13 @@ export async function createTask(
           });
         }
         if (strategy.pushBranch) {
-          const publishResult = await project.repository.publishBranch(
-            taskBranch,
-            configuredRemote
-          );
+          const remote = await getConfiguredRemote();
+          const publishResult = await project.repository.publishBranch(taskBranch, remote);
           if (!publishResult.success) {
             warning = {
               type: 'branch-publish-failed',
               branch: taskBranch,
-              remote: configuredRemote,
+              remote,
               error: publishResult.error,
             };
           }

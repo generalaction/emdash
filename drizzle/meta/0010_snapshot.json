@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "72931cda-e62a-4e4d-a613-8ccdb959d964",
-  "prevId": "88c357d5-998c-4ac7-9833-be237060b1d8",
+  "id": "1f73f664-478e-4c9d-a940-0f66afc0e5c8",
+  "prevId": "72931cda-e62a-4e4d-a613-8ccdb959d964",
   "tables": {
     "app_secrets": {
       "name": "app_secrets",
@@ -134,6 +134,13 @@
         "last_interacted_at": {
           "name": "last_interacted_at",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_initial_conversation": {
+          "name": "is_initial_conversation",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

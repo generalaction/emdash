@@ -31,10 +31,9 @@ export const ChangesPanel = observer(function ChangesPanel() {
   if (isNonGit) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-        <p className="text-sm font-medium">Git is not configured for this project.</p>
+        <p className="text-sm font-medium">This project is not a git repository.</p>
         <p className="text-xs text-foreground-muted">
-          File changes, branches, and pull requests are unavailable. Initialize a git repository in
-          this folder to enable them.
+          File changes, branches, and pull requests are unavailable.
         </p>
       </div>
     );

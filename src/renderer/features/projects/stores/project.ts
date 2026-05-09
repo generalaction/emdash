@@ -43,11 +43,19 @@ export class MountedProject {
     this.data = data;
     this.view = new ProjectViewStore();
     this.settings = new ProjectSettingsStore(data.id);
-    this.repository = new RepositoryStore(data.id, this.settings, data.baseRef);
+    this.repository = new RepositoryStore(
+      data.id,
+      this.settings,
+      data.baseRef,
+      undefined,
+      data.isGitRepo
+    );
     this.prSync = new PrSyncStore(data.id);
     this.taskManager = new TaskManagerStore(data.id, this.repository, this.settings, data.baseRef);
 
-    if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
+    if (savedSnapshot) {
+      this.view.restoreSnapshot(savedSnapshot, { isGitRepo: data.isGitRepo });
+    }
 
     makeAutoObservable(this, {
       taskManager: false,
