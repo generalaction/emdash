@@ -1,7 +1,7 @@
 import { makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
-import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-task-editor';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { nextTerminalName } from './terminal-tabs';

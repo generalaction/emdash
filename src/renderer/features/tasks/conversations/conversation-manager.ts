@@ -7,7 +7,7 @@ import {
   type NotificationType,
 } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-task-editor';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { log } from '@renderer/utils/logger';
