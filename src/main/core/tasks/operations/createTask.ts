@@ -62,8 +62,8 @@ export async function createTask(
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;
-  // sourceBranch stored in the DB — defaults to params.sourceBranch but overridden for PRs.
-  let dbSourceBranch = params.sourceBranch;
+  // sourceBranch stored in the DB — non-git tasks never have branch metadata.
+  let dbSourceBranch = project.isGitRepo ? params.sourceBranch : undefined;
 
   switch (strategy.kind) {
     case 'new-branch': {

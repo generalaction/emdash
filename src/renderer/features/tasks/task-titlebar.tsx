@@ -65,7 +65,7 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   taskId: string;
   projectId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId)!;
+  const taskStore = getTaskStore(projectId, taskId);
   const projectName = projectDisplayName(getProjectStore(projectId));
   const name = taskDisplayName(taskStore);
 
@@ -99,20 +99,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
   const delayedIsPending = useDelayedBoolean(isPending, 200);
   useTaskViewShortcuts();
-
-  const {
-    hasUpstream,
-    aheadCount,
-    behindCount,
-    fetch,
-    pull,
-    push,
-    publish,
-    isPublishing,
-    isFetching,
-    isPulling,
-    isPushing,
-  } = useGitActions(projectId, taskId);
 
   const store = getProjectStore(projectId);
   const projectStore = asMounted(store);
@@ -157,107 +143,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                       </span>
                     </span>
                   )}
-                  <div className="flex items-center gap-1 w-full">
-                    {hasUpstream ? (
-                      <>
-                        <Tooltip>
-                          <TooltipTrigger className="flex-1">
-                            <Button
-                              className="w-full"
-                              variant="outline"
-                              size="xs"
-                              disabled={isFetching}
-                              onClick={() => fetch()}
-                            >
-                              <RefreshCcw className="size-3" />
-                              {isFetching ? 'Fetching...' : 'Fetch'}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {isFetching ? 'Fetching...' : 'Fetch changes'}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger className="flex-1">
-                            <Button
-                              className="w-full"
-                              variant="outline"
-                              disabled={isPulling || behindCount === 0}
-                              size="xs"
-                              onClick={() => pull()}
-                            >
-                              <ArrowDown className="size-3" />
-                              {isPulling ? (
-                                'Pulling...'
-                              ) : (
-                                <span className="flex items-center gap-1">
-                                  Pull
-                                  <Badge variant="secondary" className="shrink-0">
-                                    {behindCount}
-                                  </Badge>
-                                </span>
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {isPulling
-                              ? 'Pulling...'
-                              : behindCount === 0
-                                ? 'Nothing to pull'
-                                : 'Pull changes'}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger className="flex-1">
-                            <Button
-                              className="w-full"
-                              variant="outline"
-                              disabled={isPushing || aheadCount === 0}
-                              size="xs"
-                              onClick={() => push()}
-                            >
-                              <ArrowUp className="size-3" />
-                              {isPushing ? (
-                                'Pushing...'
-                              ) : (
-                                <span className="flex items-center gap-1">
-                                  Push
-                                  <Badge variant="secondary" className="shrink-0">
-                                    {aheadCount}
-                                  </Badge>
-                                </span>
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {isPushing
-                              ? 'Pushing...'
-                              : aheadCount === 0
-                                ? 'Nothing to push'
-                                : 'Push changes'}
-                          </TooltipContent>
-                        </Tooltip>
-                      </>
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger className="flex-1">
-                          <Button
-                            className="w-full"
-                            variant="outline"
-                            disabled={isPublishing}
-                            size="xs"
-                            onClick={() => publish()}
-                          >
-                            <ArrowUp className="size-3" />
-                            {isPublishing ? 'Publishing...' : 'Publish'}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {isPublishing ? 'Publishing...' : 'Publish branch'}
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
+                  <GitActions projectId={projectId} taskId={taskId} />
                 </div>
               )}
               {!isNonGit && (
@@ -317,19 +203,21 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 </div>
               </TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="diff" size="sm">
-                  <FileDiff className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>Diff view</span>
-                  <ShortcutHint settingsKey="taskViewDiff" />
-                </div>
-              </TooltipContent>
-            </Tooltip>
+            {!isNonGit && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <ToggleGroupItem value="diff" size="sm">
+                    <FileDiff className="size-3.5" />
+                  </ToggleGroupItem>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="flex flex-col gap-1">
+                    <span>Diff view</span>
+                    <ShortcutHint settingsKey="taskViewDiff" />
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger>
                 <ToggleGroupItem value="editor" size="sm">
@@ -354,14 +242,16 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               taskView.setRightPanelView(value as RightPanelView);
             }}
           >
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="changes" size="sm">
-                  <GitCommit className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>Git changes</TooltipContent>
-            </Tooltip>
+            {!isNonGit && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <ToggleGroupItem value="changes" size="sm">
+                    <GitCommit className="size-3.5" />
+                  </ToggleGroupItem>
+                </TooltipTrigger>
+                <TooltipContent>Git changes</TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger>
                 <ToggleGroupItem value="files" size="sm">
@@ -390,5 +280,119 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         </div>
       }
     />
+  );
+});
+
+const GitActions = observer(function GitActions({
+  projectId,
+  taskId,
+}: {
+  projectId: string;
+  taskId: string;
+}) {
+  const {
+    hasUpstream,
+    aheadCount,
+    behindCount,
+    fetch,
+    pull,
+    push,
+    publish,
+    isPublishing,
+    isFetching,
+    isPulling,
+    isPushing,
+  } = useGitActions(projectId, taskId);
+
+  return (
+    <div className="flex items-center gap-1 w-full">
+      {hasUpstream ? (
+        <>
+          <Tooltip>
+            <TooltipTrigger className="flex-1">
+              <Button
+                className="w-full"
+                variant="outline"
+                size="xs"
+                disabled={isFetching}
+                onClick={() => fetch()}
+              >
+                <RefreshCcw className="size-3" />
+                {isFetching ? 'Fetching...' : 'Fetch'}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{isFetching ? 'Fetching...' : 'Fetch changes'}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger className="flex-1">
+              <Button
+                className="w-full"
+                variant="outline"
+                disabled={isPulling || behindCount === 0}
+                size="xs"
+                onClick={() => pull()}
+              >
+                <ArrowDown className="size-3" />
+                {isPulling ? (
+                  'Pulling...'
+                ) : (
+                  <span className="flex items-center gap-1">
+                    Pull
+                    <Badge variant="secondary" className="shrink-0">
+                      {behindCount}
+                    </Badge>
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isPulling ? 'Pulling...' : behindCount === 0 ? 'Nothing to pull' : 'Pull changes'}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger className="flex-1">
+              <Button
+                className="w-full"
+                variant="outline"
+                disabled={isPushing || aheadCount === 0}
+                size="xs"
+                onClick={() => push()}
+              >
+                <ArrowUp className="size-3" />
+                {isPushing ? (
+                  'Pushing...'
+                ) : (
+                  <span className="flex items-center gap-1">
+                    Push
+                    <Badge variant="secondary" className="shrink-0">
+                      {aheadCount}
+                    </Badge>
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isPushing ? 'Pushing...' : aheadCount === 0 ? 'Nothing to push' : 'Push changes'}
+            </TooltipContent>
+          </Tooltip>
+        </>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger className="flex-1">
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={isPublishing}
+              size="xs"
+              onClick={() => publish()}
+            >
+              <ArrowUp className="size-3" />
+              {isPublishing ? 'Publishing...' : 'Publish'}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{isPublishing ? 'Publishing...' : 'Publish branch'}</TooltipContent>
+        </Tooltip>
+      )}
+    </div>
   );
 });
