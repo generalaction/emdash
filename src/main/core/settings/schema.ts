@@ -3,11 +3,15 @@ import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-regi
 import { openInAppIdSchema } from '@shared/openInApps';
 import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
 
+export const projectSettingsSchema = z.object({
+  pushOnCreate: z.boolean(),
+  branchPrefix: z.string(),
+  tmuxByDefault: z.boolean(),
+});
+
 export const localProjectSettingsSchema = z.object({
   defaultProjectsDirectory: z.string(),
   defaultWorktreeDirectory: z.string(),
-  branchPrefix: z.string(),
-  pushOnCreate: z.boolean(),
   writeAgentConfigToGitIgnore: z.boolean(),
 });
 
@@ -123,6 +127,7 @@ export const openInSettingsSchema = z.object({
 
 export const APP_SETTINGS_SCHEMA_MAP = {
   localProject: localProjectSettingsSchema,
+  project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
@@ -138,6 +143,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
 
 export const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
+  project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,

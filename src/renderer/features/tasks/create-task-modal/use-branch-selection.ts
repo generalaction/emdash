@@ -10,8 +10,8 @@ export function useBranchSelection(
   isUnborn: boolean,
   currentBranchName?: string | null
 ) {
-  const { value: localProject } = useAppSettingsKey('localProject');
-  const pushOnCreateByDefault = localProject?.pushOnCreate ?? true;
+  const { value: project } = useAppSettingsKey('project');
+  const pushOnCreateByDefault = project?.pushOnCreate ?? true;
 
   const [createBranchAndWorktreePreference, setCreateBranchAndWorktreePreference] = useState(true);
   const [pushBranchOverride, setPushBranchOverride] = useState<boolean | undefined>(undefined);
