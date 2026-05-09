@@ -7,3 +7,6 @@ CREATE TABLE `project_settings` (
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
 );
+--> statement-breakpoint
+ALTER TABLE `conversations` ADD `is_initial_conversation` integer;--> statement-breakpoint
+ALTER TABLE `projects` ADD `is_git_repo` integer DEFAULT 1 NOT NULL;

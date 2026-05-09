@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   returningMock: vi.fn(),
   sshConnectMock: vi.fn(),
   sshStatMock: vi.fn(),
+  sshFileSystemMock: vi.fn(),
 }));
 
 vi.mock('@main/core/git/impl/git-service', () => ({
@@ -31,7 +32,8 @@ vi.mock('@main/core/git/impl/git-service', () => ({
 }));
 
 vi.mock('@main/core/fs/impl/ssh-fs', () => ({
-  SshFileSystem: vi.fn(function MockSshFileSystem() {
+  SshFileSystem: vi.fn(function MockSshFileSystem(...args: unknown[]) {
+    mocks.sshFileSystemMock(...args);
     return {
       stat: mocks.sshStatMock,
     };
@@ -327,6 +329,7 @@ describe('createSshProject', () => {
       initGitRepository: true,
     });
 
+    expect(mocks.sshFileSystemMock).toHaveBeenCalledWith({ id: 'ssh-proxy' }, projectPath);
     expect(mocks.sshStatMock).toHaveBeenCalledWith('');
     expect(mocks.initRepositoryMock).toHaveBeenCalledTimes(1);
     expect(mocks.detectInfoMock).toHaveBeenCalledTimes(2);
@@ -398,6 +401,7 @@ describe('createSshProject', () => {
       noGit: true,
     });
 
+    expect(mocks.sshFileSystemMock).toHaveBeenCalledWith({ id: 'ssh-proxy' }, projectPath);
     expect(mocks.sshStatMock).toHaveBeenCalledWith('');
     expect(mocks.detectInfoMock).not.toHaveBeenCalled();
     expect(mocks.initRepositoryMock).not.toHaveBeenCalled();

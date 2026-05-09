@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8e5ea989-34b3-4233-910c-916155a3c55b",
+  "id": "f7518b53-ae00-412e-a92c-68667522bca3",
   "prevId": "68b5cc95-67aa-4078-94fa-c10caad8d9eb",
   "tables": {
     "app_secrets": {
@@ -130,6 +130,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "CURRENT_TIMESTAMP"
+        },
+        "last_interacted_at": {
+          "name": "last_interacted_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -422,14 +429,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "is_git_repo": {
-          "name": "is_git_repo",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 1
         },
         "ssh_connection_id": {
           "name": "ssh_connection_id",

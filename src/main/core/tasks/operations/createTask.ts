@@ -76,7 +76,10 @@ export async function createTask(
   switch (strategy.kind) {
     case 'new-branch': {
       if (!params.sourceBranch) {
-        return err({ type: 'branch-not-found', branch: strategy.taskBranch });
+        return err({
+          type: 'provision-failed',
+          message: 'Cannot create a new branch without a source branch.',
+        });
       }
       const rawBranch = strategy.taskBranch;
       taskBranch = resolveTaskBranchName({

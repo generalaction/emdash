@@ -152,8 +152,8 @@ describe('createTask — non-git project', () => {
   });
 });
 
-describe('createTask — checkout-existing without source branch', () => {
-  it('returns provision-failed instead of an empty branch-not-found', async () => {
+describe('createTask — missing source branch', () => {
+  it('returns provision-failed for checkout-existing instead of an empty branch-not-found', async () => {
     mocks.getProjectMock.mockReturnValue(makeProject());
 
     const result = await createTask({
@@ -166,6 +166,25 @@ describe('createTask — checkout-existing without source branch', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.type).toBe('provision-failed');
+    }
+  });
+
+  it('returns provision-failed for new-branch instead of branch-not-found', async () => {
+    mocks.getProjectMock.mockReturnValue(makeProject());
+
+    const result = await createTask({
+      id: 'task-id',
+      projectId: 'project-id',
+      name: 'T',
+      strategy: { kind: 'new-branch', taskBranch: 'feature/new' },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toEqual({
+        type: 'provision-failed',
+        message: 'Cannot create a new branch without a source branch.',
+      });
     }
   });
 });

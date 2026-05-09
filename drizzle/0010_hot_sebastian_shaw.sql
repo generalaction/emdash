@@ -1,1 +1,0 @@
-ALTER TABLE `conversations` ADD `is_initial_conversation` integer;
