@@ -72,3 +72,6 @@ Thumbs.db
 
 src/main/appConfig.json
 .pi/extensions/emdash-hook.ts
+
+# Letta local state
+.letta/
