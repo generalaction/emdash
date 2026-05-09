@@ -384,11 +384,12 @@ Key wiring touchpoints in existing code:
 
 ---
 
-## 12. Open questions
+## 12. Decisions log
 
-1. Should `agent_spawn` be allowed when parent is `awaiting-input`? Suggest yes — orchestration shouldn't be blocked by parent state.
-2. `terminal_send` safety — does it need an explicit per-task capability beyond core, given it can run arbitrary shell? Recommend yes-by-default but with a one-time consent dialog the first time an agent calls it.
-3. Verify `PrGenerationService` does AI body generation. If yes, promote `workspace_create_pr` to v1.
+- **`agent_spawn` while parent is `awaiting-input`**: allowed. MCP is stateless; orchestration doesn't depend on parent state.
+- **`terminal_send` consent prompt**: not added. Tool is core, no extra friction. User already opts in by installing the emdash MCP server.
+- **`workspace_create_pr`**: dropped from v1 (no AI body generation in `pull-requests/` module — agents use `gh pr create` directly). Stays in deferred §13.
+- **Audit log**: not in scope. Cross-task signal = capability gate + UI badge on receive.
 
 ---
 
@@ -418,7 +419,7 @@ Tools that duplicate emdash UI. Skipped in v1 because the UI already does the jo
 | Conversations | `conversation_list` `conversation_create` `conversation_rename` `conversation_delete` `conversation_open` |
 | View / UI | `view_layout_set` `view_open_file` `view_open_diff` `view_terminal_open` / `_close` `view_sidebar_set` |
 | Workspace inspection | `workspace_get_diff` `workspace_list_files` `workspace_search` `workspace_list_open_prs` `workspace_run_lifecycle` `workspace_commit` |
-| Workspace mutate | `workspace_create_pr` (only if `PrGenerationService` provides AI body generation worth wrapping — verify; otherwise stays here) |
+| Workspace mutate | `workspace_create_pr` — agents currently use `gh pr create`. Promote when emdash adds AI body generation worth wrapping |
 | Settings / extensions | `skills_list` `skills_install` `mcp_list` `mcp_install` `mcp_remove` `settings_get` `settings_set` |
 
 Promoted to v1 individually if a clear "agent CLI cannot do this with shell tools" justification emerges.
