@@ -34,13 +34,16 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
             const view = getTaskView(projectId, taskId);
             return (
               !!view &&
-              view.tabManager.tabs.some(
-                (tab) => tab.kind === 'conversation' && tab.id === conversationId
+              view.tabManager.resolvedTabs.some(
+                (tab) => tab.kind === 'conversation' && tab.conversationId === conversationId
               )
             );
           },
           () => {
-            getTaskView(projectId, taskId)?.tabManager.setActiveTab(conversationId);
+            const tab = getTaskView(projectId, taskId)?.tabManager.resolvedTabs.find(
+              (entry) => entry.kind === 'conversation' && entry.conversationId === conversationId
+            );
+            if (tab) getTaskView(projectId, taskId)?.tabManager.setActiveTab(tab.tabId);
           },
           {
             timeout: 10_000,
