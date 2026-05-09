@@ -105,9 +105,27 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     ? isNonGitProject(getProjectManagerStore().projects.get(selectedProjectId))
     : false;
 
-  const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
-  const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
-  const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, isUnborn, initialPR);
+  const fromBranch = useFromBranchMode(
+    selectedProjectId,
+    defaultBranch,
+    isUnborn,
+    currentBranch,
+    !isNonGit && selectedStrategy === 'from-branch'
+  );
+  const fromIssue = useFromIssueMode(
+    selectedProjectId,
+    defaultBranch,
+    isUnborn,
+    currentBranch,
+    !isNonGit && selectedStrategy === 'from-issue'
+  );
+  const fromPR = useFromPullRequestMode(
+    selectedProjectId,
+    defaultBranch,
+    isUnborn,
+    initialPR,
+    !isNonGit && selectedStrategy === 'from-pull-request'
+  );
   const noGit = useNoGitMode(selectedProjectId, isNonGit);
   const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !repositoryUrl;
 

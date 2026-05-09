@@ -12,7 +12,8 @@ export function useFromBranchMode(
   selectedProjectId: string | undefined,
   defaultBranch: Branch | undefined,
   isUnborn: boolean,
-  currentBranchName?: string | null
+  currentBranchName?: string | null,
+  isActive = true
 ) {
   const branchSelection = useBranchSelection(
     selectedProjectId,
@@ -27,13 +28,13 @@ export function useFromBranchMode(
   const { data: generatedName, isPending: isGenerating } = useQuery({
     queryKey: ['generateTaskName', 'random', stableKey],
     queryFn: () => rpc.tasks.generateTaskName({}),
-    enabled: autoGenerateName,
+    enabled: autoGenerateName && isActive,
     refetchOnWindowFocus: false,
   });
 
   const taskName = useTaskName({
     generatedName: autoGenerateName ? generatedName : undefined,
-    isPending: autoGenerateName && isGenerating,
+    isPending: autoGenerateName && isActive && isGenerating,
     resetKey: selectedProjectId,
   });
 
