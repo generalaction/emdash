@@ -43,28 +43,25 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
   const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
   const fileName = filePath.split('/').pop() ?? filePath;
 
-  const [processed, setProcessed] = useState<{ filePath: string; html: string } | null>(null);
+  const [processedHtml, setProcessedHtml] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  // Process the raw HTML: inline relative <link>/<script>/<img>/<source>
-  // resources and inject a script that intercepts <a> link clicks to
-  // postMessage the parent.
-  // We keep the previous `processed` value visible while reprocessing so the
-  // iframe doesn't flash to "Loading…" on every keystroke.
+  // Keep the previous processed HTML visible while reprocessing so the iframe
+  // doesn't flash to "Loading…" on every keystroke.
   useEffect(() => {
     if (!rawContent) {
-      setProcessed(null);
+      setProcessedHtml(null);
       return;
     }
     let cancelled = false;
     setIsProcessing(true);
     void processHtmlForPreview(rawContent, fileDir, projectId, workspaceId)
       .then((html) => {
-        if (!cancelled) setProcessed({ filePath, html });
+        if (!cancelled) setProcessedHtml(html);
       })
       .catch(() => {
-        if (!cancelled) setProcessed({ filePath, html: rawContent });
+        if (!cancelled) setProcessedHtml(rawContent);
       })
       .finally(() => {
         if (!cancelled) setIsProcessing(false);
@@ -72,10 +69,10 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
     return () => {
       cancelled = true;
     };
-  }, [rawContent, fileDir, filePath, projectId, workspaceId]);
+  }, [rawContent, fileDir, projectId, workspaceId]);
 
-  // Listen for link-click postMessages from the sandboxed iframe and route them
-  // through the tab manager so other HTML files open as new tabs.
+  // Route link clicks postMessaged from the sandbox into the tab manager so
+  // sibling HTML files open as new tabs.
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       if (e.source !== iframeRef.current?.contentWindow) return;
@@ -95,12 +92,11 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-background-secondary-1">
-      {processed?.filePath === filePath ? (
+      {processedHtml !== null ? (
         <iframe
-          key={filePath}
           ref={iframeRef}
           title={fileName}
-          srcDoc={processed.html}
+          srcDoc={processedHtml}
           // allow-scripts: lets the link-intercept script and the page's own JS run.
           // No allow-same-origin: keeps the iframe an opaque origin so it can't read
           // host cookies / localStorage. Resources are inlined, so no network needed.
@@ -163,10 +159,14 @@ async function processHtmlForPreview(
     return p;
   };
 
-  // <link rel="stylesheet" href="..."> → inline <style>
   const linkEls = Array.from(doc.querySelectorAll('link[rel~="stylesheet"][href]'));
-  await Promise.all(
-    linkEls.map(async (el) => {
+  const scriptEls = Array.from(doc.querySelectorAll('script[src]'));
+  // readImage only supports image formats, so don't claim video/audio support here.
+  const mediaEls = Array.from(doc.querySelectorAll('img[src], picture source[src]'));
+
+  await Promise.all([
+    // <link rel="stylesheet" href="..."> → inline <style>
+    ...linkEls.map(async (el) => {
       const href = el.getAttribute('href');
       if (!href || isAbsoluteOrSpecial(href)) return;
       const resolved = resolveRelativePath(fileDir, href);
@@ -176,13 +176,9 @@ async function processHtmlForPreview(
       const style = doc.createElement('style');
       style.textContent = css;
       el.replaceWith(style);
-    })
-  );
-
-  // <script src="..."> → inline <script>
-  const scriptEls = Array.from(doc.querySelectorAll('script[src]'));
-  await Promise.all(
-    scriptEls.map(async (el) => {
+    }),
+    // <script src="..."> → inline <script>
+    ...scriptEls.map(async (el) => {
       const src = el.getAttribute('src');
       if (!src || isAbsoluteOrSpecial(src)) return;
       const resolved = resolveRelativePath(fileDir, src);
@@ -197,22 +193,17 @@ async function processHtmlForPreview(
       }
       script.textContent = js;
       el.replaceWith(script);
-    })
-  );
-
-  // <img src="...">, <picture><source src="..."> → data URL. readImage only
-  // supports image formats, so do not claim video/audio source support here.
-  const mediaEls = Array.from(doc.querySelectorAll('img[src], picture source[src]'));
-  await Promise.all(
-    mediaEls.map(async (el) => {
+    }),
+    // <img src="...">, <picture><source src="..."> → data URL.
+    ...mediaEls.map(async (el) => {
       const src = el.getAttribute('src');
       if (!src || isAbsoluteOrSpecial(src)) return;
       const resolved = resolveRelativePath(fileDir, src);
       if (!resolved) return;
       const dataUrl = await fetchImage(resolved);
       if (dataUrl) el.setAttribute('src', dataUrl);
-    })
-  );
+    }),
+  ]);
 
   // Inject the link-intercept script at the end of <body>.
   const interceptor = doc.createElement('script');
@@ -227,13 +218,8 @@ async function readWorkspaceText(
   workspaceId: string,
   filePath: string
 ): Promise<string | null> {
-  try {
-    const result = await rpc.fs.readFile(projectId, workspaceId, filePath);
-    if (!result.success) return null;
-    return result.data?.content ?? null;
-  } catch {
-    return null;
-  }
+  const result = await rpc.fs.readFile(projectId, workspaceId, filePath);
+  return result.success ? (result.data?.content ?? null) : null;
 }
 
 async function readWorkspaceImage(
@@ -241,13 +227,8 @@ async function readWorkspaceImage(
   workspaceId: string,
   filePath: string
 ): Promise<string | null> {
-  try {
-    const result = await rpc.fs.readImage(projectId, workspaceId, filePath);
-    if (!result.success) return null;
-    return result.data?.dataUrl ?? null;
-  } catch {
-    return null;
-  }
+  const result = await rpc.fs.readImage(projectId, workspaceId, filePath);
+  return result.success ? (result.data?.dataUrl ?? null) : null;
 }
 
 // ---------------------------------------------------------------------------
