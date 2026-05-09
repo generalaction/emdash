@@ -22,6 +22,7 @@ import {
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import {
   useNavigate,
@@ -86,6 +87,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const isExpanded = sidebarStore.expandedProjectIds.has(projectId);
 
   const [isRelocating, setIsRelocating] = useState(false);
+  const { toast } = useToast();
 
   if (!project) return null;
 
@@ -104,8 +106,19 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     setIsRelocating(true);
     try {
       await getProjectManagerStore().relocateLocalProject(projectId, newPath);
+      toast({
+        title: 'Project relocated',
+        description: project.name
+          ? `Moved "${project.name}" to ${newPath}.`
+          : `Moved to ${newPath}.`,
+      });
     } catch (err) {
-      console.error('Failed to relocate project', err);
+      const message = err instanceof Error ? err.message : String(err);
+      toast({
+        title: 'Failed to relocate project',
+        description: message,
+        variant: 'destructive',
+      });
     } finally {
       setIsRelocating(false);
     }

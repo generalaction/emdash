@@ -10,6 +10,7 @@ import { githubConnectionService } from '@main/core/github/services/github-conne
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { checkIsValidDirectory } from '../path-utils';
 import { getProjectById } from './getProjects';
 
@@ -83,7 +84,17 @@ export async function relocateLocalProject(
 
   const baseRef = await resolveBaseRef(git, gitInfo.baseRef);
 
-  await projectManager.closeProject(projectId);
+  const closeResult = await projectManager.closeProject(projectId);
+  if (!closeResult.success) {
+    log.error('relocateLocalProject: failed to close existing provider', {
+      projectId,
+      error: closeResult.error,
+    });
+    return err({
+      type: 'error',
+      message: `Failed to close existing project: ${closeResult.error.message}`,
+    });
+  }
 
   const [row] = await db
     .update(projects)
@@ -94,6 +105,13 @@ export async function relocateLocalProject(
     })
     .where(eq(projects.id, projectId))
     .returning();
+
+  if (!row) {
+    return err({
+      type: 'not-found',
+      message: `Project not found during update: ${projectId}`,
+    });
+  }
 
   return ok({
     type: 'local' as const,
