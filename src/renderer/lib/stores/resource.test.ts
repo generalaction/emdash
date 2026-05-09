@@ -12,12 +12,6 @@ function deferred<T>() {
   return { promise, resolve: resolve!, reject: reject! };
 }
 
-async function flushPromises(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
 describe('Resource event reload strategy', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -67,9 +61,8 @@ describe('Resource event reload strategy', () => {
     });
 
     secondLoad.resolve(2);
-    await secondLoad.promise;
-    await flushPromises();
-
-    expect(resource.data).toBe(2);
+    await vi.waitFor(() => {
+      expect(resource.data).toBe(2);
+    });
   });
 });

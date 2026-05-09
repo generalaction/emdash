@@ -32,8 +32,9 @@ export type ResourceStrategy<T, TEventData = void> =
       debounceMs?: number;
       /**
        * Upper bound on how long a sustained burst of events can postpone a reload.
-       * Without this, a pure trailing debounce never fires while events keep arriving
-       * (e.g. an agent continuously writing files), so the UI appears frozen.
+       * Only meaningful when `debounceMs` is also set. Without this, a pure
+       * trailing debounce never fires while events keep arriving (e.g. an agent
+       * continuously writing files), so the UI appears frozen.
        */
       maxWaitMs?: number;
     };
@@ -271,7 +272,7 @@ export class Resource<T, TEventData = void> {
     let reloadAfterInFlight = false;
     let stopped = false;
 
-    const fire = () => {
+    const clearTimers = () => {
       if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;
@@ -280,6 +281,10 @@ export class Resource<T, TEventData = void> {
         clearTimeout(maxWaitTimer);
         maxWaitTimer = null;
       }
+    };
+
+    const fire = () => {
+      clearTimers();
 
       if (this._inFlight) {
         if (reloadAfterInFlight) return;
@@ -295,24 +300,24 @@ export class Resource<T, TEventData = void> {
       void this.load();
     };
 
+    const customHandler = strategy.onEvent === 'reload' ? null : strategy.onEvent;
+
     const rawHandler = (event: TEventData) => {
-      if (strategy.onEvent === 'reload') {
-        if (strategy.debounceMs) {
-          if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(fire, strategy.debounceMs);
-          if (strategy.maxWaitMs && !maxWaitTimer) {
-            maxWaitTimer = setTimeout(fire, strategy.maxWaitMs);
-          }
-        } else {
-          void this.load();
+      if (customHandler) {
+        runInAction(() => {
+          customHandler(event, this._ctx);
+        });
+        return;
+      }
+
+      if (strategy.debounceMs) {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(fire, strategy.debounceMs);
+        if (strategy.maxWaitMs && !maxWaitTimer) {
+          maxWaitTimer = setTimeout(fire, strategy.maxWaitMs);
         }
       } else {
-        runInAction(() => {
-          (strategy.onEvent as (event: TEventData, ctx: ResourceContext<T>) => void)(
-            event,
-            this._ctx
-          );
-        });
+        void this.load();
       }
     };
 
@@ -321,14 +326,7 @@ export class Resource<T, TEventData = void> {
     this._stopFns.push(() => {
       stopped = true;
       unsubscribe();
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-        debounceTimer = null;
-      }
-      if (maxWaitTimer) {
-        clearTimeout(maxWaitTimer);
-        maxWaitTimer = null;
-      }
+      clearTimers();
     });
   }
 }
