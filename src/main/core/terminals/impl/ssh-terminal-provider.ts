@@ -3,10 +3,12 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { Pty } from '@main/core/pty/pty';
+import { withThemeColorFgBg } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { resolveEffectiveTheme } from '@main/core/settings/effective-theme';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import {
   sshConnectionManager,
@@ -147,7 +149,13 @@ export class SshTerminalProvider implements TerminalProvider {
     };
 
     const profile = await this.proxy.getRemoteShellProfile();
-    const sshCommand = resolveSshCommand('general', cfg, this.taskEnvVars, profile);
+    const theme = await resolveEffectiveTheme();
+    const sshCommand = resolveSshCommand(
+      'general',
+      cfg,
+      withThemeColorFgBg(this.taskEnvVars, theme),
+      profile
+    );
 
     const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,

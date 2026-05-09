@@ -58,6 +58,43 @@ describe('pty env Windows shell handling', () => {
     expect(env.SHELL).toBe('/bin/bash');
   });
 
+  it('sets COLORFGBG from theme so termenv TUIs detect light/dark', async () => {
+    setPlatform('linux');
+    const { buildAgentEnv, buildTerminalEnv } = await loadPtyEnv();
+
+    const lightAgent = buildAgentEnv({ agentApiVars: false, theme: 'emlight' });
+    const darkAgent = buildAgentEnv({ agentApiVars: false, theme: 'emdark' });
+    const lightTerm = buildTerminalEnv({ theme: 'emlight' });
+    const darkTerm = buildTerminalEnv({ theme: 'emdark' });
+    const noTheme = buildAgentEnv({ agentApiVars: false });
+
+    expect(lightAgent.COLORFGBG).toBe('0;15');
+    expect(darkAgent.COLORFGBG).toBe('15;0');
+    expect(lightTerm.COLORFGBG).toBe('0;15');
+    expect(darkTerm.COLORFGBG).toBe('15;0');
+    expect(noTheme.COLORFGBG).toBeUndefined();
+  });
+
+  it('builds terminal color query responses from theme', async () => {
+    const { terminalColorQueryResponseFor } = await loadPtyEnv();
+
+    expect(terminalColorQueryResponseFor('emlight')).toContain(']11;rgb:fcfc/fcfc/fcfc');
+    expect(terminalColorQueryResponseFor('emdark')).toContain(']11;rgb:1919/1919/1919');
+  });
+
+  it('keeps theme COLORFGBG authoritative over provider env vars', async () => {
+    setPlatform('linux');
+    const { buildAgentEnv } = await loadPtyEnv();
+
+    const env = buildAgentEnv({
+      agentApiVars: false,
+      theme: 'emlight',
+      providerVars: { COLORFGBG: '15;0' },
+    });
+
+    expect(env.COLORFGBG).toBe('0;15');
+  });
+
   it('adds provider vars while keeping hook variables authoritative', async () => {
     const { buildAgentEnv } = await loadPtyEnv();
     const env = buildAgentEnv({

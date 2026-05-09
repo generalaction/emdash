@@ -204,7 +204,7 @@
     --monaco-inactive-selection-bg: color-mix(in srgb, var(--selection) 15.3%, transparent);
 
     /* xterm terminals */
-    --xterm-bg: var(--background);
+    --xterm-bg: #fcfcfc;
     --xterm-fg: #1f2937;
     --xterm-cursor: #1e293b;
     --xterm-cursor-accent: #ffffff;
@@ -302,8 +302,8 @@
     --monaco-inactive-selection-bg: color(display-p3 1 1 1 / 0.133);
 
     /* xterm terminals */
-    --xterm-bg: var(--background-1);
-    --xterm-fg: var(--foreground);
+    --xterm-bg: #191919;
+    --xterm-fg: #eeeeee;
     --xterm-cursor: #1e293b;
     --xterm-cursor-accent: color(display-p3 0.484 0.484 0.484);
     --xterm-selection-bg: color(display-p3 0.033 0.197 0.37);

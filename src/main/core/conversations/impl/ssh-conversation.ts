@@ -8,10 +8,12 @@ import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { Pty } from '@main/core/pty/pty';
+import { terminalColorQueryResponseFor, withThemeColorFgBg } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { resolveEffectiveTheme } from '@main/core/settings/effective-theme';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { events } from '@main/lib/events';
@@ -115,10 +117,11 @@ export class SshConversationProvider implements ConversationProvider {
     };
 
     const profile = await this.proxy.getRemoteShellProfile();
+    const theme = await resolveEffectiveTheme();
     const sshCommand = resolveSshCommand(
       'agent',
       cfg,
-      { ...providerEnv, ...this.taskEnvVars },
+      withThemeColorFgBg({ ...providerEnv, ...this.taskEnvVars }, theme),
       profile
     );
 
@@ -138,6 +141,10 @@ export class SshConversationProvider implements ConversationProvider {
     }
 
     const pty = result.data;
+
+    if (conversation.providerId === 'opencode') {
+      this.primeTerminalColorDetection(pty, theme);
+    }
 
     // hooks not supported yet, rely on classifier for visual indicator
     wireAgentClassifier({
@@ -200,6 +207,20 @@ export class SshConversationProvider implements ConversationProvider {
       task_id: conversation.taskId,
       conversation_id: conversation.id,
     });
+  }
+
+  private primeTerminalColorDetection(
+    pty: Pty,
+    theme: Awaited<ReturnType<typeof resolveEffectiveTheme>>
+  ) {
+    const response = terminalColorQueryResponseFor(theme);
+    for (const delayMs of [0, 50, 150]) {
+      setTimeout(() => {
+        try {
+          pty.write(response);
+        } catch {}
+      }, delayMs);
+    }
   }
 
   async stopSession(conversationId: string): Promise<void> {

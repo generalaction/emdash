@@ -3,7 +3,7 @@ import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
-import { buildTerminalEnv } from '@main/core/pty/pty-env';
+import { buildTerminalEnv, withThemeColorFgBg } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import {
   logLocalPtySpawnWarnings,
@@ -12,6 +12,7 @@ import {
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { resolveEffectiveTheme } from '@main/core/settings/effective-theme';
 import { log } from '@main/lib/logger';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 import { type LifecycleScriptSpawnRequest, type TerminalProvider } from '../terminal-provider';
@@ -136,12 +137,13 @@ export class LocalTerminalProvider implements TerminalProvider {
       sessionId,
     });
 
+    const theme = await resolveEffectiveTheme();
     const pty = spawnLocalPty({
       id: sessionId,
       command: resolved.command,
       args: resolved.args,
       cwd: resolved.cwd,
-      env: { ...buildTerminalEnv(), ...this.taskEnvVars },
+      env: withThemeColorFgBg({ ...buildTerminalEnv({ theme }), ...this.taskEnvVars }, theme),
       cols: initialSize.cols,
       rows: initialSize.rows,
     });

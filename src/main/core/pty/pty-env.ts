@@ -2,6 +2,29 @@ import os from 'node:os';
 import { detectSshAuthSock } from '@main/utils/shellEnv';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
 
+export type EffectiveTheme = 'emlight' | 'emdark';
+
+// COLORFGBG values use xterm 16-color indices (fg;bg). termenv treats
+// bg <= 6 || bg == 8 as dark, so 15;0 → dark and 0;15 → light. Used by
+// opencode, charm/crush, and other termenv/lipgloss-based TUIs.
+export function colorFgBgFor(theme: EffectiveTheme): string {
+  return theme === 'emdark' ? '15;0' : '0;15';
+}
+
+export function withThemeColorFgBg(
+  env: Record<string, string>,
+  theme: EffectiveTheme
+): Record<string, string> {
+  return { ...env, COLORFGBG: colorFgBgFor(theme) };
+}
+
+export function terminalColorQueryResponseFor(theme: EffectiveTheme): string {
+  if (theme === 'emdark') {
+    return '\x1b]10;rgb:eeee/eeee/eeee\x07\x1b]11;rgb:1919/1919/1919\x07';
+  }
+  return '\x1b]10;rgb:1f1f/2929/3737\x07\x1b]11;rgb:fcfc/fcfc/fcfc\x07';
+}
+
 export const AGENT_ENV_VARS = [
   'AMP_API_KEY',
   'ANTHROPIC_API_KEY',
@@ -119,6 +142,13 @@ export interface AgentEnvOptions {
    * Per-provider variables configured in custom execution settings.
    */
   providerVars?: Record<string, string>;
+
+  /**
+   * Effective UI theme. Sets COLORFGBG so termenv-based TUIs (opencode,
+   * charm/crush, ...) pick the correct colorscheme on launch instead of
+   * defaulting to dark.
+   */
+  theme?: EffectiveTheme;
 }
 
 /**
@@ -134,7 +164,7 @@ export interface AgentEnvOptions {
  * SSH_AUTH_SOCK is injected via the same cached detector used for agents,
  * since GUI-launched apps often don't inherit it from the user's login shell.
  */
-export function buildTerminalEnv(): Record<string, string> {
+export function buildTerminalEnv(options: { theme?: EffectiveTheme } = {}): Record<string, string> {
   // Inherit the full process environment, stripping undefined values.
   const env: Record<string, string> = {};
   for (const [key, val] of Object.entries(process.env)) {
@@ -145,6 +175,8 @@ export function buildTerminalEnv(): Record<string, string> {
   env.TERM = 'xterm-256color';
   env.COLORTERM = 'truecolor';
   env.TERM_PROGRAM = 'emdash';
+
+  if (options.theme) env.COLORFGBG = colorFgBgFor(options.theme);
 
   // Ensure SHELL reflects the user's configured shell on POSIX. Native Windows
   // shells are selected via ComSpec by the spawn resolver, not SHELL.
@@ -174,7 +206,7 @@ export function buildTerminalEnv(): Record<string, string> {
  * find its own dependencies.
  */
 export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, string> {
-  const { agentApiVars = true, includeShellVar = false, hook, providerVars } = options;
+  const { agentApiVars = true, includeShellVar = false, hook, providerVars, theme } = options;
 
   // process.env.PATH is enriched at startup by resolveUserEnv() so it already
   // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
@@ -214,6 +246,8 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
   if (providerVars) {
     Object.assign(env, providerVars);
   }
+
+  if (theme) env.COLORFGBG = colorFgBgFor(theme);
 
   if (hook && hook.port > 0) {
     env.EMDASH_HOOK_PORT = String(hook.port);

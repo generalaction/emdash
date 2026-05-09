@@ -13,10 +13,15 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
-import { buildAgentEnv } from '@main/core/pty/pty-env';
+import {
+  buildAgentEnv,
+  terminalColorQueryResponseFor,
+  withThemeColorFgBg,
+} from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { resolveEffectiveTheme } from '@main/core/settings/effective-theme';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
@@ -124,21 +129,30 @@ export class LocalConversationProvider implements ConversationProvider {
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
+    const theme = await resolveEffectiveTheme();
     const pty = spawnLocalPty({
       id: sessionId,
       command: resolved.command,
       args: resolved.args,
       cwd: resolved.cwd,
-      env: {
-        ...buildAgentEnv({
-          hook: port > 0 ? { port, ptyId, token } : undefined,
-          providerVars: providerEnv,
-        }),
-        ...this.taskEnvVars,
-      },
+      env: withThemeColorFgBg(
+        {
+          ...buildAgentEnv({
+            hook: port > 0 ? { port, ptyId, token } : undefined,
+            providerVars: providerEnv,
+            theme,
+          }),
+          ...this.taskEnvVars,
+        },
+        theme
+      ),
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
+
+    if (conversation.providerId === 'opencode') {
+      this.primeTerminalColorDetection(pty, theme);
+    }
 
     const hookActive = port > 0;
     const provider = getProvider(conversation.providerId);
@@ -206,6 +220,20 @@ export class LocalConversationProvider implements ConversationProvider {
       task_id: conversation.taskId,
       conversation_id: conversation.id,
     });
+  }
+
+  private primeTerminalColorDetection(
+    pty: Pty,
+    theme: Awaited<ReturnType<typeof resolveEffectiveTheme>>
+  ) {
+    const response = terminalColorQueryResponseFor(theme);
+    for (const delayMs of [0, 50, 150]) {
+      setTimeout(() => {
+        try {
+          pty.write(response);
+        } catch {}
+      }, delayMs);
+    }
   }
 
   private async prepareHookConfig(providerId: Conversation['providerId']): Promise<void> {
