@@ -94,6 +94,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
   const isSshProject = sshConnectionId !== null;
   const isLocalProject = project.data?.type === 'local';
+  const isPathNotFound = projectViewKind(project) === 'path_not_found';
 
   const handleRelocate = async () => {
     if (isRelocating) return;
@@ -242,7 +243,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             <ContextMenuSeparator />
           </>
         )}
-        {isLocalProject && (
+        {isLocalProject && isPathNotFound && (
           <>
             <ContextMenuItem
               disabled={isRelocating}
