@@ -14,6 +14,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { ConversationsGridPanel } from './conversations/conversations-grid-panel';
 import { ConversationsPanel } from './conversations/conversations-panel';
 import { DiffView } from './diff-view/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
@@ -238,9 +239,11 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
     );
   }
 
+  const hideTabBar = taskView.agentLayoutMode !== 'tabs' && renderer === 'agents';
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <UnifiedMainTabBar />
+      {!hideTabBar && <UnifiedMainTabBar />}
       <div className="relative min-h-0 flex-1">
         {/*
          * Persistent Monaco host — always in the DOM, never inside an Activity.
@@ -262,7 +265,11 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
           <DiffView />
         </Activity>
         <Activity mode={renderer === 'agents' ? 'visible' : 'hidden'}>
-          <ConversationsPanel />
+          {taskView.agentLayoutMode === 'tabs' ? (
+            <ConversationsPanel />
+          ) : (
+            <ConversationsGridPanel />
+          )}
         </Activity>
         <Activity mode={renderer === 'other-file' ? 'visible' : 'hidden'}>
           <EditorMainPanel />
