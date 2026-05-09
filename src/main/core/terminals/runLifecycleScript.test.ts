@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
+import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import { resolveWorkspace } from '../projects/utils';
 import { runLifecycleScript } from './runLifecycleScript';
 
-vi.mock('../projects/settings/task-settings', () => ({
+vi.mock('../projects/settings/effective-task-settings', () => ({
   getEffectiveTaskSettings: vi.fn(),
 }));
 

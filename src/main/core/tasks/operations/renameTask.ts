@@ -31,7 +31,7 @@ export async function renameTask(
 
       if (siblings.length === 1) {
         const suffix = Math.random().toString(36).slice(2, 7);
-        const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
+        const branchPrefix = (await appSettingsService.get('project')).branchPrefix ?? '';
         newBranch = branchPrefix ? `${branchPrefix}/${newName}-${suffix}` : `${newName}-${suffix}`;
 
         await project.repository.renameBranch(oldBranch, newBranch);

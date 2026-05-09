@@ -1,30 +1,23 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import {
-  createLocalProject,
-  createSshProject,
-  getLocalProjectPathStatus,
-  getSshProjectPathStatus,
-} from './operations/createProject';
+import { createProject, inspectProjectPath } from './operations/createProject';
 import { deleteProject } from './operations/deleteProject';
-import { getProjectBootstrapStatus } from './operations/getProjectBootstrapStatus';
-import { getLocalProjectByPath, getProjects, getSshProjectByPath } from './operations/getProjects';
-import { getProjectSettings } from './operations/getProjectSettings';
+import { getProjects } from './operations/getProjects';
 import { openProject } from './operations/openProject';
 import { updateProjectConnection } from './operations/updateProjectConnection';
-import { updateProjectSettings } from './operations/updateProjectSettings';
+import {
+  getProjectSettingsPage,
+  shareProjectSettingsToConfig,
+  updateProjectSettings,
+} from './settings/project-settings-service';
 
 export const projectController = createRPCController({
-  createLocalProject,
-  createSshProject,
-  getLocalProjectPathStatus,
-  getSshProjectPathStatus,
+  createProject,
+  inspectProjectPath,
   getProjects,
   deleteProject,
-  getLocalProjectByPath,
-  getSshProjectByPath,
-  getProjectSettings,
+  getProjectSettingsPage,
   updateProjectSettings,
+  shareProjectSettingsToConfig,
   updateProjectConnection,
-  getProjectBootstrapStatus,
   openProject,
 });
