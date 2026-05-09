@@ -16,7 +16,7 @@ The reporting/observability tools (status, tasks, notify) live alongside Set A a
 - Per-conversation identity for every MCP request — server knows which conversation called.
 - Two-way agent collaboration: read peer state, send messages, spawn / close peers.
 - Drive emdash without UI: project / task / conversation CRUD, view switching.
-- Cross-task talk allowed but discouraged via explicit flags + audit signal.
+- Cross-task talk allowed but discouraged via explicit flag + capability gate + UI badge on receive.
 - Minimal tool count — fewer well-shaped tools over many narrow ones.
 
 ### Non-goals (v1)
@@ -330,7 +330,6 @@ src/main/core/mcp-internal/
 │   ├── view.ts                 # IPC events to renderer (focus tab / change layout)
 │   └── workspace.ts            # uses GitService, PrGenerationService, etc.
 ├── capabilities.ts             # capability bucket lookup per task
-└── audit.ts                    # logs cross-task writes for visibility
 ```
 
 Key wiring touchpoints in existing code:
@@ -344,13 +343,13 @@ Key wiring touchpoints in existing code:
 
 | Failure | Mitigation |
 |---|---|
-| Two emdash instances run simultaneously | Each generates own `INSTANCE_ID` + port; HTTP server validates instance — cross-instance requests rejected (audit-logged) |
+| Two emdash instances run simultaneously | Each generates own `INSTANCE_ID` + port; HTTP server validates instance — cross-instance requests rejected with 401 |
 | Token leak (env var leak) | Token rotated per app launch. Worst case: one instance compromised until restart |
 | MCP subprocess can't reach loopback | Tool returns `{error: 'unreachable'}`; agent retries; user sees notification with diagnostic |
 | User uninstalls emdash from MCP page mid-session | Catalog refresh on next boot; running conversations lose tools but don't crash (server still serves them) |
 | Provider's static `.mcp.json env` shadows per-conv vars | Catalog entry's `env` field deliberately omits per-conv keys; only INSTANCE_ID + STATUS_URL static |
 | Conversation deleted while peer holds reference | All `/agent/{id}/*` routes return 410 Gone; calling agent should fall back |
-| Cross-task `agent_send` abuse | Capability gate + audit log + UI badge on receiving conversation |
+| Cross-task `agent_send` abuse | Capability gate (off by default) + UI badge on receiving conversation's tab on next message |
 | Long-poll ties up requests | Default timeout 30 s, cap 60 s; server uses async I/O so doesn't block other routes |
 
 ---
@@ -387,10 +386,9 @@ Key wiring touchpoints in existing code:
 
 ## 12. Open questions
 
-1. Audit log retention — keep last 1000 cross-task-write events in memory only (no DB)? Or persist to a JSONL in emdash data dir? Recommend in-memory v1, JSONL when v2 lands `request_input` (which itself wants persistence anyway).
-2. Should `agent_spawn` be allowed when parent is `awaiting-input`? Suggest yes — orchestration shouldn't be blocked by parent state.
-3. `terminal_send` safety — should it require an explicit per-task capability beyond core, given it can run arbitrary shell? Recommend yes-by-default but with a one-time consent dialog the first time an agent calls it.
-4. Verify `PrGenerationService` does AI body generation. If yes, promote `workspace_create_pr` to v1.
+1. Should `agent_spawn` be allowed when parent is `awaiting-input`? Suggest yes — orchestration shouldn't be blocked by parent state.
+2. `terminal_send` safety — does it need an explicit per-task capability beyond core, given it can run arbitrary shell? Recommend yes-by-default but with a one-time consent dialog the first time an agent calls it.
+3. Verify `PrGenerationService` does AI body generation. If yes, promote `workspace_create_pr` to v1.
 
 ---
 
