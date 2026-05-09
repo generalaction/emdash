@@ -33,12 +33,14 @@ export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, classNa
   return (
     <span className={cn('flex items-center gap-1 text-xs text-muted-foreground', className)}>
       <KbdGroup>
-        {parsed.modifiers.map((modifier, idx) => {
+        {parsed.modifiers.map((modifier) => {
           const glyph = IS_MAC
-            ? MAC_MODIFIER_SYMBOLS[modifier]
-            : STANDARD_MODIFIER_LABELS[modifier];
+            ? (MAC_MODIFIER_SYMBOLS[modifier] ?? modifier)
+            : (STANDARD_MODIFIER_LABELS[modifier] ?? modifier);
           return (
-            <Kbd key={idx}>{IS_MAC ? <span className="translate-y-px">{glyph}</span> : glyph}</Kbd>
+            <Kbd key={modifier}>
+              {IS_MAC ? <span className="translate-y-px">{glyph}</span> : glyph}
+            </Kbd>
           );
         })}
         <Kbd>{KEY_DISPLAY_SYMBOLS[parsed.key] ?? parsed.key}</Kbd>
