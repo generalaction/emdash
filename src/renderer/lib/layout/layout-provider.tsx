@@ -13,33 +13,27 @@ import { panelDragStore } from './panel-drag-store';
 
 export interface WorkspaceLayoutContextValue {
   isLeftOpen: boolean;
-  isRightOpen: boolean;
   leftPanelRef: RefObject<PanelImperativeHandle | null>;
-  rightPanelRef: RefObject<PanelImperativeHandle | null>;
   setIsLeftOpen: (open: boolean) => void;
-  setIsRightOpen: (open: boolean) => void;
-  handleDragging: (side: 'left' | 'right', dragging: boolean) => void;
-  setCollapsed: (side: 'left' | 'right', collapsed: boolean) => void;
+  handleDragging: (side: 'left', dragging: boolean) => void;
+  setCollapsed: (side: 'left', collapsed: boolean) => void;
   toggleLeft: () => void;
-  toggleRight: () => void;
 }
 
 const WorkspaceLayoutContext = createContext<WorkspaceLayoutContextValue | undefined>(undefined);
 
 export function useWorkspaceLayoutService() {
   const leftPanelRef = usePanelRef();
-  const rightPanelRef = usePanelRef();
 
   const [isLeftOpen, setIsLeftOpen] = useState(true);
-  const [isRightOpen, setIsRightOpen] = useState(true);
 
-  const draggingRef = useRef({ left: false, right: false });
+  const draggingRef = useRef({ left: false });
 
-  const handleDragging = useCallback((side: 'left' | 'right', dragging: boolean) => {
+  const handleDragging = useCallback((side: 'left', dragging: boolean) => {
     if (draggingRef.current[side] === dragging) return;
-    const wasDragging = draggingRef.current.left || draggingRef.current.right;
+    const wasDragging = draggingRef.current.left;
     draggingRef.current[side] = dragging;
-    const isDragging = draggingRef.current.left || draggingRef.current.right;
+    const isDragging = draggingRef.current.left;
     if (wasDragging !== isDragging) {
       panelDragStore.setDragging(isDragging);
     }
@@ -48,15 +42,15 @@ export function useWorkspaceLayoutService() {
   useEffect(() => {
     const dragging = draggingRef.current;
     return () => {
-      if (dragging.left || dragging.right) {
+      if (dragging.left) {
         panelDragStore.setDragging(false);
       }
     };
   }, []);
 
   const setCollapsed = useCallback(
-    (side: 'left' | 'right', collapsed: boolean) => {
-      const panel = side === 'left' ? leftPanelRef.current : rightPanelRef.current;
+    (side: 'left', collapsed: boolean) => {
+      const panel = leftPanelRef.current;
       if (panel) {
         if (collapsed) {
           panel.collapse();
@@ -65,28 +59,20 @@ export function useWorkspaceLayoutService() {
         }
       }
     },
-    [leftPanelRef, rightPanelRef]
+    [leftPanelRef]
   );
 
   const toggleLeft = useCallback(() => {
     setCollapsed('left', isLeftOpen);
   }, [setCollapsed, isLeftOpen]);
 
-  const toggleRight = useCallback(() => {
-    setCollapsed('right', isRightOpen);
-  }, [setCollapsed, isRightOpen]);
-
   return {
     leftPanelRef,
-    rightPanelRef,
     handleDragging,
     setIsLeftOpen,
-    setIsRightOpen,
     isLeftOpen,
-    isRightOpen,
     setCollapsed,
     toggleLeft,
-    toggleRight,
   };
 }
 

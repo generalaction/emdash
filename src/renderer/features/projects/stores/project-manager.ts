@@ -4,6 +4,7 @@ import { type LocalProject, type SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import {
   createUnmountedProject,
@@ -274,7 +275,7 @@ export class ProjectManagerStore {
 
     const promise = Promise.all([
       rpc.projects.openProject(projectId),
-      rpc.viewState.get(`project:${projectId}`),
+      viewStateCache.get(`project:${projectId}`),
     ])
       .then(async ([openResult, savedSnapshot]) => {
         if (!openResult.success) {
