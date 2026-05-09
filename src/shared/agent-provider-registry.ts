@@ -223,6 +223,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
+    autoApproveFlag: '--dangerously-skip-permissions',
     initialPromptFlag: '',
     useKeystrokeInjection: true,
     resumeFlag: '--continue',
