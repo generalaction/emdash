@@ -155,7 +155,7 @@
     "mobx-react-lite": "^4.1.1",
     "monaco-editor": "^0.55.1",
     "motion": "^12.23.12",
-    "nbranch": "^0.1.0",
+    "nbranch": "^0.1.1",
     "node-pty": "1.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
