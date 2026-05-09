@@ -7,7 +7,7 @@ export type TabViewSnapshot = {
 
 export type TabDescriptor =
   | { kind: 'conversation'; tabId: string; conversationId: string; isPreview: boolean }
-  | { kind: 'file'; tabId: string; path: string; isPreview: boolean }
+  | { kind: 'file'; tabId: string; path: string; isPreview: boolean; isExternal?: boolean }
   | {
       kind: 'diff';
       tabId: string;
@@ -26,6 +26,10 @@ export type TabManagerSnapshot = {
 };
 
 export type EditorViewSnapshot = {
+  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
+  tabs?: Array<{ tabId: string; path: string; isPreview: boolean; isExternal?: boolean }>;
+  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
+  activeTabId?: string | null;
   expandedPaths: string[];
 };
 

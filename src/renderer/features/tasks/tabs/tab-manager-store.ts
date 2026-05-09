@@ -1,4 +1,4 @@
-import { action, autorun, computed, makeObservable, observable, reaction } from 'mobx';
+import { action, autorun, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import type { GitChangeStatus, GitObjectRef } from '@shared/git';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 import type {
@@ -8,6 +8,7 @@ import type {
 import { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
 import type { FileRendererData } from '@renderer/features/tasks/types';
+import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
@@ -70,6 +71,7 @@ export type ResolvedFileTab = {
   isDirty: boolean;
   bufferUri: string;
   isActive: boolean;
+  isExternal: boolean;
 };
 
 export type ResolvedDiffTab = {
@@ -134,6 +136,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       openConversation: action,
       openConversationPreview: action,
       openFile: action,
+      openExternalFile: action,
       openFilePreview: action,
       openDiff: action,
       openDiffPreview: action,
@@ -267,7 +270,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     const paths: string[] = [];
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
-      if (entry?.kind === 'file') paths.push(entry.path);
+      if (entry?.kind === 'file' && !entry.isExternal) paths.push(entry.path);
     }
     return paths;
   }
@@ -304,15 +307,18 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           isActive: effectiveActiveId === entry.tabId,
         });
       } else {
-        const bufferUri = buildMonacoModelPath(this.modelRootPath, entry.path);
+        const bufferUri = entry.isExternal
+          ? ''
+          : buildMonacoModelPath(this.modelRootPath, entry.path);
         result.push({
           kind: 'file',
           tabId: entry.tabId,
           path: entry.path,
           isPreview: entry.isPreview,
-          isDirty: modelRegistry.dirtyUris.has(bufferUri),
+          isDirty: entry.isExternal ? false : modelRegistry.dirtyUris.has(bufferUri),
           bufferUri,
           isActive: effectiveActiveId === entry.tabId,
+          isExternal: entry.isExternal,
         });
       }
     }
@@ -349,6 +355,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           tabId: entry.tabId,
           path: entry.path,
           isPreview: entry.isPreview,
+          isExternal: entry.isExternal,
         });
       }
     }
@@ -409,6 +416,24 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     this.activeTabId = tab.tabId;
   }
 
+  /** Opens a read-only markdown file outside the workspace. */
+  async openExternalFile(path: string): Promise<void> {
+    const existing = this._findFileEntryByPath(path);
+    if (existing) {
+      existing.isPreview = false;
+      this.activeTabId = existing.tabId;
+      return;
+    }
+
+    const tab = new FileTabStore(path, false);
+    tab.markExternalLoading();
+    this.entries.set(tab.tabId, tab);
+    addTabId(this, tab.tabId);
+    this.activeTabId = tab.tabId;
+
+    await this._loadExternalFile(path);
+  }
+
   openFilePreview(path: string): void {
     const existing = this._findFileEntryByPath(path);
     if (existing) {
@@ -417,7 +442,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     }
 
     const prevPreview = this.previewFileEntry;
-    const prevUri = prevPreview ? buildMonacoModelPath(this.modelRootPath, prevPreview.path) : null;
+    const prevUri =
+      prevPreview && !prevPreview.isExternal
+        ? buildMonacoModelPath(this.modelRootPath, prevPreview.path)
+        : null;
     const canReplace = prevPreview && prevUri && !modelRegistry.isDirty(prevUri);
 
     if (canReplace && prevPreview) {
@@ -613,6 +641,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           this.tabOrder.push(tab.tabId);
         } else {
           const tab = new FileTabStore(t.path, t.isPreview, t.tabId);
+          if (t.isExternal) {
+            tab.markExternalLoading();
+            void this._loadExternalFile(t.path);
+          }
           this.entries.set(tab.tabId, tab);
           this.tabOrder.push(tab.tabId);
         }
@@ -637,6 +669,24 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  private async _loadExternalFile(path: string): Promise<void> {
+    try {
+      const result = await rpc.app.readUserFile(path);
+      runInAction(() => {
+        const current = this._findFileEntryByPath(path);
+        if (!current) return;
+        if (result.success) current.setExternalContent(result.content);
+        else current.setExternalError(result.error);
+      });
+    } catch (error) {
+      runInAction(() => {
+        const current = this._findFileEntryByPath(path);
+        if (!current) return;
+        current.setExternalError(error instanceof Error ? error.message : String(error));
+      });
+    }
+  }
 
   private _findConversationEntry(conversationId: string): ConversationTabEntry | undefined {
     for (const id of this.tabOrder) {

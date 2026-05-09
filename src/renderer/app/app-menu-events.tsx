@@ -32,15 +32,14 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
         const dispose = when(
           () => {
             const view = getTaskView(projectId, taskId);
-            return (
-              !!view &&
-              view.tabManager.tabs.some(
-                (tab) => tab.kind === 'conversation' && tab.id === conversationId
-              )
-            );
+            return !!view && view.tabManager.hasConversationTab(conversationId);
           },
           () => {
-            getTaskView(projectId, taskId)?.tabManager.setActiveTab(conversationId);
+            const view = getTaskView(projectId, taskId);
+            const tab = view?.tabManager.resolvedTabs.find(
+              (entry) => entry.kind === 'conversation' && entry.conversationId === conversationId
+            );
+            if (tab) view?.tabManager.setActiveTab(tab.tabId);
           },
           {
             timeout: 10_000,

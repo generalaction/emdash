@@ -17,6 +17,9 @@ export interface ManagedFile {
   tabId: string;
   /** Renderer kind and its display state. */
   renderer: FileRendererData;
+  /** External files (outside the workspace) bypass Monaco; content lives on `content`. */
+  isExternal?: boolean;
+  externalError?: string;
 }
 
 /**
