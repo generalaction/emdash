@@ -22,8 +22,10 @@ The reporting/observability tools (status, tasks, notify) live alongside Set A a
 ### Non-goals (v1)
 - ACP transport — defer until industry standardizes (revisit when Zed pattern stabilizes).
 - Emdash-internal message persistence DB — read transcripts on-demand from each provider's own files.
-- Browser / web client — same trick can later, but v1 is for in-process agent CLIs only.
+- Browser / web client — same trick can be done later, but v1 is for in-process agent CLIs only.
 - Cross-emdash-instance talk — single instance only.
+- UI-replacement tool surface (project / view / settings / skills / mcp driving). Deferred — see §13.
+- Reporting tools (`report_*`) — deferred to v2 as part of classifier→agent-emit migration. See §6 / §13.
 
 ---
 
@@ -146,87 +148,34 @@ Server validates: token matches, instance matches, session ID is live. Otherwise
 | `GET /agent/{conversationId}/fetch?kind=events\|scrollback\|transcript&limit&since` | `agent_fetch` | kind + cursor | `{items: [...], nextCursor?, providerTier, transcriptSupported}` |
 | `DELETE /agent/{conversationId}` | `agent_close` | — | `{ok: true}` |
 
-### Set B endpoints (emdash driving)
-
-Resource-noun routes. Below is the v1 surface; verbs map straight to existing controllers.
+### Orchestration / awareness / terminals endpoints
 
 ```
-# Projects
-GET    /projects                                project_list
-GET    /projects/{id}                           project_get
-POST   /projects/local                          project_create_local       (gated)
-POST   /projects/clone                          project_create_clone        (gated)
-PATCH  /projects/{id}/archived                  project_archive / unarchive
-PATCH  /projects/{id}/appearance                project_set_appearance
-POST   /projects/{id}/open                      project_open
-DELETE /projects/{id}                           project_delete              (dangerous)
-
-# Tasks
+# Tasks (orchestration only — no rename/archive/delete in v1)
 GET    /tasks?projectId=&includeArchived=       task_list
-GET    /tasks/{id}                              task_get
-POST   /tasks                                   task_create                 (gated)
-PATCH  /tasks/{id}                              task_rename / pin           (gated)
-PATCH  /tasks/{id}/archived                     task_archive / unarchive
-POST   /tasks/{id}/open                         task_open
-DELETE /tasks/{id}                              task_delete                 (dangerous)
+POST   /tasks                                   task_create
 
-# Conversations
-GET    /conversations?taskId=                   conversation_list
-POST   /conversations                           conversation_create        (subset of agent_spawn for cross-task)
-PATCH  /conversations/{id}                      conversation_rename        (gated)
-DELETE /conversations/{id}                      conversation_delete        (gated)
-POST   /conversations/{id}/open                 conversation_open
-
-# View / UI
-PATCH  /view/layout                             view_layout_set
-POST   /view/file                               view_open_file
-POST   /view/diff                               view_open_diff
-POST   /view/terminal                           view_terminal_open / close
-PATCH  /view/sidebar                            view_sidebar_set
-
-# Workspace inspection (current task scope)
-GET    /workspace/diff?against=                 workspace_get_diff
-GET    /workspace/files?glob=                   workspace_list_files
-GET    /workspace/search?query=                 workspace_search
-GET    /workspace/prs                           workspace_list_open_prs
+# Workspace
 GET    /workspace/dev-servers                   workspace_dev_servers
-POST   /workspace/lifecycle                     workspace_run_lifecycle    (gated)
-POST   /workspace/pr                            workspace_create_pr        (gated)
-POST   /workspace/commit                        workspace_commit           (gated)
 
-# Settings / extensions
-GET    /skills                                  skills_list
-POST   /skills                                  skills_install             (gated)
-GET    /mcp                                     mcp_list
-POST   /mcp                                     mcp_install                (dangerous)
-DELETE /mcp/{name}                              mcp_remove                 (dangerous)
-GET    /settings/{key}                          settings_get
-PATCH  /settings/{key}                          settings_set               (dangerous)
-
-# Reporting (one-way)
-POST   /report/status                           report_status
-POST   /report/tasks                            report_tasks
-POST   /report/notify                           notify
-POST   /report/request-input                    request_input              (long-poll)
+# Terminals (caller's task only)
+GET    /terminals                               terminal_list
+POST   /terminals/{terminalId}/send             terminal_send
+POST   /terminals                               terminal_create
 ```
 
 ### Capability gating
 
-Three buckets per task. Persisted on the task. UI surfaces toggles in task settings.
+Two buckets per task. Persisted on the task. UI surfaces toggles in task settings.
 
-- `core` — Set A (excluding cross-task writes) + read-only Set B + reporting. Always on.
-- `driving:write` — write tools tagged `(gated)` above. User opts in.
-- `driving:dangerous` — tools tagged `(dangerous)`. Explicit opt-in with confirmation dialog.
+- `core` — Set A (excluding cross-task writes) + orchestration + workspace awareness + terminals. Always on.
+- `cross-task:write` — `agent_send(crossTask:true)`, `agent_interrupt` cross-task, `task_create` for projects other than caller's. Default off.
 
-Cross-task variants:
-- `cross-task:read` — `agent_list_peers(scope:'project'\|'all')`, `agent_observe`, `agent_fetch` across tasks. Default on.
-- `cross-task:write` — `agent_send(crossTask:true)`, `agent_interrupt` cross-task. Default off.
-
-Server checks capability bucket vs. caller's task on every request.
+Server checks capability bucket vs. caller's task on every request. Cross-task reads (`agent_list_peers(scope:'project'\|'all')`, `agent_observe`, `agent_fetch`) are core — visibility is cheap, writes are gated.
 
 ---
 
-## 6. MCP tool surface (locked)
+## 6. MCP tool surface (locked, 14 tools)
 
 ### Set A — 8 tools
 
@@ -241,30 +190,45 @@ Server checks capability bucket vs. caller's task on every request.
 | `agent_fetch` | `conversationId, kind: 'events'\|'scrollback'\|'transcript', limit?, since?` | `{items, nextCursor?, providerTier, transcriptSupported}` |
 | `agent_close` | `conversationId` | `{ok: true}` |
 
-### Reporting — 4 tools
+### Orchestration — 2
 
 | Tool | Params | Effect |
 |---|---|---|
-| `report_status` | `state, message` | drives ConversationStore status indicator |
-| `report_tasks` | `tasks[]` snapshot | renders todo list in task sidebar (new section) |
-| `notify` | `title, body, urgency?` | OS notification + bring-to-front |
-| `request_input` | `prompt, timeoutMs?` | long-poll: blocks; UI shows prompt; returns user reply |
+| `task_create` | `projectId?, name, sourceBranch?, taskBranch?, initialPrompt?, providerId?` (projectId defaults to caller's project) | Creates a new task. Returns `{taskId, conversationId?}`. Use case: research agent kicks off parallel implementation task |
+| `task_list` | `projectId?, includeArchived?` | Returns task summaries for orchestration decisions |
 
-### Set B — start small, expand
+Other `task_*` and all `conversation_*` driving tools are deferred (see §13) — they duplicate existing UI and aren't worth the surface area for v1.
 
-v1 ships a curated subset:
+### Workspace awareness — 1
 
-```
-project_list, project_get, project_archive, project_set_appearance, project_open
-task_list, task_get, task_create, task_open, task_archive
-conversation_list, conversation_open
-view_layout_set, view_open_file
-workspace_get_diff, workspace_list_files, workspace_dev_servers, workspace_create_pr
-skills_list, mcp_list
-settings_get
-```
+| Tool | Params | Effect |
+|---|---|---|
+| `workspace_dev_servers` | — | Lists running dev server URLs for the caller's task. Agents can't introspect this via shell. Useful for testing agents that need to curl a running server |
 
-Total v1 tool count: **8 + 4 + 21 = 33**. Larger than ideal but resource-noun grouping keeps each tool single-purpose. Future v1.x adds the remaining items as user signal warrants.
+`workspace_get_diff`, `_list_files`, `_search`, `_commit`, `_run_lifecycle`, `_create_pr` deferred — agent CLIs already have `git`, `find`, `rg`, `gh`. `_create_pr` may be promoted to v1 if `PrGenerationService` performs AI body generation worth wrapping; verify before locking PR1.
+
+### Terminals — 3
+
+| Tool | Params | Effect |
+|---|---|---|
+| `terminal_list` | — | List terminals open in the caller's task: `[{terminalId, cwd, name, lastActivityAt}]` |
+| `terminal_send` | `terminalId, text, submit?: bool` | Append `text` to terminal; if `submit=true`, also send `\n`. Lets agents drop commands the user runs without copy-paste |
+| `terminal_create` | `initialCommand?, name?, focus?: bool` | Opens terminal drawer if closed, spawns a new terminal in the worktree. If `initialCommand` set, auto-types + submits. Returns `{terminalId}` |
+
+Use case: agent says "run `pnpm test:auth` to verify" and calls `terminal_create({initialCommand: 'pnpm test:auth'})` — user sees it execute without copy-paste.
+
+### Reporting — deferred to v2
+
+The following four tools are deliberately NOT in v1:
+
+- `report_status` — agent self-reports working/awaiting/done state
+- `report_tasks` — agent declares its todo plan, rendered as native sidebar list
+- `notify` — OS notification on completion
+- `request_input` — agent pauses, native UI prompt with timeout
+
+They are valuable long-term — they would let agents drive emdash's status pipeline directly, eventually **replacing** the classifier + hook system that currently infers state from PTY output. That's a bigger refactor than v1 should take on.
+
+Today emdash already detects status from PTY (classifier wiring + hook server in `src/main/core/agent-hooks/`). Adding `report_*` tools alongside means two parallel systems writing the same state, with no clear winner. v2 commits to the migration: agents emit, classifiers retire.
 
 ---
 
@@ -394,57 +358,80 @@ Key wiring touchpoints in existing code:
 ## 11. Phasing
 
 **PR1 — bootstrap (this branch):**
-1. `src/mcp-server/` skeleton (electron-vite entry + 3 stub tools)
-2. `src/main/core/mcp-internal/` HTTP server + auth + instance/port mgmt
+1. `src/mcp-server/` skeleton (electron-vite entry + stdio MCP boilerplate)
+2. `src/main/core/mcp-internal/` HTTP server + auth + instance / port mgmt
 3. `emdash` entry in `catalogData`
-4. App boot: refresh emdash catalog entry
+4. App boot: refresh emdash catalog entry with current port / instance
 5. PTY env injection at conversation spawn
-6. Implement: `agent_self`, `agent_observe`, `agent_send`, `report_status`
-7. Manual test: install emdash MCP via UI in Claude Code, spawn conversation, verify agent_self returns correct identity
+6. Implement: `agent_self`, `agent_observe`, `agent_send`
+7. Manual test: install emdash MCP via UI in Claude Code, spawn conversation, verify `agent_self` returns correct identity, two conversations talk via `agent_send` + `agent_observe`
 
 **PR2 — Set A complete:**
 - `agent_list_peers`, `agent_spawn`, `agent_close`, `agent_interrupt`
 - `agent_fetch(events|scrollback)` from in-memory buffers
-- `report_tasks`, `notify`, `request_input`
+- Cross-task scope query support + `cross-task:write` capability bucket
 
-**PR3 — Set A transcript reads:**
-- Per-provider transcript readers (Claude / Codex / Copilot)
-- `external_session_id` capture at spawn
-- Schema migration for `conversations`
+**PR3 — transcript reads:**
+- Per-provider transcript readers (Claude Code, Codex, Copilot CLI)
+- `external_session_id` capture at conversation spawn
+- Schema migration adding `external_session_id` / `imported` / `external_source_path` to conversations
 - `agent_fetch(transcript)` end-to-end
 
-**PR4 — Set B core (read-only):**
-- Project / task / conversation / workspace read tools
-- Capability bucket scaffolding (default core-only enabled)
-- View / UI ops (open file, switch layout)
-
-**PR5 — Set B writes + capability UI:**
-- Write tools behind `driving:write` toggle
-- Per-task capability settings UI
-- Audit log surfaced as task-view tab
-
-**PR6 — Set B dangerous + cross-task writes:**
-- Delete / settings / mcp_install behind `driving:dangerous`
-- `agent_send(crossTask:true)` audit + UI badge
+**PR4 — orchestration + awareness + terminals:**
+- `task_list`, `task_create`
+- `workspace_dev_servers`
+- `terminal_list`, `terminal_send`, `terminal_create`
+- Capability toggle UI in task settings panel
 
 ---
 
 ## 12. Open questions
 
-1. Is `report_tasks` rendering distinct from existing emdash task list? Recommend: separate sidebar section in task view labeled "Agent plan", independent from emdash's own tasks.
-2. `request_input` UI shape — modal or inline in task view? Lean inline with timeout countdown.
-3. Capability defaults per provider — Claude / Codex / Copilot default-core-on; everyone else default-core-on too. No per-provider gating.
-4. Audit log retention — keep last 1000 events in memory only (no DB)? Or persist to a JSONL in emdash data dir?
-5. Should `agent_spawn` be allowed during high-cost states (e.g. parent agent currently `awaiting-input`)? Suggest yes — orchestration shouldn't be blocked by parent state.
+1. Audit log retention — keep last 1000 cross-task-write events in memory only (no DB)? Or persist to a JSONL in emdash data dir? Recommend in-memory v1, JSONL when v2 lands `request_input` (which itself wants persistence anyway).
+2. Should `agent_spawn` be allowed when parent is `awaiting-input`? Suggest yes — orchestration shouldn't be blocked by parent state.
+3. `terminal_send` safety — should it require an explicit per-task capability beyond core, given it can run arbitrary shell? Recommend yes-by-default but with a one-time consent dialog the first time an agent calls it.
+4. Verify `PrGenerationService` does AI body generation. If yes, promote `workspace_create_pr` to v1.
 
 ---
 
-## 13. Out-of-scope (for now)
+## 13. Deferred — v2 roadmap
 
-- **Browser hosting of emdash MCP** — would need WebSocket transport. v2.
-- **Recording / replaying conversations from emdash MCP traffic** — interesting for testing but separate feature.
+These are intentionally NOT in v1, with a path to v2.
+
+### Reporting tools (replace classifier system)
+
+| Tool | Purpose |
+|---|---|
+| `report_status` | Agent self-reports working/awaiting/done — drives ConversationStore status indicator |
+| `report_tasks` | Agent declares todo plan, rendered as native sidebar list ("Agent plan") |
+| `notify` | OS notification + bring-to-front |
+| `request_input` | Long-poll: blocks; UI shows prompt with timeout countdown; returns user reply |
+
+**Why deferred**: emdash currently infers state from PTY (classifier wiring + hook server in `src/main/core/agent-hooks/`). Adding `report_*` tools means two parallel writers to the same state. v2 commits to migrating: agents emit, classifiers retire. Bigger refactor than v1 should take on.
+
+### Set B driving (UI replacement)
+
+Tools that duplicate emdash UI. Skipped in v1 because the UI already does the job.
+
+| Group | Tools |
+|---|---|
+| Projects | `project_list` `project_get` `project_create_local` `project_create_clone` `project_archive` / `_unarchive` `project_set_appearance` `project_open` `project_delete` |
+| Tasks (CRUD beyond orchestration) | `task_get` `task_rename` `task_pin` `task_archive` / `_unarchive` `task_open` `task_delete` |
+| Conversations | `conversation_list` `conversation_create` `conversation_rename` `conversation_delete` `conversation_open` |
+| View / UI | `view_layout_set` `view_open_file` `view_open_diff` `view_terminal_open` / `_close` `view_sidebar_set` |
+| Workspace inspection | `workspace_get_diff` `workspace_list_files` `workspace_search` `workspace_list_open_prs` `workspace_run_lifecycle` `workspace_commit` |
+| Workspace mutate | `workspace_create_pr` (only if `PrGenerationService` provides AI body generation worth wrapping — verify; otherwise stays here) |
+| Settings / extensions | `skills_list` `skills_install` `mcp_list` `mcp_install` `mcp_remove` `settings_get` `settings_set` |
+
+Promoted to v1 individually if a clear "agent CLI cannot do this with shell tools" justification emerges.
+
+### Other out-of-scope
+
+- **Browser hosting of emdash MCP** — would need WebSocket transport. Possibly v3.
+- **Recording / replaying conversations from emdash MCP traffic** — separate feature.
 - **Tool-level rate limiting** — assume in-process trust; revisit if abuse appears.
-- **Per-conversation tool subsets** — task-level capabilities are enough granularity; per-conversation overrides not justified.
+- **Per-conversation tool subsets** — task-level capabilities sufficient.
+- **ACP transport** — defer until industry standardizes on Zed's ACP. Migration is renderer/main boundary swap, not user-facing.
 
 ---
 
@@ -454,5 +441,5 @@ Key wiring touchpoints in existing code:
 - **Task** — a worktree + a set of conversations operating on it.
 - **Provider** — agent CLI brand (Claude Code, Codex, Copilot CLI…).
 - **Tier** (`hooks|classifier|unsupported`) — how rich the event stream is for a given provider.
-- **Capability bucket** — named set of tools the user has enabled for a task (`core`, `driving:write`, `driving:dangerous`, `cross-task:write`).
+- **Capability bucket** — named set of tools the user has enabled for a task. v1 has `core` (always on) and `cross-task:write` (off by default).
 - **Instance** — a running emdash process. Identified by `EMDASH_INSTANCE_ID` (UUID, regenerated each launch).
