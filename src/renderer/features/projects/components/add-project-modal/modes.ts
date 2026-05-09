@@ -85,9 +85,9 @@ export function useNewMode(defaultPath: string) {
     [authenticated, data]
   );
 
-  if (owners !== prevOwners) {
+  if (owners !== prevOwners && owners.length > 0) {
     setPrevOwners(owners);
-    if (!ownerIsTouched && owners.length > 0) {
+    if (!ownerIsTouched) {
       setRepositoryOwner(owners[0]);
     }
   }
