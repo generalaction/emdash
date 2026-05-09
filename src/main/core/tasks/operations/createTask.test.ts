@@ -69,7 +69,7 @@ beforeEach(() => {
   mocks.insertMock.mockReturnValue({ values: mocks.valuesMock });
   mocks.valuesMock.mockReturnValue({ returning: mocks.returningMock });
   mocks.appSettingsGetMock.mockImplementation(async (key: string) => {
-    if (key === 'localProject') return { branchPrefix: '' };
+    if (key === 'project') return { branchPrefix: '' };
     return {};
   });
   mocks.provisionTaskMock.mockResolvedValue({ success: true, value: undefined });

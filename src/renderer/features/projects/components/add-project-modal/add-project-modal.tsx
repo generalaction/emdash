@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -71,6 +72,7 @@ export const AddProjectModal = observer(function AddProjectModal({
     strategy === 'ssh' ? (connectionId ?? availableConnectionIds[0]) : connectionId;
 
   const { navigate } = useNavigate();
+  const { toast } = useToast();
   const { isInitialized, needsGhAuth } = useGithubContext();
 
   const showSshConnModal = useShowModal('addSshConnModal');
@@ -151,14 +153,25 @@ export const AddProjectModal = observer(function AddProjectModal({
     !isCheckingPickPathStatus;
 
   const handleSubmit = async () => {
-    const freshPickInspection =
-      mode === 'pick'
-        ? await rpc.projects.inspectProjectPath(
-            strategy === 'ssh'
-              ? { type: 'ssh', path: pickState.path, connectionId: selectedConnectionId! }
-              : { type: 'local', path: pickState.path }
-          )
-        : undefined;
+    let freshPickInspection:
+      | Awaited<ReturnType<typeof rpc.projects.inspectProjectPath>>
+      | undefined;
+    if (mode === 'pick') {
+      try {
+        freshPickInspection = await rpc.projects.inspectProjectPath(
+          strategy === 'ssh'
+            ? { type: 'ssh', path: pickState.path, connectionId: selectedConnectionId! }
+            : { type: 'local', path: pickState.path }
+        );
+      } catch {
+        toast({
+          title: 'Could not inspect project path',
+          description: 'Check that the path still exists and try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
 
     if (freshPickInspection?.existingProject) {
       navigate('project', { projectId: freshPickInspection.existingProject.id });
