@@ -15,7 +15,6 @@ import { ChangeProjectConnectionModal } from '@renderer/lib/components/change-pr
 import { ConfirmActionDialog } from '@renderer/lib/components/confirm-action-dialog';
 import { FeedbackModal } from '@renderer/lib/components/feedback-modal/feedback-modal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-device-flow-modal';
-import { ResourceMonitorModal } from '@renderer/lib/components/titlebar/resource-monitor';
 import { type ModalComponent } from '@renderer/lib/modal/modal-provider';
 
 export type ModalSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -52,6 +51,5 @@ export const modalRegistry = {
   shareProjectConfigModal: createModal(ShareProjectConfigModal, { size: 'md' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   addRemoteModal: createModal(AddRemoteModal),
-  resourceMonitorModal: createModal(ResourceMonitorModal, { size: 'md' }),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalRegistryEntry<any, any>>;

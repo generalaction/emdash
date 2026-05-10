@@ -3,6 +3,10 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ResourceAppProcess, ResourceSnapshot } from '@shared/resource-monitor';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import { agentMeta } from '@renderer/lib/providers/meta';
+import { appState } from '@renderer/lib/stores/app-state';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { formatBytes } from '@renderer/utils/formatBytes';
 import {
   appProcessLabel,
   buildGroups,
@@ -11,11 +15,7 @@ import {
   type Entry,
   type Group,
   type TaskBucket,
-} from '@renderer/lib/components/titlebar/resource-monitor';
-import { agentMeta } from '@renderer/lib/providers/meta';
-import { appState } from '@renderer/lib/stores/app-state';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { formatBytes } from '@renderer/utils/formatBytes';
+} from './resource-monitor-utils';
 
 export const ResourceMonitorView = observer(function ResourceMonitorView({
   onBack,
