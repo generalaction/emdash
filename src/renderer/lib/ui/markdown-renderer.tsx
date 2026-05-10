@@ -11,6 +11,7 @@ import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
+import { normalizeLatexDelimiters } from './markdown-latex';
 
 type Variant = 'full' | 'compact';
 
@@ -303,6 +304,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
   const components = variant === 'full' ? fullComponents : compactComponents;
   const rehypePlugins = variant === 'full' ? FULL_REHYPE_PLUGINS : COMPACT_REHYPE_PLUGINS;
+  const normalizedContent = useMemo(() => normalizeLatexDelimiters(content), [content]);
 
   return (
     <div className={cn(className)}>
@@ -311,7 +313,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         rehypePlugins={rehypePlugins}
         components={components}
       >
-        {content}
+        {normalizedContent}
       </Markdown>
     </div>
   );
