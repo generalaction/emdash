@@ -8,6 +8,7 @@ on:
 jobs:
   knip:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
