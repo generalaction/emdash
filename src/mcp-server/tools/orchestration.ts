@@ -45,10 +45,14 @@ export function registerOrchestrationTools(server: McpServer, http: HttpClient):
 
   server.tool(
     'task_create',
-    "Creates a new task in a project, optionally seeded with an initial conversation. Use to kick off parallel work that requires its own worktree (a research agent spawning an implementation task, for example). Defaults projectId to caller's; sourceBranch defaults to project's baseRef.",
+    "Creates a new task in a project, optionally seeded with an initial conversation. Use to kick off parallel work that requires its own worktree (a research agent spawning an implementation task, for example). Defaults projectId to caller's; sourceBranch defaults to project's baseRef. Pass providerId to seed an agent conversation; initialPrompt requires providerId.",
     {
       projectId: z.string().optional().describe("Project to create task in. Defaults to caller's."),
       name: z.string().describe('Task name (also used as default task branch).'),
+      strategy: z
+        .literal('new-branch')
+        .optional()
+        .describe('Worktree strategy. v1 supports "new-branch" only.'),
       sourceBranch: z
         .string()
         .optional()
@@ -57,14 +61,14 @@ export function registerOrchestrationTools(server: McpServer, http: HttpClient):
         .string()
         .optional()
         .describe('Custom name for the new task branch. Defaults to task name.'),
-      initialPrompt: z
-        .string()
-        .optional()
-        .describe('First message delivered to the seeded conversation.'),
       providerId: z
         .string()
         .optional()
         .describe('Agent provider id to seed the task with (claude, codex, etc.).'),
+      initialPrompt: z
+        .string()
+        .optional()
+        .describe('First message delivered to the seeded conversation. Requires providerId.'),
     },
     async (params) => {
       const data = await http.post('/tasks', params);
@@ -98,7 +102,7 @@ export function registerOrchestrationTools(server: McpServer, http: HttpClient):
     {
       terminalId: z.string().describe('Terminal ID. Discover via terminal_list.'),
       text: z.string().describe('Text to type into the terminal.'),
-      submit: z.boolean().optional().describe('If true, append \\n to execute the command.'),
+      submit: z.boolean().optional().describe('If true, append CR to execute the command.'),
     },
     async ({ terminalId, text, submit }) => {
       const data = await http.post(`/terminals/${terminalId}/send`, {
@@ -111,12 +115,12 @@ export function registerOrchestrationTools(server: McpServer, http: HttpClient):
 
   server.tool(
     'terminal_create',
-    "Opens a new terminal in the caller's task worktree. Optional initialCommand is auto-typed and submitted. Use this to drop a command the user should run without making them copy-paste.",
+    "Opens a new terminal in the caller's task worktree. Optional initialCommand is typed + submitted immediately after spawn. Use this to drop a command the user should run without making them copy-paste.",
     {
       initialCommand: z
         .string()
         .optional()
-        .describe('Command auto-typed + submitted on terminal startup.'),
+        .describe('Command typed + submitted on terminal startup.'),
       name: z.string().optional().describe('Terminal name shown in the drawer.'),
     },
     async (params) => {

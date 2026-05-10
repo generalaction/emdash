@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { Branch } from '@shared/git';
 import { makePtySessionId } from '@shared/ptySessionId';
+import type { CreateTaskError } from '@shared/tasks';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { createTask } from '@main/core/tasks/operations/createTask';
 import { getTasks } from '@main/core/tasks/operations/getTasks';
@@ -25,7 +26,7 @@ export const TaskCreateBodySchema = z
     initialPrompt: z.string().optional(),
     providerId: z.string().optional(),
     // v1: only new-branch worktree strategy. Single-element enum so future
-    // widening is explicit (z.literal here would mean 'wrong key' on extension).
+    // strategies widen the union without a schema break.
     strategy: z.enum(['new-branch']).optional(),
   })
   .refine((v) => !v.initialPrompt || v.providerId, {
@@ -56,6 +57,31 @@ export const ProjectListQuerySchema = z.object({
   includeArchived: z.boolean().optional(),
 });
 export type ProjectListQuery = z.infer<typeof ProjectListQuerySchema>;
+
+/**
+ * createTask result errors split into caller-actionable (4xx) vs
+ * server-side (5xx). Caller-actionable: bad inputs, missing project,
+ * branch already exists, repo unborn. Server-side: provision failures,
+ * timeouts, worktree setup hardware errors.
+ */
+function createTaskErrorToHttp(error: CreateTaskError): HttpError {
+  switch (error.type) {
+    case 'project-not-found':
+      return new HttpError(404, 'project not found');
+    case 'branch-not-found':
+      return new HttpError(400, `source branch not found: ${error.branch}`);
+    case 'initial-commit-required':
+      return new HttpError(409, `repository unborn: ${error.branch} has no commits`);
+    case 'branch-create-failed':
+      return new HttpError(409, `branch create failed: ${error.branch}`);
+    case 'pr-fetch-failed':
+      return new HttpError(502, `pr fetch failed from ${error.remote}`);
+    case 'worktree-setup-failed':
+    case 'provision-failed':
+    case 'provision-timeout':
+      return new HttpError(500, `task provisioning failed: ${error.type}`);
+  }
+}
 
 async function lookupProjectNames(projectIds: string[]): Promise<Map<string, string>> {
   if (projectIds.length === 0) return new Map();
@@ -153,7 +179,7 @@ export async function handleTaskCreate(
   });
 
   if (!result.success) {
-    throw new HttpError(500, `task creation failed: ${result.error.type}`);
+    throw createTaskErrorToHttp(result.error);
   }
 
   return {
@@ -218,15 +244,18 @@ export async function handleTerminalSend(
   const pty = ptySessionRegistry.get(sessionId);
   if (!pty) throw new HttpError(410, 'terminal not running');
 
+  // Submit with \r (CR) — matches handleAgentSend. Cooked-mode shells
+  // translate CR→LF via ICRNL; raw-mode TUIs (vim, claude, etc.) require
+  // CR. \n would leave the command staged in TUIs.
   pty.write(body.text);
-  if (body.submit) pty.write('\n');
+  if (body.submit) pty.write('\r');
   return { ok: true };
 }
 
 export async function handleTerminalCreate(
   caller: CallerContext,
   body: TerminalCreateBody
-): Promise<{ terminalId: string }> {
+): Promise<{ terminalId: string; name: string }> {
   const id = randomUUID();
   const terminal = await createTerminal({
     id,
@@ -235,10 +264,10 @@ export async function handleTerminalCreate(
     name: body.name ?? 'Agent terminal',
   });
 
-  // createTerminal awaits spawnTerminal which registers the session
-  // synchronously before returning, so the PTY is in the registry by the
-  // time we reach here. PTY buffers writes until the shell is ready, so
-  // no delay is required.
+  // createTerminal awaits spawnTerminal, which registers the PTY before
+  // resolving — no setTimeout/retry needed. Shells in cooked mode queue
+  // input until the read loop picks it up. Submit with \r (CR) — see
+  // handleTerminalSend.
   if (body.initialCommand) {
     const sessionId = makePtySessionId(
       caller.conversation.projectId,
@@ -246,13 +275,12 @@ export async function handleTerminalCreate(
       terminal.id
     );
     const pty = ptySessionRegistry.get(sessionId);
-    if (pty) {
-      pty.write(body.initialCommand);
-      pty.write('\n');
-    }
+    if (!pty) throw new HttpError(500, 'pty failed to register after spawn');
+    pty.write(body.initialCommand);
+    pty.write('\r');
   }
 
-  return { terminalId: terminal.id };
+  return { terminalId: terminal.id, name: terminal.name };
 }
 
 export function handleWorkspaceDevServers(
