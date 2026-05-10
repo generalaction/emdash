@@ -183,14 +183,14 @@ const TileLayout = observer(function TileLayout({
     rows.push(ids.slice(i, i + 2));
   }
   return (
-    <ResizablePanelGroup orientation="horizontal" id={`agent-grid-${taskId}-tile-${ids.length}`}>
+    <ResizablePanelGroup orientation="vertical" id={`agent-grid-${taskId}-tile-${ids.length}`}>
       {rows.map((row, rowIdx) => (
         <ResizableCell key={`row-${rowIdx}`} index={rowIdx} count={rows.length}>
           {row.length === 1 ? (
             <TileCell conversationId={row[0]!} />
           ) : (
             <ResizablePanelGroup
-              orientation="vertical"
+              orientation="horizontal"
               id={`agent-grid-${taskId}-tile-row-${rowIdx}`}
             >
               {row.map((id, colIdx) => (
@@ -232,9 +232,9 @@ export const ConversationsGridPanel = observer(function ConversationsGridPanel()
 
   let body: React.ReactNode;
   if (mode === 'side-by-side') {
-    body = <LinearLayout orientation="vertical" ids={slots} taskId={taskId} />;
-  } else if (mode === 'stacked') {
     body = <LinearLayout orientation="horizontal" ids={slots} taskId={taskId} />;
+  } else if (mode === 'stacked') {
+    body = <LinearLayout orientation="vertical" ids={slots} taskId={taskId} />;
   } else {
     body = <TileLayout ids={slots} taskId={taskId} />;
   }
