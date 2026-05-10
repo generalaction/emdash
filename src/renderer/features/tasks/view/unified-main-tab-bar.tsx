@@ -13,6 +13,7 @@ import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { GitChangeStatusIcon } from '@renderer/features/tasks/diff-view/changes-panel/components/changes-list-item';
+import { closeTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type {
   ResolvedConversationTab,
   ResolvedDiffTab,
@@ -328,7 +329,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
                       tab={tab}
                       onSelect={() => tabManager.setActiveTab(tab.tabId)}
                       onPin={() => tabManager.openConversation(tab.conversationId)}
-                      onClose={() => tabManager.closeTab(tab.tabId)}
+                      onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
                     />
                   </SortableTabWrapper>
                 );
@@ -340,7 +341,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
                       tab={tab}
                       onSelect={() => tabManager.setActiveTab(tab.tabId)}
                       onPin={() => tabManager.pinTab(tab.tabId)}
-                      onClose={() => tabManager.closeTab(tab.tabId)}
+                      onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
                     />
                   </SortableTabWrapper>
                 );
@@ -351,7 +352,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
                     tab={tab}
                     onSelect={() => tabManager.setActiveTab(tab.tabId)}
                     onPin={() => tabManager.pinTab(tab.tabId)}
-                    onClose={() => tabManager.closeTab(tab.tabId)}
+                    onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
                   />
                 </SortableTabWrapper>
               );

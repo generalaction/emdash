@@ -7,6 +7,7 @@ import {
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
+import { closeActiveTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import type { ShortcutSettingsKey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { showModal } from '@renderer/lib/modal/modal-provider';
@@ -152,7 +153,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
-            tabManager?.closeActiveTab();
+            if (tabManager) closeActiveTabWithConfirm(tabManager);
           },
         },
         {

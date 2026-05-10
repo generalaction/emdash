@@ -48,6 +48,7 @@ export const SETTINGS_DEFAULTS = {
   interface: {
     taskHoverAction: 'delete' as const,
     autoRightSidebarBehavior: false,
+    confirmTabClose: false,
   },
   browserPreview: {
     enabled: true,
