@@ -25,6 +25,7 @@ async function bootstrap() {
   wireCommitHistoryInvalidation();
 
   appState.update.start();
+  appState.resourceMonitor.start();
   initSoundPlayer();
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here
