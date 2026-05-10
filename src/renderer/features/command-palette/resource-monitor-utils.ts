@@ -42,7 +42,8 @@ export function formatReport(snapshot: ResourceSnapshot, groups: Group[]): strin
 
   for (const proc of snapshot.appProcesses) {
     const label = appProcessLabel(proc.type, proc.name);
-    lines.push(`${label} ${proc.cpu.toFixed(1)}% ${formatBytes(proc.memory)} (pid=${proc.pid})`);
+    const cpu = snapshot.cpuCount > 0 ? proc.cpu / snapshot.cpuCount : 0;
+    lines.push(`${label} ${cpu.toFixed(1)}% ${formatBytes(proc.memory)} (pid=${proc.pid})`);
   }
 
   for (const g of groups) {
