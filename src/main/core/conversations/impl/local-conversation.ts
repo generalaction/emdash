@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { eq } from 'drizzle-orm';
 import { getProvider } from '@shared/agent-provider-registry';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
@@ -20,9 +21,13 @@ import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/p
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import { db } from '@main/db/client';
+import { conversations as conversationsTable } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { captureExternalSession } from '../provider-session/capture-engine';
+import { getProviderSessionCapability } from '../provider-session/manifest';
 import { buildAgentCommand } from './agent-command';
 import { resolveProviderEnv } from './provider-env';
 
@@ -98,6 +103,7 @@ export class LocalConversationProvider implements ConversationProvider {
       providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
+      externalSessionId: conversation.externalSessionId ?? null,
       isResuming,
       initialPrompt,
     });
@@ -212,6 +218,38 @@ export class LocalConversationProvider implements ConversationProvider {
 
     ptySessionRegistry.register(sessionId, pty);
     this.sessions.set(sessionId, pty);
+
+    if (!isResuming) {
+      const capability = getProviderSessionCapability(conversation.providerId);
+      if (conversation.externalSessionId && capability?.computeTranscriptPath) {
+        // Path is deterministic for providers we set --session-id on.
+        const sourcePath = capability.computeTranscriptPath({
+          home: homedir(),
+          taskPath: this.taskPath,
+          externalSessionId: conversation.externalSessionId,
+        });
+        if (sourcePath && !conversation.externalSourcePath) {
+          void db
+            .update(conversationsTable)
+            .set({ externalSourcePath: sourcePath })
+            .where(eq(conversationsTable.id, conversation.id))
+            .catch((e: unknown) => {
+              log.warn('local-conversation: failed to persist externalSourcePath', {
+                conversationId: conversation.id,
+                error: String(e),
+              });
+            });
+        }
+      } else if (capability?.capture) {
+        // Capture provider-generated session id post-spawn (codex, copilot).
+        captureExternalSession({
+          conversationId: conversation.id,
+          providerId: conversation.providerId,
+          cwd: this.taskPath,
+        });
+      }
+    }
+
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,

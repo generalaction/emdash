@@ -259,6 +259,9 @@ export const conversations = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
     lastInteractedAt: text('last_interacted_at'),
     isInitialConversation: integer('is_initial_conversation', { mode: 'boolean' }),
+    externalSessionId: text('external_session_id'),
+    externalSourcePath: text('external_source_path'),
+    imported: integer('imported', { mode: 'boolean' }).notNull().default(false),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),

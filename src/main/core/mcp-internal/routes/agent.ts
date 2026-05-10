@@ -11,6 +11,11 @@ import type { AgentEvent } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { getConversationById } from '@main/core/conversations/getConversationById';
+import {
+  getTranscriptReader,
+  isTranscriptSupported,
+} from '@main/core/conversations/provider-session/manifest';
+import type { TranscriptItem } from '@main/core/conversations/provider-session/types';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { db } from '@main/db/client';
@@ -123,6 +128,13 @@ export type FetchResponse =
   | {
       kind: 'scrollback';
       scrollback: string;
+      providerTier: ProviderTier;
+      transcriptSupported: boolean;
+    }
+  | {
+      kind: 'transcript';
+      items: TranscriptItem[];
+      nextCursor?: string;
       providerTier: ProviderTier;
       transcriptSupported: boolean;
     };
@@ -312,9 +324,7 @@ export async function handleAgentFetch(
 
   const kind: FetchKind = query.kind ?? 'events';
   const tier = deriveProviderTier(target.providerId);
-  const transcriptSupported = false; // wired in PR3
-
-  if (kind === 'transcript') throw new HttpError(501, 'transcript fetch lands in PR3');
+  const transcriptSupported = isTranscriptSupported(target.providerId);
 
   if (kind === 'events') {
     const since = decodeCursor(query.since);
@@ -330,13 +340,38 @@ export async function handleAgentFetch(
     };
   }
 
-  // kind === 'scrollback'
-  const sessionId = makePtySessionId(target.projectId, target.taskId, target.id);
-  const buf = ptySessionRegistry.peekRingBuffer(sessionId);
-  const scrollback = query.limit && buf.length > query.limit ? buf.slice(-query.limit) : buf;
+  if (kind === 'scrollback') {
+    const sessionId = makePtySessionId(target.projectId, target.taskId, target.id);
+    const buf = ptySessionRegistry.peekRingBuffer(sessionId);
+    const scrollback = query.limit && buf.length > query.limit ? buf.slice(-query.limit) : buf;
+    return {
+      kind: 'scrollback',
+      scrollback,
+      providerTier: tier,
+      transcriptSupported,
+    };
+  }
+
+  // kind === 'transcript'
+  const reader = getTranscriptReader(target.providerId);
+  if (!reader) {
+    return { kind: 'transcript', items: [], providerTier: tier, transcriptSupported: false };
+  }
+  if (!target.externalSessionId) {
+    // Capture still pending (or unsupported for this provider/launch).
+    // Return empty with transcriptSupported=true so caller can retry.
+    return { kind: 'transcript', items: [], providerTier: tier, transcriptSupported };
+  }
+  const result = await reader.fetch({
+    externalSessionId: target.externalSessionId,
+    externalSourcePath: target.externalSourcePath ?? null,
+    ...(query.limit ? { limit: query.limit } : {}),
+    ...(query.since ? { since: query.since } : {}),
+  });
   return {
-    kind: 'scrollback',
-    scrollback,
+    kind: 'transcript',
+    items: result.items,
+    ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
     providerTier: tier,
     transcriptSupported,
   };
