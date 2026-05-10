@@ -1,4 +1,4 @@
-import type { LocalProject, ProjectBootstrapStatus, SshProject } from '@shared/projects';
+import type { LocalProject, SshProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IDisposable } from '@main/lib/lifecycle';
@@ -82,10 +82,6 @@ class ProjectManager implements Hookable<ProjectManagerHooks>, IDisposable {
 
   getProject(projectId: string): ProjectProvider | undefined {
     return this._lifecycle.get(projectId);
-  }
-
-  getProjectBootstrapStatus(projectId: string): ProjectBootstrapStatus {
-    return this._lifecycle.bootstrapStatus(projectId, (e) => e.message);
   }
 
   async dispose(): Promise<void> {

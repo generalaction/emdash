@@ -210,11 +210,14 @@ importers:
         specifier: ^12.23.12
         version: 12.33.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       nbranch:
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       node-pty:
         specifier: 1.1.0
         version: 1.1.0
+      pidusage:
+        specifier: ^4.0.1
+        version: 4.0.1
       react:
         specifier: ^19.2.0
         version: 19.2.4
@@ -285,6 +288,9 @@ importers:
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.32
+      '@types/pidusage':
+        specifier: ^2.0.5
+        version: 2.0.5
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
@@ -2546,6 +2552,9 @@ packages:
 
   '@types/node@24.11.0':
     resolution: {integrity: sha512-fPxQqz4VTgPI/IQ+lj9r0h+fDR66bzoeMGHp8ASee+32OSGIkeASsoZuJixsQoVef1QJbeubcPBxKk22QVoWdw==}
+
+  '@types/pidusage@2.0.5':
+    resolution: {integrity: sha512-MIiyZI4/MK9UGUXWt0jJcCZhVw7YdhBuTOuqP/BjuLDLZ2PmmViMIQgZiWxtaMicQfAz/kMrZ5T7PKxFSkTeUA==}
 
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
@@ -5037,8 +5046,8 @@ packages:
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
-  nbranch@0.1.0:
-    resolution: {integrity: sha512-7LymZls0JTI+e23IYWkFvLup6QTSR97CqNBXkctgH4JQcPlXij4FE3hCHm6lzL2yYnt9tCUdzfHEM5H/XV8JNw==}
+  nbranch@0.1.1:
+    resolution: {integrity: sha512-MBymFqWDxu1sQd6kQX5SJUvyIyCQVgyAUCoIsSGNGf8I6JFL2s5VUMiRZTNwLQK5BUg7LpxRzPGNTvXWrDnooA==}
     engines: {node: '>=18'}
 
   negotiator@0.6.4:
@@ -5234,6 +5243,10 @@ packages:
   picomatch@4.0.3:
     resolution: {integrity: sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==}
     engines: {node: '>=12'}
+
+  pidusage@4.0.1:
+    resolution: {integrity: sha512-yCH2dtLHfEBnzlHUJymR/Z1nN2ePG3m392Mv8TFlTP1B0xkpMQNHAnfkY0n2tAi6ceKO6YWhxYfZ96V4vVkh/g==}
+    engines: {node: '>=18'}
 
   pkg-types@1.3.1:
     resolution: {integrity: sha512-/Jm5M4RvtBFVkKWRu2BLUTNP8/M2a+UwuAX+ae4770q1qVGtfjG+WTCupoZixokjmHiry8uI+dlY8KXYV5HVVQ==}
@@ -8518,6 +8531,8 @@ snapshots:
     dependencies:
       undici-types: 7.16.0
 
+  '@types/pidusage@2.0.5': {}
+
   '@types/plist@3.0.5':
     dependencies:
       '@types/node': 20.19.32
@@ -11620,7 +11635,7 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  nbranch@0.1.0:
+  nbranch@0.1.1:
     dependencies:
       '@types/stopword': 2.0.3
       compromise: 14.15.0
@@ -11842,6 +11857,10 @@ snapshots:
   picomatch@2.3.1: {}
 
   picomatch@4.0.3: {}
+
+  pidusage@4.0.1:
+    dependencies:
+      safe-buffer: 5.2.1
 
   pkg-types@1.3.1:
     dependencies:

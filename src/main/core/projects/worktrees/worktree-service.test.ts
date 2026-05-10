@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Remote } from '@shared/git';
 import { ok } from '@shared/result';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import type { ProjectSettingsProvider } from '../settings/schema';
+import type { ProjectSettingsProvider } from '../settings/provider';
 import { LocalWorktreeHost } from './hosts/local-worktree-host';
 import type { WorktreeHost } from './hosts/worktree-host';
 import { WorktreeService } from './worktree-service';
@@ -30,7 +30,9 @@ function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider 
   return {
     get: async () => ({ preservePatterns }),
     update: async () => ok(),
+    patch: async () => ok(),
     ensure: async () => {},
+    getDefaultWorktreeDirectory: async () => '',
     getWorktreeDirectory: async () => '',
     getDefaultBranch: async () => 'main',
     getRemote: async () => 'origin',

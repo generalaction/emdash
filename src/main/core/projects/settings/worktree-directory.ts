@@ -3,13 +3,32 @@ import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 
-type PathApi = Pick<typeof path, 'isAbsolute' | 'join' | 'resolve'>;
+export type PathPlatform = 'posix' | 'win32';
+
+type PathApi = Pick<typeof path, 'join'>;
+
+function isWindowsDriveAbsolute(input: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(input);
+}
+
+function isWindowsUncAbsolute(input: string): boolean {
+  return input.startsWith('\\\\');
+}
+
+function isPosixAbsolute(input: string): boolean {
+  return input.startsWith('/');
+}
+
+function isNativeAbsolute(input: string, platform: PathPlatform): boolean {
+  if (platform === 'win32') return isWindowsDriveAbsolute(input) || isWindowsUncAbsolute(input);
+  return isPosixAbsolute(input);
+}
 
 export async function normalizeWorktreeDirectory(
   input: string,
   options: {
-    projectPath: string;
     pathApi: PathApi;
+    pathPlatform: PathPlatform;
     homeDirectory?: string;
     resolveHomeDirectory?: () => Promise<string>;
   }
@@ -18,7 +37,7 @@ export async function normalizeWorktreeDirectory(
     const trimmed = input.trim();
     let normalized = trimmed;
 
-    if (trimmed === '~' || trimmed.startsWith('~/')) {
+    if (trimmed === '~' || trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {
       const resolvedHomeDirectory = options.resolveHomeDirectory
         ? (await options.resolveHomeDirectory()).trim()
         : undefined;
@@ -30,10 +49,10 @@ export async function normalizeWorktreeDirectory(
         trimmed === '~' ? homeDirectory : options.pathApi.join(homeDirectory, trimmed.slice(2));
     }
 
-    if (options.pathApi.isAbsolute(normalized)) {
+    if (isNativeAbsolute(normalized, options.pathPlatform)) {
       return ok(normalized);
     }
-    return ok(options.pathApi.resolve(options.projectPath, normalized));
+    return err({ type: 'invalid-worktree-directory' });
   } catch {
     return err({ type: 'invalid-worktree-directory' });
   }
@@ -54,8 +73,8 @@ export async function canonicalizeWorktreeDirectory(
 export async function resolveAndValidateWorktreeDirectory(
   input: string | undefined,
   options: {
-    projectPath: string;
-    pathApi: Pick<typeof path, 'isAbsolute' | 'join' | 'resolve'>;
+    pathApi: PathApi;
+    pathPlatform: PathPlatform;
     fs: Pick<FileSystemProvider, 'mkdir' | 'realPath'>;
     homeDirectory?: string;
     resolveHomeDirectory?: () => Promise<string>;
@@ -67,8 +86,8 @@ export async function resolveAndValidateWorktreeDirectory(
   }
 
   const normalized = await normalizeWorktreeDirectory(trimmed, {
-    projectPath: options.projectPath,
     pathApi: options.pathApi,
+    pathPlatform: options.pathPlatform,
     homeDirectory: options.homeDirectory,
     resolveHomeDirectory: options.resolveHomeDirectory,
   });
