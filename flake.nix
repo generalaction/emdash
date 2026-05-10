@@ -29,7 +29,8 @@
             builtins.getAttr requiredPnpmAttr pkgs
           else
             null;
-        nodejs = pkgs.nodejs_22;
+        nodejs = pkgs.nodejs_24;
+        electron = pkgs.electron_40;
         pnpmBase =
           if majorPnpm != null && lib.versionAtLeast majorPnpm.version requiredPnpmCompatVersion then
             majorPnpm
@@ -42,22 +43,6 @@
             pnpmBase.override { inherit nodejs; }
           else
             pnpmBase;
-
-        # Electron version must match package.json
-        electronVersion = "30.5.1";
-
-        # Pre-fetch Electron binary for Linux x64
-        # electron-builder expects zips named: electron-v${version}-linux-x64.zip
-        electronLinuxZip = pkgs.fetchurl {
-          url = "https://github.com/electron/electron/releases/download/v${electronVersion}/electron-v${electronVersion}-linux-x64.zip";
-          sha256 = "sha256-7EcHeD056GAF9CiZ4wrlnlDdXZx/KFMe1JTrQ/I2FAM=";
-        };
-
-        # Create a directory with the electron zip for electronDist
-        electronDistDir = pkgs.runCommand "electron-dist" {} ''
-          mkdir -p $out
-          cp ${electronLinuxZip} $out/electron-v${electronVersion}-linux-x64.zip
-        '';
 
         sharedEnv =
           [
@@ -88,25 +73,20 @@
               pname = "emdash";
               version = packageJson.version;
               src = cleanSrc;
-              pnpmDeps =
-                if pkgs ? fetchPnpmDeps then
-                  pkgs.fetchPnpmDeps {
-                    inherit pname version src;
-                    inherit pnpm;
-                    fetcherVersion = 1;
-                    hash = "";
-                  }
-                else
-                  pnpm.fetchDeps {
-                    inherit pname version src;
-                    fetcherVersion = 1;
-                    hash = "";
-                  };
+              # Fixed-output derivation that mirrors the pnpm offline store derived from
+              # pnpm-lock.yaml. Whenever pnpm-lock.yaml changes, this hash needs to be
+              # recomputed: set it to "" (or lib.fakeHash), run `nix build .`, and copy
+              # the `got: sha256-…` value from Nix's error message back into this field.
+              pnpmDeps = pkgs.fetchPnpmDeps {
+                inherit pname version src pnpm;
+                fetcherVersion = 3;
+                hash = "sha256-hNsar5yOsMGh1DP+Y9sm2Up0wcwuYCpTHoFRnfJPjVw=";
+              };
               nativeBuildInputs =
                 sharedEnv
                 ++ [
                   pnpm
-                  (pkgs.pnpmConfigHook or pnpm.configHook)
+                  pkgs.pnpmConfigHook
                   pkgs.dpkg
                   pkgs.rpm
                 ];
@@ -122,7 +102,17 @@
                 npm_config_manage_package_manager_versions = "false";
                 # Skip Electron binary download during pnpm install
                 ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
+                npm_config_nodedir = "${electron.headers}";
               };
+
+              # pnpmConfigHook runs `pnpm install --ignore-scripts`, so the project's
+              # `postinstall` (which invokes electron-rebuild) is skipped. node-pty 1.1.0
+              # ships no linux-x64 prebuild, so we must rebuild it ourselves before
+              # electron-builder packages the app. Pin to nixpkgs' electron version so
+              # the headers actually match the binary we ship.
+              preBuild = ''
+                pnpm exec electron-rebuild --force --version ${electron.version} --only=better-sqlite3,node-pty
+              '';
 
               buildPhase = ''
                 runHook preBuild
@@ -135,9 +125,9 @@
 
                 # Run electron-builder with electronDist override to avoid download
                 # Use --dir to only produce unpacked output (no AppImage/deb which require network)
-                pnpm exec electron-builder --linux --dir \
-                  -c.electronDist=${electronDistDir} \
-                  -c.electronVersion=${electronVersion}
+                pnpm exec electron-builder --config electron-builder.config.ts --linux --dir \
+                  -c.electronDist=${electron.dist} \
+                  -c.electronVersion=${electron.version}
 
                 runHook postBuild
               '';
@@ -169,7 +159,8 @@
 set -euo pipefail
 
 APP_ROOT="$out/share/emdash/linux-unpacked"
-exec "\$APP_ROOT/emdash" "\$@"
+export LD_LIBRARY_PATH="${lib.makeLibraryPath [ pkgs.libglvnd ]}\''${LD_LIBRARY_PATH:+:}\''${LD_LIBRARY_PATH:-}"
+exec "\$APP_ROOT/emdash" --no-sandbox "\$@"
 EOF
                 chmod +x $out/bin/emdash
 
