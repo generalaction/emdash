@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Branch } from './git';
-import { resolveBaseRefFromRemoteDefault, resolveDefaultBranch } from './git-utils';
+import {
+  projectDefaultBranchToBranch,
+  resolveBaseRefFromRemoteDefault,
+  resolveDefaultBranch,
+} from './git-utils';
 
 const origin = { name: 'origin', url: 'git@github.com:example/repo.git' };
 const fork = { name: 'fork', url: 'git@github.com:user/repo.git' };
@@ -108,5 +112,40 @@ describe('resolveBaseRefFromRemoteDefault', () => {
         branches,
       })
     ).toBe('origin/feature/current');
+  });
+});
+
+describe('projectDefaultBranchToBranch', () => {
+  it('parses qualified remote branch settings with known remote metadata', () => {
+    expect(projectDefaultBranchToBranch('fork/main', origin, [origin, fork])).toEqual({
+      type: 'remote',
+      branch: 'main',
+      remote: fork,
+    });
+  });
+
+  it('keeps unknown qualified remote branch settings as remote branches', () => {
+    expect(projectDefaultBranchToBranch('upstream/main', origin, [origin])).toEqual({
+      type: 'remote',
+      branch: 'main',
+      remote: { name: 'upstream', url: '' },
+    });
+  });
+
+  it('uses the configured remote for object branch settings', () => {
+    expect(
+      projectDefaultBranchToBranch({ name: 'develop', remote: true }, origin, [origin])
+    ).toEqual({
+      type: 'remote',
+      branch: 'develop',
+      remote: origin,
+    });
+  });
+
+  it('returns local branches for unqualified string settings', () => {
+    expect(projectDefaultBranchToBranch('main', origin, [origin])).toEqual({
+      type: 'local',
+      branch: 'main',
+    });
   });
 });

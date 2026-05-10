@@ -3,11 +3,15 @@ import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-regi
 import { openInAppIdSchema } from '@shared/openInApps';
 import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
 
+export const projectSettingsSchema = z.object({
+  pushOnCreate: z.boolean(),
+  branchPrefix: z.string(),
+  tmuxByDefault: z.boolean(),
+});
+
 export const localProjectSettingsSchema = z.object({
   defaultProjectsDirectory: z.string(),
   defaultWorktreeDirectory: z.string(),
-  branchPrefix: z.string(),
-  pushOnCreate: z.boolean(),
   writeAgentConfigToGitIgnore: z.boolean(),
 });
 
@@ -116,6 +120,8 @@ export const interfaceSettingsSchema = z.object({
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -123,6 +129,7 @@ export const openInSettingsSchema = z.object({
 
 export const APP_SETTINGS_SCHEMA_MAP = {
   localProject: localProjectSettingsSchema,
+  project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
@@ -134,10 +141,12 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  resourceMonitor: resourceMonitorSettingsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
+  project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
@@ -149,4 +158,5 @@ export const appSettingsSchema = z.object({
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  resourceMonitor: resourceMonitorSettingsSchema,
 });

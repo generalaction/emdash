@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { createRPCController } from '@shared/ipc/rpc';
+import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import { log } from '@main/lib/logger';
 import { taskManager } from '../tasks/task-manager';
@@ -66,8 +67,11 @@ export const ptyController = createRPCController({
    */
   uploadFiles: async (args: { sessionId: string; localPaths: string[] }) => {
     try {
-      const [projectId, scopeId] = args.sessionId.split(':');
-      if (!projectId || !scopeId) return err({ type: 'invalid_session' as const });
+      const parsed = parsePtySessionId(args.sessionId);
+      if (!parsed) {
+        return err({ type: 'invalid_session' as const });
+      }
+      const { scopeId } = parsed;
 
       const taskProvider = taskManager.getTask(scopeId);
       if (!taskProvider) return err({ type: 'not_ssh' as const });

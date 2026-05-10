@@ -2,13 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
+import { normalizeLatexDelimiters } from './markdown-latex';
 
 type Variant = 'full' | 'compact';
 
@@ -25,14 +28,36 @@ interface MarkdownRendererProps {
   resolveImage?: (src: string) => Promise<string | null>;
 }
 
-/** Sanitize schema that also allows data: URIs on images */
+// Sanitize runs before rehype-katex so user input is sanitized but KaTeX's
+// (trusted) output passes through untouched. The schema preserves the
+// math-inline/math-display classes that remark-math emits so rehype-katex can
+// still recognize them post-sanitize.
 const sanitizeSchema = {
   ...defaultSchema,
   protocols: {
     ...defaultSchema.protocols,
     src: [...(defaultSchema.protocols?.src || []), 'data'],
   },
+  attributes: {
+    ...defaultSchema.attributes,
+    span: [
+      ...(defaultSchema.attributes?.span || []),
+      ['className', 'math', 'math-inline', 'math-display'],
+    ],
+    div: [
+      ...(defaultSchema.attributes?.div || []),
+      ['className', 'math', 'math-inline', 'math-display'],
+    ],
+  },
 };
+
+const REMARK_PLUGINS: PluggableList = [remarkGfm, remarkMath];
+const FULL_REHYPE_PLUGINS: PluggableList = [
+  rehypeRaw,
+  [rehypeSanitize, sanitizeSchema],
+  rehypeKatex,
+];
+const COMPACT_REHYPE_PLUGINS: PluggableList = [[rehypeSanitize, sanitizeSchema], rehypeKatex];
 
 /** Resolves a local image src via the provided callback and renders as a base64 data URI. */
 const ResolvedImage: React.FC<{
@@ -280,14 +305,17 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   const compactComponents = useCompactComponents();
 
   const components = variant === 'full' ? fullComponents : compactComponents;
-  const rehypePlugins: PluggableList = allowHtml
-    ? [rehypeRaw, [rehypeSanitize, sanitizeSchema]]
-    : [[rehypeSanitize, sanitizeSchema]];
+  const rehypePlugins = allowHtml ? FULL_REHYPE_PLUGINS : COMPACT_REHYPE_PLUGINS;
+  const normalizedContent = useMemo(() => normalizeLatexDelimiters(content), [content]);
 
   return (
     <div className={cn(className)}>
-      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} components={components}>
-        {content}
+      <Markdown
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={rehypePlugins}
+        components={components}
+      >
+        {normalizedContent}
       </Markdown>
     </div>
   );

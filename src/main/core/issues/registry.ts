@@ -1,4 +1,5 @@
 import type { IssueProviderType } from '@shared/issue-providers';
+import { featurebaseIssueProvider } from '@main/core/featurebase/featurebase-issue-provider';
 import { forgejoIssueProvider } from '@main/core/forgejo/forgejo-issue-provider';
 import { githubIssueProvider } from '@main/core/github/github-issue-provider';
 import { gitlabIssueProvider } from '@main/core/gitlab/gitlab-issue-provider';
@@ -18,6 +19,7 @@ register(githubIssueProvider);
 register(jiraIssueProvider);
 register(gitlabIssueProvider);
 register(forgejoIssueProvider);
+register(featurebaseIssueProvider);
 register(plainIssueProvider);
 
 export function getIssueProvider(type: IssueProviderType): IssueProvider | undefined {
