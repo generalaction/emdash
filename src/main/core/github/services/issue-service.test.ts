@@ -52,6 +52,7 @@ const expectedIssue = {
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-02T00:00:00Z',
   comments: 3,
+  body: null,
   user: { login: 'alice', avatarUrl: 'https://avatar.test/alice' },
   assignees: [{ login: 'bob', avatarUrl: 'https://avatar.test/bob' }],
   labels: [{ name: 'bug', color: 'fc2929' }],

@@ -32,7 +32,7 @@ function toIssueEvent(projectId: string, issue: GitHubIssue, occurredAt: number)
       url: issue.url,
       author: issue.user?.login ?? '',
       number: String(issue.number),
-      body: '',
+      body: issue.body ?? '',
       labels: issue.labels.map((label) => label.name).filter((name) => name.length > 0),
       assignee: issue.assignees[0]?.login ?? null,
     },

@@ -14,6 +14,7 @@ export interface GitHubIssue {
   createdAt: string | null;
   updatedAt: string | null;
   comments: number;
+  body: string | null;
   user: { login: string; avatarUrl: string } | null;
   assignees: Array<{ login: string; avatarUrl: string }>;
   labels: Array<{ name: string; color: string }>;
@@ -181,6 +182,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
       createdAt: item.created_at,
       updatedAt: item.updated_at,
       comments: item.comments,
+      body: item.body ?? null,
       user: item.user ? { login: item.user.login, avatarUrl: item.user.avatar_url } : null,
       assignees: (item.assignees ?? []).map((a) => ({ login: a.login, avatarUrl: a.avatar_url })),
       labels: (item.labels ?? []).map((l) =>

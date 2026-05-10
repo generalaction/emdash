@@ -139,10 +139,12 @@ export const automationsController = createRPCController({
     });
   },
 
-  async runNow(id: string): Promise<Result<AutomationRun, string>> {
-    const automation = await getAutomation(id);
-    if (!automation) return err('automation_not_found');
-    return runAutomation(automation, 'manual');
+  runNow(id: string): Promise<Result<AutomationRun, string>> {
+    return safe(async () => {
+      const automation = await getAutomation(id);
+      if (!automation) return err('automation_not_found');
+      return runAutomation(automation, 'manual');
+    });
   },
 
   listRuns(automationId: string, limit = 20): Promise<Result<AutomationRun[], string>> {

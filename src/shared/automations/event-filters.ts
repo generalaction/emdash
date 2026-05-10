@@ -40,7 +40,8 @@ export function eventMatchesFilters(
 
   if (isNonEmpty(filters.branches)) {
     const branch = branchOf(event);
-    if (branch !== null && !matchesAnyGlob(branch, filters.branches)) return false;
+    if (branch === null) return false;
+    if (!matchesAnyGlob(branch, filters.branches)) return false;
   }
 
   const author = authorOf(event);

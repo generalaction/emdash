@@ -11,6 +11,7 @@ function issue(number: number, createdAt = '2024-01-01T00:00:00Z'): GitHubIssue 
     createdAt,
     updatedAt: createdAt,
     comments: 0,
+    body: `Body ${number}`,
     user: { login: 'alice', avatarUrl: '' },
     assignees: [],
     labels: [],
@@ -28,5 +29,21 @@ describe('diffIssuesAgainstCursor', () => {
     expect(result.events).toEqual([]);
     expect(result.cursor.initializedIssues).toBe(true);
     expect(result.cursor.initializedPrs).toBe(true);
+  });
+
+  it('includes the issue body in opened events', async () => {
+    const result = await diffIssuesAgainstCursor(
+      'project-1',
+      { initializedIssues: true },
+      async () => ({
+        ok: true,
+        issues: [issue(1)],
+      })
+    );
+
+    expect(result.events[0]?.kind).toBe('issue.opened');
+    if (result.events[0]?.kind === 'issue.opened') {
+      expect(result.events[0].payload.body).toBe('Body 1');
+    }
   });
 });
