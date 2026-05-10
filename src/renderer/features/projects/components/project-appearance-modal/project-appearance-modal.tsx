@@ -1,10 +1,15 @@
-import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Search } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import {
+  PROJECT_EMOJI_DATA,
+  PROJECT_EMOJI_SET,
+  PROJECT_EMOJI_SPRITESHEET_URL,
+  ProjectEmoji,
+} from '@renderer/lib/emoji/project-emoji';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -103,12 +108,14 @@ export const ProjectAppearanceModal = observer(function ProjectAppearanceModal({
 
           <Tabs.Content value="emoji" className="flex justify-center">
             <Picker
-              data={data}
+              data={PROJECT_EMOJI_DATA}
               onEmojiSelect={(emoji: EmojiMartSelection) => setIconValue(emoji.native)}
               autoFocus
               previewPosition="none"
               skinTonePosition="none"
               maxFrequentRows={1}
+              set={PROJECT_EMOJI_SET}
+              getSpritesheetURL={() => PROJECT_EMOJI_SPRITESHEET_URL}
             />
           </Tabs.Content>
 
@@ -185,7 +192,7 @@ export const ProjectAppearanceModal = observer(function ProjectAppearanceModal({
           <span className="text-xs font-medium text-foreground-muted">Preview</span>
           <div className="flex h-6 w-6 items-center justify-center">
             {parsedIcon.kind === 'emoji' ? (
-              <em-emoji native={parsedIcon.char} size="1rem" />
+              <ProjectEmoji native={parsedIcon.char} className="text-base" />
             ) : parsedIcon.kind === 'lucide' ? (
               <parsedIcon.component className={cn('h-4 w-4', previewColor)} />
             ) : (
