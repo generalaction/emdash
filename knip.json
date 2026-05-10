@@ -1,0 +1,54 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/main/index.ts",
+    "src/preload/index.ts",
+    "src/renderer/main.tsx",
+    "src/renderer/index.html",
+    "src/renderer/index.css",
+    "scripts/release/*.ts",
+    "electron.vite.config.ts",
+    "electron-builder.config.ts",
+    "electron-builder.canary.config.ts",
+    "src/**/*.test.{ts,tsx}",
+    "src/renderer/tests/browser/**/*.test.{ts,tsx}"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+  "ignore": ["**/_*/**", "src/renderer/_legacy/**", "src/renderer/lib/ui/**"],
+  "ignoreFiles": [
+    "src/renderer/features/tasks/components/lifecycleStatusIndicator.tsx",
+    "src/renderer/features/tasks/diff-view/main-panel/stacked-diff-view.tsx",
+    "src/renderer/features/tasks/diff-view/stores/diff-selectors.ts",
+    "src/renderer/features/tasks/diff-view/stores/stacked-diff-panel-store.ts",
+    "src/renderer/features/tasks/editor/stores/editor-selectors.ts"
+  ],
+  "ignoreDependencies": [
+    "@types/.+",
+    "postcss",
+    "lint-staged",
+    "@vitest/browser",
+    "vitest-browser-react",
+    "concurrently",
+    "@dnd-kit/react",
+    "@isaacs/brace-expansion",
+    "@radix-ui/.+",
+    "@xterm/addon-fit",
+    "chokidar",
+    "fix-path",
+    "minimatch",
+    "react-icons",
+    "react-window",
+    "streamdown",
+    "tsconfig-paths"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "duplicates": "warn",
+    "exports": "warn",
+    "types": "warn",
+    "unlisted": "warn"
+  },
+  "eslint": {
+    "config": ["eslint.config.ts"]
+  }
+}
