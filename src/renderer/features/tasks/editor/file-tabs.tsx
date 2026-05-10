@@ -7,6 +7,7 @@ import { type EditorTab } from '@renderer/lib/editor/types';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { useModelStatus } from '@renderer/lib/monaco/use-model';
 import { Separator } from '@renderer/lib/ui/separator';
+import { basenameAny } from '@renderer/utils/path-name';
 import { cn } from '@renderer/utils/utils';
 
 export type RichTab = EditorTab & { isDirty: boolean; bufferUri: string };
@@ -91,7 +92,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
   onDoubleClick,
   onClose,
 }) {
-  const fileName = tab.path.split('/').pop() || 'Untitled';
+  const fileName = basenameAny(tab.path) || 'Untitled';
   const isMonacoFile = tab.kind === 'text' || tab.kind === 'markdown' || tab.kind === 'svg';
   const modelStatus = useModelStatus(tab.bufferUri);
   const showSpinner = useDelayedBoolean(isMonacoFile && modelStatus === 'loading', 200);

@@ -47,7 +47,9 @@ const EXCLUDED_NAMES = new Set([
 ]);
 
 export function isExcluded(path: string): boolean {
-  return path.split('/').some((seg) => EXCLUDED_NAMES.has(seg));
+  // Split on both separators so Windows paths (`a\b\c`) are checked the same
+  // as POSIX paths. Internal tree paths use `/`, but external input may not.
+  return path.split(/[/\\]/).some((seg) => EXCLUDED_NAMES.has(seg));
 }
 
 // ---------------------------------------------------------------------------

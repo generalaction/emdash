@@ -1,10 +1,12 @@
+import { basenameAny } from '@renderer/utils/path-name';
+
 interface ImageRendererProps {
   file: { path: string; content: string };
 }
 
 /** Renders raster image files (png, jpg, gif, webp, ico, bmp). */
 export function ImageRenderer({ file }: ImageRendererProps) {
-  const fileName = file.path.split('/').pop() ?? file.path;
+  const fileName = basenameAny(file.path) || file.path;
 
   return (
     <div className="flex h-full items-center justify-center overflow-auto p-4">

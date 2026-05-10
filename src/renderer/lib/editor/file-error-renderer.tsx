@@ -1,4 +1,5 @@
 import { FileX2 } from 'lucide-react';
+import { basenameAny } from '@renderer/utils/path-name';
 
 interface FileErrorRendererProps {
   file: { path: string };
@@ -6,7 +7,7 @@ interface FileErrorRendererProps {
 
 /** Shown when a file could not be loaded (e.g. file not found or read error). */
 export function FileErrorRenderer({ file }: FileErrorRendererProps) {
-  const fileName = file.path.split('/').pop() ?? file.path;
+  const fileName = basenameAny(file.path) || file.path;
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground bg-background-secondary-1">

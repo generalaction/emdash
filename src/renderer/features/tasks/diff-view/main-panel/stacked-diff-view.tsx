@@ -13,6 +13,7 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
+import { basenameAny, dirnameAny } from '@renderer/utils/path-name';
 import { cn } from '@renderer/utils/utils';
 
 const LARGE_DIFF_LINE_THRESHOLD = 1500;
@@ -245,9 +246,11 @@ const StackedFileSlot = observer(function StackedFileSlot({
   const editorHeight =
     contentHeight != null ? Math.max(contentHeight, MIN_EDITOR_HEIGHT) : MIN_EDITOR_HEIGHT;
 
-  const parts = file.path.split('/');
-  const fileName = parts.pop() || file.path;
-  const dirPath = parts.length > 0 ? parts.join('/') + '/' : '';
+  const fileName = basenameAny(file.path) || file.path;
+  const dirPath = (() => {
+    const dir = dirnameAny(file.path);
+    return dir ? `${dir}/` : '';
+  })();
 
   return (
     <div
