@@ -434,6 +434,29 @@ Promoted to v1 individually if a clear "agent CLI cannot do this with shell tool
 
 ---
 
+## 13a. Tech debt — clean up later
+
+PR3 ships transcript reads + precise codex resume by *capturing* provider-generated session IDs at spawn via filesystem watching. All per-provider knowledge — capture rules, transcript path layout, transcript reader — is consolidated in **`src/main/core/conversations/provider-session/`** behind a single `ProviderSessionCapability` interface. Adding a new provider's transcript support means one new file + one entry in `manifest.ts`.
+
+Workarounds to track and remove:
+
+| Workaround | Where | Right answer |
+|---|---|---|
+| `external_session_id` column on `conversations` | drizzle/0011 + schema.ts | Drop when codex/copilot CLIs accept `--session-id` at fresh launch (parity with Claude). Then `externalSessionId === conversation.id` always, no DB column needed. |
+| `external_source_path` column on `conversations` | drizzle/0011 + schema.ts | Drop once we no longer need to remember provider session-file paths (ACP transport lands → emdash stores transcripts itself). |
+| `imported` column on `conversations` | drizzle/0011 + schema.ts | Currently unused. Loops in if/when the legacy-port subsystem grows transcript awareness. Drop if not adopted within two releases. |
+| `provider-session/capture-engine.ts` (fs-watch) | conversations/ | Remove when CLIs accept `--session-id` at fresh launch (no capture needed). |
+| `resumeWithIdFlag` provider field | `src/shared/agent-provider-registry.ts` | Remove when codex collapses `resume <UUID>` into the same path Claude uses. |
+| Codex resume falls back to `resume --last` when capture missed | `src/main/core/conversations/impl/agent-command.ts` | Fallback is racy in same-cwd-multi-conversation scenarios. Acceptable while capture has a 30s window; remove fallback when capture is reliable. |
+| Provider transcript path layouts hardcoded in capability files | `provider-session/{claude,codex,copilot}.ts` | Replace with ACP transport (no on-disk transcript file to discover). |
+| Linux fs-watch is best-effort (top-level only, no recursion) | `provider-session/capture-engine.ts` | Add polling fallback for Linux, or wait for `fs.watch` recursive on all platforms. Codex/copilot transcript capture on Linux is currently unreliable. |
+| Copilot YAML parsing is line-based regex | `provider-session/copilot.ts` `matchCopilotDir` | OK while `workspace.yaml` stays flat; switch to a real YAML lib if copilot starts nesting. |
+| Copilot reads from a shared sqlite (`~/.copilot/session-store.db`) | `provider-session/copilot.ts` | This couples emdash to copilot's internal schema. If copilot CLI ever exposes a stable transcript export API, prefer that. |
+
+The whole class of workarounds disappears if/when emdash adopts ACP — agents stream messages in-process to emdash, no JSONL files to sniff. Defer until the protocol stabilises (spec §1).
+
+---
+
 ## 14. Glossary
 
 - **Conversation** — one PTY session running one agent CLI inside emdash.

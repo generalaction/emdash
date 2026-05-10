@@ -9,6 +9,10 @@ import type { AgentEvent } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { getConversationById } from '@main/core/conversations/getConversationById';
+import {
+  getTranscriptReader,
+  isTranscriptSupported,
+} from '@main/core/conversations/provider-session';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { db } from '@main/db/client';
@@ -249,7 +253,7 @@ export async function handleAgentFetch(
 
   const kind = query.kind ?? 'events';
   const tier = deriveProviderTier(target.providerId);
-  const transcriptSupported = false; // wired in PR3
+  const transcriptSupported = isTranscriptSupported(target.providerId);
 
   if (kind === 'events') {
     const since = query.since ? Number(query.since) : undefined;
@@ -273,7 +277,27 @@ export async function handleAgentFetch(
   }
 
   if (kind === 'transcript') {
-    throw new HttpError(501, 'transcript fetch lands in PR3');
+    const reader = getTranscriptReader(target.providerId);
+    if (!reader) {
+      return { items: [], providerTier: tier, transcriptSupported: false };
+    }
+    if (!target.externalSessionId) {
+      // Capture still pending (or unsupported for this provider/launch).
+      // Return empty with transcriptSupported=true so caller can retry.
+      return { items: [], providerTier: tier, transcriptSupported };
+    }
+    const result = await reader.fetch({
+      externalSessionId: target.externalSessionId,
+      externalSourcePath: target.externalSourcePath ?? null,
+      ...(query.limit ? { limit: Math.floor(query.limit) } : {}),
+      ...(query.since ? { since: query.since } : {}),
+    });
+    return {
+      items: result.items,
+      ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+      providerTier: tier,
+      transcriptSupported,
+    };
   }
 
   throw new HttpError(400, `unknown kind: ${kind}`);

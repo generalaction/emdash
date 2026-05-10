@@ -10,6 +10,10 @@ export type Conversation = {
   resume?: boolean;
   autoApprove?: boolean;
   isInitialConversation: boolean | null;
+  /** Provider-side session UUID. Equals `id` when emdash sets it via --session-id; otherwise captured post-spawn. */
+  externalSessionId?: string | null;
+  /** Cached path to the provider's session/transcript file. Captured post-spawn for providers we can't address by id at fresh launch. */
+  externalSourcePath?: string | null;
 };
 
 export type RenameConversationParams = {

@@ -16,5 +16,7 @@ export function mapConversationRowToConversation(
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,
+    externalSessionId: row.externalSessionId ?? null,
+    externalSourcePath: row.externalSourcePath ?? null,
   };
 }
