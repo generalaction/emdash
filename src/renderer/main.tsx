@@ -4,6 +4,7 @@ import { ErrorBoundary } from './lib/components/error-boundary';
 import './index.css';
 import 'devicon/devicon.min.css';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
+import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
@@ -41,6 +42,7 @@ async function bootstrap() {
     rpc.viewState.get('sidebar'),
     rpc.viewState.getAll(),
     appState.projects.load(),
+    prefetchAppSettingsKey('interface'),
   ]);
 
   viewStateCache.populate(allViewState as Record<string, unknown>);

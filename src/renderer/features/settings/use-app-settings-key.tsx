@@ -19,6 +19,14 @@ export function getAppSettingValueSnapshot<K extends AppSettingsKey>(
   return queryClient.getQueryData<SettingsMeta<K>>(settingsMetaQueryKey(key))?.value;
 }
 
+export function prefetchAppSettingsKey<K extends AppSettingsKey>(key: K) {
+  return queryClient.prefetchQuery<SettingsMeta<K>>({
+    queryKey: settingsMetaQueryKey(key),
+    queryFn: () => rpc.appSettings.getWithMeta(key) as Promise<SettingsMeta<K>>,
+    staleTime: 5 * 60_000,
+  });
+}
+
 function mergeValue<K extends AppSettingsKey>(
   current: AppSettings[K] | undefined,
   partial: Partial<AppSettings[K]>
@@ -38,7 +46,7 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery<SettingsMeta<K>>({
-    queryKey: ['appSettings', key, 'meta'] as const,
+    queryKey: settingsMetaQueryKey(key),
     queryFn: () => rpc.appSettings.getWithMeta(key) as Promise<SettingsMeta<K>>,
     staleTime: 5 * 60_000,
   });
