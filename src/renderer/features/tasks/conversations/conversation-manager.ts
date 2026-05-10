@@ -6,6 +6,7 @@ import {
   isAttentionNotification,
   type NotificationType,
 } from '@shared/events/agentEvents';
+import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
@@ -19,6 +20,7 @@ export class ConversationManagerStore {
   private _loadPromise: Promise<void> | null = null;
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
+  private offConversationCreated: (() => void) | null = null;
   conversations = observable.map<string, ConversationStore>();
 
   constructor(
@@ -44,6 +46,24 @@ export class ConversationManagerStore {
     });
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();
+    this.offConversationCreated = this.listenToConversationCreated();
+  }
+
+  /**
+   * Pick up conversations created outside the renderer (e.g. via the
+   * internal MCP `agent_spawn` tool). UI-initiated creates set the store
+   * locally first; this listener dedupes by id so it's safe either way.
+   */
+  private listenToConversationCreated(): () => void {
+    return events.on(conversationCreatedChannel, (conversation) => {
+      if (conversation.taskId !== this.taskId) return;
+      if (this.conversations.has(conversation.id)) return;
+      runInAction(() => {
+        const store = new ConversationStore(conversation);
+        this.conversations.set(conversation.id, store);
+        void store.session.connect();
+      });
+    });
   }
 
   private listenToAgentEvents(): () => void {
@@ -203,6 +223,8 @@ export class ConversationManagerStore {
     this.offAgentEvents = null;
     this.offSessionExited?.();
     this.offSessionExited = null;
+    this.offConversationCreated?.();
+    this.offConversationCreated = null;
     for (const conversation of this.conversations.values()) {
       conversation.dispose();
     }

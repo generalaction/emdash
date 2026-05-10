@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   getProvider,
@@ -19,13 +19,13 @@ import type { TranscriptItem } from '@main/core/conversations/provider-session/t
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { conversations, projects, tasks } from '@main/db/schema';
 import type { AgentEventBuffer } from '../event-buffer';
 import { HttpError, type CallerContext } from '../http-server';
 
 // ---------- Constants ----------
 
-const DEFAULT_LONG_POLL_MS = 30_000;
+const DEFAULT_LONG_POLL_MS = 15_000;
 export const MAX_LONG_POLL_MS = 60_000;
 export const MIN_LONG_POLL_MS = 1_000;
 
@@ -66,6 +66,9 @@ export type SpawnBody = z.infer<typeof SpawnBodySchema>;
 export const SendBodySchema = z.object({
   message: z.string().min(1),
   crossTask: z.boolean().optional(),
+  // Append a CR (\r) after the message text to submit. Default true.
+  // false leaves the message staged as a draft for the user.
+  submit: z.boolean().optional(),
 });
 export type SendBody = z.infer<typeof SendBodySchema>;
 
@@ -92,9 +95,32 @@ export type FetchQuery = z.infer<typeof FetchQuerySchema>;
 interface SelfResponse {
   conversationId: string;
   taskId: string;
+  taskName?: string;
   projectId: string;
+  projectName?: string;
   providerId: string;
   name: string;
+}
+
+async function lookupNames(
+  taskIds: string[],
+  projectIds: string[]
+): Promise<{ taskNames: Map<string, string>; projectNames: Map<string, string> }> {
+  const [taskRows, projectRows] = await Promise.all([
+    taskIds.length
+      ? db.select({ id: tasks.id, name: tasks.name }).from(tasks).where(inArray(tasks.id, taskIds))
+      : Promise.resolve([] as Array<{ id: string; name: string }>),
+    projectIds.length
+      ? db
+          .select({ id: projects.id, name: projects.name })
+          .from(projects)
+          .where(inArray(projects.id, projectIds))
+      : Promise.resolve([] as Array<{ id: string; name: string }>),
+  ]);
+  return {
+    taskNames: new Map(taskRows.map((r) => [r.id, r.name])),
+    projectNames: new Map(projectRows.map((r) => [r.id, r.name])),
+  };
 }
 
 interface ObserveResponse {
@@ -108,7 +134,9 @@ interface ObserveResponse {
 interface PeerSummary {
   conversationId: string;
   taskId: string;
+  taskName?: string;
   projectId: string;
+  projectName?: string;
   providerId: string;
   name: string;
   status: AgentStatus;
@@ -140,6 +168,13 @@ export type FetchResponse =
     };
 
 // ---------- Pure helpers ----------
+
+/**
+ * Statuses where waiting for a "change" doesn't make sense — the peer is
+ * already at rest. waitForChange should short-circuit on these so a caller
+ * polling after the agent emitted `stop` doesn't block for nothing.
+ */
+const TERMINAL_STATUSES: ReadonlySet<AgentStatus> = new Set(['idle', 'error', 'awaiting-input']);
 
 function deriveStatus(events: AgentEvent[]): AgentStatus {
   if (events.length === 0) return 'unknown';
@@ -202,10 +237,16 @@ async function selectPeerRows(caller: CallerContext, scope: Scope) {
 // ---------- Handlers ----------
 
 export async function handleAgentSelf(caller: CallerContext): Promise<SelfResponse> {
+  const { taskNames, projectNames } = await lookupNames(
+    [caller.conversation.taskId],
+    [caller.conversation.projectId]
+  );
   return {
     conversationId: caller.conversation.id,
     taskId: caller.conversation.taskId,
+    taskName: taskNames.get(caller.conversation.taskId),
     projectId: caller.conversation.projectId,
+    projectName: projectNames.get(caller.conversation.projectId),
     providerId: caller.conversation.providerId,
     name: caller.conversation.title,
   };
@@ -221,9 +262,18 @@ export async function handleAgentObserve(
   void caller; // cross-task reads are always allowed; visibility is cheap
 
   if (query.waitForChange) {
-    const timeoutMs = query.timeoutMs ?? DEFAULT_LONG_POLL_MS;
-    const since = buffer.getState(targetConversationId)?.lastAt ?? 0;
-    await buffer.waitForChange(targetConversationId, since, timeoutMs);
+    const state = buffer.getState(targetConversationId);
+    const currentStatus = deriveStatus(state?.recent ?? []);
+    // If peer already at rest, "change" caller waits on already happened.
+    // Return immediately instead of blocking timeoutMs.
+    if (!TERMINAL_STATUSES.has(currentStatus)) {
+      const timeoutMs = Math.min(
+        Math.max(query.timeoutMs ?? DEFAULT_LONG_POLL_MS, MIN_LONG_POLL_MS),
+        MAX_LONG_POLL_MS
+      );
+      const since = state?.lastAt ?? 0;
+      await buffer.waitForChange(targetConversationId, since, timeoutMs);
+    }
   }
 
   const state = buffer.getState(targetConversationId);
@@ -249,7 +299,17 @@ export async function handleAgentSend(
   const pty = ptySessionRegistry.get(sessionId);
   if (!pty) throw new HttpError(410, 'pty not running');
 
-  pty.write(body.message.endsWith('\n') ? body.message : body.message + '\n');
+  // Send the message text, then optionally an Enter keypress.
+  //
+  // submit=true (default) appends \r (carriage return) — the key TUIs
+  // like Claude Code interpret as Enter / submit. \n (LF) would insert a
+  // newline within the input box on those agents, which is why earlier
+  // code that appended \n caused the message to be typed but never sent.
+  // submit=false leaves the message staged as a draft for the user.
+  pty.write(body.message);
+  if ((body.submit ?? true) === true) {
+    pty.write('\r');
+  }
   return { ok: true };
 }
 
@@ -260,41 +320,47 @@ export async function handleAgentListPeers(
 ): Promise<PeerSummary[]> {
   const rows = await selectPeerRows(caller, scope);
 
-  const peers: PeerSummary[] = [];
-  for (const row of rows) {
-    if (row.id === caller.conversation.id) continue;
+  const filtered = rows.filter((row) => row.id !== caller.conversation.id);
+  const { taskNames, projectNames } = await lookupNames(
+    Array.from(new Set(filtered.map((r) => r.taskId))),
+    Array.from(new Set(filtered.map((r) => r.projectId)))
+  );
+
+  return filtered.map((row) => {
     const c = mapConversationRowToConversation(row);
     const state = buffer.getState(c.id);
-    peers.push({
+    return {
       conversationId: c.id,
       taskId: c.taskId,
+      taskName: taskNames.get(c.taskId),
       projectId: c.projectId,
+      projectName: projectNames.get(c.projectId),
       providerId: c.providerId,
       name: c.title,
       status: deriveStatus(state?.recent ?? []),
       lastActivityAt: c.lastInteractedAt,
-    });
-  }
-  return peers;
+    };
+  });
 }
 
 export async function handleAgentSpawn(
   caller: CallerContext,
   body: SpawnBody
-): Promise<{ conversationId: string }> {
+): Promise<{ conversationId: string; title: string; providerId: string }> {
   if (!isValidProviderId(body.providerId)) throw new HttpError(400, 'invalid providerId');
   const provider = body.providerId as AgentProviderId;
   const id = randomUUID();
+  const title = body.name ?? getProvider(provider)?.name ?? provider;
   const conv = await createConversation({
     id,
     projectId: caller.conversation.projectId,
     taskId: caller.conversation.taskId,
     provider,
-    title: body.name ?? getProvider(provider)?.name ?? provider,
+    title,
     isInitialConversation: false,
     initialPrompt: body.initialPrompt,
   });
-  return { conversationId: conv.id };
+  return { conversationId: conv.id, title: conv.title, providerId: provider };
 }
 
 export async function handleAgentInterrupt(

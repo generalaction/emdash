@@ -3,6 +3,7 @@ import { ZodError, type ZodType } from 'zod';
 import type { Conversation } from '@shared/conversations';
 import { getConversationById } from '@main/core/conversations/getConversationById';
 import { log } from '@main/lib/logger';
+import { DevServerTracker } from './dev-server-tracker';
 import { AgentEventBuffer } from './event-buffer';
 import type { McpInternalInstance } from './instance';
 import {
@@ -20,6 +21,20 @@ import {
   SendBodySchema,
   SpawnBodySchema,
 } from './routes/agent';
+import {
+  handleProjectList,
+  handleTaskCreate,
+  handleTaskList,
+  handleTerminalCreate,
+  handleTerminalList,
+  handleTerminalSend,
+  handleWorkspaceDevServers,
+  ProjectListQuerySchema,
+  TaskCreateBodySchema,
+  TaskListQuerySchema,
+  TerminalCreateBodySchema,
+  TerminalSendBodySchema,
+} from './routes/orchestration';
 
 export class HttpError extends Error {
   constructor(
@@ -43,6 +58,7 @@ const AGENT_OBSERVE_RE = /^\/agent\/([^/]+)\/observe$/;
 const AGENT_SEND_RE = /^\/agent\/([^/]+)\/send$/;
 const AGENT_FETCH_RE = /^\/agent\/([^/]+)\/fetch$/;
 const AGENT_INTERRUPT_RE = /^\/agent\/([^/]+)\/interrupt$/;
+const TERMINAL_SEND_RE = /^\/terminals\/([^/]+)\/send$/;
 
 function parseOrThrow<T>(schema: ZodType<T>, value: unknown): T {
   const r = schema.safeParse(value);
@@ -55,6 +71,7 @@ export class McpInternalHttpServer {
   private server: http.Server | null = null;
   private port = 0;
   private readonly buffer = new AgentEventBuffer();
+  private readonly devServers = new DevServerTracker();
 
   constructor(private readonly instance: McpInternalInstance) {}
 
@@ -62,6 +79,7 @@ export class McpInternalHttpServer {
     if (this.server) return { port: this.port };
 
     this.buffer.start();
+    this.devServers.start();
 
     this.server = http.createServer((req, res) => {
       void this.handle(req, res).catch((err) => {
@@ -89,6 +107,7 @@ export class McpInternalHttpServer {
 
   stop(): void {
     this.buffer.stop();
+    this.devServers.stop();
     if (this.server) {
       this.server.close();
       this.server = null;
@@ -160,6 +179,48 @@ export class McpInternalHttpServer {
         const target = decodeURIComponent(interruptMatch[1]);
         const body = parseOrThrow(InterruptBodySchema, await this.readJson(req));
         return this.send(res, 200, await handleAgentInterrupt(caller, target, body));
+      }
+
+      if (method === 'GET' && path === '/projects') {
+        const query = parseOrThrow(ProjectListQuerySchema, {
+          includeArchived: params.get('includeArchived') === 'true' || undefined,
+        });
+        return this.send(res, 200, await handleProjectList(caller, query));
+      }
+
+      if (method === 'GET' && path === '/tasks') {
+        const query = parseOrThrow(TaskListQuerySchema, {
+          projectId: params.get('projectId') ?? undefined,
+          includeArchived: params.get('includeArchived') === 'true' || undefined,
+        });
+        return this.send(res, 200, await handleTaskList(caller, query));
+      }
+
+      if (method === 'POST' && path === '/tasks') {
+        const body = parseOrThrow(TaskCreateBodySchema, await this.readJson(req));
+        return this.send(res, 200, await handleTaskCreate(caller, body));
+      }
+
+      if (method === 'GET' && path === '/workspace/dev-servers') {
+        const data = handleWorkspaceDevServers(caller, this.devServers);
+        return this.send(res, 200, data);
+      }
+
+      if (method === 'GET' && path === '/terminals') {
+        const data = await handleTerminalList(caller);
+        return this.send(res, 200, data);
+      }
+
+      if (method === 'POST' && path === '/terminals') {
+        const body = parseOrThrow(TerminalCreateBodySchema, await this.readJson(req));
+        return this.send(res, 200, await handleTerminalCreate(caller, body));
+      }
+
+      const terminalSendMatch = path.match(TERMINAL_SEND_RE);
+      if (terminalSendMatch && method === 'POST') {
+        const target = decodeURIComponent(terminalSendMatch[1]);
+        const body = parseOrThrow(TerminalSendBodySchema, await this.readJson(req));
+        return this.send(res, 200, await handleTerminalSend(caller, target, body));
       }
 
       this.send(res, 404, { error: 'not found' });

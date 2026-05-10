@@ -1,4 +1,5 @@
 import { computed, makeAutoObservable, reaction } from 'mobx';
+import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import type { AgentLayoutMode, TaskViewSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
@@ -13,6 +14,7 @@ import {
 import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
+import { events } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 
@@ -160,6 +162,19 @@ export class TaskViewStore {
         },
         { fireImmediately: true }
       )
+    );
+
+    // Surface tabs for conversations created outside this renderer (e.g.
+    // via the internal MCP `agent_spawn` tool). ConversationManagerStore
+    // already adds the store to its observable map on the same channel;
+    // here we mirror what the create-conversation modal does on success:
+    // open the tab + put it in the layout. openConversation is idempotent.
+    this.disposers.push(
+      events.on(conversationCreatedChannel, (conversation) => {
+        if (conversation.taskId !== resources.taskId) return;
+        this.tabManager.openConversation(conversation.id);
+        this.addConversationToLayout(conversation.id);
+      })
     );
 
     makeAutoObservable(this, {

@@ -27,13 +27,8 @@ export interface CaptureMatch {
 
 /** Per-provider capture config. Plugged into the generic capture engine. */
 export interface ProviderCaptureConfig {
-  /** Base directory to watch. */
+  /** Base directory to watch (always recursive — handled by @parcel/watcher). */
   baseDir: (home: string) => string;
-  /**
-   * Watch recursively. macOS + Windows support natively; Linux is best-effort
-   * (top-level only) and may miss nested events. See spec §13a.
-   */
-  recursive?: boolean;
   /** Filter for entries (file or dir basename) that might be a new session. */
   matchesEntry: (basename: string) => boolean;
   /**

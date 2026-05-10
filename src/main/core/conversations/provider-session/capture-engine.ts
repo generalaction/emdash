@@ -1,6 +1,7 @@
-import { promises as fs, watch as fsWatch } from 'node:fs';
+import { promises as fs } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import parcelWatcher from '@parcel/watcher';
 import { eq } from 'drizzle-orm';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { db } from '@main/db/client';
@@ -13,7 +14,9 @@ import { getProviderSessionCapability } from './manifest';
  *
  * Workflow per spawn:
  *   1. Snapshot existing entries under capability.capture.baseDir
- *   2. Watch the dir for new entries (file or directory creation)
+ *   2. Watch the dir recursively via @parcel/watcher (FSEvents on macOS,
+ *      ReadDirectoryChangesW on Windows, inotify on Linux — all native
+ *      recursive)
  *   3. For each new entry passing matchesEntry + match (cwd correct), persist
  *      externalSessionId + externalSourcePath on the conversation row
  *   4. Time out after CAPTURE_TIMEOUT_MS
@@ -56,31 +59,35 @@ async function run(
   const seen = new Set<string>();
   await snapshot(baseDir, seen);
 
-  let watcher: ReturnType<typeof fsWatch> | null = null;
+  let subscription: parcelWatcher.AsyncSubscription | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let settled = false;
 
   const cleanup = () => {
     if (settled) return;
     settled = true;
-    watcher?.close();
     if (timer) clearTimeout(timer);
+    if (subscription) {
+      void subscription.unsubscribe().catch((err) => {
+        log.warn('provider-session: unsubscribe failed', { error: String(err) });
+      });
+      subscription = null;
+    }
   };
 
-  const onEvent = async (filename: string | null) => {
-    if (settled || !filename) return;
-    if (!config.matchesEntry(path.basename(filename))) return;
-    const full = path.resolve(baseDir, filename);
-    if (seen.has(full)) return;
-    seen.add(full);
+  const onEvent = async (eventPath: string) => {
+    if (settled) return;
+    if (!config.matchesEntry(path.basename(eventPath))) return;
+    if (seen.has(eventPath)) return;
+    seen.add(eventPath);
 
     let result;
     try {
-      result = await config.match(full, req.cwd);
+      result = await config.match(eventPath, req.cwd);
     } catch (err) {
       log.warn('provider-session: match threw', {
         providerId: req.providerId,
-        path: full,
+        path: eventPath,
         error: String(err),
       });
       return;
@@ -92,20 +99,27 @@ async function run(
   };
 
   try {
-    // macOS + Windows support recursive natively. Linux is best-effort
-    // (top-level only) — see spec §13a tech debt.
-    const recursive = config.recursive !== false && process.platform !== 'linux';
-    watcher = fsWatch(baseDir, { recursive }, (_event, filename) => {
-      void onEvent(filename).catch((err) => {
-        log.warn('provider-session: onEvent error', {
+    subscription = await parcelWatcher.subscribe(baseDir, (err, events) => {
+      if (err) {
+        log.warn('provider-session: watcher error', {
           providerId: req.providerId,
-          filename,
           error: String(err),
         });
-      });
+        return;
+      }
+      for (const event of events) {
+        if (event.type !== 'create' && event.type !== 'update') continue;
+        void onEvent(event.path).catch((onEventErr) => {
+          log.warn('provider-session: onEvent error', {
+            providerId: req.providerId,
+            filename: event.path,
+            error: String(onEventErr),
+          });
+        });
+      }
     });
   } catch (err) {
-    log.warn('provider-session: fs.watch failed; capture skipped', {
+    log.warn('provider-session: parcel watcher subscribe failed; capture skipped', {
       providerId: req.providerId,
       error: String(err),
     });
