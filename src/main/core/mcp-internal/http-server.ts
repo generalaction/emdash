@@ -15,6 +15,7 @@ import {
   handleAgentSpawn,
 } from './routes/agent';
 import {
+  handleProjectList,
   handleTaskCreate,
   handleTaskList,
   handleTerminalCreate,
@@ -180,6 +181,13 @@ export class McpInternalHttpServer {
         const target = decodeURIComponent(interruptMatch[1]);
         const body = await this.readJson<{ crossTask?: boolean }>(req);
         const data = await handleAgentInterrupt(caller, target, body);
+        return this.send(res, 200, data);
+      }
+
+      if (method === 'GET' && path === '/projects') {
+        const data = await handleProjectList(caller, {
+          includeArchived: params.get('includeArchived') === 'true',
+        });
         return this.send(res, 200, data);
       }
 

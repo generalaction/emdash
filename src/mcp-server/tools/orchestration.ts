@@ -13,6 +13,21 @@ import type { HttpClient } from '../http-client';
  */
 export function registerOrchestrationTools(server: McpServer, http: HttpClient): void {
   server.tool(
+    'project_list',
+    'Lists projects emdash knows about. Use to discover projectIds for task_list / task_create when working across projects.',
+    {
+      includeArchived: z.boolean().optional().describe('Include archived projects. Default false.'),
+    },
+    async ({ includeArchived }) => {
+      const data = await http.get(
+        '/projects',
+        includeArchived ? { includeArchived: true } : undefined
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(data) }] };
+    }
+  );
+
+  server.tool(
     'task_list',
     "Lists tasks. Defaults to the caller's project; pass a different projectId to look elsewhere. Active tasks only by default.",
     {

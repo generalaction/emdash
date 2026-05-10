@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import {
   getProvider,
   isValidProviderId,
@@ -16,7 +16,7 @@ import {
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
+import { conversations, projects, tasks } from '@main/db/schema';
 import type { AgentEventBuffer } from '../event-buffer';
 import { HttpError, type CallerContext } from '../http-server';
 
@@ -26,9 +26,32 @@ export type ProviderTier = 'hooks' | 'classifier' | 'unsupported';
 interface SelfResponse {
   conversationId: string;
   taskId: string;
+  taskName?: string;
   projectId: string;
+  projectName?: string;
   providerId: string;
   name: string;
+}
+
+async function lookupNames(
+  taskIds: string[],
+  projectIds: string[]
+): Promise<{ taskNames: Map<string, string>; projectNames: Map<string, string> }> {
+  const [taskRows, projectRows] = await Promise.all([
+    taskIds.length
+      ? db.select({ id: tasks.id, name: tasks.name }).from(tasks).where(inArray(tasks.id, taskIds))
+      : Promise.resolve([] as Array<{ id: string; name: string }>),
+    projectIds.length
+      ? db
+          .select({ id: projects.id, name: projects.name })
+          .from(projects)
+          .where(inArray(projects.id, projectIds))
+      : Promise.resolve([] as Array<{ id: string; name: string }>),
+  ]);
+  return {
+    taskNames: new Map(taskRows.map((r) => [r.id, r.name])),
+    projectNames: new Map(projectRows.map((r) => [r.id, r.name])),
+  };
 }
 
 interface ObserveResponse {
@@ -39,9 +62,16 @@ interface ObserveResponse {
   statusChangedAt: number | null;
 }
 
-const DEFAULT_LONG_POLL_MS = 30_000;
+const DEFAULT_LONG_POLL_MS = 15_000;
 const MAX_LONG_POLL_MS = 60_000;
 const MIN_LONG_POLL_MS = 1_000;
+
+/**
+ * Statuses where waiting for a "change" doesn't make sense — the peer is
+ * already at rest. waitForChange should short-circuit on these so a caller
+ * polling after the agent emitted `stop` doesn't block for nothing.
+ */
+const TERMINAL_STATUSES: ReadonlySet<AgentStatus> = new Set(['idle', 'error', 'awaiting-input']);
 
 function deriveStatus(events: AgentEvent[]): AgentStatus {
   if (events.length === 0) return 'unknown';
@@ -65,10 +95,16 @@ function deriveProviderTier(providerId: string): ProviderTier {
 }
 
 export async function handleAgentSelf(caller: CallerContext): Promise<SelfResponse> {
+  const { taskNames, projectNames } = await lookupNames(
+    [caller.conversation.taskId],
+    [caller.conversation.projectId]
+  );
   return {
     conversationId: caller.conversation.id,
     taskId: caller.conversation.taskId,
+    taskName: taskNames.get(caller.conversation.taskId),
     projectId: caller.conversation.projectId,
+    projectName: projectNames.get(caller.conversation.projectId),
     providerId: caller.conversation.providerId,
     name: caller.conversation.title,
   };
@@ -87,12 +123,18 @@ export async function handleAgentObserve(
   void caller;
 
   if (query.waitForChange) {
-    const timeoutMs = Math.min(
-      Math.max(query.timeoutMs ?? DEFAULT_LONG_POLL_MS, MIN_LONG_POLL_MS),
-      MAX_LONG_POLL_MS
-    );
-    const since = buffer.getState(targetConversationId)?.lastAt ?? 0;
-    await buffer.waitForChange(targetConversationId, since, timeoutMs);
+    const state = buffer.getState(targetConversationId);
+    const currentStatus = deriveStatus(state?.recent ?? []);
+    // If peer is already at rest, the "change" the caller cares about
+    // already happened. Return immediately instead of waiting timeoutMs.
+    if (!TERMINAL_STATUSES.has(currentStatus)) {
+      const timeoutMs = Math.min(
+        Math.max(query.timeoutMs ?? DEFAULT_LONG_POLL_MS, MIN_LONG_POLL_MS),
+        MAX_LONG_POLL_MS
+      );
+      const since = state?.lastAt ?? 0;
+      await buffer.waitForChange(targetConversationId, since, timeoutMs);
+    }
   }
 
   const state = buffer.getState(targetConversationId);
@@ -143,7 +185,9 @@ export async function handleAgentSend(
 interface PeerSummary {
   conversationId: string;
   taskId: string;
+  taskName?: string;
   projectId: string;
+  projectName?: string;
   providerId: string;
   name: string;
   status: AgentStatus;
@@ -170,22 +214,27 @@ export async function handleAgentListPeers(
     rows = await db.select().from(conversations);
   }
 
-  const peers: PeerSummary[] = [];
-  for (const row of rows) {
-    if (row.id === caller.conversation.id) continue;
+  const filtered = rows.filter((row) => row.id !== caller.conversation.id);
+  const { taskNames, projectNames } = await lookupNames(
+    Array.from(new Set(filtered.map((r) => r.taskId))),
+    Array.from(new Set(filtered.map((r) => r.projectId)))
+  );
+
+  return filtered.map((row) => {
     const c = mapConversationRowToConversation(row);
     const state = buffer.getState(c.id);
-    peers.push({
+    return {
       conversationId: c.id,
       taskId: c.taskId,
+      taskName: taskNames.get(c.taskId),
       projectId: c.projectId,
+      projectName: projectNames.get(c.projectId),
       providerId: c.providerId,
       name: c.title,
       status: deriveStatus(state?.recent ?? []),
       lastActivityAt: c.lastInteractedAt,
-    });
-  }
-  return peers;
+    };
+  });
 }
 
 interface SpawnBody {
@@ -198,7 +247,7 @@ interface SpawnBody {
 export async function handleAgentSpawn(
   caller: CallerContext,
   body: SpawnBody
-): Promise<{ conversationId: string }> {
+): Promise<{ conversationId: string; title: string; providerId: string }> {
   if (body.sameTask === false) {
     throw new HttpError(
       400,
@@ -210,16 +259,17 @@ export async function handleAgentSpawn(
   }
   const provider = body.providerId as AgentProviderId;
   const id = randomUUID();
+  const title = body.name ?? getProvider(provider)?.name ?? provider;
   const conv = await createConversation({
     id,
     projectId: caller.conversation.projectId,
     taskId: caller.conversation.taskId,
     provider,
-    title: body.name ?? getProvider(provider)?.name ?? provider,
+    title,
     isInitialConversation: false,
     initialPrompt: body.initialPrompt,
   });
-  return { conversationId: conv.id };
+  return { conversationId: conv.id, title: conv.title, providerId: provider };
 }
 
 export async function handleAgentInterrupt(

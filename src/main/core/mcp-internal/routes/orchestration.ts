@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { Branch } from '@shared/git';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -13,9 +13,19 @@ import { projects } from '@main/db/schema';
 import type { DevServerTracker } from '../dev-server-tracker';
 import { HttpError, type CallerContext } from '../http-server';
 
+async function lookupProjectNames(projectIds: string[]): Promise<Map<string, string>> {
+  if (projectIds.length === 0) return new Map();
+  const rows = await db
+    .select({ id: projects.id, name: projects.name })
+    .from(projects)
+    .where(inArray(projects.id, projectIds));
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
 interface TaskSummary {
   id: string;
   projectId: string;
+  projectName?: string;
   name: string;
   status: string;
   taskBranch?: string;
@@ -30,9 +40,13 @@ export async function handleTaskList(
   const projectId = query.projectId ?? caller.conversation.projectId;
   const tasks = await getTasks(projectId);
   const filtered = query.includeArchived ? tasks : tasks.filter((t) => !t.archivedAt);
+  const projectNames = await lookupProjectNames(
+    Array.from(new Set(filtered.map((t) => t.projectId)))
+  );
   return filtered.map((t) => ({
     id: t.id,
     projectId: t.projectId,
+    projectName: projectNames.get(t.projectId),
     name: t.name,
     status: t.status,
     taskBranch: t.taskBranch,
@@ -55,7 +69,13 @@ interface TaskCreateBody {
 export async function handleTaskCreate(
   caller: CallerContext,
   body: TaskCreateBody
-): Promise<{ taskId: string; conversationId?: string }> {
+): Promise<{
+  taskId: string;
+  taskName: string;
+  taskBranch?: string;
+  projectId: string;
+  conversationId?: string;
+}> {
   if (!body.name || typeof body.name !== 'string') {
     throw new HttpError(400, 'name is required');
   }
@@ -106,7 +126,36 @@ export async function handleTaskCreate(
     throw new HttpError(500, `task creation failed: ${result.error.type}`);
   }
 
-  return { taskId: result.data.task.id, conversationId };
+  return {
+    taskId: result.data.task.id,
+    taskName: result.data.task.name,
+    taskBranch: result.data.task.taskBranch,
+    projectId: result.data.task.projectId,
+    conversationId,
+  };
+}
+
+interface ProjectSummary {
+  id: string;
+  name: string;
+  path: string;
+  baseRef: string | null;
+  archived: boolean;
+}
+
+export async function handleProjectList(
+  _caller: CallerContext,
+  query: { includeArchived?: boolean }
+): Promise<ProjectSummary[]> {
+  const rows = await db.select().from(projects);
+  const filtered = query.includeArchived ? rows : rows.filter((p) => !p.archived);
+  return filtered.map((p) => ({
+    id: p.id,
+    name: p.name,
+    path: p.path,
+    baseRef: p.baseRef,
+    archived: p.archived,
+  }));
 }
 
 interface TerminalSummary {
