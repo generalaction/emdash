@@ -29,6 +29,7 @@ import {
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
+import { ProjectEmoji } from '@renderer/lib/emoji/project-emoji';
 import {
   useNavigate,
   useParams,
@@ -143,8 +144,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                 }}
               >
                 {parsedIcon.kind === 'emoji' ? (
-                  <span className="absolute leading-none transition-opacity duration-150 opacity-100 group-hover/row:opacity-0">
-                    <em-emoji native={parsedIcon.char} size="1rem" />
+                  <span className="absolute text-base leading-none transition-opacity duration-150 opacity-100 group-hover/row:opacity-0">
+                    <ProjectEmoji native={parsedIcon.char} />
                   </span>
                 ) : (
                   (() => {

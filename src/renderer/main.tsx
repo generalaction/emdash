@@ -1,14 +1,8 @@
-import emojiData from '@emoji-mart/data';
-import { init as initEmojiMart } from 'emoji-mart';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import './index.css';
 import 'devicon/devicon.min.css';
-
-// Register the <em-emoji> web component so emoji renderings are identical
-// between the picker and any place we display emoji (sidebar, previews, etc.).
-void initEmojiMart({ data: emojiData });
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
