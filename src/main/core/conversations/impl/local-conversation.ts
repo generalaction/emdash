@@ -22,7 +22,7 @@ import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { buildAgentCommand } from './agent-command';
+import { buildAgentCommand, wrapAgentCommandWithStdinPipe } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
@@ -93,7 +93,7 @@ export class LocalConversationProvider implements ConversationProvider {
     await this.prepareHookConfig(conversation.providerId);
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const { command, args } = buildAgentCommand({
+    const baseCommand = buildAgentCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
@@ -101,6 +101,12 @@ export class LocalConversationProvider implements ConversationProvider {
       isResuming,
       initialPrompt,
     });
+    const providerDef = getProvider(conversation.providerId);
+    const useStdinPipe =
+      !isResuming && !!initialPrompt?.trim() && !!providerDef?.initialPromptViaStdinPipe;
+    const { command, args } = useStdinPipe
+      ? wrapAgentCommandWithStdinPipe(baseCommand, initialPrompt!.trim())
+      : baseCommand;
     const providerEnv = resolveProviderEnv(providerConfig);
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
@@ -142,8 +148,7 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const hookActive = port > 0;
-    const provider = getProvider(conversation.providerId);
-    const useHooksOnly = hookActive && provider?.supportsHooks;
+    const useHooksOnly = hookActive && providerDef?.supportsHooks;
 
     if (!useHooksOnly) {
       wireAgentClassifier({

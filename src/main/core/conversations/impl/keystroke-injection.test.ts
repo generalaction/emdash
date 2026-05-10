@@ -12,6 +12,7 @@ function makeConversation(providerId: Conversation['providerId']): Conversation 
     title: '',
     autoApprove: false,
     lastInteractedAt: null,
+    isInitialConversation: false,
   };
 }
 
@@ -56,7 +57,7 @@ describe('scheduleInitialPromptInjection', () => {
     const { pty, write, emitData } = makePty();
     scheduleInitialPromptInjection({
       pty,
-      conversation: makeConversation('amp'),
+      conversation: makeConversation('hermes'),
       initialPrompt: 'Fix the bug',
       isResuming: false,
     });
@@ -74,7 +75,7 @@ describe('scheduleInitialPromptInjection', () => {
     const { pty, write } = makePty();
     scheduleInitialPromptInjection({
       pty,
-      conversation: makeConversation('amp'),
+      conversation: makeConversation('hermes'),
       initialPrompt: 'Fix the bug',
       isResuming: false,
     });
@@ -87,7 +88,7 @@ describe('scheduleInitialPromptInjection', () => {
     const { pty, write, emitData } = makePty();
     scheduleInitialPromptInjection({
       pty,
-      conversation: makeConversation('amp'),
+      conversation: makeConversation('hermes'),
       initialPrompt: 'line one\nline two',
       isResuming: false,
     });
@@ -115,7 +116,7 @@ describe('scheduleInitialPromptInjection', () => {
     const { pty, write, emitData } = makePty();
     scheduleInitialPromptInjection({
       pty,
-      conversation: makeConversation('amp'),
+      conversation: makeConversation('hermes'),
       initialPrompt: 'Fix the bug',
       isResuming: true,
     });
@@ -129,7 +130,7 @@ describe('scheduleInitialPromptInjection', () => {
     const { pty, write, emitData } = makePty();
     scheduleInitialPromptInjection({
       pty,
-      conversation: makeConversation('amp'),
+      conversation: makeConversation('hermes'),
       initialPrompt: '   ',
       isResuming: false,
     });
@@ -143,7 +144,7 @@ describe('scheduleInitialPromptInjection', () => {
     const { pty, write, emitData, emitExit } = makePty();
     scheduleInitialPromptInjection({
       pty,
-      conversation: makeConversation('amp'),
+      conversation: makeConversation('hermes'),
       initialPrompt: 'Fix the bug',
       isResuming: false,
     });

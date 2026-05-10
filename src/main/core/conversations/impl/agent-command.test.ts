@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import { providerConfigDefaults } from '@main/core/settings/schema';
-import { buildAgentCommand } from './agent-command';
+import { buildAgentCommand, wrapAgentCommandWithStdinPipe } from './agent-command';
 
 function makeConfig(overrides: Partial<ProviderCustomConfig> = {}): ProviderCustomConfig {
   return {
@@ -122,7 +122,7 @@ describe('buildAgentCommand', () => {
     resumeArgs: string[];
   }>([
     { providerId: 'cursor', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
-    { providerId: 'opencode', freshArgs: [], resumeArgs: ['--continue'] },
+    { providerId: 'opencode', freshArgs: ['--prompt', 'Fix the bug'], resumeArgs: ['--continue'] },
     { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
     {
       providerId: 'auggie',
@@ -196,5 +196,35 @@ describe('buildAgentCommand', () => {
         sessionId: 'conv-1',
       })
     ).toThrow(/executable command prefixes/);
+  });
+});
+
+describe('wrapAgentCommandWithStdinPipe', () => {
+  it('pipes the prompt into the agent and reattaches /dev/tty', () => {
+    const result = wrapAgentCommandWithStdinPipe(
+      { command: 'amp', args: ['--dangerously-allow-all'] },
+      'Fix the bug'
+    );
+
+    expect(result.command).toBe('bash');
+    expect(result.args).toEqual([
+      '-c',
+      "{ printf '%s\\n' 'Fix the bug'; exec </dev/tty; } | 'amp' '--dangerously-allow-all'",
+    ]);
+  });
+
+  it('escapes prompts containing single quotes', () => {
+    const result = wrapAgentCommandWithStdinPipe({ command: 'amp', args: [] }, "it's broken");
+
+    expect(result.args[1]).toContain("'it'\\''s broken'");
+  });
+
+  it('preserves multi-line prompts so the agent receives them verbatim', () => {
+    const result = wrapAgentCommandWithStdinPipe(
+      { command: 'amp', args: [] },
+      'line one\nline two'
+    );
+
+    expect(result.args[1]).toContain("'line one\nline two'");
   });
 });
