@@ -1,8 +1,18 @@
-import { getProvider } from '@shared/agent-provider-registry';
+import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
+import {
+  getProvider,
+  isValidProviderId,
+  type AgentProviderId,
+} from '@shared/agent-provider-registry';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { createConversation } from '@main/core/conversations/createConversation';
 import { getConversationById } from '@main/core/conversations/getConversationById';
+import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { db } from '@main/db/client';
+import { conversations } from '@main/db/schema';
 import type { AgentEventBuffer } from '../event-buffer';
 import { HttpError, type CallerContext } from '../http-server';
 
@@ -69,10 +79,8 @@ export async function handleAgentObserve(
   const target = await getConversationById(targetConversationId);
   if (!target) throw new HttpError(410, 'conversation gone');
 
-  // PR1: same-task only. Cross-task scope arrives in PR2.
-  if (target.taskId !== caller.conversation.taskId) {
-    throw new HttpError(403, 'cross-task observe not enabled in v1');
-  }
+  // Cross-task reads are always allowed — visibility is cheap.
+  void caller;
 
   if (query.waitForChange) {
     const timeoutMs = Math.min(
@@ -106,10 +114,8 @@ export async function handleAgentSend(
   const target = await getConversationById(targetConversationId);
   if (!target) throw new HttpError(410, 'conversation gone');
 
-  if (target.taskId !== caller.conversation.taskId) {
-    // PR2 will gate this with the cross-task:write capability bucket.
-    if (!body.crossTask) throw new HttpError(403, 'cross-task send requires crossTask=true');
-    throw new HttpError(403, 'cross-task:write capability not enabled in v1');
+  if (target.taskId !== caller.conversation.taskId && !body.crossTask) {
+    throw new HttpError(403, 'cross-task send requires crossTask=true');
   }
 
   const sessionId = makePtySessionId(target.projectId, target.taskId, target.id);
@@ -118,4 +124,157 @@ export async function handleAgentSend(
 
   pty.write(body.message.endsWith('\n') ? body.message : body.message + '\n');
   return { ok: true };
+}
+
+interface PeerSummary {
+  conversationId: string;
+  taskId: string;
+  projectId: string;
+  providerId: string;
+  name: string;
+  status: AgentStatus;
+  lastActivityAt: string | null;
+}
+
+export async function handleAgentListPeers(
+  caller: CallerContext,
+  scope: 'task' | 'project' | 'all',
+  buffer: AgentEventBuffer
+): Promise<PeerSummary[]> {
+  let rows;
+  if (scope === 'task') {
+    rows = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.taskId, caller.conversation.taskId));
+  } else if (scope === 'project') {
+    rows = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.projectId, caller.conversation.projectId));
+  } else {
+    rows = await db.select().from(conversations);
+  }
+
+  const peers: PeerSummary[] = [];
+  for (const row of rows) {
+    if (row.id === caller.conversation.id) continue;
+    const c = mapConversationRowToConversation(row);
+    const state = buffer.getState(c.id);
+    peers.push({
+      conversationId: c.id,
+      taskId: c.taskId,
+      projectId: c.projectId,
+      providerId: c.providerId,
+      name: c.title,
+      status: deriveStatus(state?.recent ?? []),
+      lastActivityAt: c.lastInteractedAt,
+    });
+  }
+  return peers;
+}
+
+interface SpawnBody {
+  providerId: string;
+  name?: string;
+  initialPrompt?: string;
+  sameTask?: boolean;
+}
+
+export async function handleAgentSpawn(
+  caller: CallerContext,
+  body: SpawnBody
+): Promise<{ conversationId: string }> {
+  if (body.sameTask === false) {
+    throw new HttpError(
+      400,
+      'sameTask=false not supported. Use task_create (PR4) to spawn an agent in a new task.'
+    );
+  }
+  if (!body.providerId || !isValidProviderId(body.providerId)) {
+    throw new HttpError(400, 'invalid providerId');
+  }
+  const provider = body.providerId as AgentProviderId;
+  const id = randomUUID();
+  const conv = await createConversation({
+    id,
+    projectId: caller.conversation.projectId,
+    taskId: caller.conversation.taskId,
+    provider,
+    title: body.name ?? getProvider(provider)?.name ?? provider,
+    isInitialConversation: false,
+    initialPrompt: body.initialPrompt,
+  });
+  return { conversationId: conv.id };
+}
+
+export async function handleAgentInterrupt(
+  caller: CallerContext,
+  targetConversationId: string,
+  body: { crossTask?: boolean }
+): Promise<{ ok: true }> {
+  const target = await getConversationById(targetConversationId);
+  if (!target) throw new HttpError(410, 'conversation gone');
+
+  if (target.taskId !== caller.conversation.taskId && !body.crossTask) {
+    throw new HttpError(403, 'cross-task interrupt requires crossTask=true');
+  }
+
+  const sessionId = makePtySessionId(target.projectId, target.taskId, target.id);
+  const pty = ptySessionRegistry.get(sessionId);
+  if (!pty) throw new HttpError(410, 'pty not running');
+
+  pty.write('\x03');
+  return { ok: true };
+}
+
+interface FetchResponse {
+  items: AgentEvent[] | string | unknown[];
+  nextCursor?: string;
+  providerTier: ProviderTier;
+  transcriptSupported: boolean;
+}
+
+export async function handleAgentFetch(
+  caller: CallerContext,
+  targetConversationId: string,
+  query: { kind?: string; limit?: number; since?: string },
+  buffer: AgentEventBuffer
+): Promise<FetchResponse> {
+  const target = await getConversationById(targetConversationId);
+  if (!target) throw new HttpError(410, 'conversation gone');
+
+  // Cross-task reads are always allowed (visibility is cheap).
+  void caller;
+
+  const kind = query.kind ?? 'events';
+  const tier = deriveProviderTier(target.providerId);
+  const transcriptSupported = false; // wired in PR3
+
+  if (kind === 'events') {
+    const since = query.since ? Number(query.since) : undefined;
+    const events = buffer.getEvents(target.id, Number.isFinite(since) ? since : undefined);
+    const limited = query.limit ? events.slice(-Math.max(1, Math.floor(query.limit))) : events;
+    const last = limited[limited.length - 1];
+    return {
+      items: limited,
+      nextCursor: last ? String(last.timestamp) : undefined,
+      providerTier: tier,
+      transcriptSupported,
+    };
+  }
+
+  if (kind === 'scrollback') {
+    const sessionId = makePtySessionId(target.projectId, target.taskId, target.id);
+    const buf = ptySessionRegistry.peekRingBuffer(sessionId);
+    const limit = query.limit && query.limit > 0 ? Math.floor(query.limit) : undefined;
+    const items = limit && buf.length > limit ? buf.slice(-limit) : buf;
+    return { items, providerTier: tier, transcriptSupported };
+  }
+
+  if (kind === 'transcript') {
+    throw new HttpError(501, 'transcript fetch lands in PR3');
+  }
+
+  throw new HttpError(400, `unknown kind: ${kind}`);
 }

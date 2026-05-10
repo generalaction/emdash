@@ -4,7 +4,15 @@ import { getConversationById } from '@main/core/conversations/getConversationByI
 import { log } from '@main/lib/logger';
 import { AgentEventBuffer } from './event-buffer';
 import type { McpInternalInstance } from './instance';
-import { handleAgentObserve, handleAgentSelf, handleAgentSend } from './routes/agent';
+import {
+  handleAgentFetch,
+  handleAgentInterrupt,
+  handleAgentListPeers,
+  handleAgentObserve,
+  handleAgentSelf,
+  handleAgentSend,
+  handleAgentSpawn,
+} from './routes/agent';
 
 export class HttpError extends Error {
   constructor(
@@ -26,6 +34,8 @@ const MAX_BODY_BYTES = 1_000_000;
 
 const AGENT_OBSERVE_RE = /^\/agent\/([^/]+)\/observe$/;
 const AGENT_SEND_RE = /^\/agent\/([^/]+)\/send$/;
+const AGENT_FETCH_RE = /^\/agent\/([^/]+)\/fetch$/;
+const AGENT_INTERRUPT_RE = /^\/agent\/([^/]+)\/interrupt$/;
 
 export class McpInternalHttpServer {
   private server: http.Server | null = null;
@@ -86,14 +96,36 @@ export class McpInternalHttpServer {
       const url = req.url ?? '';
       const method = req.method ?? 'GET';
 
-      if (method === 'GET' && url.startsWith('/agent/self')) {
+      const path = url.split('?')[0];
+      const params = new URL(url, 'http://x').searchParams;
+
+      if (method === 'GET' && path === '/agent/self') {
         return this.send(res, 200, await handleAgentSelf(caller));
       }
 
-      const observeMatch = url.split('?')[0].match(AGENT_OBSERVE_RE);
+      if (method === 'GET' && path === '/agent/peers') {
+        const scopeRaw = params.get('scope') ?? 'task';
+        if (scopeRaw !== 'task' && scopeRaw !== 'project' && scopeRaw !== 'all') {
+          throw new HttpError(400, `invalid scope: ${scopeRaw}`);
+        }
+        const data = await handleAgentListPeers(caller, scopeRaw, this.buffer);
+        return this.send(res, 200, data);
+      }
+
+      if (method === 'POST' && path === '/agent/spawn') {
+        const body = await this.readJson<{
+          providerId: string;
+          name?: string;
+          initialPrompt?: string;
+          sameTask?: boolean;
+        }>(req);
+        const data = await handleAgentSpawn(caller, body);
+        return this.send(res, 200, data);
+      }
+
+      const observeMatch = path.match(AGENT_OBSERVE_RE);
       if (observeMatch && method === 'GET') {
         const target = decodeURIComponent(observeMatch[1]);
-        const params = new URL(url, 'http://x').searchParams;
         const data = await handleAgentObserve(
           caller,
           target,
@@ -106,11 +138,35 @@ export class McpInternalHttpServer {
         return this.send(res, 200, data);
       }
 
-      const sendMatch = url.split('?')[0].match(AGENT_SEND_RE);
+      const sendMatch = path.match(AGENT_SEND_RE);
       if (sendMatch && method === 'POST') {
         const target = decodeURIComponent(sendMatch[1]);
         const body = await this.readJson<{ message: string; crossTask?: boolean }>(req);
         const data = await handleAgentSend(caller, target, body);
+        return this.send(res, 200, data);
+      }
+
+      const fetchMatch = path.match(AGENT_FETCH_RE);
+      if (fetchMatch && method === 'GET') {
+        const target = decodeURIComponent(fetchMatch[1]);
+        const data = await handleAgentFetch(
+          caller,
+          target,
+          {
+            kind: params.get('kind') ?? undefined,
+            limit: params.has('limit') ? Number(params.get('limit')) : undefined,
+            since: params.get('since') ?? undefined,
+          },
+          this.buffer
+        );
+        return this.send(res, 200, data);
+      }
+
+      const interruptMatch = path.match(AGENT_INTERRUPT_RE);
+      if (interruptMatch && method === 'POST') {
+        const target = decodeURIComponent(interruptMatch[1]);
+        const body = await this.readJson<{ crossTask?: boolean }>(req);
+        const data = await handleAgentInterrupt(caller, target, body);
         return this.send(res, 200, data);
       }
 
