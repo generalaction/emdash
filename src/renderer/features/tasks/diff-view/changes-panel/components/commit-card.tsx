@@ -118,7 +118,13 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     { value: 'commit', label: 'Commit', action: () => void doCommit() },
     { value: 'commit-push', label: 'Commit & Push', action: () => void doCommitAndPush() },
     ...(canCreatePr
-      ? [{ value: 'commit-pr', label: 'Commit & Create PR', action: () => void doCommitAndCreatePr() }]
+      ? [
+          {
+            value: 'commit-pr',
+            label: 'Commit & Create PR',
+            action: () => void doCommitAndCreatePr(),
+          },
+        ]
       : []),
   ];
 
