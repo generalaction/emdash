@@ -78,6 +78,18 @@ describe('WorktreeService', () => {
   }
 
   describe('checkoutBranchWorktree', () => {
+    it('ignores stale worktree-list entries under the pool', async () => {
+      const branchName = 'emdash/openrouter-embedding-3hvp5';
+      const stalePath = path.join(poolDir, 'backend', branchName);
+      await git(['branch', branchName], { cwd: repoDir });
+      await git(['worktree', 'add', stalePath, branchName], { cwd: repoDir });
+      fs.rmSync(stalePath, { recursive: true, force: true });
+
+      const svc = makeService({ worktreePoolPath: path.join(poolDir, 'backend') });
+
+      await expect(svc.getWorktree(branchName)).resolves.toBeUndefined();
+    });
+
     it('creates a worktree from an existing local source branch', async () => {
       await git(['branch', 'task/local-checkout'], { cwd: repoDir });
       const svc = makeService();
