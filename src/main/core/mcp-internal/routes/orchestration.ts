@@ -3,6 +3,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { Branch } from '@shared/git';
 import { makePtySessionId } from '@shared/ptySessionId';
+import type { CreateTaskError } from '@shared/tasks';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { createTask } from '@main/core/tasks/operations/createTask';
 import { getTasks } from '@main/core/tasks/operations/getTasks';
@@ -12,6 +13,31 @@ import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import type { DevServerTracker } from '../dev-server-tracker';
 import { HttpError, type CallerContext } from '../http-server';
+
+/**
+ * createTask result errors split into caller-actionable (4xx) vs
+ * server-side (5xx). Caller-actionable: bad inputs, missing project,
+ * branch already exists, repo unborn. Server-side: provision failures,
+ * timeouts, worktree setup hardware errors.
+ */
+function createTaskErrorToHttp(error: CreateTaskError): HttpError {
+  switch (error.type) {
+    case 'project-not-found':
+      return new HttpError(404, 'project not found');
+    case 'branch-not-found':
+      return new HttpError(400, `source branch not found: ${error.branch}`);
+    case 'initial-commit-required':
+      return new HttpError(409, `repository unborn: ${error.branch} has no commits`);
+    case 'branch-create-failed':
+      return new HttpError(409, `branch create failed: ${error.branch}`);
+    case 'pr-fetch-failed':
+      return new HttpError(502, `pr fetch failed from ${error.remote}`);
+    case 'worktree-setup-failed':
+    case 'provision-failed':
+    case 'provision-timeout':
+      return new HttpError(500, `task provisioning failed: ${error.type}`);
+  }
+}
 
 async function lookupProjectNames(projectIds: string[]): Promise<Map<string, string>> {
   if (projectIds.length === 0) return new Map();
@@ -55,6 +81,13 @@ export async function handleTaskList(
   }));
 }
 
+/**
+ * v1 only supports `'new-branch'`. Field is exposed so adding new strategies
+ * (`'checkout-existing'`, `'from-pull-request'`, `'no-worktree'`) widens the
+ * union without a schema break.
+ */
+type TaskCreateStrategy = 'new-branch';
+
 interface TaskCreateBody {
   projectId?: string;
   name: string;
@@ -62,6 +95,7 @@ interface TaskCreateBody {
   sourceBranch?: string;
   /** Custom name for the new task branch. Optional; auto-generated when omitted. */
   taskBranch?: string;
+  strategy?: TaskCreateStrategy;
   initialPrompt?: string;
   providerId?: string;
 }
@@ -78,6 +112,12 @@ export async function handleTaskCreate(
 }> {
   if (!body.name || typeof body.name !== 'string') {
     throw new HttpError(400, 'name is required');
+  }
+  if (body.strategy && body.strategy !== 'new-branch') {
+    throw new HttpError(400, `unsupported strategy: ${body.strategy}`);
+  }
+  if (body.initialPrompt && !body.providerId) {
+    throw new HttpError(400, 'initialPrompt requires providerId');
   }
   const projectId = body.projectId ?? caller.conversation.projectId;
 
@@ -123,7 +163,7 @@ export async function handleTaskCreate(
   });
 
   if (!result.success) {
-    throw new HttpError(500, `task creation failed: ${result.error.type}`);
+    throw createTaskErrorToHttp(result.error);
   }
 
   return {
@@ -190,22 +230,23 @@ export async function handleTerminalSend(
   const pty = ptySessionRegistry.get(sessionId);
   if (!pty) throw new HttpError(410, 'terminal not running');
 
+  // Submit with \r (CR) — matches handleAgentSend. Cooked-mode shells
+  // translate CR→LF via ICRNL, raw-mode TUIs (vim, claude, etc.) require
+  // CR. \n would leave the command staged in TUIs.
   pty.write(body.text);
-  if (body.submit) pty.write('\n');
+  if (body.submit) pty.write('\r');
   return { ok: true };
 }
 
 interface TerminalCreateBody {
   initialCommand?: string;
   name?: string;
-  /** Currently a no-op — drawer focus IPC is not wired. See spec §13a. */
-  focus?: boolean;
 }
 
 export async function handleTerminalCreate(
   caller: CallerContext,
   body: TerminalCreateBody
-): Promise<{ terminalId: string }> {
+): Promise<{ terminalId: string; name: string }> {
   const id = randomUUID();
   const terminal = await createTerminal({
     id,
@@ -214,23 +255,23 @@ export async function handleTerminalCreate(
     name: body.name ?? 'Agent terminal',
   });
 
+  // createTerminal awaits spawnTerminal, which registers the PTY before
+  // resolving — no setTimeout/retry needed. Shells in cooked mode queue
+  // input until the read loop picks it up, so writing before the prompt
+  // prints is harmless. Submit with \r (CR) — see handleTerminalSend.
   if (body.initialCommand) {
-    // Wait briefly for the PTY to register, then type + submit.
-    setTimeout(() => {
-      const sessionId = makePtySessionId(
-        caller.conversation.projectId,
-        caller.conversation.taskId,
-        terminal.id
-      );
-      const pty = ptySessionRegistry.get(sessionId);
-      if (pty) {
-        pty.write(body.initialCommand!);
-        pty.write('\n');
-      }
-    }, 250);
+    const sessionId = makePtySessionId(
+      caller.conversation.projectId,
+      caller.conversation.taskId,
+      terminal.id
+    );
+    const pty = ptySessionRegistry.get(sessionId);
+    if (!pty) throw new HttpError(500, 'pty failed to register after spawn');
+    pty.write(body.initialCommand);
+    pty.write('\r');
   }
 
-  return { terminalId: terminal.id };
+  return { terminalId: terminal.id, name: terminal.name };
 }
 
 export function handleWorkspaceDevServers(

@@ -203,6 +203,7 @@ export class McpInternalHttpServer {
         const body = await this.readJson<{
           projectId?: string;
           name: string;
+          strategy?: 'new-branch';
           sourceBranch?: string;
           taskBranch?: string;
           initialPrompt?: string;
@@ -226,7 +227,6 @@ export class McpInternalHttpServer {
         const body = await this.readJson<{
           initialCommand?: string;
           name?: string;
-          focus?: boolean;
         }>(req);
         const data = await handleTerminalCreate(caller, body);
         return this.send(res, 200, data);

@@ -146,7 +146,6 @@ Server validates: token matches, instance matches, session ID is live. Otherwise
 | `POST /agent/{conversationId}/interrupt` | `agent_interrupt` | — | `{ok: true}` |
 | `GET /agent/{conversationId}/observe?waitForChange&timeoutMs` | `agent_observe` | optional long-poll params | `{status, recentEvents: [...up to 5], lastAssistantMessage?, providerTier, statusChangedAt}` |
 | `GET /agent/{conversationId}/fetch?kind=events\|scrollback\|transcript&limit&since` | `agent_fetch` | kind + cursor | `{items: [...], nextCursor?, providerTier, transcriptSupported}` |
-| `DELETE /agent/{conversationId}` | `agent_close` | — | `{ok: true}` |
 
 ### Orchestration / awareness / terminals endpoints
 
@@ -177,7 +176,7 @@ Server checks capability bucket vs. caller's task on every request. Cross-task r
 
 ## 6. MCP tool surface (locked, 14 tools)
 
-### Set A — 8 tools
+### Set A — 7 tools
 
 | Tool | Params | Returns |
 |---|---|---|
@@ -188,14 +187,14 @@ Server checks capability bucket vs. caller's task on every request. Cross-task r
 | `agent_interrupt` | `conversationId` | `{ok: true}` |
 | `agent_observe` | `conversationId, waitForChange?: bool, timeoutMs?` | `{status, recentEvents, lastAssistantMessage?, providerTier, statusChangedAt}` |
 | `agent_fetch` | `conversationId, kind: 'events'\|'scrollback'\|'transcript', limit?, since?` | `{items, nextCursor?, providerTier, transcriptSupported}` |
-| `agent_close` | `conversationId` | `{ok: true}` |
 
-### Orchestration — 2
+### Orchestration — 3
 
 | Tool | Params | Effect |
 |---|---|---|
-| `task_create` | `projectId?, name, sourceBranch?, taskBranch?, initialPrompt?, providerId?` (projectId defaults to caller's project) | Creates a new task. Returns `{taskId, conversationId?}`. Use case: research agent kicks off parallel implementation task |
+| `task_create` | `projectId?, name, strategy?: 'new-branch', sourceBranch?, taskBranch?, providerId?, initialPrompt?` (projectId defaults to caller's project; strategy defaults to `new-branch` — only one supported in v1; `initialPrompt` requires `providerId`) | Creates a new task. Returns `{taskId, conversationId?}`. Use case: research agent kicks off parallel implementation task |
 | `task_list` | `projectId?, includeArchived?` | Returns task summaries for orchestration decisions |
+| `project_list` | `includeArchived?` | Returns project summaries. Used to discover `projectId`s for cross-project `task_list` / `task_create` |
 
 Other `task_*` and all `conversation_*` driving tools are deferred (see §13) — they duplicate existing UI and aren't worth the surface area for v1.
 
@@ -213,7 +212,7 @@ Other `task_*` and all `conversation_*` driving tools are deferred (see §13) �
 |---|---|---|
 | `terminal_list` | — | List terminals open in the caller's task: `[{terminalId, cwd, name, lastActivityAt}]` |
 | `terminal_send` | `terminalId, text, submit?: bool` | Append `text` to terminal; if `submit=true`, also send `\n`. Lets agents drop commands the user runs without copy-paste |
-| `terminal_create` | `initialCommand?, name?, focus?: bool` | Opens terminal drawer if closed, spawns a new terminal in the worktree. If `initialCommand` set, auto-types + submits. Returns `{terminalId}` |
+| `terminal_create` | `initialCommand?, name?` | Spawns a new terminal in the worktree. If `initialCommand` set, types + submits it immediately after spawn. Returns `{terminalId, name}`. Drawer auto-focus IPC is a separate UI follow-up (see §13a). |
 
 Use case: agent says "run `pnpm test:auth` to verify" and calls `terminal_create({initialCommand: 'pnpm test:auth'})` — user sees it execute without copy-paste.
 
@@ -377,10 +376,10 @@ Key wiring touchpoints in existing code:
 - `agent_fetch(transcript)` end-to-end.
 
 **PR4 — orchestration + awareness + terminals (✅ shipped):**
-- `task_list`, `task_create` (defaults to caller's project; sourceBranch defaults to project's baseRef)
+- `task_list`, `task_create` (defaults to caller's project; sourceBranch defaults to project's baseRef; `strategy: 'new-branch'` only — schema accepts the literal so future strategies widen the union without a break)
 - `workspace_dev_servers` (driven by `hostPreviewBus` aggregating `dev-server-watcher` events main-side)
-- `terminal_list`, `terminal_send`, `terminal_create` (initialCommand auto-typed after 250ms)
-- `terminal_create({focus:true})` is currently a no-op — drawer focus IPC is not wired (deferred to a UI follow-up; see §13a).
+- `terminal_list`, `terminal_send`, `terminal_create` (initialCommand written synchronously after `spawnTerminal` registers the PTY)
+- `terminal_create` does not currently auto-focus the drawer — kept off the v1 schema until the drawer-focus IPC channel is wired (see §13a).
 
 ---
 
@@ -414,7 +413,7 @@ Tools that duplicate emdash UI. Skipped in v1 because the UI already does the jo
 
 | Group | Tools |
 |---|---|
-| Projects | `project_list` `project_get` `project_create_local` `project_create_clone` `project_archive` / `_unarchive` `project_set_appearance` `project_open` `project_delete` |
+| Projects | `project_get` `project_create_local` `project_create_clone` `project_archive` / `_unarchive` `project_set_appearance` `project_open` `project_delete` (`project_list` was promoted to v1) |
 | Tasks (CRUD beyond orchestration) | `task_get` `task_rename` `task_pin` `task_archive` / `_unarchive` `task_open` `task_delete` |
 | Conversations | `conversation_list` `conversation_create` `conversation_rename` `conversation_delete` `conversation_open` |
 | View / UI | `view_layout_set` `view_open_file` `view_open_diff` `view_terminal_open` / `_close` `view_sidebar_set` |
