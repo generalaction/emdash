@@ -16,6 +16,7 @@ interface MarkdownRendererProps {
   content: string;
   variant?: Variant;
   className?: string;
+  allowHtml?: boolean;
   /**
    * Optional callback for resolving non-external image src values (e.g. relative
    * paths inside a workspace). Should return a `data:` URI string, or `null` to
@@ -269,6 +270,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
   variant = 'full',
   className,
+  allowHtml = variant === 'full',
   resolveImage,
 }) => {
   const { effectiveTheme } = useTheme();
@@ -278,10 +280,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   const compactComponents = useCompactComponents();
 
   const components = variant === 'full' ? fullComponents : compactComponents;
-  const rehypePlugins: PluggableList =
-    variant === 'full'
-      ? [rehypeRaw, [rehypeSanitize, sanitizeSchema]]
-      : [[rehypeSanitize, sanitizeSchema]];
+  const rehypePlugins: PluggableList = allowHtml
+    ? [rehypeRaw, [rehypeSanitize, sanitizeSchema]]
+    : [[rehypeSanitize, sanitizeSchema]];
 
   return (
     <div className={cn(className)}>

@@ -1,7 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import type { PullRequest } from '@shared/pull-requests';
+import { getPrNumber, pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
 import { useCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
 import { rpc } from '@renderer/lib/ipc';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
@@ -11,6 +12,7 @@ import {
   type CheckRun,
   type CheckRunBucket,
 } from '@renderer/utils/github';
+import { CommentsList } from './comments-list';
 
 const bucketOrder: Record<CheckRunBucket, number> = {
   fail: 0,
@@ -44,7 +46,11 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
   return (
     <button
       className="group relative flex items-center gap-2 px-3 py-2 hover:bg-background-1 rounded-md"
-      onClick={() => rpc.app.openExternal(check.detailsUrl!)}
+      onClick={() => {
+        if (check.detailsUrl) {
+          void rpc.app.openExternal(check.detailsUrl);
+        }
+      }}
     >
       <div className="min-w-0 flex-1 flex flex-col gap-1">
         <div className="flex items-center gap-2">
@@ -86,11 +92,11 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
   );
 
   if (sorted.length === 0) {
-    return <EmptyState label="No checks" description="No checks available" />;
+    return <div className="px-3 py-2 text-xs text-foreground-passive">No checks available</div>;
   }
 
   return (
-    <div className="flex flex-col gap-[1px] py-2">
+    <div className="flex flex-col gap-[1px]">
       {sorted.map((check, i) => (
         <CheckRunItem key={`${check.name}-${i}`} check={check} />
       ))}
@@ -100,5 +106,43 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
 
 export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
   const { checks } = useCheckRuns(pr);
-  return <ChecksList checks={checks} />;
+  const prNumber = getPrNumber(pr);
+  const commentsQuery = useQuery({
+    queryKey: ['pull-request-comments', pr.repositoryUrl, prNumber],
+    queryFn: async () => {
+      const response = await rpc.pullRequests.getPullRequestComments(pr.repositoryUrl, prNumber!);
+      if (!response.success) {
+        throw new Error(pullRequestErrorMessage(response.error));
+      }
+      return response.data.comments;
+    },
+    enabled: prNumber !== null,
+    staleTime: 30_000,
+  });
+  const comments = commentsQuery.data ?? [];
+
+  if (checks.length === 0 && comments.length === 0 && !commentsQuery.isLoading) {
+    return <EmptyState label="No checks or comments" description="Nothing available yet" />;
+  }
+
+  return (
+    <div className="flex flex-col gap-4 py-2">
+      <section>
+        <div className="px-3 pb-1 text-[11px] font-medium uppercase text-foreground-passive">
+          Checks
+        </div>
+        <ChecksList checks={checks} />
+      </section>
+      <section>
+        <div className="px-3 pb-1 text-[11px] font-medium uppercase text-foreground-passive">
+          Comments
+        </div>
+        <CommentsList
+          comments={comments}
+          isLoading={commentsQuery.isLoading}
+          error={commentsQuery.error}
+        />
+      </section>
+    </div>
+  );
 });
