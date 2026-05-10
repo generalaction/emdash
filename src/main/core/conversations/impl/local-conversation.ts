@@ -11,6 +11,7 @@ import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
+import { mcpInternalService } from '@main/core/mcp-internal';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
@@ -124,6 +125,7 @@ export class LocalConversationProvider implements ConversationProvider {
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
+    const mcpEnv = mcpInternalService.getPtyEnv();
     const pty = spawnLocalPty({
       id: sessionId,
       command: resolved.command,
@@ -132,6 +134,16 @@ export class LocalConversationProvider implements ConversationProvider {
       env: {
         ...buildAgentEnv({
           hook: port > 0 ? { port, ptyId, token } : undefined,
+          mcpInternal: mcpEnv
+            ? {
+                instanceId: mcpEnv.instanceId,
+                sessionId: conversation.id,
+                taskId: conversation.taskId,
+                projectId: conversation.projectId,
+                statusUrl: mcpEnv.statusUrl,
+                token: mcpEnv.token,
+              }
+            : undefined,
           providerVars: providerEnv,
         }),
         ...this.taskEnvVars,

@@ -1,6 +1,7 @@
 import { agentEventChannel } from '@shared/events/agentEvents';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
+import { agentEventBus } from './agent-event-bus';
 import { enrichEvent } from './event-enricher';
 import { HookServer } from './hook-server';
 import { isAppFocused, maybeShowNotification } from './notification';
@@ -14,7 +15,9 @@ class AgentHookService implements IInitializable, IDisposable {
       event.source = 'hook';
       const appFocused = isAppFocused();
       await maybeShowNotification(event, appFocused);
-      events.emit(agentEventChannel, { event, appFocused });
+      const envelope = { event, appFocused };
+      events.emit(agentEventChannel, envelope);
+      agentEventBus.emitEnvelope(envelope);
     });
   }
 

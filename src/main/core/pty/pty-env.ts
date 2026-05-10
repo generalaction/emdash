@@ -116,6 +116,21 @@ export interface AgentEnvOptions {
   };
 
   /**
+   * Internal MCP loopback identity.  When set, injects EMDASH_INSTANCE_ID,
+   * EMDASH_SESSION_ID, EMDASH_TASK_ID, EMDASH_PROJECT_ID, EMDASH_STATUS_URL,
+   * and EMDASH_TOKEN so the emdash-mcp subprocess (spawned later by the
+   * agent CLI) can authenticate to the loopback server.
+   */
+  mcpInternal?: {
+    instanceId: string;
+    sessionId: string;
+    taskId: string;
+    projectId: string;
+    statusUrl: string;
+    token: string;
+  };
+
+  /**
    * Per-provider variables configured in custom execution settings.
    */
   providerVars?: Record<string, string>;
@@ -174,7 +189,7 @@ export function buildTerminalEnv(): Record<string, string> {
  * find its own dependencies.
  */
 export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, string> {
-  const { agentApiVars = true, includeShellVar = false, hook, providerVars } = options;
+  const { agentApiVars = true, includeShellVar = false, hook, mcpInternal, providerVars } = options;
 
   // process.env.PATH is enriched at startup by resolveUserEnv() so it already
   // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
@@ -219,6 +234,15 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     env.EMDASH_HOOK_PORT = String(hook.port);
     env.EMDASH_PTY_ID = hook.ptyId;
     env.EMDASH_HOOK_TOKEN = hook.token;
+  }
+
+  if (mcpInternal) {
+    env.EMDASH_INSTANCE_ID = mcpInternal.instanceId;
+    env.EMDASH_SESSION_ID = mcpInternal.sessionId;
+    env.EMDASH_TASK_ID = mcpInternal.taskId;
+    env.EMDASH_PROJECT_ID = mcpInternal.projectId;
+    env.EMDASH_STATUS_URL = mcpInternal.statusUrl;
+    env.EMDASH_TOKEN = mcpInternal.token;
   }
 
   return env;
