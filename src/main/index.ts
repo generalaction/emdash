@@ -15,6 +15,7 @@ import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
+import { mcpInternalService } from './core/mcp-internal';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import { searchService } from './core/search/search-service';
@@ -123,6 +124,10 @@ void app.whenReady().then(async () => {
 
   registerRPCRouter(rpcRouter, ipcMain);
 
+  mcpInternalService.initialize().catch((e) => {
+    log.error('Failed to start internal MCP loopback:', e);
+  });
+
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
   });
@@ -145,6 +150,7 @@ app.on('before-quit', (event) => {
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
     agentHookService.dispose();
+    mcpInternalService.dispose();
     updateService.dispose();
     prSyncScheduler.dispose();
     void gitWatcherRegistry.dispose();
