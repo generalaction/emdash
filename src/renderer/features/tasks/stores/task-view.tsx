@@ -143,6 +143,7 @@ export class TaskViewStore {
     switch (tab.renderer.kind) {
       case 'text':
       case 'svg-source':
+      case 'html-source':
         return 'monaco';
       case 'markdown':
       case 'markdown-source':
