@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
-import { FolderOpen, GitBranch, MessageSquare, Zap } from 'lucide-react';
+import { FolderOpen, GitBranch, MessageSquare } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import React, { useDeferredValue, useState } from 'react';
 import type { SearchItem } from '@shared/search';
@@ -31,7 +31,7 @@ interface PaletteAction {
 type MergedResult = SearchItem | PaletteAction;
 
 const KIND_ICON: Record<string, React.ReactNode> = {
-  action: <Zap size={14} className="shrink-0 text-foreground/40" />,
+  action: null,
   task: <GitBranch size={14} className="shrink-0 text-foreground/40" />,
   project: <FolderOpen size={14} className="shrink-0 text-foreground/40" />,
   conversation: <MessageSquare size={14} className="shrink-0 text-foreground/40" />,
