@@ -120,12 +120,16 @@ export function registerAgentTools(server: McpServer, http: HttpClient): void {
 
   server.tool(
     'agent_send',
-    "Sends a message to a peer agent's PTY (like typing into their terminal). Same-task only by default. crossTask=true permits delivery into a different task — use sparingly: cross-task injection is appropriate only when the user explicitly asked for cross-task orchestration. Default to coordinating peers in your own task.",
+    "Sends a message to a peer agent's PTY (like typing into their terminal). With submit=true (default), the message is auto-submitted as a turn. With submit=false, the text is typed into the agent's input box but enter is not pressed — useful for staging a draft the user can review and edit. Same-task only by default; crossTask=true permits delivery into a different task and is discouraged unless user-requested.",
     {
       conversationId: z.string().describe('Target conversation ID.'),
-      message: z
-        .string()
-        .describe("Text to inject into target's stdin. A trailing newline is added automatically."),
+      message: z.string().describe("Text to inject into target's stdin."),
+      submit: z
+        .boolean()
+        .optional()
+        .describe(
+          'Auto-submit the message as a turn. Default true. Set false to stage the text as an unsent draft.'
+        ),
       crossTask: z
         .boolean()
         .optional()
@@ -133,9 +137,10 @@ export function registerAgentTools(server: McpServer, http: HttpClient): void {
           'Allow delivery to a conversation in a different task. Discouraged unless user-requested.'
         ),
     },
-    async ({ conversationId, message, crossTask }) => {
+    async ({ conversationId, message, submit, crossTask }) => {
       const data = await http.post(`/agent/${conversationId}/send`, {
         message,
+        ...(submit !== undefined ? { submit } : {}),
         ...(crossTask !== undefined ? { crossTask } : {}),
       });
       return { content: [{ type: 'text', text: JSON.stringify(data) }] };

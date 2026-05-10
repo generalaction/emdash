@@ -109,7 +109,7 @@ export async function handleAgentObserve(
 export async function handleAgentSend(
   caller: CallerContext,
   targetConversationId: string,
-  body: { message: string; crossTask?: boolean }
+  body: { message: string; crossTask?: boolean; submit?: boolean }
 ): Promise<{ ok: true }> {
   if (typeof body.message !== 'string' || body.message.length === 0) {
     throw new HttpError(400, 'message must be non-empty string');
@@ -126,7 +126,15 @@ export async function handleAgentSend(
   const pty = ptySessionRegistry.get(sessionId);
   if (!pty) throw new HttpError(410, 'pty not running');
 
-  pty.write(body.message.endsWith('\n') ? body.message : body.message + '\n');
+  // Default true: auto-submit (append \n if missing) so the message runs as
+  // a turn. submit:false types the text into the agent's input but doesn't
+  // press enter — useful for staging a draft the user can edit.
+  const submit = body.submit ?? true;
+  if (submit) {
+    pty.write(body.message.endsWith('\n') ? body.message : body.message + '\n');
+  } else {
+    pty.write(body.message);
+  }
   return { ok: true };
 }
 
