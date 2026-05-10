@@ -126,14 +126,16 @@ export async function handleAgentSend(
   const pty = ptySessionRegistry.get(sessionId);
   if (!pty) throw new HttpError(410, 'pty not running');
 
-  // Default true: auto-submit (append \n if missing) so the message runs as
-  // a turn. submit:false types the text into the agent's input but doesn't
-  // press enter — useful for staging a draft the user can edit.
-  const submit = body.submit ?? true;
-  if (submit) {
-    pty.write(body.message.endsWith('\n') ? body.message : body.message + '\n');
-  } else {
-    pty.write(body.message);
+  // Send the message text, then optionally an Enter keypress.
+  //
+  // submit=true (default) appends \r (carriage return) — the key TUIs
+  // like Claude Code interpret as Enter / submit. \n (LF) would insert a
+  // newline within the input box on those agents, which is why earlier
+  // code that appended \n caused the message to be typed but never sent.
+  // submit=false leaves the message staged as a draft for the user.
+  pty.write(body.message);
+  if ((body.submit ?? true) === true) {
+    pty.write('\r');
   }
   return { ok: true };
 }
