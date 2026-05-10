@@ -56,4 +56,21 @@ export class KV<TSchema extends Record<string, unknown>> {
       log.error('Failed to clear KV', { namespace: this.namespace, error: e });
     }
   }
+
+  async getAll(): Promise<Partial<TSchema>> {
+    const rows = await db
+      .select()
+      .from(kv)
+      .where(like(kv.key, `${this.namespace}:%`));
+    const result: Record<string, unknown> = {};
+    for (const row of rows) {
+      const shortKey = row.key.slice(this.namespace.length + 1);
+      try {
+        result[shortKey] = JSON.parse(row.value);
+      } catch {
+        // skip malformed entries
+      }
+    }
+    return result as Partial<TSchema>;
+  }
 }

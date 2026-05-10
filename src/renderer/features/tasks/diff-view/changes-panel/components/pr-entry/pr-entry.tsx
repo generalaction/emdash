@@ -184,7 +184,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
       <div className="min-h-0 flex flex-1 flex-col px-2.5">
         <ToggleGroup
           value={[tab]}
-          size={'sm'}
+          size={'xs'}
           className="w-full"
           onValueChange={([value]) => {
             if (value) {

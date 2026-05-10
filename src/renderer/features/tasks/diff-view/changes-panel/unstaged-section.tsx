@@ -1,6 +1,6 @@
 import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { commitRef, HEAD_REF } from '@shared/git';
+import { commitRef, HEAD_REF, type GitChange } from '@shared/git';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -16,7 +16,6 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const provisioned = useProvisionedTask();
   const git = provisioned.workspace.git;
   const changesView = provisioned.taskView.diffView.changesView;
-  const diffView = provisioned.taskView.diffView;
 
   const changes = git.unstagedFileChanges;
   const hasChanges = changes.length > 0;
@@ -25,17 +24,27 @@ export const UnstagedSection = observer(function UnstagedSection() {
   const selectionState = changesView.unstagedSelectionState;
 
   const activePath =
-    provisioned.taskView.view === 'diff' && diffView.activeFile?.group === 'disk'
-      ? diffView.activeFile.path
+    provisioned.taskView.tabManager.activeDescriptor?.kind === 'diff' &&
+    provisioned.taskView.tabManager.activeDescriptor.diffGroup === 'disk'
+      ? provisioned.taskView.tabManager.activeDescriptor.path
       : undefined;
 
   const prefetch = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'disk', HEAD_REF);
 
   const showConfirmActionModal = useShowModal('confirmActionModal');
 
-  const handleSelectChange = (path: string) => {
-    diffView.setActiveFile({ path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') });
-    provisioned.taskView.setView('diff');
+  const handleSelectChange = (change: GitChange) => {
+    provisioned.taskView.tabManager.openDiffPreview(
+      { path: change.path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') },
+      change.status
+    );
+  };
+
+  const handleDoubleClickChange = (change: GitChange) => {
+    provisioned.taskView.tabManager.openDiff(
+      { path: change.path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') },
+      change.status
+    );
   };
 
   const handleDiscardSelection = () => {
@@ -147,7 +156,8 @@ export const UnstagedSection = observer(function UnstagedSection() {
             isSelected={(path) => selectedPaths.has(path)}
             onToggleSelect={(path) => changesView.toggleUnstagedItem(path)}
             activePath={activePath}
-            onSelectChange={(change) => handleSelectChange(change.path)}
+            onSelectChange={handleSelectChange}
+            onDoubleClickChange={handleDoubleClickChange}
             onPrefetch={(change) => prefetch(change.path)}
           />
         </div>

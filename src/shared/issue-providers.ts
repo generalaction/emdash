@@ -28,6 +28,10 @@ export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProvide
     requiresProjectPath: true,
     requiresRepositoryUrl: false,
   },
+  featurebase: {
+    requiresProjectPath: false,
+    requiresRepositoryUrl: false,
+  },
   plain: {
     requiresProjectPath: false,
     requiresRepositoryUrl: false,

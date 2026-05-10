@@ -19,7 +19,9 @@ export const gitStatusChangedChannel = defineEvent<{
 }>('git:status-changed');
 
 export const notificationFocusTaskChannel = defineEvent<{
+  projectId: string;
   taskId: string;
+  conversationId?: string;
 }>('notification:focus-task');
 
 export const ptyStartedChannel = defineEvent<{

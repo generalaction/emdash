@@ -8,6 +8,7 @@ import {
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -73,6 +74,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
 
   const initialConversation = useInitialConversationState(connectionId);
+  const autoApproveDefaults = useAgentAutoApproveDefaults();
 
   useEffect(() => setUseBYOI(false), [selectedProjectId]);
   useEffect(() => {
@@ -123,6 +125,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           provider: initialConversation.provider,
           title: activeMode.taskName,
           initialPrompt: initialConversation.prompt.trim() || undefined,
+          autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
         }
       : undefined;
 
@@ -204,6 +207,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     isUnborn,
     useBYOI,
     initialConversation,
+    autoApproveDefaults,
     activeMode.taskName,
     navigate,
     onClose,

@@ -23,12 +23,21 @@ export class ConversationManagerStore {
 
   constructor(
     private readonly projectId: string,
-    private readonly taskId: string
+    private readonly taskId: string,
+    preloaded?: Conversation[]
   ) {
     makeObservable(this, {
       conversations: observable,
       taskStatus: computed,
     });
+    if (preloaded && preloaded.length > 0) {
+      this._loaded = true;
+      for (const conversation of preloaded) {
+        const store = new ConversationStore(conversation);
+        this.conversations.set(conversation.id, store);
+        void store.session.connect();
+      }
+    }
     onBecomeObserved(this, 'conversations', () => {
       if (this._loaded) return;
       void this.load();
@@ -223,8 +232,13 @@ export class ConversationStore {
       setWorking: action,
       clearWorking: action,
       markSeen: action,
+      isInitialConversation: computed,
       indicatorStatus: computed,
     });
+  }
+
+  get isInitialConversation(): boolean {
+    return this.data.isInitialConversation === true;
   }
 
   get indicatorStatus(): AgentStatus | null {

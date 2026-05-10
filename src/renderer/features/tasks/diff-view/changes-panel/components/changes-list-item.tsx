@@ -63,7 +63,7 @@ export const ChangesListItem = forwardRef<HTMLButtonElement, ChangesListItemProp
   }
 );
 
-function GitChangeStatusIcon({
+export function GitChangeStatusIcon({
   status,
   className,
 }: {
