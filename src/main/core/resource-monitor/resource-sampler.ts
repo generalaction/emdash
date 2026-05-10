@@ -17,6 +17,7 @@ import { log } from '@main/lib/logger';
 const SAMPLE_INTERVAL_MS = 1500;
 const CPU_COUNT = os.cpus().length;
 const TOTAL_MEMORY_BYTES = os.totalmem();
+const STALE_LOCAL_PTY_MEMORY_BYTES = 2 * 1024 * 1024;
 
 export async function sampleOnce(): Promise<ResourceSnapshot> {
   const active = ptySessionRegistry.listActiveSessions();
@@ -48,6 +49,7 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
     const parsed = parsePtySessionId(a.sessionId);
     if (!parsed) continue;
     const u = typeof a.pid === 'number' ? usage[String(a.pid)] : undefined;
+    if (isStaleLocalPty(a.pid, u)) continue;
     entries.push({
       sessionId: a.sessionId,
       projectId: parsed.projectId,
@@ -71,6 +73,14 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
     appProcesses,
     entries,
   };
+}
+
+function isStaleLocalPty(
+  pid: number | undefined,
+  usage: { cpu: number; memory: number; ppid?: number } | undefined
+): boolean {
+  if (pid === undefined || !usage) return false;
+  return usage.cpu === 0 && usage.memory < STALE_LOCAL_PTY_MEMORY_BYTES;
 }
 
 /**

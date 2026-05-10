@@ -61,10 +61,7 @@ export const ResourceMonitorPanel = observer(function ResourceMonitorPanel({
   const cpuLabel = `${store.totalCpuPercent.toFixed(1)}%`;
 
   const groups = useMemo(() => buildGroups(snapshot?.entries ?? []), [snapshot]);
-  const processes = useMemo(
-    () => [...(snapshot?.appProcesses ?? [])].sort((a, b) => b.memory - a.memory),
-    [snapshot]
-  );
+  const processes = useMemo(() => sortAppProcesses(snapshot?.appProcesses ?? []), [snapshot]);
   const hasAny = groups.length > 0;
   const hasProcesses = processes.length > 0;
 
@@ -331,6 +328,21 @@ export function appProcessLabel(type: string, name?: string): string {
   return name ?? type;
 }
 
+export function sortAppProcesses(processes: ResourceAppProcess[]): ResourceAppProcess[] {
+  return [...processes].sort((a, b) => {
+    const labelCompare = appProcessLabel(a.type, a.name).localeCompare(
+      appProcessLabel(b.type, b.name)
+    );
+    if (labelCompare !== 0) return labelCompare;
+    return a.pid - b.pid;
+  });
+}
+
+function entryLabel(entry: Entry): string {
+  const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
+  return entry.conversationTitle || meta?.label || entry.providerId || entry.leafId.slice(0, 8);
+}
+
 export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
   const projects = appState.projects.projects;
   const byProject = new Map<string, { projectName: string; tasks: Map<string, TaskBucket> }>();
@@ -379,8 +391,16 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
 
   const groups: Group[] = Array.from(byProject.entries()).map(([projectId, p]) => {
     const tasks = Array.from(p.tasks.values());
-    for (const t of tasks) t.entries.sort((a, b) => b.cpu - a.cpu);
-    tasks.sort((a, b) => b.cpuSum - a.cpuSum || a.taskName.localeCompare(b.taskName));
+    for (const t of tasks) {
+      t.entries.sort((a, b) => {
+        const labelCompare = entryLabel(a).localeCompare(entryLabel(b));
+        if (labelCompare !== 0) return labelCompare;
+        return a.sessionId.localeCompare(b.sessionId);
+      });
+    }
+    tasks.sort(
+      (a, b) => a.taskName.localeCompare(b.taskName) || a.scopeId.localeCompare(b.scopeId)
+    );
     return {
       projectId,
       projectName: p.projectName,
@@ -393,7 +413,7 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
   groups.sort((a, b) => {
     if (a.projectId === UNKNOWN_PROJECT_ID) return 1;
     if (b.projectId === UNKNOWN_PROJECT_ID) return -1;
-    return 0;
+    return a.projectName.localeCompare(b.projectName) || a.projectId.localeCompare(b.projectId);
   });
 
   return groups;

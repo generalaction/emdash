@@ -7,6 +7,7 @@ import {
   appProcessLabel,
   buildGroups,
   formatReport,
+  sortAppProcesses,
   type Entry,
   type Group,
   type TaskBucket,
@@ -27,10 +28,7 @@ export const ResourceMonitorView = observer(function ResourceMonitorView({
   const cpuLabel = `${store.totalCpuPercent.toFixed(1)}%`;
 
   const groups = useMemo(() => buildGroups(snapshot?.entries ?? []), [snapshot]);
-  const processes = useMemo(
-    () => [...(snapshot?.appProcesses ?? [])].sort((a, b) => b.memory - a.memory),
-    [snapshot]
-  );
+  const processes = useMemo(() => sortAppProcesses(snapshot?.appProcesses ?? []), [snapshot]);
 
   const hasProjects = groups.length > 0;
   const hasProcesses = processes.length > 0;
