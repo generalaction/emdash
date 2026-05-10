@@ -210,8 +210,8 @@ importers:
         specifier: ^12.23.12
         version: 12.33.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       nbranch:
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       node-pty:
         specifier: 1.1.0
         version: 1.1.0
@@ -5046,8 +5046,8 @@ packages:
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
-  nbranch@0.1.0:
-    resolution: {integrity: sha512-7LymZls0JTI+e23IYWkFvLup6QTSR97CqNBXkctgH4JQcPlXij4FE3hCHm6lzL2yYnt9tCUdzfHEM5H/XV8JNw==}
+  nbranch@0.1.1:
+    resolution: {integrity: sha512-MBymFqWDxu1sQd6kQX5SJUvyIyCQVgyAUCoIsSGNGf8I6JFL2s5VUMiRZTNwLQK5BUg7LpxRzPGNTvXWrDnooA==}
     engines: {node: '>=18'}
 
   negotiator@0.6.4:
@@ -11635,7 +11635,7 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  nbranch@0.1.0:
+  nbranch@0.1.1:
     dependencies:
       '@types/stopword': 2.0.3
       compromise: 14.15.0

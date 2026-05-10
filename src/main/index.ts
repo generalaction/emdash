@@ -24,6 +24,7 @@ import {
 import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
+import { viewStateService } from './core/view-state/view-state-service';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import { telemetryService } from './lib/telemetry';
@@ -81,6 +82,11 @@ void app.whenReady().then(async () => {
     await initializeDatabase();
     searchService.initialize();
     void editorBufferService.pruneStale();
+    try {
+      viewStateService.pruneOrphans();
+    } catch (e: unknown) {
+      log.warn('view-state: failed to prune orphaned entries', { error: e });
+    }
   } catch (error) {
     log.error('Failed to initialize database:', error);
     dialog.showErrorBox(

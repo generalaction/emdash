@@ -114,7 +114,13 @@ export class SshConversationProvider implements ConversationProvider {
       resume: isResuming,
     };
 
-    const sshCommand = resolveSshCommand('agent', cfg, { ...providerEnv, ...this.taskEnvVars });
+    const profile = await this.proxy.getRemoteShellProfile();
+    const sshCommand = resolveSshCommand(
+      'agent',
+      cfg,
+      { ...providerEnv, ...this.taskEnvVars },
+      profile
+    );
 
     const result = await openSsh2Pty(this.proxy.client, {
       id: sessionId,

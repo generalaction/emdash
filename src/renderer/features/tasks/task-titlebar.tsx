@@ -3,16 +3,15 @@ import {
   ArrowUp,
   ChevronDown,
   FileDiff,
-  Files,
+  FolderOpen,
   GitBranch,
-  GitCommit,
-  ListTree,
   MessageSquare,
   Pin,
   RefreshCcw,
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import type { Issue } from '@shared/tasks';
 import {
   asMounted,
   getProjectStore,
@@ -25,23 +24,23 @@ import {
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import type { RightPanelView } from '@renderer/features/tasks/types';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
-import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
+import { rpc } from '@renderer/lib/ipc';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
+import { Separator } from '@renderer/lib/ui/separator';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { DevServerPills } from './components/dev-server-pills';
-import { IssueSelector } from './components/issue-selector/issue-selector';
-import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
-import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
+import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
+import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
@@ -93,10 +92,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const taskPayload = getRegisteredTaskData(projectId, taskId)!;
   const provisionedTask = useProvisionedTask();
   const { taskView } = provisionedTask;
-  const { view, rightPanelView } = taskView;
-  const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
-  const delayedIsPending = useDelayedBoolean(isPending, 200);
-  useTaskViewShortcuts();
 
   const {
     hasUpstream,
@@ -126,8 +121,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <span className="flex items-center gap-1">
                 <span className="text-sm text-foreground-passive">{projectName}</span>
                 <span className="text-sm text-foreground-passive">/</span>
-                <span className="flex items-center gap-1.5">
-                  {taskDisplayName(taskStore)}
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="truncate max-w-56">{taskDisplayName(taskStore)}</span>
                   <ConnectionStatusDot state={provisionedTask.workspace.connectionState} />
                 </span>
               </span>
@@ -262,9 +257,11 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 projectId={projectId}
                 repositoryUrl={provisionedTask.repositoryStore.repositoryUrl ?? ''}
                 projectPath={provisionedTask.path}
+                excludeTaskId={taskId}
               />
             </PopoverContent>
           </Popover>
+          {taskPayload.linkedIssue ? <LinkedIssueBadge issue={taskPayload.linkedIssue} /> : null}
           <button
             className={cn(
               'text-foreground-muted ml-1',
@@ -280,95 +277,66 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         </div>
       }
       rightSlot={
-        <div className="flex items-center gap-2 mr-2">
+        <div className="flex items-center gap-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
           {!isRemoteProject && (
-            <OpenInMenu path={provisionedTask.path} className="h-7  bg-background" />
+            <OpenInMenu path={provisionedTask.path} className="h-7 bg-background" borderless />
           )}
+          <Separator orientation="vertical" className="h-5 self-center!" />
+          <Tooltip>
+            <TooltipTrigger>
+              <Toggle
+                size="sm"
+                pressed={taskView.isTerminalDrawerOpen}
+                className="border-none"
+                onPressedChange={() =>
+                  taskView.setTerminalDrawerOpen(!taskView.isTerminalDrawerOpen)
+                }
+              >
+                <Terminal className="size-3.5" />
+              </Toggle>
+            </TooltipTrigger>
+            <TooltipContent>
+              Toggle terminal <ShortcutHint settingsKey="toggleTerminalDrawer" />
+            </TooltipContent>
+          </Tooltip>
+          <Separator orientation="vertical" className="h-5 self-center!" />
           <ToggleGroup
-            disabled={delayedIsPending}
-            variant="outline"
-            value={[view]}
-            size="sm"
-            onValueChange={([value]) => {
-              if (value === 'agents') openAgentsView();
-              if (value === 'editor') openEditorView();
-              if (value === 'diff') openDiffView();
+            value={taskView.isSidebarCollapsed ? [] : [taskView.sidebarTab]}
+            onValueChange={([tab]) => {
+              if (!tab) {
+                taskView.setSidebarCollapsed(true);
+              } else {
+                taskView.setSidebarTab(tab as SidebarTab);
+                taskView.setSidebarCollapsed(false);
+              }
             }}
+            size="icon-sm"
+            className="border-none"
           >
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem value="agents" size="sm">
-                  <MessageSquare className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>Conversations view</span>
-                  <ShortcutHint settingsKey="taskViewAgents" />
-                </div>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="diff" size="sm">
+                <ToggleGroupItem size="icon-sm" value="changes" aria-label="Changes">
                   <FileDiff className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>Diff view</span>
-                  <ShortcutHint settingsKey="taskViewDiff" />
-                </div>
-              </TooltipContent>
+              <TooltipContent>Changes</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem value="editor" size="sm">
-                  <Files className="size-3.5" />
+                <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
+                  <MessageSquare className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>File view</span>
-                  <ShortcutHint settingsKey="taskViewEditor" />
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </ToggleGroup>
-          <ToggleGroup
-            disabled={delayedIsPending}
-            variant="outline"
-            value={[rightPanelView]}
-            size="sm"
-            onValueChange={([value]) => {
-              if (!value) return;
-              taskView.setRightPanelView(value as RightPanelView);
-            }}
-          >
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="changes" size="sm">
-                  <GitCommit className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>Git changes</TooltipContent>
+              <TooltipContent>Conversations</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem value="terminals" size="sm">
-                  <Terminal className="size-3.5" />
+                <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
+                  <FolderOpen className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Terminals</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="files" size="sm">
-                  <ListTree className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>File explorer</TooltipContent>
+              <TooltipContent>Files</TooltipContent>
             </Tooltip>
           </ToggleGroup>
         </div>
@@ -376,3 +344,26 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     />
   );
 });
+
+function LinkedIssueBadge({ issue }: { issue: Issue }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            disabled={!issue.url}
+            onClick={() => {
+              if (issue.url) void rpc.app.openExternal(issue.url);
+            }}
+            className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted hover:bg-muted/30 disabled:cursor-default disabled:opacity-60"
+          >
+            <ProviderLogo provider={issue.provider} className="h-3 w-3" />
+            <span className="font-mono">{issue.identifier}</span>
+          </button>
+        }
+      />
+      <TooltipContent>{issue.title || issue.identifier}</TooltipContent>
+    </Tooltip>
+  );
+}

@@ -72,6 +72,21 @@ export const projectRemotes = sqliteTable(
   })
 );
 
+export const projectSettings = sqliteTable('project_settings', {
+  projectId: text('project_id')
+    .primaryKey()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  baseProjectSettingsJson: text('base_project_settings_json').notNull().default('{}'),
+  shareableProjectSettingsJson: text('shareable_project_settings_json').notNull().default('{}'),
+  legacyConfigMigratedAt: text('legacy_config_migrated_at'),
+  createdAt: text('created_at')
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at')
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const appSettings = sqliteTable(
   'app_settings',
   {
@@ -254,6 +269,8 @@ export const conversations = sqliteTable(
     updatedAt: text('updated_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
+    lastInteractedAt: text('last_interacted_at'),
+    isInitialConversation: integer('is_initial_conversation', { mode: 'boolean' }),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
@@ -349,20 +366,26 @@ export const appSecrets = sqliteTable(
   })
 );
 
-export type KvRow = typeof kv.$inferSelect;
-export type KvInsert = typeof kv.$inferInsert;
-export type AppSecretRow = typeof appSecrets.$inferSelect;
-export type AppSecretInsert = typeof appSecrets.$inferInsert;
-
 export const sshConnectionsRelations = relations(sshConnections, ({ many }) => ({
   projects: many(projects),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   tasks: many(tasks),
+  settings: one(projectSettings, {
+    fields: [projects.id],
+    references: [projectSettings.projectId],
+  }),
   sshConnection: one(sshConnections, {
     fields: [projects.sshConnectionId],
     references: [sshConnections.id],
+  }),
+}));
+
+export const projectSettingsRelations = relations(projectSettings, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectSettings.projectId],
+    references: [projects.id],
   }),
 }));
 
@@ -392,9 +415,15 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
+export type ProjectSettingsRow = typeof projectSettings.$inferSelect;
+export type ProjectSettingsInsert = typeof projectSettings.$inferInsert;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type TerminalRow = typeof terminals.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type EditorBufferRow = typeof editorBuffers.$inferSelect;
 export type EditorBufferInsert = typeof editorBuffers.$inferInsert;
+export type KvRow = typeof kv.$inferSelect;
+export type KvInsert = typeof kv.$inferInsert;
+export type AppSecretRow = typeof appSecrets.$inferSelect;
+export type AppSecretInsert = typeof appSecrets.$inferInsert;

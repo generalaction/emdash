@@ -5,11 +5,11 @@
 
 import type { SFTPWrapper } from 'ssh2';
 import type { FileWatchEvent } from '@shared/fs';
+import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import {
-  DEFAULT_EMDASH_CONFIG,
   FileSystemError,
   FileSystemErrorCodes,
   type FileEntry,
@@ -83,8 +83,11 @@ export class SshFileSystem implements FileSystemProvider {
     });
   }
 
-  private exec(command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    const full = `bash -l -c ${quoteShellArg(command)}`;
+  private async exec(
+    command: string
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const profile = await this.proxy.getRemoteShellProfile();
+    const full = buildRemoteShellCommand(profile, command);
     return new Promise((resolve, reject) => {
       this.proxy.client.exec(full, (err, stream) => {
         if (err) return reject(err);
@@ -767,45 +770,6 @@ export class SshFileSystem implements FileSystemProvider {
         });
       });
     });
-  }
-
-  /**
-   * Read (or auto-create) the project's .emdash.json config file via SFTP
-   */
-  async getProjectConfig(): Promise<{ success: boolean; content?: string; error?: string }> {
-    try {
-      const result = await this.read('.emdash.json').catch(async (err: unknown) => {
-        const code = (err as FileSystemError).code;
-        if (code !== FileSystemErrorCodes.NOT_FOUND) throw err;
-        // File doesn't exist — create with defaults then return defaults
-        await this.write('.emdash.json', DEFAULT_EMDASH_CONFIG);
-        return {
-          content: DEFAULT_EMDASH_CONFIG,
-          truncated: false,
-          totalSize: Buffer.byteLength(DEFAULT_EMDASH_CONFIG),
-        };
-      });
-      return { success: true, content: result.content };
-    } catch (err: unknown) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
-  /**
-   * Write the project's .emdash.json config file via SFTP after validating JSON
-   */
-  async saveProjectConfig(content: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      JSON.parse(content);
-    } catch {
-      return { success: false, error: 'Invalid JSON format' };
-    }
-    try {
-      await this.write('.emdash.json', content);
-      return { success: true };
-    } catch (err: unknown) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
   }
 
   // ─── Private utilities ────────────────────────────────────────────────────

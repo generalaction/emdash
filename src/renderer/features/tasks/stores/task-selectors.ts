@@ -3,7 +3,7 @@ import { isUnmountedProject } from '@renderer/features/projects/stores/project';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import type { AgentStatus } from '@renderer/features/tasks/conversations/conversation-manager';
 import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
-import type { EditorViewStore } from '@renderer/features/tasks/editor/stores/editor-view-store';
+import type { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
 import {
   isUnprovisioned,
   isUnregistered,
@@ -38,7 +38,10 @@ export function getTaskView(projectId: string, taskId: string): TaskViewStore | 
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */
-export function getEditorView(projectId: string, taskId: string): EditorViewStore | undefined {
+export function getEditorView(
+  projectId: string,
+  taskId: string
+): FileModelLifecycleStore | undefined {
   return getTaskView(projectId, taskId)?.editorView;
 }
 

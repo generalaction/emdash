@@ -3,11 +3,15 @@ import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-regi
 import { openInAppIdSchema } from '@shared/openInApps';
 import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
 
+export const projectSettingsSchema = z.object({
+  pushOnCreate: z.boolean(),
+  branchPrefix: z.string(),
+  tmuxByDefault: z.boolean(),
+});
+
 export const localProjectSettingsSchema = z.object({
   defaultProjectsDirectory: z.string(),
   defaultWorktreeDirectory: z.string(),
-  branchPrefix: z.string(),
-  pushOnCreate: z.boolean(),
   writeAgentConfigToGitIgnore: z.boolean(),
 });
 
@@ -52,20 +56,30 @@ export const keyboardSettingsSchema = z
       toggleRightSidebar: z.string().nullable().optional(),
       toggleTheme: z.string().nullable().optional(),
       closeModal: z.string().nullable().optional(),
-      nextProject: z.string().nullable().optional(),
-      prevProject: z.string().nullable().optional(),
       newTask: z.string().nullable().optional(),
       newProject: z.string().nullable().optional(),
       openInEditor: z.string().nullable().optional(),
-      taskViewAgents: z.string().nullable().optional(),
-      taskViewDiff: z.string().nullable().optional(),
-      taskViewEditor: z.string().nullable().optional(),
+      sidebarChanges: z.string().nullable().optional(),
+      sidebarConversations: z.string().nullable().optional(),
+      sidebarFiles: z.string().nullable().optional(),
       tabNext: z.string().nullable().optional(),
       tabPrev: z.string().nullable().optional(),
       tabClose: z.string().nullable().optional(),
+      tab1: z.string().nullable().optional(),
+      tab2: z.string().nullable().optional(),
+      tab3: z.string().nullable().optional(),
+      tab4: z.string().nullable().optional(),
+      tab5: z.string().nullable().optional(),
+      tab6: z.string().nullable().optional(),
+      tab7: z.string().nullable().optional(),
+      tab8: z.string().nullable().optional(),
+      tab9: z.string().nullable().optional(),
       newConversation: z.string().nullable().optional(),
       newTerminal: z.string().nullable().optional(),
       confirm: z.string().nullable().optional(),
+      toggleTerminalDrawer: z.string().nullable().optional(),
+      navigateBack: z.string().nullable().optional(),
+      navigateForward: z.string().nullable().optional(),
     })
   )
   .default({});
@@ -77,6 +91,7 @@ export const providerCustomConfigEntrySchema = z.object({
   autoApproveFlag: z.string().optional(),
   initialPromptFlag: z.string().optional(),
   sessionIdFlag: z.string().optional(),
+  sessionIdOnResumeOnly: z.boolean().optional(),
   extraArgs: z.string().optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
@@ -93,6 +108,7 @@ export const providerConfigDefaults = Object.fromEntries(
       ...(p.initialPromptFlag !== undefined ? { initialPromptFlag: p.initialPromptFlag } : {}),
       ...(p.defaultArgs ? { defaultArgs: p.defaultArgs } : {}),
       ...(p.sessionIdFlag ? { sessionIdFlag: p.sessionIdFlag } : {}),
+      ...(p.sessionIdOnResumeOnly ? { sessionIdOnResumeOnly: p.sessionIdOnResumeOnly } : {}),
     },
   ])
 );
@@ -113,6 +129,7 @@ export const openInSettingsSchema = z.object({
 
 export const APP_SETTINGS_SCHEMA_MAP = {
   localProject: localProjectSettingsSchema,
+  project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
@@ -129,6 +146,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
 
 export const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
+  project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,

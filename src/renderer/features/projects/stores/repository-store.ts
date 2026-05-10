@@ -1,13 +1,18 @@
 import { computed, makeObservable, reaction } from 'mobx';
 import { gitRefChangedChannel, type GitRefChange } from '@shared/events/gitEvents';
 import type {
+  Branch,
   LocalBranch,
   LocalBranchesPayload,
   Remote,
   RemoteBranch,
   RemoteBranchesPayload,
 } from '@shared/git';
-import { bareRefName, computeDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import {
+  projectDefaultBranchToBranch,
+  resolveDefaultBranch,
+  selectPreferredRemote,
+} from '@shared/git-utils';
 import { parseGitHubRepository } from '@shared/github-repository';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
@@ -71,14 +76,14 @@ export class RepositoryStore {
       () => this.remoteData.invalidate()
     );
 
-    makeObservable(this, {
+    makeObservable<this, 'defaultBranchPreference'>(this, {
       isUnborn: computed,
       currentBranch: computed,
       branches: computed,
       localBranches: computed,
       remoteBranches: computed,
       configuredRemote: computed,
-      defaultBranchName: computed,
+      defaultBranchPreference: computed,
       defaultBranch: computed,
       remotes: computed,
       loading: computed,
@@ -140,38 +145,36 @@ export class RepositoryStore {
     return parseGitHubRepository(url)?.repositoryUrl ?? null;
   }
 
-  get defaultBranchName(): string {
-    const d = this.remoteData.data;
-    if (!d) return 'main';
-    const raw = this.settingsStore.settings?.defaultBranch;
-    const configured =
-      raw === undefined ? bareRefName(this.baseRef) : typeof raw === 'string' ? raw : raw.name;
-    return computeDefaultBranch(
-      configured,
-      this.branches,
-      this.configuredRemote.name,
-      d.gitDefaultBranch
+  private get defaultBranchPreference(): Branch | undefined {
+    return projectDefaultBranchToBranch(
+      this.settingsStore.settings?.defaultBranch,
+      this.configuredRemote,
+      this.remotes
     );
   }
 
   get defaultBranch(): LocalBranch | RemoteBranch | undefined {
-    const name = this.defaultBranchName;
-    const raw = this.settingsStore.settings?.defaultBranch;
-    const isRemotePref = typeof raw === 'object' && raw.remote === true;
-
-    if (isRemotePref) {
-      const remote = this.remoteBranches.find(
-        (b) => b.branch === name && b.remote.name === this.configuredRemote.name
-      );
-      if (remote) return remote;
-    }
-    const local = this.localBranches.find((b) => b.branch === name);
-    if (local) return local;
-    return this.remoteBranches.find((b) => b.branch === name);
+    const d = this.remoteData.data;
+    if (!d) return undefined;
+    return resolveDefaultBranch({
+      preference: this.defaultBranchPreference,
+      branches: this.branches,
+      configuredRemoteName: this.configuredRemote.name,
+      gitDefaultBranch: d.gitDefaultBranch,
+      baseRef: this.baseRef,
+    });
   }
 
   isDefault(branch: LocalBranch | RemoteBranch): boolean {
-    return branch.branch === this.defaultBranchName;
+    const defaultBranch = this.defaultBranch;
+    if (!defaultBranch) return false;
+    if (branch.type !== defaultBranch.type) return false;
+    if (branch.type === 'remote' && defaultBranch.type === 'remote') {
+      return (
+        branch.branch === defaultBranch.branch && branch.remote.name === defaultBranch.remote.name
+      );
+    }
+    return branch.branch === defaultBranch.branch;
   }
 
   isBranchOnRemote(branchName: string): boolean {

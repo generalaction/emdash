@@ -1,8 +1,9 @@
 import { LeftSidebar } from '@renderer/features/sidebar/left-sidebar';
+import { CommandShortcutBinder } from '@renderer/lib/commands/command-shortcut-binder';
 import { AppKeyboardShortcuts } from '@renderer/lib/components/app-keyboard-shortcuts';
+import { MonacoKeyboardBridge } from '@renderer/lib/components/monaco-keyboard-bridge';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import {
-  useViewLayoutOverride,
   useWorkspaceSlots,
   useWorkspaceWrapParams,
 } from '@renderer/lib/layout/navigation-provider';
@@ -14,9 +15,12 @@ export function Workspace() {
   useTheme();
   const { WrapView } = useWorkspaceSlots();
   const { wrapParams } = useWorkspaceWrapParams();
+
   return (
     <>
       <AppKeyboardShortcuts />
+      <CommandShortcutBinder />
+      <MonacoKeyboardBridge />
       <WorkspaceLayout
         leftSidebar={<LeftSidebar />}
         mainContent={
@@ -32,14 +36,6 @@ export function Workspace() {
 }
 
 function WorkspaceViewContent() {
-  const { TitlebarSlot, MainPanel, RightPanel } = useWorkspaceSlots();
-  const { hideRightPanel } = useViewLayoutOverride();
-  const EffectiveRightPanel = hideRightPanel ? null : RightPanel;
-  return (
-    <WorkspaceContentLayout
-      titlebarSlot={<TitlebarSlot />}
-      mainPanel={<MainPanel />}
-      rightPanel={EffectiveRightPanel ? <EffectiveRightPanel /> : null}
-    />
-  );
+  const { TitlebarSlot, MainPanel } = useWorkspaceSlots();
+  return <WorkspaceContentLayout titlebarSlot={<TitlebarSlot />} mainPanel={<MainPanel />} />;
 }

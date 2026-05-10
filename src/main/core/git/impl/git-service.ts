@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import {
   HEAD_MODE,
@@ -19,6 +20,7 @@ import {
   type GitHeadState,
   type GitInfo,
   type GitObjectRef,
+  type ImageReadResult,
   type LocalBranch,
   type MergeBaseRange,
   type PullError,
@@ -32,6 +34,7 @@ import { parseGitHubRepository } from '@shared/github-repository';
 import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 import type { IDisposable } from '@main/lib/lifecycle';
 import { type GitProvider } from '../types';
 import { CatFileBatch } from './cat-file-batch';
@@ -50,6 +53,32 @@ import {
   TooManyFilesChangedError,
   type IFileStatus,
 } from './status-parser';
+
+const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
+
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+  svg: 'image/svg+xml',
+};
+
+function imageMimeForPath(filePath: string): string | null {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  return ext ? (IMAGE_MIME_BY_EXT[ext] ?? null) : null;
+}
+
+const LFS_POINTER_PREFIX = Buffer.from('version https://git-lfs.github.com/spec/');
+
+// Without an LFS smudge filter, cat-file returns pointer text instead of image bytes.
+function looksLikeLfsPointer(buffer: Buffer): boolean {
+  if (buffer.length > 1024) return false;
+  return buffer.slice(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
+}
 
 export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
@@ -383,6 +412,70 @@ export class GitService implements GitProvider, IDisposable {
     } catch {
       return null;
     }
+  }
+
+  async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
+    return this._readImageBlob(`${ref}:${filePath}`, filePath);
+  }
+
+  async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
+    return this._readImageBlob(`:0:${filePath}`, filePath);
+  }
+
+  // SSH workspaces have no binary-safe exec channel.
+  private async _readImageBlob(spec: string, filePath: string): Promise<ImageReadResult> {
+    if (!this.ctx.supportsLocalSpawn) return { kind: 'unavailable', reason: 'ssh' };
+    const mimeType = imageMimeForPath(filePath);
+    if (!mimeType) return { kind: 'unavailable', reason: 'unsupported' };
+
+    return new Promise((resolve) => {
+      const child = spawn(GIT_EXECUTABLE, ['cat-file', '--filters', spec], {
+        cwd: this.ctx.root || undefined,
+      });
+      const chunks: Buffer[] = [];
+      let total = 0;
+      let aborted = false;
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        if (aborted) return;
+        total += chunk.length;
+        if (total > MAX_IMAGE_BLOB_BYTES) {
+          aborted = true;
+          child.kill();
+          resolve({ kind: 'unavailable', reason: 'too-large' });
+          return;
+        }
+        chunks.push(chunk);
+      });
+      child.stderr.resume();
+      child.on('error', () => resolve({ kind: 'unavailable', reason: 'git-error' }));
+      child.on('close', (code) => {
+        if (aborted) return;
+        if (code !== 0) {
+          resolve(
+            code === 128 ? { kind: 'missing' } : { kind: 'unavailable', reason: 'git-error' }
+          );
+          return;
+        }
+        const buffer = Buffer.concat(chunks);
+        if (buffer.length === 0) {
+          resolve({ kind: 'unavailable', reason: 'git-error' });
+          return;
+        }
+        if (looksLikeLfsPointer(buffer)) {
+          resolve({ kind: 'unavailable', reason: 'lfs-pointer' });
+          return;
+        }
+        resolve({
+          kind: 'image',
+          image: {
+            dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
+            mimeType,
+            size: buffer.length,
+          },
+        });
+      });
+    });
   }
 
   async getFileDiff(
@@ -1455,19 +1548,11 @@ export class GitService implements GitProvider, IDisposable {
     }
 
     let remoteName: string | undefined;
-    let remote: string | undefined;
     try {
       const { stdout } = await this.ctx.exec('git', ['remote']);
       const remotes = stdout.trim().split('\n').filter(Boolean);
       remoteName = remotes.includes('origin') ? 'origin' : remotes[0];
     } catch {}
-
-    if (remoteName) {
-      try {
-        const { stdout } = await this.ctx.exec('git', ['remote', 'get-url', remoteName]);
-        remote = stdout.trim() || undefined;
-      } catch {}
-    }
 
     let branch: string | undefined;
     try {
@@ -1492,8 +1577,6 @@ export class GitService implements GitProvider, IDisposable {
 
     return {
       isGitRepo: true,
-      remote,
-      branch,
       baseRef: computeBaseRef(undefined, remoteName, branch),
       rootPath,
     };

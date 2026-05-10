@@ -1,5 +1,10 @@
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
+import {
+  buildRemoteShellCommand,
+  FALLBACK_REMOTE_SHELL_PROFILE,
+  type RemoteShellProfile,
+} from '@main/core/ssh/remote-shell-profile';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import { buildTmuxShellLine } from './tmux-session-name';
 
@@ -8,9 +13,10 @@ export type SessionConfig = AgentSessionConfig | GeneralSessionConfig;
 
 function posixShellLineForSsh(
   type: SessionType,
-  config: SessionConfig
+  config: SessionConfig,
+  profile: RemoteShellProfile
 ): { cwd: string; line: string } {
-  const shell = process.env.SHELL ?? '/bin/sh';
+  const shell = profile.shell;
 
   switch (type) {
     case 'agent': {
@@ -44,18 +50,11 @@ function posixShellLineForSsh(
 export function resolveSshCommand(
   type: SessionType,
   config: SessionConfig,
-  envVars?: Record<string, string>
+  envVars?: Record<string, string>,
+  profile?: RemoteShellProfile
 ): string {
-  const { cwd, line } = posixShellLineForSsh(type, config);
-  const envPrefix = envVars ? buildSshEnvPrefix(envVars) : '';
-  const commandString = `cd ${JSON.stringify(cwd)} && ${envPrefix}${line}`;
-
-  return `bash -l -c ${quoteShellArg(commandString)}`;
-}
-
-export function buildSshEnvPrefix(vars: Record<string, string>): string {
-  const entries = Object.entries(vars);
-  if (entries.length === 0) return '';
-  const exports = entries.map(([k, v]) => `export ${k}='${v.replace(/'/g, "'\\''")}'`).join('; ');
-  return exports + '; ';
+  const effectiveProfile = profile ?? FALLBACK_REMOTE_SHELL_PROFILE;
+  const { cwd, line } = posixShellLineForSsh(type, config, effectiveProfile);
+  const commandString = `cd ${JSON.stringify(cwd)} && ${line}`;
+  return buildRemoteShellCommand(effectiveProfile, commandString, envVars);
 }

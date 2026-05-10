@@ -1,4 +1,4 @@
-import { computed, observable } from 'mobx';
+import { computed, makeObservable, observable } from 'mobx';
 import type { ConnectionState } from '@shared/ssh';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
@@ -26,6 +26,7 @@ export class WorkspaceStore {
     baseRef: string,
     sshConnectionId?: string
   ) {
+    makeObservable(this, { connectionState: computed });
     this.sshConnectionId = sshConnectionId;
     this.tasks.replace(initialTasks);
     this.repository = new RepositoryStore(projectId, settingsStore, baseRef, workspaceId);
@@ -35,7 +36,7 @@ export class WorkspaceStore {
     this.pr = new PrStore(projectId, workspaceId, this.repository, this.tasks);
   }
 
-  @computed get connectionState(): ConnectionState | null {
+  get connectionState(): ConnectionState | null {
     if (!this.sshConnectionId) return null;
     return appState.sshConnections.stateFor(this.sshConnectionId);
   }

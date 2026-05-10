@@ -1,8 +1,7 @@
 import { FileX } from 'lucide-react';
-import type { ManagedFile } from './types';
 
 interface TooLargeRendererProps {
-  file: ManagedFile;
+  file: { path: string; totalSize?: number | null };
 }
 
 function formatBytes(bytes: number): string {
