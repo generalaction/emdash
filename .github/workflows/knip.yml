@@ -38,5 +38,7 @@ jobs:
             sleep 10
           done
 
-      - name: Run knip
-        run: pnpm run knip
+      - name: Run knip dry run
+        # Report-only while the Knip configuration matures: surface annotations
+        # without blocking PRs on false positives.
+        run: pnpm exec knip --reporter github-actions --no-exit-code --no-config-hints
