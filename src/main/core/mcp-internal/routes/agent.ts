@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
+import { z } from 'zod';
 import {
   getProvider,
   isValidProviderId,
   type AgentProviderId,
 } from '@shared/agent-provider-registry';
+import type { Conversation } from '@shared/conversations';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createConversation } from '@main/core/conversations/createConversation';
@@ -12,7 +14,8 @@ import { getConversationById } from '@main/core/conversations/getConversationByI
 import {
   getTranscriptReader,
   isTranscriptSupported,
-} from '@main/core/conversations/provider-session';
+} from '@main/core/conversations/provider-session/manifest';
+import type { TranscriptItem } from '@main/core/conversations/provider-session/types';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { db } from '@main/db/client';
@@ -20,8 +23,74 @@ import { conversations, projects, tasks } from '@main/db/schema';
 import type { AgentEventBuffer } from '../event-buffer';
 import { HttpError, type CallerContext } from '../http-server';
 
+// ---------- Constants ----------
+
+const DEFAULT_LONG_POLL_MS = 15_000;
+export const MAX_LONG_POLL_MS = 60_000;
+export const MIN_LONG_POLL_MS = 1_000;
+
+// ---------- Domain types ----------
+
 export type AgentStatus = 'unknown' | 'working' | 'awaiting-input' | 'error' | 'idle';
 export type ProviderTier = 'hooks' | 'classifier' | 'unsupported';
+
+// Opaque cursor for event pagination. Currently encodes a millisecond
+// timestamp, but callers must treat the value as a black box and only feed it
+// back via `since`.
+export type EventCursor = string & { readonly __brand: 'EventCursor' };
+const encodeCursor = (timestampMs: number): EventCursor => String(timestampMs) as EventCursor;
+const decodeCursor = (cursor: string | undefined): number | undefined => {
+  if (cursor === undefined) return undefined;
+  const n = Number(cursor);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+// ---------- Wire schemas (single source of truth at the HTTP boundary) ----------
+
+export const ScopeSchema = z.enum(['task', 'project', 'all']);
+export type Scope = z.infer<typeof ScopeSchema>;
+
+export const FetchKindSchema = z.enum(['events', 'scrollback', 'transcript']);
+export type FetchKind = z.infer<typeof FetchKindSchema>;
+
+export const SpawnBodySchema = z.object({
+  providerId: z.string(),
+  name: z.string().optional(),
+  initialPrompt: z.string().optional(),
+  // v1: only same-task spawn. Cross-task spawn lands in PR4 via task_create,
+  // so the schema rejects `false` instead of carrying an unsupported branch.
+  sameTask: z.literal(true).optional(),
+});
+export type SpawnBody = z.infer<typeof SpawnBodySchema>;
+
+export const SendBodySchema = z.object({
+  message: z.string().min(1),
+  crossTask: z.boolean().optional(),
+  // Append a CR (\r) after the message text to submit. Default true.
+  // false leaves the message staged as a draft for the user.
+  submit: z.boolean().optional(),
+});
+export type SendBody = z.infer<typeof SendBodySchema>;
+
+export const InterruptBodySchema = z.object({
+  crossTask: z.boolean().optional(),
+});
+export type InterruptBody = z.infer<typeof InterruptBodySchema>;
+
+export const ObserveQuerySchema = z.object({
+  waitForChange: z.boolean().optional(),
+  timeoutMs: z.number().int().min(MIN_LONG_POLL_MS).max(MAX_LONG_POLL_MS).optional(),
+});
+export type ObserveQuery = z.infer<typeof ObserveQuerySchema>;
+
+export const FetchQuerySchema = z.object({
+  kind: FetchKindSchema.optional(),
+  limit: z.number().int().positive().optional(),
+  since: z.string().min(1).optional(),
+});
+export type FetchQuery = z.infer<typeof FetchQuerySchema>;
+
+// ---------- Response shapes ----------
 
 interface SelfResponse {
   conversationId: string;
@@ -62,9 +131,43 @@ interface ObserveResponse {
   statusChangedAt: number | null;
 }
 
-const DEFAULT_LONG_POLL_MS = 15_000;
-const MAX_LONG_POLL_MS = 60_000;
-const MIN_LONG_POLL_MS = 1_000;
+interface PeerSummary {
+  conversationId: string;
+  taskId: string;
+  taskName?: string;
+  projectId: string;
+  projectName?: string;
+  providerId: string;
+  name: string;
+  status: AgentStatus;
+  lastActivityAt: string | null;
+}
+
+// Discriminated by `kind` so callers branch on a single field instead of
+// sniffing the shape of `items`.
+export type FetchResponse =
+  | {
+      kind: 'events';
+      events: AgentEvent[];
+      nextCursor?: EventCursor;
+      providerTier: ProviderTier;
+      transcriptSupported: boolean;
+    }
+  | {
+      kind: 'scrollback';
+      scrollback: string;
+      providerTier: ProviderTier;
+      transcriptSupported: boolean;
+    }
+  | {
+      kind: 'transcript';
+      items: TranscriptItem[];
+      nextCursor?: string;
+      providerTier: ProviderTier;
+      transcriptSupported: boolean;
+    };
+
+// ---------- Pure helpers ----------
 
 /**
  * Statuses where waiting for a "change" doesn't make sense — the peer is
@@ -94,6 +197,45 @@ function deriveProviderTier(providerId: string): ProviderTier {
   return provider.supportsHooks ? 'hooks' : 'classifier';
 }
 
+// Single source of truth for cross-task write gating. Reads are always
+// allowed in callers; writes (send/interrupt) require `crossTask:true` to
+// cross the task boundary.
+function assertCrossTaskWrite(
+  caller: CallerContext,
+  target: Conversation,
+  crossTask: boolean | undefined,
+  op: 'send' | 'interrupt'
+): void {
+  if (target.taskId === caller.conversation.taskId) return;
+  if (crossTask) return;
+  throw new HttpError(403, `cross-task ${op} requires crossTask=true`);
+}
+
+async function loadTargetConversation(targetConversationId: string): Promise<Conversation> {
+  const target = await getConversationById(targetConversationId);
+  if (!target) throw new HttpError(410, 'conversation gone');
+  return target;
+}
+
+async function selectPeerRows(caller: CallerContext, scope: Scope) {
+  switch (scope) {
+    case 'task':
+      return db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.taskId, caller.conversation.taskId));
+    case 'project':
+      return db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.projectId, caller.conversation.projectId));
+    case 'all':
+      return db.select().from(conversations);
+  }
+}
+
+// ---------- Handlers ----------
+
 export async function handleAgentSelf(caller: CallerContext): Promise<SelfResponse> {
   const { taskNames, projectNames } = await lookupNames(
     [caller.conversation.taskId],
@@ -113,20 +255,17 @@ export async function handleAgentSelf(caller: CallerContext): Promise<SelfRespon
 export async function handleAgentObserve(
   caller: CallerContext,
   targetConversationId: string,
-  query: { waitForChange?: boolean; timeoutMs?: number },
+  query: ObserveQuery,
   buffer: AgentEventBuffer
 ): Promise<ObserveResponse> {
-  const target = await getConversationById(targetConversationId);
-  if (!target) throw new HttpError(410, 'conversation gone');
-
-  // Cross-task reads are always allowed — visibility is cheap.
-  void caller;
+  const target = await loadTargetConversation(targetConversationId);
+  void caller; // cross-task reads are always allowed; visibility is cheap
 
   if (query.waitForChange) {
     const state = buffer.getState(targetConversationId);
     const currentStatus = deriveStatus(state?.recent ?? []);
-    // If peer is already at rest, the "change" the caller cares about
-    // already happened. Return immediately instead of waiting timeoutMs.
+    // If peer already at rest, "change" caller waits on already happened.
+    // Return immediately instead of blocking timeoutMs.
     if (!TERMINAL_STATUSES.has(currentStatus)) {
       const timeoutMs = Math.min(
         Math.max(query.timeoutMs ?? DEFAULT_LONG_POLL_MS, MIN_LONG_POLL_MS),
@@ -151,18 +290,10 @@ export async function handleAgentObserve(
 export async function handleAgentSend(
   caller: CallerContext,
   targetConversationId: string,
-  body: { message: string; crossTask?: boolean; submit?: boolean }
+  body: SendBody
 ): Promise<{ ok: true }> {
-  if (typeof body.message !== 'string' || body.message.length === 0) {
-    throw new HttpError(400, 'message must be non-empty string');
-  }
-
-  const target = await getConversationById(targetConversationId);
-  if (!target) throw new HttpError(410, 'conversation gone');
-
-  if (target.taskId !== caller.conversation.taskId && !body.crossTask) {
-    throw new HttpError(403, 'cross-task send requires crossTask=true');
-  }
+  const target = await loadTargetConversation(targetConversationId);
+  assertCrossTaskWrite(caller, target, body.crossTask, 'send');
 
   const sessionId = makePtySessionId(target.projectId, target.taskId, target.id);
   const pty = ptySessionRegistry.get(sessionId);
@@ -182,37 +313,12 @@ export async function handleAgentSend(
   return { ok: true };
 }
 
-interface PeerSummary {
-  conversationId: string;
-  taskId: string;
-  taskName?: string;
-  projectId: string;
-  projectName?: string;
-  providerId: string;
-  name: string;
-  status: AgentStatus;
-  lastActivityAt: string | null;
-}
-
 export async function handleAgentListPeers(
   caller: CallerContext,
-  scope: 'task' | 'project' | 'all',
+  scope: Scope,
   buffer: AgentEventBuffer
 ): Promise<PeerSummary[]> {
-  let rows;
-  if (scope === 'task') {
-    rows = await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.taskId, caller.conversation.taskId));
-  } else if (scope === 'project') {
-    rows = await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.projectId, caller.conversation.projectId));
-  } else {
-    rows = await db.select().from(conversations);
-  }
+  const rows = await selectPeerRows(caller, scope);
 
   const filtered = rows.filter((row) => row.id !== caller.conversation.id);
   const { taskNames, projectNames } = await lookupNames(
@@ -237,26 +343,11 @@ export async function handleAgentListPeers(
   });
 }
 
-interface SpawnBody {
-  providerId: string;
-  name?: string;
-  initialPrompt?: string;
-  sameTask?: boolean;
-}
-
 export async function handleAgentSpawn(
   caller: CallerContext,
   body: SpawnBody
 ): Promise<{ conversationId: string; title: string; providerId: string }> {
-  if (body.sameTask === false) {
-    throw new HttpError(
-      400,
-      'sameTask=false not supported. Use task_create (PR4) to spawn an agent in a new task.'
-    );
-  }
-  if (!body.providerId || !isValidProviderId(body.providerId)) {
-    throw new HttpError(400, 'invalid providerId');
-  }
+  if (!isValidProviderId(body.providerId)) throw new HttpError(400, 'invalid providerId');
   const provider = body.providerId as AgentProviderId;
   const id = randomUUID();
   const title = body.name ?? getProvider(provider)?.name ?? provider;
@@ -275,14 +366,10 @@ export async function handleAgentSpawn(
 export async function handleAgentInterrupt(
   caller: CallerContext,
   targetConversationId: string,
-  body: { crossTask?: boolean }
+  body: InterruptBody
 ): Promise<{ ok: true }> {
-  const target = await getConversationById(targetConversationId);
-  if (!target) throw new HttpError(410, 'conversation gone');
-
-  if (target.taskId !== caller.conversation.taskId && !body.crossTask) {
-    throw new HttpError(403, 'cross-task interrupt requires crossTask=true');
-  }
+  const target = await loadTargetConversation(targetConversationId);
+  assertCrossTaskWrite(caller, target, body.crossTask, 'interrupt');
 
   const sessionId = makePtySessionId(target.projectId, target.taskId, target.id);
   const pty = ptySessionRegistry.get(sessionId);
@@ -292,37 +379,28 @@ export async function handleAgentInterrupt(
   return { ok: true };
 }
 
-interface FetchResponse {
-  items: AgentEvent[] | string | unknown[];
-  nextCursor?: string;
-  providerTier: ProviderTier;
-  transcriptSupported: boolean;
-}
-
 export async function handleAgentFetch(
   caller: CallerContext,
   targetConversationId: string,
-  query: { kind?: string; limit?: number; since?: string },
+  query: FetchQuery,
   buffer: AgentEventBuffer
 ): Promise<FetchResponse> {
-  const target = await getConversationById(targetConversationId);
-  if (!target) throw new HttpError(410, 'conversation gone');
+  const target = await loadTargetConversation(targetConversationId);
+  void caller; // cross-task reads are always allowed
 
-  // Cross-task reads are always allowed (visibility is cheap).
-  void caller;
-
-  const kind = query.kind ?? 'events';
+  const kind: FetchKind = query.kind ?? 'events';
   const tier = deriveProviderTier(target.providerId);
   const transcriptSupported = isTranscriptSupported(target.providerId);
 
   if (kind === 'events') {
-    const since = query.since ? Number(query.since) : undefined;
-    const events = buffer.getEvents(target.id, Number.isFinite(since) ? since : undefined);
-    const limited = query.limit ? events.slice(-Math.max(1, Math.floor(query.limit))) : events;
-    const last = limited[limited.length - 1];
+    const since = decodeCursor(query.since);
+    const all = buffer.getEvents(target.id, since);
+    const events = query.limit ? all.slice(-query.limit) : all;
+    const last = events[events.length - 1];
     return {
-      items: limited,
-      nextCursor: last ? String(last.timestamp) : undefined,
+      kind: 'events',
+      events,
+      nextCursor: last ? encodeCursor(last.timestamp) : undefined,
       providerTier: tier,
       transcriptSupported,
     };
@@ -331,34 +409,36 @@ export async function handleAgentFetch(
   if (kind === 'scrollback') {
     const sessionId = makePtySessionId(target.projectId, target.taskId, target.id);
     const buf = ptySessionRegistry.peekRingBuffer(sessionId);
-    const limit = query.limit && query.limit > 0 ? Math.floor(query.limit) : undefined;
-    const items = limit && buf.length > limit ? buf.slice(-limit) : buf;
-    return { items, providerTier: tier, transcriptSupported };
-  }
-
-  if (kind === 'transcript') {
-    const reader = getTranscriptReader(target.providerId);
-    if (!reader) {
-      return { items: [], providerTier: tier, transcriptSupported: false };
-    }
-    if (!target.externalSessionId) {
-      // Capture still pending (or unsupported for this provider/launch).
-      // Return empty with transcriptSupported=true so caller can retry.
-      return { items: [], providerTier: tier, transcriptSupported };
-    }
-    const result = await reader.fetch({
-      externalSessionId: target.externalSessionId,
-      externalSourcePath: target.externalSourcePath ?? null,
-      ...(query.limit ? { limit: Math.floor(query.limit) } : {}),
-      ...(query.since ? { since: query.since } : {}),
-    });
+    const scrollback = query.limit && buf.length > query.limit ? buf.slice(-query.limit) : buf;
     return {
-      items: result.items,
-      ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+      kind: 'scrollback',
+      scrollback,
       providerTier: tier,
       transcriptSupported,
     };
   }
 
-  throw new HttpError(400, `unknown kind: ${kind}`);
+  // kind === 'transcript'
+  const reader = getTranscriptReader(target.providerId);
+  if (!reader) {
+    return { kind: 'transcript', items: [], providerTier: tier, transcriptSupported: false };
+  }
+  if (!target.externalSessionId) {
+    // Capture still pending (or unsupported for this provider/launch).
+    // Return empty with transcriptSupported=true so caller can retry.
+    return { kind: 'transcript', items: [], providerTier: tier, transcriptSupported };
+  }
+  const result = await reader.fetch({
+    externalSessionId: target.externalSessionId,
+    externalSourcePath: target.externalSourcePath ?? null,
+    ...(query.limit ? { limit: query.limit } : {}),
+    ...(query.since ? { since: query.since } : {}),
+  });
+  return {
+    kind: 'transcript',
+    items: result.items,
+    ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+    providerTier: tier,
+    transcriptSupported,
+  };
 }

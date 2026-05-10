@@ -26,7 +26,8 @@ import { conversations as conversationsTable } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { captureExternalSession, getProviderSessionCapability } from '../provider-session';
+import { captureExternalSession } from '../provider-session/capture-engine';
+import { getProviderSessionCapability } from '../provider-session/manifest';
 import { buildAgentCommand } from './agent-command';
 import { resolveProviderEnv } from './provider-env';
 

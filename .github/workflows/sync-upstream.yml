@@ -138,6 +138,8 @@ jobs:
           ## Resolve locally
 
           \`\`\`bash
+          # First time only — add the upstream remote.
+          git remote add upstream https://github.com/${UPSTREAM_REPO}.git
           git fetch upstream
           git checkout -b chore/sync-upstream-manual main
           git merge upstream/${UPSTREAM_BRANCH}

@@ -109,7 +109,13 @@ async function run(
       }
       for (const event of events) {
         if (event.type !== 'create' && event.type !== 'update') continue;
-        void onEvent(event.path);
+        void onEvent(event.path).catch((onEventErr) => {
+          log.warn('provider-session: onEvent error', {
+            providerId: req.providerId,
+            filename: event.path,
+            error: String(onEventErr),
+          });
+        });
       }
     });
   } catch (err) {

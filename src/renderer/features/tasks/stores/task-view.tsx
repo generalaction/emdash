@@ -7,13 +7,42 @@ import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-vi
 import type { GitStore } from '@renderer/features/tasks/diff-view/stores/git-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
+import {
+  TabManagerStore,
+  type ResolvedConversationTab,
+} from '@renderer/features/tasks/tabs/tab-manager-store';
 import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
 import { events } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { focusTracker } from '@renderer/utils/focus-tracker';
+
+const DEFAULT_AGENT_LAYOUT_MODE: AgentLayoutMode = 'tabs';
+
+/**
+ * Normalize a persisted layout-mode value: migrate legacy names and reject
+ * unknown strings. Older snapshots used `split-h` / `split-v` / `grid-2x2`;
+ * any value outside the known set falls back to the default.
+ */
+function normalizeAgentLayoutMode(raw: unknown): AgentLayoutMode {
+  if (typeof raw !== 'string') return DEFAULT_AGENT_LAYOUT_MODE;
+  switch (raw) {
+    case 'split-h':
+      return 'side-by-side';
+    case 'split-v':
+      return 'stacked';
+    case 'grid-2x2':
+      return 'tile';
+    case 'tabs':
+    case 'side-by-side':
+    case 'stacked':
+    case 'tile':
+      return raw;
+    default:
+      return DEFAULT_AGENT_LAYOUT_MODE;
+  }
+}
 
 /**
  * Identifies which content renderer is active in the main panel.
@@ -40,7 +69,7 @@ export class TaskViewStore {
   isSidebarCollapsed: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen: boolean;
-  agentLayoutMode: AgentLayoutMode = 'tabs';
+  agentLayoutMode: AgentLayoutMode = DEFAULT_AGENT_LAYOUT_MODE;
   agentSlots: string[] = [];
 
   readonly tabManager: TabManagerStore;
@@ -59,17 +88,7 @@ export class TaskViewStore {
     this.focusedRegion = savedSnapshot?.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot?.isTerminalDrawerOpen ?? false;
     if (savedSnapshot?.agentLayout) {
-      const mode = savedSnapshot.agentLayout.mode;
-      // Migrate legacy mode names if present.
-      const legacy = mode as unknown as string;
-      this.agentLayoutMode =
-        legacy === 'split-h'
-          ? 'side-by-side'
-          : legacy === 'split-v'
-            ? 'stacked'
-            : legacy === 'grid-2x2'
-              ? 'tile'
-              : mode;
+      this.agentLayoutMode = normalizeAgentLayoutMode(savedSnapshot.agentLayout.mode);
       const slots = savedSnapshot.agentLayout.slots ?? [];
       this.agentSlots = slots.filter((id): id is string => typeof id === 'string' && id.length > 0);
     }
@@ -200,23 +219,18 @@ export class TaskViewStore {
 
   setAgentLayoutMode(mode: AgentLayoutMode): void {
     this.agentLayoutMode = mode;
-    if (mode === 'tabs') {
-      this.agentSlots = [];
-      return;
-    }
-    // Seed from open conversation tabs in tab order, preserving any pre-existing slot order.
+    // Slots persist across mode changes so a tabs round-trip preserves the
+    // user's grid arrangement. On entering a non-tabs mode, append any open
+    // conversation tabs that aren't already in slots, keeping prior order.
+    if (mode === 'tabs') return;
     const openIds = this.tabManager.resolvedTabs
-      .filter((t) => t.kind === 'conversation')
-      .map((t) => (t as { conversationId: string }).conversationId);
-    const seen = new Set<string>();
-    const next: string[] = [];
-    for (const id of [...this.agentSlots, ...openIds]) {
-      if (!seen.has(id)) {
-        seen.add(id);
-        next.push(id);
-      }
+      .filter((t): t is ResolvedConversationTab => t.kind === 'conversation')
+      .map((t) => t.conversationId);
+    const seen = new Set(this.agentSlots);
+    const additions = openIds.filter((id) => !seen.has(id));
+    if (additions.length > 0) {
+      this.agentSlots = [...this.agentSlots, ...additions];
     }
-    this.agentSlots = next;
   }
 
   /** Add a conversation to the layout if not already present. No-op in tabs mode. */

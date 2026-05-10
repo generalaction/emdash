@@ -26,6 +26,9 @@ export default defineConfig({
       },
     },
   },
+  ssr: {
+    noExternal: true,
+  },
   resolve: {
     alias: {
       '@shared': resolve('src/shared'),

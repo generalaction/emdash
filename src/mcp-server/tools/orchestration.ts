@@ -118,10 +118,6 @@ export function registerOrchestrationTools(server: McpServer, http: HttpClient):
         .optional()
         .describe('Command auto-typed + submitted on terminal startup.'),
       name: z.string().optional().describe('Terminal name shown in the drawer.'),
-      focus: z
-        .boolean()
-        .optional()
-        .describe('Open the terminal drawer if closed. Currently no-op (PR4 v1).'),
     },
     async (params) => {
       const data = await http.post('/terminals', params);

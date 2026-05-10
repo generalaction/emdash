@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
+import { z } from 'zod';
 import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { Branch } from '@shared/git';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -12,6 +13,49 @@ import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import type { DevServerTracker } from '../dev-server-tracker';
 import { HttpError, type CallerContext } from '../http-server';
+
+// ---------- Wire schemas ----------
+
+export const TaskCreateBodySchema = z
+  .object({
+    projectId: z.string().optional(),
+    name: z.string().min(1),
+    sourceBranch: z.string().optional(),
+    taskBranch: z.string().optional(),
+    initialPrompt: z.string().optional(),
+    providerId: z.string().optional(),
+    // v1: only new-branch worktree strategy. Single-element enum so future
+    // widening is explicit (z.literal here would mean 'wrong key' on extension).
+    strategy: z.enum(['new-branch']).optional(),
+  })
+  .refine((v) => !v.initialPrompt || v.providerId, {
+    message: 'initialPrompt requires providerId',
+    path: ['initialPrompt'],
+  });
+export type TaskCreateBody = z.infer<typeof TaskCreateBodySchema>;
+
+export const TerminalCreateBodySchema = z.object({
+  initialCommand: z.string().optional(),
+  name: z.string().optional(),
+});
+export type TerminalCreateBody = z.infer<typeof TerminalCreateBodySchema>;
+
+export const TerminalSendBodySchema = z.object({
+  text: z.string(),
+  submit: z.boolean().optional(),
+});
+export type TerminalSendBody = z.infer<typeof TerminalSendBodySchema>;
+
+export const TaskListQuerySchema = z.object({
+  projectId: z.string().optional(),
+  includeArchived: z.boolean().optional(),
+});
+export type TaskListQuery = z.infer<typeof TaskListQuerySchema>;
+
+export const ProjectListQuerySchema = z.object({
+  includeArchived: z.boolean().optional(),
+});
+export type ProjectListQuery = z.infer<typeof ProjectListQuerySchema>;
 
 async function lookupProjectNames(projectIds: string[]): Promise<Map<string, string>> {
   if (projectIds.length === 0) return new Map();
@@ -35,7 +79,7 @@ interface TaskSummary {
 
 export async function handleTaskList(
   caller: CallerContext,
-  query: { projectId?: string; includeArchived?: boolean }
+  query: TaskListQuery
 ): Promise<TaskSummary[]> {
   const projectId = query.projectId ?? caller.conversation.projectId;
   const tasks = await getTasks(projectId);
@@ -55,17 +99,6 @@ export async function handleTaskList(
   }));
 }
 
-interface TaskCreateBody {
-  projectId?: string;
-  name: string;
-  /** Branch name to fork from. Defaults to project's baseRef. */
-  sourceBranch?: string;
-  /** Custom name for the new task branch. Optional; auto-generated when omitted. */
-  taskBranch?: string;
-  initialPrompt?: string;
-  providerId?: string;
-}
-
 export async function handleTaskCreate(
   caller: CallerContext,
   body: TaskCreateBody
@@ -76,9 +109,6 @@ export async function handleTaskCreate(
   projectId: string;
   conversationId?: string;
 }> {
-  if (!body.name || typeof body.name !== 'string') {
-    throw new HttpError(400, 'name is required');
-  }
   const projectId = body.projectId ?? caller.conversation.projectId;
 
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
@@ -145,7 +175,7 @@ interface ProjectSummary {
 
 export async function handleProjectList(
   _caller: CallerContext,
-  query: { includeArchived?: boolean }
+  query: ProjectListQuery
 ): Promise<ProjectSummary[]> {
   const rows = await db.select().from(projects);
   const filtered = query.includeArchived ? rows : rows.filter((p) => !p.archived);
@@ -178,10 +208,8 @@ export async function handleTerminalList(caller: CallerContext): Promise<Termina
 export async function handleTerminalSend(
   caller: CallerContext,
   terminalId: string,
-  body: { text: string; submit?: boolean }
+  body: TerminalSendBody
 ): Promise<{ ok: true }> {
-  if (typeof body.text !== 'string') throw new HttpError(400, 'text must be string');
-
   const sessionId = makePtySessionId(
     caller.conversation.projectId,
     caller.conversation.taskId,
@@ -193,13 +221,6 @@ export async function handleTerminalSend(
   pty.write(body.text);
   if (body.submit) pty.write('\n');
   return { ok: true };
-}
-
-interface TerminalCreateBody {
-  initialCommand?: string;
-  name?: string;
-  /** Currently a no-op — drawer focus IPC is not wired. See spec §13a. */
-  focus?: boolean;
 }
 
 export async function handleTerminalCreate(
@@ -214,20 +235,21 @@ export async function handleTerminalCreate(
     name: body.name ?? 'Agent terminal',
   });
 
+  // createTerminal awaits spawnTerminal which registers the session
+  // synchronously before returning, so the PTY is in the registry by the
+  // time we reach here. PTY buffers writes until the shell is ready, so
+  // no delay is required.
   if (body.initialCommand) {
-    // Wait briefly for the PTY to register, then type + submit.
-    setTimeout(() => {
-      const sessionId = makePtySessionId(
-        caller.conversation.projectId,
-        caller.conversation.taskId,
-        terminal.id
-      );
-      const pty = ptySessionRegistry.get(sessionId);
-      if (pty) {
-        pty.write(body.initialCommand!);
-        pty.write('\n');
-      }
-    }, 250);
+    const sessionId = makePtySessionId(
+      caller.conversation.projectId,
+      caller.conversation.taskId,
+      terminal.id
+    );
+    const pty = ptySessionRegistry.get(sessionId);
+    if (pty) {
+      pty.write(body.initialCommand);
+      pty.write('\n');
+    }
   }
 
   return { terminalId: terminal.id };

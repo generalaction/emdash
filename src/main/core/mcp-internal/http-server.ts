@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { ZodError, type ZodType } from 'zod';
 import type { Conversation } from '@shared/conversations';
 import { getConversationById } from '@main/core/conversations/getConversationById';
 import { log } from '@main/lib/logger';
@@ -6,6 +7,7 @@ import { DevServerTracker } from './dev-server-tracker';
 import { AgentEventBuffer } from './event-buffer';
 import type { McpInternalInstance } from './instance';
 import {
+  FetchQuerySchema,
   handleAgentFetch,
   handleAgentInterrupt,
   handleAgentListPeers,
@@ -13,6 +15,11 @@ import {
   handleAgentSelf,
   handleAgentSend,
   handleAgentSpawn,
+  InterruptBodySchema,
+  ObserveQuerySchema,
+  ScopeSchema,
+  SendBodySchema,
+  SpawnBodySchema,
 } from './routes/agent';
 import {
   handleProjectList,
@@ -22,6 +29,11 @@ import {
   handleTerminalList,
   handleTerminalSend,
   handleWorkspaceDevServers,
+  ProjectListQuerySchema,
+  TaskCreateBodySchema,
+  TaskListQuerySchema,
+  TerminalCreateBodySchema,
+  TerminalSendBodySchema,
 } from './routes/orchestration';
 
 export class HttpError extends Error {
@@ -47,6 +59,13 @@ const AGENT_SEND_RE = /^\/agent\/([^/]+)\/send$/;
 const AGENT_FETCH_RE = /^\/agent\/([^/]+)\/fetch$/;
 const AGENT_INTERRUPT_RE = /^\/agent\/([^/]+)\/interrupt$/;
 const TERMINAL_SEND_RE = /^\/terminals\/([^/]+)\/send$/;
+
+function parseOrThrow<T>(schema: ZodType<T>, value: unknown): T {
+  const r = schema.safeParse(value);
+  if (r.success) return r.data;
+  const msg = r.error.issues.map((i) => `${i.path.join('.') || '<root>'}: ${i.message}`).join('; ');
+  throw new HttpError(400, msg);
+}
 
 export class McpInternalHttpServer {
   private server: http.Server | null = null;
@@ -118,98 +137,68 @@ export class McpInternalHttpServer {
       }
 
       if (method === 'GET' && path === '/agent/peers') {
-        const scopeRaw = params.get('scope') ?? 'task';
-        if (scopeRaw !== 'task' && scopeRaw !== 'project' && scopeRaw !== 'all') {
-          throw new HttpError(400, `invalid scope: ${scopeRaw}`);
-        }
-        const data = await handleAgentListPeers(caller, scopeRaw, this.buffer);
-        return this.send(res, 200, data);
+        const scope = parseOrThrow(ScopeSchema, params.get('scope') ?? 'task');
+        return this.send(res, 200, await handleAgentListPeers(caller, scope, this.buffer));
       }
 
       if (method === 'POST' && path === '/agent/spawn') {
-        const body = await this.readJson<{
-          providerId: string;
-          name?: string;
-          initialPrompt?: string;
-          sameTask?: boolean;
-        }>(req);
-        const data = await handleAgentSpawn(caller, body);
-        return this.send(res, 200, data);
+        const body = parseOrThrow(SpawnBodySchema, await this.readJson(req));
+        return this.send(res, 200, await handleAgentSpawn(caller, body));
       }
 
       const observeMatch = path.match(AGENT_OBSERVE_RE);
       if (observeMatch && method === 'GET') {
         const target = decodeURIComponent(observeMatch[1]);
-        const data = await handleAgentObserve(
-          caller,
-          target,
-          {
-            waitForChange: params.get('waitForChange') === 'true',
-            timeoutMs: params.has('timeoutMs') ? Number(params.get('timeoutMs')) : undefined,
-          },
-          this.buffer
-        );
-        return this.send(res, 200, data);
+        const query = parseOrThrow(ObserveQuerySchema, {
+          waitForChange: params.get('waitForChange') === 'true' || undefined,
+          timeoutMs: params.has('timeoutMs') ? Number(params.get('timeoutMs')) : undefined,
+        });
+        return this.send(res, 200, await handleAgentObserve(caller, target, query, this.buffer));
       }
 
       const sendMatch = path.match(AGENT_SEND_RE);
       if (sendMatch && method === 'POST') {
         const target = decodeURIComponent(sendMatch[1]);
-        const body = await this.readJson<{ message: string; crossTask?: boolean }>(req);
-        const data = await handleAgentSend(caller, target, body);
-        return this.send(res, 200, data);
+        const body = parseOrThrow(SendBodySchema, await this.readJson(req));
+        return this.send(res, 200, await handleAgentSend(caller, target, body));
       }
 
       const fetchMatch = path.match(AGENT_FETCH_RE);
       if (fetchMatch && method === 'GET') {
         const target = decodeURIComponent(fetchMatch[1]);
-        const data = await handleAgentFetch(
-          caller,
-          target,
-          {
-            kind: params.get('kind') ?? undefined,
-            limit: params.has('limit') ? Number(params.get('limit')) : undefined,
-            since: params.get('since') ?? undefined,
-          },
-          this.buffer
-        );
-        return this.send(res, 200, data);
+        const query = parseOrThrow(FetchQuerySchema, {
+          kind: params.get('kind') ?? undefined,
+          limit: params.has('limit') ? Number(params.get('limit')) : undefined,
+          since: params.get('since') ?? undefined,
+        });
+        return this.send(res, 200, await handleAgentFetch(caller, target, query, this.buffer));
       }
 
       const interruptMatch = path.match(AGENT_INTERRUPT_RE);
       if (interruptMatch && method === 'POST') {
         const target = decodeURIComponent(interruptMatch[1]);
-        const body = await this.readJson<{ crossTask?: boolean }>(req);
-        const data = await handleAgentInterrupt(caller, target, body);
-        return this.send(res, 200, data);
+        const body = parseOrThrow(InterruptBodySchema, await this.readJson(req));
+        return this.send(res, 200, await handleAgentInterrupt(caller, target, body));
       }
 
       if (method === 'GET' && path === '/projects') {
-        const data = await handleProjectList(caller, {
-          includeArchived: params.get('includeArchived') === 'true',
+        const query = parseOrThrow(ProjectListQuerySchema, {
+          includeArchived: params.get('includeArchived') === 'true' || undefined,
         });
-        return this.send(res, 200, data);
+        return this.send(res, 200, await handleProjectList(caller, query));
       }
 
       if (method === 'GET' && path === '/tasks') {
-        const data = await handleTaskList(caller, {
+        const query = parseOrThrow(TaskListQuerySchema, {
           projectId: params.get('projectId') ?? undefined,
-          includeArchived: params.get('includeArchived') === 'true',
+          includeArchived: params.get('includeArchived') === 'true' || undefined,
         });
-        return this.send(res, 200, data);
+        return this.send(res, 200, await handleTaskList(caller, query));
       }
 
       if (method === 'POST' && path === '/tasks') {
-        const body = await this.readJson<{
-          projectId?: string;
-          name: string;
-          sourceBranch?: string;
-          taskBranch?: string;
-          initialPrompt?: string;
-          providerId?: string;
-        }>(req);
-        const data = await handleTaskCreate(caller, body);
-        return this.send(res, 200, data);
+        const body = parseOrThrow(TaskCreateBodySchema, await this.readJson(req));
+        return this.send(res, 200, await handleTaskCreate(caller, body));
       }
 
       if (method === 'GET' && path === '/workspace/dev-servers') {
@@ -223,28 +212,21 @@ export class McpInternalHttpServer {
       }
 
       if (method === 'POST' && path === '/terminals') {
-        const body = await this.readJson<{
-          initialCommand?: string;
-          name?: string;
-          focus?: boolean;
-        }>(req);
-        const data = await handleTerminalCreate(caller, body);
-        return this.send(res, 200, data);
+        const body = parseOrThrow(TerminalCreateBodySchema, await this.readJson(req));
+        return this.send(res, 200, await handleTerminalCreate(caller, body));
       }
 
       const terminalSendMatch = path.match(TERMINAL_SEND_RE);
       if (terminalSendMatch && method === 'POST') {
         const target = decodeURIComponent(terminalSendMatch[1]);
-        const body = await this.readJson<{ text: string; submit?: boolean }>(req);
-        const data = await handleTerminalSend(caller, target, body);
-        return this.send(res, 200, data);
+        const body = parseOrThrow(TerminalSendBodySchema, await this.readJson(req));
+        return this.send(res, 200, await handleTerminalSend(caller, target, body));
       }
 
       this.send(res, 404, { error: 'not found' });
     } catch (err) {
-      if (err instanceof HttpError) {
-        return this.send(res, err.status, { error: err.message });
-      }
+      if (err instanceof HttpError) return this.send(res, err.status, { error: err.message });
+      if (err instanceof ZodError) return this.send(res, 400, { error: err.message });
       log.warn('mcp-internal: route error', { error: String(err) });
       this.send(res, 500, { error: 'internal' });
     }
@@ -275,7 +257,7 @@ export class McpInternalHttpServer {
     res.end(JSON.stringify(body));
   }
 
-  private async readJson<T>(req: http.IncomingMessage): Promise<T> {
+  private async readJson(req: http.IncomingMessage): Promise<unknown> {
     const chunks: Buffer[] = [];
     let total = 0;
     for await (const chunk of req) {
@@ -284,9 +266,9 @@ export class McpInternalHttpServer {
       if (total > MAX_BODY_BYTES) throw new HttpError(413, 'body too large');
       chunks.push(buf);
     }
-    if (total === 0) return {} as T;
+    if (total === 0) return {};
     try {
-      return JSON.parse(Buffer.concat(chunks).toString('utf8')) as T;
+      return JSON.parse(Buffer.concat(chunks).toString('utf8'));
     } catch {
       throw new HttpError(400, 'invalid json');
     }
