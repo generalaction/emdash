@@ -12,7 +12,7 @@ import { getConversationById } from '@main/core/conversations/getConversationByI
 import {
   getTranscriptReader,
   isTranscriptSupported,
-} from '@main/core/conversations/provider-session';
+} from '@main/core/conversations/provider-session/manifest';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { db } from '@main/db/client';

@@ -6,7 +6,7 @@ import { conversations } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
-import { getProviderSessionCapability } from './provider-session';
+import { getProviderSessionCapability } from './provider-session/manifest';
 import { mapConversationRowToConversation } from './utils';
 
 export async function createConversation(params: CreateConversationParams): Promise<Conversation> {

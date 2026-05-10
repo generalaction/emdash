@@ -96,7 +96,13 @@ async function run(
     // (top-level only) — see spec §13a tech debt.
     const recursive = config.recursive !== false && process.platform !== 'linux';
     watcher = fsWatch(baseDir, { recursive }, (_event, filename) => {
-      void onEvent(filename);
+      void onEvent(filename).catch((err) => {
+        log.warn('provider-session: onEvent error', {
+          providerId: req.providerId,
+          filename,
+          error: String(err),
+        });
+      });
     });
   } catch (err) {
     log.warn('provider-session: fs.watch failed; capture skipped', {
