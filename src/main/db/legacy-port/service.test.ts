@@ -36,6 +36,9 @@ function createAppDb(): Database.Database {
       workspace_provider TEXT NOT NULL DEFAULT 'local',
       base_ref TEXT,
       ssh_connection_id TEXT,
+      archived INTEGER NOT NULL DEFAULT 0,
+      icon TEXT,
+      icon_color TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -67,7 +70,9 @@ function createAppDb(): Database.Database {
       provider TEXT,
       config TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_interacted_at TEXT,
+      is_initial_conversation INTEGER
     );
   `);
   return db;
@@ -303,6 +308,9 @@ describe('runLegacyPort', () => {
         workspace_provider TEXT NOT NULL DEFAULT 'local',
         base_ref TEXT,
         ssh_connection_id TEXT,
+        archived INTEGER NOT NULL DEFAULT 0,
+        icon TEXT,
+        icon_color TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );

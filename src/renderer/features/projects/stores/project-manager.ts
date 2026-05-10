@@ -338,6 +338,51 @@ export class ProjectManagerStore {
     return promise;
   }
 
+  async setProjectArchived(projectId: string, archived: boolean): Promise<void> {
+    const store = this.projects.get(projectId);
+    if (!store || !store.data) return;
+    const previous = store.data.archived;
+    runInAction(() => {
+      if (store.data) store.data.archived = archived;
+    });
+    try {
+      await rpc.projects.setProjectArchived(projectId, archived);
+    } catch (err) {
+      runInAction(() => {
+        if (store.data) store.data.archived = previous;
+      });
+      throw err;
+    }
+  }
+
+  async updateProjectAppearance(
+    projectId: string,
+    icon: string | null,
+    iconColor: string | null
+  ): Promise<void> {
+    const store = this.projects.get(projectId);
+    if (!store || !store.data) return;
+    const prevIcon = store.data.icon;
+    const prevColor = store.data.iconColor;
+    runInAction(() => {
+      if (store.data) {
+        store.data.icon = icon;
+        store.data.iconColor = iconColor;
+      }
+    });
+    try {
+      await rpc.projects.updateProjectAppearance(projectId, icon, iconColor);
+    } catch (err) {
+      runInAction(() => {
+        if (store.data) {
+          store.data.icon = prevIcon;
+          store.data.iconColor = prevColor;
+        }
+      });
+      throw err;
+    }
+  }
+
   async deleteProject(projectId: string): Promise<void> {
     const snapshot = this.projects.get(projectId);
     runInAction(() => {

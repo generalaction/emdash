@@ -9,6 +9,7 @@ import {
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { cn } from '@renderer/utils/utils';
+import { ArchivedProjectsSection } from './archived-projects-section';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
 import {
@@ -62,6 +63,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+          <ArchivedProjectsSection />
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
