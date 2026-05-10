@@ -449,7 +449,6 @@ Workarounds to track and remove:
 | `resumeWithIdFlag` provider field | `src/shared/agent-provider-registry.ts` | Remove when codex collapses `resume <UUID>` into the same path Claude uses. |
 | Codex resume falls back to `resume --last` when capture missed | `src/main/core/conversations/impl/agent-command.ts` | Fallback is racy in same-cwd-multi-conversation scenarios. Acceptable while capture has a 30s window; remove fallback when capture is reliable. |
 | Provider transcript path layouts hardcoded in capability files | `provider-session/{claude,codex,copilot}.ts` | Replace with ACP transport (no on-disk transcript file to discover). |
-| Linux fs-watch is best-effort (top-level only, no recursion) | `provider-session/capture-engine.ts` | Add polling fallback for Linux, or wait for `fs.watch` recursive on all platforms. Codex/copilot transcript capture on Linux is currently unreliable. |
 | Copilot YAML parsing is line-based regex | `provider-session/copilot.ts` `matchCopilotDir` | OK while `workspace.yaml` stays flat; switch to a real YAML lib if copilot starts nesting. |
 | Copilot reads from a shared sqlite (`~/.copilot/session-store.db`) | `provider-session/copilot.ts` | This couples emdash to copilot's internal schema. If copilot CLI ever exposes a stable transcript export API, prefer that. |
 

@@ -123,7 +123,6 @@ export const codexCapability: ProviderSessionCapability = {
   acceptsSessionIdFlagAtSpawn: false,
   capture: {
     baseDir: (home) => path.join(home, '.codex', 'sessions'),
-    recursive: true,
     matchesEntry: (name) => name.startsWith('rollout-') && name.endsWith('.jsonl'),
     match: matchCodexFile,
   },

@@ -117,8 +117,6 @@ export const copilotCapability: ProviderSessionCapability = {
   acceptsSessionIdFlagAtSpawn: false,
   capture: {
     baseDir: (home) => path.join(home, '.copilot', 'session-state'),
-    // Top-level dirs only — each session is a UUID-named directory.
-    recursive: false,
     matchesEntry: (name) => /^[0-9a-f-]{36}$/i.test(name),
     match: matchCopilotDir,
   },
