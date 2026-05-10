@@ -18,6 +18,12 @@ const findClosingDelimiter = (value: string, delimiter: string, start: number) =
   return -1;
 };
 
+const appendDisplayMath = (result: string, value: string) => {
+  const trimmedResult = result.trimEnd();
+  const prefix = trimmedResult.length > 0 ? '\n' : '';
+  return `${trimmedResult}${prefix}$$\n${value.trim()}\n$$\n`;
+};
+
 /**
  * remark-math only handles dollar delimiters; normalize LaTeX-style \(...\)
  * and \[...\] to $...$ and $$...$$ before parsing. Skips code spans and
@@ -67,7 +73,7 @@ export const normalizeLatexDelimiters = (content: string) => {
     if (content.startsWith('$$', index) && !isEscaped(content, index)) {
       const closing = findClosingDelimiter(content, '$$', index + 2);
       if (closing !== -1) {
-        result += `$$\n${content.slice(index + 2, closing).trim()}\n$$`;
+        result = appendDisplayMath(result, content.slice(index + 2, closing));
         index = closing + 2;
         continue;
       }
@@ -83,7 +89,7 @@ export const normalizeLatexDelimiters = (content: string) => {
       const closing = findClosingDelimiter(content, delimiter.close, index + delimiter.open.length);
       if (closing !== -1) {
         const inner = content.slice(index + delimiter.open.length, closing).trim();
-        result += delimiter.display ? `$$\n${inner}\n$$` : `$${inner}$`;
+        result = delimiter.display ? appendDisplayMath(result, inner) : `${result}$${inner}$`;
         index = closing + delimiter.close.length;
         continue;
       }

@@ -4,13 +4,19 @@ import { normalizeLatexDelimiters } from './markdown-latex';
 describe('normalizeLatexDelimiters', () => {
   it('normalizes common LaTeX inline and display delimiters', () => {
     expect(normalizeLatexDelimiters('Inline \\(x^2\\) and display:\n\\[\nx^2\n\\]')).toBe(
-      'Inline $x^2$ and display:\n$$\nx^2\n$$'
+      'Inline $x^2$ and display:\n$$\nx^2\n$$\n'
     );
   });
 
   it('puts dollar display math delimiters on their own lines', () => {
     expect(normalizeLatexDelimiters('Before\n$$a\n\n\\iff\n\nb$$\nAfter')).toBe(
-      'Before\n$$\na\n\n\\iff\n\nb\n$$\nAfter'
+      'Before\n$$\na\n\n\\iff\n\nb\n$$\n\nAfter'
+    );
+  });
+
+  it('separates adjacent display math blocks in prose', () => {
+    expect(normalizeLatexDelimiters('Für $x=1$: $$ 8=3A $$$$ A=\\frac{8}{3} $$ Weiter')).toBe(
+      'Für $x=1$:\n$$\n8=3A\n$$\n$$\nA=\\frac{8}{3}\n$$\n Weiter'
     );
   });
 
