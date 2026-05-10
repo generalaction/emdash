@@ -19,11 +19,15 @@ export function getAppSettingValueSnapshot<K extends AppSettingsKey>(
   return queryClient.getQueryData<SettingsMeta<K>>(settingsMetaQueryKey(key))?.value;
 }
 
+const appSettingsGcTime = <K extends AppSettingsKey>(key: K) =>
+  key === 'interface' ? Infinity : undefined;
+
 export function prefetchAppSettingsKey<K extends AppSettingsKey>(key: K) {
   return queryClient.prefetchQuery<SettingsMeta<K>>({
     queryKey: settingsMetaQueryKey(key),
     queryFn: () => rpc.appSettings.getWithMeta(key) as Promise<SettingsMeta<K>>,
     staleTime: 5 * 60_000,
+    gcTime: appSettingsGcTime(key),
   });
 }
 
@@ -49,6 +53,7 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
     queryKey: settingsMetaQueryKey(key),
     queryFn: () => rpc.appSettings.getWithMeta(key) as Promise<SettingsMeta<K>>,
     staleTime: 5 * 60_000,
+    gcTime: appSettingsGcTime(key),
   });
 
   const updateMutation = useMutation<
