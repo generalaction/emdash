@@ -20,7 +20,6 @@ export interface ResourcePtyEntry {
   ppid?: number;
   cpu: number;
   memory: number;
-  paused: boolean;
   providerId?: AgentProviderId;
   title?: string;
 }

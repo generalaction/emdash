@@ -1,4 +1,4 @@
-import { Check, Copy, Folder, GitBranch, Pause, Play, X } from 'lucide-react';
+import { Check, Copy, Folder, GitBranch, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
@@ -202,26 +202,10 @@ function TaskNode({ task }: { task: TaskBucket }) {
 }
 
 function AgentRow({ entry }: { entry: Entry }) {
-  const [pending, setPending] = useState(false);
   const norm = appState.resourceMonitor.normalizedCpu(entry);
   const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
   const label =
     entry.conversationTitle || meta?.label || entry.providerId || entry.leafId.slice(0, 8);
-  const canPause = entry.pid !== undefined;
-
-  const handleTogglePaused = useCallback(async () => {
-    if (!canPause || pending) return;
-    setPending(true);
-    try {
-      if (entry.paused) {
-        await appState.resourceMonitor.resumeSession(entry.sessionId);
-      } else {
-        await appState.resourceMonitor.pauseSession(entry.sessionId);
-      }
-    } finally {
-      setPending(false);
-    }
-  }, [canPause, entry.paused, entry.sessionId, pending]);
 
   return (
     <div
@@ -240,44 +224,14 @@ function AgentRow({ entry }: { entry: Entry }) {
         </span>
       ) : null}
       <div className="min-w-0 flex-1 truncate">
-        <span
-          className={
-            entry.paused ? 'truncate text-foreground-passive' : 'truncate text-foreground-muted'
-          }
-        >
-          {label}
-        </span>
+        <span className="truncate text-foreground-muted">{label}</span>
         {entry.pid === undefined ? (
           <span className="ml-1 text-[10px] text-foreground-passive">(ssh)</span>
-        ) : null}
-        {entry.paused ? (
-          <span className="ml-1 text-[10px] text-foreground-passive">(paused)</span>
         ) : null}
       </div>
       <span className="tabular-nums text-foreground-passive">
         {norm.toFixed(0)}% · {formatBytes(entry.memory)}
       </span>
-      <Tooltip>
-        <TooltipTrigger>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={entry.paused ? 'Resume process' : 'Pause process'}
-            disabled={!canPause || pending}
-            onClick={handleTogglePaused}
-            className="size-5 shrink-0 text-foreground-passive hover:text-foreground"
-          >
-            {entry.paused ? <Play className="size-3" /> : <Pause className="size-3" />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {canPause
-            ? entry.paused
-              ? 'Resume process'
-              : 'Pause process'
-            : 'Remote processes cannot be paused'}
-        </TooltipContent>
-      </Tooltip>
     </div>
   );
 }
@@ -357,7 +311,6 @@ export function formatReport(snapshot: ResourceSnapshot, groups: Group[]): strin
         if (e.pid !== undefined) parts.push(`pid=${e.pid}`);
         if (e.ppid !== undefined) parts.push(`ppid=${e.ppid}`);
         if (e.pid === undefined) parts.push('ssh');
-        if (e.paused) parts.push('paused');
         const suffix = parts.length > 0 ? ` (${parts.join(' ')})` : '';
         const cpu = snapshot.cpuCount > 0 ? e.cpu / snapshot.cpuCount : 0;
         lines.push(`${path} ${cpu.toFixed(1)}% ${formatBytes(e.memory)}${suffix}`);

@@ -16,7 +16,6 @@ export class PtySessionRegistry {
   private ptyInputSubscriptions: Map<string, () => void> = new Map();
   private ringBuffers: Map<string, string> = new Map();
   private activeConsumers: Set<string> = new Set();
-  private pausedSessions: Set<string> = new Set();
   private metadata: Map<string, PtySessionMetadata> = new Map();
 
   register(
@@ -29,7 +28,6 @@ export class PtySessionRegistry {
     // Clear any stale ring buffer and consumer from a previous PTY at this sessionId (respawn)
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
-    this.pausedSessions.delete(sessionId);
     this.metadata.delete(sessionId);
     if (options?.metadata) this.metadata.set(sessionId, options.metadata);
 
@@ -91,34 +89,11 @@ export class PtySessionRegistry {
     this.ptyInputSubscriptions.delete(sessionId);
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
-    this.pausedSessions.delete(sessionId);
     this.metadata.delete(sessionId);
   }
 
   get(sessionId: string): Pty | undefined {
     return this.ptyMap.get(sessionId);
-  }
-
-  pause(sessionId: string): 'paused' | 'not_found' | 'unsupported' {
-    const pty = this.ptyMap.get(sessionId);
-    if (!pty) return 'not_found';
-    if (!pty.pause) return 'unsupported';
-    pty.pause();
-    this.pausedSessions.add(sessionId);
-    return 'paused';
-  }
-
-  resume(sessionId: string): 'resumed' | 'not_found' | 'unsupported' {
-    const pty = this.ptyMap.get(sessionId);
-    if (!pty) return 'not_found';
-    if (!pty.resume) return 'unsupported';
-    pty.resume();
-    this.pausedSessions.delete(sessionId);
-    return 'resumed';
-  }
-
-  isPaused(sessionId: string): boolean {
-    return this.pausedSessions.has(sessionId);
   }
 
   /**
@@ -145,20 +120,17 @@ export class PtySessionRegistry {
   listActiveSessions(): Array<{
     sessionId: string;
     pid: number | undefined;
-    paused: boolean;
     metadata?: PtySessionMetadata;
   }> {
     const out: Array<{
       sessionId: string;
       pid: number | undefined;
-      paused: boolean;
       metadata?: PtySessionMetadata;
     }> = [];
     for (const [sessionId, pty] of this.ptyMap) {
       out.push({
         sessionId,
         pid: pty.getPid?.(),
-        paused: this.isPaused(sessionId),
         metadata: this.metadata.get(sessionId),
       });
     }

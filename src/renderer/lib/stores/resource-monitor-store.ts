@@ -77,20 +77,6 @@ export class ResourceMonitorStore {
     });
   }
 
-  async pauseSession(sessionId: string): Promise<boolean> {
-    const res = await rpc.resourceMonitor.pauseSession(sessionId);
-    if (!res?.success) return false;
-    await this.refresh();
-    return true;
-  }
-
-  async resumeSession(sessionId: string): Promise<boolean> {
-    const res = await rpc.resourceMonitor.resumeSession(sessionId);
-    if (!res?.success) return false;
-    await this.refresh();
-    return true;
-  }
-
   /** Normalized CPU% (relative to all cores) for a single entry. */
   normalizedCpu(entry: ResourcePtyEntry): number {
     if (!this.snapshot || this.snapshot.cpuCount === 0) return 0;

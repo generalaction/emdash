@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, Check, Copy, Folder, GitBranch, Pause, Play } from 'lucide-react';
+import { Activity, ArrowLeft, Check, Copy, Folder, GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ResourceAppProcess, ResourceSnapshot } from '@shared/resource-monitor';
@@ -15,7 +15,6 @@ import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
-import { cn } from '@renderer/utils/utils';
 
 export const ResourceMonitorView = observer(function ResourceMonitorView({
   onBack,
@@ -157,26 +156,10 @@ function TaskRow({ task }: { task: TaskBucket }) {
 }
 
 function AgentRow({ entry }: { entry: Entry }) {
-  const [pending, setPending] = useState(false);
   const norm = appState.resourceMonitor.normalizedCpu(entry);
   const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
   const label =
     entry.conversationTitle || meta?.label || entry.providerId || entry.leafId.slice(0, 8);
-  const canPause = entry.pid !== undefined;
-
-  const handleTogglePaused = useCallback(async () => {
-    if (!canPause || pending) return;
-    setPending(true);
-    try {
-      if (entry.paused) {
-        await appState.resourceMonitor.resumeSession(entry.sessionId);
-      } else {
-        await appState.resourceMonitor.pauseSession(entry.sessionId);
-      }
-    } finally {
-      setPending(false);
-    }
-  }, [canPause, entry.paused, entry.sessionId, pending]);
 
   return (
     <div
@@ -197,35 +180,12 @@ function AgentRow({ entry }: { entry: Entry }) {
         <span className="size-4 shrink-0" />
       )}
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <span
-          className={cn(
-            'truncate text-xs',
-            entry.paused ? 'text-foreground/40' : 'text-foreground-muted'
-          )}
-        >
-          {label}
-        </span>
+        <span className="truncate text-xs text-foreground-muted">{label}</span>
         {entry.pid === undefined ? <Badge>SSH</Badge> : null}
-        {entry.paused ? <Badge>Paused</Badge> : null}
       </div>
       <span className="shrink-0 text-xs tabular-nums text-foreground/50">
         {norm.toFixed(0)}% · {formatBytes(entry.memory)}
       </span>
-      <Tooltip>
-        <TooltipTrigger>
-          <button
-            disabled={!canPause || pending}
-            onClick={handleTogglePaused}
-            className="flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/40 transition-colors hover:bg-background-3 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
-            aria-label={entry.paused ? 'Resume' : 'Pause'}
-          >
-            {entry.paused ? <Play size={11} /> : <Pause size={11} />}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {!canPause ? 'Remote process — cannot pause' : entry.paused ? 'Resume' : 'Pause'}
-        </TooltipContent>
-      </Tooltip>
     </div>
   );
 }
