@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
-import { Activity, FolderOpen, GitBranch, MessageSquare, Zap, type LucideIcon } from 'lucide-react';
+import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { SearchItem } from '@shared/search';
