@@ -37,6 +37,14 @@ export class AgentEventBuffer {
     return this.states.get(conversationId);
   }
 
+  /** Events for a conversation, optionally newer than `since` (ms timestamp). */
+  getEvents(conversationId: string, since?: number): AgentEvent[] {
+    const state = this.states.get(conversationId);
+    if (!state) return [];
+    if (since === undefined) return state.recent.slice();
+    return state.recent.filter((e) => e.timestamp > since);
+  }
+
   /**
    * Long-poll: resolves true when a new event lands for this conversation,
    * false on timeout. Resolves immediately if `since` is older than the most
