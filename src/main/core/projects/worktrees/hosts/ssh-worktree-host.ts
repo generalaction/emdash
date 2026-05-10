@@ -9,7 +9,7 @@ import type { WorktreeHost } from './worktree-host';
 
 type SshWorktreeFs = Pick<
   FileSystemProvider,
-  'exists' | 'mkdir' | 'remove' | 'realPath' | 'glob' | 'copyFile' | 'stat'
+  'exists' | 'mkdir' | 'remove' | 'realPath' | 'glob' | 'read' | 'copyFile' | 'stat'
 >;
 
 export class SshWorktreeHost implements WorktreeHost {
@@ -50,6 +50,10 @@ export class SshWorktreeHost implements WorktreeHost {
       ...options,
       cwd: this.validateAbsolute(options.cwd),
     });
+  }
+
+  async readFileAbsolute(filePath: string): Promise<string> {
+    return (await this.fs.read(this.validateAbsolute(filePath))).content;
   }
 
   async copyFileAbsolute(src: string, dest: string): Promise<void> {

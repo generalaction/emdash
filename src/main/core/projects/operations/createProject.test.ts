@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLocalProject, createSshProject, getSshProjectPathStatus } from './createProject';
+import { createLocalProject } from './create-local-project';
+import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
 
 const mocks = vi.hoisted(() => ({
   detectInfoMock: vi.fn(),
