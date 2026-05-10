@@ -43,6 +43,7 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import { basenameAny } from '@renderer/utils/path-name';
 import { cn } from '@renderer/utils/utils';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
 
@@ -169,7 +170,7 @@ const FileTabItem = observer(function FileTabItem({
   onPin: () => void;
   onClose: () => void;
 }) {
-  const fileName = tab.path.split('/').pop() ?? 'Untitled';
+  const fileName = basenameAny(tab.path) || 'Untitled';
   const isMonacoFile =
     tab.path.endsWith('.md') ||
     tab.path.endsWith('.svg') ||
@@ -263,7 +264,7 @@ const DiffTabItem = observer(function DiffTabItem({
   onPin: () => void;
   onClose: () => void;
 }) {
-  const fileName = tab.path.split('/').pop() ?? 'Untitled';
+  const fileName = basenameAny(tab.path) || 'Untitled';
   const suffix = diffGroupSuffix(tab.diffGroup);
 
   return (
