@@ -9,6 +9,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 
 export const PrRow = memo(function PrRow({
   pr,
@@ -47,7 +48,10 @@ export const PrRow = memo(function PrRow({
           </div>
           <RelativeTime value={pr.createdAt} className="text-xs text-foreground-passive" compact />
         </div>
-        <PrMergeLine pr={pr} />
+        <div className="flex min-w-0 items-center gap-2">
+          <PrMergeLine pr={pr} className="flex-1" />
+          <PrDiffStat pr={pr} />
+        </div>
       </div>
       <div className="shrink-0 absolute top-0 flex h-full items-center gap-1 right-3  opacity-0 group-hover:opacity-100 transition-opacity">
         <Button
@@ -64,3 +68,14 @@ export const PrRow = memo(function PrRow({
     </div>
   );
 });
+
+function PrDiffStat({ pr }: { pr: PullRequest }) {
+  if (pr.additions == null && pr.deletions == null) return null;
+
+  return (
+    <span className="shrink-0 text-xs tabular-nums" aria-label="Pull request diff lines">
+      <span className="text-green-600">+{formatDiffLineCount(pr.additions ?? 0)}</span>{' '}
+      <span className="text-red-500">-{formatDiffLineCount(pr.deletions ?? 0)}</span>
+    </span>
+  );
+}
