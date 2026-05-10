@@ -356,31 +356,31 @@ Key wiring touchpoints in existing code:
 
 ## 11. Phasing
 
-**PR1 — bootstrap (this branch):**
+**PR1 — bootstrap (✅ shipped):**
 1. `src/mcp-server/` skeleton (electron-vite entry + stdio MCP boilerplate)
 2. `src/main/core/mcp-internal/` HTTP server + auth + instance / port mgmt
 3. `emdash` entry in `catalogData`
 4. App boot: refresh emdash catalog entry with current port / instance
 5. PTY env injection at conversation spawn
 6. Implement: `agent_self`, `agent_observe`, `agent_send`
-7. Manual test: install emdash MCP via UI in Claude Code, spawn conversation, verify `agent_self` returns correct identity, two conversations talk via `agent_send` + `agent_observe`
 
-**PR2 — Set A complete:**
-- `agent_list_peers`, `agent_spawn`, `agent_close`, `agent_interrupt`
+**PR2 — Set A complete (✅ shipped, `agent_close` cut):**
+- `agent_list_peers`, `agent_spawn`, `agent_interrupt`
 - `agent_fetch(events|scrollback)` from in-memory buffers
-- Cross-task scope query support + `cross-task:write` capability bucket
+- Cross-task reads always allowed; cross-task writes opt-in via explicit `crossTask` flag (no DB-backed capability bucket — discouragement is in tool descriptions only).
 
-**PR3 — transcript reads:**
-- Per-provider transcript readers (Claude Code, Codex, Copilot CLI)
-- `external_session_id` capture at conversation spawn
-- Schema migration adding `external_session_id` / `imported` / `external_source_path` to conversations
-- `agent_fetch(transcript)` end-to-end
+**PR3 — transcript reads (✅ shipped):**
+- Provider session manifest at `src/main/core/conversations/provider-session/` — per-provider capability + capture rules + transcript reader behind one interface.
+- Per-provider readers: Claude Code (JSONL), Codex (JSONL with fs-watch capture), GitHub Copilot CLI (sqlite turns table with fs-watch capture).
+- Schema migration adding `external_session_id` / `imported` / `external_source_path` to `conversations`.
+- Codex resume by external session id (replaces `resume --last`) when capture succeeded.
+- `agent_fetch(transcript)` end-to-end.
 
-**PR4 — orchestration + awareness + terminals:**
-- `task_list`, `task_create`
-- `workspace_dev_servers`
-- `terminal_list`, `terminal_send`, `terminal_create`
-- Capability toggle UI in task settings panel
+**PR4 — orchestration + awareness + terminals (✅ shipped):**
+- `task_list`, `task_create` (defaults to caller's project; sourceBranch defaults to project's baseRef)
+- `workspace_dev_servers` (driven by `hostPreviewBus` aggregating `dev-server-watcher` events main-side)
+- `terminal_list`, `terminal_send`, `terminal_create` (initialCommand auto-typed after 250ms)
+- `terminal_create({focus:true})` is currently a no-op — drawer focus IPC is not wired (deferred to a UI follow-up; see §13a).
 
 ---
 

@@ -2,6 +2,7 @@ import http from 'node:http';
 import type { Conversation } from '@shared/conversations';
 import { getConversationById } from '@main/core/conversations/getConversationById';
 import { log } from '@main/lib/logger';
+import { DevServerTracker } from './dev-server-tracker';
 import { AgentEventBuffer } from './event-buffer';
 import type { McpInternalInstance } from './instance';
 import {
@@ -13,6 +14,14 @@ import {
   handleAgentSend,
   handleAgentSpawn,
 } from './routes/agent';
+import {
+  handleTaskCreate,
+  handleTaskList,
+  handleTerminalCreate,
+  handleTerminalList,
+  handleTerminalSend,
+  handleWorkspaceDevServers,
+} from './routes/orchestration';
 
 export class HttpError extends Error {
   constructor(
@@ -36,11 +45,13 @@ const AGENT_OBSERVE_RE = /^\/agent\/([^/]+)\/observe$/;
 const AGENT_SEND_RE = /^\/agent\/([^/]+)\/send$/;
 const AGENT_FETCH_RE = /^\/agent\/([^/]+)\/fetch$/;
 const AGENT_INTERRUPT_RE = /^\/agent\/([^/]+)\/interrupt$/;
+const TERMINAL_SEND_RE = /^\/terminals\/([^/]+)\/send$/;
 
 export class McpInternalHttpServer {
   private server: http.Server | null = null;
   private port = 0;
   private readonly buffer = new AgentEventBuffer();
+  private readonly devServers = new DevServerTracker();
 
   constructor(private readonly instance: McpInternalInstance) {}
 
@@ -48,6 +59,7 @@ export class McpInternalHttpServer {
     if (this.server) return { port: this.port };
 
     this.buffer.start();
+    this.devServers.start();
 
     this.server = http.createServer((req, res) => {
       void this.handle(req, res).catch((err) => {
@@ -75,6 +87,7 @@ export class McpInternalHttpServer {
 
   stop(): void {
     this.buffer.stop();
+    this.devServers.stop();
     if (this.server) {
       this.server.close();
       this.server = null;
@@ -167,6 +180,55 @@ export class McpInternalHttpServer {
         const target = decodeURIComponent(interruptMatch[1]);
         const body = await this.readJson<{ crossTask?: boolean }>(req);
         const data = await handleAgentInterrupt(caller, target, body);
+        return this.send(res, 200, data);
+      }
+
+      if (method === 'GET' && path === '/tasks') {
+        const data = await handleTaskList(caller, {
+          projectId: params.get('projectId') ?? undefined,
+          includeArchived: params.get('includeArchived') === 'true',
+        });
+        return this.send(res, 200, data);
+      }
+
+      if (method === 'POST' && path === '/tasks') {
+        const body = await this.readJson<{
+          projectId?: string;
+          name: string;
+          sourceBranch?: string;
+          taskBranch?: string;
+          initialPrompt?: string;
+          providerId?: string;
+        }>(req);
+        const data = await handleTaskCreate(caller, body);
+        return this.send(res, 200, data);
+      }
+
+      if (method === 'GET' && path === '/workspace/dev-servers') {
+        const data = handleWorkspaceDevServers(caller, this.devServers);
+        return this.send(res, 200, data);
+      }
+
+      if (method === 'GET' && path === '/terminals') {
+        const data = await handleTerminalList(caller);
+        return this.send(res, 200, data);
+      }
+
+      if (method === 'POST' && path === '/terminals') {
+        const body = await this.readJson<{
+          initialCommand?: string;
+          name?: string;
+          focus?: boolean;
+        }>(req);
+        const data = await handleTerminalCreate(caller, body);
+        return this.send(res, 200, data);
+      }
+
+      const terminalSendMatch = path.match(TERMINAL_SEND_RE);
+      if (terminalSendMatch && method === 'POST') {
+        const target = decodeURIComponent(terminalSendMatch[1]);
+        const body = await this.readJson<{ text: string; submit?: boolean }>(req);
+        const data = await handleTerminalSend(caller, target, body);
         return this.send(res, 200, data);
       }
 
