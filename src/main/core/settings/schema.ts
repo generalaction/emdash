@@ -118,6 +118,13 @@ export const interfaceSettingsSchema = z.object({
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const PROJECT_EMOJI_SET_IDS = ['native', 'apple', 'google', 'twitter', 'facebook'] as const;
+export type ProjectEmojiSetId = (typeof PROJECT_EMOJI_SET_IDS)[number];
+
+export const appearanceSettingsSchema = z.object({
+  projectEmojiSet: z.enum(PROJECT_EMOJI_SET_IDS).default('google'),
+});
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -136,6 +143,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  appearance: appearanceSettingsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -151,4 +159,5 @@ export const appSettingsSchema = z.object({
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  appearance: appearanceSettingsSchema,
 });
