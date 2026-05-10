@@ -57,7 +57,7 @@ export const ResourceMonitorView = observer(function ResourceMonitorView({
           <Section heading="Application">
             <div className="flex flex-col">
               {processes.map((p) => (
-                <ProcessRow key={p.pid} process={p} />
+                <ProcessRow key={p.pid} process={p} cpuCount={snapshot?.cpuCount} />
               ))}
             </div>
           </Section>
@@ -101,15 +101,16 @@ function Section({ heading, children }: { heading: string; children: ReactNode }
   );
 }
 
-function ProcessRow({ process }: { process: ResourceAppProcess }) {
+function ProcessRow({ process, cpuCount }: { process: ResourceAppProcess; cpuCount?: number }) {
   const label = appProcessLabel(process.type, process.name);
+  const cpu = cpuCount ? process.cpu / cpuCount : process.cpu;
   return (
     <div
       className="grid grid-cols-[1fr_3rem_4rem] items-center gap-2 rounded-md px-2 py-1 text-xs text-foreground-muted hover:bg-background-2"
       title={`pid ${process.pid}`}
     >
       <span className="truncate">{label}</span>
-      <span className="text-right tabular-nums text-foreground/50">{process.cpu.toFixed(1)}%</span>
+      <span className="text-right tabular-nums text-foreground/50">{cpu.toFixed(1)}%</span>
       <span className="text-right tabular-nums text-foreground/50">
         {formatBytes(process.memory)}
       </span>
