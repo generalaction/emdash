@@ -12,12 +12,12 @@ function matchFiles(pattern: RegExp): string[] {
   }
 }
 
-export function findManifests(): string[] {
-  return matchFiles(new RegExp(`^${UPDATE_CHANNEL}.*\\.yml$`));
+export function findManifests(channel = UPDATE_CHANNEL): string[] {
+  return matchFiles(new RegExp(`^${channel}.*\\.yml$`));
 }
 
-export function findInstallers(): string[] {
-  return matchFiles(new RegExp(`^${ARTIFACT_PREFIX}-.*\\.(dmg|zip|exe|msi|AppImage|deb|rpm)$`));
+export function findInstallers(prefix = ARTIFACT_PREFIX): string[] {
+  return matchFiles(new RegExp(`^${prefix}-.*\\.(dmg|zip|exe|msi|AppImage|deb|rpm)$`));
 }
 
 export function findBlockmaps(): string[] {

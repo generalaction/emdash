@@ -3,7 +3,7 @@
 // editor-file-tree.tsx so the flat tree and renderer agree on visibility.
 // ---------------------------------------------------------------------------
 
-import { FileNode } from '@shared/fs';
+import { type FileNode } from '@shared/fs';
 
 const EXCLUDED_NAMES = new Set([
   '.git',
@@ -33,6 +33,7 @@ const EXCLUDED_NAMES = new Set([
   '.conductor',
   '.cursor',
   '.claude',
+  '.devin',
   '.amp',
   '.codex',
   '.aider',

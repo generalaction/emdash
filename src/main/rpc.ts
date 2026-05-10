@@ -4,6 +4,7 @@ import { appController } from './core/app/controller';
 import { conversationController } from './core/conversations/controller';
 import { dependenciesController } from './core/dependencies/controller';
 import { editorBufferController } from './core/editor/controller';
+import { featurebaseController } from './core/featurebase/controller';
 import { forgejoController } from './core/forgejo/controller';
 import { filesController } from './core/fs/controller';
 import { gitController } from './core/git/controller';
@@ -18,6 +19,8 @@ import { projectController } from './core/projects/controller';
 import { ptyController } from './core/pty/controller';
 import { pullRequestController } from './core/pull-requests/controller';
 import { repositoryController } from './core/repository/controller';
+import { resourceMonitorController } from './core/resource-monitor/controller';
+import { searchController } from './core/search/controller';
 import { appSettingsController } from './core/settings/controller';
 import { providerSettingsController } from './core/settings/provider-settings-controller';
 import { skillsController } from './core/skills/controller';
@@ -39,6 +42,8 @@ export const rpcRouter = createRPCRouter({
   fs: filesController,
   update: updateController,
   pty: ptyController,
+  resourceMonitor: resourceMonitorController,
+  featurebase: featurebaseController,
   forgejo: forgejoController,
   github: githubController,
   gitlab: gitlabController,
@@ -59,6 +64,7 @@ export const rpcRouter = createRPCRouter({
   telemetry: telemetryController,
   pullRequests: pullRequestController,
   viewState: viewStateController,
+  search: searchController,
 });
 
 export type RpcRouter = typeof rpcRouter;

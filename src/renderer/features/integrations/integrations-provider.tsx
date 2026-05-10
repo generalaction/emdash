@@ -75,6 +75,12 @@ const PROVIDER_CONNECTION_CONFIG = {
     fallbackError: DEFAULT_CONNECT_ERROR,
     validateInput: validateInstanceCredentials,
   },
+  featurebase: {
+    connectMutationFn: (apiKey: string) => rpc.featurebase.saveToken(apiKey),
+    disconnectMutationFn: () => rpc.featurebase.clearToken(),
+    fallbackError: DEFAULT_CONNECT_ERROR,
+    validateInput: validateTokenInput,
+  },
 } as const;
 
 type IntegrationsContextValue = {
@@ -87,6 +93,7 @@ type IntegrationsContextValue = {
   isGitlabConnected: boolean | null;
   isPlainConnected: boolean | null;
   isForgejoConnected: boolean | null;
+  isFeaturebaseConnected: boolean | null;
 
   // Auth mutations stay per provider.
   isLinearLoading: boolean;
@@ -94,6 +101,7 @@ type IntegrationsContextValue = {
   isGitlabLoading: boolean;
   isPlainLoading: boolean;
   isForgejoLoading: boolean;
+  isFeaturebaseLoading: boolean;
   connectLinear: (apiKey: string) => Promise<void>;
   disconnectLinear: () => Promise<void>;
   connectJira: (credentials: { siteUrl: string; email: string; token: string }) => Promise<void>;
@@ -104,6 +112,8 @@ type IntegrationsContextValue = {
   disconnectPlain: () => Promise<void>;
   connectForgejo: (credentials: { instanceUrl: string; token: string }) => Promise<void>;
   disconnectForgejo: () => Promise<void>;
+  connectFeaturebase: (apiKey: string) => Promise<void>;
+  disconnectFeaturebase: () => Promise<void>;
 };
 
 const IntegrationsContext = createContext<IntegrationsContextValue | null>(null);
@@ -157,6 +167,10 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     ...PROVIDER_CONNECTION_CONFIG.forgejo,
     invalidate: invalidateStatuses,
   });
+  const featurebaseConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.featurebase,
+    invalidate: invalidateStatuses,
+  });
 
   const connectionStatus = statusData ?? DEFAULT_CONNECTION_STATUS;
 
@@ -170,11 +184,13 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
         isGitlabConnected: isConnected(statusData, 'gitlab'),
         isPlainConnected: isConnected(statusData, 'plain'),
         isForgejoConnected: isConnected(statusData, 'forgejo'),
+        isFeaturebaseConnected: isConnected(statusData, 'featurebase'),
         isLinearLoading: isInitialConnectionCheck || linearConnection.isLoading,
         isJiraLoading: isInitialConnectionCheck || jiraConnection.isLoading,
         isGitlabLoading: isInitialConnectionCheck || gitlabConnection.isLoading,
         isPlainLoading: isInitialConnectionCheck || plainConnection.isLoading,
         isForgejoLoading: isInitialConnectionCheck || forgejoConnection.isLoading,
+        isFeaturebaseLoading: isInitialConnectionCheck || featurebaseConnection.isLoading,
         connectLinear: linearConnection.connect,
         disconnectLinear: linearConnection.disconnect,
         connectJira: jiraConnection.connect,
@@ -185,6 +201,8 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
         disconnectPlain: plainConnection.disconnect,
         connectForgejo: forgejoConnection.connect,
         disconnectForgejo: forgejoConnection.disconnect,
+        connectFeaturebase: featurebaseConnection.connect,
+        disconnectFeaturebase: featurebaseConnection.disconnect,
       }}
     >
       {children}

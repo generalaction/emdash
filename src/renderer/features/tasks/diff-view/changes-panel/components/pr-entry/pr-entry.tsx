@@ -8,7 +8,7 @@ import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { SplitButtonAction } from '@renderer/lib/ui/split-button';
+import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
 import { PrChecksList } from './checks-list';
@@ -184,7 +184,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
       <div className="min-h-0 flex flex-1 flex-col px-2.5">
         <ToggleGroup
           value={[tab]}
-          size={'sm'}
+          size={'xs'}
           className="w-full"
           onValueChange={([value]) => {
             if (value) {
@@ -213,7 +213,6 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           uiState={uiState}
           mergeActions={mergeActions}
           isMerging={isMerging}
-          onRefresh={() => prStore.refresh(pr.url)}
           onMarkReady={() => {
             prStore.markReadyForReview(pr.url).catch(() => {});
           }}

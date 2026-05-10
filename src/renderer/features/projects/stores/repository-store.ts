@@ -1,16 +1,21 @@
 import { computed, makeObservable, reaction } from 'mobx';
 import { gitRefChangedChannel, type GitRefChange } from '@shared/events/gitEvents';
 import type {
+  Branch,
   LocalBranch,
   LocalBranchesPayload,
   Remote,
   RemoteBranch,
   RemoteBranchesPayload,
 } from '@shared/git';
-import { bareRefName, computeDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import {
+  projectDefaultBranchToBranch,
+  resolveDefaultBranch,
+  selectPreferredRemote,
+} from '@shared/git-utils';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { isGitHubUrl, normalizeGitHubUrl } from '@renderer/utils/github/utils';
 import type { ProjectSettingsStore } from './project-settings-store';
 
 export class RepositoryStore {
@@ -22,17 +27,20 @@ export class RepositoryStore {
   constructor(
     private readonly projectId: string,
     private readonly settingsStore: ProjectSettingsStore,
-    private readonly baseRef: string
+    private readonly baseRef: string,
+    private readonly workspaceId?: string
   ) {
     this.localData = new Resource<LocalBranchesPayload, GitRefChange>(
-      () => rpc.repository.getLocalBranches(projectId),
+      () => rpc.repository.getLocalBranches(projectId, workspaceId),
       [
         { kind: 'demand' },
         {
           kind: 'event',
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
-              if (p.projectId === projectId && p.kind === 'local-refs') handler(p);
+              if (p.projectId !== projectId) return;
+              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.kind === 'local-refs') handler(p);
             }),
           onEvent: 'reload',
           debounceMs: 200,
@@ -41,15 +49,16 @@ export class RepositoryStore {
     );
 
     this.remoteData = new Resource<RemoteBranchesPayload, GitRefChange>(
-      () => rpc.repository.getRemoteBranches(projectId),
+      () => rpc.repository.getRemoteBranches(projectId, workspaceId),
       [
         { kind: 'demand' },
         {
           kind: 'event',
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
-              if (p.projectId === projectId && (p.kind === 'remote-refs' || p.kind === 'config'))
-                handler(p);
+              if (p.projectId !== projectId) return;
+              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.kind === 'remote-refs' || p.kind === 'config') handler(p);
             }),
           onEvent: 'reload',
           debounceMs: 300,
@@ -67,14 +76,14 @@ export class RepositoryStore {
       () => this.remoteData.invalidate()
     );
 
-    makeObservable(this, {
+    makeObservable<this, 'defaultBranchPreference'>(this, {
       isUnborn: computed,
       currentBranch: computed,
       branches: computed,
       localBranches: computed,
       remoteBranches: computed,
       configuredRemote: computed,
-      defaultBranchName: computed,
+      defaultBranchPreference: computed,
       defaultBranch: computed,
       remotes: computed,
       loading: computed,
@@ -124,7 +133,7 @@ export class RepositoryStore {
   /** True when the configured remote points to a GitHub.com repository. */
   get isGitHubRemote(): boolean {
     const url = this.configuredRemote.url;
-    return !!url && isGitHubUrl(url);
+    return parseGitHubRepository(url) !== null;
   }
 
   /**
@@ -133,42 +142,39 @@ export class RepositoryStore {
    */
   get repositoryUrl(): string | null {
     const url = this.configuredRemote.url;
-    if (!url || !isGitHubUrl(url)) return null;
-    return normalizeGitHubUrl(url);
+    return parseGitHubRepository(url)?.repositoryUrl ?? null;
   }
 
-  get defaultBranchName(): string {
-    const d = this.remoteData.data;
-    if (!d) return 'main';
-    const raw = this.settingsStore.settings?.defaultBranch;
-    const configured =
-      raw === undefined ? bareRefName(this.baseRef) : typeof raw === 'string' ? raw : raw.name;
-    return computeDefaultBranch(
-      configured,
-      this.branches,
-      this.configuredRemote.name,
-      d.gitDefaultBranch
+  private get defaultBranchPreference(): Branch | undefined {
+    return projectDefaultBranchToBranch(
+      this.settingsStore.settings?.defaultBranch,
+      this.configuredRemote,
+      this.remotes
     );
   }
 
   get defaultBranch(): LocalBranch | RemoteBranch | undefined {
-    const name = this.defaultBranchName;
-    const raw = this.settingsStore.settings?.defaultBranch;
-    const isRemotePref = typeof raw === 'object' && raw.remote === true;
-
-    if (isRemotePref) {
-      const remote = this.remoteBranches.find(
-        (b) => b.branch === name && b.remote.name === this.configuredRemote.name
-      );
-      if (remote) return remote;
-    }
-    const local = this.localBranches.find((b) => b.branch === name);
-    if (local) return local;
-    return this.remoteBranches.find((b) => b.branch === name);
+    const d = this.remoteData.data;
+    if (!d) return undefined;
+    return resolveDefaultBranch({
+      preference: this.defaultBranchPreference,
+      branches: this.branches,
+      configuredRemoteName: this.configuredRemote.name,
+      gitDefaultBranch: d.gitDefaultBranch,
+      baseRef: this.baseRef,
+    });
   }
 
   isDefault(branch: LocalBranch | RemoteBranch): boolean {
-    return branch.branch === this.defaultBranchName;
+    const defaultBranch = this.defaultBranch;
+    if (!defaultBranch) return false;
+    if (branch.type !== defaultBranch.type) return false;
+    if (branch.type === 'remote' && defaultBranch.type === 'remote') {
+      return (
+        branch.branch === defaultBranch.branch && branch.remote.name === defaultBranch.remote.name
+      );
+    }
+    return branch.branch === defaultBranch.branch;
   }
 
   isBranchOnRemote(branchName: string): boolean {

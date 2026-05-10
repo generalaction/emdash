@@ -1,7 +1,8 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { APP_BUNDLE, RELEASE_DIR } from './lib/config.ts';
+import { parseArgs } from 'node:util';
+import { RELEASE_DIR } from './lib/config.ts';
 import { exec } from './lib/exec.ts';
 import { fail, info, step, warn } from './lib/log.ts';
 
@@ -9,6 +10,19 @@ if (process.platform !== 'darwin') {
   console.log('Not macOS — skipping notarization.');
   process.exit(0);
 }
+
+const { values } = parseArgs({
+  options: {
+    'app-bundle': { type: 'string' },
+  },
+  strict: true,
+});
+
+if (!values['app-bundle']) {
+  fail('--app-bundle is required (e.g. --app-bundle "Emdash.app")');
+}
+
+const appBundle = values['app-bundle'];
 
 const apiKeyPath = process.env.APPLE_API_KEY ?? process.env.APPLE_API_KEY_CONTENT;
 const apiKeyId = process.env.APPLE_API_KEY_ID;
@@ -50,7 +64,7 @@ for (const dmg of dmgs) {
 step('Staple app bundles');
 const macDirs = readdirSync(RELEASE_DIR)
   .filter((d) => d.startsWith('mac'))
-  .map((d) => join(RELEASE_DIR, d, APP_BUNDLE))
+  .map((d) => join(RELEASE_DIR, d, appBundle))
   .filter((p) => existsSync(p));
 
 for (const appDir of macDirs) {
@@ -68,9 +82,9 @@ for (const dmg of dmgs) {
   const mnt = mkdtempSync(join(tmpdir(), 'dmg-'));
   try {
     exec(`hdiutil attach "${dmg}" -mountpoint "${mnt}" -nobrowse -quiet`, { echo: true });
-    const appPath = join(mnt, APP_BUNDLE);
+    const appPath = join(mnt, appBundle);
     if (!existsSync(appPath)) {
-      fail(`No ${APP_BUNDLE} found inside ${dmg}`);
+      fail(`No ${appBundle} found inside ${dmg}`);
     }
     exec(`spctl -a -vv --type execute "${appPath}"`, { echo: true });
     info(`Gatekeeper passed for ${dmg}`);

@@ -1,7 +1,7 @@
 import { autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
-import { createContext, ReactNode, useCallback, useContext, useEffect, useRef } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
@@ -13,16 +13,21 @@ import {
 } from '@renderer/lib/monaco/monaco-config';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco/monaco-themes';
-import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { useMonacoLease } from '@renderer/lib/monaco/use-monaco-lease';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 
 interface EditorContextValue {
   /**
    * Ref callback that appends the task's stable Monaco editor container to the
-   * given DOM element. Called by EditorMainPanel to position the editor host.
+   * given DOM element. Called by UnifiedMainContent to position the editor host.
    */
   setEditorHost: (el: HTMLElement | null) => void;
+  /**
+   * Explicitly re-runs layout() on the leased Monaco editor.
+   * Call this whenever the Monaco host transitions from hidden to visible
+   * (e.g. when activeRenderer switches to 'monaco').
+   */
+  triggerLayout: () => void;
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null);
@@ -43,7 +48,7 @@ export const EditorProvider = observer(function EditorProvider({
   projectId: string;
 }) {
   const provisionedTask = useProvisionedTask();
-  const editorView = provisionedTask.taskView.editorView;
+  const { editorView, tabManager } = provisionedTask.taskView;
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
 
@@ -59,7 +64,7 @@ export const EditorProvider = observer(function EditorProvider({
   const editorRef = useRef<monacoNS.editor.IStandaloneCodeEditor | null>(null);
   const focusPendingRef = useRef(false);
 
-  // Stable host element provided by EditorMainPanel via setEditorHost.
+  // Stable host element provided by UnifiedMainContent via setEditorHost.
   const hostRef = useRef<HTMLElement | null>(null);
 
   // Tracks the previously-attached buffer URI so modelRegistry.attach can
@@ -99,7 +104,8 @@ export const EditorProvider = observer(function EditorProvider({
           if (monaco) {
             addMonacoKeyboardShortcuts(lease.editor, monaco as typeof monacoNS, {
               onSave: () => {
-                void editorView.saveFile();
+                const path = tabManager.activeFilePath;
+                if (path) void editorView.saveFile(path);
               },
               onSaveAll: () => {
                 void editorView.saveAllFiles();
@@ -130,23 +136,16 @@ export const EditorProvider = observer(function EditorProvider({
   );
 
   // ---------------------------------------------------------------------------
-  // Model attachment — single autorun that re-evaluates whenever any of the
-  // three inputs changes: lease, activeFilePath, or modelStatus.
-  // Replaces the reaction+onceBufferReady pattern and the restore-effect
-  // onceBufferReady. Covers: initial mount, remount, tab switching, and the
-  // async model-registration race on first file open.
+  // Model attachment — single autorun that re-evaluates whenever the lease,
+  // active file, or model registration status changes.
   // ---------------------------------------------------------------------------
   useEffect(
     () =>
       autorun(() => {
         const lease = leaseBox.get(); // reactive
-        const activePath = editorView.activeFilePath; // reactive
+        const newBufUri = editorView.activeBufferUri; // reactive (derived from active file entry)
 
         if (!lease) return;
-
-        const newBufUri = activePath
-          ? buildMonacoModelPath(editorView.modelRootPath, activePath)
-          : null;
 
         if (!newBufUri) {
           lease.editor.setModel(null);
@@ -165,12 +164,12 @@ export const EditorProvider = observer(function EditorProvider({
   );
 
   // ---------------------------------------------------------------------------
-  // Restore — re-register Monaco models for persisted open tabs on mount.
-  // The autorun above handles attachment once model statuses become 'ready'.
+  // Restore — re-apply crash-recovery buffer content for persisted open tabs.
+  // Model registration is handled reactively by FileModelLifecycleStore.
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!taskId) return;
-    void editorView.restore();
+    void editorView.restoreBuffers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
@@ -183,12 +182,12 @@ export const EditorProvider = observer(function EditorProvider({
         () => editorView.pendingConflictUri,
         (uri) => {
           if (!uri) return;
-          const tab = editorView.tabs.find((t) => t.bufferUri === uri);
-          if (!tab) return;
+          const filePath = uri.replace(`file://${editorView.modelRootPath}/`, '');
+          if (!editorView.openFilePaths.includes(filePath)) return;
           showConflictModal({
-            filePath: tab.path,
-            onSuccess: async (accept) => {
-              await editorView.resolveConflict(accept);
+            filePath,
+            onSuccess: (accept) => {
+              void editorView.resolveConflict(accept);
             },
           });
         }
@@ -214,7 +213,7 @@ export const EditorProvider = observer(function EditorProvider({
   }, [isActive, focusedRegion]);
 
   // ---------------------------------------------------------------------------
-  // setEditorHost — called by EditorMainPanel to give the editor a stable DOM node.
+  // setEditorHost — called by UnifiedMainContent to give the editor a stable DOM node.
   // ---------------------------------------------------------------------------
   const setEditorHost = useCallback(
     (el: HTMLElement | null) => {
@@ -228,5 +227,16 @@ export const EditorProvider = observer(function EditorProvider({
     [leaseBox]
   );
 
-  return <EditorContext.Provider value={{ setEditorHost }}>{children}</EditorContext.Provider>;
+  // ---------------------------------------------------------------------------
+  // triggerLayout — called when the Monaco host transitions from hidden to visible.
+  // ---------------------------------------------------------------------------
+  const triggerLayout = useCallback(() => {
+    leaseBox.get()?.editor.layout();
+  }, [leaseBox]);
+
+  return (
+    <EditorContext.Provider value={{ setEditorHost, triggerLayout }}>
+      {children}
+    </EditorContext.Provider>
+  );
 });

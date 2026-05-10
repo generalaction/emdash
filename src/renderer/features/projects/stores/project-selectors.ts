@@ -1,7 +1,12 @@
 import type { LocalProject, SshProject } from '@shared/projects';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { PrSyncStore } from './pr-sync-store';
-import { isUnmountedProject, isUnregisteredProject, MountedProject, ProjectStore } from './project';
+import {
+  isUnmountedProject,
+  isUnregisteredProject,
+  type MountedProject,
+  type ProjectStore,
+} from './project';
 import type { ProjectManagerStore } from './project-manager';
 import type { ProjectSettingsStore } from './project-settings-store';
 import type { RepositoryStore } from './repository-store';

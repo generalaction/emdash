@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import type { Pty, PtyExitInfo } from '../pty/pty';
 import type { TerminalProvider } from '../terminals/terminal-provider';
-import { WorkspaceLifecycleService } from './workspace-lifecycle-service';
+import { LifecycleScriptService } from './workspace-lifecycle-service';
 
 vi.mock('@main/lib/events', () => ({
   events: {
@@ -62,7 +62,7 @@ function makeTerminalProvider(): {
 describe('WorkspaceLifecycleService', () => {
   it('respawns an interactive lifecycle shell after an exit-backed script finishes', async () => {
     const { provider, spawned } = makeTerminalProvider();
-    const service = new WorkspaceLifecycleService({
+    const service = new LifecycleScriptService({
       projectId: 'project-1',
       workspaceId: 'branch:feature',
       terminals: provider,

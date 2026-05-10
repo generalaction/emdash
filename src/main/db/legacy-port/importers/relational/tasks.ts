@@ -1,13 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import {
-  isUniqueConstraintError,
-  readLegacyRows,
-  toInteger,
-  toIsoTimestamp,
-  toTrimmedString,
-} from './helpers';
+import { readLegacyRows, toInteger, toIsoTimestamp, toTrimmedString } from './helpers';
+import { insertWithRegeneratedId } from './insert';
 import { createPortSummary, type PortContext, type PortSummary } from './types';
 
 export type TaskPortResult = {
@@ -145,13 +139,11 @@ export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promis
       }
     }
 
-    let nextTaskId = existingTaskIds.has(legacyTaskId) ? randomUUID() : legacyTaskId;
-
     const updatedAt = toIsoTimestamp(row.updated_at, nowIso);
     const createdAt = toIsoTimestamp(row.created_at, updatedAt);
 
     const insertValues = {
-      id: nextTaskId,
+      id: legacyTaskId,
       projectId: mappedProjectId,
       name: toTrimmedString(row.name) ?? branch ?? `Legacy Task ${legacyTaskId.slice(0, 8)}`,
       status: coerceTaskStatus(toTrimmedString(row.status)),
@@ -165,37 +157,34 @@ export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promis
       isPinned: 0,
     };
 
-    let inserted = false;
+    const insertResult = await insertWithRegeneratedId({
+      initialId: legacyTaskId,
+      existingIds: existingTaskIds,
+      uniqueConstraintDetail: 'tasks.id',
+      setId: (id) => {
+        insertValues.id = id;
+      },
+      insert: () => appDb.insert(tasks).values(insertValues).execute(),
+    });
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        insertValues.id = nextTaskId;
-        await appDb.insert(tasks).values(insertValues).execute();
-        inserted = true;
-        break;
-      } catch (error) {
-        if (attempt === 0 && isUniqueConstraintError(error, 'tasks.id')) {
-          nextTaskId = randomUUID();
-          continue;
-        }
-
-        summary.skippedError += 1;
-        log.warn('legacy-port: tasks: failed to insert row', {
-          legacyTaskId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        break;
-      }
+    if (!insertResult.inserted) {
+      summary.skippedError += 1;
+      log.warn('legacy-port: tasks: failed to insert row', {
+        legacyTaskId,
+        error:
+          insertResult.error instanceof Error
+            ? insertResult.error.message
+            : String(insertResult.error),
+      });
+      continue;
     }
 
-    if (!inserted) continue;
-
-    remap.taskId.set(legacyTaskId, nextTaskId);
-    existingTaskIds.add(nextTaskId);
+    remap.taskId.set(legacyTaskId, insertResult.id);
+    existingTaskIds.add(insertResult.id);
     summary.inserted += 1;
 
     if (taskBranch) {
-      branchKeyToTaskId.set(`${mappedProjectId}::${taskBranch}`, nextTaskId);
+      branchKeyToTaskId.set(`${mappedProjectId}::${taskBranch}`, insertResult.id);
     }
   }
 

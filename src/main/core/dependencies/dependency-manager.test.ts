@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@shared/result';
-import type { ExecFn } from '../utils/exec';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { DependencyManager } from './dependency-manager';
 
 vi.mock('@main/lib/events', () => ({
@@ -15,11 +15,23 @@ vi.mock('../ssh/ssh-connection-manager', () => ({
   },
 }));
 
-const missingExec: ExecFn = async () => {
-  throw new Error('missing');
-};
+function makeCtx(
+  handler: (command: string, args: string[]) => Promise<{ stdout: string; stderr: string }>
+): IExecutionContext {
+  return {
+    root: undefined,
+    supportsLocalSpawn: false,
+    exec: vi.fn().mockImplementation(handler),
+    execStreaming: vi.fn(),
+    dispose: vi.fn(),
+  } as unknown as IExecutionContext;
+}
 
-const availableExec: ExecFn = async (command, args = []) => {
+const missingCtx = makeCtx(async () => {
+  throw new Error('missing');
+});
+
+const availableCtx = makeCtx(async (command, args = []) => {
   if (command === 'which' && args[0] === 'codex') {
     return { stdout: '/bin/codex\n', stderr: '' };
   }
@@ -27,14 +39,14 @@ const availableExec: ExecFn = async (command, args = []) => {
     return { stdout: 'codex-cli 1.2.3\n', stderr: '' };
   }
   throw new Error('missing');
-};
+});
 
 const { events } = await import('@main/lib/events');
 
 describe('DependencyManager install', () => {
   it('runs dependency install commands through the configured runner before probing', async () => {
     const runInstallCommand = vi.fn(async () => ok<void>());
-    const manager = new DependencyManager(missingExec, {
+    const manager = new DependencyManager(missingCtx, {
       emitEvents: false,
       runInstallCommand,
     });
@@ -49,7 +61,7 @@ describe('DependencyManager install', () => {
   });
 
   it('returns an error result for unknown dependency ids', async () => {
-    const manager = new DependencyManager(missingExec, { emitEvents: false });
+    const manager = new DependencyManager(missingCtx, { emitEvents: false });
 
     const result = await manager.install('missing-agent' as never);
 
@@ -60,7 +72,7 @@ describe('DependencyManager install', () => {
   });
 
   it('returns an error result when no install command is configured', async () => {
-    const manager = new DependencyManager(missingExec, { emitEvents: false });
+    const manager = new DependencyManager(missingCtx, { emitEvents: false });
 
     const result = await manager.install('git');
 
@@ -79,7 +91,7 @@ describe('DependencyManager install', () => {
         exitCode: 243,
       })
     );
-    const manager = new DependencyManager(availableExec, {
+    const manager = new DependencyManager(availableCtx, {
       emitEvents: false,
       runInstallCommand,
     });
@@ -91,7 +103,7 @@ describe('DependencyManager install', () => {
   });
 
   it('returns the available dependency state on successful install and probe', async () => {
-    const manager = new DependencyManager(availableExec, {
+    const manager = new DependencyManager(availableCtx, {
       emitEvents: false,
       runInstallCommand: async () => ok<void>(),
     });
@@ -103,7 +115,7 @@ describe('DependencyManager install', () => {
   });
 
   it('emits dependency updates with the SSH connection id', async () => {
-    const manager = new DependencyManager(availableExec, {
+    const manager = new DependencyManager(availableCtx, {
       connectionId: 'ssh-1',
     });
 

@@ -1,11 +1,5 @@
 import type Database from 'better-sqlite3';
-
-function quoteIdentifier(identifier: string): string {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
-    throw new Error(`Invalid SQL identifier: ${identifier}`);
-  }
-  return `"${identifier}"`;
-}
+import { quoteIdentifier } from '../../sqlite-utils';
 
 export function legacyTableExists(legacyDb: Database.Database, tableName: string): boolean {
   const row = legacyDb

@@ -1,5 +1,12 @@
-import { ComponentType, createContext, useCallback, useContext, type ReactNode } from 'react';
-import type { ViewId, WrapParams } from '@renderer/app/view-registry';
+import { useObserver } from 'mobx-react-lite';
+import { Fragment, useCallback, type ComponentType, type ReactNode } from 'react';
+import {
+  views,
+  type ViewDefinition,
+  type ViewId,
+  type WrapParams,
+} from '@renderer/app/view-registry';
+import { appState } from '@renderer/lib/stores/app-state';
 
 /**
  * NavArgs makes the params argument optional when all fields are optional,
@@ -23,7 +30,6 @@ export type SlotsContextValue = {
   WrapView: ComponentType<{ children: ReactNode } & Record<string, unknown>>;
   TitlebarSlot: ComponentType;
   MainPanel: ComponentType;
-  RightPanel: ComponentType | null;
   currentView: string;
 };
 
@@ -35,41 +41,36 @@ export type ViewParamsStoreContextValue = {
   viewParamsStore: Partial<{ [K in ViewId]: WrapParams<K> }>;
 };
 
-export const WorkspaceNavigateContext = createContext<NavigateFnTyped | undefined>(undefined);
-export const WorkspaceSlotsContext = createContext<SlotsContextValue | undefined>(undefined);
-export const WorkspaceWrapParamsContext = createContext<WrapParamsContextValue | undefined>(
-  undefined
-);
-
-export const WorkspaceViewParamsStoreContext = createContext<
-  ViewParamsStoreContextValue | undefined
->(undefined);
-export const WorkspaceUpdateViewParamsContext = createContext<UpdateViewParamsFn | undefined>(
-  undefined
-);
-
 export function useNavigate(): { navigate: NavigateFnTyped } {
-  const navigate = useContext(WorkspaceNavigateContext);
-  if (!navigate) {
-    throw new Error('useNavigate must be used within a WorkspaceViewProvider');
-  }
+  const navigate = useCallback((...args: unknown[]) => {
+    const [viewId, params] = args as [ViewId, WrapParams<ViewId> | undefined];
+    appState.navigation.navigate(viewId, params);
+  }, []) as NavigateFnTyped;
   return { navigate };
 }
 
 export function useWorkspaceSlots(): SlotsContextValue {
-  const context = useContext(WorkspaceSlotsContext);
-  if (!context) {
-    throw new Error('useWorkspaceSlots must be used within a WorkspaceViewProvider');
-  }
-  return context;
+  return useObserver(() => {
+    const viewId = appState.navigation.currentViewId;
+    const def = (views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>)[
+      viewId
+    ];
+    return {
+      WrapView: (def.WrapView ?? Fragment) as ComponentType<
+        { children: ReactNode } & Record<string, unknown>
+      >,
+      TitlebarSlot: def.TitlebarSlot ?? (() => null),
+      MainPanel: def.MainPanel,
+      currentView: viewId,
+    };
+  });
 }
 
 export function useWorkspaceWrapParams(): WrapParamsContextValue {
-  const context = useContext(WorkspaceWrapParamsContext);
-  if (!context) {
-    throw new Error('useWorkspaceWrapParams must be used within a WorkspaceViewProvider');
-  }
-  return context;
+  return useObserver(() => ({
+    wrapParams: (appState.navigation.viewParamsStore[appState.navigation.currentViewId] ??
+      {}) as Record<string, unknown>,
+  }));
 }
 
 export function useParams<TId extends ViewId>(
@@ -80,33 +81,19 @@ export function useParams<TId extends ViewId>(
     update: Partial<WrapParams<TId>> | ((prev: WrapParams<TId>) => WrapParams<TId>)
   ) => void;
 } {
-  const storeCtx = useContext(WorkspaceViewParamsStoreContext);
-  const updateFn = useContext(WorkspaceUpdateViewParamsContext);
-  if (!storeCtx || !updateFn) {
-    throw new Error('useViewParams must be used within a WorkspaceViewProvider');
-  }
-  const params = (storeCtx.viewParamsStore[viewId] ?? {}) as WrapParams<TId>;
   const setParams = useCallback(
     (update: Partial<WrapParams<TId>> | ((prev: WrapParams<TId>) => WrapParams<TId>)) => {
-      updateFn(viewId, update);
+      appState.navigation.updateViewParams(viewId, update);
     },
     // viewId is a stable string literal
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [updateFn, viewId]
+    [viewId]
   );
-  return { params, setParams };
+  return useObserver(() => ({
+    params: (appState.navigation.viewParamsStore[viewId] ?? {}) as WrapParams<TId>,
+    setParams,
+  }));
 }
 
 export function isCurrentView(currentView: string | null | undefined, target: string): boolean {
   return currentView === target;
-}
-
-export type ViewLayoutOverride = {
-  hideRightPanel?: boolean;
-};
-
-export const ViewLayoutOverrideContext = createContext<ViewLayoutOverride>({});
-
-export function useViewLayoutOverride(): ViewLayoutOverride {
-  return useContext(ViewLayoutOverrideContext);
 }

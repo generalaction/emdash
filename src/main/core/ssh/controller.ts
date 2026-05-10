@@ -8,7 +8,7 @@ import type { ConnectionState, ConnectionTestResult, FileEntry, SshConfig } from
 import { db } from '@main/db/client';
 import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import { sshConnectionManager } from './ssh-connection-manager';
 import { sshCredentialService } from './ssh-credential-service';
 import { resolveIdentityAgent } from './utils';
@@ -103,7 +103,12 @@ export const sshController = createRPCController({
   testConnection: async (
     config: SshConfig & { password?: string; passphrase?: string }
   ): Promise<ConnectionTestResult> => {
-    return new Promise(async (resolve) => {
+    let identityAgent: string | undefined;
+    if (config.authType === 'agent') {
+      identityAgent = await resolveIdentityAgent(config.host);
+    }
+
+    return new Promise((resolve) => {
       const client = new Client();
       const debugLogs: string[] = [];
       const startTime = Date.now();
@@ -111,12 +116,12 @@ export const sshController = createRPCController({
       client.on('ready', () => {
         const latency = Date.now() - startTime;
         client.end();
-        capture('ssh_connection_attempted', { success: true });
+        telemetryService.capture('ssh_connection_attempted', { success: true });
         resolve({ success: true, latency, debugLogs });
       });
 
       client.on('error', (err: Error) => {
-        capture('ssh_connection_attempted', { success: false });
+        telemetryService.capture('ssh_connection_attempted', { success: false });
         resolve({ success: false, error: err.message, debugLogs });
       });
 
@@ -137,13 +142,12 @@ export const sshController = createRPCController({
           connectConfig.privateKey = readFileSync(keyPath);
           if (config.passphrase) connectConfig.passphrase = config.passphrase;
         } else if (config.authType === 'agent') {
-          const identityAgent = await resolveIdentityAgent(config.host);
           connectConfig.agent = identityAgent || process.env.SSH_AUTH_SOCK;
         }
 
         client.connect(connectConfig);
       } catch (e) {
-        capture('ssh_connection_attempted', { success: false });
+        telemetryService.capture('ssh_connection_attempted', { success: false });
         resolve({ success: false, error: (e as Error).message, debugLogs });
       }
     });

@@ -1,6 +1,5 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { toast } from '@renderer/lib/hooks/use-toast';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -23,13 +22,13 @@ export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const showNewProject = useShowModal('addProjectModal');
   const showCreateTask = useShowModal('taskModal');
-  const { toggleLeft, toggleRight } = useWorkspaceLayoutContext();
+  const showCommandPalette = useShowModal('commandPaletteModal');
+  const { toggleLeft } = useWorkspaceLayoutContext();
   const { toggleTheme } = useTheme();
   const { navigate } = useNavigate();
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const settingsHotkey = getEffectiveHotkey('settings', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
-  const toggleRightSidebarHotkey = getEffectiveHotkey('toggleRightSidebar', keyboard);
   const toggleThemeHotkey = getEffectiveHotkey('toggleTheme', keyboard);
   const newProjectHotkey = getEffectiveHotkey('newProject', keyboard);
   const newTaskHotkey = getEffectiveHotkey('newTask', keyboard);
@@ -44,23 +43,24 @@ export function AppKeyboardShortcuts() {
       : currentView === 'project'
         ? projectParams.projectId
         : undefined;
+  const currentTaskId = currentView === 'task' ? taskParams.taskId : undefined;
 
   useHotkey(
     getHotkeyRegistration('commandPalette', keyboard),
-    () => toast({ title: 'CMDK coming soon' }),
+    () => showCommandPalette({ projectId: currentProjectId, taskId: currentTaskId }),
     { enabled: commandPaletteHotkey !== null }
   );
 
-  useHotkey(getHotkeyRegistration('settings', keyboard), () => navigate('settings'), {
-    enabled: settingsHotkey !== null,
-  });
+  useHotkey(
+    getHotkeyRegistration('settings', keyboard),
+    () => {
+      if (currentView !== 'settings') navigate('settings');
+    },
+    { enabled: settingsHotkey !== null }
+  );
 
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,
-  });
-
-  useHotkey(getHotkeyRegistration('toggleRightSidebar', keyboard), () => toggleRight(), {
-    enabled: toggleRightSidebarHotkey !== null,
   });
 
   useHotkey(getHotkeyRegistration('toggleTheme', keyboard), () => toggleTheme(), {

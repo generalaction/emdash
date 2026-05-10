@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { InlinePrSelector } from '../components/inline-pr-selector';
 import { SelectedPrCard } from './selected-pr-card';
-import { FromPullRequestModeState } from './use-from-pull-request-mode';
+import { type FromPullRequestModeState } from './use-from-pull-request-mode';
 
 interface PrPickerFieldProps {
   state: FromPullRequestModeState;

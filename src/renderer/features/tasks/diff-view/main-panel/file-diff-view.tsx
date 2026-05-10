@@ -3,8 +3,9 @@ import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
+import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
+import { isBinaryForDiff, isImageForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
@@ -21,6 +22,7 @@ export const FileDiffView = observer(function FileDiffView() {
   const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
 
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;
+  const isImage = activeFile ? isImageForDiff(activeFile.path) : false;
   const showEditor = activeFile !== null && !isBinary;
   const activeFilePath = activeFile?.path ?? '';
 
@@ -83,17 +85,41 @@ export const FileDiffView = observer(function FileDiffView() {
     if (activeFile.group === 'git') {
       return modelRegistry.toGitUri(uri, HEAD_REF);
     }
-    return modelRegistry.toDiskUri(uri);
+    return uri;
   })();
 
   // Register/unregister models whenever the active file changes.
   useEffect(() => {
     if (!activeFile || isBinary) return;
+    let disposed = false;
 
     if (activeFile.group === 'disk') {
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, activeFile.path, language, 'disk')
-        .catch(() => {});
+      const diskUri = modelRegistry.toDiskUri(uri);
+      void (async () => {
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          activeFile.path,
+          language,
+          'disk'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(diskUri);
+          return;
+        }
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          activeFile.path,
+          language,
+          'buffer'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(modifiedUri);
+        }
+      })().catch(() => {});
       void modelRegistry
         .registerModel(
           projectId,
@@ -139,10 +165,14 @@ export const FileDiffView = observer(function FileDiffView() {
         .catch(() => {});
     }
     return () => {
+      disposed = true;
       modelRegistry.unregisterModel(originalUri);
       modelRegistry.unregisterModel(modifiedUri);
+      if (activeFile.group === 'disk') {
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
+      }
     };
-  }, [isBinary, originalUri, modifiedUri, language, activeFile, projectId, workspaceId, root]);
+  }, [isBinary, originalUri, modifiedUri, language, activeFile, projectId, workspaceId, root, uri]);
 
   return (
     <div className="file-diff-view flex h-full flex-col">
@@ -161,7 +191,10 @@ export const FileDiffView = observer(function FileDiffView() {
             description="Select a file to view changes"
           />
         )}
-        {isBinary && (
+        {activeFile && isImage && (
+          <ImageDiffView projectId={projectId} workspaceId={workspaceId} activeFile={activeFile} />
+        )}
+        {isBinary && !isImage && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Binary file — no diff available
           </div>

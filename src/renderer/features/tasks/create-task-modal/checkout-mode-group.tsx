@@ -1,7 +1,7 @@
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 import { Switch } from '@renderer/lib/ui/switch';
-import { CheckoutMode } from './use-from-pull-request-mode';
+import { type CheckoutMode } from './use-from-pull-request-mode';
 
 interface CheckoutModeGroupProps {
   value: CheckoutMode;

@@ -25,12 +25,12 @@
 
 import {
   createContext,
-  ReactNode,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
+  type ReactNode,
 } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { measureDimensions, type TerminalDimensions } from './pty-dimensions';
@@ -130,7 +130,7 @@ export function PaneSizingProvider({ paneId, sessionIds, children }: PaneSizingP
     const dims = lastDimensionsRef.current;
     if (dims && added.length > 0) {
       for (const id of added) {
-        rpc.pty.resize(id, dims.cols, dims.rows);
+        void rpc.pty.resize(id, dims.cols, dims.rows);
       }
     }
   }, [sessionIds]);
@@ -150,7 +150,7 @@ export function PaneSizingProvider({ paneId, sessionIds, children }: PaneSizingP
     if (!dims) return;
     lastDimensionsRef.current = dims;
     for (const id of sessionsRef.current) {
-      rpc.pty.resize(id, dims.cols, dims.rows);
+      void rpc.pty.resize(id, dims.cols, dims.rows);
     }
   }, []);
 

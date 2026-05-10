@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { createContext, ReactNode, useContext } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { ProjectViewWrapper } from '@renderer/features/projects/components/project-view-wrapper';
 import { type ProvisionedTask } from '@renderer/features/tasks/stores/task';
 import {
@@ -8,7 +8,6 @@ import {
   taskViewKind,
   type TaskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { ViewLayoutOverrideContext } from '@renderer/lib/layout/navigation-provider';
 
 const ProvisionedTaskContext = createContext<ProvisionedTask | null>(null);
 
@@ -57,18 +56,10 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
   projectId: string;
   taskId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId);
-  const kind = taskViewKind(taskStore, projectId);
-  const hideRightPanel = kind !== 'ready';
-
   return (
-    <ViewLayoutOverrideContext.Provider value={{ hideRightPanel }}>
-      <ProjectViewWrapper projectId={projectId}>
-        <TaskViewContext.Provider value={{ projectId, taskId }}>
-          {children}
-        </TaskViewContext.Provider>
-      </ProjectViewWrapper>
-    </ViewLayoutOverrideContext.Provider>
+    <ProjectViewWrapper projectId={projectId}>
+      <TaskViewContext.Provider value={{ projectId, taskId }}>{children}</TaskViewContext.Provider>
+    </ProjectViewWrapper>
   );
 });
 

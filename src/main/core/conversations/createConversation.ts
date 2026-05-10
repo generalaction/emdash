@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { Conversation, CreateConversationParams } from '@shared/conversations';
+import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
+import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
 
 export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
@@ -29,8 +30,10 @@ export async function createConversation(params: CreateConversationParams): Prom
       title: params.title,
       provider: params.provider,
       config,
+      isInitialConversation: params.isInitialConversation ?? false,
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,
+      lastInteractedAt: new Date().toISOString(),
     })
     .returning();
 
@@ -41,13 +44,15 @@ export async function createConversation(params: CreateConversationParams): Prom
 
   const conversation = mapConversationRowToConversation(row);
 
+  conversationEvents._emit('conversation:created', conversation);
+
   await task.conversations.startSession(
     conversation,
     params.initialSize,
     false,
     params.initialPrompt
   );
-  capture('conversation_created', {
+  telemetryService.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,
     project_id: params.projectId,

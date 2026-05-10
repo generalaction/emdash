@@ -1,7 +1,7 @@
-import { Paperclip } from 'lucide-react';
+import { ImageIcon, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
-import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
@@ -16,6 +16,7 @@ import {
 import { Input } from '@renderer/lib/ui/input';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { cn } from '@renderer/utils/utils';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
 type FeedbackModalArgs = {
@@ -24,11 +25,39 @@ type FeedbackModalArgs = {
 
 type Props = BaseModalProps<void> & FeedbackModalArgs;
 
+function AttachmentThumbnail({
+  name,
+  previewUrl,
+  onRemove,
+  disabled,
+}: {
+  name: string;
+  previewUrl: string;
+  onRemove: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="group relative size-14 shrink-0 overflow-hidden rounded-md border border-border bg-background">
+      <img src={previewUrl} alt={name} className="size-full object-cover" />
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${name}`}
+        disabled={disabled}
+        className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:enabled:opacity-100 disabled:cursor-not-allowed"
+      >
+        <XIcon className="size-3.5 text-white" />
+      </button>
+    </div>
+  );
+}
+
 export function FeedbackModal({ onSuccess, blurb }: Props) {
   const { user: githubUser } = useGithubContext();
   const appVersion = appState.update.currentVersion;
   const {
     attachments,
+    isDraggingOver,
     fileInputRef,
     removeAttachment,
     openFilePicker,
@@ -36,6 +65,8 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
     handlePaste,
     handleDrop,
     handleDragOver,
+    handleDragEnter,
+    handleDragLeave,
     reset: resetAttachments,
   } = useAttachments();
 
@@ -61,13 +92,27 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
   const handleFormSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      await handleSubmit(attachments);
+      await handleSubmit(attachments.map((attachment) => attachment.file));
     },
     [handleSubmit, attachments]
   );
 
   return (
-    <>
+    <div
+      className="relative flex min-h-0 flex-1 flex-col"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+    >
+      {isDraggingOver && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/5">
+          <div className="flex flex-col items-center gap-1 text-primary">
+            <ImageIcon className="size-6" />
+            <span className="text-xs font-medium">Drop image here</span>
+          </div>
+        </div>
+      )}
       <DialogHeader>
         <div className="flex flex-col gap-0.5">
           <DialogTitle>Feedback</DialogTitle>
@@ -75,13 +120,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
         </div>
       </DialogHeader>
       <DialogContentArea>
-        <form
-          id="feedback-form"
-          className="space-y-4"
-          onSubmit={handleFormSubmit}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-        >
+        <form id="feedback-form" className="space-y-4 pt-0.5" onSubmit={handleFormSubmit}>
           <div className="space-y-1.5">
             <label htmlFor="feedback-details" className="sr-only">
               Feedback details
@@ -128,26 +167,22 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
               disabled={submitting}
             />
             {attachments.length > 0 ? (
-              <ul className="space-y-1 text-sm">
-                {attachments.map((file, index) => (
-                  <li
-                    key={`${file.name}-${index}`}
-                    className="flex items-center justify-between rounded-md border border-dashed border-border px-3 py-2 text-foreground"
-                  >
-                    <span className="truncate">{file.name}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeAttachment(index)}
-                      disabled={submitting}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Remove
-                    </Button>
-                  </li>
+              <div
+                className={cn(
+                  'flex flex-wrap gap-2 rounded-md border border-dashed border-border p-2',
+                  submitting && 'opacity-50'
+                )}
+              >
+                {attachments.map((attachment, index) => (
+                  <AttachmentThumbnail
+                    key={attachment.id}
+                    name={attachment.file.name}
+                    previewUrl={attachment.previewUrl}
+                    onRemove={() => removeAttachment(index)}
+                    disabled={submitting}
+                  />
                 ))}
-              </ul>
+              </div>
             ) : null}
           </div>
 
@@ -186,6 +221,6 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
           )}
         </ConfirmButton>
       </DialogFooter>
-    </>
+    </div>
   );
 }

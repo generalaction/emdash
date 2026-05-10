@@ -1,7 +1,8 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
+import type { Conversation } from '@shared/conversations';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
-import { taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import { taskProvisionProgressChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -11,8 +12,11 @@ import type {
 } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
+import { log } from '@renderer/utils/logger';
 import {
   createUnprovisionedTask,
   createUnregisteredTask,
@@ -20,8 +24,25 @@ import {
   isRegistered,
   isUnprovisioned,
   isUnregistered,
-  TaskStore,
+  type TaskStore,
 } from './task';
+
+export async function markInitialConversationWorkingAfterProvision(
+  task: TaskStore | undefined,
+  initialConversation: CreateTaskParams['initialConversation']
+): Promise<void> {
+  if (!initialConversation?.initialPrompt?.trim()) return;
+  if (!task || !isProvisioned(task)) return;
+  try {
+    await task.provisionedTask.conversations.markConversationWorking(initialConversation.id);
+  } catch (error) {
+    log.warn('TaskManagerStore: failed to mark initial conversation as working', {
+      conversationId: initialConversation.id,
+      taskId: initialConversation.taskId,
+      error,
+    });
+  }
+}
 
 function formatCreateTaskError(error: CreateTaskError): string {
   switch (error.type) {
@@ -37,7 +58,7 @@ function formatCreateTaskError(error: CreateTaskError): string {
           return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
           return `Branch "${error.error.name}" is not a valid branch name.`;
-        case 'error':
+        default:
           return `Could not create branch "${error.branch}": ${error.error.message}`;
       }
     }
@@ -53,6 +74,30 @@ function formatCreateTaskError(error: CreateTaskError): string {
         : `Could not set up the worktree for branch "${error.branch}".`;
     case 'provision-failed':
       return `Task could not be provisioned: ${error.message}`;
+    case 'provision-timeout': {
+      const seconds = Math.round(error.timeoutMs / 1000);
+      const stepLabel = (() => {
+        switch (error.step) {
+          case 'resolving-worktree':
+            return 'resolving the worktree';
+          case 'initialising-workspace':
+            return 'initialising the workspace';
+          case 'running-provision-script':
+            return 'running the provision script';
+          case 'connecting':
+            return 'connecting to the workspace';
+          case 'setting-up-workspace':
+            return 'setting up the workspace';
+          case 'starting-sessions':
+            return 'starting sessions';
+          case null:
+            return null;
+        }
+      })();
+      return stepLabel
+        ? `Task setup timed out after ${seconds}s while ${stepLabel}.`
+        : `Task setup timed out after ${seconds}s before any step started.`;
+    }
   }
 }
 
@@ -71,19 +116,29 @@ function formatCreateTaskWarning(warning: CreateTaskWarning): string {
 export class TaskManagerStore {
   private readonly projectId: string;
   private readonly _repository: RepositoryStore;
+  private readonly _settingsStore: ProjectSettingsStore;
+  private readonly _baseRef: string;
   private _loadPromise: Promise<void> | null = null;
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
 
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
+  private _unsubProvisionProgress: (() => void) | null = null;
   private _disposeRepositoryReaction: (() => void) | null = null;
 
   tasks = observable.map<string, TaskStore>();
 
-  constructor(projectId: string, repository: RepositoryStore) {
+  constructor(
+    projectId: string,
+    repository: RepositoryStore,
+    settingsStore: ProjectSettingsStore,
+    baseRef: string
+  ) {
     this.projectId = projectId;
     this._repository = repository;
+    this._settingsStore = settingsStore;
+    this._baseRef = baseRef;
     makeObservable(this, { tasks: observable });
 
     events.on(taskStatusUpdatedChannel, ({ taskId, projectId: evtProjectId, status }) => {
@@ -95,6 +150,19 @@ export class TaskManagerStore {
         });
       }
     });
+
+    this._unsubProvisionProgress = events.on(
+      taskProvisionProgressChannel,
+      ({ taskId, projectId: evtProjectId, message }) => {
+        if (evtProjectId !== this.projectId) return;
+        const store = this.tasks.get(taskId);
+        if (store?.isBootstrapping) {
+          runInAction(() => {
+            store.provisionProgressMessage = message;
+          });
+        }
+      }
+    );
 
     this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
       const repoUrl = this._repository.repositoryUrl;
@@ -144,7 +212,7 @@ export class TaskManagerStore {
     if (!isRegistered(store)) return;
     const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, store.data.id);
     if (!result.success) return;
-    const prs = result.prs ?? [];
+    const prs = result.data.prs;
     runInAction(() => {
       if (isRegistered(store)) {
         (store.data as Task).prs = prs;
@@ -225,11 +293,17 @@ export class TaskManagerStore {
       }
     });
 
+    this._settingsStore.pageData.invalidate();
+
     if (result.data.warning) {
       toast.error(formatCreateTaskWarning(result.data.warning));
     }
 
     await this.provisionTask(params.id);
+    await markInitialConversationWorkingAfterProvision(
+      this.tasks.get(params.id),
+      params.initialConversation
+    );
   }
 
   async provisionTask(taskId: string): Promise<void> {
@@ -248,17 +322,29 @@ export class TaskManagerStore {
 
     const promise = Promise.all([
       rpc.tasks.provisionTask(taskId),
-      rpc.viewState.get(`task:${taskId}`),
+      viewStateCache.get(`task:${taskId}`),
+      rpc.conversations.getConversationsForTask(this.projectId, taskId).catch((err: unknown) => {
+        log.warn('TaskManagerStore: failed to pre-load conversations during provision', {
+          taskId,
+          error: err,
+        });
+        toast.error('Failed to load conversations');
+        return [] as Conversation[];
+      }),
     ])
-      .then(([result, savedSnapshot]) => {
+      .then(([result, savedSnapshot, preloadedConversations]) => {
         runInAction(() => {
           const current = this.tasks.get(taskId);
           if (current && isUnprovisioned(current)) {
             current.transitionToProvisioned(
               { ...current.data, lastInteractedAt: new Date().toISOString() },
               result.path,
-              this._repository,
-              savedSnapshot as TaskViewSnapshot | undefined
+              result.workspaceId,
+              this._settingsStore,
+              this._baseRef,
+              savedSnapshot as TaskViewSnapshot | undefined,
+              result.sshConnectionId ?? undefined,
+              preloadedConversations
             );
             current.activate();
           }
@@ -405,6 +491,8 @@ export class TaskManagerStore {
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
     this._unsubPrSyncProgress = null;
+    this._unsubProvisionProgress?.();
+    this._unsubProvisionProgress = null;
     this._disposeRepositoryReaction?.();
     this._disposeRepositoryReaction = null;
   }

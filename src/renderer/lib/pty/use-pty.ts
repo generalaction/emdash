@@ -1,4 +1,4 @@
-import { Terminal } from '@xterm/xterm';
+import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
@@ -175,7 +175,7 @@ export function usePty(
       pendingResizeTimerRef.current = setTimeout(() => {
         pendingResizeTimerRef.current = null;
         lastSentResizeRef.current = { cols: c, rows: r };
-        rpc.pty.resize(sessionId, c, r);
+        void rpc.pty.resize(sessionId, c, r);
       }, PTY_RESIZE_DEBOUNCE_MS);
     },
     [sessionId]

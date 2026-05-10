@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   FileSystemError,
   FileSystemErrorCodes,
@@ -9,7 +10,6 @@ import {
 } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { resolveRemoteHome } from '@main/core/ssh/utils';
-import type { ExecFn } from '@main/core/utils/exec';
 import { log } from '@main/lib/logger';
 
 const CLAUDE_PROVIDER_ID: AgentProviderId = 'claude';
@@ -49,25 +49,25 @@ export class ClaudeTrustService {
   async maybeAutoTrustSsh({
     providerId,
     cwd,
-    exec,
+    ctx,
     remoteFs,
   }: {
     providerId: AgentProviderId;
     cwd?: string;
-    exec: ExecFn;
+    ctx: IExecutionContext;
     remoteFs: Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>;
   }): Promise<void> {
     if (!cwd) return;
     if (!(await this.shouldAutoTrust(providerId))) return;
 
     const normalizedPath = await remoteFs.realPath(cwd).catch(() => path.posix.resolve('/', cwd));
-    const homeDir = await resolveRemoteHome(exec);
+    const homeDir = await resolveRemoteHome(ctx);
     const configPath = path.posix.join(homeDir, CLAUDE_CONFIG_NAME);
 
     await this.withLock(configPath, () =>
       this.ensureTrusted(normalizedPath, {
         readConfig: () => readRemoteConfig(remoteFs, configPath),
-        writeConfig: (content) => writeRemoteConfigAtomic(remoteFs, exec, configPath, content),
+        writeConfig: (content) => writeRemoteConfigAtomic(remoteFs, ctx, configPath, content),
       })
     );
   }
@@ -190,17 +190,17 @@ async function readRemoteConfig(
 
 async function writeRemoteConfigAtomic(
   remoteFs: Pick<FileSystemProvider, 'write'>,
-  exec: ExecFn,
+  ctx: IExecutionContext,
   configPath: string,
   content: string
 ): Promise<void> {
   const tmpPath = `${configPath}.${randomUUID()}.tmp`;
   try {
     await remoteFs.write(tmpPath, content);
-    await exec('mv', [tmpPath, configPath]);
+    await ctx.exec('mv', [tmpPath, configPath]);
   } catch (error: unknown) {
     try {
-      await exec('rm', ['-f', tmpPath]);
+      await ctx.exec('rm', ['-f', tmpPath]);
     } catch {}
     throw error;
   }

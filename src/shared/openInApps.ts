@@ -31,15 +31,19 @@ const ICON_PATHS = {
   files: 'files.svg',
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
+  vscodium: 'vscodium.png',
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
   terminal: 'terminal.png',
   warp: 'warp.png',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
+  kitty: 'kitty.png',
   zed: 'zed.png',
   'zed-nightly': 'zed-nightly.png',
+  trae: 'trae.png',
   'intellij-idea': 'intellij-idea.svg',
+  'android-studio': 'android-studio.svg',
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
   rustrover: 'rustrover.svg',
@@ -114,6 +118,33 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['code {{path}}', 'code-insiders {{path}}'],
         checkCommands: ['code', 'code-insiders'],
+      },
+    },
+  },
+  vscodium: {
+    id: 'vscodium',
+    label: 'VSCodium',
+    iconPath: ICON_PATHS.vscodium,
+    autoInstall: true,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v codium >/dev/null 2>&1 && codium {{path}}',
+          'open -n -b com.vscodium --args {{path}}',
+          'open -n -a "VSCodium" {{path}}',
+        ],
+        checkCommands: ['codium'],
+        bundleIds: ['com.vscodium'],
+        appNames: ['VSCodium'],
+      },
+      win32: {
+        openCommands: ['start "" codium {{path}}'],
+        checkCommands: ['codium'],
+      },
+      linux: {
+        openCommands: ['codium {{path}}'],
+        checkCommands: ['codium'],
       },
     },
   },
@@ -229,6 +260,26 @@ const _OPEN_IN_APPS = {
       },
     },
   },
+  kitty: {
+    id: 'kitty',
+    label: 'Kitty',
+    iconPath: ICON_PATHS.kitty,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'open -n -b net.kovidgoyal.kitty --args --directory {{path}}',
+          'open -na "kitty" --args --directory {{path}}',
+        ],
+        bundleIds: ['net.kovidgoyal.kitty'],
+        appNames: ['kitty'],
+      },
+      linux: {
+        openCommands: ['kitty --directory {{path}}'],
+        checkCommands: ['kitty'],
+      },
+    },
+  },
   zed: {
     id: 'zed',
     label: 'Zed',
@@ -318,6 +369,54 @@ const _OPEN_IN_APPS = {
       },
     },
   },
+  trae: {
+    id: 'trae',
+    label: 'Trae',
+    iconPath: ICON_PATHS.trae,
+    autoInstall: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v trae >/dev/null 2>&1 && trae {{path}}',
+          'open -a "Trae" {{path}}',
+        ],
+        checkCommands: ['trae'],
+        appNames: ['Trae'],
+      },
+      win32: {
+        openCommands: ['start "" trae "{{path_raw}}"'],
+        checkCommands: ['trae'],
+      },
+      linux: {
+        openCommands: ['trae {{path}}'],
+        checkCommands: ['trae'],
+      },
+    },
+  },
+  'trae-solo': {
+    id: 'trae-solo',
+    label: 'Trae Solo',
+    iconPath: ICON_PATHS.trae,
+    autoInstall: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v trae-solo >/dev/null 2>&1 && trae-solo {{path}}',
+          'open -a "Trae Solo" {{path}}',
+        ],
+        checkCommands: ['trae-solo'],
+        appNames: ['Trae Solo'],
+      },
+      win32: {
+        openCommands: ['start "" trae-solo "{{path_raw}}"'],
+        checkCommands: ['trae-solo'],
+      },
+      linux: {
+        openCommands: ['trae-solo {{path}}'],
+        checkCommands: ['trae-solo'],
+      },
+    },
+  },
   'intellij-idea': {
     id: 'intellij-idea',
     label: 'IntelliJ IDEA',
@@ -336,6 +435,27 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['idea {{path}}'],
         checkCommands: ['idea'],
+      },
+    },
+  },
+  'android-studio': {
+    id: 'android-studio',
+    label: 'Android Studio',
+    iconPath: ICON_PATHS['android-studio'],
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "Android Studio" {{path}}'],
+        bundleIds: ['com.google.android.studio'],
+        appNames: ['Android Studio'],
+      },
+      win32: {
+        openCommands: ['studio64 {{path}}', 'studio {{path}}'],
+        checkCommands: ['studio64', 'studio'],
+      },
+      linux: {
+        openCommands: ['studio {{path}}'],
+        checkCommands: ['studio'],
       },
     },
   },

@@ -4,14 +4,15 @@ import { observer } from 'mobx-react-lite';
 import { Activity, useEffect, useMemo, useRef, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import {
-  DiffSlotStore,
   StackedDiffPanelStore,
+  type DiffSlotStore,
 } from '@renderer/features/tasks/diff-view/stores/stacked-diff-panel-store';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 
 const LARGE_DIFF_LINE_THRESHOLD = 1500;
@@ -157,6 +158,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
     if (!file || isBinary) return;
     const { projectId, workspaceId } = slotStore;
     const root = `workspace:${workspaceId}`;
+    let disposed = false;
 
     if (diffType === 'staged') {
       void modelRegistry
@@ -182,16 +184,43 @@ const StackedFileSlot = observer(function StackedFileSlot({
         )
         .catch(() => {});
     } else {
-      void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'disk')
-        .catch(() => {});
+      const diskUri = modelRegistry.toDiskUri(modifiedUri);
+      void (async () => {
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          file.path,
+          language,
+          'disk'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(diskUri);
+          return;
+        }
+        await modelRegistry.registerModel(
+          projectId,
+          workspaceId,
+          root,
+          file.path,
+          language,
+          'buffer'
+        );
+        if (disposed) {
+          modelRegistry.unregisterModel(modifiedUri);
+        }
+      })().catch(() => {});
       void modelRegistry
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
         .catch(() => {});
     }
     return () => {
+      disposed = true;
       modelRegistry.unregisterModel(originalUri);
       modelRegistry.unregisterModel(modifiedUri);
+      if (diffType === 'disk') {
+        modelRegistry.unregisterModel(modelRegistry.toDiskUri(modifiedUri));
+      }
     };
   }, [
     isBinary,
@@ -248,8 +277,8 @@ const StackedFileSlot = observer(function StackedFileSlot({
           {dirPath && <span className="truncate text-xs text-foreground-muted">{dirPath}</span>}
         </button>
         <span className="shrink-0 text-xs">
-          <span className="text-green-500">+{file.additions}</span>{' '}
-          <span className="text-red-500">-{file.deletions}</span>
+          <span className="text-green-500">+{formatDiffLineCount(file.additions)}</span>{' '}
+          <span className="text-red-500">-{formatDiffLineCount(file.deletions)}</span>
         </span>
       </div>
 
@@ -261,7 +290,9 @@ const StackedFileSlot = observer(function StackedFileSlot({
             </div>
           ) : isLarge && !forceLoad ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-foreground-passive">
-              <span>Large diff ({totalDiffLines} lines). Loading may be slow.</span>
+              <span>
+                Large diff ({formatDiffLineCount(totalDiffLines)} lines). Loading may be slow.
+              </span>
               <button
                 className="rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-background-1"
                 onClick={() => panelStore.setForceLoad(file.path)}

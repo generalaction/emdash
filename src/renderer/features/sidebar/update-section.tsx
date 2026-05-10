@@ -19,7 +19,7 @@ export const UpdateSection = observer(function UpdateSection() {
           })
         }
       >
-        Upgrade
+        Update
       </Button>
     );
   }

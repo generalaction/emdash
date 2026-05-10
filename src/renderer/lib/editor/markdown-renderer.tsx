@@ -22,11 +22,11 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const { projectId } = useTaskViewContext();
   const provisioned = useProvisionedTask();
   const { workspaceId } = provisioned;
-  const editorView = provisioned.taskView.editorView;
+  const { editorView, tabManager } = provisioned.taskView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
   // Reading bufferVersions creates a MobX tracking dependency so this observer()
   // component re-renders whenever the buffer content changes or is first populated.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   const _version = modelRegistry.bufferVersions.get(bufferUri);
   const content = modelRegistry.getValue(bufferUri) ?? '';
   const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
@@ -46,7 +46,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
         value={['markdown']}
         onValueChange={(value) => {
           if (value.includes('markdown-source')) {
-            editorView.updateRenderer(filePath, () => ({ kind: 'markdown-source' }));
+            tabManager.updateRenderer(filePath, () => ({ kind: 'markdown-source' }));
           }
         }}
         size="sm"

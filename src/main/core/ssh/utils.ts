@@ -1,5 +1,5 @@
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { parseSshConfigFile } from '@main/core/ssh/sshConfigParser';
-import type { ExecFn } from '@main/core/utils/exec';
 
 export async function resolveIdentityAgent(hostname: string): Promise<string | undefined> {
   try {
@@ -15,8 +15,8 @@ export async function resolveIdentityAgent(hostname: string): Promise<string | u
   }
 }
 
-export async function resolveRemoteHome(exec: ExecFn): Promise<string> {
-  const { stdout } = await exec('sh', ['-c', 'printf %s "$HOME"']);
+export async function resolveRemoteHome(ctx: IExecutionContext): Promise<string> {
+  const { stdout } = await ctx.exec('sh', ['-c', 'printf %s "$HOME"']);
   const home = stdout.trim();
   if (!home) {
     throw new Error('Remote home directory is empty');

@@ -1,11 +1,11 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import type {
-  ListPrOptions,
-  PrFilterOptions,
-  PrFilters,
-  PrSortField,
-  PullRequest,
+import {
+  pullRequestErrorMessage,
+  type ListPrOptions,
+  type PrFilterOptions,
+  type PrFilters,
+  type PrSortField,
 } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 
@@ -52,9 +52,11 @@ export function usePullRequests(
       };
       const response = await rpc.pullRequests.listPullRequests(projectId!, listOptions);
       if (!response?.success) {
-        throw new Error(response?.error || 'Failed to load pull requests');
+        throw new Error(
+          response ? pullRequestErrorMessage(response.error) : 'Failed to load pull requests'
+        );
       }
-      const prs = (response.prs ?? []) as PullRequest[];
+      const prs = response.data.prs;
       return {
         prs,
         nextOffset: prs.length === PAGE_SIZE ? pageParam + PAGE_SIZE : undefined,
@@ -99,13 +101,11 @@ export function useFilterOptions(projectId?: string, repositoryUrl?: string) {
     queryFn: async () => {
       const response = await rpc.pullRequests.getFilterOptions(projectId!);
       if (!response?.success) {
-        throw new Error(response?.error || 'Failed to load filter options');
+        throw new Error(
+          response ? pullRequestErrorMessage(response.error) : 'Failed to load filter options'
+        );
       }
-      const { authors, labels, assignees } = response as {
-        authors: PrFilterOptions['authors'];
-        labels: PrFilterOptions['labels'];
-        assignees: PrFilterOptions['assignees'];
-      };
+      const { authors, labels, assignees } = response.data;
       return { authors, labels, assignees };
     },
     enabled: !!repositoryUrl,

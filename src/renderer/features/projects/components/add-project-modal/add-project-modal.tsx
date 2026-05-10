@@ -131,8 +131,12 @@ export const AddProjectModal = observer(function AddProjectModal({
     queryKey: ['projectPathStatus', strategy, selectedConnectionId, pickState.path],
     queryFn: () =>
       strategy === 'ssh'
-        ? rpc.projects.getSshProjectPathStatus(pickState.path, selectedConnectionId!)
-        : rpc.projects.getLocalProjectPathStatus(pickState.path),
+        ? rpc.projects.inspectProjectPath({
+            type: 'ssh',
+            path: pickState.path,
+            connectionId: selectedConnectionId!,
+          })
+        : rpc.projects.inspectProjectPath({ type: 'local', path: pickState.path }),
     enabled: shouldCheckPickPathStatus,
   });
   const requiresGitInitialization =
@@ -149,24 +153,15 @@ export const AddProjectModal = observer(function AddProjectModal({
 
   const handleSubmit = async () => {
     try {
-      if (strategy === 'local') {
-        const project = await rpc.projects.getLocalProjectByPath(pickState.path);
-        if (project) {
-          navigate('project', { projectId: project.id });
-          onClose();
-          return;
-        }
-      }
-      if (strategy === 'ssh') {
-        const project = await rpc.projects.getSshProjectByPath(
-          pickState.path,
-          selectedConnectionId!
-        );
-        if (project) {
-          navigate('project', { projectId: project.id });
-          onClose();
-          return;
-        }
+      const inspection = await rpc.projects.inspectProjectPath(
+        strategy === 'ssh'
+          ? { type: 'ssh', path: pickState.path, connectionId: selectedConnectionId! }
+          : { type: 'local', path: pickState.path }
+      );
+      if (inspection.existingProject) {
+        navigate('project', { projectId: inspection.existingProject.id });
+        onClose();
+        return;
       }
     } catch (e) {
       log.error(e);
@@ -261,7 +256,6 @@ export const AddProjectModal = observer(function AddProjectModal({
             onValueChange={([value]) => {
               if (value) setStrategy(value as Strategy);
             }}
-            size="sm"
           >
             <Tooltip>
               <TooltipTrigger>

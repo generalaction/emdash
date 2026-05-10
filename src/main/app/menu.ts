@@ -119,11 +119,15 @@ export function setupApplicationMenu(): void {
       submenu: [
         {
           label: 'Docs',
-          click: () => shell.openExternal(EMDASH_DOCS_URL),
+          click: () => {
+            void shell.openExternal(EMDASH_DOCS_URL);
+          },
         },
         {
           label: 'Changelog',
-          click: () => shell.openExternal(EMDASH_RELEASES_URL),
+          click: () => {
+            void shell.openExternal(EMDASH_RELEASES_URL);
+          },
         },
         ...(!isMac
           ? [

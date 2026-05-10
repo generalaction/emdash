@@ -72,8 +72,8 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   };
 
   const actions: SplitButtonAction[] = [
-    { value: 'commit', label: 'Commit', action: doCommit },
-    { value: 'commit-push', label: 'Commit & Push', action: doCommitAndPush },
+    { value: 'commit', label: 'Commit', action: () => void doCommit() },
+    { value: 'commit-push', label: 'Commit & Push', action: () => void doCommitAndPush() },
   ];
 
   const diffView = provisioned.taskView.diffView;

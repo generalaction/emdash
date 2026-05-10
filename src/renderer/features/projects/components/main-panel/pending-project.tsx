@@ -1,6 +1,6 @@
 import { AlertCircle, Check, Loader2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { UnregisteredProject } from '@renderer/features/projects/stores/project';
+import { type UnregisteredProject } from '@renderer/features/projects/stores/project';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -35,8 +35,8 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
   };
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
-      <div className="flex w-full max-w-sm flex-col gap-3">
+    <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-6 p-8">
+      <div className="flex w-full max-w-sm min-w-0 flex-col gap-3">
         <h2 className="mb-2 text-base">{project.name}</h2>
 
         {stages.map((stage, i) => {
@@ -69,10 +69,10 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
         })}
 
         {isError && (
-          <div className="mt-2 flex flex-col gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3">
-            <div className="flex items-start gap-2">
+          <div className="mt-2 flex min-w-0 flex-col gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3">
+            <div className="flex min-w-0 items-start gap-2">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-              <span className="text-sm text-destructive">
+              <span className="min-w-0 break-words text-sm text-destructive">
                 {project.error ?? 'An error occurred'}
               </span>
             </div>

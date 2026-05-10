@@ -11,8 +11,9 @@ import IntegrationsCard from './IntegrationsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
+import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
-import { AutoGenerateTaskNamesRow, AutoTrustWorktreesRow } from './TaskSettingsRows';
+import { AutoGenerateTaskNamesRow, AutoTrustWorktreesRow, EnableTmuxRow } from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
@@ -41,7 +42,7 @@ export function SettingsPage({
   onTabChange: (tab: SettingsPageTab) => void;
 }) {
   const handleDocsClick = useCallback(() => {
-    rpc.app.openExternal('https://docs.emdash.sh');
+    void rpc.app.openExternal('https://docs.emdash.sh');
   }, []);
 
   const tabs: Array<{
@@ -74,6 +75,9 @@ export function SettingsPage({
         },
         {
           component: <AutoTrustWorktreesRow />,
+        },
+        {
+          component: <EnableTmuxRow />,
         },
         {
           component: <NotificationSettingsCard />,
@@ -124,6 +128,7 @@ export function SettingsPage({
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
+        { component: <ResourceMonitorSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Tools',
@@ -170,7 +175,7 @@ export function SettingsPage({
           {/* Content container */}
           {currentContent && (
             <div className="min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto">
-              <div className="mx-auto w-full max-w-4xl space-y-8 py-10">
+              <div className="mx-auto w-full max-w-4xl space-y-8 px-1 py-10">
                 <div className="flex flex-col gap-6">
                   <div className="flex flex-col gap-1">
                     <h2 className="text-xl">{currentContent.title}</h2>

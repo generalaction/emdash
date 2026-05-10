@@ -1,5 +1,25 @@
 export type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
 
+export interface ImageBlob {
+  dataUrl: string;
+  mimeType: string;
+  size: number;
+}
+
+/** Why a preview could not be produced — distinguishes a real add/delete
+ *  (`missing`) from "we can't show this" (`unavailable`). */
+export type ImageUnavailableReason =
+  | 'ssh'
+  | 'unsupported'
+  | 'too-large'
+  | 'lfs-pointer'
+  | 'git-error';
+
+export type ImageReadResult =
+  | { kind: 'image'; image: ImageBlob }
+  | { kind: 'missing' }
+  | { kind: 'unavailable'; reason: ImageUnavailableReason };
+
 export type GitChangeStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'conflicted';
 
 export type GitChange = {
@@ -27,8 +47,6 @@ export interface DiffResult {
 
 export interface GitInfo {
   isGitRepo: boolean;
-  remote?: string;
-  branch?: string;
   baseRef: string;
   rootPath: string;
 }

@@ -45,7 +45,7 @@ export class MountedProject {
     this.settings = new ProjectSettingsStore(data.id);
     this.repository = new RepositoryStore(data.id, this.settings, data.baseRef);
     this.prSync = new PrSyncStore(data.id);
-    this.taskManager = new TaskManagerStore(data.id, this.repository);
+    this.taskManager = new TaskManagerStore(data.id, this.repository, this.settings, data.baseRef);
 
     if (savedSnapshot) this.view.restoreSnapshot(savedSnapshot);
 

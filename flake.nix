@@ -179,7 +179,7 @@ EOF
               meta = {
                 description = "Emdash – multi-agent orchestration desktop app";
                 homepage = "https://emdash.sh";
-                license = lib.licenses.mit;
+                license = lib.licenses.asl20;
                 platforms = [ "x86_64-linux" ];
               };
             }

@@ -31,8 +31,8 @@ pnpm run test
 - `.github/workflows/code-consistency-check.yml` currently enforces:
   - `pnpm run format:check`
   - `pnpm run typecheck`
-  - `pnpm exec vitest run`
-- Lint is still expected locally even though it is not enabled in that workflow yet.
+  - `pnpm run lint`
+- Tests are still expected locally before merging even though they are not enabled in that workflow yet.
 
 ## Focused Validation
 

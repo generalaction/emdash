@@ -6,8 +6,7 @@ type EmptyProps = Record<string, never>;
 
 export type FocusView = 'home' | 'project' | 'task' | 'settings' | 'skills' | 'mcp';
 export type FocusMainPanel = 'agents' | 'editor' | 'diff';
-export type FocusRightPanel = 'changes' | 'terminals' | 'files';
-export type FocusedRegion = 'main' | 'right';
+export type FocusedRegion = 'main' | 'bottom';
 
 export type FocusTrigger = 'navigation' | 'panel_switch' | 'region_switch';
 
@@ -22,7 +21,6 @@ export interface TelemetryEnvelope {
 export interface FocusContext {
   active_view: FocusView | null;
   active_main_panel: FocusMainPanel | null;
-  active_right_panel: FocusRightPanel | null;
   focused_region: FocusedRegion | null;
 }
 
@@ -38,7 +36,6 @@ export type TelemetryEventProperties = {
   focus_changed: {
     view: FocusView | null;
     main_panel: FocusMainPanel | null;
-    right_panel: FocusRightPanel | null;
     focused_region: FocusedRegion | null;
     trigger: FocusTrigger;
   };

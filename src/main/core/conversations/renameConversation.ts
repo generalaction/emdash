@@ -1,7 +1,24 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
+import { conversationEvents } from './conversation-events';
 
 export async function renameConversation(conversationId: string, name: string) {
-  return db.update(conversations).set({ title: name }).where(eq(conversations.id, conversationId));
+  const [existing] = await db
+    .select({ projectId: conversations.projectId, taskId: conversations.taskId })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .limit(1);
+
+  await db.update(conversations).set({ title: name }).where(eq(conversations.id, conversationId));
+
+  if (existing) {
+    conversationEvents._emit(
+      'conversation:renamed',
+      conversationId,
+      existing.projectId,
+      existing.taskId,
+      name
+    );
+  }
 }

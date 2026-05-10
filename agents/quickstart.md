@@ -25,7 +25,7 @@ pnpm run reset
 pnpm run format
 pnpm run lint
 pnpm run typecheck
-pnpm test run
+pnpm run test
 ```
 
 ## Docs Commands

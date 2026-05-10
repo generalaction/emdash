@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
@@ -12,16 +13,27 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
+import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
+import {
+  reconcileResourceSampler,
+  stopResourceSampler,
+} from './core/resource-monitor/resource-sampler';
+import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
+import { viewStateService } from './core/view-state/view-state-service';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
-import * as telemetry from './lib/telemetry';
+import { telemetryService } from './lib/telemetry';
 import { rpcRouter } from './rpc';
 import { resolveUserEnv } from './utils/userEnv';
+
+if (import.meta.env.DEV) {
+  dotenvConfig({ path: '.env.local', override: false });
+}
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
@@ -63,15 +75,18 @@ app.on('activate', () => {
   }
 });
 
-app.whenReady().then(async () => {
+void app.whenReady().then(async () => {
   await resolveUserEnv();
 
   try {
     await initializeDatabase();
-    const BUFFER_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-    editorBufferService.pruneStale(BUFFER_STALE_MS).catch((e) => {
-      log.warn('Failed to prune stale editor buffers:', e);
-    });
+    searchService.initialize();
+    void editorBufferService.pruneStale();
+    try {
+      viewStateService.pruneOrphans();
+    } catch (e: unknown) {
+      log.warn('view-state: failed to prune orphaned entries', { error: e });
+    }
   } catch (error) {
     log.error('Failed to initialize database:', error);
     dialog.showErrorBox(
@@ -83,16 +98,24 @@ app.whenReady().then(async () => {
   }
 
   try {
-    await telemetry.init({ installSource: app.isPackaged ? 'dmg' : 'dev' });
+    await telemetryService.initialize({ installSource: app.isPackaged ? 'dmg' : 'dev' });
   } catch (e) {
     log.warn('telemetry init failed:', e);
   }
 
+  emdashAccountService.on('accountChanged', (username, userId, email) => {
+    void telemetryService.identify(username, userId, email);
+  });
+  emdashAccountService.on('accountCleared', () => {
+    telemetryService.clearIdentity();
+  });
+
+  gitWatcherRegistry.initialize();
   prSyncScheduler.initialize();
   appService.initialize();
-  appSettingsService.initialize();
+  await appSettingsService.initialize();
 
-  agentHookService.start().catch((e) => {
+  agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
 
@@ -103,6 +126,8 @@ app.whenReady().then(async () => {
   providerTokenRegistry.register('github', (token) => githubConnectionService.storeToken(token));
 
   registerRPCRouter(rpcRouter, ipcMain);
+
+  void reconcileResourceSampler();
 
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
@@ -121,13 +146,18 @@ app.whenReady().then(async () => {
   }
 });
 
-app.on('before-quit', () => {
-  telemetry.capture('app_closed');
-  telemetry.shutdown();
-
-  agentHookService.stop();
-  updateService.shutdown();
-  projectManager.shutdown().catch((e) => {
-    log.error('Failed to shutdown project manager:', e);
+app.on('before-quit', (event) => {
+  event.preventDefault();
+  telemetryService.capture('app_closed');
+  void telemetryService.dispose().finally(() => {
+    agentHookService.dispose();
+    stopResourceSampler();
+    updateService.dispose();
+    prSyncScheduler.dispose();
+    void gitWatcherRegistry.dispose();
+    void projectManager.dispose().catch((e) => {
+      log.error('Failed to shutdown project manager:', e);
+    });
+    app.exit(0);
   });
 });

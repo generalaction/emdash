@@ -1,4 +1,4 @@
-import { makeAutoObservable } from 'mobx';
+import { makeAutoObservable, observable } from 'mobx';
 
 class ModalStore {
   activeModalId: string | null = null;
@@ -7,7 +7,9 @@ class ModalStore {
   closeGuardActive = false;
 
   constructor() {
-    makeAutoObservable(this);
+    makeAutoObservable(this, {
+      activeModalArgs: observable.ref,
+    });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,7 +22,6 @@ class ModalStore {
     this.closeGuardActive = false;
     this.activeModalId = null;
     this.activeModalArgs = null;
-    window.dispatchEvent(new CustomEvent('emdash:overlay:changed', { detail: { open: false } }));
   }
 
   get isOpen(): boolean {

@@ -5,20 +5,20 @@ import parcelWatcher from '@parcel/watcher';
 import { glob } from 'glob';
 import ignore from 'ignore';
 import type { FileWatchEvent } from '@shared/fs';
+import { log } from '@main/lib/logger';
 import {
-  DEFAULT_EMDASH_CONFIG,
-  FileEntry,
-  FileListResult,
   FileSystemError,
   FileSystemErrorCodes,
-  FileSystemProvider,
-  FileWatcher,
-  ListOptions,
-  ReadResult,
-  SearchMatch,
-  SearchOptions,
-  SearchResult,
-  WriteResult,
+  type FileEntry,
+  type FileListResult,
+  type FileSystemProvider,
+  type FileWatcher,
+  type ListOptions,
+  type ReadResult,
+  type SearchMatch,
+  type SearchOptions,
+  type SearchResult,
+  type WriteResult,
 } from '../types';
 
 // Binary file extensions to skip during search
@@ -334,6 +334,7 @@ export class LocalFileSystem implements FileSystemProvider {
     try {
       stat = await fs.stat(fullPath);
     } catch (err) {
+      log.error('Failed to stat file', { path, error: err });
       throw new FileSystemError(`File not found: ${path}`, FileSystemErrorCodes.NOT_FOUND, path);
     }
 
@@ -378,6 +379,7 @@ export class LocalFileSystem implements FileSystemProvider {
     try {
       await fs.mkdir(dir, { recursive: true });
     } catch (err) {
+      log.error('Failed to create directory', { dir, error: err });
       throw new FileSystemError(
         `Failed to create directory: ${dir}`,
         FileSystemErrorCodes.PERMISSION_DENIED,
@@ -388,6 +390,7 @@ export class LocalFileSystem implements FileSystemProvider {
     try {
       await fs.writeFile(fullPath, content, 'utf-8');
     } catch (err) {
+      log.error('Failed to write file', { path, error: err });
       throw new FileSystemError(
         `Failed to write file: ${path}`,
         FileSystemErrorCodes.PERMISSION_DENIED,
@@ -590,39 +593,6 @@ export class LocalFileSystem implements FileSystemProvider {
           return { success: false, error: `Permission denied: ${path}` };
         }
       }
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
-  async getProjectConfig(): Promise<{ success: boolean; content?: string; error?: string }> {
-    const configPath = join(this.projectPath, '.emdash.json');
-    try {
-      try {
-        const content = await fs.readFile(configPath, 'utf-8');
-        return { success: true, content };
-      } catch (err: unknown) {
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') throw err;
-        // File doesn't exist — create with defaults
-        await fs.writeFile(configPath, DEFAULT_EMDASH_CONFIG, 'utf-8');
-        return { success: true, content: DEFAULT_EMDASH_CONFIG };
-      }
-    } catch (err: unknown) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
-  async saveProjectConfig(content: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      JSON.parse(content);
-    } catch {
-      return { success: false, error: 'Invalid JSON format' };
-    }
-    const configPath = join(this.projectPath, '.emdash.json');
-    try {
-      await fs.writeFile(configPath, content, 'utf-8');
-      return { success: true };
-    } catch (err: unknown) {
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   }

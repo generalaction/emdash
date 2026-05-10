@@ -1,6 +1,6 @@
 import { quoteShellArg } from './shellEscape';
 
-type RemoteEditorScheme = 'vscode' | 'cursor';
+type RemoteEditorScheme = 'vscode' | 'vscodium' | 'cursor';
 
 export function buildRemoteSshAuthority(host: string, username: string): string {
   const normalizedHost = host.trim();
@@ -27,7 +27,7 @@ export function buildRemoteEditorUrl(
   return `${scheme}://vscode-remote/ssh-remote+${encodedAuthority}${normalizedTargetPath}`;
 }
 
-type GhosttyRemoteExecInput = {
+type RemoteTerminalExecInput = {
   host: string;
   username: string;
   port: number | string;
@@ -52,20 +52,20 @@ export function buildRemoteTerminalShellCommand(targetPath: string): string {
  *
  * Command text is shell-escaped because these launchers execute through a shell.
  */
-export function buildRemoteSshCommand(input: GhosttyRemoteExecInput): string {
+export function buildRemoteSshCommand(input: RemoteTerminalExecInput): string {
   const sshAuthority = buildRemoteSshAuthority(input.host, input.username);
   const remoteCommand = buildRemoteTerminalShellCommand(input.targetPath);
   return `ssh ${quoteShellArg(sshAuthority)} -o ${quoteShellArg('ControlMaster=no')} -o ${quoteShellArg('ControlPath=none')} -p ${quoteShellArg(String(input.port))} -t ${quoteShellArg(remoteCommand)}`;
 }
 
 /**
- * Builds argv tokens for Ghostty `-e` remote SSH execution.
+ * Builds argv tokens for terminal remote SSH execution.
  *
- * We pass these tokens directly via child_process execFile/spawn (shell disabled),
- * so host/port are not shell-quoted here. The remote command itself is still
- * shell-escaped because it is parsed by the remote shell over SSH.
+ * We pass these tokens directly via child_process execFile/spawn (shell disabled), so host/port
+ * are not shell-quoted here. The remote command itself is still shell-escaped because it is
+ * parsed by the remote shell over SSH.
  */
-export function buildGhosttyRemoteExecArgs(input: GhosttyRemoteExecInput): string[] {
+export function buildRemoteTerminalExecArgs(input: RemoteTerminalExecInput): string[] {
   const sshAuthority = buildRemoteSshAuthority(input.host, input.username);
   const remoteCommand = buildRemoteTerminalShellCommand(input.targetPath);
   return [

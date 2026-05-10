@@ -3,8 +3,13 @@ import { selectCurrentPr } from '@shared/pull-requests';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
-import { TaskStore } from '@renderer/features/tasks/stores/task';
-import { getTaskManagerStore, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { type TaskStore } from '@renderer/features/tasks/stores/task';
+import {
+  asProvisioned,
+  getTaskManagerStore,
+  getTaskStore,
+} from '@renderer/features/tasks/stores/task-selectors';
+import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
   useNavigate,
   useParams,
@@ -28,6 +33,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   rowVariant = 'underProject',
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
+  const { setCollapsed } = useWorkspaceLayoutContext();
   const showRename = useShowModal('renameTaskModal');
   const showConfirm = useShowModal('confirmActionModal');
 
@@ -48,7 +54,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
-    taskManager?.provisionTask(taskId);
+    void taskManager?.provisionTask(taskId);
   };
 
   const handleArchive = () => {
@@ -71,15 +77,25 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const canPin = task.state !== 'unregistered';
 
+  const provisionedTask = asProvisioned(task);
+  const branchName =
+    provisionedTask?.workspace.git.branchName ??
+    ('taskBranch' in task.data ? task.data.taskBranch : undefined);
+  const workspace = provisionedTask?.workspace;
+  const handleReconnect =
+    workspace?.connectionState != null ? () => workspace.reconnect() : undefined;
+
   return (
     <TaskContextMenu
       isPinned={task.data.isPinned}
       canPin={canPin}
       isArchived={false}
+      branchName={branchName}
       onPin={() => void task.setPinned(true)}
       onUnpin={() => void task.setPinned(false)}
       onRename={handleRename}
       onArchive={handleArchive}
+      onReconnect={handleReconnect}
       onDelete={handleDelete}
     >
       <SidebarMenuRow
@@ -93,6 +109,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           handleProvision();
           navigate('task', { projectId, taskId });
         }}
+        onDoubleClick={() => setCollapsed('left', true)}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
           <span
@@ -103,7 +120,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           >
             {taskName}
           </span>
-          <TaskGitDiffStats task={task} className="h-full shrink-0 flex items-center pr-1" />
+          <TaskGitDiffStats task={task} className="h-full shrink-0 flex items-center pl-1 pr-1" />
           <RenderPrBadge task={task} />
         </div>
         <TaskSidebarAgentStatus task={task} />

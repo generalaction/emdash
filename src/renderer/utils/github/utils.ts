@@ -1,25 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import type { CheckRun, CheckRunsSummary } from './types';
 
-// ── GitHub URL helpers (renderer-side) ────────────────────────────────────────
-
-/** Returns true if the URL refers to a GitHub.com remote (SSH or HTTPS). */
-export function isGitHubUrl(url: string): boolean {
-  return /github\.com/i.test(url);
-}
-
-/**
- * Normalises a GitHub remote URL to the canonical HTTPS form without `.git`.
- * e.g. `git@github.com:owner/repo.git` → `https://github.com/owner/repo`
- */
-export function normalizeGitHubUrl(url: string): string {
-  // SSH format: git@github.com:owner/repo.git
-  const ssh = /^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?$/.exec(url);
-  if (ssh) return `https://github.com/${ssh[1]}`;
-  // HTTPS format: strip trailing .git
-  return url.replace(/\.git$/, '');
-}
-
 export type CheckRunBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
 
 /** Derive a display bucket from a check's raw status and conclusion fields. */

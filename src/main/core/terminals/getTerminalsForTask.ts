@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { Terminal } from '@shared/terminals';
+import { type Terminal } from '@shared/terminals';
 import { db } from '@main/db/client';
 import { terminals } from '@main/db/schema';
 import { mapTerminalRowToTerminal } from './core';

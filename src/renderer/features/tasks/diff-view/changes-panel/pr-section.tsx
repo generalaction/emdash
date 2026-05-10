@@ -38,9 +38,21 @@ export const PullRequestsSection = observer(function PullRequestsSection({
           taskBranch
             ? () =>
                 showCreatePrModal({
-                  nameWithOwner: repositoryUrl ?? '',
+                  repositoryUrl: repositoryUrl ?? '',
                   branchName: taskBranch,
                   draft: false,
+                  workspaceId: provisioned.workspaceId,
+                  onSuccess: () => {},
+                })
+            : undefined
+        }
+        onCreateDraftPr={
+          taskBranch
+            ? () =>
+                showCreatePrModal({
+                  repositoryUrl: repositoryUrl ?? '',
+                  branchName: taskBranch,
+                  draft: true,
                   workspaceId: provisioned.workspaceId,
                   onSuccess: () => {},
                 })

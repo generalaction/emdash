@@ -1,5 +1,5 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import { TabViewProvider, TabViewSnapshot } from '@renderer/lib/stores/generic-tab-view';
+import { type TabViewProvider, type TabViewSnapshot } from '@renderer/lib/stores/generic-tab-view';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import {
   reorderTabIds,
@@ -61,6 +61,10 @@ export class TerminalTabViewStore
           // Auto-select first if nothing is active
           if (!this.activeTabId && this.tabOrder.length > 0) {
             this.activeTabId = this.tabOrder[0];
+          }
+          // When all terminals have been removed, create a replacement immediately
+          if (ids.length === 0) {
+            void this.resource.createDefaultTerminal();
           }
         })
       )

@@ -1,5 +1,6 @@
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { parseGitHubRepository } from '@shared/github-repository';
 import {
   asMounted,
   getProjectManagerStore,
@@ -37,11 +38,10 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const configuredRemote = repo?.configuredRemote;
   const remoteUrl = configuredRemote?.url;
   const repositoryUrl = repo?.repositoryUrl;
+  const repository = parseGitHubRepository(repositoryUrl);
 
-  const isGithubUrl = repositoryUrl?.includes('github.com');
-  const repoLabel = repositoryUrl
-    ? repositoryUrl.replace(/^https?:\/\/(www\.)?github\.com\//, '')
-    : remoteUrl?.replace(/^https?:\/\//, '');
+  const isGithubUrl = Boolean(repository);
+  const repoLabel = repository?.nameWithOwner ?? remoteUrl?.replace(/^https?:\/\//, '');
 
   return (
     <div className="flex items-center px-2 gap-2 h-full">

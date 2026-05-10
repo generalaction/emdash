@@ -1,17 +1,19 @@
-import z from 'zod';
+import type z from 'zod';
 import {
-  agentAutoApproveDefaultsSchema,
   appSettingsSchema,
-  interfaceSettingsSchema,
-  localProjectSettingsSchema,
-  notificationSettingsSchema,
-  providerCustomConfigEntrySchema,
-  taskSettingsSchema,
-  terminalSettingsSchema,
-  themeSchema,
+  type agentAutoApproveDefaultsSchema,
+  type interfaceSettingsSchema,
+  type localProjectSettingsSchema,
+  type notificationSettingsSchema,
+  type projectSettingsSchema,
+  type providerCustomConfigEntrySchema,
+  type taskSettingsSchema,
+  type terminalSettingsSchema,
+  type themeSchema,
 } from '@main/core/settings/schema';
 
 export type LocalProjectSettings = z.infer<typeof localProjectSettingsSchema>;
+export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 export type NotificationSettings = z.infer<typeof notificationSettingsSchema>;
 export type TaskSettings = z.infer<typeof taskSettingsSchema>;
 export type AgentAutoApproveDefaults = z.infer<typeof agentAutoApproveDefaultsSchema>;

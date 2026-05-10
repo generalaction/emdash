@@ -110,6 +110,20 @@ export type PrFilterOptions = {
   assignees: PullRequestUser[];
 };
 
+export type PullRequestError =
+  | { type: 'invalid_repository'; input: string }
+  | { type: 'remote_not_ready'; status: string }
+  | { type: 'list_failed'; message: string }
+  | { type: 'filter_options_failed'; message: string }
+  | { type: 'task_pull_requests_failed'; message: string }
+  | { type: 'sync_failed'; message: string }
+  | { type: 'refresh_failed'; message: string }
+  | { type: 'checks_failed'; message: string }
+  | { type: 'create_failed'; message: string }
+  | { type: 'merge_failed'; message: string }
+  | { type: 'mark_ready_failed'; message: string }
+  | { type: 'files_failed'; message: string };
+
 // ── Pass-through types ────────────────────────────────────────────────────────
 
 export interface PullRequestFile {
@@ -118,6 +132,17 @@ export interface PullRequestFile {
   additions: number;
   deletions: number;
   patch?: string;
+}
+
+export function pullRequestErrorMessage(error: PullRequestError): string {
+  switch (error.type) {
+    case 'invalid_repository':
+      return `Invalid GitHub repository URL: "${error.input}"`;
+    case 'remote_not_ready':
+      return `Remote not ready: ${error.status}`;
+    default:
+      return error.message;
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -146,23 +171,4 @@ export function getPrNumber(pr: { identifier: string | null }): number | null {
   if (!pr.identifier) return null;
   const n = parseInt(pr.identifier.replace('#', ''), 10);
   return isNaN(n) ? null : n;
-}
-
-/**
- * Extract the GitHub `owner/repo` string from a normalised repository URL
- * (e.g. `https://github.com/owner/repo` → `"owner/repo"`).
- * Returns the URL unchanged if parsing fails.
- */
-export function nameWithOwnerFromUrl(repositoryUrl: string): string {
-  const match = /github\.com\/([^/]+\/[^/?#]+)/.exec(repositoryUrl);
-  return match ? match[1] : repositoryUrl;
-}
-
-/**
- * Extract just the owner from a repository URL.
- * (e.g. `https://github.com/owner/repo` → `"owner"`).
- */
-export function ownerFromUrl(repositoryUrl: string): string | undefined {
-  const match = /github\.com\/([^/]+)/.exec(repositoryUrl);
-  return match ? match[1] : undefined;
 }

@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { sshConnections } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import {
@@ -7,13 +6,8 @@ import {
   normalizePort,
   normalizeUsername,
 } from '../../legacy-source/normalize';
-import {
-  isUniqueConstraintError,
-  readLegacyRows,
-  toInteger,
-  toIsoTimestamp,
-  toTrimmedString,
-} from './helpers';
+import { readLegacyRows, toInteger, toIsoTimestamp, toTrimmedString } from './helpers';
+import { insertWithRegeneratedId } from './insert';
 import { createPortSummary, type PortContext, type PortSummary } from './types';
 
 type ExistingSshConnection = {
@@ -47,7 +41,10 @@ export async function portSshConnections({
   appDb,
   legacyDb,
   remap,
-}: PortContext): Promise<PortSummary> {
+  allowedLegacyConnectionIds,
+}: PortContext & {
+  allowedLegacyConnectionIds?: ReadonlySet<string>;
+}): Promise<PortSummary> {
   const summary = createPortSummary('ssh_connections');
   const nowIso = new Date().toISOString();
 
@@ -105,6 +102,11 @@ export async function portSshConnections({
       continue;
     }
 
+    if (allowedLegacyConnectionIds && !allowedLegacyConnectionIds.has(legacyId)) {
+      summary.skippedDedup += 1;
+      continue;
+    }
+
     const normalizedPort = normalizePort(toInteger(row.port));
     const fingerprint = makeSshFingerprint(host, normalizedPort, username);
     const existingConnectionId = fingerprintToConnectionId.get(fingerprint);
@@ -115,14 +117,12 @@ export async function portSshConnections({
       continue;
     }
 
-    let nextConnectionId = existingConnectionIds.has(legacyId) ? randomUUID() : legacyId;
-
     const preferredName =
       toTrimmedString(row.name) ??
       `${normalizeUsername(username)}@${normalizeHost(host)}:${normalizedPort}`;
 
     const insertValues = {
-      id: nextConnectionId,
+      id: legacyId,
       name: pickUniqueConnectionName(preferredName, usedConnectionNames),
       host,
       port: normalizedPort,
@@ -135,33 +135,31 @@ export async function portSshConnections({
       updatedAt: toIsoTimestamp(row.updated_at, nowIso),
     };
 
-    let inserted = false;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        insertValues.id = nextConnectionId;
-        await appDb.insert(sshConnections).values(insertValues).execute();
-        inserted = true;
-        break;
-      } catch (error) {
-        if (attempt === 0 && isUniqueConstraintError(error, 'ssh_connections.id')) {
-          nextConnectionId = randomUUID();
-          continue;
-        }
+    const insertResult = await insertWithRegeneratedId({
+      initialId: legacyId,
+      existingIds: existingConnectionIds,
+      uniqueConstraintDetail: 'ssh_connections.id',
+      setId: (id) => {
+        insertValues.id = id;
+      },
+      insert: () => appDb.insert(sshConnections).values(insertValues).execute(),
+    });
 
-        summary.skippedError += 1;
-        log.warn('legacy-port: ssh_connections: failed to insert row', {
-          legacyId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        break;
-      }
+    if (!insertResult.inserted) {
+      summary.skippedError += 1;
+      log.warn('legacy-port: ssh_connections: failed to insert row', {
+        legacyId,
+        error:
+          insertResult.error instanceof Error
+            ? insertResult.error.message
+            : String(insertResult.error),
+      });
+      continue;
     }
 
-    if (!inserted) continue;
-
-    remap.sshConnectionId.set(legacyId, nextConnectionId);
-    fingerprintToConnectionId.set(fingerprint, nextConnectionId);
-    existingConnectionIds.add(nextConnectionId);
+    remap.sshConnectionId.set(legacyId, insertResult.id);
+    fingerprintToConnectionId.set(fingerprint, insertResult.id);
+    existingConnectionIds.add(insertResult.id);
     summary.inserted += 1;
   }
 

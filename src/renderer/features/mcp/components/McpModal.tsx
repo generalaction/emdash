@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/mcp/types';
+import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -27,12 +28,11 @@ export type McpModalMode =
   | { type: 'add-custom' }
   | { type: 'edit'; server: McpServer };
 
-export interface McpModalProps {
+interface McpModalProps extends BaseModalProps {
   mode: McpModalMode;
   providers: McpProvidersResponse[];
   onSave: (server: McpServer) => Promise<void>;
   onRemove?: (serverName: string) => void;
-  onSuccess: (result: unknown) => void;
 }
 
 export const McpModal: React.FC<McpModalProps> = ({
