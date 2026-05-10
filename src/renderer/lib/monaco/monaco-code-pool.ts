@@ -9,7 +9,9 @@ export type CodePoolEntry = GenericPoolEntry<monaco.editor.IStandaloneCodeEditor
 
 export const codeEditorPool = new MonacoPool<monaco.editor.IStandaloneCodeEditor>({
   poolId: 'monaco-code-pool',
-  reserveTarget: 1,
+  // reserveTarget: 2 — one idle instance pre-warmed for the persistent text/code editor,
+  // one for the MarkdownEditorPanel's source-mode Monaco (which leases its own instance).
+  reserveTarget: 2,
   createEditor: (m, container) => m.editor.create(container, { ...DEFAULT_EDITOR_OPTIONS }),
   cleanupOnRelease: (editor) => {
     editor.updateOptions({ readOnly: false, glyphMargin: false });

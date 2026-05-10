@@ -9,6 +9,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
 import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
+import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
 
 function pathToImageReference(path: string): string {
@@ -90,8 +91,10 @@ export async function createConversation(params: CreateConversationParams): Prom
       title: params.title,
       provider: params.provider,
       config,
+      isInitialConversation: params.isInitialConversation ?? false,
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,
+      lastInteractedAt: new Date().toISOString(),
     })
     .returning();
 
@@ -101,6 +104,8 @@ export async function createConversation(params: CreateConversationParams): Prom
   }
 
   const conversation = mapConversationRowToConversation(row);
+
+  conversationEvents._emit('conversation:created', conversation);
 
   await task.conversations.startSession(
     conversation,

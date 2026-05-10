@@ -56,7 +56,7 @@ function runBundledMigrations(connection: BetterSqlite3.Database): void {
  * table so it can be safely dropped and recreated when the schema changes.
  */
 function ensureSearchIndex(connection: BetterSqlite3.Database): void {
-  const SEARCH_INDEX_VERSION = '1';
+  const SEARCH_INDEX_VERSION = '2';
 
   const row = connection.prepare(`SELECT value FROM kv WHERE key = 'fts_version'`).get() as
     | { value: string }
@@ -69,6 +69,7 @@ function ensureSearchIndex(connection: BetterSqlite3.Database): void {
         item_type,
         item_id    UNINDEXED,
         project_id UNINDEXED,
+        task_id    UNINDEXED,
         title,
         keywords,
         tokenize = 'unicode61 remove_diacritics 1'

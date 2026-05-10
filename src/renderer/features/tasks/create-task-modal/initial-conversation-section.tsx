@@ -8,11 +8,13 @@ import type { Issue } from '@shared/tasks';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { buildTaskContextActions } from '@renderer/features/tasks/conversations/context-actions';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
+import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
+import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { ModalContextBar } from './modal-context-bar';
 
@@ -97,6 +99,7 @@ export function InitialConversationField({
 }: InitialConversationFieldProps) {
   const [preview, setPreview] = useState<ImagePreview | null>(null);
   const { value: reviewPrompt } = useAppSettingsKey('reviewPrompt');
+  const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
     () => buildTaskContextActions(linkedIssue, reviewPrompt),
     [linkedIssue, reviewPrompt]
@@ -176,59 +179,73 @@ export function InitialConversationField({
     : null;
 
   return (
-    <Field>
-      <FieldLabel>Initial Conversation</FieldLabel>
-      <div
-        className="flex flex-col border border-border rounded-md"
-        onDrop={state.handleImageDrop}
-        onDragOver={state.handleImageDragOver}
-      >
-        <AgentSelector
-          value={state.provider}
-          onChange={(provider) => state.setProvider(provider)}
-          connectionId={connectionId}
-          className="rounded-none border-0 border-b"
-        />
-        <Textarea
-          placeholder="Start with a prompt... (optional)"
-          value={state.prompt}
-          onChange={(e) => state.setPrompt(e.target.value)}
-          onPaste={state.handleImagePaste}
-          className="min-h-24 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
-        />
-        {state.imageAttachments.length > 0 ? (
-          <ul className="flex flex-col gap-1 border-t border-border p-2">
-            {state.imageAttachments.map((file, index) => {
-              const displayName = imageDisplayName(file, index);
-              return (
-                <li
-                  key={`${file.name}-${index}`}
-                  className="flex items-center justify-between gap-2 rounded-md bg-background-1 px-2 py-1 text-xs"
-                >
-                  <button
-                    type="button"
-                    className="truncate text-left text-foreground-muted hover:text-foreground"
-                    onClick={() => openPreview(file, displayName)}
+    <>
+      <Field>
+        <FieldLabel>Initial Conversation</FieldLabel>
+        <div
+          className="flex flex-col border border-border rounded-md"
+          onDrop={state.handleImageDrop}
+          onDragOver={state.handleImageDragOver}
+        >
+          <AgentSelector
+            value={state.provider}
+            onChange={(provider) => state.setProvider(provider)}
+            connectionId={connectionId}
+            className="rounded-none border-0 border-b"
+          />
+          <Textarea
+            placeholder="Start with a prompt... (optional)"
+            value={state.prompt}
+            onChange={(e) => state.setPrompt(e.target.value)}
+            onPaste={state.handleImagePaste}
+            className="min-h-24 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
+          />
+          {state.imageAttachments.length > 0 ? (
+            <ul className="flex flex-col gap-1 border-t border-border p-2">
+              {state.imageAttachments.map((file, index) => {
+                const displayName = imageDisplayName(file, index);
+                return (
+                  <li
+                    key={`${file.name}-${index}`}
+                    className="flex items-center justify-between gap-2 rounded-md bg-background-1 px-2 py-1 text-xs"
                   >
-                    {displayName}
-                  </button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => state.removeImageAttachment(index)}
-                    aria-label={`Remove ${displayName}`}
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-        <ModalContextBar actions={contextActions} onActionClick={handleActionClick} />
-      </div>
-      {previewPortal}
-    </Field>
+                    <button
+                      type="button"
+                      className="truncate text-left text-foreground-muted hover:text-foreground"
+                      onClick={() => openPreview(file, displayName)}
+                    >
+                      {displayName}
+                    </button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => state.removeImageAttachment(index)}
+                      aria-label={`Remove ${displayName}`}
+                    >
+                      <X className="size-3" />
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+          <ModalContextBar actions={contextActions} onActionClick={handleActionClick} />
+        </div>
+        {previewPortal}
+      </Field>
+      <Field>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={state.provider ? autoApproveDefaults.getDefault(state.provider) : false}
+            disabled={!state.provider || autoApproveDefaults.loading || autoApproveDefaults.saving}
+            onCheckedChange={(checked) => {
+              if (state.provider) autoApproveDefaults.setDefault(state.provider, checked);
+            }}
+          />
+          <FieldLabel>Dangerously skip permissions</FieldLabel>
+        </div>
+      </Field>
+    </>
   );
 }

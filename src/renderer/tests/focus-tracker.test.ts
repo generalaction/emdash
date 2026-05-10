@@ -7,7 +7,7 @@ describe('FocusTracker', () => {
     const emit = vi.fn();
     tracker.setTransitionEmitter(emit);
 
-    tracker.initialize({ view: 'home', mainPanel: null, rightPanel: null, focusedRegion: null });
+    tracker.initialize({ view: 'home', mainPanel: null, focusedRegion: null });
     tracker.transition({ view: 'task', mainPanel: 'agents' }, 'navigation');
 
     expect(emit).toHaveBeenCalledTimes(1);
@@ -22,7 +22,7 @@ describe('FocusTracker', () => {
     const emit = vi.fn();
     tracker.setTransitionEmitter(emit);
 
-    tracker.initialize({ view: 'home', mainPanel: null, rightPanel: null, focusedRegion: null });
+    tracker.initialize({ view: 'home', mainPanel: null, focusedRegion: null });
     const result = tracker.transition({}, 'navigation');
 
     expect(result).toBeNull();

@@ -4,8 +4,10 @@ import type { Branch } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
 import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
-import type { ProjectSettingsProvider } from '../settings/schema';
+import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
+import type { ProjectSettingsProvider } from '../settings/provider';
 import type { WorktreeHost } from './hosts/worktree-host';
 
 export type ServeWorktreeError =
@@ -275,8 +277,34 @@ export class WorktreeService {
     await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
   }
 
+  private taskConfigFs(targetPath: string): Pick<FileSystemProvider, 'exists' | 'read'> {
+    return {
+      exists: (filePath) => this.host.existsAbsolute(path.join(targetPath, filePath)),
+      read: async (filePath) => {
+        const content = await this.host.readFileAbsolute(path.join(targetPath, filePath));
+        return {
+          content,
+          truncated: false,
+          totalSize: Buffer.byteLength(content),
+        };
+      },
+    };
+  }
+
+  private async isTrackedSourcePath(relPath: string): Promise<boolean> {
+    try {
+      await this.ctx.exec('git', ['ls-files', '--error-unmatch', '--', relPath]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async copyPreservedFiles(targetPath: string): Promise<void> {
-    const settings = await this.projectSettings.get();
+    const settings = await getEffectiveTaskSettings({
+      projectSettings: this.projectSettings,
+      taskFs: this.taskConfigFs(targetPath) as FileSystemProvider,
+    });
     const patterns = settings.preservePatterns ?? [];
     for (const pattern of patterns) {
       const matches = await this.host.globAbsolute(pattern, {
@@ -284,6 +312,7 @@ export class WorktreeService {
         dot: true,
       });
       for (const relPath of matches) {
+        if (relPath === '.emdash.json' || (await this.isTrackedSourcePath(relPath))) continue;
         const src = path.join(this.repoPath, relPath);
         const stat = await this.host.statAbsolute(src).catch(() => null);
         if (!stat || stat.type !== 'file') continue;

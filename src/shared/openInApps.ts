@@ -39,6 +39,7 @@ const ICON_PATHS = {
   ghostty: 'ghostty.png',
   kitty: 'kitty.png',
   zed: 'zed.png',
+  trae: 'trae.png',
   'intellij-idea': 'intellij-idea.svg',
   'android-studio': 'android-studio.svg',
   webstorm: 'webstorm.svg',
@@ -340,6 +341,54 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['antigravity {{path}}'],
         checkCommands: ['antigravity'],
+      },
+    },
+  },
+  trae: {
+    id: 'trae',
+    label: 'Trae',
+    iconPath: ICON_PATHS.trae,
+    autoInstall: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v trae >/dev/null 2>&1 && trae {{path}}',
+          'open -a "Trae" {{path}}',
+        ],
+        checkCommands: ['trae'],
+        appNames: ['Trae'],
+      },
+      win32: {
+        openCommands: ['start "" trae "{{path_raw}}"'],
+        checkCommands: ['trae'],
+      },
+      linux: {
+        openCommands: ['trae {{path}}'],
+        checkCommands: ['trae'],
+      },
+    },
+  },
+  'trae-solo': {
+    id: 'trae-solo',
+    label: 'Trae Solo',
+    iconPath: ICON_PATHS.trae,
+    autoInstall: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v trae-solo >/dev/null 2>&1 && trae-solo {{path}}',
+          'open -a "Trae Solo" {{path}}',
+        ],
+        checkCommands: ['trae-solo'],
+        appNames: ['Trae Solo'],
+      },
+      win32: {
+        openCommands: ['start "" trae-solo "{{path_raw}}"'],
+        checkCommands: ['trae-solo'],
+      },
+      linux: {
+        openCommands: ['trae-solo {{path}}'],
+        checkCommands: ['trae-solo'],
       },
     },
   },

@@ -1,5 +1,5 @@
-import type { ProjectSettings } from '@main/core/projects/settings/schema';
-import { getEffectiveTaskSettings } from '@main/core/projects/settings/task-settings';
+import type { ProjectSettings } from '@shared/project-settings';
+import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import { resolveWorkspace } from '@main/core/projects/utils';
 
 export async function getWorkspaceSettings(
