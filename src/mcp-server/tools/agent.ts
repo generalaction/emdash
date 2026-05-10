@@ -33,7 +33,7 @@ export function registerAgentTools(server: McpServer, http: HttpClient): void {
 
   server.tool(
     'agent_spawn',
-    'Spawns a new peer conversation in the same task. Use for parallel sub-agent patterns (one researcher + one implementer in the same worktree). To spawn into a different task, use task_create instead (PR4).',
+    'Spawns a new peer conversation in the same task. Use for parallel sub-agent patterns (one researcher + one implementer in the same worktree). Cross-task spawn is not part of v1 — use task_create (PR4) when you need a new task.',
     {
       providerId: z
         .string()
@@ -43,17 +43,12 @@ export function registerAgentTools(server: McpServer, http: HttpClient): void {
         .string()
         .optional()
         .describe("First message delivered to the spawned agent's stdin."),
-      sameTask: z
-        .boolean()
-        .optional()
-        .describe('Default true. false is rejected in v1 — use task_create.'),
     },
-    async ({ providerId, name, initialPrompt, sameTask }) => {
+    async ({ providerId, name, initialPrompt }) => {
       const data = await http.post('/agent/spawn', {
         providerId,
         ...(name ? { name } : {}),
         ...(initialPrompt ? { initialPrompt } : {}),
-        ...(sameTask !== undefined ? { sameTask } : {}),
       });
       return { content: [{ type: 'text', text: JSON.stringify(data) }] };
     }
@@ -89,7 +84,7 @@ export function registerAgentTools(server: McpServer, http: HttpClient): void {
 
   server.tool(
     'agent_fetch',
-    'Pulls events or terminal scrollback from a peer agent. kind=events returns the structured agent event ring buffer (status changes, hook notifications). kind=scrollback returns the raw PTY ring buffer string (last ~64KB). transcript fetch lands in PR3.',
+    "Pulls events or terminal scrollback from a peer agent. The response is discriminated by `kind`: kind='events' returns `{ kind:'events', events: AgentEvent[], nextCursor? }`; kind='scrollback' returns `{ kind:'scrollback', scrollback: string }` (raw PTY ring buffer, last ~64KB). transcript fetch lands in PR3.",
     {
       conversationId: z.string().describe('Target conversation ID.'),
       kind: z
@@ -105,7 +100,7 @@ export function registerAgentTools(server: McpServer, http: HttpClient): void {
         .string()
         .optional()
         .describe(
-          'events: timestamp cursor (ms since epoch). Use nextCursor from a prior response to paginate.'
+          'events: opaque cursor from a prior response (its nextCursor). Treat as a black box.'
         ),
     },
     async ({ conversationId, kind, limit, since }) => {
