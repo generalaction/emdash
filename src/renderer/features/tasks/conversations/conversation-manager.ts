@@ -18,6 +18,7 @@ export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'com
 export class ConversationManagerStore {
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
+  private readonly _disposeReaction: () => void;
 
   /** Data layer: plain Conversation records loaded from the main process. */
   readonly list: Resource<Conversation[]>;
@@ -46,7 +47,7 @@ export class ConversationManagerStore {
 
     // Sync conversations and sessions maps whenever resource data changes.
     // fireImmediately triggers immediately with preloaded data or once load completes.
-    reaction(
+    this._disposeReaction = reaction(
       () => this.list.data,
       (data) => {
         if (!data) return;
@@ -210,6 +211,7 @@ export class ConversationManagerStore {
   }
 
   dispose(): void {
+    this._disposeReaction();
     this.offAgentEvents?.();
     this.offAgentEvents = null;
     this.offSessionExited?.();

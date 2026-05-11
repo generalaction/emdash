@@ -15,6 +15,7 @@ export class TerminalManagerStore {
   terminals = observable.map<string, TerminalStore>();
   /** Session layer keyed by terminal id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
+  private readonly _disposeReaction: () => void;
 
   constructor(projectId: string, taskId: string) {
     this.projectId = projectId;
@@ -34,7 +35,7 @@ export class TerminalManagerStore {
     // Sync terminals and sessions maps whenever the resource data changes.
     // fireImmediately ensures the reaction runs once on construction to establish
     // the dependency on list.data, which triggers the demand-strategy load.
-    reaction(
+    this._disposeReaction = reaction(
       () => this.list.data,
       (data) => {
         if (!data) return;
@@ -140,6 +141,7 @@ export class TerminalManagerStore {
   }
 
   dispose(): void {
+    this._disposeReaction();
     for (const session of this.sessions.values()) {
       session.dispose();
     }
