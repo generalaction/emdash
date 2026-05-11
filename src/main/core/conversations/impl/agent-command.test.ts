@@ -87,6 +87,26 @@ describe('buildAgentCommand', () => {
     expect(command.args).toEqual(['resume', '123e4567-e89b-12d3-a456-426614174000']);
   });
 
+  it('preserves custom Codex resume arguments', () => {
+    const command = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: {
+        ...providerConfigDefaults.codex,
+        resumeFlag: 'resume --profile work --last',
+      },
+      sessionId: 'conversation-id',
+      providerSessionId: '123e4567-e89b-12d3-a456-426614174000',
+      isResuming: true,
+    });
+
+    expect(command.args).toEqual([
+      'resume',
+      '--profile',
+      'work',
+      '123e4567-e89b-12d3-a456-426614174000',
+    ]);
+  });
+
   it('supports custom CLI command prefixes and appends managed provider args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',

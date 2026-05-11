@@ -119,19 +119,17 @@ export function buildAgentCommand({
   if (isResuming && providerConfig?.resumeFlag) {
     if (providerId === 'opencode' && providerSessionId) {
       args.push('--session', providerSessionId);
-    } else {
+    } else if (providerId === 'codex') {
       const resumeArgs = parseArgField(providerConfig.resumeFlag);
-      args.push(
-        ...(providerId === 'codex' && providerSessionId
-          ? resumeArgs.filter((arg) => arg !== '--last')
-          : resumeArgs)
-      );
+      args.push(...(providerSessionId ? resumeArgs.filter((arg) => arg !== '--last') : resumeArgs));
+      if (providerSessionId) args.push(providerSessionId);
+      else args.push('--last');
+    } else {
+      args.push(...parseArgField(providerConfig.resumeFlag));
       if (providerConfig.sessionIdFlag) {
         args.push(sessionId);
       } else if (providerSessionId) {
         args.push(providerSessionId);
-      } else if (providerId === 'codex') {
-        args.push('--last');
       }
     }
   } else if (shouldPassSessionId) {
