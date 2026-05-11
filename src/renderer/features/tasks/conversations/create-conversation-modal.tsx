@@ -61,7 +61,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
         initialSize: getConversationsPaneSize(),
       });
       onSuccess({ conversationId: id });
-    } catch (e) {
+    } catch {
       setError('Failed to create conversation');
       setIsSubmitting(false);
     }
