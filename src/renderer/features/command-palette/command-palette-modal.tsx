@@ -24,7 +24,7 @@ import { PaletteNotificationsGroup } from './palette-notifications-group';
 import { PaletteProjectsGroup } from './palette-projects-group';
 import { PaletteTaskItem } from './palette-task-item';
 import { ResourceMonitorView } from './resource-monitor-view';
-import { applyContextAffinity, rrf } from './rrf';
+import { applyContextAffinity } from './search-utils';
 
 interface CommandPaletteProps {
   projectId?: string;
@@ -37,12 +37,9 @@ interface PaletteAction {
   title: string;
   subtitle?: string;
   shortcut?: string;
-  score: number;
   icon?: LucideIcon;
   execute: () => void;
 }
-
-type MergedResult = SearchItem | PaletteAction;
 
 const KIND_ICON: Record<string, React.ReactNode> = {
   action: null,
@@ -63,20 +60,13 @@ function formatHotkey(hotkey: string | undefined): string | undefined {
   return hotkey.replace('Mod', '⌘').replace('Shift', '⇧').replace('Alt', '⌥').replace(/\+/g, '');
 }
 
-function matchesQuery(action: PaletteAction, query: string) {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const haystack = `${action.title} ${action.subtitle ?? ''}`.toLowerCase();
-  return q.split(/\s+/).every((token) => haystack.includes(token));
-}
-
 function PaletteItem({
   value,
   item,
   onSelect,
 }: {
   value: string;
-  item: MergedResult;
+  item: SearchItem | PaletteAction;
   onSelect: () => void;
 }) {
   const action = item.kind === 'action' ? (item as PaletteAction) : null;
@@ -153,7 +143,6 @@ export function CommandPaletteModal({
             ? formatHotkey(getEffectiveHotkey(cmd.shortcutKey, keyboard) ?? undefined)
             : undefined,
           icon: getCommandIcon(def?.iconKey),
-          score: 0,
           execute: () => {
             onClose();
             cmd.execute();
@@ -181,30 +170,23 @@ export function CommandPaletteModal({
         id: 'resource-monitor',
         title: 'Resource Monitor',
         subtitle: 'Show CPU and memory performance for running agents',
-        score: 0,
         icon: Activity,
         execute: () => setView('resource-monitor'),
       });
     }
 
-    if (!debouncedQuery) {
-      // Empty state: show the ordered context-specific suggested actions only.
-      const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
-      return allActions
-        .filter((a) => suggestedIds.includes(a.id))
-        .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
-        .slice(0, 7);
-    }
-
-    return allActions.filter((action) => matchesQuery(action, debouncedQuery));
-  }, [debouncedQuery, registryActions, resourceMonitor?.enabled, projectId, taskId]);
+    // Empty state: show the ordered context-specific suggested actions only.
+    const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
+    return allActions
+      .filter((a) => suggestedIds.includes(a.id))
+      .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
+      .slice(0, 7);
+  }, [registryActions, resourceMonitor?.enabled, projectId, taskId]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
-  const merged = rrf<MergedResult>([rankedDb as MergedResult[], actions as MergedResult[]]);
-
-  const actionResults = merged.filter((r): r is PaletteAction => r.kind === 'action');
-  const taskResults = merged.filter((r): r is SearchItem => r.kind === 'task');
-  const conversationResults = merged.filter((r): r is SearchItem => r.kind === 'conversation');
+  const actionResults = actions;
+  const taskResults = rankedDb.filter((r): r is SearchItem => r.kind === 'task');
+  const conversationResults = rankedDb.filter((r): r is SearchItem => r.kind === 'conversation');
 
   const handleNavigateToTask = (item: SearchItem) => {
     if (!item.projectId) return;
@@ -224,11 +206,10 @@ export function CommandPaletteModal({
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
 
-  const handleSelect = (item: MergedResult) => {
-    if (item.kind === 'action') return (item as PaletteAction).execute();
-    if (item.kind === 'task') return handleNavigateToTask(item as SearchItem);
-    if (item.kind === 'project') return handleNavigateToProject(item as SearchItem);
-    if (item.kind === 'conversation') return handleNavigateToConversation(item as SearchItem);
+  const handleSelect = (item: SearchItem) => {
+    if (item.kind === 'task') return handleNavigateToTask(item);
+    if (item.kind === 'project') return handleNavigateToProject(item);
+    if (item.kind === 'conversation') return handleNavigateToConversation(item);
   };
 
   useEffect(() => {
@@ -280,7 +261,7 @@ export function CommandPaletteModal({
             <Command.Empty className="py-8 text-center text-sm text-foreground/40">
               No results for &ldquo;{query}&rdquo;
             </Command.Empty>
-            {applyContextAffinity(dbResults, { projectId }).map((item) => {
+            {rankedDb.map((item) => {
               if (item.kind === 'command') {
                 const live = commandRegistry.findById(item.id);
                 if (!live || live.enabled === false) return null;
@@ -290,14 +271,13 @@ export function CommandPaletteModal({
                 const shortcut = def?.shortcutKey
                   ? formatHotkey(getEffectiveHotkey(def.shortcutKey, keyboard) ?? undefined)
                   : undefined;
-                const commandAction: PaletteAction = {
+                const displayItem: PaletteAction = {
                   kind: 'action',
                   id: item.id,
                   title: live.label,
                   subtitle: live.description,
                   shortcut,
                   icon: getCommandIcon(def?.iconKey),
-                  score: 0,
                   execute: () => {
                     onClose();
                     live.execute();
@@ -307,7 +287,7 @@ export function CommandPaletteModal({
                   <PaletteItem
                     key={item.id}
                     value={item.id}
-                    item={commandAction}
+                    item={displayItem}
                     onSelect={() => {
                       onClose();
                       live.execute();
