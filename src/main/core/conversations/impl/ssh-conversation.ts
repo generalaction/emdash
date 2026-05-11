@@ -94,6 +94,7 @@ export class SshConversationProvider implements ConversationProvider {
       providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
+      providerSessionId: conversation.providerSessionId,
       isResuming,
       initialPrompt,
     });

@@ -31,6 +31,62 @@ describe('buildAgentCommand', () => {
     });
   });
 
+  it('resumes Codex by provider session id when available', () => {
+    const command = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: providerConfigDefaults.codex,
+      sessionId: 'conversation-id',
+      providerSessionId: '123e4567-e89b-12d3-a456-426614174000',
+      isResuming: true,
+    });
+
+    expect(command).toEqual({
+      command: 'codex',
+      args: ['resume', '123e4567-e89b-12d3-a456-426614174000'],
+    });
+  });
+
+  it('falls back to the latest Codex session when no provider session id has been captured', () => {
+    const command = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: providerConfigDefaults.codex,
+      sessionId: 'conversation-id',
+      isResuming: true,
+    });
+
+    expect(command).toEqual({
+      command: 'codex',
+      args: ['resume', '--last'],
+    });
+  });
+
+  it('resumes OpenCode by provider session id when available', () => {
+    const command = buildAgentCommand({
+      providerId: 'opencode',
+      providerConfig: providerConfigDefaults.opencode,
+      sessionId: 'conversation-id',
+      providerSessionId: 'ses_123',
+      isResuming: true,
+    });
+
+    expect(command).toEqual({
+      command: 'opencode',
+      args: ['--session', 'ses_123'],
+    });
+  });
+
+  it('removes legacy Codex --last when resuming by provider session id', () => {
+    const command = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: { ...providerConfigDefaults.codex, resumeFlag: 'resume --last' },
+      sessionId: 'conversation-id',
+      providerSessionId: '123e4567-e89b-12d3-a456-426614174000',
+      isResuming: true,
+    });
+
+    expect(command.args).toEqual(['resume', '123e4567-e89b-12d3-a456-426614174000']);
+  });
+
   it('supports custom CLI command prefixes and appends managed provider args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',

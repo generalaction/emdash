@@ -23,6 +23,11 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
+import {
+  registerPendingCodexSession,
+  resolveCodexSessionIdForResume,
+  unregisterPendingCodexSession,
+} from './codex-session-store';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -92,11 +97,16 @@ export class LocalConversationProvider implements ConversationProvider {
     await this.prepareHookConfig(conversation.providerId);
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const providerSessionId =
+      conversation.providerId === 'codex' && isResuming
+        ? await resolveCodexSessionIdForResume(conversation, this.taskPath)
+        : conversation.providerSessionId;
     const { command, args } = buildAgentCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
+      providerSessionId,
       isResuming,
       initialPrompt,
     });
@@ -124,6 +134,7 @@ export class LocalConversationProvider implements ConversationProvider {
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
+    const startedAtMs = Date.now();
     const pty = spawnLocalPty({
       id: sessionId,
       command: resolved.command,
@@ -139,6 +150,16 @@ export class LocalConversationProvider implements ConversationProvider {
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
+
+    if (!isResuming && conversation.providerId === 'codex' && !conversation.providerSessionId) {
+      registerPendingCodexSession({
+        ptySessionId: sessionId,
+        conversationId: conversation.id,
+        cwd: this.taskPath,
+        startedAtMs,
+        firstUserMessage: initialPrompt,
+      });
+    }
 
     const hookActive = port > 0;
     const provider = getProvider(conversation.providerId);
@@ -156,6 +177,7 @@ export class LocalConversationProvider implements ConversationProvider {
 
     pty.onExit(({ exitCode }) => {
       ptySessionRegistry.unregister(sessionId);
+      unregisterPendingCodexSession(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
       telemetryService.capture('agent_run_finished', {
@@ -213,6 +235,8 @@ export class LocalConversationProvider implements ConversationProvider {
   private async prepareHookConfig(providerId: Conversation['providerId']): Promise<void> {
     try {
       const localProjectSettings = await appSettingsService.get('localProject');
+      if (!localProjectSettings.injectAgentNotificationHooks) return;
+
       const writeGitIgnoreEntries = localProjectSettings.writeAgentConfigToGitIgnore ?? true;
       const previousWriteGitIgnoreEntries = this.preparedHookProviders.get(providerId);
       const shouldPrepareHookConfig =

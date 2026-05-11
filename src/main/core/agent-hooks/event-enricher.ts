@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { parsePtyId } from '@shared/ptyId';
+import { saveConversationProviderSessionId } from '@main/core/conversations/provider-session-id';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import type { RawHookRequest } from './hook-server';
@@ -26,6 +27,18 @@ function normalizePayload(
   return payload;
 }
 
+function readProviderSessionId(body: Record<string, unknown>): string | undefined {
+  const value =
+    body.session_id ??
+    body.sessionId ??
+    body.thread_id ??
+    body.threadId ??
+    body.conversation_id ??
+    body.conversationId;
+
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
 export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
   const parsed = parsePtyId(raw.ptyId);
   if (!parsed) {
@@ -42,6 +55,13 @@ export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
   const projectId = convRows.projectId;
   const body = raw.body ? JSON.parse(raw.body) : {};
   const payload = normalizePayload(parsed.providerId, body);
+
+  if (parsed.providerId === 'codex' || parsed.providerId === 'opencode') {
+    const providerSessionId = readProviderSessionId(body);
+    if (providerSessionId) {
+      await saveConversationProviderSessionId(parsed.conversationId, providerSessionId);
+    }
+  }
 
   return {
     type: raw.type as AgentEvent['type'],

@@ -85,11 +85,10 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'codex',
     autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
     initialPromptFlag: '',
-    resumeFlag: 'resume --last',
+    resumeFlag: 'resume',
     icon: 'openai.svg',
     alt: 'Codex',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'claude',
