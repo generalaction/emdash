@@ -133,7 +133,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 <MicroLabel className="text-foreground-passive items-center flex">Task</MicroLabel>
                 <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
               </div>
-              {!isRemoteProject && <OpenInMenu path={provisionedTask.path} />}
               <div className="flex flex-col gap-1 border border-border rounded-md p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
