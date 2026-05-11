@@ -20,6 +20,7 @@ interface MarkdownRendererProps {
   content: string;
   variant?: Variant;
   className?: string;
+  allowHtml?: boolean;
   /**
    * Optional callback for resolving non-external image src values (e.g. relative
    * paths inside a workspace). Should return a `data:` URI string, or `null` to
@@ -330,6 +331,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
   variant = 'full',
   className,
+  allowHtml = variant === 'full',
   resolveImage,
 }) => {
   const { effectiveTheme } = useTheme();
@@ -339,7 +341,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   const compactComponents = useCompactComponents(isDark);
 
   const components = variant === 'full' ? fullComponents : compactComponents;
-  const rehypePlugins = variant === 'full' ? FULL_REHYPE_PLUGINS : COMPACT_REHYPE_PLUGINS;
+  const rehypePlugins = allowHtml ? FULL_REHYPE_PLUGINS : COMPACT_REHYPE_PLUGINS;
   const normalizedContent = useMemo(() => normalizeLatexDelimiters(content), [content]);
 
   return (
