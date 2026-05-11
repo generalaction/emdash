@@ -102,7 +102,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
                   if (providerId) autoApproveDefaults.setDefault(providerId, checked);
                 }}
               />
-              <FieldLabel>Dangerously skip permissions</FieldLabel>
+              <FieldLabel>Auto-approve permissions</FieldLabel>
             </div>
           </Field>
           {error && <p className="text-xs text-destructive">{error}</p>}
