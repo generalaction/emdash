@@ -6,7 +6,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
 import type { SearchItem } from '@shared/search';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  asProvisioned,
+  getTaskStore,
+  getTaskView,
+} from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
@@ -14,6 +18,9 @@ import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
+import { PaletteConversationItem } from './palette-conversation-item';
+import { PaletteNotificationsGroup } from './palette-notifications-group';
+import { PaletteTaskItem } from './palette-task-item';
 import { ResourceMonitorView } from './resource-monitor-view';
 import { applyContextAffinity, rrf } from './rrf';
 
@@ -281,6 +288,34 @@ export function CommandPaletteModal({
                   />
                 );
               }
+              if (item.kind === 'task' && item.projectId) {
+                const store = getTaskStore(item.projectId, item.id);
+                if (store) {
+                  return (
+                    <PaletteTaskItem
+                      key={`task:${item.id}`}
+                      taskStore={store}
+                      value={`task:${item.id}`}
+                      onSelect={() => handleNavigateToTask(item)}
+                    />
+                  );
+                }
+              }
+              if (item.kind === 'conversation' && item.projectId && item.taskId) {
+                const convStore = asProvisioned(
+                  getTaskStore(item.projectId, item.taskId)
+                )?.conversations.conversations.get(item.id);
+                if (convStore) {
+                  return (
+                    <PaletteConversationItem
+                      key={`conversation:${item.id}`}
+                      conv={convStore}
+                      value={`conversation:${item.id}`}
+                      onSelect={() => handleNavigateToConversation(item)}
+                    />
+                  );
+                }
+              }
               return (
                 <PaletteItem
                   key={`${item.kind}:${item.id}`}
@@ -293,6 +328,12 @@ export function CommandPaletteModal({
           </>
         ) : (
           <>
+            <PaletteNotificationsGroup
+              currentProjectId={projectId}
+              currentTaskId={taskId}
+              onClose={onClose}
+              navigate={navigate}
+            />
             {actionResults.length > 0 && (
               <Command.Group heading="Actions" className={GROUP_CLASS}>
                 {actionResults.map((item) => (
@@ -302,14 +343,24 @@ export function CommandPaletteModal({
             )}
             {taskResults.length > 0 && (
               <Command.Group heading="Tasks" className={GROUP_CLASS}>
-                {taskResults.map((item) => (
-                  <PaletteItem
-                    key={item.id}
-                    value={item.id}
-                    item={item}
-                    onSelect={() => handleNavigateToTask(item)}
-                  />
-                ))}
+                {taskResults.map((item) => {
+                  const store = item.projectId ? getTaskStore(item.projectId, item.id) : undefined;
+                  return store ? (
+                    <PaletteTaskItem
+                      key={item.id}
+                      taskStore={store}
+                      value={item.id}
+                      onSelect={() => handleNavigateToTask(item)}
+                    />
+                  ) : (
+                    <PaletteItem
+                      key={item.id}
+                      value={item.id}
+                      item={item}
+                      onSelect={() => handleNavigateToTask(item)}
+                    />
+                  );
+                })}
               </Command.Group>
             )}
             {projectResults.length > 0 && (
@@ -326,14 +377,29 @@ export function CommandPaletteModal({
             )}
             {taskId && conversationResults.length > 0 && (
               <Command.Group heading="Conversations" className={GROUP_CLASS}>
-                {conversationResults.map((item) => (
-                  <PaletteItem
-                    key={item.id}
-                    value={item.id}
-                    item={item}
-                    onSelect={() => handleNavigateToConversation(item)}
-                  />
-                ))}
+                {conversationResults.map((item) => {
+                  const convStore =
+                    item.projectId && item.taskId
+                      ? asProvisioned(
+                          getTaskStore(item.projectId, item.taskId)
+                        )?.conversations.conversations.get(item.id)
+                      : undefined;
+                  return convStore ? (
+                    <PaletteConversationItem
+                      key={item.id}
+                      conv={convStore}
+                      value={item.id}
+                      onSelect={() => handleNavigateToConversation(item)}
+                    />
+                  ) : (
+                    <PaletteItem
+                      key={item.id}
+                      value={item.id}
+                      item={item}
+                      onSelect={() => handleNavigateToConversation(item)}
+                    />
+                  );
+                })}
               </Command.Group>
             )}
           </>
