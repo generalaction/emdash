@@ -982,6 +982,16 @@ export class GitService implements GitProvider, IDisposable {
     };
 
     try {
+      const remote = preferredRemote?.trim();
+      if (remote) {
+        const { stdout } = await this.ctx.exec('git', ['branch', '--show-current']);
+        const currentBranch = stdout.trim();
+        if (!currentBranch) {
+          return err({ type: 'error', message: 'No branch checked out' });
+        }
+        const output = await doPush(['push', remote, `HEAD:${currentBranch}`]);
+        return ok({ output });
+      }
       const output = await doPush(['push']);
       return ok({ output });
     } catch (error: unknown) {
@@ -1000,15 +1010,7 @@ export class GitService implements GitProvider, IDisposable {
         try {
           const { stdout: branchOut } = await this.ctx.exec('git', ['branch', '--show-current']);
           const currentBranch = branchOut.trim();
-          let pushRemote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
-          try {
-            const { stdout: remoteOut } = await this.ctx.exec('git', [
-              'config',
-              '--get',
-              `branch.${currentBranch}.remote`,
-            ]);
-            if (remoteOut.trim()) pushRemote = remoteOut.trim();
-          } catch {}
+          const pushRemote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
           const output = await doPush(['push', '--set-upstream', pushRemote, currentBranch]);
           return ok({ output });
         } catch (upstreamError: unknown) {

@@ -312,3 +312,19 @@ describe('computeBaseRef', () => {
     expect(computeBaseRef('/main')).toBe('main');
   });
 });
+
+describe('GitService.push', () => {
+  it('pushes the current branch to the preferred remote explicitly', async () => {
+    const svc = makeService(
+      makeExec({
+        'branch --show-current': 'feature/test\n',
+        'push fork HEAD:feature/test': 'pushed',
+      })
+    );
+
+    await expect(svc.push('fork')).resolves.toEqual({
+      success: true,
+      data: { output: 'pushed' },
+    });
+  });
+});
