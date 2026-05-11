@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { addGitHubAuthConfig } from '@main/core/utils/exec';
+import { buildGitHubAuthEnv } from '@main/core/utils/exec';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
 export class GitHubAuthExecutionContext implements IExecutionContext {
@@ -16,7 +16,9 @@ export class GitHubAuthExecutionContext implements IExecutionContext {
 
   async exec(command: string, args: string[] = [], opts?: ExecOptions): Promise<ExecResult> {
     if (path.basename(command) === 'git') {
-      args = await addGitHubAuthConfig(args, this.getToken);
+      const { args: nextArgs, env } = await buildGitHubAuthEnv(args, this.getToken);
+      const mergedEnv = Object.keys(env).length > 0 ? { ...(opts?.env ?? {}), ...env } : opts?.env;
+      return this.inner.exec(command, nextArgs, { ...opts, env: mergedEnv });
     }
     return this.inner.exec(command, args, opts);
   }

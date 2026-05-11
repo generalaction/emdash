@@ -26,12 +26,13 @@ export class LocalExecutionContext implements IExecutionContext {
   }
 
   exec(command: string, args: string[] = [], opts: ExecOptions = {}): Promise<ExecResult> {
-    const { timeout, maxBuffer } = opts;
+    const { timeout, maxBuffer, env } = opts;
     return execFileAsync(this.resolveCommand(command), args, {
       cwd: this.root || undefined,
       timeout,
       maxBuffer,
       signal: this._signal(opts.signal),
+      env: env ? { ...process.env, ...env } : undefined,
     }) as Promise<ExecResult>;
   }
 

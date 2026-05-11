@@ -8,6 +8,9 @@ const provisionOutputSchema = z.object({
   username: z.string().optional(),
   worktreePath: z.string().optional(),
   password: z.string().optional(),
+  // Opt-in to using the caller's SSH agent. Without this, missing credentials
+  // are an error rather than silently falling back to $USER / $SSH_AUTH_SOCK.
+  useAgent: z.boolean().optional(),
 });
 
 export type ProvisionOutput = z.infer<typeof provisionOutputSchema>;

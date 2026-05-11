@@ -25,28 +25,40 @@ function shouldUseHttpRemote(args: string[]): boolean {
   return subcommand === 'remote' && args[1] === 'show';
 }
 
-export async function addGitHubAuthConfig(
+/**
+ * Builds GitHub auth as a git-config-via-env payload + the args that need
+ * to be merged into the command. The token is passed via `GIT_CONFIG_*`
+ * environment variables instead of `-c` argv entries so it does not appear
+ * in `ps`/process listings on either the local or remote host.
+ *
+ * See `git-config[1]`'s "GIT_CONFIG_COUNT" docs (git ≥ 2.31).
+ */
+export async function buildGitHubAuthEnv(
   args: string[],
   getToken: () => Promise<string | null>
-): Promise<string[]> {
+): Promise<{ args: string[]; env: Record<string, string> }> {
   const rawToken = await getToken();
-  if (!rawToken) return args;
+  if (!rawToken) return { args, env: {} };
 
   const token = Buffer.from(`x-access-token:${rawToken}`).toString('base64');
-  if (!token) return args;
 
-  const withAuth = ['-c', `http.https://github.com/.extraHeader=Authorization: Basic ${token}`];
+  const pairs: Array<[string, string]> = [
+    ['http.https://github.com/.extraHeader', `Authorization: Basic ${token}`],
+  ];
 
   if (shouldUseHttpRemote(args)) {
-    withAuth.push(
-      '-c',
-      'url.https://github.com/.insteadOf=git@github.com:',
-      '-c',
-      'url.https://github.com/.insteadOf=ssh://git@github.com:',
-      '-c',
-      'url.https://github.com/.insteadOf=ssh://git@github.com/'
+    pairs.push(
+      ['url.https://github.com/.insteadOf', 'git@github.com:'],
+      ['url.https://github.com/.insteadOf', 'ssh://git@github.com:'],
+      ['url.https://github.com/.insteadOf', 'ssh://git@github.com/']
     );
   }
 
-  return [...withAuth, ...args];
+  const env: Record<string, string> = { GIT_CONFIG_COUNT: String(pairs.length) };
+  pairs.forEach(([key, value], i) => {
+    env[`GIT_CONFIG_KEY_${i}`] = key;
+    env[`GIT_CONFIG_VALUE_${i}`] = value;
+  });
+
+  return { args, env };
 }

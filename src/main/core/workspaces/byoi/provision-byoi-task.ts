@@ -71,12 +71,33 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
     message: `Connecting to ${output.host}…`,
   });
 
+  // Require the provision script to emit its own SSH credentials. Silently
+  // substituting `process.env.USER` and `SSH_AUTH_SOCK` would let a buggy or
+  // partially-malicious script authenticate to an attacker-chosen `output.host`
+  // using whatever identities the local agent holds.
+  if (!output.username) {
+    throw new Error(
+      'BYOI provision script did not emit a `username`. Refusing to fall back to local $USER.'
+    );
+  }
+  if (!output.password && !output.useAgent) {
+    throw new Error(
+      'BYOI provision script did not emit a `password` and did not set `useAgent: true`. Refusing silent SSH agent fallback.'
+    );
+  }
+  const agentSocket = output.useAgent ? process.env['SSH_AUTH_SOCK'] : undefined;
+  if (output.useAgent && !agentSocket) {
+    throw new Error(
+      'BYOI provision script requested `useAgent: true` but $SSH_AUTH_SOCK is not set.'
+    );
+  }
+
   const connectionId = `task:${task.id}`;
   const proxy = await sshConnectionManager.connectFromConfig(connectionId, {
     host: output.host,
     port: output.port ?? 22,
-    username: output.username ?? process.env['USER'],
-    ...(output.password ? { password: output.password } : { agent: process.env['SSH_AUTH_SOCK'] }),
+    username: output.username,
+    ...(output.password ? { password: output.password } : { agent: agentSocket }),
   });
 
   events.emit(taskProvisionProgressChannel, {

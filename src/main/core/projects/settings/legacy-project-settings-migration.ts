@@ -87,8 +87,16 @@ export async function migrateLegacyProjectSettingsIfNeeded({
       );
     }
     if (legacy.tmux !== undefined) next.tmux = legacy.tmux;
+    // Intentionally NOT migrating `workspaceProvider` from .emdash.json.
+    // Its `provisionCommand` / `terminateCommand` are executed via /bin/sh -c when
+    // the user toggles BYOI, so silently planting them from a repo-controlled file
+    // would let a malicious clone configure shell commands that the user never typed.
+    // Users who relied on this field must re-enter the commands in the Settings UI.
     if (legacy.workspaceProvider !== undefined) {
-      next.workspaceProvider = legacy.workspaceProvider;
+      log.warn(
+        `Ignoring workspaceProvider from .emdash.json for project ${projectId}: ` +
+          `repo-controlled shell commands cannot be auto-migrated. Re-enter the provider in Settings.`
+      );
     }
   }
 

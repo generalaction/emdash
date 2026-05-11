@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -114,11 +114,21 @@ export async function resolveUserEnv(): Promise<void> {
     return;
   }
 
-  const shell = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+  const rawShell = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+  // Only accept absolute, simple paths — defends against a maliciously-set
+  // SHELL like `bash; touch /tmp/pwn; #` that would otherwise be parsed as
+  // a shell command if we used execSync. We pass argv directly with execFile,
+  // but the validation also rules out non-binaries that wouldn't make sense.
+  const shell =
+    rawShell.startsWith('/') && /^[A-Za-z0-9_./-]+$/.test(rawShell)
+      ? rawShell
+      : process.platform === 'darwin'
+        ? '/bin/zsh'
+        : '/bin/bash';
   const baseEnv = buildExternalToolEnv();
 
   try {
-    const raw = execSync(`${shell} -ilc 'env'`, {
+    const raw = execFileSync(shell, ['-ilc', 'env'], {
       encoding: 'utf8',
       timeout: 5_000,
       // Route through buildExternalToolEnv so AppImage runtime vars (APPIMAGE,

@@ -16,10 +16,17 @@ export function buildSshCommand(
   root: string | undefined,
   command: string,
   args: string[],
-  profile?: RemoteShellProfile
+  profile?: RemoteShellProfile,
+  env?: Record<string, string>
 ): string {
   const escaped = args.map(quoteShellArg).join(' ');
-  const inner = args.length ? `${command} ${escaped}` : command;
+  const envPrefix = env
+    ? Object.entries(env)
+        .map(([k, v]) => `${k}=${quoteShellArg(v)}`)
+        .join(' ')
+    : '';
+  const cmdWithEnv = envPrefix ? `${envPrefix} ${command}` : command;
+  const inner = args.length ? `${cmdWithEnv} ${escaped}` : cmdWithEnv;
   const body = root ? `cd ${quoteShellArg(root)} && ${inner}` : inner;
   return buildRemoteShellCommand(profile ?? FALLBACK_REMOTE_SHELL_PROFILE, body);
 }
@@ -38,9 +45,9 @@ export class SshExecutionContext implements IExecutionContext {
   }
 
   async exec(command: string, args: string[] = [], opts: ExecOptions = {}): Promise<ExecResult> {
-    const { signal } = opts;
+    const { signal, env } = opts;
     const profile = await this.proxy.getRemoteShellProfile();
-    const full = buildSshCommand(this.root, command, args, profile);
+    const full = buildSshCommand(this.root, command, args, profile, env);
     const combined = this._signal(signal);
 
     return new Promise((resolve, reject) => {

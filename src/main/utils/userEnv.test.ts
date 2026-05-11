@@ -3,10 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const execSyncMock = vi.fn();
+const execFileSyncMock = vi.fn();
 
 vi.mock('node:child_process', () => ({
-  execSync: execSyncMock,
+  execFileSync: execFileSyncMock,
 }));
 
 const { ensureUserBinDirsInPath, ensureWindowsNpmGlobalBinInPath, resolveUserEnv } = await import(
@@ -70,8 +70,8 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
   > = {};
 
   beforeEach(() => {
-    execSyncMock.mockReset();
-    execSyncMock.mockReturnValue('');
+    execFileSyncMock.mockReset();
+    execFileSyncMock.mockReturnValue('');
     for (const key of [...SCRUBBED_KEYS, ...PATH_LIKE_KEYS]) {
       savedEnv[key] = process.env[key];
     }
@@ -85,7 +85,7 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
   });
 
   it('strips AppImage runtime vars and /tmp/.mount_* path entries from the probe shell env and final PATH', async () => {
-    execSyncMock.mockReturnValue('PATH=/usr/local/bin:/usr/bin\n');
+    execFileSyncMock.mockReturnValue('PATH=/usr/local/bin:/usr/bin\n');
     process.env.APPIMAGE = '/home/user/emdash.AppImage';
     process.env.APPDIR = '/tmp/.mount_emdashTest';
     process.env.ARGV0 = '/home/user/emdash.AppImage';
@@ -98,8 +98,8 @@ describe('resolveUserEnv (AppImage env scrub)', () => {
 
     await resolveUserEnv();
 
-    expect(execSyncMock).toHaveBeenCalledTimes(1);
-    const opts = execSyncMock.mock.calls[0]?.[1] as { env?: NodeJS.ProcessEnv } | undefined;
+    expect(execFileSyncMock).toHaveBeenCalledTimes(1);
+    const opts = execFileSyncMock.mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
     expect(opts?.env).toBeDefined();
     const probeEnv = opts!.env!;
     for (const key of SCRUBBED_KEYS) {

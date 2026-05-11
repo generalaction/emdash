@@ -7,6 +7,13 @@ export interface ExecOptions {
   timeout?: number;
   maxBuffer?: number;
   signal?: AbortSignal;
+  /**
+   * Extra environment variables to expose to the child. Merged on top of the
+   * inherited process env. Used by GitHubAuthExecutionContext to pass the
+   * Authorization header via `GIT_CONFIG_*` rather than argv so the token is
+   * not visible in `ps`/process listings.
+   */
+  env?: Record<string, string>;
 }
 
 /**
