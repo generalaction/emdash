@@ -43,15 +43,9 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
     check.completedAt ?? undefined
   );
   const subtitle = check.appName ?? check.workflowName;
+  const detailsUrl = check.detailsUrl;
   return (
-    <button
-      className="group relative flex items-center gap-2 px-3 py-2 hover:bg-background-1 rounded-md"
-      onClick={() => {
-        if (check.detailsUrl) {
-          void rpc.app.openExternal(check.detailsUrl);
-        }
-      }}
-    >
+    <div className="group relative flex items-center gap-2 px-3 py-2 hover:bg-background-1 rounded-md">
       <div className="min-w-0 flex-1 flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <BucketIcon bucket={bucket} />
@@ -72,13 +66,18 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {duration && <span className="text-xs text-foreground-passive">{duration}</span>}
-        {check.detailsUrl && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center justify-center bg-background-1 text-foreground-muted hover:text-foreground rounded px-1 py-0.5">
+        {detailsUrl && (
+          <button
+            type="button"
+            aria-label={`Open ${check.name} check details`}
+            className="absolute right-3 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center justify-center bg-background-1 text-foreground-muted hover:text-foreground rounded px-1 py-0.5"
+            onClick={() => void rpc.app.openExternal(detailsUrl)}
+          >
             <ExternalLink className="size-3.5" />
-          </div>
+          </button>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
