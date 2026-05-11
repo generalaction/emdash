@@ -1,4 +1,4 @@
-import { File } from 'lucide-react';
+import { File, FileImage } from 'lucide-react';
 
 /** Maps a file extension (or full filename for extensionless files) to a devicon class name. */
 const EXTENSION_MAP: Record<string, string> = {
@@ -69,6 +69,17 @@ const FILENAME_MAP: Record<string, string> = {
   '.gitmodules': 'devicon-git-plain colored',
 };
 
+const IMAGE_ICON_META: Record<string, { label: string; className: string }> = {
+  png: { label: 'PNG', className: 'text-sky-500' },
+  jpg: { label: 'JPG', className: 'text-emerald-500' },
+  jpeg: { label: 'JPG', className: 'text-emerald-500' },
+  gif: { label: 'GIF', className: 'text-fuchsia-500' },
+  webp: { label: 'WEBP', className: 'text-violet-500' },
+  svg: { label: 'SVG', className: 'text-orange-500' },
+  bmp: { label: 'BMP', className: 'text-cyan-500' },
+  ico: { label: 'ICO', className: 'text-amber-500' },
+};
+
 function getExtension(filename: string): string {
   const dot = filename.lastIndexOf('.');
   return dot >= 0 ? filename.slice(dot + 1).toLowerCase() : '';
@@ -81,7 +92,8 @@ interface FileIconProps {
 }
 
 export function FileIcon({ filename, className, size = 12 }: FileIconProps) {
-  const deviconClass = FILENAME_MAP[filename] ?? EXTENSION_MAP[getExtension(filename)];
+  const extension = getExtension(filename);
+  const deviconClass = FILENAME_MAP[filename] ?? EXTENSION_MAP[extension];
 
   if (deviconClass) {
     return (
@@ -89,5 +101,33 @@ export function FileIcon({ filename, className, size = 12 }: FileIconProps) {
     );
   }
 
-  return <File className={className ?? 'size-3.5 text-foreground-passive shrink-0'} />;
+  const imageMeta = IMAGE_ICON_META[extension];
+  if (imageMeta) {
+    return (
+      <span
+        className="relative inline-flex shrink-0 items-center justify-center"
+        style={{ width: size, height: size }}
+        title={`${imageMeta.label} image`}
+      >
+        <FileImage
+          className={className ?? `shrink-0 ${imageMeta.className}`}
+          style={{ width: size, height: size }}
+          aria-hidden="true"
+        />
+        {size >= 16 && (
+          <span className="absolute -bottom-1 rounded-[2px] bg-background px-0.5 font-mono text-[6px] leading-none text-foreground-muted">
+            {imageMeta.label.slice(0, 3)}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <File
+      className={className ?? 'shrink-0 text-foreground-passive'}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    />
+  );
 }

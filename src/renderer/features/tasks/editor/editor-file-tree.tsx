@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import React, { useRef } from 'react';
 import type { FileNode } from '@shared/fs';
@@ -20,26 +21,23 @@ const FileTreeRow = observer(function FileTreeRow({
   const editorView = taskView.editorView;
 
   const isExpanded = editorView.expandedPaths.has(node.path);
-  const isSelected = taskView.view === 'editor' && editorView.activeFilePath === node.path;
+  const isSelected = taskView.tabManager.activeFilePath === node.path;
   const fileStatus = taskState.workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = node.depth * 12 + 4;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (taskView.view !== 'editor') {
-      taskView.setView('editor');
-    }
     if (node.type === 'directory') {
       toggleExpand();
     } else {
-      editorView.openFilePreview(node.path);
+      taskView.tabManager.openFilePreview(node.path);
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.type === 'file') {
-      editorView.openFile(node.path);
+      taskView.tabManager.openFile(node.path);
     }
   };
 
@@ -49,20 +47,22 @@ const FileTreeRow = observer(function FileTreeRow({
       if (node.type === 'directory') {
         toggleExpand();
       } else {
-        editorView.openFilePreview(node.path);
+        taskView.tabManager.openFilePreview(node.path);
       }
     }
   };
 
   const toggleExpand = () => {
-    if (editorView.expandedPaths.has(node.path)) {
-      editorView.expandedPaths.delete(node.path);
-    } else {
-      editorView.expandedPaths.add(node.path);
-      if (!taskState.workspace.files.loadedPaths.has(node.path)) {
-        void taskState.workspace.files.loadDir(node.path);
+    runInAction(() => {
+      if (editorView.expandedPaths.has(node.path)) {
+        editorView.expandedPaths.delete(node.path);
+      } else {
+        editorView.expandedPaths.add(node.path);
+        if (!taskState.workspace.files.loadedPaths.has(node.path)) {
+          void taskState.workspace.files.loadDir(node.path);
+        }
       }
-    }
+    });
   };
 
   return (
@@ -164,7 +164,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div ref={parentRef} className="flex-1 overflow-y-auto px-1 py-1" role="tree">
+      <div ref={parentRef} className="flex-1 overflow-y-auto px-2 py-2" role="tree">
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((vItem) => {
             const node = visibleRows[vItem.index] as FileNode;

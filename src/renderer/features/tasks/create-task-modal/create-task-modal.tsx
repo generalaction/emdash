@@ -7,7 +7,9 @@ import {
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
+import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -73,6 +75,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
 
   const initialConversation = useInitialConversationState(connectionId);
+  const autoApproveDefaults = useAgentAutoApproveDefaults();
 
   useEffect(() => setUseBYOI(false), [selectedProjectId]);
   useEffect(() => {
@@ -121,8 +124,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           taskId: id,
           provider: initialConversation.provider,
-          title: activeMode.taskName,
+          title: nextDefaultConversationTitle(initialConversation.provider, []),
           initialPrompt: initialConversation.prompt.trim() || undefined,
+          autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
         }
       : undefined;
 
@@ -204,7 +208,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     isUnborn,
     useBYOI,
     initialConversation,
-    activeMode.taskName,
+    autoApproveDefaults,
     navigate,
     onClose,
   ]);

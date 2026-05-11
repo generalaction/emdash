@@ -41,6 +41,23 @@ export type PullRequestCheck = {
   appLogoUrl: string | null;
 };
 
+export type PullRequestCommentKind = 'issue' | 'review';
+
+export type PullRequestComment = {
+  id: string;
+  pullRequestUrl: string;
+  kind: PullRequestCommentKind;
+  body: string;
+  url: string;
+  author: PullRequestUser | null;
+  path: string | null;
+  line: number | null;
+  isResolved: boolean;
+  isOutdated: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /** Fully denormalised PR view used throughout the renderer. */
 export type PullRequest = {
   url: string;
@@ -119,6 +136,7 @@ export type PullRequestError =
   | { type: 'sync_failed'; message: string }
   | { type: 'refresh_failed'; message: string }
   | { type: 'checks_failed'; message: string }
+  | { type: 'comments_failed'; message: string }
   | { type: 'create_failed'; message: string }
   | { type: 'merge_failed'; message: string }
   | { type: 'mark_ready_failed'; message: string }

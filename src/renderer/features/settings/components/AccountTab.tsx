@@ -7,6 +7,7 @@ import {
   useAccountSignIn,
   useAccountSignOut,
 } from '@renderer/lib/hooks/useAccount';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ServerUnavailableMessage } from './ServerUnavailableMessage';
 
@@ -16,6 +17,7 @@ export function AccountTab() {
   const signInMutation = useAccountSignIn();
   const signOutMutation = useAccountSignOut();
   const { toast } = useToast();
+  const showConfirmSignOut = useShowModal('confirmActionModal');
 
   const [error, setError] = useState<string | null>(null);
 
@@ -52,8 +54,27 @@ export function AccountTab() {
     }
   };
 
-  const handleSignOut = async () => {
-    await signOutMutation.mutateAsync();
+  const performSignOut = async () => {
+    try {
+      await signOutMutation.mutateAsync();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sign out failed';
+      toast({
+        title: 'Sign out failed',
+        description: message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSignOut = () => {
+    showConfirmSignOut({
+      title: 'Sign out of Emdash?',
+      description: 'You will need to sign in again to reconnect your Emdash account.',
+      confirmLabel: 'Sign Out',
+      variant: 'default',
+      onSuccess: () => void performSignOut(),
+    });
   };
 
   if (isLoading) {

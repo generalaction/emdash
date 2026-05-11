@@ -4,7 +4,13 @@ import { homedir } from 'node:os';
 import { eq } from 'drizzle-orm';
 import { Client } from 'ssh2';
 import { createRPCController } from '@/shared/ipc/rpc';
-import type { ConnectionState, ConnectionTestResult, FileEntry, SshConfig } from '@shared/ssh';
+import type {
+  ConnectionState,
+  ConnectionTestResult,
+  FileEntry,
+  SshConfig,
+  SshHealthState,
+} from '@shared/ssh';
 import { db } from '@main/db/client';
 import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -173,6 +179,10 @@ export const sshController = createRPCController({
     return sshConnectionManager.getAllConnectionStates();
   },
 
+  getHealthStates: async (): Promise<Record<string, SshHealthState>> => {
+    return sshConnectionManager.getAllHealthStates();
+  },
+
   /** Rename a saved SSH connection without changing any other fields. */
   renameConnection: async (id: string, name: string): Promise<void> => {
     const [row] = await db.select().from(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
@@ -198,7 +208,7 @@ export const sshController = createRPCController({
     }
 
     return new Promise((resolve, reject) => {
-      proxy!.client.sftp((err, sftp) => {
+      proxy!.sftp((err, sftp) => {
         if (err) {
           reject(new Error(`SFTP error: ${err.message}`));
           return;

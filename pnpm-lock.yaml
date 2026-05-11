@@ -191,9 +191,15 @@ importers:
       jsonc-parser:
         specifier: ^3.3.1
         version: 3.3.1
+      katex:
+        specifier: ^0.16.45
+        version: 0.16.45
       lucide-react:
         specifier: ^0.564.0
         version: 0.564.0(react@19.2.4)
+      mermaid:
+        specifier: ^11.12.2
+        version: 11.12.2
       minimatch:
         specifier: ^10.1.1
         version: 10.1.2
@@ -210,11 +216,14 @@ importers:
         specifier: ^12.23.12
         version: 12.33.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       nbranch:
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       node-pty:
         specifier: 1.1.0
         version: 1.1.0
+      pidusage:
+        specifier: ^4.0.1
+        version: 4.0.1
       react:
         specifier: ^19.2.0
         version: 19.2.4
@@ -236,6 +245,9 @@ importers:
       react-window:
         specifier: ^2.2.4
         version: 2.2.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      rehype-katex:
+        specifier: ^7.0.1
+        version: 7.0.1
       rehype-raw:
         specifier: ^7.0.0
         version: 7.0.0
@@ -245,6 +257,9 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+      remark-math:
+        specifier: ^6.0.0
+        version: 6.0.0
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.0
@@ -282,9 +297,15 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.2.1
         version: 4.2.1(vite@6.4.1(@types/node@20.19.32)(jiti@2.6.1)(lightningcss@1.31.1)(yaml@2.8.2))
+      '@types/katex':
+        specifier: ^0.16.8
+        version: 0.16.8
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.32
+      '@types/pidusage':
+        specifier: ^2.0.5
+        version: 2.0.5
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
@@ -2547,6 +2568,9 @@ packages:
   '@types/node@24.11.0':
     resolution: {integrity: sha512-fPxQqz4VTgPI/IQ+lj9r0h+fDR66bzoeMGHp8ASee+32OSGIkeASsoZuJixsQoVef1QJbeubcPBxKk22QVoWdw==}
 
+  '@types/pidusage@2.0.5':
+    resolution: {integrity: sha512-MIiyZI4/MK9UGUXWt0jJcCZhVw7YdhBuTOuqP/BjuLDLZ2PmmViMIQgZiWxtaMicQfAz/kMrZ5T7PKxFSkTeUA==}
+
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
 
@@ -4439,8 +4463,8 @@ packages:
   jsonfile@6.2.0:
     resolution: {integrity: sha512-FGuPw30AdOIUTRMC2OMRtQV+jkVj2cfPqSeWXv1NEAJ1qZ5zb1X6z1mFhbfOB/iy3ssJCD+3KuZ8r8C3uVFlAg==}
 
-  katex@0.16.28:
-    resolution: {integrity: sha512-YHzO7721WbmAL6Ov1uzN/l5mY5WWWhJBSW+jq4tkfZfsxmo1hu6frS0EOswvjBUnWE6NtjEs48SFn5CQESRLZg==}
+  katex@0.16.45:
+    resolution: {integrity: sha512-pQpZbdBu7wCTmQUh7ufPmLr0pFoObnGUoL/yhtwJDgmmQpbkg/0HSVti25Fu4rmd1oCR6NGWe9vqTWuWv3GcNA==}
     hasBin: true
 
   keyv@4.5.4:
@@ -5037,8 +5061,8 @@ packages:
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
-  nbranch@0.1.0:
-    resolution: {integrity: sha512-7LymZls0JTI+e23IYWkFvLup6QTSR97CqNBXkctgH4JQcPlXij4FE3hCHm6lzL2yYnt9tCUdzfHEM5H/XV8JNw==}
+  nbranch@0.1.1:
+    resolution: {integrity: sha512-MBymFqWDxu1sQd6kQX5SJUvyIyCQVgyAUCoIsSGNGf8I6JFL2s5VUMiRZTNwLQK5BUg7LpxRzPGNTvXWrDnooA==}
     engines: {node: '>=18'}
 
   negotiator@0.6.4:
@@ -5234,6 +5258,10 @@ packages:
   picomatch@4.0.3:
     resolution: {integrity: sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==}
     engines: {node: '>=12'}
+
+  pidusage@4.0.1:
+    resolution: {integrity: sha512-yCH2dtLHfEBnzlHUJymR/Z1nN2ePG3m392Mv8TFlTP1B0xkpMQNHAnfkY0n2tAi6ceKO6YWhxYfZ96V4vVkh/g==}
+    engines: {node: '>=18'}
 
   pkg-types@1.3.1:
     resolution: {integrity: sha512-/Jm5M4RvtBFVkKWRu2BLUTNP8/M2a+UwuAX+ae4770q1qVGtfjG+WTCupoZixokjmHiry8uI+dlY8KXYV5HVVQ==}
@@ -8518,6 +8546,8 @@ snapshots:
     dependencies:
       undici-types: 7.16.0
 
+  '@types/pidusage@2.0.5': {}
+
   '@types/plist@3.0.5':
     dependencies:
       '@types/node': 20.19.32
@@ -10803,7 +10833,7 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
 
-  katex@0.16.28:
+  katex@0.16.45:
     dependencies:
       commander: 8.3.0
 
@@ -11219,7 +11249,7 @@ snapshots:
       dagre-d3-es: 7.0.13
       dayjs: 1.11.19
       dompurify: 3.3.1
-      katex: 0.16.28
+      katex: 0.16.45
       khroma: 2.1.0
       lodash-es: 4.17.23
       marked: 16.4.2
@@ -11341,7 +11371,7 @@ snapshots:
     dependencies:
       '@types/katex': 0.16.8
       devlop: 1.1.0
-      katex: 0.16.28
+      katex: 0.16.45
       micromark-factory-space: 2.0.1
       micromark-util-character: 2.1.1
       micromark-util-symbol: 2.0.1
@@ -11620,7 +11650,7 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  nbranch@0.1.0:
+  nbranch@0.1.1:
     dependencies:
       '@types/stopword': 2.0.3
       compromise: 14.15.0
@@ -11842,6 +11872,10 @@ snapshots:
   picomatch@2.3.1: {}
 
   picomatch@4.0.3: {}
+
+  pidusage@4.0.1:
+    dependencies:
+      safe-buffer: 5.2.1
 
   pkg-types@1.3.1:
     dependencies:
@@ -12106,7 +12140,7 @@ snapshots:
       '@types/katex': 0.16.8
       hast-util-from-html-isomorphic: 2.0.0
       hast-util-to-text: 4.0.2
-      katex: 0.16.28
+      katex: 0.16.45
       unist-util-visit-parents: 6.0.2
       vfile: 6.0.3
 
@@ -12506,7 +12540,7 @@ snapshots:
       hast: 1.0.0
       hast-util-to-jsx-runtime: 2.3.6
       html-url-attributes: 3.0.1
-      katex: 0.16.28
+      katex: 0.16.45
       lucide-react: 0.542.0(react@19.2.4)
       marked: 16.4.2
       mermaid: 11.12.2

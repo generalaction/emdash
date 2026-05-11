@@ -9,6 +9,7 @@ export interface WorktreeHost {
   ): Promise<{ success: boolean; error?: string }>;
   realPathAbsolute(path: string): Promise<string>;
   globAbsolute(pattern: string, options: { cwd: string; dot?: boolean }): Promise<string[]>;
+  readFileAbsolute(path: string): Promise<string>;
   copyFileAbsolute(src: string, dest: string): Promise<void>;
   statAbsolute(path: string): Promise<FileEntry | null>;
 }

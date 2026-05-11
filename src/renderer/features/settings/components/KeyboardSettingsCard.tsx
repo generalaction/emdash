@@ -101,7 +101,8 @@ const KeyboardSettingsCard: React.FC = () => {
                 const capturing = editingKey === key && recorder.isRecording;
                 const cleared = keyboard?.[key] === null;
                 const showClear = !cleared;
-                const showReset = effectiveHotkey !== def.defaultHotkey;
+                const showReset =
+                  def.defaultHotkey != null && effectiveHotkey !== def.defaultHotkey;
                 const showActions = showClear || showReset;
                 const displayHotkey = effectiveHotkey ? formatForDisplay(effectiveHotkey) : '';
 

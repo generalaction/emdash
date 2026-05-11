@@ -6,6 +6,8 @@ export function getDefaultRenderer(kind: ReturnType<typeof getFileKind>): FileRe
   switch (kind) {
     case 'markdown':
       return { kind: 'markdown' };
+    case 'html':
+      return { kind: 'html' };
     case 'svg':
       return { kind: 'svg' };
     default:

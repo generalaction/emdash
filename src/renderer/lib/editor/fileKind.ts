@@ -3,6 +3,9 @@ import type { ManagedFileKind } from './types';
 /** Raster image extensions — rendered with <img>, not Monaco. */
 export const RASTER_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp']);
 
+/** HTML extensions — rendered with the HTML preview iframe. */
+export const HTML_EXTS = new Set(['html', 'htm']);
+
 /**
  * Known binary / non-text extensions — shown as "unsupported" instead of
  * attempting to load into Monaco.
@@ -58,21 +61,24 @@ export function getFileKind(filePath: string): Exclude<ManagedFileKind, 'too-lar
   if (RASTER_EXTS.has(ext)) return 'image';
   if (ext === 'svg') return 'svg';
   if (ext === 'md' || ext === 'mdx') return 'markdown';
+  if (HTML_EXTS.has(ext)) return 'html';
   if (BINARY_EXTS.has(ext)) return 'binary';
   return 'text';
 }
 
 /** True for file kinds that default to rendered/preview mode. */
 export function isPreviewableKind(kind: ManagedFileKind): boolean {
-  return kind === 'svg' || kind === 'markdown';
+  return kind === 'svg' || kind === 'markdown' || kind === 'html';
 }
 
-/**
- * Returns true if the file should be treated as binary for diff views.
- * Binary and image files cannot be shown in Monaco; callers should skip
- * model registration and show a "Binary file" placeholder instead.
- */
+/** True for files the diff viewer must not load into Monaco. */
 export function isBinaryForDiff(filePath: string): boolean {
   const kind = getFileKind(filePath);
-  return kind === 'binary' || kind === 'image';
+  return kind === 'binary' || kind === 'image' || kind === 'svg';
+}
+
+/** True for files the diff viewer renders as an `<img>` preview instead of text. */
+export function isImageForDiff(filePath: string): boolean {
+  const kind = getFileKind(filePath);
+  return kind === 'image' || kind === 'svg';
 }

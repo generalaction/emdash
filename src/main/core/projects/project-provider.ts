@@ -11,7 +11,7 @@ import type { ConversationProvider } from '../conversations/types';
 import { taskManager } from '../tasks/task-manager';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { WorkspaceType } from '../workspaces/workspace-factory';
-import type { ProjectSettingsProvider } from './settings/schema';
+import type { ProjectSettingsProvider } from './settings/provider';
 import type { WorktreeHost } from './worktrees/hosts/worktree-host';
 import type { WorktreeService } from './worktrees/worktree-service';
 
