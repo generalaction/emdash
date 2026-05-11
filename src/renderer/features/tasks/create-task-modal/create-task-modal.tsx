@@ -24,6 +24,7 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
@@ -123,7 +124,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           taskId: id,
           provider: initialConversation.provider,
-          title: activeMode.taskName,
+          title: nextDefaultConversationTitle(initialConversation.provider, []),
           initialPrompt: initialConversation.prompt.trim() || undefined,
           autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
         }
