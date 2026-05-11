@@ -3,6 +3,8 @@ type ChannelOpenErrorLike = {
   reason?: unknown;
 };
 
+const SSH_CHANNEL_OPEN_FAILURE_REASONS = new Set([1, 2, 3, 4]);
+
 export function isSshChannelOpenFailure(error: unknown): boolean {
   const candidate = error as ChannelOpenErrorLike | undefined;
   const message =
@@ -11,7 +13,10 @@ export function isSshChannelOpenFailure(error: unknown): boolean {
       : error instanceof Error
         ? error.message
         : String(error);
-  const reason = typeof candidate?.reason === 'number' ? candidate.reason : undefined;
+  const reason =
+    typeof candidate?.reason === 'number' && SSH_CHANNEL_OPEN_FAILURE_REASONS.has(candidate.reason)
+      ? candidate.reason
+      : undefined;
   const lower = message.toLowerCase();
 
   if (

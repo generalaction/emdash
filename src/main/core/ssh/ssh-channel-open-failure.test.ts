@@ -22,6 +22,14 @@ describe('isSshChannelOpenFailure', () => {
     expect(isSshChannelOpenFailure(error)).toBe(true);
   });
 
+  it('ignores unrelated numeric reason fields outside the SSH failure-code range', () => {
+    const error = Object.assign(new Error('temporary system error'), {
+      reason: 0,
+    });
+
+    expect(isSshChannelOpenFailure(error)).toBe(false);
+  });
+
   it('ignores non-channel errors', () => {
     expect(isSshChannelOpenFailure(new Error('permission denied'))).toBe(false);
   });

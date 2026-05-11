@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
@@ -36,6 +36,8 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
   const autoApproveDefaults = useAgentAutoApproveDefaults();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const skipPermissions = providerId ? autoApproveDefaults.getDefault(providerId) : false;
   const titleProviderId = providerId ?? 'claude';
   const title = nextDefaultConversationTitle(
@@ -43,11 +45,13 @@ export const CreateConversationModal = observer(function CreateConversationModal
     Array.from(conversationMgr?.conversations.values() ?? [], (conversation) => conversation.data)
   );
 
-  const handleCreateConversation = useCallback(() => {
-    if (createDisabled || !conversationMgr || !providerId) return;
+  const handleCreateConversation = useCallback(async () => {
+    if (createDisabled || isSubmitting || !conversationMgr || !providerId) return;
     const id = crypto.randomUUID();
-    void conversationMgr
-      .createConversation({
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await conversationMgr.createConversation({
         projectId,
         taskId,
         id,
@@ -55,13 +59,16 @@ export const CreateConversationModal = observer(function CreateConversationModal
         provider: providerId,
         title,
         initialSize: getConversationsPaneSize(),
-      })
-      .then(() => {
-        onSuccess({ conversationId: id });
       });
+      onSuccess({ conversationId: id });
+    } catch (e) {
+      setError('Failed to create conversation');
+      setIsSubmitting(false);
+    }
   }, [
     conversationMgr,
     createDisabled,
+    isSubmitting,
     providerId,
     title,
     onSuccess,
@@ -98,11 +105,15 @@ export const CreateConversationModal = observer(function CreateConversationModal
               <FieldLabel>Dangerously skip permissions</FieldLabel>
             </div>
           </Field>
+          {error && <p className="text-xs text-destructive">{error}</p>}
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>
-        <ConfirmButton onClick={handleCreateConversation} disabled={createDisabled}>
-          Create
+        <ConfirmButton
+          onClick={() => void handleCreateConversation()}
+          disabled={createDisabled || isSubmitting}
+        >
+          {isSubmitting ? 'Creating...' : 'Create'}
         </ConfirmButton>
       </DialogFooter>
     </>
