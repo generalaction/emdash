@@ -119,6 +119,7 @@ jobs:
           # standard installer most Windows users expect anyway.
           pnpm exec electron-builder --win nsis --x64 --publish never \
             --config electron-builder.config.ts \
+            --config.win.azureSignOptions=null \
             --config.npmRebuild=false
           ls -lah release || true
 
