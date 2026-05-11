@@ -49,7 +49,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
           pnpm exec electron-builder --mac --arm64 --publish never \
-            --config electron-builder.config.ts \
+            --config electron-builder.fork.config.ts \
             --config.mac.identity=null \
             --config.mac.notarize=false
           ls -lah release || true
@@ -118,8 +118,7 @@ jobs:
           # `Icon:emdashIcon.exe`); ship only NSIS for now. NSIS is the
           # standard installer most Windows users expect anyway.
           pnpm exec electron-builder --win nsis --x64 --publish never \
-            --config electron-builder.config.ts \
-            --config.win.azureSignOptions=null \
+            --config electron-builder.fork.config.ts \
             --config.npmRebuild=false
           ls -lah release || true
 
