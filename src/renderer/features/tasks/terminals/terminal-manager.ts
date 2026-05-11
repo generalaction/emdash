@@ -8,7 +8,8 @@ import { nextTerminalName } from './terminal-tabs';
 export class TerminalManagerStore {
   readonly projectId: string;
   readonly taskId: string;
-  private _loaded = false;
+  private _loadStarted = false;
+  isLoaded = false;
   terminals = observable.map<string, TerminalStore>();
 
   constructor(projectId: string, taskId: string) {
@@ -16,15 +17,16 @@ export class TerminalManagerStore {
     this.taskId = taskId;
     makeObservable(this, {
       terminals: observable,
+      isLoaded: observable,
     });
     onBecomeObserved(this, 'terminals', () => {
-      if (this._loaded) return;
+      if (this._loadStarted) return;
       void this.load();
     });
   }
 
   async load() {
-    this._loaded = true;
+    this._loadStarted = true;
     const terminals = await rpc.terminals.getTerminalsForTask(this.projectId, this.taskId);
     runInAction(() => {
       for (const terminal of terminals) {
@@ -32,6 +34,7 @@ export class TerminalManagerStore {
         this.terminals.set(terminal.id, store);
         void store.session.connect();
       }
+      this.isLoaded = true;
     });
   }
 
