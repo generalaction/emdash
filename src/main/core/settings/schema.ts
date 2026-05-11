@@ -1,6 +1,7 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { openInAppIdSchema } from '@shared/openInApps';
+import { APP_SHORTCUTS } from '@shared/shortcuts';
 import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
 
 export const projectSettingsSchema = z.object({
@@ -49,38 +50,11 @@ export const reviewPromptSchema = z.string().default(DEFAULT_REVIEW_PROMPT);
 
 export const keyboardSettingsSchema = z
   .optional(
-    z.object({
-      commandPalette: z.string().nullable().optional(),
-      settings: z.string().nullable().optional(),
-      toggleLeftSidebar: z.string().nullable().optional(),
-      toggleRightSidebar: z.string().nullable().optional(),
-      toggleTheme: z.string().nullable().optional(),
-      closeModal: z.string().nullable().optional(),
-      newTask: z.string().nullable().optional(),
-      newProject: z.string().nullable().optional(),
-      openInEditor: z.string().nullable().optional(),
-      sidebarChanges: z.string().nullable().optional(),
-      sidebarConversations: z.string().nullable().optional(),
-      sidebarFiles: z.string().nullable().optional(),
-      tabNext: z.string().nullable().optional(),
-      tabPrev: z.string().nullable().optional(),
-      tabClose: z.string().nullable().optional(),
-      tab1: z.string().nullable().optional(),
-      tab2: z.string().nullable().optional(),
-      tab3: z.string().nullable().optional(),
-      tab4: z.string().nullable().optional(),
-      tab5: z.string().nullable().optional(),
-      tab6: z.string().nullable().optional(),
-      tab7: z.string().nullable().optional(),
-      tab8: z.string().nullable().optional(),
-      tab9: z.string().nullable().optional(),
-      newConversation: z.string().nullable().optional(),
-      newTerminal: z.string().nullable().optional(),
-      confirm: z.string().nullable().optional(),
-      toggleTerminalDrawer: z.string().nullable().optional(),
-      navigateBack: z.string().nullable().optional(),
-      navigateForward: z.string().nullable().optional(),
-    })
+    z.object(
+      Object.fromEntries(
+        Object.keys(APP_SHORTCUTS).map((k) => [k, z.string().nullable().optional()])
+      ) as Record<keyof typeof APP_SHORTCUTS, z.ZodOptional<z.ZodNullable<z.ZodString>>>
+    )
   )
   .default({});
 
