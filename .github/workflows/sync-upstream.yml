@@ -33,12 +33,13 @@ jobs:
         run: |
           git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" 2>/dev/null || \
             git remote set-url upstream "https://github.com/${UPSTREAM_REPO}.git"
-          git fetch upstream "${UPSTREAM_BRANCH}"
+          git fetch upstream "${UPSTREAM_BRANCH}:refs/remotes/upstream/${UPSTREAM_BRANCH}"
 
       - name: Count commits behind
         id: diff
         run: |
-          ahead=$(git rev-list --count "main..upstream/${UPSTREAM_BRANCH}")
+          # actions/checkout leaves the workflow on a detached HEAD, so compare from HEAD explicitly.
+          ahead=$(git rev-list --count "HEAD..refs/remotes/upstream/${UPSTREAM_BRANCH}")
           echo "ahead=${ahead}" >> "$GITHUB_OUTPUT"
           echo "Commits behind upstream: ${ahead}"
 
@@ -73,7 +74,7 @@ jobs:
         id: merge
         run: |
           set +e
-          git merge "upstream/${UPSTREAM_BRANCH}" --no-edit
+          git merge "refs/remotes/upstream/${UPSTREAM_BRANCH}" --no-edit
           status=$?
           set -e
           if [ $status -ne 0 ]; then
