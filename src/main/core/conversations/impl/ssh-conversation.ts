@@ -122,7 +122,7 @@ export class SshConversationProvider implements ConversationProvider {
       profile
     );
 
-    const result = await openSsh2Pty(this.proxy.client, {
+    const result = await openSsh2Pty(this.proxy, {
       id: sessionId,
       command: sshCommand,
       cols: initialSize.cols,
@@ -134,7 +134,7 @@ export class SshConversationProvider implements ConversationProvider {
         sessionId,
         error: result.error.message,
       });
-      return;
+      throw new Error(result.error.message);
     }
 
     const pty = result.data;
@@ -192,7 +192,9 @@ export class SshConversationProvider implements ConversationProvider {
       }
     });
 
-    ptySessionRegistry.register(sessionId, pty);
+    ptySessionRegistry.register(sessionId, pty, {
+      metadata: { providerId: conversation.providerId, title: conversation.title },
+    });
     this.sessions.set(sessionId, pty);
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,

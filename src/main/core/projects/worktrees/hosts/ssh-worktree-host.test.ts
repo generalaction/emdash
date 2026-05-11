@@ -4,7 +4,7 @@ import { SshWorktreeHost } from './ssh-worktree-host';
 
 function makeFs(): Pick<
   FileSystemProvider,
-  'exists' | 'mkdir' | 'remove' | 'realPath' | 'glob' | 'copyFile' | 'stat'
+  'exists' | 'mkdir' | 'remove' | 'realPath' | 'glob' | 'read' | 'copyFile' | 'stat'
 > {
   return {
     exists: vi.fn().mockResolvedValue(true),
@@ -12,6 +12,7 @@ function makeFs(): Pick<
     remove: vi.fn().mockResolvedValue({ success: true }),
     realPath: vi.fn().mockResolvedValue('/real/path'),
     glob: vi.fn().mockResolvedValue(['.env']),
+    read: vi.fn().mockResolvedValue({ content: 'hello', truncated: false, totalSize: 5 }),
     copyFile: vi.fn().mockResolvedValue(undefined),
     stat: vi.fn().mockResolvedValue(null),
   };

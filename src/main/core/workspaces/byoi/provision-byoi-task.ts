@@ -1,10 +1,11 @@
 import type { Conversation } from '@shared/conversations';
 import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
+import type { ProjectSettings } from '@shared/project-settings';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProvisionResult } from '@main/core/projects/project-provider';
-import type { ProjectSettings, ProjectSettingsProvider } from '@main/core/projects/settings/schema';
+import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { buildTaskFromWorkspace } from '@main/core/tasks/task-builder';
 import { parseProvisionOutput } from '@main/core/workspaces/byoi/provision-output';

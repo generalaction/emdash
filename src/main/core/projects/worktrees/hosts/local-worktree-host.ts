@@ -152,6 +152,11 @@ export class LocalWorktreeHost implements WorktreeHost {
     return glob(pattern, { cwd, dot: options.dot ?? false, absolute: false });
   }
 
+  async readFileAbsolute(filePath: string): Promise<string> {
+    const safePath = await this.validateExisting(filePath);
+    return fs.readFile(safePath, 'utf8');
+  }
+
   async copyFileAbsolute(src: string, dest: string): Promise<void> {
     const safeSrc = await this.validateExisting(src);
     const safeDest = await this.validateTarget(dest);

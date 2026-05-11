@@ -9,24 +9,35 @@ import {
 import { makePtySessionId } from '@shared/ptySessionId';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
 
 export class ConversationManagerStore {
   private _loaded = false;
+  private _loadPromise: Promise<void> | null = null;
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
   conversations = observable.map<string, ConversationStore>();
 
   constructor(
     private readonly projectId: string,
-    private readonly taskId: string
+    private readonly taskId: string,
+    preloaded?: Conversation[]
   ) {
     makeObservable(this, {
       conversations: observable,
       taskStatus: computed,
     });
+    if (preloaded && preloaded.length > 0) {
+      this._loaded = true;
+      for (const conversation of preloaded) {
+        const store = new ConversationStore(conversation);
+        this.conversations.set(conversation.id, store);
+        void store.session.connect();
+      }
+    }
     onBecomeObserved(this, 'conversations', () => {
       if (this._loaded) return;
       void this.load();
@@ -84,19 +95,30 @@ export class ConversationManagerStore {
     return null;
   }
 
-  async load() {
+  async load(): Promise<void> {
+    if (this._loadPromise) return this._loadPromise;
+    if (this._loaded) return;
+
     this._loaded = true;
-    const conversations = await rpc.conversations.getConversationsForTask(
-      this.projectId,
-      this.taskId
-    );
-    runInAction(() => {
-      for (const conversation of conversations) {
-        const store = new ConversationStore(conversation);
-        this.conversations.set(conversation.id, store);
-        void store.session.connect();
-      }
-    });
+    this._loadPromise = rpc.conversations
+      .getConversationsForTask(this.projectId, this.taskId)
+      .then((conversations) => {
+        runInAction(() => {
+          for (const conversation of conversations) {
+            const store = new ConversationStore(conversation);
+            this.conversations.set(conversation.id, store);
+            void store.session.connect();
+          }
+        });
+      })
+      .catch((error: unknown) => {
+        this._loaded = false;
+        throw error;
+      })
+      .finally(() => {
+        this._loadPromise = null;
+      });
+    return this._loadPromise;
   }
 
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
@@ -107,6 +129,24 @@ export class ConversationManagerStore {
       void store.session.connect();
     });
     return conversation;
+  }
+
+  async markConversationWorking(conversationId: string): Promise<void> {
+    if (!this._loaded || this._loadPromise) {
+      await this.load();
+    }
+
+    runInAction(() => {
+      const store = this.conversations.get(conversationId);
+      if (!store) {
+        log.warn(`ConversationManagerStore: conversation ${conversationId} not found after load`, {
+          projectId: this.projectId,
+          taskId: this.taskId,
+        });
+        return;
+      }
+      store.setWorking();
+    });
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
@@ -148,6 +188,16 @@ export class ConversationManagerStore {
     }
   }
 
+  async touchConversation(conversationId: string): Promise<void> {
+    const store = this.conversations.get(conversationId);
+    if (!store) return;
+    const now = new Date().toISOString();
+    runInAction(() => {
+      store.data.lastInteractedAt = now;
+    });
+    await rpc.conversations.touchConversation(conversationId, now);
+  }
+
   dispose(): void {
     this.offAgentEvents?.();
     this.offAgentEvents = null;
@@ -182,8 +232,13 @@ export class ConversationStore {
       setWorking: action,
       clearWorking: action,
       markSeen: action,
+      isInitialConversation: computed,
       indicatorStatus: computed,
     });
+  }
+
+  get isInitialConversation(): boolean {
+    return this.data.isInitialConversation === true;
   }
 
   get indicatorStatus(): AgentStatus | null {
