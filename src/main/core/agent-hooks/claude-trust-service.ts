@@ -11,6 +11,7 @@ import {
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { resolveRemoteHome } from '@main/core/ssh/utils';
 import { log } from '@main/lib/logger';
+import { quoteShellArg } from '@main/utils/shellEscape';
 
 const CLAUDE_PROVIDER_ID: AgentProviderId = 'claude';
 const CLAUDE_CONFIG_NAME = '.claude.json';
@@ -40,8 +41,13 @@ export class ClaudeTrustService {
     const configPath = path.join(homedir, CLAUDE_CONFIG_NAME);
     await this.withLock(configPath, () =>
       this.ensureTrusted(normalizedPath, {
-        readConfig: () => readLocalConfig(configPath),
-        writeConfig: (content) => writeLocalConfigAtomic(configPath, content),
+        readConfig: async () => {
+          const content = await readLocalConfig(configPath);
+          const stamp = await readLocalStamp(configPath);
+          return { content, stamp };
+        },
+        writeConfig: (content, expectedStamp) =>
+          writeLocalConfigAtomic(configPath, content, expectedStamp),
       })
     );
   }
@@ -66,8 +72,13 @@ export class ClaudeTrustService {
 
     await this.withLock(configPath, () =>
       this.ensureTrusted(normalizedPath, {
-        readConfig: () => readRemoteConfig(remoteFs, configPath),
-        writeConfig: (content) => writeRemoteConfigAtomic(remoteFs, ctx, configPath, content),
+        readConfig: async () => {
+          const content = await readRemoteConfig(remoteFs, configPath);
+          const stamp = await readRemoteStamp(ctx, configPath);
+          return { content, stamp };
+        },
+        writeConfig: (content, expectedStamp) =>
+          writeRemoteConfigAtomic(remoteFs, ctx, configPath, content, expectedStamp),
       })
     );
   }
@@ -88,23 +99,42 @@ export class ClaudeTrustService {
   private async ensureTrusted(
     normalizedPath: string,
     io: {
-      readConfig: () => Promise<string | null>;
-      writeConfig: (content: string) => Promise<void>;
+      readConfig: () => Promise<{ content: string | null; stamp: string | null }>;
+      writeConfig: (content: string, expectedStamp: string | null) => Promise<void>;
     }
   ): Promise<void> {
-    try {
-      const rawConfig = await io.readConfig();
-      const config = parseConfig(rawConfig);
-      if (!config) return;
-      const nextConfig = withTrustedProject(config, normalizedPath);
-      if (!nextConfig) return;
-      await io.writeConfig(JSON.stringify(nextConfig, null, 2) + '\n');
-    } catch (error: unknown) {
-      log.warn('ClaudeTrustService: failed to auto-trust worktree', {
-        path: normalizedPath,
-        error: String(error),
-      });
+    // Retry up to 3 times if Claude (or another writer) modifies the file
+    // between our read and our rename — the stamp passed to writeConfig is
+    // re-checked against the current file before the rename, and we throw on
+    // mismatch so we re-merge with the latest content instead of clobbering it.
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const { content: rawConfig, stamp } = await io.readConfig();
+        const config = parseConfig(rawConfig);
+        if (!config) return;
+        const nextConfig = withTrustedProject(config, normalizedPath);
+        if (!nextConfig) return;
+        await io.writeConfig(JSON.stringify(nextConfig, null, 2) + '\n', stamp);
+        return;
+      } catch (error: unknown) {
+        const isStaleStamp = error instanceof ClaudeConfigChangedError;
+        if (isStaleStamp && attempt < MAX_ATTEMPTS) continue;
+        log.warn('ClaudeTrustService: failed to auto-trust worktree', {
+          path: normalizedPath,
+          error: String(error),
+          attempt,
+        });
+        return;
+      }
     }
+  }
+}
+
+class ClaudeConfigChangedError extends Error {
+  constructor() {
+    super('Claude config changed between read and write');
+    this.name = 'ClaudeConfigChangedError';
   }
 }
 
@@ -162,10 +192,31 @@ async function readLocalConfig(configPath: string): Promise<string | null> {
   }
 }
 
-async function writeLocalConfigAtomic(configPath: string, content: string): Promise<void> {
+async function readLocalStamp(configPath: string): Promise<string | null> {
+  try {
+    const stat = await fs.stat(configPath);
+    return `${stat.size}:${stat.mtimeMs}`;
+  } catch (error: unknown) {
+    if (isNodeNotFound(error)) return null;
+    throw error;
+  }
+}
+
+async function writeLocalConfigAtomic(
+  configPath: string,
+  content: string,
+  expectedStamp: string | null
+): Promise<void> {
   const tmpPath = `${configPath}.${randomUUID()}.tmp`;
   try {
     await fs.writeFile(tmpPath, content, 'utf8');
+    // Re-stat right before the rename — if the source file changed since we
+    // read it, abort so the caller can re-merge with the new content instead
+    // of overwriting another writer's changes.
+    const currentStamp = await readLocalStamp(configPath);
+    if (currentStamp !== expectedStamp) {
+      throw new ClaudeConfigChangedError();
+    }
     await fs.rename(tmpPath, configPath);
   } catch (error: unknown) {
     try {
@@ -188,15 +239,35 @@ async function readRemoteConfig(
   }
 }
 
+async function readRemoteStamp(ctx: IExecutionContext, configPath: string): Promise<string | null> {
+  try {
+    // BSD `stat -f` and GNU `stat -c` differ; portable fallback via wc + ls -ln.
+    // We just need any value that changes when the file changes — size + mtime.
+    const { stdout } = await ctx.exec('sh', [
+      '-c',
+      `f=${quoteShellArg(configPath)}; [ -e "$f" ] && (stat -c '%s:%Y' "$f" 2>/dev/null || stat -f '%z:%m' "$f")`,
+    ]);
+    const trimmed = stdout.trim();
+    return trimmed || null;
+  } catch {
+    return null;
+  }
+}
+
 async function writeRemoteConfigAtomic(
   remoteFs: Pick<FileSystemProvider, 'write'>,
   ctx: IExecutionContext,
   configPath: string,
-  content: string
+  content: string,
+  expectedStamp: string | null
 ): Promise<void> {
   const tmpPath = `${configPath}.${randomUUID()}.tmp`;
   try {
     await remoteFs.write(tmpPath, content);
+    const currentStamp = await readRemoteStamp(ctx, configPath);
+    if (currentStamp !== expectedStamp) {
+      throw new ClaudeConfigChangedError();
+    }
     await ctx.exec('mv', [tmpPath, configPath]);
   } catch (error: unknown) {
     try {

@@ -31,7 +31,10 @@ function runBundledMigrations(connection: BetterSqlite3.Database): void {
     for (const entry of (journal as { entries: JournalEntry[] }).entries) {
       if (entry.when <= lastTimestamp) continue;
 
-      const sqlKey = Object.keys(sqlFiles).find((k) => k.includes(entry.tag));
+      // Match the exact migration filename (`/<tag>.sql`) instead of a
+      // substring — substring matches are ambiguous if a future tag like
+      // `0001_foo` is a prefix of another tag like `0001_foo_extra`.
+      const sqlKey = Object.keys(sqlFiles).find((k) => k.endsWith(`/${entry.tag}.sql`));
       if (!sqlKey) throw new Error(`Missing bundled SQL for migration: ${entry.tag}`);
 
       const sql = sqlFiles[sqlKey];

@@ -28,6 +28,10 @@ function clearCopiedAppSecrets(databasePath: string): void {
       .get('app_secrets');
     if (hasAppSecretsTable) {
       copied.exec('DELETE FROM app_secrets');
+      // DELETE only marks the pages as free — original secret bytes stay on
+      // disk until SQLite reuses the pages. VACUUM rewrites the database so
+      // backups, sync clients, and forensic tools can't recover them.
+      copied.exec('VACUUM');
     }
   } finally {
     copied.close();
@@ -42,8 +46,20 @@ export function resolveDefaultDatabasePath(userDataPath: string): string {
 
   const previousPath = join(userDataPath, PREVIOUS_DB_FILENAME);
   if (fs.existsSync(previousPath)) {
-    copySqliteDatabase(previousPath, currentPath);
-    clearCopiedAppSecrets(currentPath);
+    // Stage in a temp file so a crash between VACUUM INTO and DELETE FROM
+    // app_secrets can't leave the migrated DB sitting at currentPath with the
+    // secrets still inside. We only rename after the secrets are gone.
+    const stagingPath = `${currentPath}.migrating-${process.pid}-${Date.now()}`;
+    try {
+      copySqliteDatabase(previousPath, stagingPath);
+      clearCopiedAppSecrets(stagingPath);
+      fs.renameSync(stagingPath, currentPath);
+    } catch (error) {
+      try {
+        fs.rmSync(stagingPath, { force: true });
+      } catch {}
+      throw error;
+    }
   }
 
   return currentPath;

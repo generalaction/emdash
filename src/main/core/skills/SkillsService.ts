@@ -12,6 +12,17 @@ const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');
 const EMDASH_META = path.join(SKILLS_ROOT, '.emdash');
 const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 
+/**
+ * Throws on any skillId that could cause a filesystem operation to escape
+ * SKILLS_ROOT (e.g. `..`, absolute path, separator, NUL). Use BEFORE any
+ * path.join(SKILLS_ROOT, skillId) followed by mkdir/rm/rename/write.
+ */
+function assertSafeSkillId(skillId: string): void {
+  if (!isValidSkillName(skillId)) {
+    throw new Error(`Invalid skill id`);
+  }
+}
+
 const MAX_REDIRECTS = 5;
 
 function httpsGet(url: string, redirectCount = 0): Promise<string> {
@@ -184,6 +195,7 @@ export class SkillsService {
   }
 
   async getSkillDetail(skillId: string): Promise<CatalogSkill | null> {
+    assertSafeSkillId(skillId);
     const catalog = await this.getCatalogIndex();
     const skill = catalog.skills.find((s) => s.id === skillId);
     if (!skill) return null;
@@ -233,6 +245,7 @@ export class SkillsService {
   }
 
   async installSkill(skillId: string): Promise<CatalogSkill> {
+    assertSafeSkillId(skillId);
     await this.initialize();
     const catalog = await this.getCatalogIndex();
     const skill = catalog.skills.find((s) => s.id === skillId);
@@ -285,6 +298,7 @@ export class SkillsService {
   }
 
   async uninstallSkill(skillId: string): Promise<void> {
+    assertSafeSkillId(skillId);
     const skillDir = path.join(SKILLS_ROOT, skillId);
 
     // Remove agent symlinks first
@@ -345,6 +359,7 @@ export class SkillsService {
   }
 
   async syncToAgents(skillId: string): Promise<void> {
+    assertSafeSkillId(skillId);
     const skillDir = path.join(SKILLS_ROOT, skillId);
     for (const target of agentTargets) {
       try {
@@ -376,15 +391,18 @@ export class SkillsService {
   }
 
   async unsyncFromAgents(skillId: string): Promise<void> {
+    assertSafeSkillId(skillId);
     for (const target of agentTargets) {
       try {
         const targetDir = target.getSkillDir(skillId);
         const stat = await fs.promises.lstat(targetDir);
         if (stat.isSymbolicLink()) {
-          // Only remove symlinks that point into our central skills root
+          // Only remove symlinks that point into our central skills root.
+          // Compare against SKILLS_ROOT + path.sep so adjacent dirs like
+          // `.agentskillsX` can never match the SKILLS_ROOT prefix.
           const linkTarget = await fs.promises.readlink(targetDir);
           const resolved = path.resolve(path.dirname(targetDir), linkTarget);
-          if (resolved.startsWith(SKILLS_ROOT)) {
+          if (resolved === SKILLS_ROOT || resolved.startsWith(SKILLS_ROOT + path.sep)) {
             await fs.promises.unlink(targetDir);
           }
         }

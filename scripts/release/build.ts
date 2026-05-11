@@ -20,6 +20,9 @@ if (!platform || !['mac', 'linux', 'win'].includes(platform)) {
 }
 
 const archInput = values.arch ?? 'both';
+if (!['x64', 'arm64', 'both'].includes(archInput)) {
+  fail(`Invalid --arch: ${archInput} (expected one of: x64, arm64, both)`);
+}
 const archs: string[] = archInput === 'both' ? ['x64', 'arm64'] : [archInput];
 
 const defaultTargets: Record<string, string> = {
@@ -27,6 +30,27 @@ const defaultTargets: Record<string, string> = {
   linux: 'AppImage deb rpm',
   win: 'nsis msi',
 };
+const ALLOWED_TARGETS = new Set([
+  'dmg',
+  'zip',
+  'AppImage',
+  'deb',
+  'rpm',
+  'nsis',
+  'msi',
+  'tar.gz',
+  'snap',
+  'pkg',
+  'mas',
+]);
+if (values.targets) {
+  const parts = values.targets.split(',').map((t) => t.trim());
+  for (const part of parts) {
+    if (!ALLOWED_TARGETS.has(part)) {
+      fail(`Invalid --targets segment: ${JSON.stringify(part)}`);
+    }
+  }
+}
 const targets = values.targets ? values.targets.split(',').join(' ') : defaultTargets[platform];
 
 for (const arch of archs) {

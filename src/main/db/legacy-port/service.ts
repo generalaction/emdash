@@ -87,18 +87,23 @@ async function withAtomicDestinationImport<T>(
   action: () => Promise<T>
 ): Promise<T> {
   const foreignKeys = sqlite.pragma('foreign_keys', { simple: true }) as number;
-  sqlite.pragma('foreign_keys = OFF');
-  sqlite.exec('BEGIN IMMEDIATE');
-
+  // Set the FK pragma INSIDE the try/finally so a throw from BEGIN IMMEDIATE
+  // (e.g. lock contention) can't leak `foreign_keys = OFF` to subsequent
+  // writes on the same connection.
   try {
-    const result = await action();
-    sqlite.exec('COMMIT');
-    return result;
-  } catch (error) {
-    if (sqlite.inTransaction) {
-      sqlite.exec('ROLLBACK');
+    sqlite.pragma('foreign_keys = OFF');
+    sqlite.exec('BEGIN IMMEDIATE');
+
+    try {
+      const result = await action();
+      sqlite.exec('COMMIT');
+      return result;
+    } catch (error) {
+      if (sqlite.inTransaction) {
+        sqlite.exec('ROLLBACK');
+      }
+      throw error;
     }
-    throw error;
   } finally {
     sqlite.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`);
   }

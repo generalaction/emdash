@@ -12,6 +12,7 @@ const mockReadFile = vi.hoisted(() => vi.fn());
 const mockWriteFile = vi.hoisted(() => vi.fn());
 const mockRename = vi.hoisted(() => vi.fn());
 const mockRm = vi.hoisted(() => vi.fn());
+const mockStat = vi.hoisted(() => vi.fn());
 const mockWarn = vi.hoisted(() => vi.fn());
 
 vi.mock('node:fs', () => ({
@@ -20,6 +21,7 @@ vi.mock('node:fs', () => ({
     writeFile: mockWriteFile,
     rename: mockRename,
     rm: mockRm,
+    stat: mockStat,
   },
 }));
 
@@ -69,6 +71,10 @@ describe('ClaudeTrustService', () => {
     mockWriteFile.mockResolvedValue(undefined);
     mockRename.mockResolvedValue(undefined);
     mockRm.mockResolvedValue(undefined);
+    // The optimistic-concurrency stamp just has to round-trip across the
+    // pre-read and pre-rename stat calls. Returning the same value both times
+    // is sufficient — these tests don't simulate Claude writing between reads.
+    mockStat.mockResolvedValue({ size: 0, mtimeMs: 0 });
   });
 
   it('skips non-Claude providers', async () => {

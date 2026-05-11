@@ -9,23 +9,38 @@ export function registerExternalLinkHandlers(win: BrowserWindow, isDev: boolean)
   const wc = win.webContents;
 
   const isInternalAppUrl = (url: string) => {
-    if (isDev) return url.startsWith(process.env.ELECTRON_RENDERER_URL!);
-    return url.startsWith('file://') || /^http:\/\/(127\.0\.0\.1|localhost):\d+(?:\/|$)/i.test(url);
+    if (isDev) {
+      const rendererUrl = process.env.ELECTRON_RENDERER_URL;
+      // In dev, only treat URLs from the explicitly-configured renderer origin
+      // as internal. If ELECTRON_RENDERER_URL is unset, fail closed.
+      return !!rendererUrl && url.startsWith(rendererUrl);
+    }
+    return /^http:\/\/(127\.0\.0\.1|localhost):\d+(?:\/|$)/i.test(url);
   };
 
-  // Handle window.open and target="_blank"
+  // Handle window.open and target="_blank".
+  // Default-deny: only http(s) external URLs are handed off to the OS browser,
+  // and only same-origin internal URLs may open a new BrowserWindow. Any other
+  // scheme (file:, data:, javascript:, custom app schemes, …) is rejected so
+  // a rendered link can never escape the app:// origin into a privileged
+  // BrowserWindow context.
   wc.setWindowOpenHandler(({ url }) => {
-    if (!isInternalAppUrl(url) && /^https?:\/\//i.test(url)) {
+    if (/^https?:\/\//i.test(url)) {
+      if (isInternalAppUrl(url)) return { action: 'allow' };
       void shell.openExternal(url);
       return { action: 'deny' };
     }
-    return { action: 'allow' };
+    return { action: 'deny' };
   });
 
-  // Intercept navigations that would leave the app
+  // Intercept navigations that would leave the app. Block anything that isn't
+  // an explicitly-recognised internal URL — including file://, custom schemes,
+  // and unknown http(s) origins — so a link in renderer content can't replace
+  // the app:// origin with file:// and pivot to preload-exposed APIs.
   wc.on('will-navigate', (event, url) => {
-    if (!isInternalAppUrl(url) && /^https?:\/\//i.test(url)) {
-      event.preventDefault();
+    if (isInternalAppUrl(url)) return;
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) {
       void shell.openExternal(url);
     }
   });
