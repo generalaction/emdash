@@ -25,10 +25,7 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
   const avatarRadiusClass = isBotAuthor(comment) ? 'rounded' : 'rounded-full';
 
   return (
-    <button
-      className="group relative flex w-full min-w-0 gap-2 rounded-md px-3 py-2 text-left hover:bg-background-1"
-      onClick={() => void rpc.app.openExternal(comment.url)}
-    >
+    <div className="group relative flex w-full min-w-0 gap-2 rounded-md px-3 py-2 text-left hover:bg-background-1">
       {comment.author?.avatarUrl ? (
         <img
           src={comment.author.avatarUrl}
@@ -75,10 +72,13 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
           />
         </div>
       </div>
-      <div className="absolute right-3 top-2 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted hover:text-foreground group-hover:flex">
+      <button
+        className="absolute right-3 top-2 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted hover:text-foreground group-hover:flex"
+        onClick={() => void rpc.app.openExternal(comment.url)}
+      >
         <ExternalLink className="size-3.5" />
-      </div>
-    </button>
+      </button>
+    </div>
   );
 }
 
