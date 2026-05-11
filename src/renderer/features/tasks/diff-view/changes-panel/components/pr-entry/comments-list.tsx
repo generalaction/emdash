@@ -22,6 +22,7 @@ function isBotAuthor(comment: PullRequestComment): boolean {
 function CommentItem({ comment }: { comment: PullRequestComment }) {
   const location = commentLocationLabel(comment);
   const author = commentAuthorLabel(comment);
+  const avatarRadiusClass = isBotAuthor(comment) ? 'rounded' : 'rounded-full';
 
   return (
     <button
@@ -32,10 +33,15 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
         <img
           src={comment.author.avatarUrl}
           alt={author}
-          className="mt-0.5 size-5 shrink-0 rounded-full"
+          className={cn('mt-0.5 size-5 shrink-0', avatarRadiusClass)}
         />
       ) : (
-        <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-background-2 text-foreground-muted">
+        <div
+          className={cn(
+            'mt-0.5 flex size-5 shrink-0 items-center justify-center bg-background-2 text-foreground-muted',
+            avatarRadiusClass
+          )}
+        >
           <MessageSquare className="size-3" />
         </div>
       )}
