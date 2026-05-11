@@ -2,6 +2,7 @@ import { ChevronDown, CircleAlert, GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import type { Branch } from '@shared/git';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { pullRequestErrorMessage } from '@shared/pull-requests';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
@@ -54,7 +55,13 @@ export const CreatePrModal = observer(function CreatePrModal({
   const taskPayload = getRegisteredTaskData(projectId, taskId);
   const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
-  const needsPush = !isOnRemote || aheadCount > 0;
+  const usesSeparatePushRemote = repo ? repo.pushRemote.name !== repo.baseRemote.name : false;
+  const needsPush = !isOnRemote || aheadCount > 0 || usesSeparatePushRemote;
+  const pushRepository = parseGitHubRepository(repo?.pushRepositoryUrl ?? '');
+  const head =
+    pushRepository && pushRepository.repositoryUrl !== repositoryUrl
+      ? `${pushRepository.owner}:${branchName}`
+      : branchName;
 
   const hasGitHubRemote = Boolean(repositoryUrl);
   const selectedBase =
@@ -74,7 +81,7 @@ export const CreatePrModal = observer(function CreatePrModal({
         const pushResult = await rpc.git.push(
           projectId,
           workspaceId,
-          repo?.configuredRemote.name ?? 'origin'
+          repo?.pushRemote.name ?? 'origin'
         );
         if (!pushResult.success) {
           log.error('Failed to push branch:', pushResult.error);
@@ -87,7 +94,7 @@ export const CreatePrModal = observer(function CreatePrModal({
 
       const result = await rpc.pullRequests.createPullRequest({
         repositoryUrl,
-        head: branchName,
+        head,
         base: selectedBase.branch,
         title: title.trim(),
         body: description.trim() || undefined,

@@ -154,7 +154,9 @@ function buildProvider(
     ctx,
     host: worktreeHost,
   });
-  const gitFetchService = new GitFetchService(repoGit, hasGitHubToken);
+  const gitFetchService = new GitFetchService(repoGit, hasGitHubToken, () =>
+    repository.getBaseRemote()
+  );
   gitFetchService.start();
 
   return new ProjectProvider(

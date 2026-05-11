@@ -134,7 +134,8 @@ export function createWorkspaceFactory(
       context.fetchService ??
       new GitFetchService(
         gitService,
-        async () => (await githubConnectionService.getToken()) !== null
+        async () => (await githubConnectionService.getToken()) !== null,
+        () => repository.getBaseRemote()
       );
 
     const workspace: Workspace = {

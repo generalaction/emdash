@@ -20,11 +20,11 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
   trigger,
 }: ProjectBranchSelectorProps) {
   const repo = getRepositoryStore(projectId);
-  const configuredRemoteName = repo?.configuredRemote.name ?? 'origin';
+  const baseRemoteName = repo?.baseRemote.name ?? 'origin';
 
   const branches: Branch[] = repo
     ? repo.branches.filter(
-        (b) => b.type === 'local' || (b.type === 'remote' && b.remote.name === configuredRemoteName)
+        (b) => b.type === 'local' || (b.type === 'remote' && b.remote.name === baseRemoteName)
       )
     : [];
 

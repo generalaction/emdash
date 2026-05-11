@@ -8,6 +8,8 @@ import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 
+const SAME_AS_BASE_REMOTE = '__same_as_base_remote__';
+
 type BaseProjectSettingsSectionProps = {
   projectId: string;
   form: FormState;
@@ -25,8 +27,10 @@ export function BaseProjectSettingsSection({
   worktreeDirectoryError,
   update,
 }: BaseProjectSettingsSectionProps) {
-  const remoteValue = form.remote || 'origin';
-  const selectedRemote = remotes.find((remote) => remote.name === remoteValue);
+  const baseRemoteValue = form.baseRemote || 'origin';
+  const pushRemoteValue = form.pushRemote || SAME_AS_BASE_REMOTE;
+  const selectedBaseRemote = remotes.find((remote) => remote.name === baseRemoteValue);
+  const selectedPushRemote = remotes.find((remote) => remote.name === pushRemoteValue);
 
   return (
     <>
@@ -68,15 +72,20 @@ export function BaseProjectSettingsSection({
       <Separator />
 
       <Field>
-        <FieldTitle>Remote</FieldTitle>
+        <FieldTitle>Base remote</FieldTitle>
         <FieldDescription className="text-foreground-muted">
-          The git remote used for fetching and syncing worktrees. Defaults to{' '}
-          <code className="font-mono text-xs">origin</code>.
+          Used for fetching remote branches, choosing task base branches and targeting pull
+          requests.
         </FieldDescription>
-        <Select value={remoteValue} onValueChange={(value) => update('remote', value ?? '')}>
+        <Select
+          value={baseRemoteValue}
+          onValueChange={(value) => update('baseRemote', value ?? '')}
+        >
           <SelectTrigger className="w-full min-w-0">
             <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              <span className="min-w-0 truncate">{selectedRemote?.name ?? remoteValue}</span>
+              <span className="min-w-0 truncate">
+                {selectedBaseRemote?.name ?? baseRemoteValue}
+              </span>
             </div>
           </SelectTrigger>
           <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
@@ -100,6 +109,48 @@ export function BaseProjectSettingsSection({
                 </div>
               </SelectItem>
             )}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <Separator />
+
+      <Field>
+        <FieldTitle>Push remote</FieldTitle>
+        <FieldDescription className="text-foreground-muted">
+          Used when publishing task branches and pushing commits.
+        </FieldDescription>
+        <Select
+          value={pushRemoteValue}
+          onValueChange={(value) =>
+            update('pushRemote', value === SAME_AS_BASE_REMOTE ? '' : (value ?? ''))
+          }
+        >
+          <SelectTrigger className="w-full min-w-0">
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <span className="min-w-0 truncate">
+                {pushRemoteValue === SAME_AS_BASE_REMOTE
+                  ? 'Same as base remote'
+                  : (selectedPushRemote?.name ?? pushRemoteValue)}
+              </span>
+            </div>
+          </SelectTrigger>
+          <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
+            <SelectItem value={SAME_AS_BASE_REMOTE} className="py-2">
+              <span className="relative -top-px shrink-0 font-medium">Same as base remote</span>
+            </SelectItem>
+            {remotes.map((r) => (
+              <SelectItem key={r.name} value={r.name} className="py-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="relative -top-px shrink-0">{r.name}</span>
+                  {r.url ? (
+                    <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">
+                      {r.url}
+                    </span>
+                  ) : null}
+                </div>
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </Field>

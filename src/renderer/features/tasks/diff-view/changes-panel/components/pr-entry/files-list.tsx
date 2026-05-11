@@ -12,7 +12,7 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const prStore = provisioned.workspace.pr;
 
   const repo = getRepositoryStore(projectId);
-  const baseRef = remoteRef(repo?.configuredRemote ?? 'origin', pr.baseRefName);
+  const baseRef = remoteRef(repo?.baseRemote ?? 'origin', pr.baseRefName);
   const modifiedRef = commitRef(pr.headRefOid);
   const prFiles = prStore.getFiles(pr).data ?? [];
 

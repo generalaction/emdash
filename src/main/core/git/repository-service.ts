@@ -24,12 +24,21 @@ export class GitRepositoryService {
     private readonly settings: ProjectSettingsProvider
   ) {}
 
-  async getConfiguredRemote(): Promise<string> {
+  async getBaseRemote(): Promise<string> {
     const [configured, remotes] = await Promise.all([
-      this.settings.getRemote().catch(() => undefined),
+      this.settings.getBaseRemote().catch(() => undefined),
       this.git.getRemotes().catch(() => []),
     ]);
     return selectPreferredRemote(configured, remotes).name;
+  }
+
+  async getPushRemote(): Promise<string> {
+    const [configured, baseRemote, remotes] = await Promise.all([
+      this.settings.getPushRemote().catch(() => undefined),
+      this.getBaseRemote(),
+      this.git.getRemotes().catch(() => []),
+    ]);
+    return selectPreferredRemote(configured ?? baseRemote, remotes).name;
   }
 
   async getRepositoryInfo(): Promise<{ isUnborn: boolean; currentBranch: string | null }> {
@@ -42,7 +51,7 @@ export class GitRepositoryService {
 
   async getBranchesPayload(): Promise<BranchesPayload> {
     const remotes = await this.git.getRemotes();
-    const remote = await this.getConfiguredRemote();
+    const remote = await this.getBaseRemote();
     const branches = await this.git.getBranches();
     const gitDefaultBranch = await this.git.getDefaultBranch(remote);
 
@@ -124,7 +133,7 @@ export class GitRepositoryService {
   }
 
   async getBranches(): Promise<Branch[]> {
-    await this.fetch();
+    await this.fetch(await this.getBaseRemote());
     return this.git.getBranches();
   }
 
@@ -147,7 +156,7 @@ export class GitRepositoryService {
     const [branches, remotes, remote] = await Promise.all([
       this.git.getBranches(),
       this.git.getRemotes(),
-      this.getConfiguredRemote(),
+      this.getBaseRemote(),
     ]);
     const remoteBranches = branches.filter((b): b is RemoteBranch => b.type === 'remote');
     const gitDefaultBranch = await this.git.getDefaultBranch(remote);
@@ -157,7 +166,7 @@ export class GitRepositoryService {
   async getRemoteState(): Promise<ProjectRemoteState> {
     try {
       const remotes = await this.getRemotes();
-      const remoteName = await this.getConfiguredRemote();
+      const remoteName = await this.getBaseRemote();
       const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
       return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
     } catch {

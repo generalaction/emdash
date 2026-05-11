@@ -70,16 +70,13 @@ export class PrStore {
               });
               const unsubBaseRef = events.on(gitRefChangedChannel, (p) => {
                 if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
-                const baseRef = remoteRef(this.repositoryStore.configuredRemote, pr.baseRefName);
+                const baseRef = remoteRef(this.repositoryStore.baseRemote, pr.baseRefName);
                 const relevant = !p.changedRefs || p.changedRefs.some((r) => refsEqual(r, baseRef));
                 if (relevant) handler();
               });
               const unsubPrHead = events.on(gitRefChangedChannel, (p) => {
                 if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
-                const sameRepoRef = remoteRef(
-                  this.repositoryStore.configuredRemote,
-                  pr.headRefName
-                );
+                const sameRepoRef = remoteRef(this.repositoryStore.baseRemote, pr.headRefName);
                 const forkOwner = isForkPr(pr)
                   ? (parseGitHubRepository(pr.headRepositoryUrl)?.owner ?? null)
                   : null;
@@ -179,7 +176,7 @@ export class PrStore {
   }
 
   private async _fetchPrFiles(pr: PullRequest): Promise<GitChange[]> {
-    const remote = this.repositoryStore.configuredRemote;
+    const remote = this.repositoryStore.baseRemote;
     // Dereference the MobX-observable Remote into a plain object — MobX proxies
     // cannot be structured-cloned by Electron IPC and will throw.
     const plainRemote = { name: remote.name, url: remote.url };
