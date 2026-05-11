@@ -117,7 +117,9 @@ jobs:
           # electron-builder.config.ts doesn't currently provide (LGHT0094 on
           # `Icon:emdashIcon.exe`); ship only NSIS for now. NSIS is the
           # standard installer most Windows users expect anyway.
-          pnpm exec electron-builder --win nsis --x64 --publish never --config.npmRebuild=false
+          pnpm exec electron-builder --win nsis --x64 --publish never \
+            --config electron-builder.config.ts \
+            --config.npmRebuild=false
           ls -lah release || true
 
       - name: Upload Windows artifacts
@@ -151,7 +153,7 @@ jobs:
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
               --title "$tag" \
-              --notes "Unsigned fork build for $tag. macOS DMG/zip and Windows NSIS/MSI attached." \
+              --notes "Unsigned fork build for $tag. macOS DMG/zip and Windows NSIS attached." \
               --draft=false \
               --prerelease=false || true
 

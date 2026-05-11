@@ -85,7 +85,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pnpm exec electron-builder --win nsis msi --x64 --publish never --config.npmRebuild=false
+          pnpm exec electron-builder --win nsis msi --x64 --publish never \
+            --config electron-builder.config.ts \
+            --config.npmRebuild=false
           ls -lah release || true
 
       - name: Upload Windows artifacts
