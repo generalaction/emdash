@@ -7,17 +7,27 @@ import { SettingRow } from './SettingRow';
 
 const RepositorySettingsCard: React.FC = () => {
   const {
+    value: project,
+    update: updateProject,
+    isLoading: projectLoading,
+    isSaving: projectSaving,
+    isFieldOverridden: isProjectFieldOverridden,
+    resetField: resetProjectField,
+  } = useAppSettingsKey('project');
+  const {
     value: localProject,
-    update,
-    isLoading: loading,
-    isSaving: saving,
-    isFieldOverridden,
-    resetField,
+    update: updateLocalProject,
+    isLoading: localProjectLoading,
+    isSaving: localProjectSaving,
+    isFieldOverridden: isLocalProjectFieldOverridden,
+    resetField: resetLocalProjectField,
   } = useAppSettingsKey('localProject');
 
-  const branchPrefix = localProject?.branchPrefix ?? '';
-  const pushOnCreate = localProject?.pushOnCreate ?? true;
+  const branchPrefix = project?.branchPrefix ?? '';
+  const pushOnCreate = project?.pushOnCreate ?? true;
   const writeAgentConfigToGitIgnore = localProject?.writeAgentConfigToGitIgnore ?? true;
+  const projectBusy = projectLoading || projectSaving;
+  const localProjectBusy = localProjectLoading || localProjectSaving;
 
   const example = useMemo(() => {
     return `${branchPrefix}/my-feature-a3f`;
@@ -33,19 +43,19 @@ const RepositorySettingsCard: React.FC = () => {
             onBlur={(e) => {
               const next = e.target.value.trim();
               if (next !== branchPrefix) {
-                update({ branchPrefix: next });
+                updateProject({ branchPrefix: next });
               }
             }}
             placeholder="Branch prefix"
             aria-label="Branch prefix"
-            disabled={loading}
+            disabled={projectBusy}
             className="flex-1"
           />
           <ResetToDefaultButton
-            visible={isFieldOverridden('branchPrefix')}
+            visible={isProjectFieldOverridden('branchPrefix')}
             defaultLabel="emdash"
-            onReset={() => resetField('branchPrefix')}
-            disabled={loading || saving}
+            onReset={() => resetProjectField('branchPrefix')}
+            disabled={projectBusy}
           />
         </div>
         <div className="text-[11px] text-muted-foreground">
@@ -58,15 +68,15 @@ const RepositorySettingsCard: React.FC = () => {
         control={
           <>
             <ResetToDefaultButton
-              visible={isFieldOverridden('pushOnCreate')}
+              visible={isProjectFieldOverridden('pushOnCreate')}
               defaultLabel="on"
-              onReset={() => resetField('pushOnCreate')}
-              disabled={loading || saving}
+              onReset={() => resetProjectField('pushOnCreate')}
+              disabled={projectBusy}
             />
             <Switch
               checked={pushOnCreate}
-              onCheckedChange={(checked) => update({ pushOnCreate: checked })}
-              disabled={loading || saving}
+              onCheckedChange={(checked) => updateProject({ pushOnCreate: checked })}
+              disabled={projectBusy}
               aria-label="Enable automatic push on create"
             />
           </>
@@ -78,15 +88,17 @@ const RepositorySettingsCard: React.FC = () => {
         control={
           <>
             <ResetToDefaultButton
-              visible={isFieldOverridden('writeAgentConfigToGitIgnore')}
+              visible={isLocalProjectFieldOverridden('writeAgentConfigToGitIgnore')}
               defaultLabel="on"
-              onReset={() => resetField('writeAgentConfigToGitIgnore')}
-              disabled={loading || saving}
+              onReset={() => resetLocalProjectField('writeAgentConfigToGitIgnore')}
+              disabled={localProjectBusy}
             />
             <Switch
               checked={writeAgentConfigToGitIgnore}
-              onCheckedChange={(checked) => update({ writeAgentConfigToGitIgnore: checked })}
-              disabled={loading || saving}
+              onCheckedChange={(checked) =>
+                updateLocalProject({ writeAgentConfigToGitIgnore: checked })
+              }
+              disabled={localProjectBusy}
               aria-label="Enable .gitignore updates for CLI hook configs"
             />
           </>

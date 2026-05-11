@@ -1,5 +1,6 @@
 import { Check, Loader2, Plus } from 'lucide-react';
 import React, { useEffect } from 'react';
+import featurebaseSvg from '@/assets/images/Featurebase.svg?raw';
 import forgejoSvg from '@/assets/images/Forgejo.svg?raw';
 import githubSvg from '@/assets/images/Github.svg?raw';
 import gitlabSvg from '@/assets/images/GitLab.svg?raw';
@@ -60,15 +61,40 @@ const IntegrationsCard: React.FC = () => {
     isForgejoConnected,
     isForgejoLoading,
     disconnectForgejo,
+    isFeaturebaseConnected,
+    isFeaturebaseLoading,
+    disconnectFeaturebase,
   } = useIntegrationsContext();
 
   const showIntegrationSetup = useShowModal('integrationSetupModal');
+  const showConfirmDisconnect = useShowModal('confirmActionModal');
 
   const isCliManaged = authenticated && tokenSource === 'cli';
 
   useEffect(() => {
     void checkStatus();
   }, [checkStatus]);
+
+  const confirmDisconnect = ({
+    name,
+    credential,
+    onDisconnect,
+  }: {
+    name: string;
+    credential?: string;
+    onDisconnect: () => void | Promise<void>;
+  }) => {
+    showConfirmDisconnect({
+      title: `Disconnect ${name}`,
+      description: credential
+        ? `This will delete the saved ${name} ${credential} and disconnect ${name}.`
+        : `This will disconnect ${name}.`,
+      confirmLabel: 'Disconnect',
+      onSuccess: () => {
+        void onDisconnect();
+      },
+    });
+  };
 
   const integrations = [
     {
@@ -80,7 +106,7 @@ const IntegrationsCard: React.FC = () => {
       loading: isLoading || githubLoading,
       onConnect: handleGithubConnect,
       onCancel: cancelGithubConnect,
-      onDisconnect: logout,
+      onDisconnect: () => confirmDisconnect({ name: 'GitHub', onDisconnect: logout }),
       disabledTooltip: isCliManaged
         ? 'Run `gh auth logout` in your terminal to disconnect'
         : undefined,
@@ -96,7 +122,12 @@ const IntegrationsCard: React.FC = () => {
       connected: !!isLinearConnected,
       loading: isLinearLoading,
       onConnect: () => showIntegrationSetup({ integration: 'linear' }),
-      onDisconnect: disconnectLinear,
+      onDisconnect: () =>
+        confirmDisconnect({
+          name: 'Linear',
+          credential: 'API key',
+          onDisconnect: disconnectLinear,
+        }),
     },
     {
       id: 'jira',
@@ -109,7 +140,12 @@ const IntegrationsCard: React.FC = () => {
       connected: !!isJiraConnected,
       loading: isJiraLoading,
       onConnect: () => showIntegrationSetup({ integration: 'jira' }),
-      onDisconnect: disconnectJira,
+      onDisconnect: () =>
+        confirmDisconnect({
+          name: 'Jira',
+          credential: 'credentials',
+          onDisconnect: disconnectJira,
+        }),
     },
     {
       id: 'gitlab',
@@ -122,7 +158,12 @@ const IntegrationsCard: React.FC = () => {
       connected: !!isGitlabConnected,
       loading: isGitlabLoading,
       onConnect: () => showIntegrationSetup({ integration: 'gitlab' }),
-      onDisconnect: disconnectGitlab,
+      onDisconnect: () =>
+        confirmDisconnect({
+          name: 'GitLab',
+          credential: 'credentials',
+          onDisconnect: disconnectGitlab,
+        }),
     },
     {
       id: 'plain',
@@ -132,7 +173,12 @@ const IntegrationsCard: React.FC = () => {
       connected: !!isPlainConnected,
       loading: isPlainLoading,
       onConnect: () => showIntegrationSetup({ integration: 'plain' }),
-      onDisconnect: disconnectPlain,
+      onDisconnect: () =>
+        confirmDisconnect({
+          name: 'Plain',
+          credential: 'API key',
+          onDisconnect: disconnectPlain,
+        }),
     },
     {
       id: 'forgejo',
@@ -145,7 +191,22 @@ const IntegrationsCard: React.FC = () => {
       connected: !!isForgejoConnected,
       loading: isForgejoLoading,
       onConnect: () => showIntegrationSetup({ integration: 'forgejo' }),
-      onDisconnect: disconnectForgejo,
+      onDisconnect: () =>
+        confirmDisconnect({
+          name: 'Forgejo',
+          credential: 'credentials',
+          onDisconnect: disconnectForgejo,
+        }),
+    },
+    {
+      id: 'featurebase',
+      name: 'Featurebase',
+      description: 'Work on Featurebase posts',
+      logoSvg: featurebaseSvg,
+      connected: !!isFeaturebaseConnected,
+      loading: isFeaturebaseLoading,
+      onConnect: () => showIntegrationSetup({ integration: 'featurebase' }),
+      onDisconnect: disconnectFeaturebase,
     },
   ];
 

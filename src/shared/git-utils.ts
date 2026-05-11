@@ -1,4 +1,5 @@
 import type { Branch, Remote } from './git';
+import type { ProjectSettings } from './project-settings';
 
 export const DEFAULT_REMOTE_NAME = 'origin';
 
@@ -82,6 +83,33 @@ export function remoteNameFromQualifiedRef(ref: string): string | undefined {
   const slash = trimmed.indexOf('/');
   if (slash <= 0) return undefined;
   return trimmed.slice(0, slash);
+}
+
+export function projectDefaultBranchToBranch(
+  setting: ProjectSettings['defaultBranch'],
+  configuredRemote: Remote,
+  remotes: ReadonlyArray<Remote>
+): Branch | undefined {
+  if (!setting) return undefined;
+  if (typeof setting !== 'string') {
+    return { type: 'remote', branch: setting.name, remote: configuredRemote };
+  }
+
+  const remote = remotes.find((candidate) => setting.startsWith(`${candidate.name}/`));
+  if (remote) {
+    return { type: 'remote', branch: setting.slice(remote.name.length + 1), remote };
+  }
+
+  const slash = setting.indexOf('/');
+  if (slash > 0) {
+    return {
+      type: 'remote',
+      branch: setting.slice(slash + 1),
+      remote: { name: setting.slice(0, slash), url: '' },
+    };
+  }
+
+  return { type: 'local', branch: setting };
 }
 
 export function resolveDefaultBranch<TBranch extends Branch = Branch>(

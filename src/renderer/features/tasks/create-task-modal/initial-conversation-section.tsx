@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { buildTaskContextActions } from '@renderer/features/tasks/conversations/context-actions';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
@@ -16,25 +17,28 @@ export type InitialConversationState = {
   setProvider: (provider: AgentProviderId | null) => void;
   prompt: string;
   setPrompt: (prompt: string) => void;
+  connectionId?: string;
 };
 
-export function useInitialConversationState(connectionId?: string): InitialConversationState {
+export function useInitialConversationState(projectId?: string): InitialConversationState {
+  const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId);
   const [prompt, setPrompt] = useState('');
-  return { provider: providerId, setProvider: setProviderOverride, prompt, setPrompt };
+  return {
+    provider: providerId,
+    setProvider: setProviderOverride,
+    prompt,
+    setPrompt,
+    connectionId,
+  };
 }
 
 interface InitialConversationFieldProps {
   state: InitialConversationState;
   linkedIssue?: Issue;
-  connectionId?: string;
 }
 
-export function InitialConversationField({
-  state,
-  linkedIssue,
-  connectionId,
-}: InitialConversationFieldProps) {
+export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
   const { value: reviewPrompt } = useAppSettingsKey('reviewPrompt');
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
@@ -54,7 +58,7 @@ export function InitialConversationField({
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
-            connectionId={connectionId}
+            connectionId={state.connectionId}
             className="rounded-none border-0 border-b"
           />
           <Textarea
@@ -75,7 +79,7 @@ export function InitialConversationField({
               if (state.provider) autoApproveDefaults.setDefault(state.provider, checked);
             }}
           />
-          <FieldLabel>Dangerously skip permissions</FieldLabel>
+          <FieldLabel>Auto-approve permissions</FieldLabel>
         </div>
       </Field>
     </>

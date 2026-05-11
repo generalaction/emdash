@@ -14,6 +14,12 @@ export interface AppCommand {
    * Defaults to true when omitted.
    */
   enabled?: boolean;
+  /**
+   * When true the command is excluded from the command palette UI but still
+   * dispatched by the hotkey system. Use for navigation shortcuts that are
+   * handled by dedicated UI controls and would be redundant in the palette.
+   */
+  hideFromPalette?: boolean;
   execute: () => void;
 }
 

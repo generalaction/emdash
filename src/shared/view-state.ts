@@ -33,7 +33,7 @@ export type DiffViewSnapshot = {
   diffStyle: 'unified' | 'split';
   viewMode: 'file';
   activeFile?: ActiveFile;
-  commitAction: 'commit' | 'commit-push' | null;
+  commitAction: 'commit' | 'commit-push' | 'commit-pr' | null;
   prTab?: 'files' | 'commits' | 'checks';
 };
 
