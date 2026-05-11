@@ -23,6 +23,22 @@ export interface UseTabShortcutsOptions {
 }
 
 /**
+ * Hotkeys for jumping to a specific tab by position (1-indexed).
+ * These are internal constants — not user-configurable via APP_SHORTCUTS.
+ */
+const TAB_INDEX_HOTKEYS = [
+  'Mod+1',
+  'Mod+2',
+  'Mod+3',
+  'Mod+4',
+  'Mod+5',
+  'Mod+6',
+  'Mod+7',
+  'Mod+8',
+  'Mod+9',
+] as const;
+
+/**
  * Registers keyboard shortcuts for tab navigation within any TabNavigationProvider.
  *
  * Shortcuts:
@@ -70,7 +86,7 @@ export function useTabShortcuts(
     { enabled: enabled && tabCloseHotkey !== null, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Mod+1',
+    TAB_INDEX_HOTKEYS[0],
     (e) => {
       e.preventDefault();
       store?.setTabActiveIndex(0);
@@ -78,7 +94,7 @@ export function useTabShortcuts(
     { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Mod+2',
+    TAB_INDEX_HOTKEYS[1],
     (e) => {
       e.preventDefault();
       store?.setTabActiveIndex(1);
@@ -86,7 +102,7 @@ export function useTabShortcuts(
     { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Mod+3',
+    TAB_INDEX_HOTKEYS[2],
     (e) => {
       e.preventDefault();
       store?.setTabActiveIndex(2);
@@ -94,7 +110,7 @@ export function useTabShortcuts(
     { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Mod+4',
+    TAB_INDEX_HOTKEYS[3],
     (e) => {
       e.preventDefault();
       store?.setTabActiveIndex(3);
@@ -102,7 +118,7 @@ export function useTabShortcuts(
     { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Mod+5',
+    TAB_INDEX_HOTKEYS[4],
     (e) => {
       e.preventDefault();
       store?.setTabActiveIndex(4);
@@ -110,7 +126,7 @@ export function useTabShortcuts(
     { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Mod+6',
+    TAB_INDEX_HOTKEYS[5],
     (e) => {
       e.preventDefault();
       store?.setTabActiveIndex(5);
@@ -118,7 +134,7 @@ export function useTabShortcuts(
     { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Mod+7',
+    TAB_INDEX_HOTKEYS[6],
     (e) => {
       e.preventDefault();
       store?.setTabActiveIndex(6);
@@ -126,7 +142,7 @@ export function useTabShortcuts(
     { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Mod+8',
+    TAB_INDEX_HOTKEYS[7],
     (e) => {
       e.preventDefault();
       store?.setTabActiveIndex(7);
@@ -134,7 +150,7 @@ export function useTabShortcuts(
     { enabled, conflictBehavior: 'allow' }
   );
   useHotkey(
-    'Mod+9',
+    TAB_INDEX_HOTKEYS[8],
     (e) => {
       e.preventDefault();
       store?.setTabActiveIndex(8);

@@ -313,13 +313,13 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                 </div>
               </div>
 
-              {/* Auto-approve Flag */}
+              {/* Auto-approve CLI flag */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Label htmlFor="autoApproveFlag" className="text-sm font-medium">
-                    Auto-approve Flag
+                    Auto-approve CLI flag
                   </Label>
-                  <FieldTooltip content="Flag used in auto-approve mode" />
+                  <FieldTooltip content="Passed only when Auto-approve permissions is enabled for a conversation" />
                 </div>
                 <Input
                   id="autoApproveFlag"
