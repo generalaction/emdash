@@ -46,7 +46,7 @@ export const RelativeTime: React.FC<RelativeTimeProps> = ({ value, className, co
 
   const date = useMemo(() => parseTimestamp(value), [value]);
   if (!date) {
-    return <span className={className}>—</span>;
+    return <span className={className}>-</span>;
   }
 
   if (compact) {

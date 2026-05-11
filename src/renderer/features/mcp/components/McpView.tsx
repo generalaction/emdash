@@ -68,7 +68,7 @@ export const McpView: React.FC = () => {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-      <div className="mx-auto w-full max-w-3xl px-8 py-8">
+      <div className="mx-auto w-full max-w-3xl p-8">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-lg font-semibold">MCP</h1>

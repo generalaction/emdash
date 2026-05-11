@@ -126,6 +126,7 @@ export class SshFileSystem implements FileSystemProvider {
 
         const entries: FileEntry[] = [];
         const seen = new Set<string>();
+        const filterRegex = options?.filter ? new RegExp(options.filter) : null;
 
         for (const item of list) {
           // Skip hidden files if not included
@@ -134,11 +135,8 @@ export class SshFileSystem implements FileSystemProvider {
           }
 
           // Apply filter if provided
-          if (options?.filter) {
-            const filterRegex = new RegExp(options.filter);
-            if (!filterRegex.test(item.filename)) {
-              continue;
-            }
+          if (filterRegex && !filterRegex.test(item.filename)) {
+            continue;
           }
 
           const entryPath = this.relativePath(`${fullPath}/${item.filename}`);
@@ -576,6 +574,7 @@ export class SshFileSystem implements FileSystemProvider {
       const matches: SearchMatch[] = [];
       const lines = result.stdout.split('\n').filter((line) => line.trim());
       const seenFiles = new Set<string>();
+      const patternRegex = options?.filePattern ? new RegExp(options.filePattern) : null;
 
       for (const line of lines) {
         // Parse grep output format: path:line:content
@@ -596,11 +595,8 @@ export class SshFileSystem implements FileSystemProvider {
         const relPath = this.relativePath(filePath);
 
         // Apply file pattern filter if provided
-        if (options?.filePattern) {
-          const patternRegex = new RegExp(options.filePattern);
-          if (!patternRegex.test(relPath)) {
-            continue;
-          }
+        if (patternRegex && !patternRegex.test(relPath)) {
+          continue;
         }
 
         seenFiles.add(filePath);

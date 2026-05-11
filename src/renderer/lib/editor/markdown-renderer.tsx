@@ -62,7 +62,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
       <MarkdownRenderer
         content={content}
         variant="full"
-        className="w-full max-w-3xl px-8 py-8"
+        className="w-full max-w-3xl p-8"
         resolveImage={resolveImage}
       />
     </div>

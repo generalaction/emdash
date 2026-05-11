@@ -196,7 +196,7 @@ export const FileDiffView = observer(function FileDiffView() {
         )}
         {isBinary && !isImage && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Binary file — no diff available
+            Binary file: no diff available
           </div>
         )}
       </div>

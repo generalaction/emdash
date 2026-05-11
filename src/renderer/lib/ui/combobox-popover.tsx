@@ -78,10 +78,12 @@ function isActionItem(item: unknown): item is ActionItem {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const EMPTY_ACTIONS: ComboboxAction[] = [];
+
 export function ComboboxPopover<T extends ComboboxSelectOption>({
   trigger,
   items,
-  actions = [],
+  actions = EMPTY_ACTIONS,
   value,
   defaultValue,
   onValueChange,

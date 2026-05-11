@@ -38,7 +38,7 @@ export function HomeMainPanel() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-      <div className="container mx-auto flex min-h-full max-w-6xl flex-1 flex-col justify-center px-8 py-8">
+      <div className="container mx-auto flex min-h-full max-w-6xl flex-1 flex-col justify-center p-8">
         <div className="mb-3 text-center">
           <div className="mb-3 flex items-center justify-center">
             <div className="logo-shimmer-container">

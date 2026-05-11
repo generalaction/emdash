@@ -112,7 +112,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         return (
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Installing update. {PRODUCT_NAME} will close and restart automatically — this may take a
+            Installing update. {PRODUCT_NAME} will close and restart automatically; this may take a
             few seconds.
           </p>
         );
@@ -124,7 +124,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
             className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
           >
             <AlertCircle className="h-3 w-3" />
-            Update temporarily unavailable — please try again later
+            Update temporarily unavailable, please try again later
           </Badge>
         );
 

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { Input } from '@renderer/lib/ui/input';
 import { Switch } from '@renderer/lib/ui/switch';
@@ -29,9 +29,7 @@ const RepositorySettingsCard: React.FC = () => {
   const projectBusy = projectLoading || projectSaving;
   const localProjectBusy = localProjectLoading || localProjectSaving;
 
-  const example = useMemo(() => {
-    return `${branchPrefix}/my-feature-a3f`;
-  }, [branchPrefix]);
+  const example = `${branchPrefix}/my-feature-a3f`;
 
   return (
     <div className="grid gap-8">

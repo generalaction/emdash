@@ -235,6 +235,7 @@ export class LocalFileSystem implements FileSystemProvider {
 
     let truncated = false;
     let truncateReason: 'maxEntries' | 'timeBudget' | undefined;
+    const filterRegex = options.filter ? new RegExp(options.filter) : null;
 
     const listDir = async (dirPath: string, recursive: boolean) => {
       if (abort.signal.aborted) return;
@@ -288,11 +289,8 @@ export class LocalFileSystem implements FileSystemProvider {
             mode: stat.mode,
           };
 
-          if (options.filter) {
-            const filterRegex = new RegExp(options.filter);
-            if (!filterRegex.test(item.name)) {
-              continue;
-            }
+          if (filterRegex && !filterRegex.test(item.name)) {
+            continue;
           }
 
           entries.push(entry);
@@ -433,6 +431,9 @@ export class LocalFileSystem implements FileSystemProvider {
 
     let filesSearched = 0;
     let truncated = false;
+    const filePatternRegex = options.filePattern
+      ? new RegExp(options.filePattern.replace(/\*/g, '.*'))
+      : null;
 
     let gitIgnore: ReturnType<typeof ignore> | undefined;
     try {
@@ -485,11 +486,8 @@ export class LocalFileSystem implements FileSystemProvider {
           }
 
           // Check file pattern if specified
-          if (options.filePattern) {
-            const filePatternRegex = new RegExp(options.filePattern.replace(/\*/g, '.*'));
-            if (!filePatternRegex.test(item.name)) {
-              continue;
-            }
+          if (filePatternRegex && !filePatternRegex.test(item.name)) {
+            continue;
           }
 
           filesSearched++;

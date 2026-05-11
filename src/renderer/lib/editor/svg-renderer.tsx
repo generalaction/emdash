@@ -1,6 +1,5 @@
 import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo } from 'react';
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -22,10 +21,7 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
   // populated — otherwise the preview can stick on an empty src.
   void modelRegistry.bufferVersions.get(bufferUri);
   const content = modelRegistry.getValue(bufferUri) ?? '';
-  const svgUrl = useMemo(
-    () => (content ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}` : ''),
-    [content]
-  );
+  const svgUrl = content ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}` : '';
   const fileName = filePath.split('/').pop() ?? filePath;
 
   return (

@@ -15,7 +15,7 @@ export function BinaryRenderer({ file }: BinaryRendererProps) {
       <div className="text-center">
         <p className="text-sm font-medium">{fileName}</p>
         {ext && <p className="mt-0.5 text-xs opacity-50">{ext} file</p>}
-        <p className="mt-1 text-xs opacity-70">Binary file — no preview available</p>
+        <p className="mt-1 text-xs opacity-70">Binary file: no preview available</p>
       </div>
     </div>
   );

@@ -63,7 +63,7 @@ function PaletteItem({
     <Command.Item
       value={value}
       onSelect={onSelect}
-      className="flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2"
+      className="flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md p-2 text-sm aria-selected:bg-background-2"
     >
       {KIND_ICON[item.kind]}
       <span className="flex-1 truncate">{item.title}</span>
@@ -151,7 +151,7 @@ export function CommandPaletteModal({
           value={query}
           onValueChange={setQuery}
           placeholder="Search tasks, projects, actions…"
-          className="w-full bg-transparent px-3 py-3 text-sm outline-none placeholder:text-foreground/40"
+          className="w-full bg-transparent p-3 text-sm outline-none placeholder:text-foreground/40"
           autoFocus
         />
       </div>

@@ -164,7 +164,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div ref={parentRef} className="flex-1 overflow-y-auto px-2 py-2" role="tree">
+      <div ref={parentRef} className="flex-1 overflow-y-auto p-2" role="tree">
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((vItem) => {
             const node = visibleRows[vItem.index] as FileNode;

@@ -251,7 +251,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
         {success ? (
           // Success State
-          <div className="flex flex-col items-center space-y-6 duration-300 animate-in fade-in zoom-in">
+          <div className="flex flex-col items-center gap-y-6 duration-300 animate-in fade-in zoom-in">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 duration-500 animate-in zoom-in">
               <Check className="h-8 w-8 text-white" strokeWidth={3} />
             </div>
@@ -273,7 +273,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
           </div>
         ) : error ? (
           // Error State
-          <div className="flex w-full flex-col items-center space-y-6">
+          <div className="flex w-full flex-col items-center gap-y-6">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20">
               <AlertCircle className="h-8 w-8 text-red-500" />
             </div>
@@ -287,7 +287,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
           </div>
         ) : (
           // Waiting State
-          <div className="flex w-full flex-col items-center space-y-6">
+          <div className="flex w-full flex-col items-center gap-y-6">
             <div className="space-y-2 text-center">
               <h2 className="text-2xl font-semibold">Connect to GitHub</h2>
               <p className="text-sm text-muted-foreground">

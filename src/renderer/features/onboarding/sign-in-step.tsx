@@ -33,7 +33,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
   if (session?.isSignedIn && session.user) {
     const { user } = session;
     return (
-      <div className="flex flex-col space-y-8 max-w-sm">
+      <div className="flex flex-col gap-y-8 max-w-sm">
         <div className="flex flex-col items-center justify-center gap-6">
           <div className="relative">
             {user.avatarUrl ? (
@@ -64,7 +64,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <div className="flex flex-col space-y-8 max-w-sm">
+    <div className="flex flex-col gap-y-8 max-w-sm">
       <div className="flex flex-col items-center justify-center gap-6">
         <Github className="h-10 w-10" absoluteStrokeWidth strokeWidth={1.5} />
         <div className="flex flex-col items-center justify-center gap-2">

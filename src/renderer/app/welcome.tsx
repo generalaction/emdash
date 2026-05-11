@@ -52,7 +52,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
       </div>
 
       <motion.div
-        className="relative z-10 flex flex-col items-center justify-center space-y-4 p-8"
+        className="relative z-10 flex flex-col items-center justify-center gap-y-4 p-8"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
