@@ -18,6 +18,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
+import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PaletteNotificationsGroup } from './palette-notifications-group';
 import { PaletteTaskItem } from './palette-task-item';
@@ -140,20 +141,24 @@ export function CommandPaletteModal({
   const registryActions = useObserver((): PaletteAction[] =>
     commandRegistry.activeCommands
       .filter((cmd) => cmd.enabled !== false)
-      .map((cmd) => ({
-        kind: 'action' as const,
-        id: cmd.id,
-        title: cmd.label,
-        subtitle: cmd.description,
-        shortcut: cmd.shortcutKey
-          ? formatHotkey(getEffectiveHotkey(cmd.shortcutKey, keyboard) ?? undefined)
-          : undefined,
-        score: 0,
-        execute: () => {
-          onClose();
-          cmd.execute();
-        },
-      }))
+      .map((cmd) => {
+        const def = ALL_COMMAND_DEFS.find((d) => d.id === cmd.id) as CommandDef | undefined;
+        return {
+          kind: 'action' as const,
+          id: cmd.id,
+          title: cmd.label,
+          subtitle: cmd.description,
+          shortcut: cmd.shortcutKey
+            ? formatHotkey(getEffectiveHotkey(cmd.shortcutKey, keyboard) ?? undefined)
+            : undefined,
+          icon: getCommandIcon(def?.iconKey),
+          score: 0,
+          execute: () => {
+            onClose();
+            cmd.execute();
+          },
+        };
+      })
   );
 
   const actions = useMemo(() => {
@@ -270,6 +275,7 @@ export function CommandPaletteModal({
                   title: live.label,
                   subtitle: live.description,
                   shortcut,
+                  icon: getCommandIcon(def?.iconKey),
                   score: 0,
                   execute: () => {
                     onClose();

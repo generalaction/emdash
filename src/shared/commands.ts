@@ -7,6 +7,8 @@ export interface CommandDef {
   group?: string;
   scope: 'app' | 'project' | 'task' | 'task-sub';
   shortcutKey?: ShortcutSettingsKey;
+  /** Token resolved to a LucideIcon by the renderer's COMMAND_ICONS map. */
+  iconKey?: string;
 }
 
 /**
@@ -25,6 +27,7 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     scope: 'app',
     shortcutKey: 'settings',
     group: 'App',
+    iconKey: 'settings',
   },
   {
     id: 'app.newProject',
@@ -33,6 +36,7 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     scope: 'app',
     shortcutKey: 'newProject',
     group: 'App',
+    iconKey: 'folder-plus',
   },
   {
     id: 'app.newTask',
@@ -41,6 +45,7 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     scope: 'app',
     shortcutKey: 'newTask',
     group: 'App',
+    iconKey: 'square-plus',
   },
   {
     id: 'app.navigateBack',
@@ -49,6 +54,7 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     scope: 'app',
     shortcutKey: 'navigateBack',
     group: 'Navigation',
+    iconKey: 'arrow-left',
   },
   {
     id: 'app.navigateForward',
@@ -57,6 +63,7 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     scope: 'app',
     shortcutKey: 'navigateForward',
     group: 'Navigation',
+    iconKey: 'arrow-right',
   },
 ] as const);
 
@@ -68,6 +75,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     shortcutKey: 'newConversation',
     group: 'Conversations',
+    iconKey: 'message-square-plus',
   },
   {
     id: 'task.sidebarChanges',
@@ -76,6 +84,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     shortcutKey: 'sidebarChanges',
     group: 'View',
+    iconKey: 'file-diff',
   },
   {
     id: 'task.sidebarConversations',
@@ -84,6 +93,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     shortcutKey: 'sidebarConversations',
     group: 'View',
+    iconKey: 'message-square',
   },
   {
     id: 'task.sidebarFiles',
@@ -92,6 +102,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     shortcutKey: 'sidebarFiles',
     group: 'View',
+    iconKey: 'files',
   },
   {
     id: 'task.viewTerminals',
@@ -99,6 +110,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     description: 'Open the terminal drawer',
     scope: 'task',
     group: 'View',
+    iconKey: 'terminal',
   },
   {
     id: 'task.toggleTerminalDrawer',
@@ -107,6 +119,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     shortcutKey: 'toggleTerminalDrawer',
     group: 'Panel',
+    iconKey: 'panel-bottom',
   },
   {
     id: 'task.toggleRightSidebar',
@@ -115,6 +128,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     shortcutKey: 'toggleRightSidebar',
     group: 'Panel',
+    iconKey: 'panel-right',
   },
   {
     id: 'task.newTerminal',
@@ -123,6 +137,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     shortcutKey: 'newTerminal',
     group: 'Terminals',
+    iconKey: 'square-terminal',
   },
   {
     id: 'task.gitFetch',
@@ -130,6 +145,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     description: 'Fetch latest changes from remote',
     scope: 'task',
     group: 'Git',
+    iconKey: 'git-pull-request',
   },
   {
     id: 'task.gitPull',
@@ -137,6 +153,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     description: 'Pull latest changes from remote',
     scope: 'task',
     group: 'Git',
+    iconKey: 'arrow-down-to-line',
   },
   {
     id: 'task.gitPush',
@@ -144,6 +161,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     description: 'Push commits to remote',
     scope: 'task',
     group: 'Git',
+    iconKey: 'arrow-up-to-line',
   },
   {
     id: 'task.pin',
@@ -151,6 +169,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     description: 'Pin this task to keep it at the top',
     scope: 'task',
     group: 'Task',
+    iconKey: 'pin',
   },
   {
     id: 'task.nextTask',
@@ -158,6 +177,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     description: 'Switch to the next task',
     scope: 'task',
     group: 'Navigation',
+    iconKey: 'chevron-down',
   },
   {
     id: 'task.prevTask',
@@ -165,6 +185,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     description: 'Switch to the previous task',
     scope: 'task',
     group: 'Navigation',
+    iconKey: 'chevron-up',
   },
 ] as const);
 
