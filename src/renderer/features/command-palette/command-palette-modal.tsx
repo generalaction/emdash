@@ -3,11 +3,12 @@ import { Command } from 'cmdk';
 import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
 import type { SearchItem } from '@shared/search';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
-import { APP_SHORTCUTS, resolveDefaultHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -103,6 +104,7 @@ export function CommandPaletteModal({
   const deferred = useDeferredValue(query);
   const { navigate } = useNavigate();
   const { value: resourceMonitor } = useAppSettingsKey('resourceMonitor');
+  const { value: keyboard } = useAppSettingsKey('keyboard');
 
   const { data: dbResults = [] } = useQuery({
     queryKey: ['cmdk-search', deferred, projectId, taskId],
@@ -120,7 +122,7 @@ export function CommandPaletteModal({
         title: cmd.label,
         subtitle: cmd.description,
         shortcut: cmd.shortcutKey
-          ? formatHotkey(resolveDefaultHotkey(APP_SHORTCUTS[cmd.shortcutKey]))
+          ? formatHotkey(getEffectiveHotkey(cmd.shortcutKey, keyboard) ?? undefined)
           : undefined,
         score: 0,
         execute: () => {
@@ -228,14 +230,49 @@ export function CommandPaletteModal({
             <Command.Empty className="py-8 text-center text-sm text-foreground/40">
               No results for &ldquo;{query}&rdquo;
             </Command.Empty>
-            {merged.map((item) => (
-              <PaletteItem
-                key={`${item.kind}:${item.id}`}
-                value={`${item.kind}:${item.id}`}
-                item={item}
-                onSelect={() => handleSelect(item)}
-              />
-            ))}
+            {applyContextAffinity(dbResults, { projectId }).map((item) => {
+              if (item.kind === 'command') {
+                const live = commandRegistry.findById(item.id);
+                if (!live || live.enabled === false) return null;
+                const def = ALL_COMMAND_DEFS.find((d) => d.id === item.id) as
+                  | CommandDef
+                  | undefined;
+                const shortcut = def?.shortcutKey
+                  ? formatHotkey(getEffectiveHotkey(def.shortcutKey, keyboard) ?? undefined)
+                  : undefined;
+                const commandAction: PaletteAction = {
+                  kind: 'action',
+                  id: item.id,
+                  title: live.label,
+                  subtitle: live.description,
+                  shortcut,
+                  score: 0,
+                  execute: () => {
+                    onClose();
+                    live.execute();
+                  },
+                };
+                return (
+                  <PaletteItem
+                    key={item.id}
+                    value={item.id}
+                    item={commandAction}
+                    onSelect={() => {
+                      onClose();
+                      live.execute();
+                    }}
+                  />
+                );
+              }
+              return (
+                <PaletteItem
+                  key={`${item.kind}:${item.id}`}
+                  value={`${item.kind}:${item.id}`}
+                  item={item}
+                  onSelect={() => handleSelect(item)}
+                />
+              );
+            })}
           </>
         ) : (
           <>

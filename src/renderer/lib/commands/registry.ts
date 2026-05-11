@@ -45,6 +45,18 @@ class CommandRegistry {
     return this.sortedScopes.flatMap((s) => s.getCommands());
   }
 
+  /**
+   * Looks up a live command by its ID across all active scopes, innermost first.
+   * Used by the command palette to resolve FTS command results to live handlers.
+   */
+  findById(id: string): AppCommand | undefined {
+    for (const scope of this.sortedScopes) {
+      const cmd = scope.getCommands().find((c) => c.id === id);
+      if (cmd) return cmd;
+    }
+    return undefined;
+  }
+
   private get sortedScopes(): CommandProvider[] {
     return [...this.scopes.values()].sort(
       (a, b) => SCOPE_LEVELS[b.scopeId] - SCOPE_LEVELS[a.scopeId]
