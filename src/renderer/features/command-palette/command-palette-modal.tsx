@@ -21,6 +21,7 @@ import { cn } from '@renderer/utils/utils';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PaletteNotificationsGroup } from './palette-notifications-group';
+import { PaletteProjectsGroup } from './palette-projects-group';
 import { PaletteTaskItem } from './palette-task-item';
 import { ResourceMonitorView } from './resource-monitor-view';
 import { applyContextAffinity, rrf } from './rrf';
@@ -203,7 +204,6 @@ export function CommandPaletteModal({
 
   const actionResults = merged.filter((r): r is PaletteAction => r.kind === 'action');
   const taskResults = merged.filter((r): r is SearchItem => r.kind === 'task');
-  const projectResults = merged.filter((r): r is SearchItem => r.kind === 'project');
   const conversationResults = merged.filter((r): r is SearchItem => r.kind === 'conversation');
 
   const handleNavigateToTask = (item: SearchItem) => {
@@ -369,8 +369,8 @@ export function CommandPaletteModal({
               </Command.Group>
             )}
             {taskResults.length > 0 && (
-              <Command.Group heading="Tasks" className={GROUP_CLASS}>
-                {taskResults.map((item) => {
+              <Command.Group heading="Recent Tasks" className={GROUP_CLASS}>
+                {taskResults.slice(0, 5).map((item) => {
                   const store = item.projectId ? getTaskStore(item.projectId, item.id) : undefined;
                   return store ? (
                     <PaletteTaskItem
@@ -390,21 +390,17 @@ export function CommandPaletteModal({
                 })}
               </Command.Group>
             )}
-            {projectResults.length > 0 && (
-              <Command.Group heading="Projects" className={GROUP_CLASS}>
-                {projectResults.map((item) => (
-                  <PaletteItem
-                    key={item.id}
-                    value={item.id}
-                    item={item}
-                    onSelect={() => handleNavigateToProject(item)}
-                  />
-                ))}
-              </Command.Group>
+            {!taskId && (
+              <PaletteProjectsGroup
+                currentProjectId={projectId}
+                limit={5}
+                onClose={onClose}
+                navigate={navigate}
+              />
             )}
             {taskId && conversationResults.length > 0 && (
-              <Command.Group heading="Conversations" className={GROUP_CLASS}>
-                {conversationResults.map((item) => {
+              <Command.Group heading="Recent Conversations" className={GROUP_CLASS}>
+                {conversationResults.slice(0, 5).map((item) => {
                   const convStore =
                     item.projectId && item.taskId
                       ? asProvisioned(
