@@ -121,14 +121,21 @@ function DraggableResizeHandle(props: ComponentProps<typeof ResizableHandle>) {
     <ResizableHandle
       {...props}
       onPointerDown={(e) => {
+        props.onPointerDown?.(e);
         e.currentTarget.setPointerCapture(e.pointerId);
         if (!draggingRef.current) {
           draggingRef.current = true;
           panelDragStore.setDragging(true);
         }
       }}
-      onPointerUp={stop}
-      onPointerCancel={stop}
+      onPointerUp={(e) => {
+        props.onPointerUp?.(e);
+        stop();
+      }}
+      onPointerCancel={(e) => {
+        props.onPointerCancel?.(e);
+        stop();
+      }}
     />
   );
 }

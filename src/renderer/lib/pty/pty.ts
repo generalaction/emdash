@@ -89,6 +89,9 @@ export class FrontendPty {
       theme: buildTheme(theme),
     });
 
+    // Keep xterm on its DOM renderer: CanvasAddon repaints the full canvas on resize,
+    // which makes panel/sidebar transitions visibly flicker.
+
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       event.preventDefault();
       rpc.app.openExternal(uri).catch(() => {});
