@@ -11,9 +11,8 @@ import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
-import { MermaidDiagram } from './mermaid-diagram';
 import { normalizeLatexDelimiters } from './markdown-latex';
-
+import { MermaidDiagram } from './mermaid-diagram';
 
 type Variant = 'full' | 'compact';
 
