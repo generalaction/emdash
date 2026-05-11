@@ -44,12 +44,14 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const allSessionIds = useMemo(() => {
     return tm.resolvedTabs
       .filter((t) => t.kind === 'conversation')
-      .map((t) => t.store.session.sessionId)
-      .filter(Boolean) as string[];
-  }, [tm.resolvedTabs]);
+      .map((t) => conversations.sessions.get(t.store.data.id)?.sessionId)
+      .filter((id): id is string => Boolean(id));
+  }, [tm.resolvedTabs, conversations.sessions]);
 
   const activeConversation: ConversationStore | undefined = tm.activeConversation;
-  const activeSession = activeConversation?.session ?? null;
+  const activeSession = activeConversation
+    ? (conversations.sessions.get(activeConversation.data.id) ?? null)
+    : null;
   const activeSessionId = activeSession?.sessionId ?? null;
   const hasConversationTabs = tm.resolvedTabs.some((t) => t.kind === 'conversation');
 

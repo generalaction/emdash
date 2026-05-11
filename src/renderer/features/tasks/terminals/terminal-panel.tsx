@@ -62,16 +62,23 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const activeSession =
     activeItem.kind === 'terminal'
-      ? (terminalTabView.tabs.find((t) => t.data.id === activeTerminalId)?.session ?? null)
+      ? (terminalMgr.sessions.get(activeTerminalId ?? '') ?? null)
       : (lifecycleScriptsMgr?.tabs.find((s) => s.data.id === activeItem.id)?.session ?? null);
 
   const allSessionIds = useMemo(
     () => [
-      ...terminalTabView.tabs.map((t) => t.session.sessionId),
+      ...terminalTabView.tabs
+        .map((t) => terminalMgr.sessions.get(t.data.id)?.sessionId)
+        .filter((id): id is string => Boolean(id)),
       ...(lifecycleScriptsMgr?.tabs ?? []).map((s) => s.session.sessionId),
     ],
-    [terminalTabView.tabs, lifecycleScriptsMgr?.tabs]
+    [terminalTabView.tabs, terminalMgr.sessions, lifecycleScriptsMgr?.tabs]
   );
+
+  const handleHoverTerminal = (id: string) => {
+    const session = terminalMgr.sessions.get(id);
+    if (session?.status === 'disconnected') void session.connect();
+  };
 
   const activeStore =
     activeItem.kind === 'terminal' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
@@ -203,6 +210,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           onAddTerminal={() => void handleCreate()}
           onRemoveTerminal={(id) => terminalTabView.removeTab(id)}
           onRenameTerminal={(id, name) => void terminalMgr?.renameTerminal(id, name)}
+          onHoverTerminal={handleHoverTerminal}
         />
       </ResizablePanel>
     </ResizablePanelGroup>
