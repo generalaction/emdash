@@ -164,7 +164,7 @@ const FileTabItem = observer(function FileTabItem({
         data-tabid={tab.tabId}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
-          tab.isActive && 'bg-background-secondary-1 [box-shadow:inset_0_1px_0_var(--primary)]'
+          tab.isActive && 'bg-background-secondary-1'
         )}
       >
         <div className="flex h-full items-center gap-1.5 pl-3 pr-2">
@@ -249,7 +249,7 @@ const DiffTabItem = observer(function DiffTabItem({
         data-tabid={tab.tabId}
         className={cn(
           'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
-          tab.isActive && 'bg-background-secondary-1 [box-shadow:inset_0_1px_0_var(--primary)]'
+          tab.isActive && 'bg-background-secondary-1'
         )}
       >
         <div className="flex h-full items-center gap-1.5 pl-3 pr-2">

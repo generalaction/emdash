@@ -101,8 +101,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
       <button
         className={cn(
           'group relative flex flex-col h-full text-sm hover:bg-muted',
-          isActive &&
-            'bg-background-secondary-1 opacity-100 [box-shadow:inset_0_1px_0_var(--primary)]'
+          isActive && 'bg-background-secondary-1 opacity-100'
         )}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
