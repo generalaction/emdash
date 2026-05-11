@@ -10,8 +10,9 @@ import type {
 } from '@shared/git';
 import {
   projectDefaultBranchToBranch,
+  resolveConfiguredRemotes,
   resolveDefaultBranch,
-  selectPreferredRemote,
+  type ConfiguredRemotes,
 } from '@shared/git-utils';
 import { parseGitHubRepository } from '@shared/github-repository';
 import { events, rpc } from '@renderer/lib/ipc';
@@ -80,12 +81,13 @@ export class RepositoryStore {
       () => this.remoteData.invalidate()
     );
 
-    makeObservable<this, 'defaultBranchPreference'>(this, {
+    makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference'>(this, {
       isUnborn: computed,
       currentBranch: computed,
       branches: computed,
       localBranches: computed,
       remoteBranches: computed,
+      configuredRemotes: computed,
       baseRemote: computed,
       pushRemote: computed,
       defaultBranchPreference: computed,
@@ -126,18 +128,17 @@ export class RepositoryStore {
     return this.remoteData.data?.remoteBranches ?? [];
   }
 
-  get baseRemote(): Remote {
-    const setting = this.settingsStore.settings?.baseRemote;
+  private get configuredRemotes(): ConfiguredRemotes {
     const remotes = this.remoteData.data?.remotes ?? [];
-    return selectPreferredRemote(setting, remotes);
+    return resolveConfiguredRemotes(this.settingsStore.settings ?? undefined, remotes);
+  }
+
+  get baseRemote(): Remote {
+    return this.configuredRemotes.baseRemote;
   }
 
   get pushRemote(): Remote {
-    const setting = this.settingsStore.settings?.pushRemote;
-    const remotes = this.remoteData.data?.remotes ?? [];
-    const preferred = setting?.trim();
-    const found = preferred ? remotes.find((r) => r.name === preferred) : undefined;
-    return found ?? this.baseRemote;
+    return this.configuredRemotes.pushRemote;
   }
 
   get remotes(): Remote[] {

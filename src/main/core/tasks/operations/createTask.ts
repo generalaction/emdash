@@ -52,10 +52,7 @@ export async function createTask(
   if (!project) {
     return err({ type: 'project-not-found' });
   }
-  const [baseRemote, pushRemote] = await Promise.all([
-    project.repository.getBaseRemote(),
-    project.repository.getPushRemote(),
-  ]);
+  const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;

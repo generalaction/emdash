@@ -12,7 +12,7 @@ import type {
   RemoteBranchesPayload,
   RenameBranchError,
 } from '@shared/git';
-import { selectPreferredRemote } from '@shared/git-utils';
+import { resolveConfiguredRemotes } from '@shared/git-utils';
 import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
@@ -24,21 +24,24 @@ export class GitRepositoryService {
     private readonly settings: ProjectSettingsProvider
   ) {}
 
-  async getBaseRemote(): Promise<string> {
-    const [configured, remotes] = await Promise.all([
-      this.settings.getBaseRemote().catch(() => undefined),
+  async getConfiguredRemotes(): Promise<{ baseRemote: string; pushRemote: string }> {
+    const [settings, remotes] = await Promise.all([
+      this.settings.get().catch(() => undefined),
       this.git.getRemotes().catch(() => []),
     ]);
-    return selectPreferredRemote(configured, remotes).name;
+    const configured = resolveConfiguredRemotes(settings, remotes);
+    return {
+      baseRemote: configured.baseRemote.name,
+      pushRemote: configured.pushRemote.name,
+    };
+  }
+
+  async getBaseRemote(): Promise<string> {
+    return (await this.getConfiguredRemotes()).baseRemote;
   }
 
   async getPushRemote(): Promise<string> {
-    const [configured, baseRemote, remotes] = await Promise.all([
-      this.settings.getPushRemote().catch(() => undefined),
-      this.getBaseRemote(),
-      this.git.getRemotes().catch(() => []),
-    ]);
-    return selectPreferredRemote(configured ?? baseRemote, remotes).name;
+    return (await this.getConfiguredRemotes()).pushRemote;
   }
 
   async getRepositoryInfo(): Promise<{ isUnborn: boolean; currentBranch: string | null }> {
