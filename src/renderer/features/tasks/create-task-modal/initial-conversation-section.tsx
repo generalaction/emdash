@@ -75,7 +75,7 @@ export function InitialConversationField({
               if (state.provider) autoApproveDefaults.setDefault(state.provider, checked);
             }}
           />
-          <FieldLabel>Dangerously skip permissions</FieldLabel>
+          <FieldLabel>Auto-approve permissions</FieldLabel>
         </div>
       </Field>
     </>
