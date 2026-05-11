@@ -15,6 +15,10 @@ function commentLocationLabel(comment: PullRequestComment): string | null {
   return comment.line ? `${comment.path}:${comment.line}` : comment.path;
 }
 
+function isBotAuthor(comment: PullRequestComment): boolean {
+  return comment.author?.userName.endsWith('[bot]') ?? false;
+}
+
 function CommentItem({ comment }: { comment: PullRequestComment }) {
   const location = commentLocationLabel(comment);
   const author = commentAuthorLabel(comment);
@@ -58,7 +62,11 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
             comment.isOutdated && 'text-foreground-passive'
           )}
         >
-          <MarkdownRenderer content={comment.body} variant="compact" allowHtml />
+          <MarkdownRenderer
+            content={comment.body}
+            variant="compact"
+            allowHtml={isBotAuthor(comment)}
+          />
         </div>
       </div>
       <div className="absolute right-3 top-2 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted hover:text-foreground group-hover:flex">
