@@ -1,13 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
-import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
 import type { SearchItem } from '@shared/search';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
+import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -101,16 +102,32 @@ export function CommandPaletteModal({
 }: CommandPaletteProps & BaseModalProps) {
   const [view, setView] = useState<'search' | 'resource-monitor'>('search');
   const [query, setQuery] = useState('');
-  const deferred = useDeferredValue(query);
+  const debouncedQuery = useDebounce(query, 100);
   const { navigate } = useNavigate();
   const { value: resourceMonitor } = useAppSettingsKey('resourceMonitor');
   const { value: keyboard } = useAppSettingsKey('keyboard');
+  const queryClient = useQueryClient();
+
+  // Prefetch recents immediately on mount so the empty-query view is instant.
+  useEffect(() => {
+    void queryClient.prefetchQuery({
+      queryKey: ['cmdk-search', '', projectId, taskId],
+      queryFn: () => rpc.search.commandPalette({ query: '', context: { projectId, taskId } }),
+      staleTime: 5_000,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: dbResults = [] } = useQuery({
-    queryKey: ['cmdk-search', deferred, projectId, taskId],
-    queryFn: () => rpc.search.commandPalette({ query: deferred, context: { projectId, taskId } }),
-    staleTime: 0,
+    queryKey: ['cmdk-search', debouncedQuery, projectId, taskId],
+    queryFn: () =>
+      rpc.search.commandPalette({ query: debouncedQuery, context: { projectId, taskId } }),
+    // Keep results fresh for 5 s — re-opening the palette with the same query
+    // returns cached data instantly rather than waiting for a round-trip.
+    staleTime: 5_000,
     placeholderData: (prev) => prev,
+    // Skip FTS queries that the trigram tokenizer would reject (< 3 chars).
+    enabled: debouncedQuery.length === 0 || debouncedQuery.length >= 3,
   });
 
   const registryActions = useObserver((): PaletteAction[] =>
@@ -145,8 +162,8 @@ export function CommandPaletteModal({
         execute: () => setView('resource-monitor'),
       });
     }
-    return allActions.filter((action) => matchesQuery(action, deferred));
-  }, [deferred, registryActions, resourceMonitor?.enabled]);
+    return allActions.filter((action) => matchesQuery(action, debouncedQuery));
+  }, [debouncedQuery, registryActions, resourceMonitor?.enabled]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const merged = rrf<MergedResult>([rankedDb as MergedResult[], actions as MergedResult[]]);

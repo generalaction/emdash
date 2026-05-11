@@ -59,12 +59,17 @@ class SearchService {
   search({ query, context }: CommandPaletteQuery): SearchItem[] {
     if (!query.trim()) return this.recents(context);
 
-    const ftsQuery = query
+    // Trigram tokenizer requires each term to be at least 3 characters.
+    // Terms shorter than 3 chars are dropped; if nothing survives, fall back
+    // to recents rather than sending an invalid query to SQLite.
+    const terms = query
       .trim()
       .split(/[\s\-_]+/)
-      .filter(Boolean)
-      .map((t) => `${t}*`)
-      .join(' AND ');
+      .filter((t) => t.length >= 3);
+
+    if (terms.length === 0) return this.recents(context);
+
+    const ftsQuery = terms.join(' AND ');
 
     let rows: FtsRow[];
     try {

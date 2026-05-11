@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { PrFilters, PrSortField } from '@shared/pull-requests';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
+import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
@@ -9,15 +10,6 @@ export type StatusFilter = 'open' | 'not-open';
 
 export type UserItem = { value: string; label: string; avatarUrl?: string };
 export type LabelItem = { value: string; label: string; color?: string };
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(id);
-  }, [value, delay]);
-  return debounced;
-}
 
 export function usePrViewState(projectId: string, repositoryUrl: string | null) {
   const queryClient = useQueryClient();
