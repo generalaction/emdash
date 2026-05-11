@@ -7,7 +7,7 @@ import type { SearchItem } from '@shared/search';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
-import { APP_SHORTCUTS } from '@renderer/lib/hooks/useKeyboardShortcuts';
+import { APP_SHORTCUTS, resolveDefaultHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -120,7 +120,7 @@ export function CommandPaletteModal({
         title: cmd.label,
         subtitle: cmd.description,
         shortcut: cmd.shortcutKey
-          ? formatHotkey(APP_SHORTCUTS[cmd.shortcutKey]?.defaultHotkey)
+          ? formatHotkey(resolveDefaultHotkey(APP_SHORTCUTS[cmd.shortcutKey]))
           : undefined,
         score: 0,
         execute: () => {
