@@ -140,7 +140,7 @@ export function CommandPaletteModal({
 
   const registryActions = useObserver((): PaletteAction[] =>
     commandRegistry.activeCommands
-      .filter((cmd) => cmd.enabled !== false)
+      .filter((cmd) => cmd.enabled !== false && !cmd.hideFromPalette)
       .map((cmd) => {
         const def = ALL_COMMAND_DEFS.find((d) => d.id === cmd.id) as CommandDef | undefined;
         return {
@@ -161,6 +161,17 @@ export function CommandPaletteModal({
       })
   );
 
+  // Ordered allowlists for the "Suggested Actions" empty-state group.
+  const TASK_SUGGESTED = [
+    'task.newConversation',
+    'task.sidebarChanges',
+    'task.sidebarFiles',
+    'task.sidebarConversations',
+    'task.toggleTerminalDrawer',
+  ];
+  const PROJECT_SUGGESTED = ['app.newTask', 'app.settings'];
+  const APP_SUGGESTED = ['app.newProject', 'app.settings'];
+
   const actions = useMemo(() => {
     const allActions = [...registryActions];
     if (resourceMonitor?.enabled) {
@@ -174,8 +185,18 @@ export function CommandPaletteModal({
         execute: () => setView('resource-monitor'),
       });
     }
+
+    if (!debouncedQuery) {
+      // Empty state: show the ordered context-specific suggested actions only.
+      const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
+      return allActions
+        .filter((a) => suggestedIds.includes(a.id))
+        .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
+        .slice(0, 7);
+    }
+
     return allActions.filter((action) => matchesQuery(action, debouncedQuery));
-  }, [debouncedQuery, registryActions, resourceMonitor?.enabled]);
+  }, [debouncedQuery, registryActions, resourceMonitor?.enabled, projectId, taskId]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const merged = rrf<MergedResult>([rankedDb as MergedResult[], actions as MergedResult[]]);
@@ -341,7 +362,7 @@ export function CommandPaletteModal({
               navigate={navigate}
             />
             {actionResults.length > 0 && (
-              <Command.Group heading="Actions" className={GROUP_CLASS}>
+              <Command.Group heading="Suggested Actions" className={GROUP_CLASS}>
                 {actionResults.map((item) => (
                   <PaletteItem key={item.id} value={item.id} item={item} onSelect={item.execute} />
                 ))}

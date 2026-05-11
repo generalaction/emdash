@@ -72,6 +72,7 @@ function createAppCommandProvider(): CommandProvider {
           shortcutKey: navigateBackDef.shortcutKey,
           group: navigateBackDef.group,
           enabled: appState.history.canGoBack,
+          hideFromPalette: true,
           execute() {
             appState.history.back(applyHistoryEntry);
           },
@@ -83,6 +84,7 @@ function createAppCommandProvider(): CommandProvider {
           shortcutKey: navigateForwardDef.shortcutKey,
           group: navigateForwardDef.group,
           enabled: appState.history.canGoForward,
+          hideFromPalette: true,
           execute() {
             appState.history.forward(applyHistoryEntry);
           },

@@ -130,8 +130,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
         // ── Layout toggles ─────────────────────────────────────────────────
         {
           id: toggleTerminalDrawerDef.id,
-          // Dynamic label reflecting current open/closed state
-          label: taskView?.isTerminalDrawerOpen ? 'Close Terminal Drawer' : 'Open Terminal Drawer',
+          label: toggleTerminalDrawerDef.label,
           description: toggleTerminalDrawerDef.description,
           shortcutKey: toggleTerminalDrawerDef.shortcutKey,
           group: toggleTerminalDrawerDef.group,
@@ -224,6 +223,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           description: nextTaskDef.description,
           group: nextTaskDef.group,
           enabled: currentIdx !== -1 && currentIdx < taskIds.length - 1,
+          hideFromPalette: true,
           execute() {
             const nextId = taskIds[currentIdx + 1];
             if (nextId) appState.navigation.navigate('task', { projectId, taskId: nextId });
@@ -235,6 +235,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           description: prevTaskDef.description,
           group: prevTaskDef.group,
           enabled: currentIdx > 0,
+          hideFromPalette: true,
           execute() {
             const prevId = taskIds[currentIdx - 1];
             if (prevId) appState.navigation.navigate('task', { projectId, taskId: prevId });

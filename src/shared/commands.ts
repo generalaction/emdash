@@ -102,7 +102,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     shortcutKey: 'sidebarFiles',
     group: 'View',
-    iconKey: 'files',
+    iconKey: 'folder-open',
   },
   {
     id: 'task.viewTerminals',
@@ -119,7 +119,7 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     shortcutKey: 'toggleTerminalDrawer',
     group: 'Panel',
-    iconKey: 'panel-bottom',
+    iconKey: 'terminal',
   },
   {
     id: 'task.toggleRightSidebar',

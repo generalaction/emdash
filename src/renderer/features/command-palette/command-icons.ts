@@ -7,6 +7,7 @@ import {
   ChevronUp,
   FileDiff,
   Files,
+  FolderOpen,
   FolderPlus,
   GitPullRequest,
   MessageSquare,
@@ -29,6 +30,7 @@ import {
 export const COMMAND_ICONS = {
   settings: Settings,
   'folder-plus': FolderPlus,
+  'folder-open': FolderOpen,
   'square-plus': SquarePlus,
   'arrow-left': ArrowLeft,
   'arrow-right': ArrowRight,
