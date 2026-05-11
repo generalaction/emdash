@@ -25,12 +25,11 @@ class CommandRegistry {
    */
   dispatch(shortcutKey: ShortcutSettingsKey): boolean {
     for (const scope of this.sortedScopes) {
-      const cmd = scope
-        .getCommands()
-        .find((c) => c.shortcutKey === shortcutKey && c.enabled !== false);
-      if (cmd) {
-        cmd.execute();
-        return true;
+      for (const command of scope.getCommands()) {
+        if (command.shortcutKey === shortcutKey && command.enabled !== false) {
+          command.execute();
+          return true;
+        }
       }
     }
     return false;

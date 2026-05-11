@@ -11,12 +11,12 @@ export function toShortBranchName(
     return trimmed;
   }
 
-  const knownRemotes = new Set(
-    branches
-      .filter((branch): branch is Extract<Branch, { type: 'remote' }> => branch.type === 'remote')
-      .map((branch) => branch.remote.name)
-      .filter(Boolean)
-  );
+  const knownRemotes = new Set<string>();
+  for (const branch of branches) {
+    if (branch.type === 'remote' && branch.remote.name) {
+      knownRemotes.add(branch.remote.name);
+    }
+  }
 
   for (const remote of knownRemotes) {
     const prefix = `${remote}/`;

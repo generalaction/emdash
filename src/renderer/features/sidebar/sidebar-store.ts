@@ -82,9 +82,10 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       (p): p is ProjectStore & { data: LocalProject | SshProject } => p.state !== 'unregistered'
     );
 
+    const projectOrderIndex = new Map(this.projectOrder.map((id, index) => [id, index]));
     const sorted = [...real].sort((a, b) => {
-      const ai = this.projectOrder.indexOf(a.data.id);
-      const bi = this.projectOrder.indexOf(b.data.id);
+      const ai = projectOrderIndex.get(a.data.id) ?? -1;
+      const bi = projectOrderIndex.get(b.data.id) ?? -1;
       if (ai === -1 && bi === -1) return 0;
       if (ai === -1) return 1;
       if (bi === -1) return -1;

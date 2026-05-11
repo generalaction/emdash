@@ -29,6 +29,10 @@ const COMMON_SSH_AGENT_LOCATIONS: ReadonlyArray<{ path: string; description: str
   { path: path.join(os.homedir(), '.gnupg', 'S.gpg-agent.ssh'), description: 'GnuPG agent' },
 ];
 
+const GLOB_DOT_REGEX = /\./g;
+const GLOB_STAR_REGEX = /\*/g;
+const GLOB_QUESTION_REGEX = /\?/g;
+
 /**
  * Checks if a path is a socket file
  */
@@ -56,7 +60,12 @@ function expandGlob(pattern: string): string[] {
       if (part.includes('*') || part.includes('?')) {
         // This part has wildcards
         const regex = new RegExp(
-          '^' + part.replace(/\./g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.') + '$'
+          '^' +
+            part
+              .replace(GLOB_DOT_REGEX, '\\.')
+              .replace(GLOB_STAR_REGEX, '.*')
+              .replace(GLOB_QUESTION_REGEX, '.') +
+            '$'
         );
         const newMatches: string[] = [];
 

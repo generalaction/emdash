@@ -33,8 +33,9 @@ export const FileTabs: React.FC<FileTabsProps> = ({
   }
 
   const handleReorder = (newTabs: RichTab[]) => {
+    const tabIndexById = new Map(tabs.map((tab, index) => [tab.tabId, index]));
     for (let toIdx = 0; toIdx < newTabs.length; toIdx++) {
-      const fromIdx = tabs.findIndex((t) => t.tabId === newTabs[toIdx].tabId);
+      const fromIdx = tabIndexById.get(newTabs[toIdx].tabId) ?? -1;
       if (fromIdx !== toIdx) {
         onReorder?.(fromIdx, toIdx);
         break;
