@@ -84,13 +84,15 @@ const ConversationTabItem = observer(function ConversationTabItem({
         )}
       >
         <div className="flex h-full items-center gap-1.5 pl-3 pr-1">
-          <AgentLogo
-            logo={config.logo}
-            alt={config.alt}
-            isSvg={config.isSvg}
-            invertInDark={config.invertInDark}
-            className="size-4 shrink-0"
-          />
+          {config ? (
+            <AgentLogo
+              logo={config.logo}
+              alt={config.alt}
+              isSvg={config.isSvg}
+              invertInDark={config.invertInDark}
+              className="size-4 shrink-0"
+            />
+          ) : null}
           <span className={cn('max-w-24 truncate p-1', tab.isPreview && 'italic')}>{title}</span>
           <div className="relative flex size-5 shrink-0 items-center justify-center">
             <span className="transition-opacity group-hover:opacity-0">

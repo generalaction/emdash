@@ -7,6 +7,7 @@ import {
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
+import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
@@ -123,7 +124,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           taskId: id,
           provider: initialConversation.provider,
-          title: activeMode.taskName,
+          title: nextDefaultConversationTitle(initialConversation.provider, []),
           initialPrompt: initialConversation.prompt.trim() || undefined,
           autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
         }
@@ -208,7 +209,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     useBYOI,
     initialConversation,
     autoApproveDefaults,
-    activeMode.taskName,
     navigate,
     onClose,
   ]);
