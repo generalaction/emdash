@@ -134,7 +134,7 @@ export class SshConversationProvider implements ConversationProvider {
         sessionId,
         error: result.error.message,
       });
-      return;
+      throw new Error(result.error.message);
     }
 
     const pty = result.data;

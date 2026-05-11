@@ -46,16 +46,19 @@ export const CreateConversationModal = observer(function CreateConversationModal
   const handleCreateConversation = useCallback(() => {
     if (createDisabled || !conversationMgr || !providerId) return;
     const id = crypto.randomUUID();
-    void conversationMgr.createConversation({
-      projectId,
-      taskId,
-      id,
-      autoApprove: skipPermissions,
-      provider: providerId,
-      title,
-      initialSize: getConversationsPaneSize(),
-    });
-    onSuccess({ conversationId: id });
+    void conversationMgr
+      .createConversation({
+        projectId,
+        taskId,
+        id,
+        autoApprove: skipPermissions,
+        provider: providerId,
+        title,
+        initialSize: getConversationsPaneSize(),
+      })
+      .then(() => {
+        onSuccess({ conversationId: id });
+      });
   }, [
     conversationMgr,
     createDisabled,

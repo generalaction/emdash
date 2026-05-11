@@ -161,7 +161,7 @@ export class SshTerminalProvider implements TerminalProvider {
         sessionId,
         error: result.error.message,
       });
-      return;
+      throw new Error(result.error.message);
     }
     const pty = result.data;
 
