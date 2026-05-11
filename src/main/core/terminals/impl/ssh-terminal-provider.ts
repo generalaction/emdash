@@ -10,7 +10,7 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import {
   sshConnectionManager,
-  type SshConnectionEvent,
+  type SshConnectionManagerEvent,
 } from '@main/core/ssh/ssh-connection-manager';
 import {
   type LifecycleScriptSpawnRequest,
@@ -44,7 +44,7 @@ export class SshTerminalProvider implements TerminalProvider {
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
   private readonly connectionId: string;
-  private readonly _handleReconnect: (evt: SshConnectionEvent) => void;
+  private readonly _handleReconnect: (evt: SshConnectionManagerEvent) => void;
 
   constructor({
     projectId,
@@ -76,7 +76,7 @@ export class SshTerminalProvider implements TerminalProvider {
     this.ctx = ctx;
     this.proxy = proxy;
     this.connectionId = connectionId;
-    this._handleReconnect = (evt: SshConnectionEvent) => {
+    this._handleReconnect = (evt: SshConnectionManagerEvent) => {
       if (evt.type === 'reconnected' && evt.connectionId === this.connectionId) {
         this.rehydrate().catch((e: unknown) => {
           log.error('SshTerminalProvider: rehydrate failed after reconnect', {
@@ -149,7 +149,7 @@ export class SshTerminalProvider implements TerminalProvider {
     const profile = await this.proxy.getRemoteShellProfile();
     const sshCommand = resolveSshCommand('general', cfg, this.taskEnvVars, profile);
 
-    const result = await openSsh2Pty(this.proxy.client, {
+    const result = await openSsh2Pty(this.proxy, {
       id: sessionId,
       command: sshCommand,
       cols: initialSize.cols,

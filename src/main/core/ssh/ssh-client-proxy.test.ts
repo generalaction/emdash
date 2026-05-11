@@ -20,7 +20,7 @@ describe('SshClientProxy remote shell profile', () => {
   });
 
   it('returns a rejected promise when the SSH connection is unavailable', async () => {
-    const proxy = new SshClientProxy();
+    const proxy = new SshClientProxy('ssh-1');
 
     await expect(proxy.getRemoteShellProfile()).rejects.toThrow('SSH connection is not available');
   });
@@ -32,14 +32,14 @@ describe('SshClientProxy remote shell profile', () => {
       env: { PATH: '/opt/homebrew/bin:/usr/bin' },
     };
     mocks.captureRemoteShellProfile.mockResolvedValue(profile);
-    const proxy = new SshClientProxy();
+    const proxy = new SshClientProxy('ssh-1');
     proxy.update(client as never);
 
     await expect(proxy.getRemoteShellProfile()).resolves.toBe(profile);
     await expect(proxy.getRemoteShellProfile()).resolves.toBe(profile);
 
     expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(1);
-    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledWith(client);
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledWith(proxy);
   });
 
   it('does not cache an in-flight shell profile after invalidation', async () => {
@@ -52,7 +52,7 @@ describe('SshClientProxy remote shell profile', () => {
     mocks.captureRemoteShellProfile
       .mockReturnValueOnce(firstCapture)
       .mockResolvedValueOnce({ shell: '/bin/bash', env: { PATH: '/second' } });
-    const proxy = new SshClientProxy();
+    const proxy = new SshClientProxy('ssh-1');
 
     proxy.update(firstClient as never);
     const staleCapture = proxy.getRemoteShellProfile();
@@ -66,7 +66,7 @@ describe('SshClientProxy remote shell profile', () => {
       env: { PATH: '/second' },
     });
     expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(2);
-    expect(mocks.captureRemoteShellProfile).toHaveBeenNthCalledWith(2, secondClient);
+    expect(mocks.captureRemoteShellProfile).toHaveBeenNthCalledWith(2, proxy);
   });
 
   it('clears cached shell profile on invalidate', async () => {
@@ -75,7 +75,7 @@ describe('SshClientProxy remote shell profile', () => {
     mocks.captureRemoteShellProfile
       .mockResolvedValueOnce({ shell: '/bin/zsh', env: { PATH: '/first' } })
       .mockResolvedValueOnce({ shell: '/bin/bash', env: { PATH: '/second' } });
-    const proxy = new SshClientProxy();
+    const proxy = new SshClientProxy('ssh-1');
 
     proxy.update(firstClient as never);
     await proxy.getRemoteShellProfile();
@@ -85,5 +85,49 @@ describe('SshClientProxy remote shell profile', () => {
 
     expect(profile).toEqual({ shell: '/bin/bash', env: { PATH: '/second' } });
     expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('SshClientProxy channel health reporting', () => {
+  it('reports exec channel success and failure', () => {
+    const successCallback = vi.fn();
+    const error = new Error('open failed');
+    const reporter = {
+      reportChannelError: vi.fn(),
+    };
+    const client = {
+      exec: vi
+        .fn()
+        .mockImplementationOnce((_command, callback) => callback(undefined, {}))
+        .mockImplementationOnce((_command, callback) => callback(error, undefined)),
+    };
+    const proxy = new SshClientProxy('ssh-1', reporter);
+    proxy.update(client as never);
+
+    proxy.exec('true', successCallback);
+    proxy.exec('false', vi.fn());
+
+    expect(successCallback).toHaveBeenCalledWith(undefined, {});
+    expect(reporter.reportChannelError).toHaveBeenCalledWith('ssh-1', error);
+  });
+
+  it('reports pty and sftp channel failures', () => {
+    const ptyError = new Error('pty failed');
+    const sftpError = new Error('sftp failed');
+    const reporter = {
+      reportChannelError: vi.fn(),
+    };
+    const client = {
+      exec: vi.fn((_command, _options, callback) => callback(ptyError, undefined)),
+      sftp: vi.fn((callback) => callback(sftpError, undefined)),
+    };
+    const proxy = new SshClientProxy('ssh-1', reporter);
+    proxy.update(client as never);
+
+    proxy.execPty('bash', { pty: true }, vi.fn());
+    proxy.sftp(vi.fn());
+
+    expect(reporter.reportChannelError).toHaveBeenCalledWith('ssh-1', ptyError);
+    expect(reporter.reportChannelError).toHaveBeenCalledWith('ssh-1', sftpError);
   });
 });

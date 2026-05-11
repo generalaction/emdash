@@ -122,7 +122,7 @@ export class SshConversationProvider implements ConversationProvider {
       profile
     );
 
-    const result = await openSsh2Pty(this.proxy.client, {
+    const result = await openSsh2Pty(this.proxy, {
       id: sessionId,
       command: sshCommand,
       cols: initialSize.cols,
