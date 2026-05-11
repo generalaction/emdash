@@ -20,6 +20,7 @@ import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
+import { taskRendererEvents } from './core/tasks/task-renderer-events';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
 import { initializeDatabase } from './db/initialize';
@@ -78,6 +79,7 @@ void app.whenReady().then(async () => {
   try {
     await initializeDatabase();
     searchService.initialize();
+    taskRendererEvents.initialize();
     void editorBufferService.pruneStale();
     try {
       viewStateService.pruneOrphans();
@@ -151,6 +153,7 @@ app.on('before-quit', (event) => {
   void telemetryService.dispose().finally(() => {
     agentHookService.dispose();
     mcpInternalService.dispose();
+    taskRendererEvents.dispose();
     updateService.dispose();
     prSyncScheduler.dispose();
     void gitWatcherRegistry.dispose();

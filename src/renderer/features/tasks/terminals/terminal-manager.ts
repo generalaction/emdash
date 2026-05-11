@@ -1,7 +1,12 @@
 import { makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import {
+  terminalCreatedChannel,
+  terminalDeletedChannel,
+  terminalUpdatedChannel,
+} from '@shared/events/terminalEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { nextTerminalName } from './terminal-tabs';
 
@@ -9,6 +14,9 @@ export class TerminalManagerStore {
   readonly projectId: string;
   readonly taskId: string;
   private _loaded = false;
+  private offTerminalCreated: (() => void) | null = null;
+  private offTerminalUpdated: (() => void) | null = null;
+  private offTerminalDeleted: (() => void) | null = null;
   terminals = observable.map<string, TerminalStore>();
 
   constructor(projectId: string, taskId: string) {
@@ -17,22 +25,55 @@ export class TerminalManagerStore {
     makeObservable(this, {
       terminals: observable,
     });
+    this.offTerminalCreated = events.on(terminalCreatedChannel, (terminal) => {
+      if (terminal.projectId !== this.projectId || terminal.taskId !== this.taskId) return;
+      this.upsertTerminal(terminal);
+    });
+    this.offTerminalUpdated = events.on(terminalUpdatedChannel, (terminal) => {
+      if (terminal.projectId !== this.projectId || terminal.taskId !== this.taskId) return;
+      this.upsertTerminal(terminal);
+    });
+    this.offTerminalDeleted = events.on(
+      terminalDeletedChannel,
+      ({ terminalId, projectId, taskId }) => {
+        if (projectId !== this.projectId || taskId !== this.taskId) return;
+        this.removeTerminal(terminalId);
+      }
+    );
     onBecomeObserved(this, 'terminals', () => {
       if (this._loaded) return;
       void this.load();
     });
   }
 
+  private upsertTerminal(terminal: Terminal): void {
+    runInAction(() => {
+      const existing = this.terminals.get(terminal.id);
+      if (existing) {
+        Object.assign(existing.data, terminal);
+        return;
+      }
+      const store = new TerminalStore(terminal);
+      this.terminals.set(terminal.id, store);
+      void store.session.connect();
+    });
+  }
+
+  private removeTerminal(terminalId: string): void {
+    const store = this.terminals.get(terminalId);
+    if (!store) return;
+    store.dispose();
+    runInAction(() => {
+      this.terminals.delete(terminalId);
+    });
+  }
+
   async load() {
     this._loaded = true;
     const terminals = await rpc.terminals.getTerminalsForTask(this.projectId, this.taskId);
-    runInAction(() => {
-      for (const terminal of terminals) {
-        const store = new TerminalStore(terminal);
-        this.terminals.set(terminal.id, store);
-        void store.session.connect();
-      }
-    });
+    for (const terminal of terminals) {
+      this.upsertTerminal(terminal);
+    }
   }
 
   async createTerminal(params: CreateTerminalParams): Promise<Terminal> {
@@ -114,6 +155,18 @@ export class TerminalManagerStore {
         store.data.name = previousName;
       });
       throw err;
+    }
+  }
+
+  dispose(): void {
+    this.offTerminalCreated?.();
+    this.offTerminalCreated = null;
+    this.offTerminalUpdated?.();
+    this.offTerminalUpdated = null;
+    this.offTerminalDeleted?.();
+    this.offTerminalDeleted = null;
+    for (const terminal of this.terminals.values()) {
+      terminal.dispose();
     }
   }
 }

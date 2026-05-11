@@ -1,8 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
-import { z } from 'zod';
 import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { Branch } from '@shared/git';
+import type {
+  McpProjectListParams,
+  McpProjectSummary,
+  McpTaskCreateParams,
+  McpTaskCreateResult,
+  McpTaskListParams,
+  McpTaskSummary,
+  McpTerminalCreateParams,
+  McpTerminalCreateResult,
+  McpTerminalSendBody,
+  McpTerminalSummary,
+  McpWorkspaceDevServersResult,
+} from '@shared/mcp/emdash-drive';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { CreateTaskError } from '@shared/tasks';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
@@ -14,49 +26,6 @@ import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import type { DevServerTracker } from '../dev-server-tracker';
 import { HttpError, type CallerContext } from '../http-server';
-
-// ---------- Wire schemas ----------
-
-export const TaskCreateBodySchema = z
-  .object({
-    projectId: z.string().optional(),
-    name: z.string().min(1),
-    sourceBranch: z.string().optional(),
-    taskBranch: z.string().optional(),
-    initialPrompt: z.string().optional(),
-    providerId: z.string().optional(),
-    // v1: only new-branch worktree strategy. Single-element enum so future
-    // strategies widen the union without a schema break.
-    strategy: z.enum(['new-branch']).optional(),
-  })
-  .refine((v) => !v.initialPrompt || v.providerId, {
-    message: 'initialPrompt requires providerId',
-    path: ['initialPrompt'],
-  });
-export type TaskCreateBody = z.infer<typeof TaskCreateBodySchema>;
-
-export const TerminalCreateBodySchema = z.object({
-  initialCommand: z.string().optional(),
-  name: z.string().optional(),
-});
-export type TerminalCreateBody = z.infer<typeof TerminalCreateBodySchema>;
-
-export const TerminalSendBodySchema = z.object({
-  text: z.string(),
-  submit: z.boolean().optional(),
-});
-export type TerminalSendBody = z.infer<typeof TerminalSendBodySchema>;
-
-export const TaskListQuerySchema = z.object({
-  projectId: z.string().optional(),
-  includeArchived: z.boolean().optional(),
-});
-export type TaskListQuery = z.infer<typeof TaskListQuerySchema>;
-
-export const ProjectListQuerySchema = z.object({
-  includeArchived: z.boolean().optional(),
-});
-export type ProjectListQuery = z.infer<typeof ProjectListQuerySchema>;
 
 /**
  * createTask result errors split into caller-actionable (4xx) vs
@@ -92,21 +61,10 @@ async function lookupProjectNames(projectIds: string[]): Promise<Map<string, str
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 
-interface TaskSummary {
-  id: string;
-  projectId: string;
-  projectName?: string;
-  name: string;
-  status: string;
-  taskBranch?: string;
-  archivedAt?: string;
-  lastInteractedAt?: string;
-}
-
 export async function handleTaskList(
   caller: CallerContext,
-  query: TaskListQuery
-): Promise<TaskSummary[]> {
+  query: McpTaskListParams
+): Promise<McpTaskSummary[]> {
   const projectId = query.projectId ?? caller.conversation.projectId;
   const tasks = await getTasks(projectId);
   const filtered = query.includeArchived ? tasks : tasks.filter((t) => !t.archivedAt);
@@ -127,14 +85,8 @@ export async function handleTaskList(
 
 export async function handleTaskCreate(
   caller: CallerContext,
-  body: TaskCreateBody
-): Promise<{
-  taskId: string;
-  taskName: string;
-  taskBranch?: string;
-  projectId: string;
-  conversationId?: string;
-}> {
+  body: McpTaskCreateParams
+): Promise<McpTaskCreateResult> {
   const projectId = body.projectId ?? caller.conversation.projectId;
 
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
@@ -191,18 +143,10 @@ export async function handleTaskCreate(
   };
 }
 
-interface ProjectSummary {
-  id: string;
-  name: string;
-  path: string;
-  baseRef: string | null;
-  archived: boolean;
-}
-
 export async function handleProjectList(
   _caller: CallerContext,
-  query: ProjectListQuery
-): Promise<ProjectSummary[]> {
+  query: McpProjectListParams
+): Promise<McpProjectSummary[]> {
   const rows = await db.select().from(projects);
   const filtered = query.includeArchived ? rows : rows.filter((p) => !p.archived);
   return filtered.map((p) => ({
@@ -214,14 +158,7 @@ export async function handleProjectList(
   }));
 }
 
-interface TerminalSummary {
-  id: string;
-  taskId: string;
-  projectId: string;
-  name: string;
-}
-
-export async function handleTerminalList(caller: CallerContext): Promise<TerminalSummary[]> {
+export async function handleTerminalList(caller: CallerContext): Promise<McpTerminalSummary[]> {
   const list = await getTerminalsForTask(caller.conversation.projectId, caller.conversation.taskId);
   return list.map((t) => ({
     id: t.id,
@@ -234,7 +171,7 @@ export async function handleTerminalList(caller: CallerContext): Promise<Termina
 export async function handleTerminalSend(
   caller: CallerContext,
   terminalId: string,
-  body: TerminalSendBody
+  body: McpTerminalSendBody
 ): Promise<{ ok: true }> {
   const sessionId = makePtySessionId(
     caller.conversation.projectId,
@@ -254,8 +191,8 @@ export async function handleTerminalSend(
 
 export async function handleTerminalCreate(
   caller: CallerContext,
-  body: TerminalCreateBody
-): Promise<{ terminalId: string; name: string }> {
+  body: McpTerminalCreateParams
+): Promise<McpTerminalCreateResult> {
   const id = randomUUID();
   const terminal = await createTerminal({
     id,
@@ -286,9 +223,7 @@ export async function handleTerminalCreate(
 export function handleWorkspaceDevServers(
   caller: CallerContext,
   tracker: DevServerTracker
-): {
-  servers: Array<{ terminalId: string; url: string; detectedAt: number }>;
-} {
+): McpWorkspaceDevServersResult {
   const entries = tracker.listForTask(caller.conversation.taskId);
   return {
     servers: entries.map((e) => ({

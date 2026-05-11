@@ -1,4 +1,5 @@
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
+import type { McpWorkspaceDevServer } from '@shared/mcp/emdash-drive';
 import { log } from '@main/lib/logger';
 import { buildEmdashServer, refreshEmdashCatalogEntry } from './catalog-refresh';
 import { McpInternalHttpServer } from './http-server';
@@ -61,6 +62,13 @@ class McpInternalService implements IInitializable, IDisposable {
       args: server.args ?? [],
       env: server.env ?? {},
     };
+  }
+
+  listWorkspaceDevServers(taskId: string): McpWorkspaceDevServer[] {
+    if (!this.server || this.server.getPort() === 0) {
+      throw new Error('mcp-internal service is not running');
+    }
+    return this.server.listWorkspaceDevServers(taskId);
   }
 }
 

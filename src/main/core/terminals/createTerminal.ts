@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm';
+import { terminalCreatedChannel } from '@shared/events/terminalEvents';
 import type { CreateTerminalParams, Terminal } from '@shared/terminals';
 import { db } from '@main/db/client';
 import { terminals } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
 import { mapTerminalRowToTerminal } from './core';
@@ -26,12 +28,14 @@ export async function createTerminal(params: CreateTerminalParams): Promise<Term
     throw new Error('Task not found');
   }
 
-  await task.terminals.spawnTerminal(mapTerminalRowToTerminal(row), initialSize);
+  const terminal = mapTerminalRowToTerminal(row);
+  await task.terminals.spawnTerminal(terminal, initialSize);
+  events.emit(terminalCreatedChannel, terminal);
   telemetryService.capture('terminal_created', {
     terminal_id: terminalId,
     project_id: params.projectId,
     task_id: params.taskId,
   });
 
-  return mapTerminalRowToTerminal(row);
+  return terminal;
 }
