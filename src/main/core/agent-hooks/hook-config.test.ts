@@ -76,6 +76,9 @@ describe('HookConfigWriter', () => {
     expect(fs.files.get('.opencode/plugins/emdash-notifications.js')).toContain(
       "event.type === 'session.idle'"
     );
+    expect(fs.files.get('.opencode/plugins/emdash-notifications.js')).toContain(
+      "event.type === 'session.created'"
+    );
     expect(fs.files.get('.gitignore')).toBe('.opencode/plugins/emdash-notifications.js\n');
   });
 
