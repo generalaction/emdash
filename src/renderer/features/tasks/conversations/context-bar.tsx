@@ -20,7 +20,9 @@ export const ContextBar = observer(function ContextBar() {
   const conversationStore = provisioned.conversations;
   const draftComments = provisioned.draftComments;
   const activeConversation = provisioned.taskView.tabManager.activeConversation;
-  const activeSessionId = activeConversation?.session.sessionId;
+  const activeSessionId = activeConversation
+    ? provisioned.conversations.sessions.get(activeConversation.data.id)?.sessionId
+    : undefined;
   const canApplyContext = Boolean(activeSessionId);
   const hasConversation = conversationStore.conversations.size > 0;
   const formattedDraftComments = draftComments.formattedForAgent;
@@ -49,7 +51,7 @@ export const ContextBar = observer(function ContextBar() {
       sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
     });
 
-    activeConversation?.session.pty?.terminal.focus();
+    provisioned.conversations.sessions.get(activeConversation?.data.id ?? '')?.pty?.terminal.focus();
   };
 
   return (
