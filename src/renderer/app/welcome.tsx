@@ -61,7 +61,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
           className="rounded-md border border-border/40 bg-white p-1.5 shadow-lg shadow-black/5 ring-1 ring-black/5 dark:shadow-white/5 dark:ring-white/10"
           variants={itemVariants}
         >
-          <img src={IconLight} alt="Emdash" className="h-12 w-12 rounded-sm" />
+          <img src={IconLight} alt="Emdash" className="size-12 rounded-sm" />
         </motion.div>
 
         <motion.h1

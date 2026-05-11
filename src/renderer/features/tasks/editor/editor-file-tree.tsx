@@ -84,9 +84,9 @@ const FileTreeRow = observer(function FileTreeRow({
       <span className="shrink-0 text-muted-foreground">
         {node.type === 'directory' ? (
           isExpanded ? (
-            <ChevronDown className="h-3.5 w-3.5" />
+            <ChevronDown className="size-3.5" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="size-3.5" />
           )
         ) : (
           <span className="inline-block w-3.5" />
@@ -96,9 +96,9 @@ const FileTreeRow = observer(function FileTreeRow({
       <span className="shrink-0">
         {node.type === 'directory' ? (
           isExpanded ? (
-            <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+            <FolderOpen className="size-3.5 text-muted-foreground" />
           ) : (
-            <Folder className="h-3.5 w-3.5 text-muted-foreground" />
+            <Folder className="size-3.5 text-muted-foreground" />
           )
         ) : (
           <FileIcon filename={node.name} size={12} />

@@ -1,7 +1,7 @@
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useRef,
   useState,
@@ -84,7 +84,7 @@ export function WorkspaceLayoutContextProvider({ children }: { children: ReactNo
 }
 
 export function useWorkspaceLayoutContext() {
-  const context = useContext(WorkspaceLayoutContext);
+  const context = use(WorkspaceLayoutContext);
   if (!context) {
     throw new Error(
       'useWorkspaceLayoutContext must be used within a WorkspaceLayoutContextProvider'

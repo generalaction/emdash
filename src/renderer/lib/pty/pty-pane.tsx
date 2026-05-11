@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import React, { useImperativeHandle, useRef, type Ref } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
@@ -23,124 +23,119 @@ type Props = {
   onFirstMessage?: (message: string) => void;
   onEnterPress?: (message: string) => void;
   onInterruptPress?: () => void;
+  ref?: Ref<{ focus: () => void }>;
 };
 
-const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
-  (
+const PtyPaneComponent = ({
+  sessionId,
+  pty,
+  className,
+  contentFilter,
+  mapShiftEnterToCtrlJ,
+  remoteConnectionId,
+  themeOverride,
+  onActivity,
+  onExit,
+  onFirstMessage,
+  onEnterPress,
+  onInterruptPress,
+  ref,
+}: Props) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const theme: SessionTheme = { override: themeOverride };
+
+  const { focus, sendInput } = usePty(
     {
       sessionId,
       pty,
-      className,
-      contentFilter,
+      theme,
       mapShiftEnterToCtrlJ,
-      remoteConnectionId,
-      themeOverride,
       onActivity,
       onExit,
       onFirstMessage,
       onEnterPress,
       onInterruptPress,
     },
-    ref
-  ) => {
-    const containerRef = useRef<HTMLDivElement | null>(null);
+    containerRef
+  );
 
-    const theme: SessionTheme = { override: themeOverride };
+  useImperativeHandle(ref, () => ({ focus }), [focus]);
 
-    const { focus, sendInput } = usePty(
-      {
-        sessionId,
-        pty,
-        theme,
-        mapShiftEnterToCtrlJ,
-        onActivity,
-        onExit,
-        onFirstMessage,
-        onEnterPress,
-        onInterruptPress,
-      },
-      containerRef
-    );
+  const handleFocus = () => {
+    focus();
+  };
 
-    useImperativeHandle(ref, () => ({ focus }), [focus]);
+  const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
+    try {
+      event.preventDefault();
+      const dt = event.dataTransfer;
+      if (!dt?.files?.length) return;
 
-    const handleFocus = () => {
-      focus();
-    };
-
-    const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
-      try {
-        event.preventDefault();
-        const dt = event.dataTransfer;
-        if (!dt?.files?.length) return;
-
-        const paths: string[] = [];
-        for (const file of Array.from(dt.files)) {
-          const path = window.electronAPI.getPathForFile(file).trim();
-          if (path) paths.push(path);
-        }
-        if (paths.length === 0) return;
-
-        void (async () => {
-          try {
-            if (remoteConnectionId) {
-              try {
-                const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
-                if (result.success && result.data?.remotePaths) {
-                  const escaped = result.data.remotePaths
-                    .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
-                    .join(' ');
-                  sendInput(`${escaped} `);
-                }
-              } catch (error) {
-                log.warn('SSH file transfer failed', { error });
-              }
-            } else {
-              const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
-              sendInput(`${escaped} `);
-            }
-            focus();
-          } catch (error) {
-            log.warn('Terminal drop failed', { error });
-          }
-        })();
-      } catch (error) {
-        log.warn('Terminal drop failed', { error });
+      const paths: string[] = [];
+      for (const file of Array.from(dt.files)) {
+        const path = window.electronAPI.getPathForFile(file).trim();
+        if (path) paths.push(path);
       }
-    };
+      if (paths.length === 0) return;
 
-    return (
+      void (async () => {
+        try {
+          if (remoteConnectionId) {
+            try {
+              const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
+              if (result.success && result.data?.remotePaths) {
+                const escaped = result.data.remotePaths
+                  .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
+                  .join(' ');
+                sendInput(`${escaped} `);
+              }
+            } catch (error) {
+              log.warn('SSH file transfer failed', { error });
+            }
+          } else {
+            const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
+            sendInput(`${escaped} `);
+          }
+          focus();
+        } catch (error) {
+          log.warn('Terminal drop failed', { error });
+        }
+      })();
+    } catch (error) {
+      log.warn('Terminal drop failed', { error });
+    }
+  };
+
+  return (
+    <div
+      className={cn('terminal-pane flex h-full w-full min-w-0 bg', className)}
+      style={{
+        width: '100%',
+        height: '100%',
+        minHeight: 0,
+        boxSizing: 'border-box',
+        backgroundColor: themeOverride?.background ?? 'var(--background-1)',
+      }}
+    >
       <div
-        className={cn('terminal-pane flex h-full w-full min-w-0 bg', className)}
+        ref={containerRef}
+        data-terminal-container
+        className="p-2"
         style={{
           width: '100%',
           height: '100%',
           minHeight: 0,
-          boxSizing: 'border-box',
-          backgroundColor: themeOverride?.background ?? 'var(--background-1)',
+          overflow: 'hidden',
+          filter: contentFilter || undefined,
         }}
-      >
-        <div
-          ref={containerRef}
-          data-terminal-container
-          className="p-2"
-          style={{
-            width: '100%',
-            height: '100%',
-            minHeight: 0,
-            overflow: 'hidden',
-            filter: contentFilter || undefined,
-          }}
-          onClick={handleFocus}
-          onMouseDown={handleFocus}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={handleDrop}
-        />
-      </div>
-    );
-  }
-);
-
-PtyPaneComponent.displayName = 'TerminalPane';
+        onClick={handleFocus}
+        onMouseDown={handleFocus}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleDrop}
+      />
+    </div>
+  );
+};
 
 export const PtyPane = React.memo(PtyPaneComponent);

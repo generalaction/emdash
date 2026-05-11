@@ -91,7 +91,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                 alt={selectedConfig.alt}
                 isSvg={selectedConfig.isSvg}
                 invertInDark={selectedConfig.invertInDark}
-                className="h-4 w-4 shrink-0 rounded-sm"
+                className="size-4 shrink-0 rounded-sm"
               />
               <span className="flex-1 truncate text-left">{selectedConfig.name}</span>
             </>
@@ -129,7 +129,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                               isSvg={config.isSvg}
                               invertInDark={config.invertInDark}
                               className={cn(
-                                'h-4 w-4 shrink-0 rounded-sm',
+                                'size-4 shrink-0 rounded-sm',
                                 showInstall && 'opacity-50'
                               )}
                             />

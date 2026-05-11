@@ -39,13 +39,13 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="size-8"
                 onClick={() => update.check()}
                 disabled={update.state.status === 'checking'}
                 aria-label="Check for updates"
               >
                 <RefreshCw
-                  className={`h-3 w-3 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
+                  className={`size-3 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
                 />
               </Button>
             )}
@@ -78,7 +78,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       case 'checking':
         return (
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" />
+            <Loader2 className="size-3 animate-spin" />
             Checking for updates…
           </p>
         );
@@ -103,7 +103,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       case 'downloaded':
         return (
           <p className="flex items-center gap-1 text-sm text-green-600 dark:text-green-500">
-            <CheckCircle2 className="h-3 w-3" />
+            <CheckCircle2 className="size-3" />
             Update ready. Restart {PRODUCT_NAME} to use the new version.
           </p>
         );
@@ -111,7 +111,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       case 'installing':
         return (
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" />
+            <Loader2 className="size-3 animate-spin" />
             Installing update. {PRODUCT_NAME} will close and restart automatically; this may take a
             few seconds.
           </p>
@@ -123,7 +123,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
             variant="outline"
             className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
           >
-            <AlertCircle className="h-3 w-3" />
+            <AlertCircle className="size-3" />
             Update temporarily unavailable, please try again later
           </Badge>
         );
@@ -131,7 +131,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       default:
         return (
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
-            <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-500" />
+            <CheckCircle2 className="size-3 text-green-600 dark:text-green-500" />
             You're up to date.{' '}
           </p>
         );
@@ -148,7 +148,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
             onClick={() => update.download()}
             className="h-7 text-xs"
           >
-            <Download className="mr-1.5 h-3 w-3" />
+            <Download className="mr-1.5 size-3" />
             Download
           </Button>
         );
@@ -156,7 +156,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       case 'downloading':
         return (
           <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+            <Loader2 className="mr-1.5 size-3 animate-spin" />
             Downloading
           </Button>
         );
@@ -169,7 +169,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
             onClick={() => update.install()}
             className="h-7 text-xs"
           >
-            <RefreshCw className="mr-1.5 h-3 w-3" />
+            <RefreshCw className="mr-1.5 size-3" />
             Restart
           </Button>
         );
@@ -177,7 +177,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       case 'installing':
         return (
           <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+            <Loader2 className="mr-1.5 size-3 animate-spin" />
             Installing
           </Button>
         );

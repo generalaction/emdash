@@ -32,7 +32,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   if (kind === 'creating') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
+        <Loader2 className="size-5 animate-spin text-foreground-muted" />
         <p className="text-xs font-mono text-foreground-muted">Creating task</p>
       </div>
     );
@@ -55,7 +55,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     const progressMessage = taskStore?.provisionProgressMessage ?? 'Setting up workspace…';
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
+        <Loader2 className="size-5 animate-spin text-foreground-muted" />
         <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
       </div>
     );
@@ -78,7 +78,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     const progressMessage = taskStore?.provisionProgressMessage ?? 'Setting up workspace…';
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
+        <Loader2 className="size-5 animate-spin text-foreground-muted" />
         <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
       </div>
     );
@@ -215,7 +215,7 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
   if (tabManager.resolvedTabs.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-        <MessageSquare className="h-10 w-10 opacity-20" />
+        <MessageSquare className="size-10 opacity-20" />
         <div className="text-center">
           <p className="text-sm font-medium opacity-50">No open tabs</p>
           <p className="mt-1 text-xs opacity-35">Open a conversation from the sidebar</p>
@@ -298,10 +298,10 @@ const SvgSourceToggleOverlay = observer(function SvgSourceToggleOverlay() {
       className="absolute right-3 top-3 z-10"
     >
       <ToggleGroupItem value="svg" aria-label="View rendered">
-        <Eye className="h-3.5 w-3.5" />
+        <Eye className="size-3.5" />
       </ToggleGroupItem>
       <ToggleGroupItem value="svg-source" aria-label="Edit source">
-        <Pencil className="h-3.5 w-3.5" />
+        <Pencil className="size-3.5" />
       </ToggleGroupItem>
     </ToggleGroup>
   );

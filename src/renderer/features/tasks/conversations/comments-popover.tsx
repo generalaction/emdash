@@ -43,7 +43,7 @@ export const CommentsPopover = observer(function CommentsPopover({
       <Tooltip>
         <TooltipTrigger>
           <PopoverTrigger className="relative self-center flex h-7 max-w-full items-center gap-1.5 rounded-md border border-border bg-background-1 px-2 text-xs font-normal text-foreground hover:bg-background-1/80">
-            <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+            <MessageSquare className="size-3.5 shrink-0" />
             <span className="max-w-72 truncate">Comments</span>
             <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-border bg-background-3 px-1 text-[10px] font-semibold text-foreground-muted">
               {count}
@@ -77,7 +77,7 @@ export const CommentsPopover = observer(function CommentsPopover({
                     onClick={() => void handleApply()}
                     aria-label="Add comments to chat input"
                   >
-                    <ArrowUp className="h-3.5 w-3.5" />
+                    <ArrowUp className="size-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">
@@ -118,7 +118,7 @@ export const CommentsPopover = observer(function CommentsPopover({
                         className="shrink-0 text-muted-foreground hover:text-destructive"
                         onClick={() => onDelete(comment.id)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="size-3.5" />
                       </Button>
                     </div>
                   ))}

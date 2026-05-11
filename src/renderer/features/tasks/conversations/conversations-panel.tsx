@@ -121,7 +121,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           <PaneSizingProvider paneId="conversations" sessionIds={allSessionIds}>
             {!hasConversationTabs ? (
               <EmptyState
-                icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
+                icon={<MessageSquare className="size-5 text-muted-foreground" />}
                 label="No conversations yet"
                 description="Create one to open a terminal session for this task and work with an agent."
                 action={

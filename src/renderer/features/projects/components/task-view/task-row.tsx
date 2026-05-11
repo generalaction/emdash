@@ -106,7 +106,7 @@ export const TaskRow = observer(function TaskRow({
             return (
               <span
                 key={providerId}
-                className="relative flex items-center justify-center h-5 w-5 rounded-sm bg-background-2 overflow-hidden"
+                className="relative flex items-center justify-center size-5 rounded-sm bg-background-2 overflow-hidden"
                 title={`${config.name}: ${String(count)}`}
               >
                 <AgentLogo
@@ -114,7 +114,7 @@ export const TaskRow = observer(function TaskRow({
                   alt={config.alt}
                   isSvg={config.isSvg}
                   invertInDark={config.invertInDark}
-                  className="h-3.5 w-3.5"
+                  className="size-3.5"
                 />
                 {count > 1 && (
                   <span className="absolute -bottom-px -right-px text-[8px] leading-none font-semibold bg-background text-foreground-passive px-px rounded-tl">

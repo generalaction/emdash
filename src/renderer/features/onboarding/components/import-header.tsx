@@ -34,7 +34,7 @@ export function ImportHeader({ isLoading, singleSource = null }: ImportHeaderPro
   return (
     <div className="flex shrink-0 flex-col items-center justify-center gap-4">
       <div className="flex flex-col items-center justify-center gap-5">
-        <Import className="h-10 w-10" absoluteStrokeWidth strokeWidth={1.5} />
+        <Import className="size-10" absoluteStrokeWidth strokeWidth={1.5} />
         <div className="flex flex-col items-center justify-center gap-2">
           <h1 className="text-xl text-center">{title}</h1>
           {isLoading ? (

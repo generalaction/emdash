@@ -22,7 +22,7 @@ const PlainSetupForm: React.FC<Props> = ({ apiKey, onChange, error }) => {
       />
       <div className="rounded-md border border-dashed border-border/70 bg-muted/40 p-2">
         <div className="flex items-start gap-2">
-          <Info className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <Info className="mt-0.5 size-4 text-muted-foreground" aria-hidden="true" />
           <div className="text-xs leading-snug text-muted-foreground">
             <p className="font-medium text-foreground">How to get a Plain API key</p>
             <ol className="mt-1 list-decimal pl-4">

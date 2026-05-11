@@ -102,24 +102,24 @@ export function RemoteDirectorySelector({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0"
+              className="size-6 p-0"
               onClick={navigateUp}
               disabled={currentPath === '/' || isBrowsing}
             >
-              <ChevronUp className="h-4 w-4" />
+              <ChevronUp className="size-4" />
             </Button>
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-left">
               {currentPath || '/'}
             </span>
             {isBrowsing && (
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+              <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
             )}
           </div>
 
           <div className="max-h-[240px] overflow-y-auto">
             {isBrowsing && fileEntries.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
               </div>
             ) : browseError ? (
               <div className="py-4 text-center text-sm text-destructive">{browseError}</div>
@@ -140,9 +140,9 @@ export function RemoteDirectorySelector({
                     )}
                   >
                     {entry.type === 'directory' ? (
-                      <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Folder className="size-4 shrink-0 text-muted-foreground" />
                     ) : (
-                      <FileCode className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <FileCode className="size-4 shrink-0 text-muted-foreground" />
                     )}
                     <span className="flex-1 truncate">{entry.name}</span>
                     {entry.type === 'file' && (

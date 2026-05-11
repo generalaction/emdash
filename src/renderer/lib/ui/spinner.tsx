@@ -1,16 +1,16 @@
 import * as React from 'react';
 import { cn } from '@renderer/utils/utils';
 
-const Spinner = React.forwardRef<
-  SVGSVGElement,
-  React.SVGProps<SVGSVGElement> & {
-    size?: 'sm' | 'md' | 'lg';
-  }
->(({ className, size = 'md', ...props }, ref) => {
+type SpinnerProps = React.SVGProps<SVGSVGElement> & {
+  size?: 'sm' | 'md' | 'lg';
+  ref?: React.Ref<SVGSVGElement>;
+};
+
+const Spinner = ({ className, size = 'md', ref, ...props }: SpinnerProps) => {
   const sizeClasses = {
-    sm: 'h-4 w-4',
-    md: 'h-5 w-5',
-    lg: 'h-6 w-6',
+    sm: 'size-4',
+    md: 'size-5',
+    lg: 'size-6',
   };
 
   return (
@@ -30,8 +30,6 @@ const Spinner = React.forwardRef<
       />
     </svg>
   );
-});
-
-Spinner.displayName = 'Spinner';
+};
 
 export { Spinner };

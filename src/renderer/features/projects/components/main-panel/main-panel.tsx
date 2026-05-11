@@ -50,7 +50,7 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
 function ProjectBootstrappingPanel() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-      <Loader2 className="h-5 w-5 animate-spin text-foreground-passive" />
+      <Loader2 className="size-5 animate-spin text-foreground-passive" />
       <p className="text-xs font-mono text-foreground-passive">Setting up project…</p>
     </div>
   );
@@ -86,7 +86,7 @@ function ProjectSshDisconnectedPanel({
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center text-center gap-3">
-        <Unplug className="h-6 w-6 text-foreground-passive" />
+        <Unplug className="size-6 text-foreground-passive" />
         <p className="text-sm font-medium font-mono text-foreground">SSH not connected</p>
         <p className="text-xs text-foreground-passive">
           The SSH connection for this project is unavailable.
@@ -107,7 +107,7 @@ function ProjectPathNotFoundPanel({ path, projectId }: { path: string; projectId
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center text-center gap-3">
-        <TriangleAlert className="h-6 w-6 text-foreground-destructive" />
+        <TriangleAlert className="size-6 text-foreground-destructive" />
         <p className="text-sm font-medium font-mono text-foreground-destructive">
           Project not found
         </p>

@@ -38,7 +38,7 @@ function SourceCard({
             selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
           )}
         >
-          {selected && <Check className="h-3.5 w-3.5" />}
+          {selected && <Check className="size-3.5" />}
         </span>
       </span>
       <span className="text-sm text-foreground-muted">

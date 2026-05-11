@@ -172,7 +172,7 @@ const TerminalSettingsCard: React.FC = () => {
                   disabled={loading || saving}
                 >
                   <span className="truncate text-left">{pickerLabel}</span>
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
+                  <ChevronDown className="ml-2 size-4 shrink-0 opacity-70" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-[var(--anchor-width)] p-2">
@@ -214,7 +214,7 @@ const TerminalSettingsCard: React.FC = () => {
                               }}
                             >
                               <span>{option.label}</span>
-                              {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
+                              {selected ? <Check className="size-4 opacity-80" /> : null}
                             </button>
                           );
                         })}
@@ -248,7 +248,7 @@ const TerminalSettingsCard: React.FC = () => {
                           }}
                         >
                           <span>{option.label}</span>
-                          {selected ? <Check className="h-4 w-4 opacity-80" /> : null}
+                          {selected ? <Check className="size-4 opacity-80" /> : null}
                         </button>
                       );
                     })}

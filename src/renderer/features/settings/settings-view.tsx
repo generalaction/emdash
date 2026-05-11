@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, type ReactNode } from 'react';
+import { createContext, use, useCallback, type ReactNode } from 'react';
 import {
   SettingsPage,
   type SettingsPageTab,
@@ -34,10 +34,11 @@ export function SettingsViewWrapper({
 }
 
 export function useSettingsTab() {
-  if (!useContext(SettingsTabContext)) {
+  const ctx = use(SettingsTabContext);
+  if (!ctx) {
     throw new Error('useSettingsTab must be used within a SettingsViewWrapper');
   }
-  return useContext(SettingsTabContext);
+  return ctx;
 }
 
 export function SettingsTitlebar() {

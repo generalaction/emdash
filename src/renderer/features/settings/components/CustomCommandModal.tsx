@@ -293,10 +293,10 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                         variant="ghost"
                         size="icon"
                         onClick={() => removeEnvEntry(i)}
-                        className="h-8 w-8 shrink-0"
+                        className="size-8 shrink-0"
                         aria-label="Remove"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="size-3.5" />
                       </Button>
                     </div>
                   ))}
@@ -307,7 +307,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                     onClick={addEnvEntry}
                     className="gap-1.5"
                   >
-                    <Plus className="h-3.5 w-3.5" />
+                    <Plus className="size-3.5" />
                     Add variable
                   </Button>
                 </div>
@@ -375,7 +375,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
             disabled={isLoading || saving}
             className="gap-1.5"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="size-3.5" />
             Reset to Defaults
           </Button>
           <div className="flex gap-2">
@@ -406,7 +406,7 @@ const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
           className="text-muted-foreground hover:text-foreground"
           aria-label="More information"
         >
-          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+          <Info className="size-3.5" aria-hidden="true" />
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[200px] text-xs">

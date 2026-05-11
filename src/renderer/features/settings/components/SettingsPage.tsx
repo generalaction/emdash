@@ -166,7 +166,7 @@ export function SettingsPage({
                     )}
                   >
                     <span className="text-left">{tab.label}</span>
-                    {tab.isExternal && <ExternalLink className="h-4 w-4" />}
+                    {tab.isExternal && <ExternalLink className="size-4" />}
                   </button>
                 );
               })}

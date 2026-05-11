@@ -1,6 +1,6 @@
 import { ExternalLink, Link2, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { forwardRef, useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type HTMLAttributes, type Ref } from 'react';
 import type { Issue } from '@shared/tasks';
 import {
   ISSUE_PROVIDER_META,
@@ -50,19 +50,21 @@ export function IssueIdentifier({ identifier }: { identifier: string }) {
   );
 }
 
-export const StatusDot = forwardRef<HTMLSpanElement, { status?: string }>(
-  ({ status, ...props }, ref) => {
-    if (!status) return null;
-    const color = getStatusColorClass(status);
-    return (
-      <span
-        ref={ref}
-        {...props}
-        className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)}
-      />
-    );
-  }
-);
+export const StatusDot = ({
+  status,
+  ref,
+  ...props
+}: { status?: string; ref?: Ref<HTMLSpanElement> } & HTMLAttributes<HTMLSpanElement>) => {
+  if (!status) return null;
+  const color = getStatusColorClass(status);
+  return (
+    <span
+      ref={ref}
+      {...props}
+      className={cn('inline-block size-1.5 shrink-0 rounded-full', color)}
+    />
+  );
+};
 
 export function ProviderLogo({
   provider,
@@ -74,7 +76,7 @@ export function ProviderLogo({
   const meta = ISSUE_PROVIDER_META[provider];
   const src = meta.logo;
   const alt = meta.displayName;
-  return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
+  return <img src={src} alt={alt} className={className ?? 'size-3.5'} />;
 }
 
 export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }) {
@@ -152,7 +154,7 @@ export const IssueSelector = observer(function IssueSelector({
 
   const leftAddon = issueProvider ? (
     isProviderLoading ? (
-      <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground/60" />
+      <Loader2 className="size-3.5 animate-spin text-foreground/60" />
     ) : connectedProviderCount > 1 ? (
       <Select
         value={issueProvider}
@@ -170,12 +172,12 @@ export const IssueSelector = observer(function IssueSelector({
           showChevron={false}
           className="h-6 gap-0 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
         >
-          <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
+          <ProviderLogo provider={issueProvider} className="size-3.5" />
         </SelectTrigger>
         <SelectContent>
           {ISSUE_PROVIDER_ORDER.map((p) => (
             <SelectItem key={p} value={p} disabled={isProviderDisabled(p)}>
-              <ProviderLogo provider={p} className="h-3.5 w-3.5" />
+              <ProviderLogo provider={p} className="size-3.5" />
               <span>{ISSUE_PROVIDER_META[p].displayName}</span>
             </SelectItem>
           ))}
@@ -183,7 +185,7 @@ export const IssueSelector = observer(function IssueSelector({
       </Select>
     ) : (
       <span className="mx-1.5 flex items-center">
-        <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
+        <ProviderLogo provider={issueProvider} className="size-3.5" />
       </span>
     )
   ) : null;
@@ -270,7 +272,7 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
     <div className="flex flex-col gap-2 w-full">
       <div className="flex items-center justify-between w-full ">
         <div className="flex items-center gap-2">
-          <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
+          <ProviderLogo provider={issue.provider} className="size-3.5" />
           <span>{`${ISSUE_PROVIDER_META[issue.provider].displayName} issue`}</span>
           <IssueIdentifier identifier={issue.identifier} />
         </div>

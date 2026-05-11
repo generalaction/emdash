@@ -40,14 +40,14 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
               <img
                 src={user.avatarUrl}
                 alt={user.username}
-                className="h-14 w-14 rounded-full border border-border"
+                className="size-14 rounded-full border border-border"
               />
             ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-background-1">
-                <User className="h-7 w-7 text-foreground-muted" />
+              <div className="flex size-14 items-center justify-center rounded-full border border-border bg-background-1">
+                <User className="size-7 text-foreground-muted" />
               </div>
             )}
-            <CheckCircle className="absolute -bottom-1 -right-1 h-5 w-5 text-primary fill-background" />
+            <CheckCircle className="absolute -bottom-1 -right-1 size-5 text-primary fill-background" />
           </div>
           <div className="flex flex-col items-center justify-center gap-1">
             <h1 className="text-xl text-center">Connected as @{user.username}</h1>
@@ -66,7 +66,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
   return (
     <div className="flex flex-col gap-y-8 max-w-sm">
       <div className="flex flex-col items-center justify-center gap-6">
-        <Github className="h-10 w-10" absoluteStrokeWidth strokeWidth={1.5} />
+        <Github className="size-10" absoluteStrokeWidth strokeWidth={1.5} />
         <div className="flex flex-col items-center justify-center gap-2">
           <h1 className="text-xl text-center">Connect your GitHub account to Emdash</h1>
           <p className="text-md text-foreground-muted text-center">
@@ -77,7 +77,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
       {error && <p className="text-sm text-destructive text-center">{error}</p>}
       <div className="flex flex-col w-full gap-2">
         <Button size={'lg'} onClick={handleSignIn} disabled={signInMutation.isPending}>
-          <LogIn className="h-4 w-4" />
+          <LogIn className="size-4" />
           {signInMutation.isPending ? 'Signing in…' : 'Sign in with GitHub'}
         </Button>
         <Button variant="ghost" onClick={onComplete} disabled={signInMutation.isPending}>

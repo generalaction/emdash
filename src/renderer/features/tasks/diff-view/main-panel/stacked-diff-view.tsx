@@ -266,9 +266,9 @@ const StackedFileSlot = observer(function StackedFileSlot({
           onClick={() => panelStore.toggleExpanded(file.path)}
         >
           {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+            <ChevronDown className="size-3.5 shrink-0" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+            <ChevronRight className="size-3.5 shrink-0" />
           )}
           <span className="flex items-center gap-1.5">
             <FileIcon filename={fileName} size={12} />

@@ -33,7 +33,7 @@ const SkillsView: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-background text-foreground">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -52,7 +52,7 @@ const SkillsView: React.FC = () => {
         {/* Toolbar */}
         <div className="mb-6 flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search skills..."
               value={searchQuery}
@@ -68,11 +68,11 @@ const SkillsView: React.FC = () => {
             aria-label="Refresh catalog"
           >
             <RefreshCw
-              className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
+              className={`size-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
             />
           </Button>
           <Button variant="outline" size="sm" onClick={() => showCreateSkillModal({})}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            <Plus className="mr-1.5 size-3.5" />
             New Skill
           </Button>
         </div>

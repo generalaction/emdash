@@ -34,7 +34,7 @@ const ThemeCard: React.FC = () => {
           aria-pressed={theme === null}
           aria-label="Set theme to system preference"
         >
-          <Monitor className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Monitor className="size-4 shrink-0" aria-hidden="true" />
           <span className="text-centert">System</span>
         </button>
         <button
@@ -44,7 +44,7 @@ const ThemeCard: React.FC = () => {
           aria-pressed={theme === 'emlight'}
           aria-label="Set theme to Emdash Light"
         >
-          <Sun className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Sun className="size-4 shrink-0" aria-hidden="true" />
           <span className="text-center">Emdash Light</span>
         </button>
         <button
@@ -54,7 +54,7 @@ const ThemeCard: React.FC = () => {
           aria-pressed={theme === 'emdark'}
           aria-label="Set theme to Emdash Dark"
         >
-          <Moon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Moon className="size-4 shrink-0" aria-hidden="true" />
           <span className="text-center">Emdash Dark</span>
         </button>
       </div>

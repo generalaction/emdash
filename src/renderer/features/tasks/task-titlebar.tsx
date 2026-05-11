@@ -358,7 +358,7 @@ function LinkedIssueBadge({ issue }: { issue: Issue }) {
             }}
             className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted hover:bg-muted/30 disabled:cursor-default disabled:opacity-60"
           >
-            <ProviderLogo provider={issue.provider} className="h-3 w-3" />
+            <ProviderLogo provider={issue.provider} className="size-3" />
             <span className="font-mono">{issue.identifier}</span>
           </button>
         }

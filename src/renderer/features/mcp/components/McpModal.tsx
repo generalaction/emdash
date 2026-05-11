@@ -292,7 +292,7 @@ export const McpModal: React.FC<McpModalProps> = ({
             className="text-destructive hover:text-destructive"
             onClick={() => onRemove(form.state.values.name)}
           >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            <Trash2 className="mr-1.5 size-3.5" />
             Remove
           </Button>
         )}

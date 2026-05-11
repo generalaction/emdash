@@ -66,9 +66,9 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
           <h3 className="truncate text-sm font-semibold">{name}</h3>
           <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
             {transport === 'http' ? (
-              <Globe className="h-2.5 w-2.5" />
+              <Globe className="size-2.5" />
             ) : (
-              <Terminal className="h-2.5 w-2.5" />
+              <Terminal className="size-2.5" />
             )}
             {transport}
           </span>
@@ -85,7 +85,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
                 alt={p.alt}
                 isSvg={p.isSvg}
                 invertInDark={p.invertInDark}
-                className="h-3.5 w-3.5 rounded-sm"
+                className="size-3.5 rounded-sm"
               />
             ))}
           </div>
@@ -102,11 +102,11 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
             className="rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100"
             aria-label={`View ${name} docs`}
           >
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="size-3.5" />
           </button>
         )}
         {isInstalled ? (
-          <Pencil className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+          <Pencil className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
         ) : onAdd ? (
           <button
             type="button"
@@ -117,7 +117,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
             className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label={`Add ${name}`}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="size-4" />
           </button>
         ) : null}
       </div>

@@ -85,7 +85,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
                         : 'https://github.com/anthropics.png'
                     }
                     alt=""
-                    className="h-4 w-4 rounded-sm"
+                    className="size-4 rounded-sm"
                   />
                   <span>
                     From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library
@@ -124,12 +124,12 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
                 disabled={isProcessing}
                 className="text-destructive hover:text-destructive"
               >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                <Trash2 className="mr-1.5 size-3.5" />
                 Uninstall
               </Button>
               {skill.localPath && onOpenTerminal && (
                 <Button variant="outline" size="sm" onClick={handleOpen}>
-                  <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
+                  <FolderOpen className="mr-1.5 size-3.5" />
                   Open
                 </Button>
               )}

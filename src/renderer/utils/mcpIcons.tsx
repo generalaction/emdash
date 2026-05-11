@@ -53,7 +53,7 @@ export const McpServerIcon: React.FC<{ name: string; iconKey?: string }> = ({ na
 
   return (
     <div className={ICON_CONTAINER}>
-      <Server className="h-5 w-5 text-muted-foreground" />
+      <Server className="size-5 text-muted-foreground" />
     </div>
   );
 };

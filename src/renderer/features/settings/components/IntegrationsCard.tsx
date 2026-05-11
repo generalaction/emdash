@@ -27,7 +27,7 @@ const SvgLogo = ({ raw }: { raw: string }) => {
 
   return (
     <span
-      className={`inline-flex h-8 w-8 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${isDark ? 'text-primary' : ''}`}
+      className={`inline-flex size-8 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${isDark ? 'text-primary' : ''}`}
       dangerouslySetInnerHTML={{ __html: processed }}
     />
   );
@@ -218,7 +218,7 @@ const IntegrationsCard: React.FC = () => {
       {integrations.map((integration) => (
         <div key={integration.id} className="flex h-full min-h-0">
           <div className="flex w-full items-center gap-4 rounded-lg border border-muted bg-muted/20 p-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
               <SvgLogo raw={integration.logoSvg} />
             </div>
             <div className="flex flex-1 flex-col gap-0.5">
@@ -230,10 +230,10 @@ const IntegrationsCard: React.FC = () => {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger
-                      className="inline-flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md border border-input bg-background opacity-70"
+                      className="inline-flex size-8 shrink-0 cursor-default items-center justify-center rounded-md border border-input bg-background opacity-70"
                       aria-label={integration.disabledTooltip}
                     >
-                      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <Check className="size-4 text-emerald-600 dark:text-emerald-400" />
                     </TooltipTrigger>
                     <TooltipContent side="top">
                       <p className="text-xs">{integration.disabledTooltip}</p>
@@ -245,11 +245,11 @@ const IntegrationsCard: React.FC = () => {
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8 shrink-0"
+                  className="size-8 shrink-0"
                   onClick={integration.onDisconnect}
                   aria-label={`Disconnect ${integration.name}`}
                 >
-                  <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <Check className="size-4 text-emerald-600 dark:text-emerald-400" />
                 </Button>
               )
             ) : (
@@ -257,7 +257,7 @@ const IntegrationsCard: React.FC = () => {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 shrink-0"
+                className="size-8 shrink-0"
                 onClick={
                   integration.loading && integration.onCancel
                     ? integration.onCancel
@@ -270,9 +270,9 @@ const IntegrationsCard: React.FC = () => {
                 }
               >
                 {integration.loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <Plus className="h-4 w-4" />
+                  <Plus className="size-4" />
                 )}
               </Button>
             )}

@@ -37,7 +37,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => 
       {/* Action */}
       <div className="shrink-0 self-center">
         {skill.installed ? (
-          <Pencil className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+          <Pencil className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
         ) : (
           <button
             type="button"
@@ -48,7 +48,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => 
             className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label={`Install ${skill.displayName}`}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="size-4" />
           </button>
         )}
       </div>

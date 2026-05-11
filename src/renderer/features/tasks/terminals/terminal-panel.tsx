@@ -130,7 +130,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const emptyState = (
     <EmptyState
-      icon={<Terminal className="h-5 w-5 text-muted-foreground" />}
+      icon={<Terminal className="size-5 text-muted-foreground" />}
       label="No terminals yet"
       description="Add a terminal to run shell commands in this task's working directory."
       action={

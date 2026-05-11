@@ -93,11 +93,11 @@ export function AccountTab() {
             <img
               src={user.avatarUrl}
               alt={user.username}
-              className="h-12 w-12 rounded-full border border-border/60"
+              className="size-12 rounded-full border border-border/60"
             />
           ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border/60 bg-muted">
-              <User className="h-6 w-6 text-muted-foreground" />
+            <div className="flex size-12 items-center justify-center rounded-full border border-border/60 bg-muted">
+              <User className="size-6 text-muted-foreground" />
             </div>
           )}
           <div className="flex-1">
@@ -112,7 +112,7 @@ export function AccountTab() {
             onClick={handleSignOut}
             disabled={signOutMutation.isPending}
           >
-            <LogOut className="h-3.5 w-3.5" />
+            <LogOut className="size-3.5" />
             Sign Out
           </Button>
         </div>
@@ -140,7 +140,7 @@ export function AccountTab() {
               onClick={handleSignIn}
               disabled={signInMutation.isPending}
             >
-              <LogIn className="h-3.5 w-3.5" />
+              <LogIn className="size-3.5" />
               {signInMutation.isPending ? 'Signing in...' : 'Sign In'}
             </Button>
           )}
@@ -168,7 +168,7 @@ export function AccountTab() {
             onClick={handleSignIn}
             disabled={signInMutation.isPending}
           >
-            <LogIn className="h-3.5 w-3.5" />
+            <LogIn className="size-3.5" />
             {signInMutation.isPending ? 'Creating account...' : 'Create Account'}
           </Button>
         )}

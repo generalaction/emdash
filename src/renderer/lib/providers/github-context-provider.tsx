@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, use, useCallback, useEffect, useRef, useState } from 'react';
 import {
   githubAuthErrorChannel,
   githubAuthSuccessChannel,
@@ -248,7 +248,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 }
 
 export function useGithubContext() {
-  const ctx = useContext(GithubContext);
+  const ctx = use(GithubContext);
   if (!ctx) {
     throw new Error('useGithubContext must be used inside GithubContextProvider');
   }

@@ -16,7 +16,7 @@ export function TooLargeRenderer({ file }: TooLargeRendererProps) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-      <FileX className="h-10 w-10 opacity-30" />
+      <FileX className="size-10 opacity-30" />
       <div className="text-center">
         <p className="text-sm font-medium">{fileName}</p>
         <p className="mt-1 text-xs opacity-70">File too large to display in the editor</p>

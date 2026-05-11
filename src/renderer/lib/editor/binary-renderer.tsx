@@ -11,7 +11,7 @@ export function BinaryRenderer({ file }: BinaryRendererProps) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-      <FileQuestion className="h-10 w-10 opacity-30" />
+      <FileQuestion className="size-10 opacity-30" />
       <div className="text-center">
         <p className="text-sm font-medium">{fileName}</p>
         {ext && <p className="mt-0.5 text-xs opacity-50">{ext} file</p>}

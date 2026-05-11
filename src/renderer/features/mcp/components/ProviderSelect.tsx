@@ -60,7 +60,7 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
                     alt={logo.alt}
                     isSvg={logo.isSvg}
                     invertInDark={logo.invertInDark}
-                    className="h-4 w-4 rounded-sm"
+                    className="size-4 rounded-sm"
                     grayscale={unsupported}
                   />
                 )}

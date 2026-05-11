@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, use, type ReactNode } from 'react';
 import { ProjectViewWrapper } from '@renderer/features/projects/components/project-view-wrapper';
 import { type ProvisionedTask } from '@renderer/features/tasks/stores/task';
 import {
@@ -31,7 +31,7 @@ export const ProvisionedTaskProvider = observer(function ProvisionedTaskProvider
 
 /** Non-nullable. Only call inside a ProvisionedTaskProvider subtree (kind === 'ready'). */
 export function useProvisionedTask(): ProvisionedTask {
-  const ctx = useContext(ProvisionedTaskContext);
+  const ctx = use(ProvisionedTaskContext);
   if (!ctx) {
     throw new Error(
       'useProvisionedTask must be used inside ProvisionedTaskProvider (kind === "ready")'
@@ -64,7 +64,7 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
 });
 
 export function useTaskViewContext(): TaskViewContext {
-  const context = useContext(TaskViewContext);
+  const context = use(TaskViewContext);
   if (!context) {
     throw new Error('useTaskViewContext must be used within a TaskViewContextProvider');
   }

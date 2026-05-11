@@ -48,23 +48,23 @@ export const CommentInput: React.FC<CommentInputProps> = ({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="h-8 w-8"
+            className="size-8"
             onClick={onCancel}
             title="Cancel (Esc)"
             aria-label="Cancel comment"
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </Button>
           <Button
             variant="ghost"
             size="icon-sm"
-            className="h-8 w-8"
+            className="size-8"
             onClick={handleSubmit}
             disabled={!content.trim()}
             title="Submit (Cmd/Ctrl+Enter)"
             aria-label="Submit comment"
           >
-            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <Check className="size-4 text-emerald-600 dark:text-emerald-400" />
           </Button>
         </Comment.Actions>
       </Comment.Header>

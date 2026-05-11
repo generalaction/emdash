@@ -108,11 +108,11 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       {logoSrc ? (
         isSvg ? (
           <span
-            className="inline-flex h-5 w-5 items-center justify-center text-primary [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0"
+            className="inline-flex size-5 items-center justify-center text-primary [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0"
             dangerouslySetInnerHTML={{ __html: processedSvg ?? '' }}
           />
         ) : (
-          <img src={logoSrc} alt="" className="h-5 w-5 object-contain" />
+          <img src={logoSrc} alt="" className="size-5 object-contain" />
         )
       ) : icon ? (
         icon
@@ -184,7 +184,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
                   className={ICON_BUTTON}
                   aria-label={copied ? 'Command copied' : `Copy install command for ${name}`}
                 >
-                  <CopyIcon className="h-4 w-4" aria-hidden="true" />
+                  <CopyIcon className="size-4" aria-hidden="true" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">
@@ -217,7 +217,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
             className={ICON_BUTTON}
             aria-label={`Open ${name} settings`}
           >
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            <ExternalLink className="size-4" aria-hidden="true" />
           </button>
         ) : null}
 
@@ -228,7 +228,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
             className={ICON_BUTTON}
             aria-label={`Disconnect ${name}`}
           >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            <Trash2 className="size-4" aria-hidden="true" />
           </button>
         ) : null}
 

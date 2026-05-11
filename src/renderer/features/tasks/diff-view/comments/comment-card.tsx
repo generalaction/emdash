@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Textarea, type TextareaProps } from '@renderer/lib/ui/textarea';
 import { cn } from '@renderer/utils/utils';
 
@@ -34,79 +34,59 @@ export function useTextareaAutoFocus(
   }, [active, ref]);
 }
 
-const CommentRoot = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'flex h-[140px] w-full flex-col rounded-lg border border-border bg-background text-foreground shadow-sm',
-        className
-      )}
-      {...props}
-    />
-  )
-);
-CommentRoot.displayName = 'CommentRoot';
+type DivProps = React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDivElement> };
+type SpanProps = React.HTMLAttributes<HTMLSpanElement> & { ref?: React.Ref<HTMLSpanElement> };
+type CommentTextareaProps = TextareaProps & { ref?: React.Ref<HTMLTextAreaElement> };
 
-const CommentHeader = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'flex flex-row items-center justify-between space-y-0 px-6 py-4 pb-3',
-        className
-      )}
-      {...props}
-    />
-  )
+const CommentRoot = ({ className, ref, ...props }: DivProps) => (
+  <div
+    ref={ref}
+    className={cn(
+      'flex h-[140px] w-full flex-col rounded-lg border border-border bg-background text-foreground shadow-sm',
+      className
+    )}
+    {...props}
+  />
 );
-CommentHeader.displayName = 'CommentHeader';
 
-const CommentTitle = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('text-sm font-semibold leading-none', className)} {...props} />
-  )
+const CommentHeader = ({ className, ref, ...props }: DivProps) => (
+  <div
+    ref={ref}
+    className={cn('flex flex-row items-center justify-between space-y-0 px-6 py-4 pb-3', className)}
+    {...props}
+  />
 );
-CommentTitle.displayName = 'CommentTitle';
 
-const CommentMeta = forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
-  ({ className, ...props }, ref) => (
-    <span
-      ref={ref}
-      className={cn('text-xs font-normal text-muted-foreground', className)}
-      {...props}
-    />
-  )
+const CommentTitle = ({ className, ref, ...props }: DivProps) => (
+  <div ref={ref} className={cn('text-sm font-semibold leading-none', className)} {...props} />
 );
-CommentMeta.displayName = 'CommentMeta';
 
-const CommentActions = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex items-center gap-1.5', className)} {...props} />
-  )
+const CommentMeta = ({ className, ref, ...props }: SpanProps) => (
+  <span
+    ref={ref}
+    className={cn('text-xs font-normal text-muted-foreground', className)}
+    {...props}
+  />
 );
-CommentActions.displayName = 'CommentActions';
 
-const CommentBody = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex-1 overflow-hidden px-6 pb-5 pt-0', className)} {...props} />
-  )
+const CommentActions = ({ className, ref, ...props }: DivProps) => (
+  <div ref={ref} className={cn('flex items-center gap-1.5', className)} {...props} />
 );
-CommentBody.displayName = 'CommentBody';
 
-const CommentTextarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, ...props }, ref) => (
-    <Textarea
-      ref={ref}
-      className={cn(
-        'h-full resize-none border-border bg-background px-4 py-3 text-sm shadow-none focus-visible:ring-0 focus-visible:border-border focus-visible:outline-none',
-        className
-      )}
-      {...props}
-    />
-  )
+const CommentBody = ({ className, ref, ...props }: DivProps) => (
+  <div ref={ref} className={cn('flex-1 overflow-hidden px-6 pb-5 pt-0', className)} {...props} />
 );
-CommentTextarea.displayName = 'CommentTextarea';
+
+const CommentTextarea = ({ className, ref, ...props }: CommentTextareaProps) => (
+  <Textarea
+    ref={ref}
+    className={cn(
+      'h-full resize-none border-border bg-background px-4 py-3 text-sm shadow-none focus-visible:ring-0 focus-visible:border-border focus-visible:outline-none',
+      className
+    )}
+    {...props}
+  />
+);
 
 export const Comment = {
   Root: CommentRoot,

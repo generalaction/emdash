@@ -163,7 +163,7 @@ export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshCon
         >
           <div className="flex items-center gap-2 -ml-2">
             <Button variant="ghost" size="icon-sm" onClick={onClose}>
-              <ArrowLeftIcon className="w-4 h-4" />
+              <ArrowLeftIcon className="size-4" />
             </Button>
             <DialogTitle>{isEditing ? 'Edit SSH Connection' : 'Add SSH Connection'}</DialogTitle>
           </div>

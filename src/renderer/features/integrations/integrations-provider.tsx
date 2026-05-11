@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { createContext, useCallback, useContext } from 'react';
+import React, { createContext, use, useCallback } from 'react';
 import {
   ISSUE_PROVIDER_CAPABILITIES,
   type ConnectionStatusMap,
@@ -211,7 +211,7 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
 }
 
 export function useIntegrationsContext() {
-  const ctx = useContext(IntegrationsContext);
+  const ctx = use(IntegrationsContext);
   if (!ctx) throw new Error('useIntegrationsContext must be used inside IntegrationsProvider');
   return ctx;
 }

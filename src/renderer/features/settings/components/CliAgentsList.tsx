@@ -83,7 +83,7 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
       logoSrc={logo}
       icon={
         logo ? undefined : (
-          <Sparkles className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          <Sparkles className="size-3.5 text-muted-foreground" aria-hidden="true" />
         )
       }
       name={agent.name}
@@ -109,7 +109,7 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
                   className={ICON_BUTTON}
                   aria-label={`${agent.name} execution settings`}
                 >
-                  <Settings2 className="h-4 w-4" aria-hidden="true" />
+                  <Settings2 className="size-4" aria-hidden="true" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">

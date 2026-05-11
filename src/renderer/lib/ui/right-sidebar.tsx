@@ -36,7 +36,7 @@ export function RightSidebarProvider({
 }
 
 export function useRightSidebar() {
-  const context = React.useContext(RightSidebarContext);
+  const context = React.use(RightSidebarContext);
   if (!context) {
     throw new Error('useRightSidebar must be used within a RightSidebarProvider');
   }
