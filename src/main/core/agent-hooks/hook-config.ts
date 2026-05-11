@@ -46,11 +46,6 @@ export class HookConfigWriter {
     return true;
   }
 
-  async writeCodexNotify(): Promise<boolean> {
-    if (!(await resolveCommandPath('codex', this.exec))) return false;
-    return false;
-  }
-
   async writePiExtension(): Promise<boolean> {
     if (!(await resolveCommandPath('pi', this.exec))) return false;
 
@@ -92,11 +87,6 @@ export class HookConfigWriter {
       return;
     }
 
-    if (providerId === 'codex') {
-      await this.writeCodexNotify();
-      return;
-    }
-
     if (providerId === 'pi') {
       const wroteConfig = await this.writePiExtension();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -116,7 +106,7 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'pi', 'opencode'] as const).map((providerId) =>
+      (['claude', 'pi', 'opencode'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })
