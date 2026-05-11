@@ -192,49 +192,53 @@ export function usePty(
   // exact space the terminal occupies — rather than a distant ancestor div.
   // Reports to PaneSizingContext (which broadcasts to ALL sessions in the pane)
   // or directly via queuePtyResize for standalone terminals.
+  //
+  // Runs synchronously (no rAF wrapper).  ResizeObserver fires after layout
+  // and before paint, so a sync term.resize() in that callback lets the xterm
+  // DOM catch up in the same paint as the new container size — eliminating
+  // the one-frame mismatch that produces the visible flicker on
+  // cmd+J / cmd+B toggles.  Other call sites (mount, font change, drag-end)
+  // also benefit from running before the next paint instead of one frame later.
   const measureAndResize = useCallback(
     (retries = 0) => {
-      if (!termRef.current) return;
-      requestAnimationFrame(() => {
-        try {
-          const term = termRef.current;
-          if (!term) return;
-          const pane = paneSizingRef.current;
+      try {
+        const term = termRef.current;
+        if (!term) return;
+        const pane = paneSizingRef.current;
 
-          const cell = getCellMetrics(term);
-          if (!cell) {
-            // Cold-path: terminal was opened off-DOM so xterm's font measurement
-            // hasn't populated yet.  Retry up to 5 times to avoid an infinite loop.
-            if (retries < 5) {
-              setTimeout(() => measureAndResizeRef.current(retries + 1), 100);
-            }
-            return;
+        const cell = getCellMetrics(term);
+        if (!cell) {
+          // Cold-path: terminal was opened off-DOM so xterm's font measurement
+          // hasn't populated yet.  Retry up to 5 times to avoid an infinite loop.
+          if (retries < 5) {
+            setTimeout(() => measureAndResizeRef.current(retries + 1), 100);
           }
-
-          // Measure the terminal's immediate parent (the FrontendPty's ownedContainer),
-          // matching FitAddon.proposeDimensions().  Fall back to the mount-target
-          // container for standalone terminals not using the pool.
-          const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
-          const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
-          if (!measureTarget) return;
-
-          const dims = measureDimensions(measureTarget, cell.width, cell.height);
-          if (!dims) return;
-          const { cols: targetCols, rows: targetRows } = dims;
-
-          if (term.cols !== targetCols || term.rows !== targetRows) {
-            term.resize(targetCols, targetRows);
-          }
-
-          if (pane) {
-            pane.reportDimensions(targetCols, targetRows);
-          } else {
-            queuePtyResizeRef.current(targetCols, targetRows);
-          }
-        } catch (e) {
-          log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
+          return;
         }
-      });
+
+        // Measure the terminal's immediate parent (the FrontendPty's ownedContainer),
+        // matching FitAddon.proposeDimensions().  Fall back to the mount-target
+        // container for standalone terminals not using the pool.
+        const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
+        const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
+        if (!measureTarget) return;
+
+        const dims = measureDimensions(measureTarget, cell.width, cell.height);
+        if (!dims) return;
+        const { cols: targetCols, rows: targetRows } = dims;
+
+        if (term.cols !== targetCols || term.rows !== targetRows) {
+          term.resize(targetCols, targetRows);
+        }
+
+        if (pane) {
+          pane.reportDimensions(targetCols, targetRows);
+        } else {
+          queuePtyResizeRef.current(targetCols, targetRows);
+        }
+      } catch (e) {
+        log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
+      }
     },
     [sessionId, containerRef]
   );
@@ -547,11 +551,45 @@ export function usePty(
       // ── ResizeObserver (observes the mount-target, not the owned container) ─
       // Skips measuring while a panel drag is in progress; the drag-end effect
       // below fires one measure once the drag completes.
+      //
+      // Single-shot layout changes (cmd+J drawer toggle, cmd+B sidebar toggle,
+      // navigation) need an *immediate* term.resize so the xterm DOM catches
+      // up in the same paint as the container — otherwise the user sees a
+      // frame where the container is at the new size but the terminal grid
+      // is still at the old size (the flicker).  Bursty changes (continuous
+      // window-corner resize) still need coalescing so we don't spam
+      // term.resize() every frame.
+      //
+      // Strategy: leading-edge fire after a quiet period; trailing-edge fire
+      // for the tail of a burst.
+      const RESIZE_QUIET_MS = 150;
+      const RESIZE_TRAILING_MS = 50;
+      let lastResizeAt = 0;
+      let trailingTimer: ReturnType<typeof setTimeout> | null = null;
+      const fireResize = () => {
+        lastResizeAt = performance.now();
+        measureAndResizeRef.current();
+      };
       const resizeObserver = new ResizeObserver(() => {
-        if (!isPanelDraggingRef.current) measureAndResize();
+        if (isPanelDraggingRef.current) return;
+        if (performance.now() - lastResizeAt > RESIZE_QUIET_MS) {
+          fireResize();
+          return;
+        }
+        if (trailingTimer) clearTimeout(trailingTimer);
+        trailingTimer = setTimeout(() => {
+          trailingTimer = null;
+          fireResize();
+        }, RESIZE_TRAILING_MS);
       });
       resizeObserver.observe(container);
-      cleanups.push(() => resizeObserver.disconnect());
+      cleanups.push(() => {
+        resizeObserver.disconnect();
+        if (trailingTimer) {
+          clearTimeout(trailingTimer);
+          trailingTimer = null;
+        }
+      });
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────

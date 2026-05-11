@@ -1,6 +1,6 @@
 import { Eye, Loader2, MessageSquare, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { Activity, useEffect, useRef } from 'react';
+import { Activity, useEffect, useRef, type ComponentProps } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
 import {
   getTaskStore,
@@ -105,11 +105,39 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
 
 const SIDEBAR_COLLAPSED_SIZE = '0px';
 
+/**
+ * ResizableHandle wrapper that flips panelDragStore on/off during a drag so
+ * embedded terminals can suppress fits while the user is dragging.
+ */
+function DraggableResizeHandle(props: ComponentProps<typeof ResizableHandle>) {
+  const draggingRef = useRef(false);
+  const stop = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    panelDragStore.setDragging(false);
+  };
+  return (
+    <ResizableHandle
+      {...props}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        if (!draggingRef.current) {
+          draggingRef.current = true;
+          panelDragStore.setDragging(true);
+        }
+      }}
+      onPointerUp={stop}
+      onPointerCancel={stop}
+    />
+  );
+}
+
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
   const { taskView } = useProvisionedTask();
   const sidebarPanelRef = usePanelRef();
 
   useEffect(() => {
+    panelDragStore.suppressFor(140);
     if (taskView.isSidebarCollapsed) {
       sidebarPanelRef.current?.collapse();
     } else {
@@ -122,7 +150,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
       <ResizablePanel id="task-main-area">
         <TaskMainColumn />
       </ResizablePanel>
-      <ResizableHandle />
+      <DraggableResizeHandle />
       <ResizablePanel
         id="task-sidebar"
         panelRef={sidebarPanelRef}
@@ -144,9 +172,9 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
 const TaskMainColumn = observer(function TaskMainColumn() {
   const { taskView } = useProvisionedTask();
   const bottomPanelRef = usePanelRef();
-  const draggingRef = useRef(false);
 
   useEffect(() => {
+    panelDragStore.suppressFor(140);
     if (taskView.isTerminalDrawerOpen) {
       bottomPanelRef.current?.expand();
     } else {
@@ -159,28 +187,7 @@ const TaskMainColumn = observer(function TaskMainColumn() {
       <ResizablePanel id="task-main-content" minSize="30%">
         <UnifiedMainContent />
       </ResizablePanel>
-      <ResizableHandle
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          if (!draggingRef.current) {
-            draggingRef.current = true;
-            panelDragStore.setDragging(true);
-          }
-        }}
-        onPointerUp={() => {
-          if (draggingRef.current) {
-            draggingRef.current = false;
-            panelDragStore.setDragging(false);
-          }
-        }}
-        onPointerCancel={() => {
-          if (draggingRef.current) {
-            draggingRef.current = false;
-            panelDragStore.setDragging(false);
-          }
-        }}
-        className={taskView.isTerminalDrawerOpen ? 'flex' : 'hidden'}
-      />
+      <DraggableResizeHandle className={taskView.isTerminalDrawerOpen ? 'flex' : 'hidden'} />
       <ResizablePanel
         id="task-terminal-drawer"
         panelRef={bottomPanelRef}

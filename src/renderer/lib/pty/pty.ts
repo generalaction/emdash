@@ -1,4 +1,3 @@
-import { CanvasAddon } from '@xterm/addon-canvas';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
@@ -90,13 +89,11 @@ export class FrontendPty {
       theme: buildTheme(theme),
     });
 
-    const canvasAddon = new CanvasAddon();
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       event.preventDefault();
       rpc.app.openExternal(uri).catch(() => {});
     });
 
-    this.terminal.loadAddon(canvasAddon);
     this.terminal.loadAddon(webLinksAddon);
     this.terminal.open(this.ownedContainer);
 
