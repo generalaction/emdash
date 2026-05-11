@@ -1,9 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { getPrNumber, pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
-import { useCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
+import type { PullRequest } from '@shared/pull-requests';
+import { useSyncCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
 import { rpc } from '@renderer/lib/ipc';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import {
@@ -13,6 +12,7 @@ import {
   type CheckRunBucket,
 } from '@renderer/utils/github';
 import { CommentsList } from './comments-list';
+import { usePullRequestComments } from './use-pull-request-comments';
 
 const bucketOrder: Record<CheckRunBucket, number> = {
   fail: 0,
@@ -104,20 +104,8 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
 }
 
 export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
-  const { checks } = useCheckRuns(pr);
-  const prNumber = getPrNumber(pr);
-  const commentsQuery = useQuery({
-    queryKey: ['pull-request-comments', pr.repositoryUrl, prNumber],
-    queryFn: async () => {
-      const response = await rpc.pullRequests.getPullRequestComments(pr.repositoryUrl, prNumber!);
-      if (!response.success) {
-        throw new Error(pullRequestErrorMessage(response.error));
-      }
-      return response.data.comments;
-    },
-    enabled: prNumber !== null,
-    staleTime: 30_000,
-  });
+  const { checks } = useSyncCheckRuns(pr);
+  const commentsQuery = usePullRequestComments(pr);
   const comments = commentsQuery.data ?? [];
 
   if (checks.length === 0 && comments.length === 0 && !commentsQuery.isLoading) {
