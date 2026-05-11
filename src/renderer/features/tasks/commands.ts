@@ -1,5 +1,4 @@
 import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
-import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import {
   asProvisioned,
   getRegisteredTaskData,
@@ -36,10 +35,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const taskView = getTaskView(projectId, taskId);
       const tabManager = taskView?.tabManager;
 
-      const mountedProject = asMounted(getProjectStore(projectId));
-      const connectionId =
-        mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
-
       const taskMgr = getTaskManagerStore(projectId);
       const taskIds = taskMgr ? Array.from(taskMgr.tasks.keys()) : [];
       const currentIdx = taskIds.indexOf(taskId);
@@ -74,7 +69,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             showModal('createConversationModal', {
               projectId,
               taskId,
-              connectionId,
               onSuccess: ({ conversationId }) => {
                 tabManager?.openConversation(conversationId);
                 taskView?.setFocusedRegion('main');
