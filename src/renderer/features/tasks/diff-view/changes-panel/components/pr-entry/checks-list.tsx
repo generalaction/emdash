@@ -91,8 +91,11 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
 
   return (
     <div className="flex flex-col gap-[1px] py-2">
-      {sorted.map((check, i) => (
-        <CheckRunItem key={`${check.name}-${i}`} check={check} />
+      {sorted.map((check) => (
+        <CheckRunItem
+          key={`${check.name}-${check.detailsUrl ?? check.startedAt ?? check.completedAt ?? ''}`}
+          check={check}
+        />
       ))}
     </div>
   );
