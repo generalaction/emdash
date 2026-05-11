@@ -51,7 +51,9 @@ export const ContextBar = observer(function ContextBar() {
       sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
     });
 
-    provisioned.conversations.sessions.get(activeConversation?.data.id ?? '')?.pty?.terminal.focus();
+    provisioned.conversations.sessions
+      .get(activeConversation?.data.id ?? '')
+      ?.pty?.terminal.focus();
   };
 
   return (

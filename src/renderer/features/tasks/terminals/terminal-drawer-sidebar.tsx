@@ -164,7 +164,15 @@ interface SidebarRowProps {
   action?: ReactNode;
 }
 
-function SidebarRow({ icon, label, isActive, onSelect, onRename, onHover, action }: SidebarRowProps) {
+function SidebarRow({
+  icon,
+  label,
+  isActive,
+  onSelect,
+  onRename,
+  onHover,
+  action,
+}: SidebarRowProps) {
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing && onRename) {

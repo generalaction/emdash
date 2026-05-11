@@ -59,11 +59,7 @@ export class ConversationManagerStore {
               this.sessions.set(
                 conversation.id,
                 new PtySession(
-                  makePtySessionId(
-                    conversation.projectId,
-                    conversation.taskId,
-                    conversation.id
-                  )
+                  makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
                 )
               );
             }
