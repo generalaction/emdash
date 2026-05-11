@@ -18,9 +18,14 @@ import { cn } from '@renderer/utils/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 type BranchSelectorTab = 'local' | 'remote';
+export type BranchLabelRemoteMode = 'full' | 'short';
 
-function getBranchLabel(branch: Branch): string {
-  return branch.type === 'remote' ? `${branch.remote.name}/${branch.branch}` : branch.branch;
+export function getBranchLabel(
+  branch: Branch,
+  options: { remote?: BranchLabelRemoteMode } = {}
+): string {
+  if (branch.type !== 'remote') return branch.branch;
+  return options.remote === 'short' ? branch.branch : `${branch.remote.name}/${branch.branch}`;
 }
 
 interface BranchSelectorProps {
@@ -28,6 +33,7 @@ interface BranchSelectorProps {
   value?: Branch;
   onValueChange: (value: Branch) => void;
   remoteOnly?: boolean;
+  branchLabelRemote?: BranchLabelRemoteMode;
   trigger?: React.ReactNode;
   onRefresh?: () => void;
   isRefreshing?: boolean;
@@ -38,6 +44,7 @@ export function BranchSelector({
   value,
   onValueChange,
   remoteOnly = false,
+  branchLabelRemote = 'full',
   trigger,
   onRefresh,
   isRefreshing = false,
@@ -62,10 +69,10 @@ export function BranchSelector({
     () =>
       filteredBranches.map((branch) => ({
         value: branch,
-        label: getBranchLabel(branch),
+        label: getBranchLabel(branch, { remote: branchLabelRemote }),
         disabled: branch.branch.startsWith('_reserve'),
       })),
-    [filteredBranches]
+    [branchLabelRemote, filteredBranches]
   );
 
   return (
@@ -76,7 +83,7 @@ export function BranchSelector({
         value
           ? {
               value,
-              label: getBranchLabel(value),
+              label: getBranchLabel(value, { remote: branchLabelRemote }),
             }
           : undefined
       }

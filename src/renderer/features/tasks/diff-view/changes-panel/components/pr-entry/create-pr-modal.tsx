@@ -1,6 +1,6 @@
-import { ChevronDown, CircleAlert, GitBranch } from 'lucide-react';
+import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Branch } from '@shared/git';
 import { parseGitHubRepository } from '@shared/github-repository';
 import { pullRequestErrorMessage } from '@shared/pull-requests';
@@ -9,6 +9,7 @@ import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-sele
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
+import { RemoteSelectContent } from '@renderer/lib/components/remote-select-content';
 import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Alert, AlertDescription, AlertTitle } from '@renderer/lib/ui/alert';
@@ -22,11 +23,13 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
+import { Select, SelectTrigger } from '@renderer/lib/ui/select';
 import { Separator } from '@renderer/lib/ui/separator';
 import { SplitButton } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { log } from '@renderer/utils/logger';
 import { resolveInitialBaseBranch } from './base-branch';
+import { getGitHubTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
 
 export type CreatePrModalArgs = {
   repositoryUrl: string;
@@ -48,6 +51,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<Branch | undefined>();
+  const [selectedTargetRemoteName, setSelectedTargetRemoteName] = useState<string | undefined>();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const repo = getRepositoryStore(projectId);
@@ -57,23 +61,37 @@ export const CreatePrModal = observer(function CreatePrModal({
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
   const usesSeparatePushRemote = repo ? repo.pushRemote.name !== repo.baseRemote.name : false;
   const needsPush = !isOnRemote || aheadCount > 0 || usesSeparatePushRemote;
-  const pushRepository = parseGitHubRepository(repo?.pushRepositoryUrl ?? '');
-  const head =
-    pushRepository && pushRepository.repositoryUrl !== repositoryUrl
-      ? `${pushRepository.owner}:${branchName}`
-      : branchName;
+  const projectRemoteName = repo?.baseRemote.name ?? 'origin';
+  const githubTargetRemotes = useMemo(
+    () => getGitHubTargetRemotes(repo?.remotes ?? []),
+    [repo?.remotes]
+  );
+  const targetRemote = resolveCreatePrTargetRemote({
+    options: githubTargetRemotes,
+    projectRemoteName,
+    selectedRemoteName: selectedTargetRemoteName,
+    fallbackRepositoryUrl: repositoryUrl,
+  });
+  const targetRepositoryUrl = targetRemote?.repository.repositoryUrl ?? repositoryUrl;
 
-  const hasGitHubRemote = Boolean(repositoryUrl);
+  const hasGitHubRemote = Boolean(targetRepositoryUrl);
   const selectedBase =
     selectedBaseOverride ??
     resolveInitialBaseBranch(
       repo?.remoteBranches ?? [],
-      taskPayload?.sourceBranch?.branch,
-      defaultBranch
+      taskPayload?.sourceBranch,
+      defaultBranch,
+      targetRemote?.remote.name ?? projectRemoteName
     );
 
+  const handleTargetRemoteChange = (remoteName: string | null) => {
+    if (!remoteName) return;
+    setSelectedTargetRemoteName(remoteName);
+    setSelectedBaseOverride(undefined);
+  };
+
   const doCreate = async (push: boolean) => {
-    if (!title.trim() || !repositoryUrl || !selectedBase?.branch) return;
+    if (!title.trim() || !targetRepositoryUrl || !selectedBase?.branch) return;
     setError(null);
     setIsCreating(true);
     try {
@@ -92,8 +110,19 @@ export const CreatePrModal = observer(function CreatePrModal({
         }
       }
 
+      const baseRepository = parseGitHubRepository(targetRepositoryUrl);
+      const headRepository = repo?.pushRemote.url
+        ? parseGitHubRepository(repo.pushRemote.url)
+        : null;
+      const head =
+        baseRepository &&
+        headRepository &&
+        headRepository.repositoryUrl !== baseRepository.repositoryUrl
+          ? `${headRepository.owner}:${branchName}`
+          : branchName;
+
       const result = await rpc.pullRequests.createPullRequest({
-        repositoryUrl,
+        repositoryUrl: targetRepositoryUrl,
         head,
         base: selectedBase.branch,
         title: title.trim(),
@@ -128,11 +157,35 @@ export const CreatePrModal = observer(function CreatePrModal({
             branchName={branchName}
             className="border border-border rounded-md"
           />
+          {githubTargetRemotes.length > 1 && targetRemote ? (
+            <Select value={targetRemote.remote.name} onValueChange={handleTargetRemoteChange}>
+              <SelectTrigger
+                showChevron={false}
+                className="flex min-h-[58px] w-full items-center gap-2 justify-between rounded-md border border-border p-2 text-left outline-none data-[size=default]:h-auto"
+              >
+                <div className="flex flex-col gap-0.5 text-left text-sm">
+                  <span className="text-xs text-foreground-passive">Target</span>
+                  <span className="flex items-center gap-1">
+                    <GitPullRequest
+                      absoluteStrokeWidth
+                      strokeWidth={2}
+                      className="size-3.5 shrink-0 text-foreground-muted"
+                    />
+                    <span className="min-w-0 truncate">{targetRemote.remote.name}</span>
+                  </span>
+                </div>
+                <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
+              </SelectTrigger>
+              <RemoteSelectContent remotes={githubTargetRemotes.map(({ remote }) => remote)} />
+            </Select>
+          ) : null}
           <ProjectBranchSelector
             projectId={projectId}
             value={selectedBase}
             onValueChange={setSelectedBaseOverride}
             remoteOnly
+            remoteName={targetRemote?.remote.name}
+            branchLabelRemote="short"
             trigger={
               <ComboboxTrigger className="flex w-full items-center gap-2 justify-between border border-border rounded-md p-2 text-left outline-none">
                 <div className="flex flex-col text-left text-sm gap-0.5">
