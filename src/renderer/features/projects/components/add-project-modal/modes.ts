@@ -48,14 +48,15 @@ export function useNewMode(defaultPath: string) {
   const [_, setNameIsTouched] = useState<boolean>(false);
   const [repositoryName, setRepositoryName] = useState('');
   const [repositoryNameIsTouched, setRepositoryNameIsTouched] = useState<boolean>(false);
-  const [repositoryOwnerOverride, setRepositoryOwnerOverride] = useState<
-    ComboboxSelectOption | undefined
-  >(undefined);
+  const [repositoryOwner, setRepositoryOwner] = useState<ComboboxSelectOption | undefined>(
+    undefined
+  );
   const [repositoryVisibility, setRepositoryVisibility] = useState<'public' | 'private'>('private');
   const [pathOverride, setPathOverride] = useState<string | undefined>(undefined);
   const path = pathOverride ?? defaultPath;
 
   const [ownerIsTouched, setOwnerIsTouched] = useState<boolean>(false);
+  const [prevOwners, setPrevOwners] = useState<ComboboxSelectOption[]>([]);
 
   const handleNameChange = (newName: string) => {
     setName(newName);
@@ -84,13 +85,15 @@ export function useNewMode(defaultPath: string) {
     [authenticated, data]
   );
 
-  const repositoryOwner = useMemo(
-    () => (ownerIsTouched ? repositoryOwnerOverride : owners[0]),
-    [owners, ownerIsTouched, repositoryOwnerOverride]
-  );
+  if (owners !== prevOwners && owners.length > 0) {
+    setPrevOwners(owners);
+    if (!ownerIsTouched) {
+      setRepositoryOwner(owners[0]);
+    }
+  }
 
   const handleOwnerChange = (item: ComboboxSelectOption) => {
-    setRepositoryOwnerOverride(item);
+    setRepositoryOwner(item);
     setOwnerIsTouched(true);
   };
 
