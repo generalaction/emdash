@@ -25,7 +25,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
   if (sessionLoading) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-foreground-muted">
-        Loading...
+        Loading…
       </div>
     );
   }
@@ -57,7 +57,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
           </div>
         </div>
         <Button size={'lg'} onClick={onComplete}>
-          Continue
+          Continue to Emdash
         </Button>
       </div>
     );
@@ -78,7 +78,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
       <div className="flex flex-col w-full gap-2">
         <Button size={'lg'} onClick={handleSignIn} disabled={signInMutation.isPending}>
           <LogIn className="h-4 w-4" />
-          {signInMutation.isPending ? 'Signing in...' : 'Sign in with GitHub'}
+          {signInMutation.isPending ? 'Signing in…' : 'Sign in with GitHub'}
         </Button>
         <Button variant="ghost" onClick={onComplete} disabled={signInMutation.isPending}>
           Skip

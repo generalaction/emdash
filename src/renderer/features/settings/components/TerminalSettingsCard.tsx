@@ -229,7 +229,7 @@ const TerminalSettingsCard: React.FC = () => {
 
                     {loadingFonts ? (
                       <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        Loading installed fonts...
+                        Loading installed fonts…
                       </div>
                     ) : null}
 

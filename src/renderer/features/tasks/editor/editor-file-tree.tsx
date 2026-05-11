@@ -141,7 +141,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
   if (files?.isLoading) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-        Loading...
+        Loading…
       </div>
     );
   }

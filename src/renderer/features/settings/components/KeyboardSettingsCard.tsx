@@ -128,7 +128,7 @@ const KeyboardSettingsCard: React.FC = () => {
                             onClick={() => recorder.cancelRecording()}
                             disabled={saving}
                           >
-                            Press keys...
+                            Press keys…
                           </Button>
                           <Button
                             type="button"

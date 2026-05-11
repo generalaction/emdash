@@ -69,9 +69,7 @@ const ResolvedImage: React.FC<{
     );
   }
   if (!dataUrl) {
-    return (
-      <span className="my-3 inline-block text-xs text-muted-foreground">Loading image...</span>
-    );
+    return <span className="my-3 inline-block text-xs text-muted-foreground">Loading image…</span>;
   }
   return <img src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
 };

@@ -214,7 +214,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
           {submitting ? (
             <>
               <Spinner size="sm" />
-              <span>Sending...</span>
+              <span>Sending…</span>
             </>
           ) : (
             <span>Send Feedback</span>

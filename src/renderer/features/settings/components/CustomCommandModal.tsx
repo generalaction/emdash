@@ -195,7 +195,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-muted-foreground">Loading...</div>
+              <div className="text-sm text-muted-foreground">Loading…</div>
             </div>
           ) : (
             <div className="space-y-4">

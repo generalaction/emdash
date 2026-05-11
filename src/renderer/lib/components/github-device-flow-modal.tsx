@@ -346,14 +346,14 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
             {browserOpening && (
               <div className="w-full rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
                 <p className="text-center text-sm text-blue-600 dark:text-blue-400">
-                  Opening GitHub in {browserOpenCountdown}s...
+                  Opening GitHub in {browserOpenCountdown}s…
                 </p>
               </div>
             )}
 
             <div className="flex flex-col items-center gap-2 text-center">
               <Spinner className="h-5 w-5 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Waiting for authorization...</p>
+              <p className="text-sm text-muted-foreground">Waiting for authorization…</p>
               {timeRemaining > 0 && (
                 <p className="text-xs text-muted-foreground">
                   Code expires in {formatTime(timeRemaining)}

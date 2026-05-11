@@ -39,7 +39,7 @@ export function ImportHeader({ isLoading, singleSource = null }: ImportHeaderPro
           <h1 className="text-xl text-center">{title}</h1>
           {isLoading ? (
             <p className="text-md text-foreground-muted text-center">
-              Scanning existing Emdash data...
+              Scanning existing Emdash data…
             </p>
           ) : (
             <p className="text-md text-foreground-muted text-center">{description}</p>

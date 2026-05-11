@@ -36,7 +36,7 @@ export const TaskSidebarAgentStatus = observer(function TaskSidebarAgentStatus({
             <CLISpinner variant="2" />
           </span>
         </TooltipTrigger>
-        <TooltipContent>Creating task workspace...</TooltipContent>
+        <TooltipContent>Creating task workspace…</TooltipContent>
       </Tooltip>
     );
   }

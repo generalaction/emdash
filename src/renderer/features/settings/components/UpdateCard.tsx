@@ -79,7 +79,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         return (
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Checking for updates...
+            Checking for updates…
           </p>
         );
 
@@ -96,7 +96,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       case 'downloading':
         return (
           <p className="text-sm text-muted-foreground">
-            Downloading update{update.progressLabel ? ` (${update.progressLabel})` : '...'}
+            Downloading update{update.progressLabel ? ` (${update.progressLabel})` : '…'}
           </p>
         );
 
