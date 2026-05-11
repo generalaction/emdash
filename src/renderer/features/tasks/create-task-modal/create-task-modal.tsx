@@ -7,6 +7,7 @@ import {
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
+import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
@@ -24,7 +25,6 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
