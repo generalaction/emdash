@@ -135,24 +135,23 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   }
 
   /**
-   * Visible task IDs for a project in sidebar order: pinned first, then
-   * non-pinned. Archived tasks are excluded. Independent of expand state so
-   * Next/Previous Task navigation works even when the project is collapsed.
+   * Visible unpinned task IDs for a project in sidebar order. Archived tasks are
+   * excluded. Independent of expand state so Next/Previous Task navigation works
+   * even when the project is collapsed.
    */
   visibleTaskIdsForProject(projectId: string): string[] {
     const project = this.projectManager.projects.get(projectId);
     if (!project?.mountedProject) return [];
-    const all = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
-      (t) => t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt)
+    const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
+      (t) =>
+        !t.data.isPinned &&
+        (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
     );
-    const pinned = all.filter((t) => t.data.isPinned);
-    const unpinned = all.filter((t) => !t.data.isPinned);
-    pinned.sort((a, b) => this.compareSidebarTasks(a, b));
     const manualOrder = this.taskOrderByProject[projectId];
-    const orderedUnpinned = manualOrder?.length
-      ? this.mergeTaskOrder(projectId, unpinned)
-      : this.sortTasksForSidebar(unpinned);
-    return [...pinned.map((t) => t.data.id), ...orderedUnpinned.map((t) => t.data.id)];
+    const ordered = manualOrder?.length
+      ? this.mergeTaskOrder(projectId, tasks)
+      : this.sortTasksForSidebar(tasks);
+    return ordered.map((t) => t.data.id);
   }
 
   get isEmpty(): boolean {
