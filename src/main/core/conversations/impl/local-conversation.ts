@@ -99,7 +99,7 @@ export class LocalConversationProvider implements ConversationProvider {
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
     const providerSessionId =
       conversation.providerId === 'codex' && isResuming
-        ? await resolveCodexSessionIdForResume(conversation)
+        ? await resolveCodexSessionIdForResume(conversation, this.taskPath)
         : conversation.providerSessionId;
     const { command, args } = buildAgentCommand({
       providerId: conversation.providerId,
@@ -151,7 +151,7 @@ export class LocalConversationProvider implements ConversationProvider {
       rows: initialSize.rows,
     });
 
-    if (!isResuming && conversation.providerId === 'codex' && !conversation.providerSessionId) {
+    if (!isResuming && conversation.providerId === 'codex' && !providerSessionId) {
       registerPendingCodexSession({
         ptySessionId: sessionId,
         conversationId: conversation.id,

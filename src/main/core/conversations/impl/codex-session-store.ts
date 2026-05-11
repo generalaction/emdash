@@ -24,6 +24,7 @@ type PendingCodexSession = {
   conversationId: string;
   cwd: string;
   startedAtMs: number;
+  firstUserMessage?: string;
   input: string;
   captured: boolean;
   captureScheduled: boolean;
@@ -31,6 +32,8 @@ type PendingCodexSession = {
 
 const pendingCodexSessions = new Map<string, PendingCodexSession>();
 const claimedCodexThreadIds = new Set<string>();
+const CAPTURE_START_TOLERANCE_MS = 5_000;
+const CAPTURE_RETRY_DELAYS_MS = [250, 1_000, 2_500, 5_000, 10_000, 30_000, 60_000];
 
 function existingProviderSessionIds(): Set<string> {
   const ids = new Set<string>(claimedCodexThreadIds);
@@ -73,7 +76,8 @@ function parseCreatedAtMs(value: string): number {
 }
 
 export async function resolveCodexSessionIdForResume(
-  conversation: Conversation
+  conversation: Conversation,
+  cwd: string
 ): Promise<string | undefined> {
   const rows = (await db
     .select({
@@ -98,13 +102,48 @@ export async function resolveCodexSessionIdForResume(
     return conversation.providerSessionId;
   }
 
-  return undefined;
+  const conversationIndex = codexRows.findIndex((row) => row.id === conversation.id);
+  if (conversationIndex < 0) return conversation.providerSessionId;
+
+  let codexDb: Database.Database | undefined;
+  try {
+    codexDb = openCodexDb();
+    if (!codexDb) return conversation.providerSessionId;
+
+    const firstCreatedAtMs = Math.max(0, parseCreatedAtMs(codexRows[0]?.createdAt ?? '') - 60_000);
+    const threads = codexDb
+      .prepare(
+        `SELECT id, created_at_ms
+         FROM threads
+         WHERE archived = 0
+           AND cwd = ?
+           AND created_at_ms >= ?
+         ORDER BY created_at_ms ASC, id ASC
+         LIMIT 100`
+      )
+      .all(cwd, firstCreatedAtMs) as CodexThreadRow[];
+
+    const providerSessionId = threads[conversationIndex]?.id;
+    if (!providerSessionId) return conversation.providerSessionId;
+
+    conversation.providerSessionId = providerSessionId;
+    await saveConversationProviderSessionId(conversation.id, providerSessionId);
+    return providerSessionId;
+  } catch (error) {
+    log.debug('CodexSessionStore: failed to resolve Codex session id for resume', {
+      conversationId: conversation.id,
+      error: String(error),
+    });
+    return conversation.providerSessionId;
+  } finally {
+    codexDb?.close();
+  }
 }
 
-function findCodexThreadByFirstMessage(params: {
+function findCodexThread(params: {
   cwd: string;
   startedAtMs: number;
-  firstUserMessage: string;
+  firstUserMessage?: string;
 }): string | undefined {
   let codexDb: Database.Database | undefined;
   try {
@@ -112,22 +151,35 @@ function findCodexThreadByFirstMessage(params: {
     if (!codexDb) return undefined;
 
     const assignedIds = existingProviderSessionIds();
-    const rows = codexDb
-      .prepare(
-        `SELECT id
-         FROM threads
-         WHERE archived = 0
-           AND cwd = ?
-           AND created_at_ms >= ?
-           AND first_user_message = ?
-         ORDER BY created_at_ms ASC, id ASC
-         LIMIT 10`
-      )
-      .all(params.cwd, params.startedAtMs, params.firstUserMessage) as CodexThreadRow[];
+    const minCreatedAtMs = params.startedAtMs - CAPTURE_START_TOLERANCE_MS;
+    const rows = params.firstUserMessage
+      ? (codexDb
+          .prepare(
+            `SELECT id
+             FROM threads
+             WHERE archived = 0
+               AND cwd = ?
+               AND created_at_ms >= ?
+               AND first_user_message = ?
+             ORDER BY created_at_ms ASC, id ASC
+             LIMIT 10`
+          )
+          .all(params.cwd, minCreatedAtMs, params.firstUserMessage) as CodexThreadRow[])
+      : (codexDb
+          .prepare(
+            `SELECT id
+             FROM threads
+             WHERE archived = 0
+               AND cwd = ?
+               AND created_at_ms >= ?
+             ORDER BY created_at_ms ASC, id ASC
+             LIMIT 10`
+          )
+          .all(params.cwd, minCreatedAtMs) as CodexThreadRow[]);
 
     return rows.find((row) => !assignedIds.has(row.id))?.id;
   } catch (error) {
-    log.debug('CodexSessionStore: failed to match Codex thread by first message', {
+    log.debug('CodexSessionStore: failed to match Codex thread', {
       error: String(error),
     });
     return undefined;
@@ -153,9 +205,11 @@ async function claimCodexThread(ptySessionId: string, providerSessionId: string)
   }
 }
 
-function scheduleFirstMessageCapture(ptySessionId: string, firstUserMessage: string): void {
+function scheduleCodexThreadCapture(ptySessionId: string, firstUserMessage?: string): void {
   const pending = pendingCodexSessions.get(ptySessionId);
-  if (!pending || pending.captured || pending.captureScheduled) return;
+  if (!pending || pending.captured) return;
+  if (firstUserMessage) pending.firstUserMessage = firstUserMessage;
+  if (pending.captureScheduled) return;
 
   pending.captureScheduled = true;
 
@@ -163,18 +217,18 @@ function scheduleFirstMessageCapture(ptySessionId: string, firstUserMessage: str
     const pending = pendingCodexSessions.get(ptySessionId);
     if (!pending || pending.captured) return;
 
-    const providerSessionId = findCodexThreadByFirstMessage({
+    const providerSessionId = findCodexThread({
       cwd: pending.cwd,
       startedAtMs: pending.startedAtMs,
-      firstUserMessage,
+      firstUserMessage: pending.firstUserMessage,
     });
     if (providerSessionId) await claimCodexThread(ptySessionId, providerSessionId);
   };
 
-  for (const delayMs of [250, 1_000, 2_500, 5_000]) {
+  for (const delayMs of CAPTURE_RETRY_DELAYS_MS) {
     setTimeout(() => {
       tryCapture().catch((error) => {
-        log.debug('CodexSessionStore: failed to capture Codex first message', {
+        log.debug('CodexSessionStore: failed to capture Codex thread', {
           error: String(error),
         });
       });
@@ -193,13 +247,12 @@ export function registerPendingCodexSession(params: {
     conversationId: params.conversationId,
     cwd: params.cwd,
     startedAtMs: params.startedAtMs,
+    firstUserMessage: params.firstUserMessage?.trim() || undefined,
     input: '',
     captured: false,
     captureScheduled: false,
   });
-  if (params.firstUserMessage?.trim()) {
-    scheduleFirstMessageCapture(params.ptySessionId, params.firstUserMessage.trim());
-  }
+  scheduleCodexThreadCapture(params.ptySessionId, params.firstUserMessage?.trim() || undefined);
 }
 
 export function unregisterPendingCodexSession(ptySessionId: string): void {
@@ -214,7 +267,7 @@ export function recordCodexInput(ptySessionId: string, data: string): void {
     if (char === '\r' || char === '\n') {
       const firstUserMessage = pending.input.trim();
       pending.input = '';
-      if (firstUserMessage) scheduleFirstMessageCapture(ptySessionId, firstUserMessage);
+      if (firstUserMessage) scheduleCodexThreadCapture(ptySessionId, firstUserMessage);
       continue;
     }
     if (char === '\u007f' || char === '\b') {

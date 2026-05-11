@@ -46,7 +46,7 @@ describe('buildAgentCommand', () => {
     });
   });
 
-  it('falls back to the latest Codex session when no provider session id has been captured', () => {
+  it('does not resume Codex when no provider session id has been captured', () => {
     const command = buildAgentCommand({
       providerId: 'codex',
       providerConfig: providerConfigDefaults.codex,
@@ -56,7 +56,7 @@ describe('buildAgentCommand', () => {
 
     expect(command).toEqual({
       command: 'codex',
-      args: ['resume', '--last'],
+      args: [],
     });
   });
 

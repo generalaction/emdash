@@ -33,7 +33,7 @@ export async function saveConversationProviderSessionId(
     .limit(1);
 
   const config = row?.config ? JSON.parse(row.config) : {};
-  if (config.providerSessionId === providerSessionId) return;
+  if (typeof config.providerSessionId === 'string' && config.providerSessionId) return;
 
   await db
     .update(conversations)

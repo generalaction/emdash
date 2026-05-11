@@ -121,9 +121,9 @@ export function buildAgentCommand({
       args.push('--session', providerSessionId);
     } else if (providerId === 'codex') {
       const resumeArgs = parseArgField(providerConfig.resumeFlag);
-      args.push(...(providerSessionId ? resumeArgs.filter((arg) => arg !== '--last') : resumeArgs));
-      if (providerSessionId) args.push(providerSessionId);
-      else args.push('--last');
+      if (providerSessionId) {
+        args.push(...resumeArgs.filter((arg) => arg !== '--last'), providerSessionId);
+      }
     } else {
       args.push(...parseArgField(providerConfig.resumeFlag));
       if (providerConfig.sessionIdFlag) {
