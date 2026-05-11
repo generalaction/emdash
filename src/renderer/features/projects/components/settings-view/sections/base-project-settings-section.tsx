@@ -1,5 +1,9 @@
 import type { Branch, Remote } from '@shared/git';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
+import {
+  RemoteSelectContent,
+  RemoteSelectItem,
+} from '@renderer/lib/components/remote-select-content';
 import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
@@ -88,28 +92,7 @@ export function BaseProjectSettingsSection({
               </span>
             </div>
           </SelectTrigger>
-          <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
-            {remotes.length > 0 ? (
-              remotes.map((r) => (
-                <SelectItem key={r.name} value={r.name} className="py-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="relative -top-px shrink-0">{r.name}</span>
-                    {r.url ? (
-                      <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">
-                        {r.url}
-                      </span>
-                    ) : null}
-                  </div>
-                </SelectItem>
-              ))
-            ) : (
-              <SelectItem value="origin" className="py-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="relative -top-px shrink-0 font-medium">origin</span>
-                </div>
-              </SelectItem>
-            )}
-          </SelectContent>
+          <RemoteSelectContent remotes={remotes} />
         </Select>
       </Field>
 
@@ -139,17 +122,8 @@ export function BaseProjectSettingsSection({
             <SelectItem value={SAME_AS_BASE_REMOTE} className="py-2">
               <span className="relative -top-px shrink-0 font-medium">Same as base remote</span>
             </SelectItem>
-            {remotes.map((r) => (
-              <SelectItem key={r.name} value={r.name} className="py-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="relative -top-px shrink-0">{r.name}</span>
-                  {r.url ? (
-                    <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">
-                      {r.url}
-                    </span>
-                  ) : null}
-                </div>
-              </SelectItem>
+            {remotes.map((remote) => (
+              <RemoteSelectItem key={remote.name} remote={remote} />
             ))}
           </SelectContent>
         </Select>
