@@ -113,7 +113,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pnpm exec electron-builder --win nsis msi --x64 --publish never --config.npmRebuild=false
+          # MSI target requires WiX icon refs that the upstream
+          # electron-builder.config.ts doesn't currently provide (LGHT0094 on
+          # `Icon:emdashIcon.exe`); ship only NSIS for now. NSIS is the
+          # standard installer most Windows users expect anyway.
+          pnpm exec electron-builder --win nsis --x64 --publish never --config.npmRebuild=false
           ls -lah release || true
 
       - name: Upload Windows artifacts
@@ -122,7 +126,6 @@ jobs:
           name: emdash-windows-x64
           path: |
             release/emdash-*.exe
-            release/emdash-*.msi
             release/*.blockmap
           if-no-files-found: error
 
