@@ -3,14 +3,13 @@ import {
   asProvisioned,
   getRegisteredTaskData,
   getTaskGitStore,
-  getTaskManagerStore,
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import type { ShortcutSettingsKey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { showModal } from '@renderer/lib/modal/modal-provider';
-import { appState } from '@renderer/lib/stores/app-state';
+import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 
 /**
  * Returns a CommandProvider for the task scope.
@@ -37,8 +36,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const connectionId =
         mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
 
-      const taskMgr = getTaskManagerStore(projectId);
-      const taskIds = taskMgr ? Array.from(taskMgr.tasks.keys()) : [];
+      const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
       const currentIdx = taskIds.indexOf(taskId);
 
       const git = getTaskGitStore(projectId, taskId);
