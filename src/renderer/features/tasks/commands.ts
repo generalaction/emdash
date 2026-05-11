@@ -8,7 +8,6 @@ import {
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
 import type { CommandProvider } from '@renderer/lib/commands/types';
-import type { ShortcutSettingsKey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 
@@ -31,7 +30,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
       const taskView = getTaskView(projectId, taskId);
       const tabManager = taskView?.tabManager;
-      const hasTabs = (tabManager?.resolvedTabs.length ?? 0) > 0;
 
       const mountedProject = asMounted(getProjectStore(projectId));
       const connectionId =
@@ -142,52 +140,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             taskView?.openNewTerminal();
           },
         },
-
-        // ── Tab management ─────────────────────────────────────────────────
-        {
-          id: 'task.tabClose',
-          label: 'Close Tab',
-          description: 'Close the active tab',
-          shortcutKey: 'tabClose',
-          group: 'Tabs',
-          enabled: hasTabs,
-          execute() {
-            tabManager?.closeActiveTab();
-          },
-        },
-        {
-          id: 'task.tabNext',
-          label: 'Next Tab',
-          description: 'Switch to the next tab',
-          shortcutKey: 'tabNext',
-          group: 'Tabs',
-          enabled: hasTabs,
-          execute() {
-            tabManager?.setNextTabActive();
-          },
-        },
-        {
-          id: 'task.tabPrev',
-          label: 'Previous Tab',
-          description: 'Switch to the previous tab',
-          shortcutKey: 'tabPrev',
-          group: 'Tabs',
-          enabled: hasTabs,
-          execute() {
-            tabManager?.setPreviousTabActive();
-          },
-        },
-        ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((n) => ({
-          id: `task.tab${n}`,
-          label: `Go to Tab ${n}`,
-          description: `Switch to tab ${n}`,
-          shortcutKey: `tab${n}` as ShortcutSettingsKey,
-          group: 'Tabs',
-          enabled: hasTabs,
-          execute() {
-            tabManager?.setTabActiveIndex(n - 1);
-          },
-        })),
 
         // ── Git ────────────────────────────────────────────────────────────
         {

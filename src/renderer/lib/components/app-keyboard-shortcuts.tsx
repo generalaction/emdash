@@ -6,34 +6,34 @@ import {
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import {
-  useNavigate,
-  useParams,
-  useWorkspaceSlots,
-} from '@renderer/lib/layout/navigation-provider';
+import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 
 /**
- * Mounts global keyboard shortcut handlers for the entire application.
+ * Mounts global keyboard shortcut handlers that require React context and
+ * cannot be handled by the command registry.
+ *
  * Renders nothing — exists only to register useHotkey() calls that are always active.
  * Must be mounted inside all relevant providers (ModalProvider, WorkspaceLayoutContext, etc.).
+ *
+ * Shortcuts handled here:
+ *   - commandPalette: needs showModal with current view context
+ *   - toggleLeftSidebar: needs useWorkspaceLayoutContext
+ *   - toggleTheme: needs useTheme
+ *
+ * Shortcuts NOT handled here (owned by the command registry via app-commands.ts):
+ *   - settings, newProject, newTask, navigateBack, navigateForward
  */
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const showNewProject = useShowModal('addProjectModal');
-  const showCreateTask = useShowModal('taskModal');
   const showCommandPalette = useShowModal('commandPaletteModal');
   const { toggleLeft } = useWorkspaceLayoutContext();
   const { toggleTheme } = useTheme();
-  const { navigate } = useNavigate();
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
-  const settingsHotkey = getEffectiveHotkey('settings', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
   const toggleThemeHotkey = getEffectiveHotkey('toggleTheme', keyboard);
-  const newProjectHotkey = getEffectiveHotkey('newProject', keyboard);
-  const newTaskHotkey = getEffectiveHotkey('newTask', keyboard);
 
-  // Resolve current project context from whichever view is active
+  // Resolve current project/task context for the command palette
   const { currentView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
   const { params: projectParams } = useParams('project');
@@ -51,14 +51,6 @@ export function AppKeyboardShortcuts() {
     { enabled: commandPaletteHotkey !== null }
   );
 
-  useHotkey(
-    getHotkeyRegistration('settings', keyboard),
-    () => {
-      if (currentView !== 'settings') navigate('settings');
-    },
-    { enabled: settingsHotkey !== null }
-  );
-
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,
   });
@@ -66,20 +58,6 @@ export function AppKeyboardShortcuts() {
   useHotkey(getHotkeyRegistration('toggleTheme', keyboard), () => toggleTheme(), {
     enabled: toggleThemeHotkey !== null,
   });
-
-  useHotkey(
-    getHotkeyRegistration('newProject', keyboard),
-    () => showNewProject({ strategy: 'local', mode: 'pick' }),
-    { enabled: newProjectHotkey !== null }
-  );
-
-  useHotkey(
-    getHotkeyRegistration('newTask', keyboard),
-    () => {
-      if (currentProjectId) showCreateTask({ projectId: currentProjectId });
-    },
-    { enabled: !!currentProjectId && newTaskHotkey !== null }
-  );
 
   return null;
 }
