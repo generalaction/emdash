@@ -19,6 +19,23 @@ import { sshConnectionManager } from './ssh-connection-manager';
 import { sshCredentialService } from './ssh-credential-service';
 import { resolveIdentityAgent } from './utils';
 
+/**
+ * Reject host/username values that could be re-parsed by `ssh` as an option
+ * (`-oProxyCommand=...` → RCE on the local machine). Enforced server-side so
+ * malicious rows can never enter the DB, regardless of renderer-side checks.
+ */
+function assertSafeSshHost(host: string): void {
+  if (!host || host.startsWith('-') || !/^[A-Za-z0-9._\-[\]:]+$/.test(host)) {
+    throw new Error(`Invalid SSH host`);
+  }
+}
+
+function assertSafeSshUsername(username: string): void {
+  if (username && (username.startsWith('-') || !/^[A-Za-z0-9._-]+$/.test(username))) {
+    throw new Error(`Invalid SSH username`);
+  }
+}
+
 export const sshController = createRPCController({
   /** List all saved SSH connections (no secrets). */
   getConnections: async (): Promise<SshConfig[]> => {
@@ -41,6 +58,9 @@ export const sshController = createRPCController({
     config: Partial<Pick<SshConfig, 'id'>> &
       Omit<SshConfig, 'id'> & { password?: string; passphrase?: string }
   ): Promise<SshConfig> => {
+    assertSafeSshHost(config.host);
+    assertSafeSshUsername(config.username);
+
     const connectionId = config.id ?? randomUUID();
 
     // Only update stored credentials when a non-empty value is provided.

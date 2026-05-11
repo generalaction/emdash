@@ -74,6 +74,17 @@ function imageMimeForPath(filePath: string): string | null {
 
 const LFS_POINTER_PREFIX = Buffer.from('version https://git-lfs.github.com/spec/');
 
+/**
+ * Defense-in-depth: refuse to pass a value to git as a positional argument when
+ * it begins with `-`. Git parses leading-dash args as flags, and renderer-/RPC-
+ * supplied refs are otherwise interpolated verbatim into commands like
+ * `git show <ref>:<path>` (no `--` separator possible because `<ref>:<path>` is
+ * a single argv element).
+ */
+function refLooksLikeFlag(ref: string): boolean {
+  return ref.startsWith('-');
+}
+
 // Without an LFS smudge filter, cat-file returns pointer text instead of image bytes.
 function looksLikeLfsPointer(buffer: Buffer): boolean {
   if (buffer.length > 1024) return false;
@@ -377,6 +388,7 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
+    if (refLooksLikeFlag(ref)) return null;
     const cf = this._getCatFile();
     if (cf) {
       try {
@@ -415,6 +427,7 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
+    if (refLooksLikeFlag(ref)) return { kind: 'unavailable', reason: 'unsupported' };
     return this._readImageBlob(`${ref}:${filePath}`, filePath);
   }
 
@@ -482,6 +495,9 @@ export class GitService implements GitProvider, IDisposable {
     filePath: string,
     base: DiffMode | GitObjectRef = HEAD_MODE
   ): Promise<DiffResult> {
+    if (base.kind !== 'head' && base.kind !== 'staged') {
+      if (refLooksLikeFlag(toRefString(base))) return { lines: [] };
+    }
     const diffArgs = (() => {
       switch (base.kind) {
         case 'staged':
@@ -592,6 +608,7 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult> {
+    if (refLooksLikeFlag(commitHash)) return { lines: [] };
     const getContentAt = async (ref: string): Promise<string | undefined> => {
       try {
         const { stdout } = await this.ctx.exec('git', ['show', `${ref}:${filePath}`], {
@@ -1387,8 +1404,13 @@ export class GitService implements GitProvider, IDisposable {
         .catch(() => {});
     }
     const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
+    if (name.startsWith('-') || base.startsWith('-')) {
+      return err({ type: 'invalid_name', name });
+    }
     try {
-      await this.ctx.exec('git', ['branch', '--no-track', name, base]);
+      // `--` ends option parsing so a name like `-D` can't be reinterpreted by
+      // `git branch` as a delete flag against the base branch.
+      await this.ctx.exec('git', ['branch', '--no-track', '--', name, base]);
       return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
@@ -1421,9 +1443,21 @@ export class GitService implements GitProvider, IDisposable {
     isFork: boolean,
     configuredRemote = 'origin'
   ): Promise<Result<void, FetchPrForReviewError>> {
+    // Reject fork-controlled / renderer-supplied positional args that could be
+    // reparsed by git as flags. Fork owner regex permits a leading `-`, and
+    // PR head ref names come from GitHub API responses we don't control.
+    if (
+      headRefName.startsWith('-') ||
+      headRepositoryUrl.startsWith('-') ||
+      localBranch.startsWith('-') ||
+      configuredRemote.startsWith('-')
+    ) {
+      return err({ type: 'error', message: 'Invalid PR fetch arguments' });
+    }
     try {
       if (isFork) {
-        const forkRemote = parseGitHubRepository(headRepositoryUrl)?.owner ?? 'fork';
+        const parsedOwner = parseGitHubRepository(headRepositoryUrl)?.owner;
+        const forkRemote = parsedOwner && !parsedOwner.startsWith('-') ? parsedOwner : 'fork';
         // Idempotently ensure remote exists with the correct URL
         const remotes = await this.ctx.exec('git', ['remote']).catch(() => ({ stdout: '' }));
         const names = remotes.stdout
@@ -1491,8 +1525,11 @@ export class GitService implements GitProvider, IDisposable {
       remoteName = stdout.trim() || undefined;
     } catch {}
 
+    if (oldBranch.startsWith('-') || newBranch.startsWith('-')) {
+      return err({ type: 'error', message: 'Invalid branch name' });
+    }
     try {
-      await this.ctx.exec('git', ['branch', '-m', oldBranch, newBranch]);
+      await this.ctx.exec('git', ['branch', '-m', '--', oldBranch, newBranch]);
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
       if (stderr.includes('already exists')) {
@@ -1518,8 +1555,11 @@ export class GitService implements GitProvider, IDisposable {
 
   async deleteBranch(branch: string, force = true): Promise<Result<void, DeleteBranchError>> {
     const flag = force ? '-D' : '-d';
+    if (branch.startsWith('-')) {
+      return err({ type: 'error', message: 'Invalid branch name' });
+    }
     try {
-      await this.ctx.exec('git', ['branch', flag, branch]);
+      await this.ctx.exec('git', ['branch', flag, '--', branch]);
       return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);

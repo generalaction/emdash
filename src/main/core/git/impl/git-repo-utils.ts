@@ -24,8 +24,15 @@ export async function cloneRepository(
   localPath: string,
   ctx: IExecutionContext
 ): Promise<{ success: boolean; error?: string }> {
+  // Reject values that could be reparsed by git as options (`--upload-pack=…`
+  // and friends in the CVE-2017-1000117 / CVE-2018-17456 / CVE-2024-32002
+  // family). Modern git also blocks most of these, but `--` is the canonical
+  // hardening and costs nothing.
+  if (repoUrl.startsWith('-') || localPath.startsWith('-')) {
+    return { success: false, error: 'Invalid clone arguments' };
+  }
   try {
-    await ctx.exec('git', ['clone', repoUrl, localPath]);
+    await ctx.exec('git', ['clone', '--', repoUrl, localPath]);
     return { success: true };
   } catch (error) {
     return {

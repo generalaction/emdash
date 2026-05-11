@@ -22,6 +22,7 @@ describe('cloneRepository', () => {
 
     expect(ctx.exec).toHaveBeenCalledWith('git', [
       'clone',
+      '--',
       'https://github.com/example/repo.git',
       '/work/repo',
     ]);

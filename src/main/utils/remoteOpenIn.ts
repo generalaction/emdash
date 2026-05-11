@@ -2,15 +2,44 @@ import { quoteShellArg } from './shellEscape';
 
 type RemoteEditorScheme = 'vscode' | 'vscodium' | 'cursor';
 
+/**
+ * Reject SSH host/username values that could be misinterpreted by `ssh` as an
+ * option (`-oProxyCommand=...` → RCE) or by URL/shell layers as metacharacters.
+ * Allows the conventional set for usernames and hostnames/IPs and refuses any
+ * leading `-`, whitespace, or shell-meaningful characters.
+ */
+function assertSafeSshHost(host: string): void {
+  if (!host || host.startsWith('-') || !/^[A-Za-z0-9._\-[\]:]+$/.test(host)) {
+    throw new Error(`Refusing unsafe SSH host: ${JSON.stringify(host)}`);
+  }
+}
+
+function assertSafeSshUsername(username: string): void {
+  // Empty username is fine (falls back to system default), but if provided it
+  // must look like a real account name and never look like an SSH option.
+  if (username && (username.startsWith('-') || !/^[A-Za-z0-9._-]+$/.test(username))) {
+    throw new Error(`Refusing unsafe SSH username: ${JSON.stringify(username)}`);
+  }
+}
+
 export function buildRemoteSshAuthority(host: string, username: string): string {
   const normalizedHost = host.trim();
   if (!normalizedHost) return normalizedHost;
 
   // Keep host as-is when caller already included user info (for SSH aliases like user@host).
-  if (normalizedHost.includes('@')) return normalizedHost;
+  if (normalizedHost.includes('@')) {
+    const [userPart, ...hostParts] = normalizedHost.split('@');
+    const hostPart = hostParts.join('@');
+    assertSafeSshUsername(userPart);
+    assertSafeSshHost(hostPart);
+    return normalizedHost;
+  }
+
+  assertSafeSshHost(normalizedHost);
 
   const normalizedUsername = username.trim();
   if (!normalizedUsername) return normalizedHost;
+  assertSafeSshUsername(normalizedUsername);
 
   return `${normalizedUsername}@${normalizedHost}`;
 }
@@ -23,8 +52,11 @@ export function buildRemoteEditorUrl(
 ): string {
   const authority = buildRemoteSshAuthority(host, username);
   const encodedAuthority = encodeURIComponent(authority);
-  const normalizedTargetPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
-  return `${scheme}://vscode-remote/ssh-remote+${encodedAuthority}${normalizedTargetPath}`;
+  // Percent-encode each path segment so `?`/`#`/metacharacters can't smuggle
+  // query strings or fragments into the vscode-remote URL handler.
+  const segments = targetPath.split('/').filter((s) => s.length > 0);
+  const encodedPath = '/' + segments.map((s) => encodeURIComponent(s)).join('/');
+  return `${scheme}://vscode-remote/ssh-remote+${encodedAuthority}${encodedPath}`;
 }
 
 type RemoteTerminalExecInput = {
