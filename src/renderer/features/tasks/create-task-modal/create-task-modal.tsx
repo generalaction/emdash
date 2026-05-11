@@ -209,7 +209,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     useBYOI,
     initialConversation,
     autoApproveDefaults,
-    activeMode.taskName,
     navigate,
     onClose,
   ]);
