@@ -1,20 +1,14 @@
-import * as toml from 'smol-toml';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
-import {
-  makeClaudeHookCommand,
-  makeCodexNotifyCommand,
-  makeOpenCodePluginContent,
-} from './agent-notify-command';
+import { makeClaudeHookCommand, makeOpenCodePluginContent } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
-const CODEX_CONFIG_PATH = '.codex/config.toml';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
@@ -54,17 +48,7 @@ export class HookConfigWriter {
 
   async writeCodexNotify(): Promise<boolean> {
     if (!(await resolveCommandPath('codex', this.exec))) return false;
-
-    const config: Record<string, unknown> = (await this.fs.exists(CODEX_CONFIG_PATH))
-      ? await this.fs
-          .read(CODEX_CONFIG_PATH)
-          .then((result) => toml.parse(result.content) ?? {})
-          .catch(() => ({}))
-      : {};
-
-    config.notify = makeCodexNotifyCommand();
-    await this.fs.write(CODEX_CONFIG_PATH, toml.stringify(config));
-    return true;
+    return false;
   }
 
   async writePiExtension(): Promise<boolean> {
@@ -109,10 +93,7 @@ export class HookConfigWriter {
     }
 
     if (providerId === 'codex') {
-      const wroteConfig = await this.writeCodexNotify();
-      if (wroteConfig && writeGitIgnoreEntries) {
-        await this.ensureGitIgnoreEntries([CODEX_CONFIG_PATH]);
-      }
+      await this.writeCodexNotify();
       return;
     }
 

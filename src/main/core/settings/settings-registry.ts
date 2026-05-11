@@ -21,6 +21,7 @@ export const SETTINGS_DEFAULTS = {
   localProject: () => ({
     defaultProjectsDirectory: join(homedir(), 'emdash', 'repositories'),
     defaultWorktreeDirectory: getDefaultLocalWorktreeDirectory(),
+    injectAgentNotificationHooks: true,
     writeAgentConfigToGitIgnore: true,
   }),
   tasks: {

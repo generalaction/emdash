@@ -100,4 +100,15 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.opencode/plugins/emdash-notifications.js')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
   });
+
+  it('does not write project-local Codex notify config', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('codex');
+
+    expect(fs.files.has('.codex/config.toml')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
 });
