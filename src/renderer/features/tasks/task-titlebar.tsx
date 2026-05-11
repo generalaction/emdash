@@ -15,6 +15,7 @@ import type { Issue } from '@shared/tasks';
 import {
   asMounted,
   getProjectStore,
+  isNonGitProject,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
 import {
@@ -62,7 +63,7 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   taskId: string;
   projectId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId)!;
+  const taskStore = getTaskStore(projectId, taskId);
   const projectName = projectDisplayName(getProjectStore(projectId));
   const name = taskDisplayName(taskStore);
 
@@ -93,25 +94,13 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const provisionedTask = useProvisionedTask();
   const { taskView } = provisionedTask;
 
-  const {
-    hasUpstream,
-    aheadCount,
-    behindCount,
-    fetch,
-    pull,
-    push,
-    publish,
-    isPublishing,
-    isFetching,
-    isPulling,
-    isPushing,
-  } = useGitActions(projectId, taskId);
+  const store = getProjectStore(projectId);
+  const projectStore = asMounted(store);
 
-  const projectStore = asMounted(getProjectStore(projectId));
-
-  const projectName = projectDisplayName(getProjectStore(projectId));
+  const projectName = projectDisplayName(store);
 
   const isRemoteProject = projectStore?.data.type === 'ssh';
+  const isNonGit = isNonGitProject(store);
   return (
     <Titlebar
       leftSlot={
@@ -134,131 +123,35 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
               </div>
               <OpenInMenu path={provisionedTask.path} />
-              <div className="flex flex-col gap-1 border border-border rounded-md p-2">
-                <span className="flex items-center gap-1 text-foreground-muted">
-                  <GitBranch className="size-3.5" />
-                  <span>{provisionedTask.workspace.git.branchName}</span>
-                </span>
-                {taskPayload.sourceBranch && (
-                  <span className="flex items-center gap-2 text-foreground-passive">
-                    Created from
-                    <span className="flex items-center gap-1 text-foreground-muted">
-                      <GitBranch className="size-3.5" /> {taskPayload.sourceBranch.branch}
-                    </span>
+              {!isNonGit && (
+                <div className="flex flex-col gap-1 border border-border rounded-md p-2">
+                  <span className="flex items-center gap-1 text-foreground-muted">
+                    <GitBranch className="size-3.5" />
+                    <span>{provisionedTask.workspace.git.branchName}</span>
                   </span>
-                )}
-                <div className="flex items-center gap-1 w-full">
-                  {hasUpstream ? (
-                    <>
-                      <Tooltip>
-                        <TooltipTrigger className="flex-1">
-                          <Button
-                            className="w-full"
-                            variant="outline"
-                            size="xs"
-                            disabled={isFetching}
-                            onClick={() => fetch()}
-                          >
-                            <RefreshCcw className="size-3" />
-                            {isFetching ? 'Fetching...' : 'Fetch'}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {isFetching ? 'Fetching...' : 'Fetch changes'}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger className="flex-1">
-                          <Button
-                            className="w-full"
-                            variant="outline"
-                            disabled={isPulling || behindCount === 0}
-                            size="xs"
-                            onClick={() => pull()}
-                          >
-                            <ArrowDown className="size-3" />
-                            {isPulling ? (
-                              'Pulling...'
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                Pull
-                                <Badge variant="secondary" className="shrink-0">
-                                  {behindCount}
-                                </Badge>
-                              </span>
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {isPulling
-                            ? 'Pulling...'
-                            : behindCount === 0
-                              ? 'Nothing to pull'
-                              : 'Pull changes'}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger className="flex-1">
-                          <Button
-                            className="w-full"
-                            variant="outline"
-                            disabled={isPushing || aheadCount === 0}
-                            size="xs"
-                            onClick={() => push()}
-                          >
-                            <ArrowUp className="size-3" />
-                            {isPushing ? (
-                              'Pushing...'
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                Push
-                                <Badge variant="secondary" className="shrink-0">
-                                  {aheadCount}
-                                </Badge>
-                              </span>
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {isPushing
-                            ? 'Pushing...'
-                            : aheadCount === 0
-                              ? 'Nothing to push'
-                              : 'Push changes'}
-                        </TooltipContent>
-                      </Tooltip>
-                    </>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger className="flex-1">
-                        <Button
-                          className="w-full"
-                          variant="outline"
-                          disabled={isPublishing}
-                          size="xs"
-                          onClick={() => publish()}
-                        >
-                          <ArrowUp className="size-3" />
-                          {isPublishing ? 'Publishing...' : 'Publish'}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {isPublishing ? 'Publishing...' : 'Publish branch'}
-                      </TooltipContent>
-                    </Tooltip>
+                  {taskPayload.sourceBranch && (
+                    <span className="flex items-center gap-2 text-foreground-passive">
+                      Created from
+                      <span className="flex items-center gap-1 text-foreground-muted">
+                        <GitBranch className="size-3.5" /> {taskPayload.sourceBranch.branch}
+                      </span>
+                    </span>
                   )}
+                  <GitActions projectId={projectId} taskId={taskId} />
                 </div>
-              </div>
-              <IssueSelector
-                value={taskPayload.linkedIssue ?? null}
-                onValueChange={(issue) => {
-                  void taskStore.updateLinkedIssue(issue ?? undefined);
-                }}
-                projectId={projectId}
-                repositoryUrl={provisionedTask.repositoryStore.repositoryUrl ?? ''}
-                projectPath={provisionedTask.path}
-                excludeTaskId={taskId}
-              />
+              )}
+              {!isNonGit && (
+                <IssueSelector
+                  value={taskPayload.linkedIssue ?? null}
+                  onValueChange={(issue) => {
+                    void taskStore.updateLinkedIssue(issue ?? undefined);
+                  }}
+                  projectId={projectId}
+                  repositoryUrl={provisionedTask.repositoryStore.repositoryUrl ?? ''}
+                  projectPath={provisionedTask.path}
+                  excludeTaskId={taskId}
+                />
+              )}
             </PopoverContent>
           </Popover>
           {taskPayload.linkedIssue ? <LinkedIssueBadge issue={taskPayload.linkedIssue} /> : null}
@@ -342,6 +235,120 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         </div>
       }
     />
+  );
+});
+
+const GitActions = observer(function GitActions({
+  projectId,
+  taskId,
+}: {
+  projectId: string;
+  taskId: string;
+}) {
+  const {
+    hasUpstream,
+    aheadCount,
+    behindCount,
+    fetch,
+    pull,
+    push,
+    publish,
+    isPublishing,
+    isFetching,
+    isPulling,
+    isPushing,
+  } = useGitActions(projectId, taskId);
+
+  return (
+    <div className="flex items-center gap-1 w-full">
+      {hasUpstream ? (
+        <>
+          <Tooltip>
+            <TooltipTrigger className="flex-1">
+              <Button
+                className="w-full"
+                variant="outline"
+                size="xs"
+                disabled={isFetching}
+                onClick={() => fetch()}
+              >
+                <RefreshCcw className="size-3" />
+                {isFetching ? 'Fetching...' : 'Fetch'}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{isFetching ? 'Fetching...' : 'Fetch changes'}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger className="flex-1">
+              <Button
+                className="w-full"
+                variant="outline"
+                disabled={isPulling || behindCount === 0}
+                size="xs"
+                onClick={() => pull()}
+              >
+                <ArrowDown className="size-3" />
+                {isPulling ? (
+                  'Pulling...'
+                ) : (
+                  <span className="flex items-center gap-1">
+                    Pull
+                    <Badge variant="secondary" className="shrink-0">
+                      {behindCount}
+                    </Badge>
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isPulling ? 'Pulling...' : behindCount === 0 ? 'Nothing to pull' : 'Pull changes'}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger className="flex-1">
+              <Button
+                className="w-full"
+                variant="outline"
+                disabled={isPushing || aheadCount === 0}
+                size="xs"
+                onClick={() => push()}
+              >
+                <ArrowUp className="size-3" />
+                {isPushing ? (
+                  'Pushing...'
+                ) : (
+                  <span className="flex items-center gap-1">
+                    Push
+                    <Badge variant="secondary" className="shrink-0">
+                      {aheadCount}
+                    </Badge>
+                  </span>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isPushing ? 'Pushing...' : aheadCount === 0 ? 'Nothing to push' : 'Push changes'}
+            </TooltipContent>
+          </Tooltip>
+        </>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger className="flex-1">
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={isPublishing}
+              size="xs"
+              onClick={() => publish()}
+            >
+              <ArrowUp className="size-3" />
+              {isPublishing ? 'Publishing...' : 'Publish'}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{isPublishing ? 'Publishing...' : 'Publish branch'}</TooltipContent>
+        </Tooltip>
+      )}
+    </div>
   );
 });
 

@@ -24,6 +24,8 @@ interface BaseModeData {
 export interface PickModeData extends BaseModeData {
   mode: 'pick';
   initGitRepository?: boolean;
+  /** Skip git entirely and import the folder as a plain project. */
+  noGit?: boolean;
 }
 
 export interface CloneModeData extends BaseModeData {
@@ -120,6 +122,7 @@ export class ProjectManagerStore {
                 name: data.name,
                 connectionId: projectType.connectionId,
                 initGitRepository: data.initGitRepository,
+                noGit: data.noGit,
               })
             : await rpc.projects.createProject({
                 type: 'local',
@@ -127,6 +130,7 @@ export class ProjectManagerStore {
                 path: data.path,
                 name: data.name,
                 initGitRepository: data.initGitRepository,
+                noGit: data.noGit,
               });
           this._setAndOpenProject(projectId, project);
           captureTelemetry('project_added', {

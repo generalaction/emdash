@@ -18,6 +18,8 @@ export type CreateLocalProjectParams = {
   path: string;
   name: string;
   initGitRepository?: boolean;
+  /** Skip git entirely and create the project as a plain folder. */
+  noGit?: boolean;
 };
 
 export async function createLocalProject(params: CreateLocalProjectParams): Promise<LocalProject> {
@@ -26,21 +28,36 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     throw new Error('Invalid directory');
   }
 
-  const fs = new LocalFileSystem(params.path);
-  const baseCtx = new LocalExecutionContext({ root: params.path });
-  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
-  const git = new GitService(baseCtx, authCtx, fs);
-  const gitInfo = await ensureGitRepository(git, params.initGitRepository);
-  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
+  let isGitRepo: boolean;
+  let resolvedPath: string;
+  let baseRef: string;
+
+  if (params.noGit) {
+    isGitRepo = false;
+    resolvedPath = params.path;
+    baseRef = '';
+  } else {
+    const fs = new LocalFileSystem(params.path);
+    const baseCtx = new LocalExecutionContext({ root: params.path });
+    const authCtx = new GitHubAuthExecutionContext(baseCtx, () =>
+      githubConnectionService.getToken()
+    );
+    const git = new GitService(baseCtx, authCtx, fs);
+    const gitInfo = await ensureGitRepository(git, params.initGitRepository);
+    isGitRepo = true;
+    resolvedPath = gitInfo.rootPath;
+    baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
+  }
 
   const [row] = await db
     .insert(projects)
     .values({
       id: params.id ?? randomUUID(),
       name: params.name,
-      path: gitInfo.rootPath,
+      path: resolvedPath,
       workspaceProvider: 'local',
       baseRef,
+      isGitRepo: isGitRepo ? 1 : 0,
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .returning();
@@ -51,6 +68,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     name: row.name,
     path: row.path,
     baseRef: row.baseRef ?? baseRef,
+    isGitRepo,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

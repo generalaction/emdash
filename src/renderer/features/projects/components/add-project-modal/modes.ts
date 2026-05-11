@@ -9,11 +9,11 @@ export function usePickMode() {
   const [path, setPath] = useState('');
   const [name, setName] = useState('');
   const [nameIsTouched, setNameIsTouched] = useState<boolean>(false);
-  const [initGitRepository, setinitGitRepository] = useState<boolean>(false);
+  const [initGitRepository, setInitGitRepository] = useState<boolean>(false);
 
   const handlePathChange = (newPath: string) => {
     setPath(newPath);
-    setinitGitRepository(false);
+    setInitGitRepository(false);
     if (!nameIsTouched) {
       const dirName = basenameFromAnyPath(newPath);
       if (dirName && !nameIsTouched) setName(dirName);
@@ -31,7 +31,8 @@ export function usePickMode() {
     path,
     name,
     initGitRepository,
-    setinitGitRepository,
+    setInitGitRepository,
+    noGit: !initGitRepository,
     handlePathChange,
     handleNameChange,
     isValid,

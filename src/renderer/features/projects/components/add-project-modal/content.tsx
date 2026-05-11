@@ -52,19 +52,14 @@ export function PickExistingPanel({
         />
       </Field>
       {showInitializeGitPrompt && (
-        <div className="overflow-hidden rounded-md border border-border">
-          <p className="border-b border-border bg-background-1 px-2 py-1 text-xs text-foreground-muted">
-            This directory is not a git repository.
-          </p>
-          <div className="p-2">
-            <Field orientation="horizontal">
-              <Switch
-                checked={state.initGitRepository}
-                onCheckedChange={state.setinitGitRepository}
-              />
-              <FieldLabel>Initialize git repository</FieldLabel>
-            </Field>
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+          <div className="flex flex-col">
+            <Label className="font-normal">Initialize git repository</Label>
+            <p className="text-xs text-foreground-muted">
+              Leave off to add this as a non-git project.
+            </p>
           </div>
+          <Switch checked={state.initGitRepository} onCheckedChange={state.setInitGitRepository} />
         </div>
       )}
     </FieldGroup>

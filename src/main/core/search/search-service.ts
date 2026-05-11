@@ -31,7 +31,35 @@ type RecentConversationRow = {
   task_id: string;
 };
 
+type UpsertParams = [
+  itemType: string,
+  itemId: string,
+  projectId: string | null,
+  taskId: string | null,
+  title: string,
+  keywords: string,
+];
+type DeleteParams = [itemId: string, itemType: string];
+
 class SearchService {
+  private _upsertSearchIndex: ReturnType<typeof sqlite.prepare<UpsertParams>> | null = null;
+  private _deleteByItem: ReturnType<typeof sqlite.prepare<DeleteParams>> | null = null;
+
+  private upsertStmt() {
+    this._upsertSearchIndex ??= sqlite.prepare<UpsertParams>(
+      `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    return this._upsertSearchIndex;
+  }
+
+  private deleteStmt() {
+    this._deleteByItem ??= sqlite.prepare<DeleteParams>(
+      `DELETE FROM search_index WHERE item_id = ? AND item_type = ?`
+    );
+    return this._deleteByItem;
+  }
+
   initialize(): void {
     taskEvents.on('task:created', (task) => this.upsertTask(task));
     taskEvents.on('task:updated', (task) => this.upsertTask(task));
@@ -169,12 +197,7 @@ class SearchService {
       .join(' ');
 
     try {
-      sqlite
-        .prepare(
-          `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('task', ?, ?, NULL, ?, ?)`
-        )
-        .run(task.id, task.projectId, task.name, keywords);
+      this.upsertStmt().run('task', task.id, task.projectId, null, task.name, keywords);
     } catch (e) {
       log.warn('SearchService: upsertTask failed', { taskId: task.id, error: String(e) });
     }
@@ -182,12 +205,7 @@ class SearchService {
 
   private upsertProject(project: Project): void {
     try {
-      sqlite
-        .prepare(
-          `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('project', ?, NULL, NULL, ?, ?)`
-        )
-        .run(project.id, project.name, project.path);
+      this.upsertStmt().run('project', project.id, null, null, project.name, project.path);
     } catch (e) {
       log.warn('SearchService: upsertProject failed', {
         projectId: project.id,
@@ -198,12 +216,14 @@ class SearchService {
 
   private upsertConversation(conversation: Conversation): void {
     try {
-      sqlite
-        .prepare(
-          `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('conversation', ?, ?, ?, ?, '')`
-        )
-        .run(conversation.id, conversation.projectId, conversation.taskId, conversation.title);
+      this.upsertStmt().run(
+        'conversation',
+        conversation.id,
+        conversation.projectId,
+        conversation.taskId,
+        conversation.title,
+        ''
+      );
     } catch (e) {
       log.warn('SearchService: upsertConversation failed', {
         conversationId: conversation.id,
@@ -219,12 +239,7 @@ class SearchService {
     title: string
   ): void {
     try {
-      sqlite
-        .prepare(
-          `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
-           VALUES ('conversation', ?, ?, ?, ?, '')`
-        )
-        .run(conversationId, projectId, taskId, title);
+      this.upsertStmt().run('conversation', conversationId, projectId, taskId, title, '');
     } catch (e) {
       log.warn('SearchService: upsertConversationById failed', {
         conversationId,
@@ -235,9 +250,7 @@ class SearchService {
 
   private removeByType(itemType: string, itemId: string): void {
     try {
-      sqlite
-        .prepare(`DELETE FROM search_index WHERE item_id = ? AND item_type = ?`)
-        .run(itemId, itemType);
+      this.deleteStmt().run(itemId, itemType);
     } catch (e) {
       log.warn('SearchService: removeByType failed', { itemType, itemId, error: String(e) });
     }
@@ -255,10 +268,7 @@ class SearchService {
       const allProjects = db.select().from(projects).all();
       const allConversations = db.select().from(conversations).all();
 
-      const upsertStmt = sqlite.prepare(
-        `INSERT OR REPLACE INTO search_index(item_type, item_id, project_id, task_id, title, keywords)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      );
+      const upsertStmt = this.upsertStmt();
 
       sqlite.transaction(() => {
         for (const t of allTasks) {

@@ -33,7 +33,7 @@ export async function ensureGitRepository(
   if (!gitInfo.isGitRepo) {
     if (!initGitRepository) {
       throw new Error(
-        'Directory is not a git repository. Enable "Initialize git repository" to continue.'
+        'Directory is not a git repository. Enable "Initialize git repository" or "Continue without git" to proceed.'
       );
     }
     await git.initRepository();

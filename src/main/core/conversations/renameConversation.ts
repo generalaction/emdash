@@ -4,20 +4,18 @@ import { conversations } from '@main/db/schema';
 import { conversationEvents } from './conversation-events';
 
 export async function renameConversation(conversationId: string, name: string) {
-  const [existing] = await db
-    .select({ projectId: conversations.projectId, taskId: conversations.taskId })
-    .from(conversations)
+  const [updated] = await db
+    .update(conversations)
+    .set({ title: name })
     .where(eq(conversations.id, conversationId))
-    .limit(1);
+    .returning({ projectId: conversations.projectId, taskId: conversations.taskId });
 
-  await db.update(conversations).set({ title: name }).where(eq(conversations.id, conversationId));
-
-  if (existing) {
+  if (updated) {
     conversationEvents._emit(
       'conversation:renamed',
       conversationId,
-      existing.projectId,
-      existing.taskId,
+      updated.projectId,
+      updated.taskId,
       name
     );
   }

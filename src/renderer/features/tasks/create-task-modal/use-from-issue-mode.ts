@@ -14,7 +14,8 @@ export function useFromIssueMode(
   selectedProjectId: string | undefined,
   defaultBranch: Branch | undefined,
   isUnborn: boolean,
-  currentBranchName?: string | null
+  currentBranchName?: string | null,
+  isActive = true
 ) {
   const branchSelection = useBranchSelection(
     selectedProjectId,
@@ -32,7 +33,7 @@ export function useFromIssueMode(
   const generatedTaskNameFromIssue = getIssueTaskName(linkedIssue);
 
   const shouldGenerate =
-    autoGenerateName && linkedIssue !== null && generatedTaskNameFromIssue === null;
+    autoGenerateName && isActive && linkedIssue !== null && generatedTaskNameFromIssue === null;
 
   const { data: generatedName, isPending: isGenerating } = useQuery({
     queryKey: ['generateTaskName', linkedIssue?.title ?? null, linkedIssue?.description ?? null],

@@ -101,7 +101,6 @@ async function searchIssues(searchTerm: string, limit: number): Promise<IssueLis
   const result = await fetchPosts({ limit, searchTerm: term });
   if (!result.success) {
     log.error('[Featurebase] searchIssues error:', result.error);
-    return result;
   }
   return result;
 }

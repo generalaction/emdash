@@ -59,6 +59,8 @@ export class ProjectProvider implements IDisposable {
   readonly type: string;
   readonly projectId: string;
   readonly repoPath: string;
+  /** False when the project was imported as a plain folder without a git repository. */
+  readonly isGitRepo: boolean;
   readonly settings: ProjectSettingsProvider;
   readonly repository: GitRepositoryService;
   readonly fs: FileSystemProvider;
@@ -72,6 +74,7 @@ export class ProjectProvider implements IDisposable {
   constructor(
     projectId: string,
     repoPath: string,
+    isGitRepo: boolean,
     transport: ProjectProviderTransport,
     repository: GitRepositoryService,
     worktreeService: WorktreeService,
@@ -81,6 +84,7 @@ export class ProjectProvider implements IDisposable {
     this.type = transport.kind;
     this.projectId = projectId;
     this.repoPath = repoPath;
+    this.isGitRepo = isGitRepo;
     this._ctx = transport.ctx;
     this.settings = transport.settings;
     this.fs = transport.fs;

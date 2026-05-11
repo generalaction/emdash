@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -21,7 +22,6 @@ import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { ModalLayout } from '@renderer/lib/ui/modal-layout';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { log } from '@renderer/utils/logger';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { useCloneMode, useNewMode, usePickMode } from './modes';
 
@@ -72,6 +72,7 @@ export const AddProjectModal = observer(function AddProjectModal({
     strategy === 'ssh' ? (connectionId ?? availableConnectionIds[0]) : connectionId;
 
   const { navigate } = useNavigate();
+  const { toast } = useToast();
   const { isInitialized, needsGhAuth } = useGithubContext();
 
   const showSshConnModal = useShowModal('addSshConnModal');
@@ -143,28 +144,39 @@ export const AddProjectModal = observer(function AddProjectModal({
     mode === 'pick' &&
     pickPathStatusQuery.data?.isDirectory === true &&
     pickPathStatusQuery.data.isGitRepo === false;
+  const pickNoGit = pickPathStatusQuery.data?.isGitRepo === true ? false : pickState.noGit;
   const isCheckingPickPathStatus = shouldCheckPickPathStatus && pickPathStatusQuery.isPending;
 
   const canCreate =
     activeMode.isValid &&
     (strategy === 'local' || !!selectedConnectionId) &&
-    !isCheckingPickPathStatus &&
-    (!requiresGitInitialization || pickState.initGitRepository);
+    !isCheckingPickPathStatus;
 
   const handleSubmit = async () => {
-    try {
-      const inspection = await rpc.projects.inspectProjectPath(
-        strategy === 'ssh'
-          ? { type: 'ssh', path: pickState.path, connectionId: selectedConnectionId! }
-          : { type: 'local', path: pickState.path }
-      );
-      if (inspection.existingProject) {
-        navigate('project', { projectId: inspection.existingProject.id });
-        onClose();
+    let freshPickInspection:
+      | Awaited<ReturnType<typeof rpc.projects.inspectProjectPath>>
+      | undefined;
+    if (mode === 'pick') {
+      try {
+        freshPickInspection = await rpc.projects.inspectProjectPath(
+          strategy === 'ssh'
+            ? { type: 'ssh', path: pickState.path, connectionId: selectedConnectionId! }
+            : { type: 'local', path: pickState.path }
+        );
+      } catch {
+        toast({
+          title: 'Could not inspect project path',
+          description: 'Check that the path still exists and try again.',
+          variant: 'destructive',
+        });
         return;
       }
-    } catch (e) {
-      log.error(e);
+    }
+
+    if (freshPickInspection?.existingProject) {
+      navigate('project', { projectId: freshPickInspection.existingProject.id });
+      onClose();
+      return;
     }
 
     const id = crypto.randomUUID();
@@ -182,6 +194,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             name: pickState.name,
             path: pickState.path,
             initGitRepository: pickState.initGitRepository,
+            noGit: freshPickInspection?.isGitRepo === true ? false : pickNoGit,
           },
           id
         );

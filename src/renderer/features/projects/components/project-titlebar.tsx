@@ -6,6 +6,7 @@ import {
   getProjectManagerStore,
   getProjectStore,
   getRepositoryStore,
+  isNonGitProject,
   projectDisplayName,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
@@ -127,6 +128,7 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
   if (!mounted) return <Titlebar leftSlot={<ProjectTitlebarLeft projectId={projectId} />} />;
 
   const isRemote = mounted.data.type === 'ssh';
+  const isNonGit = isNonGitProject(store);
   const sshConnectionId = mounted.data.type === 'ssh' ? mounted.data.connectionId : null;
 
   return (
@@ -154,9 +156,11 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
             <ToggleGroupItem value="tasks" size="sm">
               Tasks
             </ToggleGroupItem>
-            <ToggleGroupItem value="pull-request" size="sm">
-              Pull Requests
-            </ToggleGroupItem>
+            {!isNonGit && (
+              <ToggleGroupItem value="pull-request" size="sm">
+                Pull Requests
+              </ToggleGroupItem>
+            )}
             <ToggleGroupItem value="settings" size="sm">
               Settings
             </ToggleGroupItem>

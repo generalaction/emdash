@@ -28,10 +28,14 @@ export class RepositoryStore {
     private readonly projectId: string,
     private readonly settingsStore: ProjectSettingsStore,
     private readonly baseRef: string,
-    private readonly workspaceId?: string
+    private readonly workspaceId?: string,
+    private readonly isGitRepo: boolean = true
   ) {
     this.localData = new Resource<LocalBranchesPayload, GitRefChange>(
-      () => rpc.repository.getLocalBranches(projectId, workspaceId),
+      () =>
+        isGitRepo
+          ? rpc.repository.getLocalBranches(projectId, workspaceId)
+          : Promise.resolve({ isUnborn: false, currentBranch: null, localBranches: [] }),
       [
         { kind: 'demand' },
         {
@@ -49,7 +53,10 @@ export class RepositoryStore {
     );
 
     this.remoteData = new Resource<RemoteBranchesPayload, GitRefChange>(
-      () => rpc.repository.getRemoteBranches(projectId, workspaceId),
+      () =>
+        isGitRepo
+          ? rpc.repository.getRemoteBranches(projectId, workspaceId)
+          : Promise.resolve({ remoteBranches: [], remotes: [], gitDefaultBranch: '' }),
       [
         { kind: 'demand' },
         {
@@ -66,9 +73,12 @@ export class RepositoryStore {
       ]
     );
 
-    // Activate event strategies — demand is wired in Resource constructor, event strategies are not.
-    this.localData.start();
-    this.remoteData.start();
+    // Non-git projects don't fire git ref events — skip event subscriptions to avoid wasted work.
+    if (isGitRepo) {
+      // Activate event strategies — demand is wired in Resource constructor, event strategies are not.
+      this.localData.start();
+      this.remoteData.start();
+    }
 
     // Invalidate remote data when settings that affect remote resolution change.
     this._settingsDisposer = reaction(

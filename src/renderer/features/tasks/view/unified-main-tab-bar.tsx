@@ -23,12 +23,13 @@ import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
+import { modelRegistry, type ModelStatus } from '@renderer/lib/monaco/monaco-model-registry';
 import { Button } from '@renderer/lib/ui/button';
 import { Separator } from '@renderer/lib/ui/separator';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import { formatBytes } from '@renderer/utils/formatBytes';
 import { cn } from '@renderer/utils/utils';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
 
@@ -114,14 +115,12 @@ const ConversationTabItem = observer(function ConversationTabItem({
   );
 });
 
-function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | undefined {
+function fileTabErrorTooltip(diskStatus: ModelStatus, diskUri: string): string | undefined {
   if (diskStatus === 'error') return 'File not found';
   if (diskStatus === 'too-large') {
     const bytes = modelRegistry.modelTotalSizes.get(diskUri);
     if (bytes == null) return 'File too large to display';
-    if (bytes < 1024) return `File too large to display (${bytes} B)`;
-    if (bytes < 1024 * 1024) return `File too large to display (${(bytes / 1024).toFixed(1)} KB)`;
-    return `File too large to display (${(bytes / (1024 * 1024)).toFixed(1)} MB)`;
+    return `File too large to display (${formatBytes(bytes)})`;
   }
   return undefined;
 }

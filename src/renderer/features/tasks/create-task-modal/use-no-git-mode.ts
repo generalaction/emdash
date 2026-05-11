@@ -1,28 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { type Branch } from '@shared/git';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
-import { useBranchSelection } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 
-export type FromBranchModeState = ReturnType<typeof useFromBranchMode>;
+export type NoGitModeState = ReturnType<typeof useNoGitMode>;
 
-export function useFromBranchMode(
-  selectedProjectId: string | undefined,
-  defaultBranch: Branch | undefined,
-  isUnborn: boolean,
-  currentBranchName?: string | null,
-  isActive = true
-) {
-  const branchSelection = useBranchSelection(
-    selectedProjectId,
-    defaultBranch,
-    isUnborn,
-    currentBranchName
-  );
+export function useNoGitMode(selectedProjectId: string | undefined, isActive: boolean) {
   const { autoGenerateName } = useTaskSettings();
-
   const stableKey = useMemo(() => crypto.randomUUID(), []);
 
   const { data: generatedName, isPending: isGenerating } = useQuery({
@@ -38,14 +23,7 @@ export function useFromBranchMode(
     resetKey: selectedProjectId,
   });
 
-  const isValid =
-    taskName.taskName.trim().length > 0 &&
-    branchSelection.selectedBranch !== undefined &&
-    !taskName.isPending;
+  const isValid = taskName.taskName.trim().length > 0 && !taskName.isPending;
 
-  return {
-    ...branchSelection,
-    ...taskName,
-    isValid,
-  };
+  return { ...taskName, isValid };
 }

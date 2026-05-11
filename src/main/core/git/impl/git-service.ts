@@ -351,8 +351,7 @@ export class GitService implements GitProvider, IDisposable {
     // Untracked files don't exist in git history — remove them from disk
     for (const filePath of untracked) {
       try {
-        const exists = await this.fs.exists(filePath);
-        if (exists) await this.fs.remove(filePath);
+        await this.fs.remove(filePath);
       } catch {}
     }
   }
@@ -802,25 +801,6 @@ export class GitService implements GitProvider, IDisposable {
         ? toRangeString(base as MergeBaseRange)
         : toRefString(base as GitObjectRef);
 
-    const parseNumstat = (
-      stdout: string
-    ): Map<string, { additions: number; deletions: number }> => {
-      const map = new Map<string, { additions: number; deletions: number }>();
-      for (const l of stdout
-        .trim()
-        .split('\n')
-        .filter((s) => s.trim())) {
-        const [addStr, delStr, ...pathParts] = l.split('\t');
-        const filePath = pathParts.join('\t');
-        if (!filePath) continue;
-        const existing = map.get(filePath) ?? { additions: 0, deletions: 0 };
-        existing.additions += addStr === '-' ? 0 : Number.parseInt(addStr ?? '0', 10) || 0;
-        existing.deletions += delStr === '-' ? 0 : Number.parseInt(delStr ?? '0', 10) || 0;
-        map.set(filePath, existing);
-      }
-      return map;
-    };
-
     const diffArgs = isStaged ? ['diff', '--numstat', '--cached'] : ['diff', '--numstat', ref];
     const nameArgs = isStaged
       ? ['diff', '--name-status', '--cached']
@@ -831,7 +811,7 @@ export class GitService implements GitProvider, IDisposable {
       this.ctx.exec('git', nameArgs).catch(() => ({ stdout: '' })),
     ]);
 
-    const numstatMap = parseNumstat(numstatResult.stdout);
+    const numstatMap = this.parseNumstat(numstatResult.stdout);
 
     const changes: GitChange[] = [];
     for (const line of nameStatusResult.stdout.trim().split('\n').filter(Boolean)) {
@@ -853,26 +833,10 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getCommitFiles(commitHash: string): Promise<CommitFile[]> {
-    const { stdout } = await this.ctx.exec('git', [
-      'diff-tree',
-      '--root',
-      '--no-commit-id',
-      '-r',
-      '-m',
-      '--first-parent',
-      '--numstat',
-      commitHash,
-    ]);
-
-    const { stdout: nameStatus } = await this.ctx.exec('git', [
-      'diff-tree',
-      '--root',
-      '--no-commit-id',
-      '-r',
-      '-m',
-      '--first-parent',
-      '--name-status',
-      commitHash,
+    const baseArgs = ['diff-tree', '--root', '--no-commit-id', '-r', '-m', '--first-parent'];
+    const [{ stdout }, { stdout: nameStatus }] = await Promise.all([
+      this.ctx.exec('git', [...baseArgs, '--numstat', commitHash]),
+      this.ctx.exec('git', [...baseArgs, '--name-status', commitHash]),
     ]);
 
     const statLines = stdout.trim().split('\n').filter(Boolean);

@@ -42,6 +42,7 @@ export const projects = sqliteTable(
     path: text('path').notNull(),
     workspaceProvider: text('workspace_provider').notNull().default('local'), // 'local' | 'ssh'
     baseRef: text('base_ref'),
+    isGitRepo: integer('is_git_repo').notNull().default(1), // boolean, 0=false, 1=true
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),

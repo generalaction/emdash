@@ -23,9 +23,13 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
     };
   }
 
-  restoreSnapshot(snapshot: Partial<ProjectViewSnapshot>): void {
+  restoreSnapshot(snapshot: Partial<ProjectViewSnapshot>, opts?: { isGitRepo?: boolean }): void {
     if (snapshot.activeView) this.activeView = snapshot.activeView as ProjectView;
     if (snapshot.taskViewTab) this.taskView.setTab(snapshot.taskViewTab);
+    // Non-git projects don't have a pull-request view — drop a stale persisted view.
+    if (opts?.isGitRepo === false && this.activeView === 'pull-request') {
+      this.activeView = 'tasks';
+    }
   }
 }
 

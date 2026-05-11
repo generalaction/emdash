@@ -9,8 +9,8 @@ import type { ActiveFile } from '@shared/view-state';
 export class DiffTabStore {
   readonly tabId: string;
   readonly kind = 'diff' as const;
+  readonly path: string;
 
-  path: string;
   isPreview: boolean;
   diffGroup: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;

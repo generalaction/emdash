@@ -15,7 +15,8 @@ export function useFromPullRequestMode(
   selectedProjectId: string | undefined,
   defaultBranch: Branch | undefined,
   isUnborn: boolean,
-  initialPR?: PullRequest
+  initialPR?: PullRequest,
+  isActive = true
 ) {
   const [linkedPR, setLinkedPR] = useState<PullRequest | null>(initialPR ?? null);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
@@ -28,7 +29,7 @@ export function useFromPullRequestMode(
   const branchSelection = useBranchSelection(selectedProjectId, defaultBranch, isUnborn);
   const { autoGenerateName } = useTaskSettings();
 
-  const shouldGenerate = autoGenerateName && linkedPR !== null;
+  const shouldGenerate = autoGenerateName && isActive && linkedPR !== null;
 
   const { data: generatedName, isPending: isGenerating } = useQuery({
     queryKey: ['generateTaskName', linkedPR?.title ?? null, linkedPR?.description ?? null],
