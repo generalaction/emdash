@@ -72,7 +72,7 @@ export class SshFileSystem implements FileSystemProvider {
   private getSftp(): Promise<SFTPWrapper> {
     if (this.cachedSftp) return Promise.resolve(this.cachedSftp);
     return new Promise((resolve, reject) => {
-      this.proxy.client.sftp((err, sftp) => {
+      this.proxy.sftp((err, sftp) => {
         if (err) return reject(err);
         this.cachedSftp = sftp;
         sftp.on('close', () => {
@@ -89,7 +89,7 @@ export class SshFileSystem implements FileSystemProvider {
     const profile = await this.proxy.getRemoteShellProfile();
     const full = buildRemoteShellCommand(profile, command);
     return new Promise((resolve, reject) => {
-      this.proxy.client.exec(full, (err, stream) => {
+      this.proxy.exec(full, (err, stream) => {
         if (err) return reject(err);
         let stdout = '';
         let stderr = '';

@@ -1,6 +1,12 @@
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/events/ptyEvents';
 import { events } from '@main/lib/events';
 import type { Pty } from './pty';
+
+export interface PtySessionMetadata {
+  providerId?: AgentProviderId;
+  title?: string;
+}
 
 const FLUSH_INTERVAL_MS = 16; // ~60 fps
 const RING_BUFFER_CAP = 64 * 1024; // 64 KB per session
@@ -10,13 +16,20 @@ export class PtySessionRegistry {
   private ptyInputSubscriptions: Map<string, () => void> = new Map();
   private ringBuffers: Map<string, string> = new Map();
   private activeConsumers: Set<string> = new Set();
+  private metadata: Map<string, PtySessionMetadata> = new Map();
 
-  register(sessionId: string, pty: Pty, options?: { preserveBufferOnExit?: boolean }): void {
+  register(
+    sessionId: string,
+    pty: Pty,
+    options?: { preserveBufferOnExit?: boolean; metadata?: PtySessionMetadata }
+  ): void {
     const preserveBufferOnExit = options?.preserveBufferOnExit ?? false;
 
     // Clear any stale ring buffer and consumer from a previous PTY at this sessionId (respawn)
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
+    this.metadata.delete(sessionId);
+    if (options?.metadata) this.metadata.set(sessionId, options.metadata);
 
     this.ptyMap.set(sessionId, pty);
 
@@ -76,6 +89,7 @@ export class PtySessionRegistry {
     this.ptyInputSubscriptions.delete(sessionId);
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
+    this.metadata.delete(sessionId);
   }
 
   get(sessionId: string): Pty | undefined {
@@ -100,6 +114,27 @@ export class PtySessionRegistry {
    */
   unsubscribe(sessionId: string): void {
     this.activeConsumers.delete(sessionId);
+  }
+
+  /** Active PTYs with local OS PID; SSH entries have `pid: undefined`. */
+  listActiveSessions(): Array<{
+    sessionId: string;
+    pid: number | undefined;
+    metadata?: PtySessionMetadata;
+  }> {
+    const out: Array<{
+      sessionId: string;
+      pid: number | undefined;
+      metadata?: PtySessionMetadata;
+    }> = [];
+    for (const [sessionId, pty] of this.ptyMap) {
+      out.push({
+        sessionId,
+        pid: pty.getPid?.(),
+        metadata: this.metadata.get(sessionId),
+      });
+    }
+    return out;
   }
 }
 

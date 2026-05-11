@@ -132,7 +132,10 @@ export class WorktreeService {
       for (const block of stdout.split('\n\n')) {
         if (block.split('\n').some((line) => line === branchLine)) {
           const match = /^worktree (.+)$/m.exec(block);
-          if (match?.[1]?.startsWith(realPoolPath)) return match[1];
+          const candidatePath = match?.[1];
+          if (!candidatePath?.startsWith(realPoolPath)) continue;
+          if (await this.isValidWorktree(candidatePath)) return candidatePath;
+          await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
         }
       }
     } catch {}
