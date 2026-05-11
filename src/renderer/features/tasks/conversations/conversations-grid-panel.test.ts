@@ -1,33 +1,32 @@
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConversationsGridPanel } from './conversations-grid-panel';
 
 const { paneCalls, ptyCalls, mockState } = vi.hoisted(() => ({
   paneCalls: [] as Array<{ paneId: string; sessionIds: string[] }>,
   ptyCalls: [] as Array<{ sessionId: string }>,
   mockState: {
-    provisioned: null as
-      | {
-          taskView: {
-            agentLayoutMode: 'tabs' | 'side-by-side' | 'stacked' | 'tile';
-            agentSlots: string[];
-            removeConversationFromLayout: (conversationId: string) => void;
-          };
-          conversations: {
-            conversations: Map<
-              string,
-              {
-                data: { providerId: string; title: string };
-                session: {
-                  sessionId: string;
-                  status: 'disconnected' | 'connecting' | 'ready';
-                  pty: object | null;
-                };
-              }
-            >;
-          };
-        }
-      | null,
+    provisioned: null as {
+      taskView: {
+        agentLayoutMode: 'tabs' | 'side-by-side' | 'stacked' | 'tile';
+        agentSlots: string[];
+        removeConversationFromLayout: (conversationId: string) => void;
+      };
+      conversations: {
+        conversations: Map<
+          string,
+          {
+            data: { providerId: string; title: string };
+            session: {
+              sessionId: string;
+              status: 'disconnected' | 'connecting' | 'ready';
+              pty: object | null;
+            };
+          }
+        >;
+      };
+    } | null,
   },
 }));
 
@@ -68,11 +67,13 @@ vi.mock('@renderer/lib/pty/pty-pane', () => ({
 }));
 
 vi.mock('@renderer/lib/ui/button', () => ({
-  Button: ({ children }: { children: React.ReactNode }) => React.createElement('button', null, children),
+  Button: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('button', null, children),
 }));
 
 vi.mock('@renderer/lib/ui/context-menu', () => ({
-  ContextMenu: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+  ContextMenu: ({ children }: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
   ContextMenuTrigger: ({
     children,
     className,
@@ -112,8 +113,6 @@ vi.mock('@renderer/utils/agentConfig', () => ({
 vi.mock('@renderer/utils/utils', () => ({
   cn: (...values: Array<string | undefined | false | null>) => values.filter(Boolean).join(' '),
 }));
-
-import { ConversationsGridPanel } from './conversations-grid-panel';
 
 function makeProvisioned(slots: string[]) {
   return {

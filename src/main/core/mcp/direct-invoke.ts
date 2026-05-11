@@ -1,5 +1,13 @@
+import type { ZodType } from 'zod';
 import type { Conversation } from '@shared/conversations';
 import {
+  mcpInvokeProjectListParamsSchema,
+  mcpInvokeTaskCreateParamsSchema,
+  mcpInvokeTaskListParamsSchema,
+  mcpInvokeTerminalCreateParamsSchema,
+  mcpInvokeTerminalListParamsSchema,
+  mcpInvokeTerminalSendParamsSchema,
+  mcpInvokeWorkspaceDevServersParamsSchema,
   type McpInvokeProjectListParams,
   type McpInvokeTaskCreateParams,
   type McpInvokeTaskListParams,
@@ -14,15 +22,7 @@ import {
   type McpTerminalCreateResult,
   type McpTerminalSummary,
   type McpWorkspaceDevServersResult,
-  mcpInvokeProjectListParamsSchema,
-  mcpInvokeTaskCreateParamsSchema,
-  mcpInvokeTaskListParamsSchema,
-  mcpInvokeTerminalCreateParamsSchema,
-  mcpInvokeTerminalListParamsSchema,
-  mcpInvokeTerminalSendParamsSchema,
-  mcpInvokeWorkspaceDevServersParamsSchema,
 } from '@shared/mcp/emdash-drive';
-import type { ZodType } from 'zod';
 import { getConversationById } from '@main/core/conversations/getConversationById';
 import { mcpInternalService } from '@main/core/mcp-internal';
 import {
@@ -58,10 +58,7 @@ async function resolveCallerContext(callerConversationId: string): Promise<Calle
 export async function invokeProjectList(
   input: McpInvokeProjectListParams
 ): Promise<McpProjectSummary[]> {
-  const { callerConversationId, ...query } = parseOrThrow(
-    mcpInvokeProjectListParamsSchema,
-    input
-  );
+  const { callerConversationId, ...query } = parseOrThrow(mcpInvokeProjectListParamsSchema, input);
   return handleProjectList(await resolveCallerContext(callerConversationId), query);
 }
 

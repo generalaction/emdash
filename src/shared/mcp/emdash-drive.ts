@@ -8,8 +8,9 @@ export const mcpProjectListParamsSchema = z.object({
   includeArchived: z.boolean().optional(),
 });
 export type McpProjectListParams = z.infer<typeof mcpProjectListParamsSchema>;
-export const mcpInvokeProjectListParamsSchema =
-  callerConversationSchema.merge(mcpProjectListParamsSchema);
+export const mcpInvokeProjectListParamsSchema = callerConversationSchema.merge(
+  mcpProjectListParamsSchema
+);
 export type McpInvokeProjectListParams = z.infer<typeof mcpInvokeProjectListParamsSchema>;
 
 export const mcpTaskListParamsSchema = z.object({
@@ -17,7 +18,8 @@ export const mcpTaskListParamsSchema = z.object({
   includeArchived: z.boolean().optional(),
 });
 export type McpTaskListParams = z.infer<typeof mcpTaskListParamsSchema>;
-export const mcpInvokeTaskListParamsSchema = callerConversationSchema.merge(mcpTaskListParamsSchema);
+export const mcpInvokeTaskListParamsSchema =
+  callerConversationSchema.merge(mcpTaskListParamsSchema);
 export type McpInvokeTaskListParams = z.infer<typeof mcpInvokeTaskListParamsSchema>;
 
 const mcpTaskCreateParamsShape = z.object({
@@ -64,8 +66,9 @@ export const mcpTerminalCreateParamsSchema = z.object({
   name: z.string().optional(),
 });
 export type McpTerminalCreateParams = z.infer<typeof mcpTerminalCreateParamsSchema>;
-export const mcpInvokeTerminalCreateParamsSchema =
-  callerConversationSchema.merge(mcpTerminalCreateParamsSchema);
+export const mcpInvokeTerminalCreateParamsSchema = callerConversationSchema.merge(
+  mcpTerminalCreateParamsSchema
+);
 export type McpInvokeTerminalCreateParams = z.infer<typeof mcpInvokeTerminalCreateParamsSchema>;
 
 export const mcpTerminalSendBodySchema = z.object({
@@ -73,11 +76,13 @@ export const mcpTerminalSendBodySchema = z.object({
   submit: z.boolean().optional(),
 });
 export type McpTerminalSendBody = z.infer<typeof mcpTerminalSendBodySchema>;
-export const mcpInvokeTerminalSendParamsSchema = callerConversationSchema.merge(
-  z.object({
-    terminalId: z.string().min(1),
-  })
-).merge(mcpTerminalSendBodySchema);
+export const mcpInvokeTerminalSendParamsSchema = callerConversationSchema
+  .merge(
+    z.object({
+      terminalId: z.string().min(1),
+    })
+  )
+  .merge(mcpTerminalSendBodySchema);
 export type McpInvokeTerminalSendParams = z.infer<typeof mcpInvokeTerminalSendParamsSchema>;
 
 export interface McpProjectSummary {

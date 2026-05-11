@@ -1,25 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Conversation } from '@shared/conversations';
-
-vi.mock('@main/core/conversations/getConversationById', () => ({
-  getConversationById: vi.fn(),
-}));
-
-vi.mock('@main/core/mcp-internal', () => ({
-  mcpInternalService: {
-    listWorkspaceDevServers: vi.fn(),
-  },
-}));
-
-vi.mock('@main/core/mcp-internal/routes/orchestration', () => ({
-  handleProjectList: vi.fn(),
-  handleTaskList: vi.fn(),
-  handleTaskCreate: vi.fn(),
-  handleTerminalList: vi.fn(),
-  handleTerminalCreate: vi.fn(),
-  handleTerminalSend: vi.fn(),
-}));
-
 import { getConversationById } from '@main/core/conversations/getConversationById';
 import { mcpInternalService } from '@main/core/mcp-internal';
 import {
@@ -39,6 +19,25 @@ import {
   invokeTerminalSend,
   invokeWorkspaceDevServers,
 } from './direct-invoke';
+
+vi.mock('@main/core/conversations/getConversationById', () => ({
+  getConversationById: vi.fn(),
+}));
+
+vi.mock('@main/core/mcp-internal', () => ({
+  mcpInternalService: {
+    listWorkspaceDevServers: vi.fn(),
+  },
+}));
+
+vi.mock('@main/core/mcp-internal/routes/orchestration', () => ({
+  handleProjectList: vi.fn(),
+  handleTaskList: vi.fn(),
+  handleTaskCreate: vi.fn(),
+  handleTerminalList: vi.fn(),
+  handleTerminalCreate: vi.fn(),
+  handleTerminalSend: vi.fn(),
+}));
 
 const callerConversation: Conversation = {
   id: 'conversation-1',

@@ -1,5 +1,5 @@
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import type { McpWorkspaceDevServer } from '@shared/mcp/emdash-drive';
+import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { buildEmdashServer, refreshEmdashCatalogEntry } from './catalog-refresh';
 import { McpInternalHttpServer } from './http-server';
