@@ -1,4 +1,4 @@
-import { eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, like, ne } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 
@@ -6,12 +6,18 @@ export async function saveConversationProviderSessionId(
   conversationId: string,
   providerSessionId: string
 ): Promise<void> {
-  const otherRows = await db
+  const candidates = await db
     .select({ config: conversations.config })
     .from(conversations)
-    .where(ne(conversations.id, conversationId));
+    .where(
+      and(
+        ne(conversations.id, conversationId),
+        inArray(conversations.provider, ['codex', 'opencode']),
+        like(conversations.config, `%${providerSessionId}%`)
+      )
+    );
 
-  for (const row of otherRows) {
+  for (const row of candidates) {
     if (!row.config) continue;
     try {
       if (JSON.parse(row.config).providerSessionId === providerSessionId) return;

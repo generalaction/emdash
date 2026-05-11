@@ -99,7 +99,7 @@ export class LocalConversationProvider implements ConversationProvider {
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
     const providerSessionId =
       conversation.providerId === 'codex' && isResuming
-        ? await resolveCodexSessionIdForResume(conversation, this.taskPath)
+        ? await resolveCodexSessionIdForResume(conversation)
         : conversation.providerSessionId;
     const { command, args } = buildAgentCommand({
       providerId: conversation.providerId,

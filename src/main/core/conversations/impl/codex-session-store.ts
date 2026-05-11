@@ -26,6 +26,7 @@ type PendingCodexSession = {
   startedAtMs: number;
   input: string;
   captured: boolean;
+  captureScheduled: boolean;
 };
 
 const pendingCodexSessions = new Map<string, PendingCodexSession>();
@@ -72,8 +73,7 @@ function parseCreatedAtMs(value: string): number {
 }
 
 export async function resolveCodexSessionIdForResume(
-  conversation: Conversation,
-  cwd: string
+  conversation: Conversation
 ): Promise<string | undefined> {
   const rows = (await db
     .select({
@@ -98,42 +98,7 @@ export async function resolveCodexSessionIdForResume(
     return conversation.providerSessionId;
   }
 
-  const conversationIndex = codexRows.findIndex((row) => row.id === conversation.id);
-  if (conversationIndex < 0) return conversation.providerSessionId;
-
-  let codexDb: Database.Database | undefined;
-  try {
-    codexDb = openCodexDb();
-    if (!codexDb) return conversation.providerSessionId;
-
-    const firstCreatedAtMs = Math.max(0, parseCreatedAtMs(codexRows[0]?.createdAt ?? '') - 60_000);
-    const threads = codexDb
-      .prepare(
-        `SELECT id, created_at_ms
-         FROM threads
-         WHERE archived = 0
-           AND cwd = ?
-           AND created_at_ms >= ?
-         ORDER BY created_at_ms ASC, id ASC
-         LIMIT 100`
-      )
-      .all(cwd, firstCreatedAtMs) as CodexThreadRow[];
-
-    const providerSessionId = threads[conversationIndex]?.id;
-    if (!providerSessionId) return conversation.providerSessionId;
-
-    conversation.providerSessionId = providerSessionId;
-    await saveConversationProviderSessionId(conversation.id, providerSessionId);
-    return providerSessionId;
-  } catch (error) {
-    log.debug('CodexSessionStore: failed to resolve Codex session id for resume', {
-      conversationId: conversation.id,
-      error: String(error),
-    });
-    return conversation.providerSessionId;
-  } finally {
-    codexDb?.close();
-  }
+  return undefined;
 }
 
 function findCodexThreadByFirstMessage(params: {
@@ -177,11 +142,23 @@ async function claimCodexThread(ptySessionId: string, providerSessionId: string)
 
   pending.captured = true;
   claimedCodexThreadIds.add(providerSessionId);
-  await saveConversationProviderSessionId(pending.conversationId, providerSessionId);
-  pendingCodexSessions.delete(ptySessionId);
+  try {
+    await saveConversationProviderSessionId(pending.conversationId, providerSessionId);
+    pendingCodexSessions.delete(ptySessionId);
+  } catch (error) {
+    pending.captured = false;
+    throw error;
+  } finally {
+    claimedCodexThreadIds.delete(providerSessionId);
+  }
 }
 
 function scheduleFirstMessageCapture(ptySessionId: string, firstUserMessage: string): void {
+  const pending = pendingCodexSessions.get(ptySessionId);
+  if (!pending || pending.captured || pending.captureScheduled) return;
+
+  pending.captureScheduled = true;
+
   const tryCapture = async () => {
     const pending = pendingCodexSessions.get(ptySessionId);
     if (!pending || pending.captured) return;
@@ -218,6 +195,7 @@ export function registerPendingCodexSession(params: {
     startedAtMs: params.startedAtMs,
     input: '',
     captured: false,
+    captureScheduled: false,
   });
   if (params.firstUserMessage?.trim()) {
     scheduleFirstMessageCapture(params.ptySessionId, params.firstUserMessage.trim());
