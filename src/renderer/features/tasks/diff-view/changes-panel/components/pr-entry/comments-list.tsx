@@ -61,7 +61,7 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
         )}
         <div
           className={cn(
-            'mt-1 line-clamp-4 break-words text-xs leading-relaxed text-foreground-muted [&_*:last-child]:mb-0 [&_p]:mb-1.5',
+            'mt-1 break-words text-xs leading-relaxed text-foreground-muted [&_*:last-child]:mb-0 [&_p]:mb-1.5',
             comment.isOutdated && 'text-foreground-passive'
           )}
         >
