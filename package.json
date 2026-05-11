@@ -153,6 +153,7 @@
     "jsonc-parser": "^3.3.1",
     "katex": "^0.16.45",
     "lucide-react": "^0.564.0",
+    "mermaid": "^11.12.2",
     "minimatch": "^10.1.1",
     "mobx": "^6.15.0",
     "mobx-react-lite": "^4.1.1",
