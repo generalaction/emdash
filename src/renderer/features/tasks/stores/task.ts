@@ -130,9 +130,7 @@ export class ProvisionedTask {
     this.draftComments.dispose();
     this.taskView.dispose();
     this.conversations.dispose();
-    for (const term of this.terminals.terminals.values()) {
-      term.dispose();
-    }
+    this.terminals.dispose();
   }
 }
 

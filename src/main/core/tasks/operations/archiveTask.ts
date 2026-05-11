@@ -2,6 +2,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
+import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -13,7 +14,7 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
 
   const project = projectManager.getProject(projectId);
 
-  await db
+  const [updatedRow] = await db
     .update(tasks)
     .set({
       status: 'archived',
@@ -21,7 +22,11 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
     })
-    .where(eq(tasks.id, taskId));
+    .where(eq(tasks.id, taskId))
+    .returning();
+  if (updatedRow) {
+    taskEvents._emit('task:updated', mapTaskRowToTask(updatedRow));
+  }
   taskEvents._emit('task:archived', taskId, projectId);
   telemetryService.capture('task_archived', { project_id: projectId, task_id: taskId });
 

@@ -1,8 +1,15 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import type { Conversation } from '@shared/conversations';
+import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
-import { taskProvisionProgressChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import {
+  taskCreatedChannel,
+  taskDeletedChannel,
+  taskProvisionProgressChannel,
+  taskStatusUpdatedChannel,
+  taskUpdatedChannel,
+} from '@shared/events/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -122,9 +129,14 @@ export class TaskManagerStore {
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
 
+  private _unsubTaskStatus: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
   private _unsubProvisionProgress: (() => void) | null = null;
+  private _unsubTaskCreated: (() => void) | null = null;
+  private _unsubTaskUpdated: (() => void) | null = null;
+  private _unsubTaskDeleted: (() => void) | null = null;
+  private _unsubConversationCreated: (() => void) | null = null;
   private _disposeRepositoryReaction: (() => void) | null = null;
 
   tasks = observable.map<string, TaskStore>();
@@ -141,15 +153,18 @@ export class TaskManagerStore {
     this._baseRef = baseRef;
     makeObservable(this, { tasks: observable });
 
-    events.on(taskStatusUpdatedChannel, ({ taskId, projectId: evtProjectId, status }) => {
-      if (evtProjectId !== this.projectId) return;
-      const store = this.tasks.get(taskId);
-      if (store && isProvisioned(store)) {
-        runInAction(() => {
-          store.data.status = status as TaskLifecycleStatus;
-        });
+    this._unsubTaskStatus = events.on(
+      taskStatusUpdatedChannel,
+      ({ taskId, projectId: evtProjectId, status }) => {
+        if (evtProjectId !== this.projectId) return;
+        const store = this.tasks.get(taskId);
+        if (store && isProvisioned(store)) {
+          runInAction(() => {
+            store.data.status = status as TaskLifecycleStatus;
+          });
+        }
       }
-    });
+    );
 
     this._unsubProvisionProgress = events.on(
       taskProvisionProgressChannel,
@@ -163,6 +178,36 @@ export class TaskManagerStore {
         }
       }
     );
+
+    this._unsubTaskCreated = events.on(taskCreatedChannel, (task) => {
+      if (task.projectId !== this.projectId) return;
+      this._upsertTask(task);
+    });
+
+    this._unsubTaskUpdated = events.on(taskUpdatedChannel, (task) => {
+      if (task.projectId !== this.projectId) return;
+      this._upsertTask(task);
+    });
+
+    this._unsubTaskDeleted = events.on(
+      taskDeletedChannel,
+      ({ taskId, projectId: evtProjectId }) => {
+        if (evtProjectId !== this.projectId) return;
+        this._removeTask(taskId);
+      }
+    );
+
+    this._unsubConversationCreated = events.on(conversationCreatedChannel, (conversation) => {
+      if (conversation.projectId !== this.projectId) return;
+      const store = this.tasks.get(conversation.taskId);
+      if (!store || !isRegistered(store)) return;
+      runInAction(() => {
+        store.data.conversations = {
+          ...store.data.conversations,
+          [conversation.providerId]: (store.data.conversations[conversation.providerId] ?? 0) + 1,
+        };
+      });
+    });
 
     this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
       const repoUrl = this._repository.repositoryUrl;
@@ -220,16 +265,54 @@ export class TaskManagerStore {
     });
   }
 
+  private _mergeTask(current: Task, next: Task): Task {
+    const nextConversations =
+      Object.keys(next.conversations).length > 0 || Object.keys(current.conversations).length === 0
+        ? next.conversations
+        : current.conversations;
+    const nextPrs = next.prs.length > 0 || current.prs.length === 0 ? next.prs : current.prs;
+    return {
+      ...current,
+      ...next,
+      conversations: nextConversations,
+      prs: nextPrs,
+    };
+  }
+
+  private _upsertTask(task: Task): void {
+    runInAction(() => {
+      const current = this.tasks.get(task.id);
+      if (!current) {
+        this.tasks.set(task.id, createUnprovisionedTask(task));
+        return;
+      }
+      if (isUnregistered(current)) {
+        current.transitionToUnprovisioned(task, 'idle');
+        return;
+      }
+      if (isRegistered(current)) {
+        current.data = this._mergeTask(current.data, task);
+      }
+    });
+  }
+
+  private _removeTask(taskId: string): void {
+    const store = this.tasks.get(taskId);
+    if (!store) return;
+    store.dispose();
+    runInAction(() => {
+      this.tasks.delete(taskId);
+    });
+  }
+
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
       this._loadPromise = rpc.tasks
         .getTasks(this.projectId)
         .then((tasks) => {
-          runInAction(() => {
-            for (const t of tasks) {
-              this.tasks.set(t.id, createUnprovisionedTask(t));
-            }
-          });
+          for (const task of tasks) {
+            this._upsertTask(task);
+          }
           const reloadPromises = tasks.flatMap((t) => {
             const store = this.tasks.get(t.id);
             return store && isRegistered(store) ? [this._reloadPrsForTask(store)] : [];
@@ -485,12 +568,22 @@ export class TaskManagerStore {
   }
 
   dispose(): void {
+    this._unsubTaskStatus?.();
+    this._unsubTaskStatus = null;
     this._unsubPrUpdated?.();
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
     this._unsubPrSyncProgress = null;
     this._unsubProvisionProgress?.();
     this._unsubProvisionProgress = null;
+    this._unsubTaskCreated?.();
+    this._unsubTaskCreated = null;
+    this._unsubTaskUpdated?.();
+    this._unsubTaskUpdated = null;
+    this._unsubTaskDeleted?.();
+    this._unsubTaskDeleted = null;
+    this._unsubConversationCreated?.();
+    this._unsubConversationCreated = null;
     this._disposeRepositoryReaction?.();
     this._disposeRepositoryReaction = null;
   }

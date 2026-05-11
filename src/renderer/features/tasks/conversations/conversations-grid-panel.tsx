@@ -101,20 +101,25 @@ const TileCell = observer(function TileCell({ conversationId }: { conversationId
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
-      <div className="relative flex min-h-0 flex-1">
-        {sessionId && session.status === 'ready' && session.pty ? (
-          <PtyPane
-            sessionId={sessionId}
-            pty={session.pty}
-            className="h-full w-full"
-            mapShiftEnterToCtrlJ
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs text-foreground-muted">
-            Connecting…
-          </div>
-        )}
-      </div>
+      <PaneSizingProvider
+        paneId={`agent-cell-${conversationId}`}
+        sessionIds={sessionId ? [sessionId] : []}
+      >
+        <div className="relative flex min-h-0 flex-1">
+          {sessionId && session.status === 'ready' && session.pty ? (
+            <PtyPane
+              sessionId={sessionId}
+              pty={session.pty}
+              className="h-full w-full"
+              mapShiftEnterToCtrlJ
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs text-foreground-muted">
+              Connecting…
+            </div>
+          )}
+        </div>
+      </PaneSizingProvider>
     </div>
   );
 });
@@ -212,9 +217,6 @@ export const ConversationsGridPanel = observer(function ConversationsGridPanel()
   const { taskView } = provisioned;
   const mode = taskView.agentLayoutMode;
   const slots = taskView.agentSlots;
-  const sessionIdHints = slots
-    .map((id) => provisioned.conversations.conversations.get(id)?.session.sessionId)
-    .filter((s): s is string => Boolean(s));
 
   if (slots.length === 0) {
     return (
@@ -241,9 +243,7 @@ export const ConversationsGridPanel = observer(function ConversationsGridPanel()
 
   return (
     <div className="relative flex h-full flex-col">
-      <PaneSizingProvider paneId={`agent-grid-${mode}`} sessionIds={sessionIdHints}>
-        <div className={cn('flex min-h-0 flex-1')}>{body}</div>
-      </PaneSizingProvider>
+      <div className={cn('flex min-h-0 flex-1')}>{body}</div>
     </div>
   );
 });

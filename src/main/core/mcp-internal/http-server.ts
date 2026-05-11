@@ -1,6 +1,14 @@
 import http from 'node:http';
 import { ZodError, type ZodType } from 'zod';
 import type { Conversation } from '@shared/conversations';
+import {
+  mcpProjectListParamsSchema,
+  mcpTaskCreateParamsSchema,
+  mcpTaskListParamsSchema,
+  mcpTerminalCreateParamsSchema,
+  mcpTerminalSendBodySchema,
+  type McpWorkspaceDevServer,
+} from '@shared/mcp/emdash-drive';
 import { getConversationById } from '@main/core/conversations/getConversationById';
 import { log } from '@main/lib/logger';
 import { DevServerTracker } from './dev-server-tracker';
@@ -29,11 +37,6 @@ import {
   handleTerminalList,
   handleTerminalSend,
   handleWorkspaceDevServers,
-  ProjectListQuerySchema,
-  TaskCreateBodySchema,
-  TaskListQuerySchema,
-  TerminalCreateBodySchema,
-  TerminalSendBodySchema,
 } from './routes/orchestration';
 
 export class HttpError extends Error {
@@ -123,6 +126,14 @@ export class McpInternalHttpServer {
     return `http://127.0.0.1:${this.port}`;
   }
 
+  listWorkspaceDevServers(taskId: string): McpWorkspaceDevServer[] {
+    return this.devServers.listForTask(taskId).map((entry) => ({
+      terminalId: entry.terminalId,
+      url: entry.url,
+      detectedAt: entry.detectedAt,
+    }));
+  }
+
   private async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     try {
       const caller = await this.authenticate(req);
@@ -182,14 +193,14 @@ export class McpInternalHttpServer {
       }
 
       if (method === 'GET' && path === '/projects') {
-        const query = parseOrThrow(ProjectListQuerySchema, {
+        const query = parseOrThrow(mcpProjectListParamsSchema, {
           includeArchived: params.get('includeArchived') === 'true' || undefined,
         });
         return this.send(res, 200, await handleProjectList(caller, query));
       }
 
       if (method === 'GET' && path === '/tasks') {
-        const query = parseOrThrow(TaskListQuerySchema, {
+        const query = parseOrThrow(mcpTaskListParamsSchema, {
           projectId: params.get('projectId') ?? undefined,
           includeArchived: params.get('includeArchived') === 'true' || undefined,
         });
@@ -197,7 +208,7 @@ export class McpInternalHttpServer {
       }
 
       if (method === 'POST' && path === '/tasks') {
-        const body = parseOrThrow(TaskCreateBodySchema, await this.readJson(req));
+        const body = parseOrThrow(mcpTaskCreateParamsSchema, await this.readJson(req));
         return this.send(res, 200, await handleTaskCreate(caller, body));
       }
 
@@ -212,14 +223,14 @@ export class McpInternalHttpServer {
       }
 
       if (method === 'POST' && path === '/terminals') {
-        const body = parseOrThrow(TerminalCreateBodySchema, await this.readJson(req));
+        const body = parseOrThrow(mcpTerminalCreateParamsSchema, await this.readJson(req));
         return this.send(res, 200, await handleTerminalCreate(caller, body));
       }
 
       const terminalSendMatch = path.match(TERMINAL_SEND_RE);
       if (terminalSendMatch && method === 'POST') {
         const target = decodeURIComponent(terminalSendMatch[1]);
-        const body = parseOrThrow(TerminalSendBodySchema, await this.readJson(req));
+        const body = parseOrThrow(mcpTerminalSendBodySchema, await this.readJson(req));
         return this.send(res, 200, await handleTerminalSend(caller, target, body));
       }
 
