@@ -59,8 +59,7 @@ export const CreatePrModal = observer(function CreatePrModal({
   const taskPayload = getRegisteredTaskData(projectId, taskId);
   const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
-  const usesSeparatePushRemote = repo ? repo.pushRemote.name !== repo.baseRemote.name : false;
-  const needsPush = !isOnRemote || aheadCount > 0 || usesSeparatePushRemote;
+  const needsPush = !isOnRemote || aheadCount > 0;
   const projectRemoteName = repo?.baseRemote.name ?? 'origin';
   const githubTargetRemotes = useMemo(
     () => getGitHubTargetRemotes(repo?.remotes ?? []),
@@ -91,7 +90,11 @@ export const CreatePrModal = observer(function CreatePrModal({
   };
 
   const doCreate = async (push: boolean) => {
-    if (!title.trim() || !targetRepositoryUrl || !selectedBase?.branch) return;
+    if (!selectedBase?.branch) {
+      setError('Select a base branch before creating the pull request.');
+      return;
+    }
+    if (!title.trim() || !targetRepositoryUrl) return;
     setError(null);
     setIsCreating(true);
     try {
