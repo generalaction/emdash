@@ -1,20 +1,14 @@
-import * as toml from 'smol-toml';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
-import {
-  makeClaudeHookCommand,
-  makeCodexNotifyCommand,
-  makeOpenCodePluginContent,
-} from './agent-notify-command';
+import { makeClaudeHookCommand, makeOpenCodePluginContent } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
-const CODEX_CONFIG_PATH = '.codex/config.toml';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
@@ -49,21 +43,6 @@ export class HookConfigWriter {
     }
 
     await this.fs.write(CLAUDE_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
-    return true;
-  }
-
-  async writeCodexNotify(): Promise<boolean> {
-    if (!(await resolveCommandPath('codex', this.exec))) return false;
-
-    const config: Record<string, unknown> = (await this.fs.exists(CODEX_CONFIG_PATH))
-      ? await this.fs
-          .read(CODEX_CONFIG_PATH)
-          .then((result) => toml.parse(result.content) ?? {})
-          .catch(() => ({}))
-      : {};
-
-    config.notify = makeCodexNotifyCommand();
-    await this.fs.write(CODEX_CONFIG_PATH, toml.stringify(config));
     return true;
   }
 
@@ -108,14 +87,6 @@ export class HookConfigWriter {
       return;
     }
 
-    if (providerId === 'codex') {
-      const wroteConfig = await this.writeCodexNotify();
-      if (wroteConfig && writeGitIgnoreEntries) {
-        await this.ensureGitIgnoreEntries([CODEX_CONFIG_PATH]);
-      }
-      return;
-    }
-
     if (providerId === 'pi') {
       const wroteConfig = await this.writePiExtension();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -135,7 +106,7 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'pi', 'opencode'] as const).map((providerId) =>
+      (['claude', 'pi', 'opencode'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })
