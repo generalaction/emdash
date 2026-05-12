@@ -22,6 +22,7 @@ import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
+import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { Button } from '@renderer/lib/ui/button';
@@ -290,6 +291,8 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const { tabManager } = taskView;
   const showCommandPalette = useShowModal('commandPaletteModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
+
+  useTabShortcuts(tabManager, { focused: taskView.focusedRegion === 'main' });
 
   const resolvedTabs = tabManager.resolvedTabs;
   const tabIds = resolvedTabs.map((t) => t.tabId);

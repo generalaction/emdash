@@ -40,6 +40,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
             timeout: 10_000,
           }
         );
+
         disposers.add(dispose);
       }
     );
