@@ -40,7 +40,8 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
 
   navigate<T extends ViewId>(viewId: T, params?: WrapParams<T>): void {
     if (viewId !== 'task') {
-      appState.history.push({ kind: 'view', viewId, params: params ?? ({} as WrapParams<T>) });
+      const historyParams = params ?? this.viewParamsStore[viewId] ?? ({} as WrapParams<T>);
+      appState.history.push({ kind: 'view', viewId, params: historyParams });
     }
     this._applyNavigation(viewId, params);
   }
