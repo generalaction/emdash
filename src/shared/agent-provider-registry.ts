@@ -435,7 +435,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Freebuff',
     description:
       'Freebuff is a standalone Codebuff package for project-directory assistance and day-to-day development tasks.',
-    docUrl: 'https://www.freebuff.com/docs/help/quick-start',
+    docUrl: 'https://freebuff.com',
     installCommand: 'npm install -g freebuff',
     commands: ['freebuff'],
     versionArgs: ['--version'],
