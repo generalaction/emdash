@@ -1,5 +1,3 @@
-import emojiData from '@emoji-mart/data';
-import { init as initEmojiMart } from 'emoji-mart';
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
@@ -21,10 +19,6 @@ import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { App } from './App';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
-
-// Register the <em-emoji> web component so emoji renderings are identical
-// between the picker and any place we display emoji (sidebar, previews, etc.).
-void initEmojiMart({ data: emojiData });
 
 async function bootstrap() {
   // Wire invalidation bridges so FS and git events flow into the model registry.
