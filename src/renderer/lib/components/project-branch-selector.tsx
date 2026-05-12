@@ -12,6 +12,7 @@ export interface ProjectBranchSelectorProps {
   remoteName?: string;
   branchLabelRemote?: BranchLabelRemoteMode;
   trigger?: React.ReactNode;
+  showRemoteSelectorFooter?: boolean;
 }
 
 export const ProjectBranchSelector = observer(function ProjectBranchSelector({
@@ -22,15 +23,17 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
   remoteName,
   branchLabelRemote,
   trigger,
+  showRemoteSelectorFooter = false,
 }: ProjectBranchSelectorProps) {
   const repo = getRepositoryStore(projectId);
-  const selectedRemoteName = remoteName ?? repo?.baseRemote.name ?? 'origin';
+  const selectedRemoteName =
+    remoteName ??
+    (value?.type === 'remote' ? value.remote.name : undefined) ??
+    repo?.baseRemote.name ??
+    'origin';
 
-  const branches: Branch[] = repo
-    ? repo.branches.filter(
-        (b) => b.type === 'local' || (b.type === 'remote' && b.remote.name === selectedRemoteName)
-      )
-    : [];
+  const branches: Branch[] = repo ? [...repo.localBranches, ...repo.remoteBranches] : [];
+  const canSelectRemote = showRemoteSelectorFooter && remoteName === undefined;
 
   return (
     <BranchSelector
@@ -42,6 +45,10 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
       trigger={trigger}
       onRefresh={() => repo?.refresh()}
       isRefreshing={repo?.loading ?? false}
+      remotes={canSelectRemote ? repo?.remotes : undefined}
+      selectedRemoteName={
+        showRemoteSelectorFooter || remoteName !== undefined ? selectedRemoteName : undefined
+      }
     />
   );
 });
