@@ -130,7 +130,12 @@ export function buildAgentCommand({
     args.push(...parseArgField(providerConfig.autoApproveFlag));
   }
 
-  if (!isResuming && initialPrompt && !providerDef?.useKeystrokeInjection) {
+  if (
+    !isResuming &&
+    initialPrompt &&
+    !providerDef?.useKeystrokeInjection &&
+    !providerDef?.initialPromptViaStdinPipe
+  ) {
     args.push(...parseArgField(providerConfig?.initialPromptFlag), initialPrompt);
   }
 

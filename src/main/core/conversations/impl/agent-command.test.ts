@@ -105,6 +105,20 @@ describe('buildAgentCommand', () => {
     expect(result.args).toEqual(['Fix the bug']);
   });
 
+  it('does not pass stdin-piped prompts as CLI args', () => {
+    const result = buildAgentCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    expect(result).toEqual({
+      command: 'amp',
+      args: [],
+    });
+  });
+
   it('passes Droid session id when resuming', () => {
     const result = buildAgentCommand({
       providerId: 'droid',
