@@ -143,33 +143,42 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     refetchOnWindowFocus: true,
   });
 
-  const invalidateStatuses = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
-  }, [queryClient]);
+  const invalidateProvider = useCallback(
+    (provider: IssueProviderType) => {
+      queryClient.removeQueries({
+        queryKey: ['issues:initial', provider],
+      });
+      queryClient.removeQueries({
+        queryKey: ['issues:search', provider],
+      });
+      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+    },
+    [queryClient]
+  );
 
   const linearConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.linear,
-    invalidate: invalidateStatuses,
+    invalidate: () => invalidateProvider('linear'),
   });
   const jiraConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.jira,
-    invalidate: invalidateStatuses,
+    invalidate: () => invalidateProvider('jira'),
   });
   const gitlabConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.gitlab,
-    invalidate: invalidateStatuses,
+    invalidate: () => invalidateProvider('gitlab'),
   });
   const plainConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.plain,
-    invalidate: invalidateStatuses,
+    invalidate: () => invalidateProvider('plain'),
   });
   const forgejoConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.forgejo,
-    invalidate: invalidateStatuses,
+    invalidate: () => invalidateProvider('forgejo'),
   });
   const featurebaseConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.featurebase,
-    invalidate: invalidateStatuses,
+    invalidate: () => invalidateProvider('featurebase'),
   });
 
   const connectionStatus = statusData ?? DEFAULT_CONNECTION_STATUS;
