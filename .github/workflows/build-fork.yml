@@ -43,6 +43,9 @@ jobs:
       - name: Build app (ts + vite)
         run: pnpm run build
 
+      - name: Rebuild native modules (arm64)
+        run: node --experimental-strip-types scripts/release/rebuild-native.ts --arch arm64
+
       - name: Package macOS DMG + ZIP (unsigned, no publish)
         env:
           # Suppress "no Apple cert found" noise — we're intentionally unsigned.
@@ -106,8 +109,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
-          npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty
+          node --experimental-strip-types scripts/release/rebuild-native.ts --arch x64
 
       - name: Package Windows NSIS + MSI (unsigned, no publish)
         shell: bash
