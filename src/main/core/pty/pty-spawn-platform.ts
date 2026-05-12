@@ -44,13 +44,7 @@ function getWindowsCommandShell(env: NodeJS.ProcessEnv): string {
 
 function getWindowsInteractiveShell(env: NodeJS.ProcessEnv): string {
   const systemRoot = getWindowsEnvValue(env, 'SystemRoot') || 'C:\\Windows';
-  return path.win32.join(
-    systemRoot,
-    'System32',
-    'WindowsPowerShell',
-    'v1.0',
-    'powershell.exe'
-  );
+  return path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 }
 
 function isWindows(platform: NodeJS.Platform): boolean {
