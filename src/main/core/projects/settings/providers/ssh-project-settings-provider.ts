@@ -6,13 +6,15 @@ import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';
 import { resolveRemoteHome } from '@main/core/ssh/utils';
-import type { ProjectSettingsStorage } from '../project-settings-storage';
 import {
   canonicalizeWorktreeDirectory,
   normalizeWorktreeDirectory,
   resolveAndValidateWorktreeDirectory,
 } from '../worktree-directory';
-import { DbProjectSettingsProvider } from './db-project-settings-provider';
+import {
+  DbProjectSettingsProvider,
+  type DbProjectSettingsProviderOptions,
+} from './db-project-settings-provider';
 
 export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
   private homeDirectory?: Promise<string>;
@@ -24,9 +26,9 @@ export class SshProjectSettingsProvider extends DbProjectSettingsProvider {
     private readonly rootFs?: Pick<FileSystemProvider, 'mkdir' | 'realPath'>,
     projectPath: string = '/',
     private readonly ctx?: IExecutionContext,
-    storage?: ProjectSettingsStorage
+    options: DbProjectSettingsProviderOptions = {}
   ) {
-    super(projectId, projectPath, defaultBranchFallback, fs, storage);
+    super(projectId, projectPath, defaultBranchFallback, fs, options);
   }
 
   private async getHomeDirectory(): Promise<Result<string, UpdateProjectSettingsError>> {

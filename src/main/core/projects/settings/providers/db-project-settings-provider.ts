@@ -12,26 +12,30 @@ import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { migrateLegacyProjectSettingsIfNeeded } from '../legacy-project-settings-migration';
+import { serializeShareableProjectSettings } from '../legacy-shareable-migration-marker';
 import { compactUndefined, parseJsonObject, readJson } from '../project-settings-json';
-import {
-  ProjectSettingsRepository,
-  type ProjectSettingsStorage,
-} from '../project-settings-storage';
+import { ProjectSettingsRepository } from '../project-settings-storage';
 import type { ProjectSettingsPatch, ProjectSettingsProvider } from '../provider';
 import { CONFIG_FILE } from '../sharing/workspace-config-file';
 
+export type DbProjectSettingsProviderOptions = {
+  git?: Pick<RepositoryGitProvider, 'isFileCleanlyTracked'>;
+};
+
 export abstract class DbProjectSettingsProvider implements ProjectSettingsProvider {
   private legacyMigrationPromise: Promise<void> | undefined;
+  private readonly storage = new ProjectSettingsRepository();
 
   protected constructor(
     private readonly projectId: string,
     protected readonly projectPath: string,
     protected readonly defaultBranchFallback: string = 'main',
     private readonly configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined,
-    private readonly storage: ProjectSettingsStorage = new ProjectSettingsRepository()
+    private readonly options: DbProjectSettingsProviderOptions = {}
   ) {}
 
   protected abstract defaultWorktreeDirectory(): Promise<string>;
@@ -80,7 +84,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
       : { preservePatterns: [...DEFAULT_PRESERVE_PATTERNS] };
     await this.storage.insertIfMissing(this.projectId, {
       baseProjectSettingsJson: JSON.stringify(compactUndefined(baseSettings)),
-      shareableProjectSettingsJson: JSON.stringify(compactUndefined(shareableSettings)),
+      shareableProjectSettingsJson: serializeShareableProjectSettings(shareableSettings),
       legacyConfigMigratedAt: null,
     });
   }
@@ -129,6 +133,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
         configReader: this.configReader,
         defaultBranchFallback: this.defaultBranchFallback,
         storage: this.storage,
+        git: this.options.git,
         normalizeStoredWorktreeDirectory: (worktreeDirectory) =>
           this.normalizeStoredWorktreeDirectory(worktreeDirectory),
       });
@@ -172,9 +177,12 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
 
     try {
       await this.ensure();
+      const row = await this.storage.get(this.projectId);
       await this.storage.update(this.projectId, {
         baseProjectSettingsJson: JSON.stringify(compactUndefined(base)),
-        shareableProjectSettingsJson: JSON.stringify(compactUndefined(shareable)),
+        shareableProjectSettingsJson: serializeShareableProjectSettings(shareable, {
+          previousRaw: row?.shareableProjectSettingsJson,
+        }),
       });
       return ok();
     } catch (error) {
@@ -200,7 +208,9 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
       }
 
       await this.storage.update(this.projectId, {
-        shareableProjectSettingsJson: JSON.stringify(compactUndefined(shareable)),
+        shareableProjectSettingsJson: serializeShareableProjectSettings(shareable, {
+          previousRaw: row?.shareableProjectSettingsJson,
+        }),
       });
       return ok();
     } catch (error) {

@@ -2,13 +2,23 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PRESERVE_PATTERNS } from '@shared/project-settings';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { LocalProjectSettingsProvider } from './providers/local-project-settings-provider';
 import { SshProjectSettingsProvider } from './providers/ssh-project-settings-provider';
+
+const storageMockState = vi.hoisted(() => ({
+  storage: undefined as ProjectSettingsStorage | undefined,
+}));
+
+function makeTrackingGit(isFileCleanlyTracked: boolean) {
+  return {
+    isFileCleanlyTracked: vi.fn().mockResolvedValue(isFileCleanlyTracked),
+  };
+}
 
 vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: {
@@ -25,6 +35,15 @@ vi.mock('@main/db/client', () => ({
   db: {},
 }));
 
+vi.mock('./project-settings-storage', () => ({
+  ProjectSettingsRepository: vi.fn(function ProjectSettingsRepository() {
+    if (!storageMockState.storage) {
+      throw new Error('ProjectSettingsRepository test storage was not configured');
+    }
+    return storageMockState.storage;
+  }),
+}));
+
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn().mockReturnValue('/tmp'),
@@ -33,7 +52,7 @@ vi.mock('electron', () => ({
 
 describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   const tempDirs: string[] = [];
-  const storage = (): ProjectSettingsStorage => {
+  const createStorage = (): ProjectSettingsStorage => {
     const rows = new Map<
       string,
       {
@@ -55,7 +74,12 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
 
   const projectId = () => `project-${randomUUID()}`;
 
+  beforeEach(() => {
+    storageMockState.storage = createStorage();
+  });
+
   afterEach(() => {
+    storageMockState.storage = undefined;
     for (const dir of tempDirs.splice(0)) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -65,7 +89,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
 
     await expect(provider.get()).resolves.toMatchObject({
       preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
@@ -80,7 +104,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       JSON.stringify({ shellSetup: 'nvm use' })
     );
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
 
     await expect(provider.get()).resolves.toMatchObject({
       preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
@@ -95,16 +119,116 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       JSON.stringify({ preservePatterns: ['.env.shared'] })
     );
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
 
     await expect(provider.get()).resolves.not.toHaveProperty('preservePatterns');
+  });
+
+  it('migrates shareable settings from a local-only root config', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    fs.writeFileSync(
+      path.join(projectPath, '.emdash.json'),
+      JSON.stringify({
+        preservePatterns: ['.env.local'],
+        shellSetup: 'nvm use',
+        scripts: {
+          setup: 'pnpm install',
+          run: 'pnpm dev',
+          teardown: 'pnpm cleanup',
+        },
+      })
+    );
+
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', {
+      git: makeTrackingGit(false),
+    });
+
+    await expect(provider.get()).resolves.toMatchObject({
+      preservePatterns: ['.env.local'],
+      shellSetup: 'nvm use',
+      scripts: {
+        setup: 'pnpm install',
+        run: 'pnpm dev',
+        teardown: 'pnpm cleanup',
+      },
+    });
+  });
+
+  it('migrates local-only shareable settings for rows already base-migrated', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    fs.writeFileSync(
+      path.join(projectPath, '.emdash.json'),
+      JSON.stringify({
+        shellSetup: 'nvm use',
+        scripts: {
+          setup: 'pnpm install',
+          run: 'pnpm dev',
+        },
+      })
+    );
+    const row = {
+      baseProjectSettingsJson: JSON.stringify({ defaultBranch: 'main' }),
+      shareableProjectSettingsJson: '{}',
+      legacyConfigMigratedAt: new Date().toISOString(),
+    };
+    const settingsStorage: ProjectSettingsStorage = {
+      get: async () => row,
+      insertIfMissing: vi.fn(),
+      update: async (_projectId, settings) => {
+        Object.assign(row, settings);
+      },
+    };
+    storageMockState.storage = settingsStorage;
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', {
+      git: makeTrackingGit(false),
+    });
+
+    await expect(provider.get()).resolves.toMatchObject({
+      shellSetup: 'nvm use',
+      scripts: {
+        setup: 'pnpm install',
+        run: 'pnpm dev',
+      },
+    });
+
+    const result = await provider.update({ preservePatterns: [] });
+    expect(result.success).toBe(true);
+    await expect(provider.get()).resolves.not.toHaveProperty('shellSetup');
+    await expect(provider.get()).resolves.not.toHaveProperty('scripts');
+  });
+
+  it('keeps cleanly tracked shareable settings file-backed', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    fs.writeFileSync(
+      path.join(projectPath, '.emdash.json'),
+      JSON.stringify({
+        shellSetup: 'nvm use',
+        scripts: {
+          setup: 'pnpm install',
+          run: 'pnpm dev',
+        },
+      })
+    );
+
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', {
+      git: makeTrackingGit(true),
+    });
+
+    await expect(provider.get()).resolves.toMatchObject({
+      preservePatterns: [...DEFAULT_PRESERVE_PATTERNS],
+    });
+    await expect(provider.get()).resolves.not.toHaveProperty('shellSetup');
+    await expect(provider.get()).resolves.not.toHaveProperty('scripts');
   });
 
   it('does not seed computed worktreeDirectory into project settings', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
 
     await expect(provider.get()).resolves.not.toHaveProperty('worktreeDirectory');
     await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
@@ -114,7 +238,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
   it('keeps computed worktreeDirectory default separate from configured overrides', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
     const expectedOverridePath = path.resolve(projectPath, 'worktrees');
     const result = await provider.update({
       preservePatterns: [],
@@ -146,12 +270,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
         Object.assign(row, settings);
       },
     };
-    const provider = new LocalProjectSettingsProvider(
-      projectId(),
-      projectPath,
-      'main',
-      settingsStorage
-    );
+    storageMockState.storage = settingsStorage;
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
 
     await expect(provider.ensure()).rejects.toThrow('db write failed');
     await expect(provider.ensure()).resolves.toBeUndefined();
@@ -183,12 +303,8 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
         Object.assign(row, settings);
       },
     };
-    const provider = new LocalProjectSettingsProvider(
-      projectId(),
-      projectPath,
-      'main',
-      settingsStorage
-    );
+    storageMockState.storage = settingsStorage;
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
 
     const result = await provider.patch({
       clearShareableFields: ['preservePatterns', 'scripts.run'],
@@ -206,7 +322,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
     const expectedPath = path.resolve(projectPath, 'worktrees');
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: expectedPath });
     expect(result.success).toBe(true);
@@ -222,7 +338,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
 
     expect(result).toEqual({
@@ -235,7 +351,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
     const foreignPath = process.platform === 'win32' ? '/tmp/worktrees' : 'C:\\worktrees';
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: foreignPath });
 
@@ -250,7 +366,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     tempDirs.push(projectPath);
     fs.writeFileSync(path.join(projectPath, 'not-a-directory'), 'file');
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
     const result = await provider.update({
       preservePatterns: [],
       worktreeDirectory: path.join(projectPath, 'not-a-directory', 'worktrees'),
@@ -265,7 +381,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
 
-    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main', storage());
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: '   ' });
     expect(result.success).toBe(true);
 
@@ -287,8 +403,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       'main',
       rootFs,
       '/remote/repo',
-      undefined,
-      storage()
+      undefined
     );
     const result = await provider.update({
       preservePatterns: [],
@@ -319,8 +434,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       'main',
       rootFs,
       '/remote/repo',
-      undefined,
-      storage()
+      undefined
     );
     const result = await provider.update({ preservePatterns: [], worktreeDirectory: 'worktrees' });
 
@@ -342,8 +456,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       'main',
       undefined,
       '/remote/repo',
-      undefined,
-      storage()
+      undefined
     );
     await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.emdash/worktrees');
   });
@@ -363,8 +476,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       'main',
       rootFs,
       '/remote/repo',
-      undefined,
-      storage()
+      undefined
     );
     const result = await provider.update({
       preservePatterns: [],
@@ -390,8 +502,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       'main',
       undefined,
       '/remote/repo',
-      undefined,
-      storage()
+      undefined
     );
     await expect(provider.getWorktreeDirectory()).resolves.toBe('/remote/repo/.emdash/worktrees');
   });
@@ -418,8 +529,7 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
       'main',
       rootFs,
       '/remote/repo',
-      ctx,
-      storage()
+      ctx
     );
     const first = await provider.update({ preservePatterns: [], worktreeDirectory: '~/worktrees' });
     const second = await provider.update({ preservePatterns: [], worktreeDirectory: '~' });
