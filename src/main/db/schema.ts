@@ -125,9 +125,9 @@ export const tasks = sqliteTable(
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     isPinned: integer('is_pinned').notNull().default(0), // boolean, 0=false, 1=true
-    workspaceProvider: text('workspace_provider'), // 'local' | 'ssh' | null (null = inherit from project settings)
+    workspaceProvider: text('workspace_provider'), // @deprecated — superseded by workspaces.type; still read in resolveBootstrap for legacy BYOI tasks
     workspaceId: text('workspace_id'),
-    workspaceProviderData: text('workspace_provider_data'), // JSON, BYOI only
+    workspaceProviderData: text('workspace_provider_data'), // @deprecated — superseded by workspaces.data
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),

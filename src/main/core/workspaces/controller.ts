@@ -38,12 +38,9 @@ async function resolveBootstrap(params: {
       return 'local';
     })();
 
-    await db.transaction(async (tx) => {
-      await tx.insert(workspaces).values({
-        id: newId,
-        type: workspaceType,
-      });
-      await tx.update(tasks).set({ workspaceId: newId }).where(eq(tasks.id, taskId));
+    db.transaction((tx) => {
+      tx.insert(workspaces).values({ id: newId, type: workspaceType }).run();
+      tx.update(tasks).set({ workspaceId: newId }).where(eq(tasks.id, taskId)).run();
     });
     workspaceId = newId;
   } else {

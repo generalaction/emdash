@@ -10,7 +10,6 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { provisionBYOITask } from '@main/core/workspaces/byoi/provision-byoi-task';
-import { localWorkspaceId, sshWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
@@ -58,7 +57,10 @@ async function executeProvision(
   terminals: Terminal[],
   hint?: WorkspaceHint
 ): Promise<ProvisionResult> {
-  const isByoi = hint?.type === 'byoi';
+  if (!hint?.id) throw new Error('executeProvision called without a workspace hint — this is a bug');
+  const workspaceId = hint.id;
+
+  const isByoi = hint.type === 'byoi';
   if (isByoi) {
     const projectSettings = await provider.settings.get();
     if (projectSettings.workspaceProvider?.type !== 'script') {
@@ -76,14 +78,9 @@ async function executeProvision(
       projectPath: provider.repoPath,
       settings: provider.settings,
       logPrefix: `${provider.type}ProjectProvider[byoi]`,
+      workspaceId,
     });
   }
-
-  const workspaceId =
-    hint?.id ??
-    (provider.defaultWorkspaceType.kind === 'local'
-      ? localWorkspaceId(provider.projectId, task.taskBranch)
-      : sshWorkspaceId(provider.projectId, task.taskBranch));
 
   const { provisionResult, workspace } = await provisionLocalTask({
     task,
