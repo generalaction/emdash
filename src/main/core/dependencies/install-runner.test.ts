@@ -112,7 +112,6 @@ describe('runLocalInstallCommand', () => {
 describe('createSshInstallCommandRunner', () => {
   it('runs remote installs through the captured remote shell profile', async () => {
     const proxy = {
-      client: {},
       getRemoteShellProfile: vi.fn(async () => ({
         shell: '/bin/zsh',
         env: {
@@ -127,7 +126,7 @@ describe('createSshInstallCommandRunner', () => {
     expect(result.success).toBe(true);
     expect(proxy.getRemoteShellProfile).toHaveBeenCalledWith();
     expect(mocks.openSsh2Pty).toHaveBeenCalledWith(
-      proxy.client,
+      proxy,
       expect.objectContaining({
         command:
           "'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; npm install -g @anthropic-ai/claude-code'",

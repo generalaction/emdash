@@ -82,6 +82,14 @@ export class TaskViewStore {
       this.tabManager.initializeDefault();
     }
 
+    // Fallback: if no tabs are open after snapshot restoration or
+    // initializeDefault (e.g. a previously saved snapshot had an empty
+    // tabManager, or conversations weren't populated when initializeDefault
+    // ran), try to open the initial conversation now.
+    if (this.tabManager.tabOrder.length === 0) {
+      this.tabManager.initializeDefault();
+    }
+
     // Create FileModelLifecycleStore after tab snapshot restore so the initial
     // model registration fires with the correct set of open file paths.
     this.editorView = new FileModelLifecycleStore(
@@ -133,6 +141,23 @@ export class TaskViewStore {
       diffView: false,
       activeRenderer: computed,
     });
+
+    // Create a default terminal whenever the drawer is open, loading is complete,
+    // and there are no existing terminals. This is the single authoritative
+    // auto-creation path — fully decoupled from React lifecycle.
+    this.disposers.push(
+      reaction(
+        () =>
+          this.isTerminalDrawerOpen &&
+          this.terminalsMgr.isLoaded &&
+          this.terminalTabs.tabs.length === 0,
+        (shouldCreate) => {
+          if (shouldCreate) {
+            void this.terminalsMgr.createDefaultTerminal();
+          }
+        }
+      )
+    );
   }
 
   get activeRenderer(): RendererKind {
@@ -193,14 +218,13 @@ export class TaskViewStore {
 
   setTerminalDrawerOpen(open: boolean): void {
     this.isTerminalDrawerOpen = open;
-    if (open && this.terminalTabs.tabs.length === 0) {
-      void this.terminalsMgr.createDefaultTerminal();
-    }
+    this.setFocusedRegion(open ? 'bottom' : 'main');
   }
 
   /** Opens the terminal drawer and always creates a new terminal session. */
   openNewTerminal(): void {
     this.isTerminalDrawerOpen = true;
+    this.setFocusedRegion('bottom');
     void this.terminalsMgr.createDefaultTerminal();
   }
 

@@ -45,6 +45,10 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const displayRows = draggingProjectId
     ? rows.filter((r) => !(r.kind === 'task' && r.projectId === draggingProjectId))
     : rows;
+  const activeTaskProjectExpanded =
+    currentView === 'task' && taskParams.projectId
+      ? sidebarStore.expandedProjectIds.has(taskParams.projectId)
+      : null;
 
   const allDndIds = displayRows.map(rowToDndId);
 
@@ -67,7 +71,13 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     sidebarStore.ensureProjectExpanded(targetProjectId);
   }, [currentView, taskParams.projectId, taskParams.taskId]);
 
-  // Scroll the active project/task into view when navigation or row layout changes.
+  // Scroll the active project/task into view only when the navigation target itself
+  // changes, plus the active task's project expansion state. Re-running on every
+  // `displayRows` change would yank the user back to the active row whenever the
+  // sidebar mutates (e.g. deleting an unrelated task), but direct navigation to a
+  // task in a collapsed project needs one rerun after `ensureProjectExpanded`.
+  const displayRowsRef = useRef(displayRows);
+  displayRowsRef.current = displayRows;
   useEffect(() => {
     let targetProjectId: string | null = null;
     let targetTaskId: string | null = null;
@@ -88,7 +98,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       }
     }
 
-    const activeIndex = displayRows.findIndex((row) => {
+    const activeIndex = displayRowsRef.current.findIndex((row) => {
       if (targetTaskId) {
         return (
           row.kind === 'task' && row.taskId === targetTaskId && row.projectId === targetProjectId
@@ -105,7 +115,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     taskParams.projectId,
     taskParams.taskId,
     projectParams.projectId,
-    displayRows,
+    activeTaskProjectExpanded,
     virtualizer,
   ]);
 

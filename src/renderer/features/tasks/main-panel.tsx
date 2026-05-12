@@ -189,7 +189,10 @@ const TaskMainColumn = observer(function TaskMainColumn() {
         collapsedSize="0%"
         defaultSize="25%"
         minSize="15%"
-        onResize={() => taskView.setTerminalDrawerOpen(!bottomPanelRef.current?.isCollapsed())}
+        onResize={(_panelSize, _id, prevPanelSize) => {
+          if (prevPanelSize === undefined) return;
+          taskView.setTerminalDrawerOpen(!bottomPanelRef.current?.isCollapsed());
+        }}
       >
         <TerminalsPanel />
       </ResizablePanel>

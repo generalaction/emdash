@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
+import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -105,14 +106,26 @@ export async function createConversation(params: CreateConversationParams): Prom
 
   const conversation = mapConversationRowToConversation(row);
 
-  conversationEvents._emit('conversation:created', conversation);
+  await withCompensation({
+    action: async () =>
+      task.conversations.startSession(
+        conversation,
+        params.initialSize,
+        false,
+        await prepareInitialPrompt(params)
+      ),
+    compensate: async () => {
+      await db.delete(conversations).where(eq(conversations.id, row.id)).execute();
+    },
+    onCompensationError: (error) => {
+      log.error('createConversation: failed to roll back conversation row after spawn failure', {
+        conversationId: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    },
+  });
 
-  await task.conversations.startSession(
-    conversation,
-    params.initialSize,
-    false,
-    await prepareInitialPrompt(params)
-  );
+  conversationEvents._emit('conversation:created', conversation);
   telemetryService.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,
@@ -121,5 +134,5 @@ export async function createConversation(params: CreateConversationParams): Prom
     conversation_id: id,
   });
 
-  return mapConversationRowToConversation(row);
+  return conversation;
 }

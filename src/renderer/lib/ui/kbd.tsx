@@ -17,7 +17,10 @@ function KbdGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <kbd
       data-slot="kbd-group"
-      className={cn('inline-flex items-center gap-1', className)}
+      className={cn(
+        'inline-flex items-center gap-0 [&>[data-slot=kbd]]:min-w-0 [&>[data-slot=kbd]]:rounded-none [&>[data-slot=kbd]]:px-0 [&>[data-slot=kbd]:first-child]:rounded-l-sm [&>[data-slot=kbd]:first-child]:pl-1 [&>[data-slot=kbd]:last-child]:rounded-r-sm [&>[data-slot=kbd]:last-child]:pr-1',
+        className
+      )}
       {...props}
     />
   );

@@ -101,7 +101,7 @@ export function runLocalInstallCommand(
 export function createSshInstallCommandRunner(proxy: SshClientProxy): InstallCommandRunner {
   return async (command: string) => {
     const profile = await proxy.getRemoteShellProfile();
-    const result = await openSsh2Pty(proxy.client, {
+    const result = await openSsh2Pty(proxy, {
       id: `install:${crypto.randomUUID()}`,
       command: buildRemoteShellCommand(profile, command),
       cols: 80,
