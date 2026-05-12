@@ -243,11 +243,9 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
     );
   }
 
-  const hideTabBar = taskView.agentLayoutMode !== 'tabs' && renderer === 'agents';
-
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {!hideTabBar && <UnifiedMainTabBar />}
+      <UnifiedMainTabBar />
       <div className="relative min-h-0 flex-1">
         {/*
          * Persistent Monaco host — always in the DOM, never inside an Activity.
