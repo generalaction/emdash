@@ -458,12 +458,12 @@ const _OPEN_IN_APPS = {
         appNames: ['Android Studio Preview'],
       },
       win32: {
-        openCommands: ['studio64 {{path}}', 'studio {{path}}'],
-        checkCommands: ['studio64', 'studio'],
+        openCommands: ['studio-preview {{path}}'],
+        checkCommands: ['studio-preview'],
       },
       linux: {
-        openCommands: ['studio-preview {{path}}', 'studio {{path}}'],
-        checkCommands: ['studio-preview', 'studio'],
+        openCommands: ['studio-preview {{path}}'],
+        checkCommands: ['studio-preview'],
       },
     },
   },
