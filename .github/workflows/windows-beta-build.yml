@@ -48,7 +48,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: '.nvmrc'
           cache: 'pnpm'
 
       - name: Setup Python 3.11 for node-gyp
@@ -85,7 +85,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pnpm exec electron-builder --win nsis msi --x64 --publish never --config.npmRebuild=false
+          pnpm exec electron-builder --win nsis msi --x64 --publish never \
+            --config electron-builder.config.ts \
+            --config.npmRebuild=false
           ls -lah release || true
 
       - name: Upload Windows artifacts

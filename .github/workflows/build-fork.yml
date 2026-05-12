@@ -1,0 +1,162 @@
+name: Build (Fork — Unsigned)
+
+# Builds unsigned macOS + Windows installers for this fork. Skips Apple
+# notarization, Azure Trusted Signing, and the R2 upload step that the
+# upstream `release-*.yml` workflows depend on, so it requires no secrets
+# beyond `GITHUB_TOKEN`. Output is uploaded as a GitHub Actions artifact;
+# tag-triggered runs additionally attach the artifacts to a GitHub Release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to build (branch, tag, or SHA). Default: current ref.'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies (strict lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build app (ts + vite)
+        run: pnpm run build
+
+      - name: Package macOS DMG + ZIP (unsigned, no publish)
+        env:
+          # Suppress "no Apple cert found" noise — we're intentionally unsigned.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          pnpm exec electron-builder --mac --arm64 --publish never \
+            --config electron-builder.fork.config.ts \
+            --config.mac.identity=null \
+            --config.mac.notarize=false
+          ls -lah release || true
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: emdash-macos-arm64
+          path: |
+            release/emdash-*.dmg
+            release/emdash-*.zip
+            release/*.blockmap
+          if-no-files-found: error
+
+  build-win:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python build deps (setuptools shim for distutils)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Install dependencies (strict lockfile)
+        shell: bash
+        env:
+          npm_config_python: ${{ env.python }}
+          npm_config_msvs_version: 2022
+          GYP_MSVS_VERSION: 2022
+        run: pnpm install --frozen-lockfile
+
+      - name: Build app (ts + vite)
+        shell: bash
+        run: pnpm run build
+
+      - name: Rebuild native modules (x64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
+          npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty
+
+      - name: Package Windows NSIS + MSI (unsigned, no publish)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # MSI target requires WiX icon refs that the upstream
+          # electron-builder.config.ts doesn't currently provide (LGHT0094 on
+          # `Icon:emdashIcon.exe`); ship only NSIS for now. NSIS is the
+          # standard installer most Windows users expect anyway.
+          pnpm exec electron-builder --win nsis --x64 --publish never \
+            --config electron-builder.fork.config.ts \
+            --config.npmRebuild=false
+          ls -lah release || true
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: emdash-windows-x64
+          path: |
+            release/emdash-*.exe
+            release/*.blockmap
+          if-no-files-found: error
+
+  publish-release:
+    # Attach artifacts to a GitHub Release on tag pushes only.
+    needs: [build-mac, build-win]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create / update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          # Create the release if it doesn't exist; ignore "already exists" errors.
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+              --title "$tag" \
+              --notes "Unsigned fork build for $tag. macOS DMG/zip and Windows NSIS attached." \
+              --draft=false \
+              --prerelease=false || true
+
+          # Attach (clobber existing) all artifact files.
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber \
+            $(find artifacts -type f | tr '\n' ' ')
