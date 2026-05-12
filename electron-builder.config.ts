@@ -25,6 +25,7 @@ const config: Configuration = {
     'node_modules/better-sqlite3/**',
     'node_modules/node-pty/**',
     'node_modules/@parcel/watcher/**',
+    'out/mcp-server/**',
     '**/*.node',
   ],
   mac: {

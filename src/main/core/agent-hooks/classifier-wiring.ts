@@ -5,6 +5,7 @@ import { makePtyId } from '@shared/ptyId';
 import { type Pty } from '@main/core/pty/pty';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { agentEventBus } from './agent-event-bus';
 import { createClassifier } from './classifiers';
 import { stripAnsi, type ClassificationResult } from './classifiers/base';
 import { maybeShowNotification } from './notification';
@@ -117,7 +118,9 @@ export function wireAgentClassifier({
         };
         const appFocused = isAppFocused();
         void maybeShowNotification(event, appFocused);
-        events.emit(agentEventChannel, { event, appFocused });
+        const envelope = { event, appFocused };
+        events.emit(agentEventChannel, envelope);
+        agentEventBus.emitEnvelope(envelope);
       } catch (err) {
         log.warn('wireAgentClassifier: idle check failed', { error: String(err) });
       }

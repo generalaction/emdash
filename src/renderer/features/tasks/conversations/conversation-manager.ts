@@ -6,6 +6,7 @@ import {
   isAttentionNotification,
   type NotificationType,
 } from '@shared/events/agentEvents';
+import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
@@ -18,6 +19,7 @@ export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'com
 export class ConversationManagerStore {
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
+  private offConversationCreated: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
 
   /** Data layer: plain Conversation records loaded from the main process. */
@@ -72,6 +74,36 @@ export class ConversationManagerStore {
 
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();
+    this.offConversationCreated = this.listenToConversationCreated();
+  }
+
+  /**
+   * Pick up conversations created outside the renderer (e.g. via the
+   * internal MCP `agent_spawn` tool). UI-initiated creates set the store
+   * locally first; this listener dedupes by id so it's safe either way.
+   */
+  private listenToConversationCreated(): () => void {
+    return events.on(conversationCreatedChannel, (conversation) => {
+      if (conversation.taskId !== this.taskId) return;
+      if (conversation.projectId !== this.projectId) return;
+      if (this.list.data && !this.list.data.some((item) => item.id === conversation.id)) {
+        this.list.setValue([...this.list.data, conversation]);
+        return;
+      }
+      runInAction(() => {
+        if (!this.conversations.has(conversation.id)) {
+          this.conversations.set(conversation.id, new ConversationStore(conversation));
+        }
+        if (!this.sessions.has(conversation.id)) {
+          this.sessions.set(
+            conversation.id,
+            new PtySession(
+              makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
+            )
+          );
+        }
+      });
+    });
   }
 
   private listenToAgentEvents(): () => void {
@@ -216,6 +248,8 @@ export class ConversationManagerStore {
     this.offAgentEvents = null;
     this.offSessionExited?.();
     this.offSessionExited = null;
+    this.offConversationCreated?.();
+    this.offConversationCreated = null;
     for (const session of this.sessions.values()) {
       session.dispose();
     }

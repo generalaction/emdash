@@ -96,6 +96,11 @@ export class PtySessionRegistry {
     return this.ptyMap.get(sessionId);
   }
 
+  /** Read-only snapshot of the ring buffer. Does not register a consumer. */
+  peekRingBuffer(sessionId: string): string {
+    return this.ringBuffers.get(sessionId) ?? '';
+  }
+
   /**
    * Atomically snapshot the ring buffer and register a consumer for future
    * IPC delivery. Returns the current ring buffer without deleting it.

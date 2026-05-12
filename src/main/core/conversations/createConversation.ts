@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
+import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
+import { getProviderSessionCapability } from './provider-session/manifest';
 import { mapConversationRowToConversation } from './utils';
 
 export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
@@ -23,6 +26,15 @@ export async function createConversation(params: CreateConversationParams): Prom
       ? undefined
       : JSON.stringify({ autoApprove: params.autoApprove });
 
+  // Providers in the session manifest with `acceptsSessionIdFlagAtSpawn`
+  // get our UUID — we control their session id at fresh launch. Others
+  // (codex, copilot, droid-fresh) generate their own; capture happens
+  // post-spawn via the manifest's capture engine.
+  const externalSessionId = getProviderSessionCapability(params.provider)
+    ?.acceptsSessionIdFlagAtSpawn
+    ? id
+    : null;
+
   const [row] = await db
     .insert(conversations)
     .values({
@@ -36,6 +48,7 @@ export async function createConversation(params: CreateConversationParams): Prom
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: new Date().toISOString(),
+      externalSessionId,
     })
     .returning();
 
@@ -66,6 +79,7 @@ export async function createConversation(params: CreateConversationParams): Prom
   });
 
   conversationEvents._emit('conversation:created', conversation);
+  events.emit(conversationCreatedChannel, conversation);
   telemetryService.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,

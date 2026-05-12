@@ -14,6 +14,21 @@ export interface CatalogEntryDef {
 }
 
 export const catalogData: Record<string, CatalogEntryDef> = {
+  emdash: {
+    config: {
+      // Per-launch values (command path, EMDASH_INSTANCE_ID, EMDASH_STATUS_URL,
+      // EMDASH_TOKEN) are injected at app boot by mcp-internal/catalog-refresh.
+      // Per-conversation values (SESSION_ID, TASK_ID, PROJECT_ID) flow through
+      // PTY inherited env — see docs/mcp-internal-spec.md §4.
+      command: 'node',
+      args: [],
+      env: {},
+    },
+    name: 'Emdash',
+    description: 'Talk to other emdash agents, drive emdash itself, and observe peers.',
+    docsUrl: 'https://github.com/generalaction/emdash',
+    credentialKeys: [],
+  },
   playwright: {
     config: {
       command: 'npx',

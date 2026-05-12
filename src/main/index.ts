@@ -15,6 +15,7 @@ import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
+import { mcpInternalService } from './core/mcp-internal';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import {
@@ -23,6 +24,7 @@ import {
 } from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
+import { taskRendererEvents } from './core/tasks/task-renderer-events';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
 import { initializeDatabase } from './db/initialize';
@@ -81,6 +83,7 @@ void app.whenReady().then(async () => {
   try {
     await initializeDatabase();
     searchService.initialize();
+    taskRendererEvents.initialize();
     void editorBufferService.pruneStale();
     try {
       viewStateService.pruneOrphans();
@@ -129,6 +132,10 @@ void app.whenReady().then(async () => {
 
   void reconcileResourceSampler();
 
+  mcpInternalService.initialize().catch((e) => {
+    log.error('Failed to start internal MCP loopback:', e);
+  });
+
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
   });
@@ -152,6 +159,8 @@ app.on('before-quit', (event) => {
   void telemetryService.dispose().finally(() => {
     agentHookService.dispose();
     stopResourceSampler();
+    mcpInternalService.dispose();
+    taskRendererEvents.dispose();
     updateService.dispose();
     prSyncScheduler.dispose();
     void gitWatcherRegistry.dispose();

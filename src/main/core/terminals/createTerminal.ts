@@ -1,8 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
+import { terminalCreatedChannel } from '@shared/events/terminalEvents';
 import type { CreateTerminalParams, Terminal } from '@shared/terminals';
 import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { terminals } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
@@ -42,6 +44,7 @@ export async function createTerminal(params: CreateTerminalParams): Promise<Term
     },
   });
 
+  events.emit(terminalCreatedChannel, terminal);
   telemetryService.capture('terminal_created', {
     terminal_id: terminalId,
     project_id: params.projectId,

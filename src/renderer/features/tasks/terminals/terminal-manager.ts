@@ -1,7 +1,12 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import {
+  terminalCreatedChannel,
+  terminalDeletedChannel,
+  terminalUpdatedChannel,
+} from '@shared/events/terminalEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { Resource } from '@renderer/lib/stores/resource';
 import { nextTerminalName } from './terminal-tabs';
@@ -15,6 +20,9 @@ export class TerminalManagerStore {
   terminals = observable.map<string, TerminalStore>();
   /** Session layer keyed by terminal id — created alongside data, connected lazily. */
   sessions = observable.map<string, PtySession>();
+  private offTerminalCreated: (() => void) | null = null;
+  private offTerminalUpdated: (() => void) | null = null;
+  private offTerminalDeleted: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
 
   constructor(projectId: string, taskId: string) {
@@ -42,9 +50,12 @@ export class TerminalManagerStore {
         runInAction(() => {
           const incomingIds = new Set(data.map((t) => t.id));
 
-          // Add new entries (no connect()).
+          // Add/update entries without connecting sessions.
           for (const terminal of data) {
-            if (!this.terminals.has(terminal.id)) {
+            const existing = this.terminals.get(terminal.id);
+            if (existing) {
+              Object.assign(existing.data, terminal);
+            } else {
               this.terminals.set(terminal.id, new TerminalStore(terminal));
             }
             if (!this.sessions.has(terminal.id)) {
@@ -66,6 +77,62 @@ export class TerminalManagerStore {
       },
       { fireImmediately: true }
     );
+
+    this.offTerminalCreated = events.on(terminalCreatedChannel, (terminal) => {
+      if (terminal.projectId !== this.projectId || terminal.taskId !== this.taskId) return;
+      this.upsertTerminal(terminal);
+    });
+    this.offTerminalUpdated = events.on(terminalUpdatedChannel, (terminal) => {
+      if (terminal.projectId !== this.projectId || terminal.taskId !== this.taskId) return;
+      this.upsertTerminal(terminal);
+    });
+    this.offTerminalDeleted = events.on(
+      terminalDeletedChannel,
+      ({ terminalId, projectId: eventProjectId, taskId: eventTaskId }) => {
+        if (eventProjectId !== this.projectId || eventTaskId !== this.taskId) return;
+        this.removeTerminal(terminalId);
+      }
+    );
+  }
+
+  private upsertTerminal(terminal: Terminal): void {
+    if (this.list.data) {
+      const exists = this.list.data.some((item) => item.id === terminal.id);
+      this.list.setValue(
+        exists
+          ? this.list.data.map((item) => (item.id === terminal.id ? terminal : item))
+          : [...this.list.data, terminal]
+      );
+      return;
+    }
+
+    runInAction(() => {
+      const existing = this.terminals.get(terminal.id);
+      if (existing) {
+        Object.assign(existing.data, terminal);
+      } else {
+        this.terminals.set(terminal.id, new TerminalStore(terminal));
+      }
+      if (!this.sessions.has(terminal.id)) {
+        this.sessions.set(
+          terminal.id,
+          new PtySession(makePtySessionId(terminal.projectId, terminal.taskId, terminal.id))
+        );
+      }
+    });
+  }
+
+  private removeTerminal(terminalId: string): void {
+    if (this.list.data?.some((item) => item.id === terminalId)) {
+      this.list.setValue(this.list.data.filter((item) => item.id !== terminalId));
+      return;
+    }
+
+    runInAction(() => {
+      this.sessions.get(terminalId)?.dispose();
+      this.sessions.delete(terminalId);
+      this.terminals.delete(terminalId);
+    });
   }
 
   get isLoaded(): boolean {
@@ -90,12 +157,7 @@ export class TerminalManagerStore {
 
     try {
       const terminal = await rpc.terminals.createTerminal(params);
-      runInAction(() => {
-        const store = this.terminals.get(params.id);
-        if (store) {
-          Object.assign(store.data, terminal);
-        }
-      });
+      this.upsertTerminal(terminal);
       return terminal;
     } catch (err) {
       runInAction(() => {
@@ -140,14 +202,6 @@ export class TerminalManagerStore {
     }
   }
 
-  dispose(): void {
-    this._disposeReaction();
-    for (const session of this.sessions.values()) {
-      session.dispose();
-    }
-    this.list.dispose();
-  }
-
   async renameTerminal(terminalId: string, name: string): Promise<void> {
     const store = this.terminals.get(terminalId);
     if (!store) return;
@@ -166,6 +220,20 @@ export class TerminalManagerStore {
       });
       throw err;
     }
+  }
+
+  dispose(): void {
+    this._disposeReaction();
+    this.offTerminalCreated?.();
+    this.offTerminalCreated = null;
+    this.offTerminalUpdated?.();
+    this.offTerminalUpdated = null;
+    this.offTerminalDeleted?.();
+    this.offTerminalDeleted = null;
+    for (const session of this.sessions.values()) {
+      session.dispose();
+    }
+    this.list.dispose();
   }
 }
 

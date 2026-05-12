@@ -81,12 +81,15 @@ jobs:
           ELECTRON_VERSION=$(node -p "require('electron/package.json').version")
           npm_config_build_from_source=true pnpm exec electron-rebuild -f -a x64 -v "$ELECTRON_VERSION" -o sqlite3,node-pty
 
-      - name: Package Windows (NSIS + MSI) (no publish)
+      - name: Package Windows (NSIS) (unsigned, no publish)
         shell: bash
         run: |
           set -euo pipefail
-          pnpm exec electron-builder --win nsis msi --x64 --publish never \
-            --config electron-builder.config.ts \
+          # This workflow does not run with Azure signing credentials.
+          # Match the working unsigned fork build path and avoid MSI until the
+          # upstream WiX icon references are fixed.
+          pnpm exec electron-builder --win nsis --x64 --publish never \
+            --config electron-builder.fork.config.ts \
             --config.npmRebuild=false
           ls -lah release || true
 
@@ -96,7 +99,6 @@ jobs:
           name: WINDOWS-BETA-BUILD
           path: |
             release/emdash-*.exe
-            release/emdash-*.msi
             release/*.blockmap
             release/latest*.yml
           if-no-files-found: error

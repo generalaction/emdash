@@ -51,6 +51,15 @@ export type AgentProviderDefinition = {
   useKeystrokeInjection?: boolean;
   resumeFlag?: string;
   /**
+   * Resume by an externally-known session ID. Used when the provider does not
+   * accept our session-id flag at fresh launch (so emdash captured the
+   * provider-generated UUID after spawn, e.g. via fs watch). Different from
+   * `resumeFlag` because the resume-by-id form is often a separate subcommand
+   * (e.g. codex `resume <UUID>` vs `resume --last`). When set, agent-command
+   * uses this flag + externalSessionId in place of `resumeFlag`.
+   */
+  resumeWithIdFlag?: string;
+  /**
    * CLI flag to assign a unique session ID per chat instance.
    * Used to isolate session state when multiple chats of the same provider
    * run in the same worktree. The flag receives a deterministic UUID
@@ -86,6 +95,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
     initialPromptFlag: '',
     resumeFlag: 'resume --last',
+    resumeWithIdFlag: 'resume',
     icon: 'openai.svg',
     alt: 'Codex',
     terminalOnly: true,

@@ -4,6 +4,7 @@ import { createRPCController } from '@shared/ipc/rpc';
 import type { McpProvidersResponse, McpServer } from '@shared/mcp/types';
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
 import { log } from '@main/lib/logger';
+import { mcpDirectInvoke } from './direct-invoke';
 import { mcpService } from './services/McpService';
 import { agentSupportsHttp, getAllMcpAgentIds } from './utils/config-paths';
 
@@ -69,4 +70,6 @@ export const mcpController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+
+  ...mcpDirectInvoke,
 });
