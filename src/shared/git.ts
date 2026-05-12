@@ -38,6 +38,13 @@ export interface FullGitStatus {
   totalDeleted: number;
 }
 
+export type GitStatusUntrackedMode = 'no' | 'normal';
+
+export interface GitStatusFingerprint {
+  hash: string;
+  byteLength: number;
+}
+
 export interface DiffResult {
   lines: DiffLine[];
   isBinary?: boolean;

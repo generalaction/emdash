@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import {
   HEAD_MODE,
@@ -20,6 +21,8 @@ import {
   type GitHeadState,
   type GitInfo,
   type GitObjectRef,
+  type GitStatusFingerprint,
+  type GitStatusUntrackedMode,
   type ImageReadResult,
   type LocalBranch,
   type MergeBaseRange,
@@ -55,6 +58,10 @@ import {
 } from './status-parser';
 
 const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
+const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
+  no: 5_000,
+  normal: 10_000,
+};
 
 const IMAGE_MIME_BY_EXT: Record<string, string> = {
   png: 'image/png',
@@ -124,6 +131,31 @@ export class GitService implements GitProvider, IDisposable {
       this._statusInFlight = null;
     });
     return this._statusInFlight;
+  }
+
+  async getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint> {
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), STATUS_FINGERPRINT_TIMEOUT_MS[untracked]);
+
+    try {
+      const { stdout } = await this.ctx.exec(
+        'git',
+        [
+          '--no-optional-locks',
+          'status',
+          '--porcelain=v1',
+          '-z',
+          untracked === 'normal' ? '--untracked-files=normal' : '-uno',
+        ],
+        { signal: abort.signal }
+      );
+      return {
+        hash: createHash('sha256').update(stdout).digest('hex'),
+        byteLength: Buffer.byteLength(stdout),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private async _loadFullStatus(): Promise<FullGitStatus> {

@@ -8,6 +8,8 @@ import type {
   FullGitStatus,
   GitChange,
   GitObjectRef,
+  GitStatusFingerprint,
+  GitStatusUntrackedMode,
   ImageReadResult,
   MergeBaseRange,
   PullError,
@@ -18,6 +20,7 @@ import type { Result } from '@shared/result';
 
 export interface WorkspaceGitProvider {
   getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }>;
+  getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint>;
   /** Single coalesced status refresh — preferred over separate staged/unstaged calls. */
   getFullStatus(): Promise<FullGitStatus>;
   getStagedChanges(): Promise<{
