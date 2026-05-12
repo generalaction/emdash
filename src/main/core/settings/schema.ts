@@ -108,9 +108,16 @@ export const changesViewModeSchema = z.object({
   pr: z.enum(['flat', 'tree']),
 });
 
-export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
-
 export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
+
+export const PROJECT_EMOJI_SET_IDS = ['native', 'apple', 'google', 'twitter', 'facebook'] as const;
+export type ProjectEmojiSetId = (typeof PROJECT_EMOJI_SET_IDS)[number];
+
+export const appearanceSettingsSchema = z.object({
+  projectEmojiSet: z.enum(PROJECT_EMOJI_SET_IDS).default('google'),
+});
+
+export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
@@ -132,6 +139,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  appearance: appearanceSettingsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -149,4 +157,5 @@ export const appSettingsSchema = z.object({
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  appearance: appearanceSettingsSchema,
 });
