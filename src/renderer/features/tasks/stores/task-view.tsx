@@ -1,5 +1,5 @@
 import { computed, makeAutoObservable, reaction } from 'mobx';
-import type { TaskViewSnapshot } from '@shared/view-state';
+import type { AgentLayoutMode, TaskViewSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
@@ -38,6 +38,8 @@ export class TaskViewStore {
   isSidebarCollapsed: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen: boolean;
+  agentLayoutMode: AgentLayoutMode = 'tabs';
+  agentSlots: string[] = [];
 
   readonly tabManager: TabManagerStore;
   readonly terminalTabs: TerminalTabViewStore;
@@ -54,6 +56,21 @@ export class TaskViewStore {
     this.isSidebarCollapsed = savedSnapshot?.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot?.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot?.isTerminalDrawerOpen ?? false;
+    if (savedSnapshot?.agentLayout) {
+      const mode = savedSnapshot.agentLayout.mode;
+      // Migrate legacy mode names if present.
+      const legacy = mode as unknown as string;
+      this.agentLayoutMode =
+        legacy === 'split-h'
+          ? 'side-by-side'
+          : legacy === 'split-v'
+            ? 'stacked'
+            : legacy === 'grid-2x2'
+              ? 'tile'
+              : mode;
+      const slots = savedSnapshot.agentLayout.slots ?? [];
+      this.agentSlots = slots.filter((id): id is string => typeof id === 'string' && id.length > 0);
+    }
     this.terminalsMgr = resources.terminals;
 
     this.tabManager = new TabManagerStore(resources.conversations, resources.workspaceId);
@@ -180,7 +197,41 @@ export class TaskViewStore {
       terminals: this.terminalTabs.snapshot,
       editor: this.editorView.snapshot,
       diffView: this.diffView.snapshot,
+      agentLayout: { mode: this.agentLayoutMode, slots: [...this.agentSlots] },
     };
+  }
+
+  setAgentLayoutMode(mode: AgentLayoutMode): void {
+    this.agentLayoutMode = mode;
+    if (mode === 'tabs') {
+      this.agentSlots = [];
+      return;
+    }
+    // Seed from open conversation tabs in tab order, preserving any pre-existing slot order.
+    const openIds = this.tabManager.resolvedTabs
+      .filter((t) => t.kind === 'conversation')
+      .map((t) => (t as { conversationId: string }).conversationId);
+    const seen = new Set<string>();
+    const next: string[] = [];
+    for (const id of [...this.agentSlots, ...openIds]) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        next.push(id);
+      }
+    }
+    this.agentSlots = next;
+  }
+
+  /** Add a conversation to the layout if not already present. No-op in tabs mode. */
+  addConversationToLayout(conversationId: string): void {
+    if (this.agentLayoutMode === 'tabs') return;
+    if (this.agentSlots.includes(conversationId)) return;
+    this.agentSlots = [...this.agentSlots, conversationId];
+  }
+
+  removeConversationFromLayout(conversationId: string): void {
+    if (!this.agentSlots.includes(conversationId)) return;
+    this.agentSlots = this.agentSlots.filter((id) => id !== conversationId);
   }
 
   activateLastTabOfKind(kind: 'conversation' | 'file' | 'diff'): void {

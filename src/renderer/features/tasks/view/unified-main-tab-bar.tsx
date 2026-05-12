@@ -8,10 +8,11 @@ import {
 } from '@dnd-kit/core';
 import { horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
-import { FileSearch, Loader2, MessageSquarePlus, X } from 'lucide-react';
+import { FileSearch, Loader2, MessageSquarePlus, Pencil, Rows3, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { LAYOUT_MODE_ITEMS } from '@renderer/features/tasks/conversations/conversations-grid-panel';
 import { GitChangeStatusIcon } from '@renderer/features/tasks/diff-view/changes-panel/components/changes-list-item';
 import type {
   ResolvedConversationTab,
@@ -26,6 +27,18 @@ import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { Button } from '@renderer/lib/ui/button';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
 import { Separator } from '@renderer/lib/ui/separator';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -63,56 +76,74 @@ const ConversationTabItem = observer(function ConversationTabItem({
   onSelect,
   onPin,
   onClose,
+  onRename,
 }: {
   tab: ResolvedConversationTab;
   onSelect: () => void;
   onPin: () => void;
   onClose: () => void;
+  onRename: () => void;
 }) {
   const config = agentConfig[tab.store.data.providerId];
   const title = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
 
   return (
     <>
-      <button
-        onClick={onSelect}
-        onDoubleClick={onPin}
-        title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
-        data-tabid={tab.tabId}
-        className={cn(
-          'group relative flex h-full flex-col bg-background-secondary text-sm text-foreground-muted hover:bg-background-secondary-1/40',
-          tab.isActive &&
-            'bg-background-secondary-1 text-foreground hover:bg-background-secondary-1'
-        )}
-      >
-        <div className="flex h-full items-center gap-1.5 pl-3 pr-1">
-          {config ? (
-            <AgentLogo
-              logo={config.logo}
-              alt={config.alt}
-              isSvg={config.isSvg}
-              invertInDark={config.invertInDark}
-              className="size-4 shrink-0"
-            />
-          ) : null}
-          <span className={cn('max-w-24 truncate p-1', tab.isPreview && 'italic')}>{title}</span>
-          <div className="relative flex size-5 shrink-0 items-center justify-center">
-            <span className="transition-opacity group-hover:opacity-0">
-              <AgentStatusIndicator status={tab.store.indicatorStatus} disableTooltip />
-            </span>
-            <button
-              className="absolute inset-0 flex items-center justify-center rounded-md text-foreground-muted opacity-0 hover:bg-background-2 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClose();
-              }}
-              aria-label={`Close ${title}`}
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        </div>
-      </button>
+      <ContextMenu>
+        <ContextMenuTrigger>
+          <button
+            onClick={onSelect}
+            onDoubleClick={onPin}
+            title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
+            data-tabid={tab.tabId}
+            className={cn(
+              'group relative flex h-full flex-col bg-background-secondary text-sm text-foreground-muted hover:bg-background-secondary-1/40',
+              tab.isActive &&
+                'bg-background-secondary-1 text-foreground hover:bg-background-secondary-1'
+            )}
+          >
+            <div className="flex h-full items-center gap-1.5 pl-3 pr-1">
+              {config ? (
+                <AgentLogo
+                  logo={config.logo}
+                  alt={config.alt}
+                  isSvg={config.isSvg}
+                  invertInDark={config.invertInDark}
+                  className="size-4 shrink-0"
+                />
+              ) : null}
+              <span className={cn('max-w-24 truncate p-1', tab.isPreview && 'italic')}>
+                {title}
+              </span>
+              <div className="relative flex size-5 shrink-0 items-center justify-center">
+                <span className="transition-opacity group-hover:opacity-0">
+                  <AgentStatusIndicator status={tab.store.indicatorStatus} disableTooltip />
+                </span>
+                <button
+                  className="absolute inset-0 flex items-center justify-center rounded-md text-foreground-muted opacity-0 hover:bg-background-2 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  aria-label={`Close ${title}`}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={onRename}>
+            <Pencil className="size-4" />
+            Rename
+          </ContextMenuItem>
+          <ContextMenuItem onClick={onClose}>
+            <X className="size-4" />
+            Close
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
       <Separator orientation="vertical" />
     </>
   );
@@ -286,12 +317,44 @@ const DiffTabItem = observer(function DiffTabItem({
   );
 });
 
+const AgentLayoutMenu = observer(function AgentLayoutMenu() {
+  const { taskView } = useProvisionedTask();
+  const current = LAYOUT_MODE_ITEMS.find((m) => m.id === taskView.agentLayoutMode);
+  const CurrentIcon = current?.Icon ?? Rows3;
+  return (
+    <Tooltip>
+      <DropdownMenu>
+        <TooltipTrigger>
+          <DropdownMenuTrigger>
+            <Button size="icon-sm" variant="ghost" aria-label="Layout" title="Agent panel layout">
+              <CurrentIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <DropdownMenuContent align="end">
+          {LAYOUT_MODE_ITEMS.map(({ id, label, Icon }) => (
+            <DropdownMenuItem key={id} onClick={() => taskView.setAgentLayoutMode(id)}>
+              <Icon className="size-4" />
+              {label}
+              {taskView.agentLayoutMode === id && (
+                <span className="ml-auto text-xs text-foreground-muted">●</span>
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <TooltipContent>Agent panel layout</TooltipContent>
+    </Tooltip>
+  );
+});
+
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const { taskView } = useProvisionedTask();
   const { projectId, taskId } = useTaskViewContext();
   const { tabManager } = taskView;
   const showCommandPalette = useShowModal('commandPaletteModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
+  const showRenameConversationModal = useShowModal('renameConversationModal');
 
   useTabShortcuts(tabManager, { focused: taskView.focusedRegion === 'main' });
 
@@ -335,6 +398,14 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
                       onSelect={() => tabManager.setActiveTab(tab.tabId)}
                       onPin={() => tabManager.openConversation(tab.conversationId)}
                       onClose={() => tabManager.closeTab(tab.tabId)}
+                      onRename={() =>
+                        showRenameConversationModal({
+                          projectId,
+                          taskId,
+                          conversationId: tab.conversationId,
+                          currentName: tab.store.data.title,
+                        })
+                      }
                     />
                   </SortableTabWrapper>
                 );
@@ -366,6 +437,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
         </SortableContext>
       </DndContext>
       <div className="flex h-full shrink-0 items-center px-1">
+        <AgentLayoutMenu />
         <Tooltip>
           <TooltipTrigger>
             <Button
@@ -375,7 +447,10 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
                 showCreateConversationModal({
                   projectId,
                   taskId,
-                  onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
+                  onSuccess: ({ conversationId }) => {
+                    tabManager.openConversation(conversationId);
+                    taskView.addConversationToLayout(conversationId);
+                  },
                 })
               }
               aria-label="New conversation"
