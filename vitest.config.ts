@@ -32,11 +32,7 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: ['src/**/*.test.ts'],
-          exclude: [
-            '**/_*/**',
-            'src/renderer/tests/browser/**',
-            'src/main/db/__tests__/migrations/**',
-          ],
+          exclude: ['**/_*/**', 'src/renderer/tests/browser/**', 'src/main/db/tests/migrations/**'],
         },
       },
       {
@@ -58,7 +54,7 @@ export default defineConfig({
         test: {
           name: 'migrations',
           environment: 'node',
-          include: ['src/main/db/__tests__/migrations/**/*.test.ts'],
+          include: ['src/main/db/tests/migrations/**/*.test.ts'],
         },
       },
       {
