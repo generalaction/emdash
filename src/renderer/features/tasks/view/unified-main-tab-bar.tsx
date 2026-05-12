@@ -78,9 +78,9 @@ const ConversationTabItem = observer(function ConversationTabItem({
         title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
         data-tabid={tab.tabId}
         className={cn(
-          'group relative flex h-full flex-col bg-background-secondary text-sm text-foreground-muted hover:bg-background-secondary-1/40',
+          'group relative flex h-full flex-col bg-[var(--task-tab-background)] text-sm text-foreground-muted hover:bg-background-secondary-1/40',
           tab.isActive &&
-            'bg-background-secondary-1 text-foreground hover:bg-background-secondary-1'
+            'bg-[var(--task-tab-active-background)] text-foreground hover:bg-[var(--task-tab-active-background)]'
         )}
       >
         <div className="flex h-full items-center gap-1.5 pl-3 pr-1">
@@ -163,8 +163,9 @@ const FileTabItem = observer(function FileTabItem({
         title={tabTitle}
         data-tabid={tab.tabId}
         className={cn(
-          'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
-          tab.isActive && 'bg-background-secondary-1'
+          'group relative flex h-full flex-col bg-[var(--task-tab-background)] text-sm hover:bg-muted',
+          tab.isActive &&
+            'bg-[var(--task-tab-active-background)] hover:bg-[var(--task-tab-active-background)]'
         )}
       >
         <div className="flex h-full items-center gap-1.5 pl-3 pr-2">
@@ -248,8 +249,9 @@ const DiffTabItem = observer(function DiffTabItem({
         }
         data-tabid={tab.tabId}
         className={cn(
-          'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
-          tab.isActive && 'bg-background-secondary-1'
+          'group relative flex h-full flex-col bg-[var(--task-tab-background)] text-sm hover:bg-muted',
+          tab.isActive &&
+            'bg-[var(--task-tab-active-background)] hover:bg-[var(--task-tab-active-background)]'
         )}
       >
         <div className="flex h-full items-center gap-1.5 pl-3 pr-2">
@@ -318,7 +320,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   }
 
   return (
-    <div className="flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
+    <div className="task-tab-bar flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-[var(--task-tab-background)]">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
           <div ref={scrollContainerRef} className="flex h-full overflow-x-auto">

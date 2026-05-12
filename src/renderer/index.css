@@ -134,7 +134,7 @@
     --foreground-muted: color(display-p3 0.392 0.392 0.392);
     --foreground-passive: color(display-p3 0.732 0.732 0.732);
 
-    --background-secondary: color(display-p3 0.94 0.94 0.94);
+    --background-secondary: var(--background-1);
     --background-secondary-1: var(--background);
     --background-secondary-2: color(display-p3 0.88 0.88 0.88);
     --background-secondary-3: color(display-p3 0.849 0.849 0.849);
@@ -228,7 +228,7 @@
     --foreground-passive: color(display-p3 0.431 0.431 0.431);
 
     --background-secondary: var(--background);
-    --background-secondary-1: color(display-p3 0.175 0.175 0.175);
+    --background-secondary-1: var(--background-1);
     --background-secondary-2: var(--background-2);
     --background-secondary-3: var(--background-3);
 
@@ -386,6 +386,16 @@
 }
 
 @layer components {
+  .task-tab-bar {
+    --task-tab-background: color(display-p3 0.94 0.94 0.94);
+    --task-tab-active-background: var(--background);
+  }
+
+  .emdark .task-tab-bar {
+    --task-tab-background: var(--background);
+    --task-tab-active-background: color(display-p3 0.175 0.175 0.175);
+  }
+
   .logo-shimmer-container {
     position: relative;
     display: inline-block;
