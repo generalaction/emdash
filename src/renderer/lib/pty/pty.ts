@@ -11,10 +11,9 @@ import { ensureXtermHost } from './xterm-host';
 const SCROLLBACK_LINES = 100_000;
 const DEFAULT_TERMINAL_FONT_FAMILY = 'Menlo, Monaco, Consolas, "Liberation Mono", monospace';
 
-// Cached so FrontendPty can apply the user's font in its constructor before
-// connect() writes the historical buffer. Mutating fontFamily post-mount
-// leaves the CanvasAddon glyph atlas with stale metrics, producing the
-// stretched / wrong-font look reported in old chats (ENG-1123).
+// Applied at construction so the historical buffer renders with the user's
+// font; mutating fontFamily after connect() leaves the CanvasAddon glyph
+// atlas stale.
 let cachedFontFamily = DEFAULT_TERMINAL_FONT_FAMILY;
 let installedFontNames: Set<string> | null = null;
 let prefetchPromise: Promise<void> | null = null;
@@ -22,12 +21,22 @@ let prefetchPromise: Promise<void> | null = null;
 export function resolveTerminalFontFamily(fontFamily: string): string {
   const trimmed = fontFamily.trim();
   if (!trimmed) return DEFAULT_TERMINAL_FONT_FAMILY;
-  if (!installedFontNames) return trimmed;
-  if (isFontFamilyInstalled(trimmed, installedFontNames)) return trimmed;
-  log.warn('FrontendPty: requested font is not installed, falling back to default', {
+  const resolved = `${quoteFontFamily(trimmed)}, ${DEFAULT_TERMINAL_FONT_FAMILY}`;
+  if (!installedFontNames || isFontFamilyInstalled(trimmed, installedFontNames)) return resolved;
+  log.warn('FrontendPty: requested font was not found in the OS font list', {
     fontFamily: trimmed,
   });
-  return DEFAULT_TERMINAL_FONT_FAMILY;
+  return resolved;
+}
+
+function quoteFontFamily(fontFamily: string): string {
+  if (fontFamily.includes(',') || isGenericFontFamily(fontFamily)) return fontFamily;
+  return `"${fontFamily.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function isGenericFontFamily(fontFamily: string): boolean {
+  const normalized = fontFamily.trim().toLowerCase();
+  return normalized === 'monospace' || normalized === 'serif' || normalized === 'sans-serif';
 }
 
 function isFontFamilyInstalled(fontFamily: string, installed: Set<string>): boolean {
@@ -37,13 +46,7 @@ function isFontFamilyInstalled(fontFamily: string, installed: Set<string>): bool
     .replace(/^["']|["']$/g, '')
     .toLowerCase();
   if (!primaryFamily) return false;
-  if (
-    primaryFamily === 'monospace' ||
-    primaryFamily === 'serif' ||
-    primaryFamily === 'sans-serif'
-  ) {
-    return true;
-  }
+  if (isGenericFontFamily(primaryFamily)) return true;
   return installed.has(primaryFamily);
 }
 
@@ -233,27 +236,15 @@ export class FrontendPty {
     ensureXtermHost().appendChild(this.ownedContainer);
   }
 
-  /**
-   * Update the terminal's font family and invalidate the CanvasAddon's glyph
-   * texture atlas. Without clearing the atlas, glyphs cached at the old font
-   * metrics keep being painted, producing the stretched / wrong-font look in
-   * scrollback that was already rendered before the font change (ENG-1123).
-   */
+  // Atlas + refresh are required: stale glyph metrics from the previous font
+  // otherwise stay painted in the already-rendered scrollback.
   setFontFamily(fontFamily: string): void {
     const resolved = resolveTerminalFontFamily(fontFamily);
     if (this.terminal.options.fontFamily === resolved) return;
     this.terminal.options.fontFamily = resolved;
-    try {
-      this.canvasAddon.clearTextureAtlas();
-      this.terminal.clearTextureAtlas();
-    } catch (error) {
-      log.warn('FrontendPty: atlas clear failed', { error });
-    }
-    try {
-      this.terminal.refresh(0, this.terminal.rows - 1);
-    } catch (error) {
-      log.warn('FrontendPty: font refresh failed', { error });
-    }
+    this.canvasAddon.clearTextureAtlas();
+    this.terminal.clearTextureAtlas();
+    this.terminal.refresh(0, this.terminal.rows - 1);
   }
 
   /**

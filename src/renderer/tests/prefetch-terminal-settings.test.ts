@@ -81,7 +81,7 @@ describe('prefetchTerminalSettings', () => {
     expect(harness.state.calls).toBe(2);
   });
 
-  it('falls back to the default terminal stack when the saved font is not installed', async () => {
+  it('keeps the requested font with the default terminal stack when font discovery misses it', async () => {
     harness.state.next = () => Promise.resolve({ fontFamily: 'Missing Mono' });
     harness.state.fonts = ['Cached Mono'];
 
@@ -91,7 +91,7 @@ describe('prefetchTerminalSettings', () => {
     await prefetchTerminalSettings();
 
     expect(resolveTerminalFontFamily('Missing Mono')).toBe(
-      'Menlo, Monaco, Consolas, "Liberation Mono", monospace'
+      '"Missing Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace'
     );
   });
 
@@ -104,6 +104,16 @@ describe('prefetchTerminalSettings', () => {
     );
     await prefetchTerminalSettings();
 
-    expect(resolveTerminalFontFamily('Berkeley Mono')).toBe('Berkeley Mono');
+    expect(resolveTerminalFontFamily('Berkeley Mono')).toBe(
+      '"Berkeley Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace'
+    );
+  });
+
+  it('does not quote generic font families', async () => {
+    const { resolveTerminalFontFamily } = await import('@renderer/lib/pty/pty');
+
+    expect(resolveTerminalFontFamily('monospace')).toBe(
+      'monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace'
+    );
   });
 });

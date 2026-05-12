@@ -348,10 +348,8 @@ export function usePty(
       measureAndResize();
 
       // ── Load settings ──────────────────────────────────────────────────────
-      // PtySession prefetches terminal settings before constructing FrontendPty,
-      // so the cached fontFamily is normally applied at construction. This
-      // re-read syncs any post-prefetch change and refreshes the glyph atlas
-      // if the live terminal is stale (ENG-1123).
+      // The cached fontFamily was applied at FrontendPty construction; re-read
+      // here picks up any changes since prefetch and refreshes a stale atlas.
       let customFontFamily = '';
       void (rpc.appSettings.get('terminal') as Promise<AppSettings['terminal']>).then(
         (terminalSettings) => {

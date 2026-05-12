@@ -52,15 +52,18 @@ const TerminalSettingsCard: React.FC = () => {
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
 
   const popularOptions = useMemo<FontOption[]>(() => {
+    const installed = new Set((installedFonts ?? []).map((font) => font.toLowerCase()));
     return [
       { id: 'popular-default', label: 'Default (Menlo)', fontValue: '' },
       ...POPULAR_FONTS.map((font) => ({
         id: `popular-${toOptionId(font)}`,
         label: font,
         fontValue: font,
-      })),
+      })).filter(
+        (option) => option.fontValue === '' || installed.has(option.fontValue.toLowerCase())
+      ),
     ];
-  }, []);
+  }, [installedFonts]);
 
   const installedOptions = useMemo<FontOption[]>(() => {
     const sourceFonts = dedupeAndSort(installedFonts ?? []);
@@ -116,6 +119,10 @@ const TerminalSettingsCard: React.FC = () => {
     }
   }, [loadInstalledFonts, pickerOpen]);
 
+  useEffect(() => {
+    void loadInstalledFonts();
+  }, [loadInstalledFonts]);
+
   const applyFont = useCallback(
     (next: string) => {
       const normalized = next.trim();
@@ -164,18 +171,20 @@ const TerminalSettingsCard: React.FC = () => {
         control={
           <div className="w-[183px] flex-shrink-0">
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 w-full justify-between text-sm font-normal"
-                  disabled={loading || saving}
-                >
-                  <span className="truncate text-left">{pickerLabel}</span>
-                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-[var(--anchor-width)] p-2">
+              <PopoverTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-full justify-between text-sm font-normal"
+                    disabled={loading || saving}
+                  >
+                    <span className="truncate text-left">{pickerLabel}</span>
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
+                  </Button>
+                }
+              />
+              <PopoverContent align="end" className="w-[var(--anchor-width)] p-2">
                 <div className="grid gap-2">
                   <Input
                     value={search}
@@ -184,11 +193,15 @@ const TerminalSettingsCard: React.FC = () => {
                       if (e.key !== 'Enter') return;
                       const typed = search.trim();
                       if (!typed) return;
+                      const option = allOptions.find(
+                        (option) => option.label.toLowerCase() === typed.toLowerCase()
+                      );
+                      if (!option) return;
                       setSearch('');
                       setPickerOpen(false);
-                      applyFont(typed);
+                      applyFont(option.fontValue);
                     }}
-                    placeholder="Search or type custom font"
+                    placeholder="Search installed fonts"
                     aria-label="Search font options"
                     className="h-8"
                   />
