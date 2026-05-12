@@ -52,8 +52,16 @@ const TileCell = observer(function TileCell({ conversationId }: { conversationId
     conversation.data.providerId,
     conversation.data.title
   );
-  const session = conversation.session;
-  const sessionId = session.sessionId;
+  const session = provisioned.conversations.sessions.get(conversationId) ?? null;
+  const sessionId = session?.sessionId ?? null;
+  const remoteConnectionId = provisioned.workspace.sshConnectionId;
+  const onEnterPress = remoteConnectionId
+    ? undefined
+    : () => {
+        conversation.setWorking();
+        void provisioned.conversations.touchConversation(conversationId);
+      };
+  const onInterruptPress = () => conversation.clearWorking();
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -61,13 +69,15 @@ const TileCell = observer(function TileCell({ conversationId }: { conversationId
         <ContextMenuTrigger className="flex h-7 shrink-0 border-b border-border bg-background-secondary">
           <div className="flex h-full w-full items-center justify-between gap-2 px-2">
             <div className="flex min-w-0 items-center gap-1.5">
-              <AgentLogo
-                logo={config.logo}
-                alt={config.alt}
-                isSvg={config.isSvg}
-                invertInDark={config.invertInDark}
-                className="size-3.5 shrink-0"
-              />
+              {config ? (
+                <AgentLogo
+                  logo={config.logo}
+                  alt={config.alt}
+                  isSvg={config.isSvg}
+                  invertInDark={config.invertInDark}
+                  className="size-3.5 shrink-0"
+                />
+              ) : null}
               <span className="truncate text-xs">{title}</span>
             </div>
             <Button
@@ -106,12 +116,15 @@ const TileCell = observer(function TileCell({ conversationId }: { conversationId
         sessionIds={sessionId ? [sessionId] : []}
       >
         <div className="relative flex min-h-0 flex-1">
-          {sessionId && session.status === 'ready' && session.pty ? (
+          {sessionId && session?.status === 'ready' && session.pty ? (
             <PtyPane
               sessionId={sessionId}
               pty={session.pty}
               className="h-full w-full"
+              onEnterPress={onEnterPress}
+              onInterruptPress={onInterruptPress}
               mapShiftEnterToCtrlJ
+              remoteConnectionId={remoteConnectionId}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs text-foreground-muted">
