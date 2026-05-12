@@ -135,13 +135,14 @@ function TaskNameWithOverflowTooltip({
   className?: string;
 }) {
   const textRef = useRef<HTMLSpanElement>(null);
-  const [isTruncated, setIsTruncated] = useState(false);
+  const [truncation, setTruncation] = useState({ taskName, isTruncated: false });
+  const isTruncated = truncation.taskName === taskName && truncation.isTruncated;
 
   const updateTruncation = useCallback(() => {
     const element = textRef.current;
     if (!element) return;
-    setIsTruncated(element.scrollWidth > element.clientWidth);
-  }, []);
+    setTruncation({ taskName, isTruncated: element.scrollWidth > element.clientWidth });
+  }, [taskName]);
 
   return (
     <Tooltip>
