@@ -56,7 +56,10 @@ export function useSidebarDrop() {
           if (!filePath) return null;
 
           try {
-            const status = await rpc.projects.getLocalProjectPathStatus(filePath);
+            const status = await rpc.projects.inspectProjectPath({
+              type: 'local',
+              path: filePath,
+            });
             if (!status.isDirectory) {
               toast({
                 title: 'Cannot add project',

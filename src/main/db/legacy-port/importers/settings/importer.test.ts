@@ -179,8 +179,8 @@ describe('portLegacySettings', () => {
     });
 
     expect(summary.imported).toEqual([
-      'localProject.branchPrefix',
-      'localProject.pushOnCreate',
+      'project.branchPrefix',
+      'project.pushOnCreate',
       'tasks.autoGenerateName',
       'tasks.autoApproveByDefault',
       'tasks.autoTrustWorktrees',
@@ -196,8 +196,9 @@ describe('portLegacySettings', () => {
 
     const localProject = readRawSetting(appSqlite, 'localProject') as Record<string, unknown>;
     expect(localProject.defaultProjectsDirectory).toBe('/beta/projects');
-    expect(localProject.branchPrefix).toBe('legacy-prefix');
-    expect(localProject.pushOnCreate).toBe(false);
+    const project = readRawSetting(appSqlite, 'project') as Record<string, unknown>;
+    expect(project.branchPrefix).toBe('legacy-prefix');
+    expect(project.pushOnCreate).toBe(false);
 
     expect(readRawSetting(appSqlite, 'tasks')).toEqual({
       autoGenerateName: false,

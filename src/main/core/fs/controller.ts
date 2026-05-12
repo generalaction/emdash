@@ -170,46 +170,6 @@ export const filesController = createRPCController({
     }
   },
 
-  getProjectConfig: async (projectId: string, workspaceId: string) => {
-    const env = resolveWorkspace(projectId, workspaceId);
-    if (!env)
-      return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
-
-    if (!env.fs.getProjectConfig) {
-      return err({
-        type: 'fs_error' as const,
-        message: 'getProjectConfig not supported by this filesystem',
-      });
-    }
-
-    try {
-      const result = await env.fs.getProjectConfig();
-      return ok(result);
-    } catch (e) {
-      return err({ type: 'fs_error' as const, message: String(e) });
-    }
-  },
-
-  saveProjectConfig: async (projectId: string, workspaceId: string, content: string) => {
-    const env = resolveWorkspace(projectId, workspaceId);
-    if (!env)
-      return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
-
-    if (!env.fs.saveProjectConfig) {
-      return err({
-        type: 'fs_error' as const,
-        message: 'saveProjectConfig not supported by this filesystem',
-      });
-    }
-
-    try {
-      const result = await env.fs.saveProjectConfig(content);
-      return ok(result);
-    } catch (e) {
-      return err({ type: 'fs_error' as const, message: String(e) });
-    }
-  },
-
   saveAttachment: async (
     projectId: string,
     workspaceId: string,

@@ -17,6 +17,10 @@ import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
+import {
+  reconcileResourceSampler,
+  stopResourceSampler,
+} from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
@@ -123,6 +127,8 @@ void app.whenReady().then(async () => {
 
   registerRPCRouter(rpcRouter, ipcMain);
 
+  void reconcileResourceSampler();
+
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
   });
@@ -145,6 +151,7 @@ app.on('before-quit', (event) => {
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
     agentHookService.dispose();
+    stopResourceSampler();
     updateService.dispose();
     prSyncScheduler.dispose();
     void gitWatcherRegistry.dispose();

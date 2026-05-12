@@ -1,4 +1,4 @@
-import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
+import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import { resolveWorkspace } from '../projects/utils';
 
 export async function runLifecycleScript({
