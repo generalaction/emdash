@@ -1,4 +1,5 @@
 import { observer } from 'mobx-react-lite';
+import { useCallback, useRef, useState } from 'react';
 import { selectCurrentPr } from '@shared/pull-requests';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
@@ -16,6 +17,7 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { PrBadge } from '../../lib/components/pr-badge';
 import { SidebarMenuRow } from './sidebar-primitives';
@@ -112,14 +114,10 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         onDoubleClick={() => setCollapsed('left', true)}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
-          <span
-            className={cn(
-              'min-w-0 truncate text-left transition-colors',
-              isBootstrapping && 'text-foreground/40'
-            )}
-          >
-            {taskName}
-          </span>
+          <TaskNameWithOverflowTooltip
+            taskName={taskName}
+            className={cn(isBootstrapping && 'text-foreground/40')}
+          />
           <TaskGitDiffStats task={task} className="h-full shrink-0 flex items-center pl-1 pr-1" />
           <RenderPrBadge task={task} />
         </div>
@@ -128,6 +126,46 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     </TaskContextMenu>
   );
 });
+
+function TaskNameWithOverflowTooltip({
+  taskName,
+  className,
+}: {
+  taskName: string;
+  className?: string;
+}) {
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+
+  const updateTruncation = useCallback(() => {
+    const element = textRef.current;
+    if (!element) return;
+    setIsTruncated(element.scrollWidth > element.clientWidth);
+  }, []);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        className="h-auto min-w-0"
+        render={
+          <span
+            ref={textRef}
+            className={cn('min-w-0 truncate text-left transition-colors', className)}
+            onPointerEnter={updateTruncation}
+            onFocus={updateTruncation}
+          >
+            {taskName}
+          </span>
+        }
+      />
+      {isTruncated ? (
+        <TooltipContent side="right" align="center" className="max-w-80 break-words text-xs">
+          {taskName}
+        </TooltipContent>
+      ) : null}
+    </Tooltip>
+  );
+}
 
 const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
   if (!('prs' in task.data)) return null;
