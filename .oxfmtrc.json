@@ -10,5 +10,8 @@
   "bracketSpacing": true,
   "bracketSameLine": false,
   "arrowParentheses": "always",
-  "lineEnding": "lf"
+  "lineEnding": "lf",
+  "sortTailwindcss": {
+    "stylesheet": "./src/renderer/index.css"
+  }
 }

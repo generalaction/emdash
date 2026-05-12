@@ -76,6 +76,7 @@
     "lint-staged": "^16.3.0",
     "oxfmt": "^0.5.0",
     "oxlint": "^1.27.0",
+    "oxlint-tsgolint": "^0.22.1",
     "postcss": "^8.4.32",
     "s3mini": "^0.9.4",
     "tailwindcss": "^4.2.1",

@@ -4,6 +4,9 @@
   "categories": {
     "correctness": "error"
   },
+  "options": {
+    "typeAware": true
+  },
   "env": {
     "browser": true,
     "node": true,
@@ -31,6 +34,18 @@
       "warn",
       { "prefer": "type-imports", "fixStyle": "inline-type-imports" }
     ],
+    "typescript/no-floating-promises": "warn",
+    "typescript/no-misused-promises": [
+      "warn",
+      { "checksVoidReturn": { "attributes": false } }
+    ],
+    "typescript/await-thenable": "warn",
+    "typescript/no-base-to-string": "off",
+    "typescript/no-meaningless-void-operator": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/no-useless-default-assignment": "off",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/unbound-method": "off",
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn"
   },
