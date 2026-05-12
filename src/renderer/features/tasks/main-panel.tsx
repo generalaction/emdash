@@ -23,6 +23,7 @@ import { MarkdownEditorPanel } from './editor/markdown-editor-panel';
 import { TerminalsPanel } from './terminals/terminal-panel';
 import { TaskSidebar } from './view/task-sidebar';
 import { UnifiedMainTabBar } from './view/unified-main-tab-bar';
+import { WorkspaceResolutionView } from './workspace-resolution-view';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -99,6 +100,10 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
 
   if (kind === 'missing') {
     return null;
+  }
+
+  if (kind === 'needs-resolution') {
+    return <WorkspaceResolutionView />;
   }
 
   return <ReadyTaskMainPanel />;

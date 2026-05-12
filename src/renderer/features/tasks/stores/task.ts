@@ -2,6 +2,7 @@ import { makeAutoObservable, observable, runInAction } from 'mobx';
 import type { Conversation } from '@shared/conversations';
 import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
+import type { WorkspaceResolution } from '@shared/workspaces';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
@@ -22,6 +23,7 @@ export type UnprovisionedTaskPhase =
   | 'provision-error'
   | 'teardown'
   | 'teardown-error'
+  | 'needs-resolution'
   | 'idle';
 
 export type UnregisteredTaskData = {
@@ -141,6 +143,9 @@ export class TaskStore {
   errorMessage: string | undefined = undefined;
   provisionedTask: ProvisionedTask | null = null;
   provisionProgressMessage: string | null = null;
+  resolution: WorkspaceResolution | null = null;
+  _pendingSnapshot: TaskViewSnapshot | undefined = undefined;
+  _pendingConversations: Conversation[] | undefined = undefined;
 
   get displayName(): string {
     return this.data.name;

@@ -72,7 +72,19 @@ export class WorktreeService {
     return [configuredRemote, DEFAULT_REMOTE_NAME];
   }
 
-  private async findCheckedOutPathForBranch(branchName: string): Promise<string | undefined> {
+  async existsAtAbsolutePath(absPath: string): Promise<boolean> {
+    if (this.ctx.supportsLocalSpawn) {
+      try {
+        await fsPromises.access(absPath);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return this.host.existsAbsolute(absPath);
+  }
+
+  async findBranchAnywhere(branchName: string): Promise<string | undefined> {
     try {
       const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
       const branchLine = `branch refs/heads/${branchName}`;
@@ -154,7 +166,7 @@ export class WorktreeService {
     sourceBranch: Branch | undefined,
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
-    const checkedOutPath = await this.findCheckedOutPathForBranch(branchName);
+    const checkedOutPath = await this.findBranchAnywhere(branchName);
     if (checkedOutPath) {
       return ok(checkedOutPath);
     }
@@ -206,7 +218,7 @@ export class WorktreeService {
   private async doCheckoutExistingBranch(
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
-    const checkedOutPath = await this.findCheckedOutPathForBranch(branchName);
+    const checkedOutPath = await this.findBranchAnywhere(branchName);
     if (checkedOutPath) {
       return ok(checkedOutPath);
     }

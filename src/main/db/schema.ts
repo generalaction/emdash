@@ -1,4 +1,4 @@
-import { relations, sql } from 'drizzle-orm';
+import { isNotNull, relations, sql } from 'drizzle-orm';
 import {
   index,
   integer,
@@ -131,6 +131,26 @@ export const tasks = sqliteTable(
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
+  })
+);
+
+export const workspaces = sqliteTable(
+  'workspaces',
+  {
+    id: text('id').primaryKey(),
+    key: text('key'),
+    type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(),
+    data: text('data'),
+    path: text('path'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    keyIdx: uniqueIndex('idx_workspaces_key').on(table.key).where(isNotNull(table.key)),
   })
 );
 
@@ -427,3 +447,5 @@ export type KvRow = typeof kv.$inferSelect;
 export type KvInsert = typeof kv.$inferInsert;
 export type AppSecretRow = typeof appSecrets.$inferSelect;
 export type AppSecretInsert = typeof appSecrets.$inferInsert;
+export type WorkspaceRow = typeof workspaces.$inferSelect;
+export type WorkspaceInsert = typeof workspaces.$inferInsert;

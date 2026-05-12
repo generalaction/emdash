@@ -5,6 +5,7 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
+import type { WorkspaceType as SharedWorkspaceType } from '@shared/workspaces';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
@@ -27,6 +28,12 @@ import {
 } from './provision-task-error';
 import { provisionLocalTask } from './task-builder';
 
+export type WorkspaceHint = {
+  id: string;
+  type: SharedWorkspaceType;
+  path?: string;
+};
+
 type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
 
 export type TaskManagerHooks = {
@@ -48,9 +55,11 @@ async function executeProvision(
   provider: ProjectProvider,
   task: Task,
   conversations: Conversation[],
-  terminals: Terminal[]
+  terminals: Terminal[],
+  hint?: WorkspaceHint
 ): Promise<ProvisionResult> {
-  if (task.workspaceProvider === 'byoi') {
+  const isByoi = hint?.type === 'byoi';
+  if (isByoi) {
     const projectSettings = await provider.settings.get();
     if (projectSettings.workspaceProvider?.type !== 'script') {
       throw new Error(
@@ -71,9 +80,10 @@ async function executeProvision(
   }
 
   const workspaceId =
-    provider.defaultWorkspaceType.kind === 'local'
+    hint?.id ??
+    (provider.defaultWorkspaceType.kind === 'local'
       ? localWorkspaceId(provider.projectId, task.taskBranch)
-      : sshWorkspaceId(provider.projectId, task.taskBranch);
+      : sshWorkspaceId(provider.projectId, task.taskBranch));
 
   const { provisionResult, workspace } = await provisionLocalTask({
     task,
@@ -88,6 +98,7 @@ async function executeProvision(
     fetchService: provider.gitFetchService,
     repository: provider.repository,
     logPrefix: `${provider.type}ProjectProvider`,
+    workDir: hint?.path,
   });
 
   if (provider.defaultWorkspaceType.kind === 'local') {
@@ -159,7 +170,8 @@ class TaskManager {
     provider: ProjectProvider,
     task: Task,
     conversations: Conversation[],
-    terminals: Terminal[]
+    terminals: Terminal[],
+    hint?: WorkspaceHint
   ): Promise<Result<ProvisionResult, ProvisionTaskError>> {
     return this._lifecycle.provision(task.id, async () => {
       let lastStep: ProvisionStep | null = null;
@@ -168,7 +180,7 @@ class TaskManager {
       });
       try {
         const result = await withTimeout(
-          executeProvision(provider, task, conversations, terminals),
+          executeProvision(provider, task, conversations, terminals, hint),
           TASK_TIMEOUT_MS
         );
         const stored: StoredTask = {

@@ -69,6 +69,7 @@ export type TaskViewKind =
   | 'teardown'
   | 'teardown-error'
   | 'idle'
+  | 'needs-resolution'
   | 'ready';
 
 /**
@@ -106,6 +107,7 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
     if (store.phase === 'provision-error') return 'provision-error';
     if (store.phase === 'teardown') return 'teardown';
     if (store.phase === 'teardown-error') return 'teardown-error';
+    if (store.phase === 'needs-resolution') return 'needs-resolution';
     return 'idle';
   }
   return 'ready';

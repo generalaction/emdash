@@ -3,11 +3,12 @@ import { mapConversationRowToConversation } from '@main/core/conversations/utils
 import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { formatProvisionTaskError } from '@main/core/tasks/provision-task-error';
-import { taskManager } from '@main/core/tasks/task-manager';
+import { taskManager, type WorkspaceHint } from '@main/core/tasks/task-manager';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
+import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
-import { conversations, tasks, terminals } from '@main/db/schema';
+import { conversations, tasks, terminals, workspaces } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
 import { mapTaskRowToTask } from './utils/utils';
 
@@ -44,11 +45,24 @@ export async function provisionTask(taskId: string) {
       .then((rows) => rows.map((r) => mapConversationRowToConversation(r, true))),
   ]);
 
+  const workspaceRow = row.workspaceId
+    ? await db
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.id, row.workspaceId))
+        .then((r) => r[0])
+    : undefined;
+
+  const hint: WorkspaceHint | undefined = workspaceRow
+    ? { id: workspaceRow.id, type: workspaceRow.type, path: workspaceRow.path ?? undefined }
+    : undefined;
+
   const result = await taskManager.provisionTask(
     project,
     task,
     existingConversations,
-    existingTerminals
+    existingTerminals,
+    hint
   );
   if (!result.success) {
     throw new Error(`Failed to provision task: ${formatProvisionTaskError(result.error)}`);
@@ -59,23 +73,46 @@ export async function provisionTask(taskId: string) {
     sshConnectionManager.reportChannelRecovered(persistData.sshConnectionId);
   }
 
+  const workspacePath = workspaceRegistry.get(persistData.workspaceId)?.path ?? '';
+
   await db
     .update(tasks)
-    .set({
-      lastInteractedAt: sql`CURRENT_TIMESTAMP`,
-      workspaceId: persistData.workspaceId,
-      workspaceProviderData: persistData.workspaceProviderData
-        ? JSON.stringify(persistData.workspaceProviderData)
-        : null,
-    })
+    .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: persistData.workspaceId })
     .where(eq(tasks.id, taskId));
+
+  if (workspaceRow && !workspaceRow.path && workspacePath) {
+    const connectionId =
+      project.defaultWorkspaceType.kind === 'ssh'
+        ? project.defaultWorkspaceType.connectionId
+        : undefined;
+    const key =
+      workspaceRow.type !== 'byoi'
+        ? computeWorkspaceKey(workspaceRow.type, workspacePath, connectionId)
+        : null;
+
+    await db
+      .update(workspaces)
+      .set({ path: workspacePath, key, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(workspaces.id, workspaceRow.id));
+  }
+
+  if (workspaceRow?.type === 'byoi' && persistData.workspaceProviderData) {
+    await db
+      .update(workspaces)
+      .set({
+        data: JSON.stringify(persistData.workspaceProviderData),
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(workspaces.id, workspaceRow.id));
+  }
+
   telemetryService.capture('task_provisioned', {
     project_id: task.projectId,
     task_id: task.id,
   });
 
   return {
-    path: workspaceRegistry.get(persistData.workspaceId)?.path ?? '',
+    path: workspacePath,
     workspaceId: persistData.workspaceId,
     sshConnectionId: persistData.sshConnectionId,
   };
