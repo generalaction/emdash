@@ -185,7 +185,7 @@ export const ProjectAppearanceModal = observer(function ProjectAppearanceModal({
           <span className="text-xs font-medium text-foreground-muted">Preview</span>
           <div className="flex h-6 w-6 items-center justify-center">
             {parsedIcon.kind === 'emoji' ? (
-              <span className="text-base leading-none">{parsedIcon.char}</span>
+              <em-emoji native={parsedIcon.char} size="1rem" />
             ) : parsedIcon.kind === 'lucide' ? (
               <parsedIcon.component className={cn('h-4 w-4', previewColor)} />
             ) : (

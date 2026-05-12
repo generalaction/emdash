@@ -144,8 +144,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                 }}
               >
                 {parsedIcon.kind === 'emoji' ? (
-                  <span className="absolute text-base leading-none transition-opacity duration-150 opacity-100 group-hover/row:opacity-0">
-                    {parsedIcon.char}
+                  <span className="absolute leading-none transition-opacity duration-150 opacity-100 group-hover/row:opacity-0">
+                    <em-emoji native={parsedIcon.char} size="1rem" />
                   </span>
                 ) : (
                   (() => {
