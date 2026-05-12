@@ -25,6 +25,8 @@ export type ConnectionState =
   | 'disconnected'
   | 'error';
 
+export type SshHealthState = { status: 'ok' } | { status: 'degraded' };
+
 /**
  * SSH Connection with metadata
  * Extends SshConfig with runtime connection information

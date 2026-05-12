@@ -14,7 +14,7 @@ import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import {
   sshConnectionManager,
-  type SshConnectionEvent,
+  type SshConnectionManagerEvent,
 } from '@main/core/ssh/ssh-connection-manager';
 import { log } from '@main/lib/logger';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
@@ -105,7 +105,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     );
 
     // Wire reconnect handler after provider is built so gitFetchService is available.
-    const handler = (evt: SshConnectionEvent) => {
+    const handler = (evt: SshConnectionManagerEvent) => {
       if (evt.type === 'reconnected' && evt.connectionId === project.connectionId) {
         void provider.gitFetchService.fetch();
       }

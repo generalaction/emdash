@@ -213,7 +213,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       return;
     }
 
-    if (kind === 'text' || kind === 'markdown' || kind === 'svg') {
+    if (kind === 'text' || kind === 'markdown' || kind === 'svg' || kind === 'html') {
       const language = getMonacoLanguageId(filePath);
       try {
         await modelRegistry.registerModel(

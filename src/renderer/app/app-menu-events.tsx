@@ -28,12 +28,9 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
         navigate('task', { projectId, taskId });
         if (!conversationId) return;
 
-        // Task view may not be provisioned yet — wait for the conversation tab to exist.
+        // Task view may not be provisioned yet — wait for it before opening the conversation tab.
         const dispose = when(
-          () => {
-            const view = getTaskView(projectId, taskId);
-            return !!view && view.tabManager.hasConversationTab(conversationId);
-          },
+          () => !!getTaskView(projectId, taskId),
           () => {
             getTaskView(projectId, taskId)?.tabManager.openConversation(conversationId);
           },
