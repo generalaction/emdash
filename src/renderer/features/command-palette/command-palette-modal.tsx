@@ -54,6 +54,17 @@ const GROUP_CLASS = cn(
   '[&_[cmdk-group-heading]]:text-foreground/50'
 );
 
+// Ordered allowlists for the "Suggested Actions" empty-state group.
+const TASK_SUGGESTED = [
+  'task.newConversation',
+  'task.sidebarChanges',
+  'task.sidebarFiles',
+  'task.sidebarConversations',
+  'task.toggleTerminalDrawer',
+];
+const PROJECT_SUGGESTED = ['app.newTask', 'app.settings'];
+const APP_SUGGESTED = ['app.newProject', 'app.settings'];
+
 /** Converts a TanStack hotkey string (e.g. 'Mod+Shift+C') to a display label. */
 function formatHotkey(hotkey: string | undefined): string | undefined {
   if (!hotkey) return undefined;
@@ -150,17 +161,6 @@ export function CommandPaletteModal({
         };
       })
   );
-
-  // Ordered allowlists for the "Suggested Actions" empty-state group.
-  const TASK_SUGGESTED = [
-    'task.newConversation',
-    'task.sidebarChanges',
-    'task.sidebarFiles',
-    'task.sidebarConversations',
-    'task.toggleTerminalDrawer',
-  ];
-  const PROJECT_SUGGESTED = ['app.newTask', 'app.settings'];
-  const APP_SUGGESTED = ['app.newProject', 'app.settings'];
 
   const actions = useMemo(() => {
     const allActions = [...registryActions];
@@ -264,7 +264,7 @@ export function CommandPaletteModal({
             {rankedDb.map((item) => {
               if (item.kind === 'command') {
                 const live = commandRegistry.findById(item.id);
-                if (!live || live.enabled === false) return null;
+                if (!live || live.enabled === false || live.hideFromPalette) return null;
                 const def = ALL_COMMAND_DEFS.find((d) => d.id === item.id) as
                   | CommandDef
                   | undefined;
