@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   getProjectManagerStore,
+  getProjectSettingsStore,
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
@@ -68,6 +69,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [useBYOI, setUseBYOI] = useState(false);
+  const [runScriptOnCreate, setRunScriptOnCreate] = useState(false);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
@@ -76,6 +78,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const autoApproveDefaults = useAgentAutoApproveDefaults();
 
   useEffect(() => setUseBYOI(false), [selectedProjectId]);
+  useEffect(() => setRunScriptOnCreate(false), [selectedProjectId]);
   useEffect(() => {
     initialConversation.setProvider(null);
     initialConversation.setPrompt('');
@@ -89,6 +92,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   }, [isWorkspaceProviderEnabled]);
 
   const repo = selectedProjectId ? getRepositoryStore(selectedProjectId) : undefined;
+  const projectSettings = selectedProjectId
+    ? getProjectSettingsStore(selectedProjectId)
+    : undefined;
+  const hasRunScript = Boolean(projectSettings?.settings?.scripts?.run?.trim());
   const defaultBranch = repo?.defaultBranch;
   const isUnborn = repo?.isUnborn ?? false;
   const currentBranch = repo?.currentBranch ?? null;
@@ -144,6 +151,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           sourceBranch: fromBranch.selectedBranch,
           strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
           workspaceProvider: useBYOI ? 'byoi' : undefined,
+          runScriptOnCreate: runScriptOnCreate && hasRunScript,
           initialConversation: builtInitialConversation,
         });
         break;
@@ -164,6 +172,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
           linkedIssue: fromIssue.linkedIssue ?? undefined,
           workspaceProvider: useBYOI ? 'byoi' : undefined,
+          runScriptOnCreate: runScriptOnCreate && hasRunScript,
           initialConversation: builtInitialConversation,
         });
         break;
@@ -189,6 +198,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
           strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
           workspaceProvider: useBYOI ? 'byoi' : undefined,
+          runScriptOnCreate: runScriptOnCreate && hasRunScript,
           initialConversation: builtInitialConversation,
         });
         break;
@@ -205,6 +215,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     fromPR,
     isUnborn,
     useBYOI,
+    runScriptOnCreate,
+    hasRunScript,
     initialConversation,
     autoApproveDefaults,
     navigate,
@@ -251,6 +263,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           <div className="flex items-center gap-2">
             <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
             <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+          </div>
+        )}
+        {hasRunScript && (
+          <div className="flex items-center gap-2">
+            <Switch size="sm" checked={runScriptOnCreate} onCheckedChange={setRunScriptOnCreate} />
+            <span className="text-sm text-muted-foreground">Run script after task creation</span>
           </div>
         )}
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>

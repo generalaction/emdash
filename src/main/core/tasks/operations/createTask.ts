@@ -11,8 +11,10 @@ import type {
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
+import { runLifecycleScript } from '@main/core/terminals/runLifecycleScript';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { createConversation } from '../../conversations/createConversation';
 import { prQueryService } from '../../pull-requests/pr-query-service';
@@ -225,6 +227,20 @@ export async function createTask(
     project_id: params.projectId,
     task_id: params.id,
   });
+
+  if (params.runScriptOnCreate) {
+    void runLifecycleScript({
+      projectId: params.projectId,
+      workspaceId: provisionResult.data.persistData.workspaceId,
+      type: 'run',
+    }).catch((error: unknown) => {
+      log.warn('Failed to run task lifecycle script after task creation', {
+        projectId: params.projectId,
+        taskId: params.id,
+        error: String(error),
+      });
+    });
+  }
 
   if (params.initialConversation) {
     await createConversation({
