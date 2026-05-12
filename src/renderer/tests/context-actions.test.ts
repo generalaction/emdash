@@ -62,6 +62,19 @@ describe('buildLinkedIssueContextAction', () => {
     expect(action).not.toBeNull();
     expect(action?.text).toContain(`Description: ${longDescription}`);
   });
+
+  it('includes provider-specific context when building injected text', () => {
+    const action = buildLinkedIssueContextAction(
+      makeIssue({
+        provider: 'linear',
+        context: 'Linear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
+      })
+    );
+
+    expect(action).not.toBeNull();
+    expect(action?.text).toContain('Context: Linear issue activity Comments:');
+    expect(action?.text).toContain('Looks good');
+  });
 });
 
 describe('buildReviewPromptContextAction', () => {
@@ -78,6 +91,22 @@ describe('buildReviewPromptContextAction', () => {
       label: 'Review prompt',
       text: 'Review this worktree for issues.',
     });
+  });
+
+  it('includes linked issue context in review prompt actions', () => {
+    const action = buildReviewPromptContextAction(
+      'Review this worktree for issues.',
+      makeIssue({
+        provider: 'linear',
+        context: 'Linear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
+      })
+    );
+
+    expect(action).not.toBeNull();
+    expect(action?.text).toContain('Review this worktree for issues.');
+    expect(action?.text).toContain('Linked issue context:');
+    expect(action?.text).toContain('Context: Linear issue activity Comments:');
+    expect(action?.text).toContain('Looks good');
   });
 });
 

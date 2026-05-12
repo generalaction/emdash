@@ -39,6 +39,7 @@ function issueInjectionText(issue: Issue): string {
     `Title: ${normalizeWhitespace(issue.title)}`,
     `URL: ${normalizeWhitespace(issue.url)}`,
     issue.description ? `Description: ${normalizeWhitespace(issue.description)}` : undefined,
+    issue.context ? `Context: ${normalizeWhitespace(issue.context)}` : undefined,
     issue.status ? `Status: ${normalizeWhitespace(issue.status)}` : undefined,
     issue.assignees?.length
       ? `Assignees: ${issue.assignees.map(normalizeWhitespace).filter(Boolean).join(', ')}`
@@ -65,14 +66,18 @@ export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | nu
   };
 }
 
-export function buildReviewPromptContextAction(reviewPrompt?: string): ContextAction | null {
+export function buildReviewPromptContextAction(
+  reviewPrompt?: string,
+  linkedIssue?: Issue
+): ContextAction | null {
   const text = (reviewPrompt ?? '').trim();
   if (!text) return null;
+  const issueContext = linkedIssue ? issueInjectionText(linkedIssue) : '';
   return {
     id: 'review-prompt',
     kind: 'review-prompt',
     label: 'Review prompt',
-    text,
+    text: issueContext ? `${text}\n\nLinked issue context:\n${issueContext}` : text,
   };
 }
 
@@ -98,7 +103,7 @@ export function buildTaskContextActions(
 ): ContextAction[] {
   const linkedIssueAction = buildLinkedIssueContextAction(linkedIssue);
   const draftCommentsAction = draftComments ? buildDraftCommentsContextAction(draftComments) : null;
-  const reviewPromptAction = buildReviewPromptContextAction(reviewPrompt);
+  const reviewPromptAction = buildReviewPromptContextAction(reviewPrompt, linkedIssue);
   const actions: ContextAction[] = [];
   if (linkedIssueAction) actions.push(linkedIssueAction);
   if (draftCommentsAction) actions.push(draftCommentsAction);
