@@ -68,11 +68,12 @@ export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | nu
 
 export function buildReviewPromptContextAction(
   reviewPrompt?: string,
-  linkedIssue?: Issue
+  linkedIssue?: Issue,
+  { embedIssueContext = false }: { embedIssueContext?: boolean } = {}
 ): ContextAction | null {
   const text = (reviewPrompt ?? '').trim();
   if (!text) return null;
-  const issueContext = linkedIssue ? issueInjectionText(linkedIssue) : '';
+  const issueContext = embedIssueContext && linkedIssue ? issueInjectionText(linkedIssue) : '';
   return {
     id: 'review-prompt',
     kind: 'review-prompt',

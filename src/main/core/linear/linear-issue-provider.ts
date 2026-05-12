@@ -194,7 +194,7 @@ type NameLike = { displayName?: string | null; name?: string | null } | null | u
 function displayName(user: NameLike, fallback: string): string;
 function displayName(user: NameLike): string | undefined;
 function displayName(user: NameLike, fallback?: string): string | undefined {
-  return user?.name ?? user?.displayName ?? fallback;
+  return user?.displayName ?? user?.name ?? fallback;
 }
 
 function formatTransition(
@@ -344,7 +344,20 @@ async function hydrateIssuesActivity(
   client: LinearRawClient,
   issues: LinearIssueNode[]
 ): Promise<LinearIssueNode[]> {
-  return Promise.all(issues.map((issue) => hydrateIssueActivity(client, issue)));
+  return Promise.all(
+    issues.map(async (issue) => {
+      try {
+        return await hydrateIssueActivity(client, issue);
+      } catch (error) {
+        log.warn('[Linear] failed to hydrate issue activity:', {
+          issueId: issue.id,
+          identifier: issue.identifier,
+          error,
+        });
+        return issue;
+      }
+    })
+  );
 }
 
 function toIssue(raw: LinearIssueNode): Issue {

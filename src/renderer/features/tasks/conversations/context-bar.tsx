@@ -1,6 +1,7 @@
 import { ArrowUp, FileSearch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
+import type { Issue } from '@shared/tasks';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
@@ -10,7 +11,25 @@ import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { CommentsPopover } from './comments-popover';
-import { buildTaskContextActions, type ContextAction } from './context-actions';
+import {
+  buildLinkedIssueContextAction,
+  buildReviewPromptContextAction,
+  buildTaskContextActions,
+  type ContextAction,
+} from './context-actions';
+
+async function refreshLinearIssue(issue: Issue, projectId: string): Promise<Issue> {
+  const result = await rpc.issues
+    .searchIssues('linear', {
+      searchTerm: issue.identifier,
+      limit: 3,
+      projectId,
+    })
+    .catch(() => undefined);
+  if (!result?.success) return issue;
+
+  return result.issues.find((candidate) => candidate.identifier === issue.identifier) ?? issue;
+}
 
 export const ContextBar = observer(function ContextBar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -43,11 +62,26 @@ export const ContextBar = observer(function ContextBar() {
 
   const applyContext = async (action: ContextAction) => {
     if (!activeSessionId) return;
-    if (!action.text) return;
+
+    let text = action.text;
+    const linkedIssue = task?.linkedIssue;
+    if (
+      (action.kind === 'linked-issue' || action.kind === 'review-prompt') &&
+      linkedIssue?.provider === 'linear'
+    ) {
+      const refreshedIssue = await refreshLinearIssue(linkedIssue, projectId);
+      const refreshedAction =
+        action.kind === 'linked-issue'
+          ? buildLinkedIssueContextAction(refreshedIssue)
+          : buildReviewPromptContextAction(reviewPrompt, refreshedIssue);
+      text = refreshedAction?.text ?? text;
+    }
+
+    if (!text) return;
 
     await pastePromptInjection({
       providerId: activeConversation?.data.providerId,
-      text: action.text,
+      text,
       sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
     });
 

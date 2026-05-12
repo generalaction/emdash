@@ -95,8 +95,9 @@ describe('linearIssueProvider', () => {
       ],
     });
     const context = result.success ? result.issues[0]?.context : '';
+    expect(context).toContain('by Jona: This should match Linear copy prompt context.');
     expect(context).toContain('State: Todo -> Backlog');
-    expect(context).toContain('Estimate: 1 -> 2');
+    expect(context).toContain('by Ari: Estimate: 1 -> 2');
   });
 
   it('maps branchName from searched Linear issues without activity', async () => {
@@ -253,5 +254,71 @@ describe('linearIssueProvider', () => {
     expect(context).toContain('Second page comment.');
     expect(context).toContain('State: Todo -> Backlog');
     expect(context).toContain('Estimate: 1 -> 2');
+  });
+
+  it('keeps listed issues when activity pagination fails for one issue', async () => {
+    const rawRequest = vi.fn().mockImplementation((query: string) => {
+      if (query.includes('IssueComments')) {
+        return Promise.reject(new Error('Linear pagination failed'));
+      }
+
+      if (query.includes('IssueHistory')) {
+        return Promise.resolve({
+          data: {
+            issue: {
+              history: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] },
+            },
+          },
+        });
+      }
+
+      return Promise.resolve({
+        data: {
+          issues: {
+            nodes: [
+              {
+                id: 'issue-1',
+                identifier: 'GEN-626',
+                title: 'Linear issue branch name creation',
+                description: 'Use the Linear branch format',
+                url: 'https://linear.app/general-action/issue/GEN-626',
+                branchName: 'jona/gen-626-linear-issue-branch-name-creation',
+                state: { name: 'Backlog', type: 'unstarted', color: '#aaa' },
+                team: { name: 'General', key: 'GEN' },
+                project: { name: 'Refactor (v1)' },
+                assignee: { displayName: 'Jona', name: 'jona' },
+                updatedAt: '2026-04-17T12:00:00.000Z',
+                comments: {
+                  pageInfo: { hasNextPage: true, endCursor: 'comment-cursor-1' },
+                  nodes: [
+                    {
+                      id: 'comment-1',
+                      body: 'First page comment still survives.',
+                      createdAt: '2026-04-17T12:05:00.000Z',
+                      updatedAt: '2026-04-17T12:05:00.000Z',
+                      url: 'https://linear.app/general-action/issue/GEN-626#comment-1',
+                      user: { displayName: 'Jona', name: 'jona' },
+                    },
+                  ],
+                },
+                history: {
+                  pageInfo: { hasNextPage: true, endCursor: 'history-cursor-1' },
+                  nodes: [],
+                },
+              },
+            ],
+          },
+        },
+      });
+    });
+    mockGetClient.mockResolvedValue(makeLinearClient(rawRequest) as never);
+
+    const result = await linearIssueProvider.listIssues({ limit: 10 });
+
+    expect(result.success).toBe(true);
+    expect(result.success ? result.issues : []).toHaveLength(1);
+    expect(result.success ? result.issues[0]?.context : '').toContain(
+      'First page comment still survives.'
+    );
   });
 });

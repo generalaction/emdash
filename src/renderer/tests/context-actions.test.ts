@@ -93,13 +93,27 @@ describe('buildReviewPromptContextAction', () => {
     });
   });
 
-  it('includes linked issue context in review prompt actions', () => {
+  it('does not duplicate linked issue context by default', () => {
     const action = buildReviewPromptContextAction(
       'Review this worktree for issues.',
       makeIssue({
         provider: 'linear',
         context: 'Linear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
       })
+    );
+
+    expect(action).not.toBeNull();
+    expect(action?.text).toBe('Review this worktree for issues.');
+  });
+
+  it('includes linked issue context in review prompt actions when requested', () => {
+    const action = buildReviewPromptContextAction(
+      'Review this worktree for issues.',
+      makeIssue({
+        provider: 'linear',
+        context: 'Linear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
+      }),
+      { embedIssueContext: true }
     );
 
     expect(action).not.toBeNull();
@@ -154,5 +168,6 @@ describe('buildTaskContextActions', () => {
     expect(actions[0]?.id).toBe('linked-issue:github:EMD-123');
     expect(actions[1]?.id).toBe('draft-comments');
     expect(actions[2]?.id).toBe('review-prompt');
+    expect(actions[2]?.text).toBe('Review this worktree for issues.');
   });
 });
