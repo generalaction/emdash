@@ -156,29 +156,39 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     [queryClient]
   );
 
+  const invalidateLinear = useCallback(() => invalidateProvider('linear'), [invalidateProvider]);
+  const invalidateJira = useCallback(() => invalidateProvider('jira'), [invalidateProvider]);
+  const invalidateGitlab = useCallback(() => invalidateProvider('gitlab'), [invalidateProvider]);
+  const invalidatePlain = useCallback(() => invalidateProvider('plain'), [invalidateProvider]);
+  const invalidateForgejo = useCallback(() => invalidateProvider('forgejo'), [invalidateProvider]);
+  const invalidateFeaturebase = useCallback(
+    () => invalidateProvider('featurebase'),
+    [invalidateProvider]
+  );
+
   const linearConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.linear,
-    invalidate: () => invalidateProvider('linear'),
+    invalidate: invalidateLinear,
   });
   const jiraConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.jira,
-    invalidate: () => invalidateProvider('jira'),
+    invalidate: invalidateJira,
   });
   const gitlabConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.gitlab,
-    invalidate: () => invalidateProvider('gitlab'),
+    invalidate: invalidateGitlab,
   });
   const plainConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.plain,
-    invalidate: () => invalidateProvider('plain'),
+    invalidate: invalidatePlain,
   });
   const forgejoConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.forgejo,
-    invalidate: () => invalidateProvider('forgejo'),
+    invalidate: invalidateForgejo,
   });
   const featurebaseConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.featurebase,
-    invalidate: () => invalidateProvider('featurebase'),
+    invalidate: invalidateFeaturebase,
   });
 
   const connectionStatus = statusData ?? DEFAULT_CONNECTION_STATUS;
