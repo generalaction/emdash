@@ -88,6 +88,32 @@ export const AutoTrustWorktreesRow: React.FC = () => {
   );
 };
 
+export const CreateBranchAndWorktreeRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Create branch and worktree by default"
+      description="Start new From Branch tasks in a dedicated task branch and worktree unless changed in the task modal."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('createBranchAndWorktree')}
+            defaultLabel="on"
+            onReset={taskSettings.resetCreateBranchAndWorktree}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.createBranchAndWorktree}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateCreateBranchAndWorktree}
+          />
+        </>
+      }
+    />
+  );
+};
+
 export const EnableTmuxRow: React.FC = () => {
   const {
     value: projects,
