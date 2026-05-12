@@ -3,12 +3,20 @@ export type ProjectPathStatus = {
   isGitRepo: boolean;
 };
 
+export type ProjectAppearance = {
+  icon: string | null;
+  iconColor: string | null;
+};
+
 export type LocalProject = {
   type: 'local';
   id: string;
   name: string;
   path: string;
   baseRef: string;
+  archived: boolean;
+  icon: string | null;
+  iconColor: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -20,6 +28,9 @@ export type SshProject = {
   path: string;
   baseRef: string;
   connectionId: string;
+  archived: boolean;
+  icon: string | null;
+  iconColor: string | null;
   createdAt: string;
   updatedAt: string;
 };

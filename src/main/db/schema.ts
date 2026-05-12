@@ -45,6 +45,9 @@ export const projects = sqliteTable(
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),
+    archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
+    icon: text('icon'),
+    iconColor: text('icon_color'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

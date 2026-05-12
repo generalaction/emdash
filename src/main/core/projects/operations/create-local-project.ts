@@ -51,6 +51,9 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     name: row.name,
     path: row.path,
     baseRef: row.baseRef ?? baseRef,
+    archived: row.archived,
+    icon: row.icon,
+    iconColor: row.iconColor,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

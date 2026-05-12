@@ -58,6 +58,15 @@ export interface ActiveFile {
   prNumber?: number;
 }
 
+/** Grid/tile layout mode for the agent (conversations) main panel. */
+export type AgentLayoutMode = 'tabs' | 'stacked' | 'side-by-side' | 'tile';
+
+export type AgentLayoutSnapshot = {
+  mode: AgentLayoutMode;
+  /** Ordered conversation IDs visible in the layout (non-tabs modes). */
+  slots: string[];
+};
+
 export type TaskViewSnapshot = {
   sidebarTab?: string;
   isSidebarCollapsed?: boolean;
@@ -69,6 +78,7 @@ export type TaskViewSnapshot = {
   terminals?: TabViewSnapshot;
   editor?: EditorViewSnapshot;
   diffView?: DiffViewSnapshot;
+  agentLayout?: AgentLayoutSnapshot;
 };
 
 export type ProjectViewSnapshot = {
@@ -89,4 +99,5 @@ export type SidebarSnapshot = {
   projectOrder?: string[];
   taskOrderByProject?: Record<string, string[]>;
   taskSortBy?: SidebarTaskSortBy;
+  isArchivedExpanded?: boolean;
 };
