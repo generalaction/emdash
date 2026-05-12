@@ -11,6 +11,8 @@ import {
   type ClientRect,
   type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -21,7 +23,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { type SidebarRow } from '@renderer/features/sidebar/sidebar-store';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
@@ -39,6 +41,9 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const { params: projectParams } = useParams('project');
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const initialPointerYRef = useRef<number | null>(null);
+  const dragPointerYRef = useRef<number | null>(null);
+  const [dragPointerY, setDragPointerY] = useState<number | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -115,14 +120,38 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     virtualizer,
   ]);
 
+  function setCurrentDragPointerY(pointerY: number | null) {
+    dragPointerYRef.current = pointerY;
+    setDragPointerY(pointerY);
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    const pointerY = getEventClientY(event.activatorEvent);
+    initialPointerYRef.current = pointerY;
+    setCurrentDragPointerY(pointerY);
+  }
+
+  function handleDragMove(event: DragMoveEvent) {
+    const initialPointerY = initialPointerYRef.current;
+    if (initialPointerY === null) return;
+    setCurrentDragPointerY(initialPointerY + event.delta.y);
+  }
+
+  function clearDragPointerY() {
+    initialPointerYRef.current = null;
+    setCurrentDragPointerY(null);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
+    const pointerY = dragPointerYRef.current;
+    clearDragPointerY();
     if (!over || active.id === over.id) return;
     const aParsed = parseDndId(String(active.id));
     const oParsed = parseDndId(String(over.id));
     if (!aParsed || !oParsed) return;
 
-    const isAbove = isCursorAbove(active.rect.current.translated, over.rect);
+    const isAbove = isCursorAbove(pointerY, active.rect.current.translated, over.rect);
 
     if (aParsed.kind === 'project') {
       const overRowIdx = rows.findIndex((r) => rowToDndId(r) === String(over.id));
@@ -164,7 +193,10 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       collisionDetection={sidebarCollision}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       autoScroll={{ threshold: { x: 0, y: 0.18 }, acceleration: 8, interval: 5 }}
+      onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
+      onDragCancel={clearDragPointerY}
     >
       <SortableContext items={allDndIds} strategy={verticalListSortingStrategy}>
         <div ref={scrollRef} className="overflow-y-auto min-h-0 flex-1 px-3 pt-1 pb-3">
@@ -199,7 +231,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       <DragOverlay>
         <DragOverlayContent />
       </DragOverlay>
-      <InsertionIndicator />
+      <InsertionIndicator pointerY={dragPointerY} />
     </DndContext>
   );
 });
@@ -246,7 +278,21 @@ const sidebarCollision: CollisionDetection = (args) => {
   return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(filteredArgs);
 };
 
-function isCursorAbove(translated: ClientRect | null, overRect: ClientRect): boolean {
+function getEventClientY(event: Event): number | null {
+  if ('clientY' in event && typeof event.clientY === 'number') return event.clientY;
+  if (typeof TouchEvent !== 'undefined' && event instanceof TouchEvent) {
+    const touch = event.touches[0] ?? event.changedTouches[0];
+    return touch?.clientY ?? null;
+  }
+  return null;
+}
+
+function isCursorAbove(
+  pointerY: number | null,
+  translated: ClientRect | null,
+  overRect: ClientRect
+): boolean {
+  if (pointerY !== null) return pointerY < overRect.top + overRect.height / 2;
   if (!translated) return true;
   const cursorY = translated.top + translated.height / 2;
   const overCenterY = overRect.top + overRect.height / 2;
@@ -271,12 +317,22 @@ function DragOverlayContent() {
   );
 }
 
-function InsertionIndicator() {
+function InsertionIndicator({ pointerY }: { pointerY: number | null }) {
   const { active, over } = useDndContext();
   if (!active || !over || active.id === over.id) return null;
+  const activeParsed = parseDndId(String(active.id));
+  const overParsed = parseDndId(String(over.id));
+  if (!activeParsed || !overParsed) return null;
+  if (
+    activeParsed.kind === 'project' &&
+    overParsed.kind === 'task' &&
+    overParsed.projectId === activeParsed.projectId
+  ) {
+    return null;
+  }
   const overRect = over.rect;
   if (!overRect) return null;
-  const isAbove = isCursorAbove(active.rect.current.translated, overRect);
+  const isAbove = isCursorAbove(pointerY, active.rect.current.translated, overRect);
   const top = isAbove ? overRect.top : overRect.top + overRect.height;
   return createPortal(
     <div
