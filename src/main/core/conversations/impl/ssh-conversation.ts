@@ -1,4 +1,3 @@
-import { getProvider } from '@shared/agent-provider-registry';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
@@ -18,7 +17,7 @@ import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { buildAgentCommand, wrapAgentCommandWithStdinPipe } from './agent-command';
+import { buildAgentSessionCommand } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
@@ -91,7 +90,7 @@ export class SshConversationProvider implements ConversationProvider {
     });
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const baseCommand = buildAgentCommand({
+    const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
@@ -99,12 +98,6 @@ export class SshConversationProvider implements ConversationProvider {
       isResuming,
       initialPrompt,
     });
-    const providerDef = getProvider(conversation.providerId);
-    const useStdinPipe =
-      !isResuming && !!initialPrompt?.trim() && !!providerDef?.initialPromptViaStdinPipe;
-    const { command, args } = useStdinPipe
-      ? wrapAgentCommandWithStdinPipe(baseCommand, initialPrompt!.trim())
-      : baseCommand;
     const providerEnv = resolveProviderEnv(providerConfig);
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;

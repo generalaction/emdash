@@ -144,13 +144,25 @@ export function buildAgentCommand({
   return { command, args };
 }
 
-/**
- * Wraps an agent argv with a bash invocation that pipes the prompt into the
- * agent's stdin, then reattaches /dev/tty so the TUI can read keyboard input.
- * Mirrors amp's documented `echo "msg" | amp` interactive entry pattern.
- */
 export function wrapAgentCommandWithStdinPipe(agent: AgentCommand, prompt: string): AgentCommand {
   const agentLine = [agent.command, ...agent.args].map(quoteShellArg).join(' ');
-  const shellLine = `{ printf '%s\\n' ${quoteShellArg(prompt)}; exec </dev/tty; } | ${agentLine}`;
+  const shellLine = `printf '%s\\n' ${quoteShellArg(prompt)} | ${agentLine}`;
   return { command: 'bash', args: ['-c', shellLine] };
+}
+
+export function buildAgentSessionCommand(args: {
+  providerId: AgentProviderId;
+  providerConfig: ProviderCustomConfig | undefined;
+  autoApprove?: boolean;
+  initialPrompt?: string;
+  sessionId: string;
+  isResuming?: boolean;
+}): AgentCommand {
+  const command = buildAgentCommand(args);
+  const prompt = args.initialPrompt?.trim();
+  const providerDef = getProvider(args.providerId);
+  if (!args.isResuming && prompt && providerDef?.initialPromptViaStdinPipe) {
+    return wrapAgentCommandWithStdinPipe(command, prompt);
+  }
+  return command;
 }

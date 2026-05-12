@@ -62,9 +62,9 @@ describe('scheduleInitialPromptInjection', () => {
       isResuming: false,
     });
 
-    emitData('booting…');
+    emitData('booting...');
     vi.advanceTimersByTime(200);
-    emitData('still booting…');
+    emitData('still booting...');
     expect(write).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(900);
@@ -96,6 +96,20 @@ describe('scheduleInitialPromptInjection', () => {
     emitData('ready');
     vi.advanceTimersByTime(900);
     expect(write).toHaveBeenCalledExactlyOnceWith('\x1b[200~line one\nline two\x1b[201~\r');
+  });
+
+  it('injects OpenCode prompts through the TUI instead of CLI prompt mode', () => {
+    const { pty, write, emitData } = makePty();
+    scheduleInitialPromptInjection({
+      pty,
+      conversation: makeConversation('opencode'),
+      initialPrompt: 'Fix the bug',
+      isResuming: false,
+    });
+
+    emitData('ready');
+    vi.advanceTimersByTime(900);
+    expect(write).toHaveBeenCalledExactlyOnceWith('Fix the bug\r');
   });
 
   it('does nothing for providers without keystroke injection', () => {

@@ -22,7 +22,7 @@ import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { buildAgentCommand, wrapAgentCommandWithStdinPipe } from './agent-command';
+import { buildAgentSessionCommand } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
@@ -93,7 +93,8 @@ export class LocalConversationProvider implements ConversationProvider {
     await this.prepareHookConfig(conversation.providerId);
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const baseCommand = buildAgentCommand({
+    const providerDef = getProvider(conversation.providerId);
+    const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
@@ -101,12 +102,6 @@ export class LocalConversationProvider implements ConversationProvider {
       isResuming,
       initialPrompt,
     });
-    const providerDef = getProvider(conversation.providerId);
-    const useStdinPipe =
-      !isResuming && !!initialPrompt?.trim() && !!providerDef?.initialPromptViaStdinPipe;
-    const { command, args } = useStdinPipe
-      ? wrapAgentCommandWithStdinPipe(baseCommand, initialPrompt!.trim())
-      : baseCommand;
     const providerEnv = resolveProviderEnv(providerConfig);
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;

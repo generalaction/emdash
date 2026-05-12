@@ -51,8 +51,7 @@ export type AgentProviderDefinition = {
   useKeystrokeInjection?: boolean;
   /**
    * When true, the initial prompt is piped to the agent via stdin and the
-   * TTY is reattached for ongoing input. The spawn becomes
-   * `bash -c '{ printf %s\n <prompt>; exec </dev/tty; } | <agent...>'`.
+   * spawn becomes `bash -c 'printf ... | <agent...>'`.
    * Use for agents that read an initial message from stdin then continue
    * interactively (e.g. amp's `echo "msg" | amp`).
    */
@@ -231,7 +230,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    initialPromptFlag: '--prompt',
+    initialPromptFlag: '',
+    useKeystrokeInjection: true,
     resumeFlag: '--continue',
     icon: 'opencode.png',
     alt: 'OpenCode CLI',

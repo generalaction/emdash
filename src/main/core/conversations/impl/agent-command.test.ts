@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import { providerConfigDefaults } from '@main/core/settings/schema';
-import { buildAgentCommand, wrapAgentCommandWithStdinPipe } from './agent-command';
+import {
+  buildAgentCommand,
+  buildAgentSessionCommand,
+  wrapAgentCommandWithStdinPipe,
+} from './agent-command';
 
 function makeConfig(overrides: Partial<ProviderCustomConfig> = {}): ProviderCustomConfig {
   return {
@@ -136,7 +140,7 @@ describe('buildAgentCommand', () => {
     resumeArgs: string[];
   }>([
     { providerId: 'cursor', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
-    { providerId: 'opencode', freshArgs: ['--prompt', 'Fix the bug'], resumeArgs: ['--continue'] },
+    { providerId: 'opencode', freshArgs: [], resumeArgs: ['--continue'] },
     { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
     {
       providerId: 'auggie',
@@ -214,7 +218,7 @@ describe('buildAgentCommand', () => {
 });
 
 describe('wrapAgentCommandWithStdinPipe', () => {
-  it('pipes the prompt into the agent and reattaches /dev/tty', () => {
+  it('pipes the prompt into the agent', () => {
     const result = wrapAgentCommandWithStdinPipe(
       { command: 'amp', args: ['--dangerously-allow-all'] },
       'Fix the bug'
@@ -223,7 +227,7 @@ describe('wrapAgentCommandWithStdinPipe', () => {
     expect(result.command).toBe('bash');
     expect(result.args).toEqual([
       '-c',
-      "{ printf '%s\\n' 'Fix the bug'; exec </dev/tty; } | 'amp' '--dangerously-allow-all'",
+      "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all'",
     ]);
   });
 
@@ -240,5 +244,34 @@ describe('wrapAgentCommandWithStdinPipe', () => {
     );
 
     expect(result.args[1]).toContain("'line one\nline two'");
+  });
+});
+
+describe('buildAgentSessionCommand', () => {
+  it('wraps stdin-piped providers after managed args are built', () => {
+    const result = buildAgentSessionCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    expect(result).toEqual({
+      command: 'bash',
+      args: ['-c', "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all'"],
+    });
+  });
+
+  it('does not wrap when resuming', () => {
+    const result = buildAgentSessionCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result).toEqual({ command: 'amp', args: [] });
   });
 });

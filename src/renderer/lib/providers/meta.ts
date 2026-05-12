@@ -75,6 +75,7 @@ export type AgentMeta = {
   autoApproveFlag?: string;
   initialPromptFlag?: string;
   useKeystrokeInjection?: boolean;
+  initialPromptViaStdinPipe?: boolean;
 };
 
 export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
@@ -93,6 +94,7 @@ export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
       autoApproveFlag: p.autoApproveFlag,
       initialPromptFlag: p.initialPromptFlag,
       useKeystrokeInjection: p.useKeystrokeInjection,
+      initialPromptViaStdinPipe: p.initialPromptViaStdinPipe,
     },
   ])
 ) as Record<UiAgent, AgentMeta>;
