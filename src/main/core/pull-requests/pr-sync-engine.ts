@@ -12,8 +12,10 @@ import type {
   MergeStateStatus,
   PrSyncProgress,
   PullRequest,
+  PullRequestComment,
   PullRequestFile,
   PullRequestStatus,
+  PullRequestUser,
 } from '@shared/pull-requests';
 import { ok, type Result } from '@shared/result';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
@@ -78,6 +80,23 @@ interface GqlUser {
 
 function actorUserId(actor: GqlUser): string {
   return actor.databaseId != null ? String(actor.databaseId) : `login:${actor.login}`;
+}
+
+function restUserToPullRequestUser(user: {
+  id: number;
+  login: string;
+  avatar_url: string;
+  html_url: string;
+}): PullRequestUser {
+  return {
+    userId: String(user.id),
+    userName: user.login,
+    displayName: user.login,
+    avatarUrl: user.avatar_url || null,
+    url: user.html_url,
+    userCreatedAt: null,
+    userUpdatedAt: null,
+  };
 }
 
 interface GqlPrNode {
@@ -1065,6 +1084,98 @@ export class PrSyncEngine {
       { id: data.node_id }
     );
     return ok();
+  }
+
+  async getPullRequestComments(
+    repositoryUrl: string,
+    prNumber: number
+  ): Promise<Result<PullRequestComment[], GitHubRepositoryParseError>> {
+    const repository = parseGitHubRepositoryResult(repositoryUrl);
+    if (!repository.success) return repository;
+    const { owner, repo } = repository.data;
+    const octokit = await this.getOctokit();
+    const pullRequestUrl = `${repository.data.repositoryUrl}/pull/${prNumber}`;
+
+    const [issueComments, reviewComments, reviews] = await Promise.all([
+      withRetry(() =>
+        githubRateLimiter.acquire().then(() =>
+          octokit.paginate(octokit.rest.issues.listComments, {
+            owner,
+            repo,
+            issue_number: prNumber,
+            per_page: 100,
+          })
+        )
+      ),
+      withRetry(() =>
+        githubRateLimiter.acquire().then(() =>
+          octokit.paginate(octokit.rest.pulls.listReviewComments, {
+            owner,
+            repo,
+            pull_number: prNumber,
+            per_page: 100,
+          })
+        )
+      ),
+      withRetry(() =>
+        githubRateLimiter.acquire().then(() =>
+          octokit.paginate(octokit.rest.pulls.listReviews, {
+            owner,
+            repo,
+            pull_number: prNumber,
+            per_page: 100,
+          })
+        )
+      ),
+    ]);
+
+    return ok([
+      ...issueComments.map((comment) => ({
+        id: `issue-comment:${comment.id}`,
+        pullRequestUrl,
+        kind: 'issue' as const,
+        body: comment.body ?? '',
+        url: comment.html_url,
+        author: comment.user ? restUserToPullRequestUser(comment.user) : null,
+        path: null,
+        line: null,
+        isResolved: false,
+        isOutdated: false,
+        createdAt: comment.created_at,
+        updatedAt: comment.updated_at,
+      })),
+      ...reviews.flatMap((review) => {
+        if (!review.body?.trim() || !review.submitted_at) return [];
+        return {
+          id: `review:${review.id}`,
+          pullRequestUrl,
+          kind: 'review' as const,
+          body: review.body,
+          url: review.html_url,
+          author: review.user ? restUserToPullRequestUser(review.user) : null,
+          path: null,
+          line: null,
+          isResolved: false,
+          isOutdated: false,
+          createdAt: review.submitted_at,
+          updatedAt: review.submitted_at,
+        };
+      }),
+      ...reviewComments.map((comment) => ({
+        id: `review-comment:${comment.id}`,
+        pullRequestUrl,
+        kind: 'review' as const,
+        body: comment.body ?? '',
+        url: comment.html_url,
+        author: comment.user ? restUserToPullRequestUser(comment.user) : null,
+        path: comment.path ?? null,
+        line: comment.line ?? comment.original_line ?? null,
+        isResolved: false,
+        isOutdated: comment.position == null,
+        createdAt: comment.created_at,
+        updatedAt: comment.updated_at,
+      })),
+    ]);
   }
 
   async getPullRequestFiles(

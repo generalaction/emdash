@@ -161,6 +161,26 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     return pairs.map(({ projectId, task }) => ({ projectId, taskId: task.data.id }));
   }
 
+  /**
+   * Visible unpinned task IDs for a project in sidebar order. Archived tasks are
+   * excluded. Independent of expand state so Next/Previous Task navigation works
+   * even when the project is collapsed.
+   */
+  visibleTaskIdsForProject(projectId: string): string[] {
+    const project = this.projectManager.projects.get(projectId);
+    if (!project?.mountedProject) return [];
+    const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
+      (t) =>
+        !t.data.isPinned &&
+        (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
+    );
+    const manualOrder = this.taskOrderByProject[projectId];
+    const ordered = manualOrder?.length
+      ? this.mergeTaskOrder(projectId, tasks)
+      : this.sortTasksForSidebar(tasks);
+    return ordered.map((t) => t.data.id);
+  }
+
   get isEmpty(): boolean {
     return this.projectManager.projects.size === 0;
   }

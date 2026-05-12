@@ -1,4 +1,4 @@
-import type { Client, ClientChannel } from 'ssh2';
+import type { ClientCallback, ClientChannel } from 'ssh2';
 import { isValidEnvVarName, quoteShellArg } from '@main/utils/shellEscape';
 import { parseRemoteEnvOutput, SHELL_ENV_CAPTURE_GUARD } from '@main/utils/userEnv';
 
@@ -25,6 +25,10 @@ const VOLATILE_ENV_KEYS = new Set(['_', 'PWD', 'OLDPWD', 'SHLVL', 'COLUMNS', 'LI
 type RawExecResult = {
   stdout: string;
   stderr: string;
+};
+
+type RemoteShellExecClient = {
+  exec(command: string, callback: ClientCallback): void;
 };
 
 export function normalizeRemoteShell(raw: string | undefined | null): string {
@@ -63,13 +67,15 @@ export function buildRemoteShellCommand(
   )}`;
 }
 
-export async function captureRemoteShellProfile(client: Client): Promise<RemoteShellProfile> {
+export async function captureRemoteShellProfile(
+  client: RemoteShellExecClient
+): Promise<RemoteShellProfile> {
   const shell = await resolveRemoteShell(client);
   const env = await captureRemoteEnv(client, shell);
   return { shell, env };
 }
 
-async function resolveRemoteShell(client: Client): Promise<string> {
+async function resolveRemoteShell(client: RemoteShellExecClient): Promise<string> {
   try {
     const { stdout } = await execRaw(client, 'printf %s "$SHELL"', SHELL_TIMEOUT_MS);
     return normalizeRemoteShell(stdout);
@@ -78,7 +84,10 @@ async function resolveRemoteShell(client: Client): Promise<string> {
   }
 }
 
-async function captureRemoteEnv(client: Client, shell: string): Promise<Record<string, string>> {
+async function captureRemoteEnv(
+  client: RemoteShellExecClient,
+  shell: string
+): Promise<Record<string, string>> {
   try {
     const guard = buildRemoteShellProcessEnvPrefix(SHELL_ENV_CAPTURE_GUARD);
     const capture = `${guard}${quoteShellArg(shell)} ${remoteShellEnvCaptureFlag(
@@ -112,7 +121,11 @@ function shellBasename(shell: string): string {
   return shell.split('/').pop() ?? '';
 }
 
-function execRaw(client: Client, command: string, timeoutMs: number): Promise<RawExecResult> {
+function execRaw(
+  client: RemoteShellExecClient,
+  command: string,
+  timeoutMs: number
+): Promise<RawExecResult> {
   return new Promise((resolve, reject) => {
     let stream: ClientChannel | undefined;
     let settled = false;

@@ -40,6 +40,7 @@ vi.mock('@renderer/lib/ipc', () => ({
       deleteConnection: vi.fn(async () => {}),
       getConnections: vi.fn(async () => []),
       getConnectionState: vi.fn(async () => ({})),
+      getHealthStates: vi.fn(async () => ({})),
       renameConnection: vi.fn(async () => {}),
       saveConnection: vi.fn(async (config) => ({ ...config, id: 'ssh-1' })),
       testConnection: vi.fn(async () => ({ success: true })),

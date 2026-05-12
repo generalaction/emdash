@@ -18,6 +18,10 @@ import { githubConnectionService } from './core/github/services/github-connectio
 import { mcpInternalService } from './core/mcp-internal';
 import { projectManager } from './core/projects/project-manager';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
+import {
+  reconcileResourceSampler,
+  stopResourceSampler,
+} from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { taskRendererEvents } from './core/tasks/task-renderer-events';
@@ -126,6 +130,8 @@ void app.whenReady().then(async () => {
 
   registerRPCRouter(rpcRouter, ipcMain);
 
+  void reconcileResourceSampler();
+
   mcpInternalService.initialize().catch((e) => {
     log.error('Failed to start internal MCP loopback:', e);
   });
@@ -152,6 +158,7 @@ app.on('before-quit', (event) => {
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
     agentHookService.dispose();
+    stopResourceSampler();
     mcpInternalService.dispose();
     taskRendererEvents.dispose();
     updateService.dispose();

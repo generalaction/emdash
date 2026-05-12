@@ -173,6 +173,8 @@ export async function handleTerminalSend(
   terminalId: string,
   body: McpTerminalSendBody
 ): Promise<{ ok: true }> {
+  if (typeof body.text !== 'string') throw new HttpError(400, 'text must be string');
+
   const sessionId = makePtySessionId(
     caller.conversation.projectId,
     caller.conversation.taskId,
@@ -182,7 +184,7 @@ export async function handleTerminalSend(
   if (!pty) throw new HttpError(410, 'terminal not running');
 
   // Submit with \r (CR) — matches handleAgentSend. Cooked-mode shells
-  // translate CR→LF via ICRNL; raw-mode TUIs (vim, claude, etc.) require
+  // translate CR→LF via ICRNL, raw-mode TUIs (vim, claude, etc.) require
   // CR. \n would leave the command staged in TUIs.
   pty.write(body.text);
   if (body.submit) pty.write('\r');
@@ -203,8 +205,8 @@ export async function handleTerminalCreate(
 
   // createTerminal awaits spawnTerminal, which registers the PTY before
   // resolving — no setTimeout/retry needed. Shells in cooked mode queue
-  // input until the read loop picks it up. Submit with \r (CR) — see
-  // handleTerminalSend.
+  // input until the read loop picks it up, so writing before the prompt
+  // prints is harmless. Submit with \r (CR) — see handleTerminalSend.
   if (body.initialCommand) {
     const sessionId = makePtySessionId(
       caller.conversation.projectId,

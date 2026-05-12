@@ -66,28 +66,30 @@ describe('TerminalManagerStore external reactivity', () => {
   });
 
   it('merges external terminal creation, update, load, and delete events', async () => {
-    const manager = new TerminalManagerStore('project-1', 'task-1');
     const terminal = makeTerminal();
+    vi.mocked(rpc.terminals.getTerminalsForTask).mockResolvedValue([terminal]);
+    const manager = new TerminalManagerStore('project-1', 'task-1');
+    await manager.list.load();
 
     emitEvent(terminalCreatedChannel, terminal);
 
     const createdStore = manager.terminals.get(terminal.id);
+    const createdSession = manager.sessions.get(terminal.id);
     expect(createdStore).toBeDefined();
+    expect(createdSession).toBeDefined();
     expect(createdStore?.data.name).toBe('Agent terminal');
-    expect(createdStore?.session.connect).toHaveBeenCalledTimes(1);
+    expect(createdSession?.connect).not.toHaveBeenCalled();
 
     emitEvent(terminalUpdatedChannel, makeTerminal({ id: terminal.id, name: 'Build logs' }));
 
     expect(manager.terminals.get(terminal.id)).toBe(createdStore);
     expect(manager.terminals.get(terminal.id)?.data.name).toBe('Build logs');
 
-    vi.mocked(rpc.terminals.getTerminalsForTask).mockResolvedValueOnce([
-      makeTerminal({ id: terminal.id, name: 'Build logs' }),
-    ]);
-    await manager.load();
+    manager.list.setValue([makeTerminal({ id: terminal.id, name: 'Build logs' })]);
 
     expect(manager.terminals.get(terminal.id)).toBe(createdStore);
-    expect(createdStore?.session.connect).toHaveBeenCalledTimes(1);
+    expect(manager.sessions.get(terminal.id)).toBe(createdSession);
+    expect(createdSession?.connect).not.toHaveBeenCalled();
 
     emitEvent(terminalDeletedChannel, {
       terminalId: terminal.id,
@@ -95,7 +97,7 @@ describe('TerminalManagerStore external reactivity', () => {
       projectId: 'project-1',
     });
 
-    expect(createdStore?.session.dispose).toHaveBeenCalledTimes(1);
+    expect(createdSession?.dispose).toHaveBeenCalledTimes(1);
     expect(manager.terminals.has(terminal.id)).toBe(false);
   });
 });

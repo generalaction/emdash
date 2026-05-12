@@ -1,205 +1,40 @@
-import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
-import { remoteNameFromQualifiedRef, resolveBaseRefFromRemoteDefault } from '@shared/git-utils';
-import { type LocalProject, type ProjectPathStatus, type SshProject } from '@shared/projects';
-import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
-import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
-import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
-import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { GitService } from '@main/core/git/impl/git-service';
-import { githubConnectionService } from '@main/core/github/services/github-connection-service';
-import { projectEvents } from '@main/core/projects/project-events';
-import { projectManager } from '@main/core/projects/project-manager';
-import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { db } from '@main/db/client';
-import { projects } from '@main/db/schema';
-import { log } from '@main/lib/logger';
-import { checkIsValidDirectory } from '../path-utils';
+import type {
+  CreateProjectParams,
+  InspectProjectPathParams,
+  LocalProject,
+  ProjectPathInspection,
+  SshProject,
+} from '@shared/projects';
+import { createLocalProject, getLocalProjectPathStatus } from './create-local-project';
+import { createSshProject, getSshProjectPathStatus } from './create-ssh-project';
+import { getLocalProjectByPath, getSshProjectByPath } from './getProjects';
 
-async function resolveProjectBaseRef(git: GitService, detectedBaseRef: string): Promise<string> {
-  const remoteName = remoteNameFromQualifiedRef(detectedBaseRef);
-  if (!remoteName) return detectedBaseRef;
+export async function createProject(
+  params: CreateProjectParams
+): Promise<LocalProject | SshProject> {
+  if (params.type === 'local') {
+    const { type: _type, ...localParams } = params;
+    return createLocalProject(localParams);
+  }
 
-  try {
-    const [gitDefaultBranch, branches] = await Promise.all([
-      git.getDefaultBranch(remoteName),
-      git.getBranches(),
+  const { type: _type, ...sshParams } = params;
+  return createSshProject(sshParams);
+}
+
+export async function inspectProjectPath(
+  params: InspectProjectPathParams
+): Promise<ProjectPathInspection> {
+  if (params.type === 'local') {
+    const [status, existingProject] = await Promise.all([
+      getLocalProjectPathStatus(params.path),
+      getLocalProjectByPath(params.path),
     ]);
-    return resolveBaseRefFromRemoteDefault({ detectedBaseRef, gitDefaultBranch, branches });
-  } catch (error) {
-    log.debug('Failed to resolve project base ref, using detected base ref', {
-      detectedBaseRef,
-      error,
-    });
+    return { ...status, existingProject };
   }
 
-  return detectedBaseRef;
-}
-
-async function ensureGitRepository(
-  git: GitService,
-  initGitRepository?: boolean
-): ReturnType<GitService['detectInfo']> {
-  let gitInfo = await git.detectInfo();
-  if (!gitInfo.isGitRepo) {
-    if (!initGitRepository) {
-      throw new Error(
-        'Directory is not a git repository. Enable "Initialize git repository" to continue.'
-      );
-    }
-    await git.initRepository();
-    gitInfo = await git.detectInfo();
-  }
-  if (!gitInfo.isGitRepo) {
-    throw new Error('Failed to initialize git repository');
-  }
-  return gitInfo;
-}
-
-export type CreateLocalProjectParams = {
-  id?: string;
-  path: string;
-  name: string;
-  initGitRepository?: boolean;
-};
-
-export async function createLocalProject(params: CreateLocalProjectParams): Promise<LocalProject> {
-  const isValidDirectory = checkIsValidDirectory(params.path);
-  if (!isValidDirectory) {
-    throw new Error('Invalid directory');
-  }
-
-  const fs = new LocalFileSystem(params.path);
-  const baseCtx = new LocalExecutionContext({ root: params.path });
-  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
-  const git = new GitService(baseCtx, authCtx, fs);
-  const gitInfo = await ensureGitRepository(git, params.initGitRepository);
-  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
-
-  const [row] = await db
-    .insert(projects)
-    .values({
-      id: params.id ?? randomUUID(),
-      name: params.name,
-      path: gitInfo.rootPath,
-      workspaceProvider: 'local',
-      baseRef,
-      updatedAt: sql`CURRENT_TIMESTAMP`,
-    })
-    .returning();
-
-  const project = {
-    type: 'local' as const,
-    id: row.id,
-    name: row.name,
-    path: row.path,
-    baseRef: row.baseRef ?? baseRef,
-    archived: row.archived,
-    icon: row.icon,
-    iconColor: row.iconColor,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
-
-  await projectManager.openProject(project);
-  projectEvents._emit('project:created', project);
-
-  return project;
-}
-
-export async function getLocalProjectPathStatus(path: string): Promise<ProjectPathStatus> {
-  const isDirectory = checkIsValidDirectory(path);
-  if (!isDirectory) {
-    return { isDirectory: false, isGitRepo: false };
-  }
-
-  const fs = new LocalFileSystem(path);
-  const baseCtx = new LocalExecutionContext({ root: path });
-  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
-  const git = new GitService(baseCtx, authCtx, fs);
-  const gitInfo = await git.detectInfo();
-  return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
-}
-
-export type CreateSshProjectParams = {
-  id?: string;
-  name: string;
-  path: string;
-  connectionId: string;
-  initGitRepository?: boolean;
-};
-
-export async function createSshProject(params: CreateSshProjectParams): Promise<SshProject> {
-  const sshProxy = await sshConnectionManager.connect(params.connectionId);
-
-  const sshFs = new SshFileSystem(sshProxy, params.path);
-  const pathEntry = await sshFs.stat('');
-  if (!pathEntry || pathEntry.type !== 'dir') {
-    throw new Error('Invalid directory');
-  }
-  const baseSshCtx = new SshExecutionContext(sshProxy, { root: params.path });
-  const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
-    githubConnectionService.getToken()
-  );
-  const git = new GitService(baseSshCtx, authSshCtx, sshFs);
-
-  const gitInfo = await ensureGitRepository(git, params.initGitRepository);
-  const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
-
-  const [row] = await db
-    .insert(projects)
-    .values({
-      id: params.id ?? randomUUID(),
-      name: params.name,
-      path: gitInfo.rootPath,
-      workspaceProvider: 'ssh',
-      sshConnectionId: params.connectionId,
-      baseRef,
-      updatedAt: sql`CURRENT_TIMESTAMP`,
-    })
-    .returning();
-
-  const project = {
-    type: 'ssh' as const,
-    id: row.id,
-    name: row.name,
-    path: row.path,
-    connectionId: params.connectionId,
-    baseRef: row.baseRef ?? baseRef,
-    archived: row.archived,
-    icon: row.icon,
-    iconColor: row.iconColor,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
-
-  await projectManager.openProject(project);
-  projectEvents._emit('project:created', project);
-
-  return project;
-}
-
-export async function getSshProjectPathStatus(
-  path: string,
-  connectionId: string
-): Promise<ProjectPathStatus> {
-  try {
-    const sshProxy = await sshConnectionManager.connect(connectionId);
-    const sshFs = new SshFileSystem(sshProxy, path);
-    const pathEntry = await sshFs.stat('');
-    if (!pathEntry || pathEntry.type !== 'dir') {
-      return { isDirectory: false, isGitRepo: false };
-    }
-
-    const baseSshCtx = new SshExecutionContext(sshProxy, { root: path });
-    const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
-      githubConnectionService.getToken()
-    );
-    const git = new GitService(baseSshCtx, authSshCtx, sshFs);
-    const gitInfo = await git.detectInfo();
-    return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
-  } catch {
-    return { isDirectory: false, isGitRepo: false };
-  }
+  const [status, existingProject] = await Promise.all([
+    getSshProjectPathStatus(params.path, params.connectionId),
+    getSshProjectByPath(params.path, params.connectionId),
+  ]);
+  return { ...status, existingProject };
 }

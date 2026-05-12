@@ -28,7 +28,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
         navigate('task', { projectId, taskId });
         if (!conversationId) return;
 
-        // Task view may not be provisioned yet — wait for it to mount, then open the conversation.
+        // Task view may not be provisioned yet — wait for it before opening the conversation tab.
         const dispose = when(
           () => !!getTaskView(projectId, taskId),
           () => {

@@ -13,11 +13,14 @@ type SettingsDefaultsMap = {
 };
 
 export const SETTINGS_DEFAULTS = {
+  project: {
+    pushOnCreate: true,
+    branchPrefix: 'emdash',
+    tmuxByDefault: false,
+  },
   localProject: () => ({
     defaultProjectsDirectory: join(homedir(), 'emdash', 'repositories'),
     defaultWorktreeDirectory: getDefaultLocalWorktreeDirectory(),
-    branchPrefix: 'emdash',
-    pushOnCreate: true,
     writeAgentConfigToGitIgnore: true,
   }),
   tasks: {
@@ -48,6 +51,9 @@ export const SETTINGS_DEFAULTS = {
   },
   browserPreview: {
     enabled: true,
+  },
+  resourceMonitor: {
+    enabled: false,
   },
   appearance: {
     projectEmojiSet: 'google' as const,

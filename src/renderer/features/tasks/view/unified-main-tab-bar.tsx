@@ -24,6 +24,7 @@ import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
+import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { Button } from '@renderer/lib/ui/button';
@@ -103,13 +104,15 @@ const ConversationTabItem = observer(function ConversationTabItem({
             )}
           >
             <div className="flex h-full items-center gap-1.5 pl-3 pr-1">
-              <AgentLogo
-                logo={config.logo}
-                alt={config.alt}
-                isSvg={config.isSvg}
-                invertInDark={config.invertInDark}
-                className="size-4 shrink-0"
-              />
+              {config ? (
+                <AgentLogo
+                  logo={config.logo}
+                  alt={config.alt}
+                  isSvg={config.isSvg}
+                  invertInDark={config.invertInDark}
+                  className="size-4 shrink-0"
+                />
+              ) : null}
               <span className={cn('max-w-24 truncate p-1', tab.isPreview && 'italic')}>
                 {title}
               </span>
@@ -419,6 +422,8 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const showCommandPalette = useShowModal('commandPaletteModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
   const showRenameConversationModal = useShowModal('renameConversationModal');
+
+  useTabShortcuts(tabManager, { focused: taskView.focusedRegion === 'main' });
 
   const resolvedTabs = tabManager.resolvedTabs;
   const isTabsLayout = taskView.agentLayoutMode === 'tabs';

@@ -3,13 +3,13 @@ import { featurebaseConnectionService } from './featurebase-connection-service';
 import { featurebaseIssueProvider } from './featurebase-issue-provider';
 
 vi.mock('./featurebase-connection-service', () => ({
+  NOT_CONFIGURED_ERROR: 'Featurebase is not configured. Connect Featurebase in settings.',
   featurebaseConnectionService: {
     getClient: vi.fn(),
     checkConnection: vi.fn(),
   },
   toFeaturebaseErrorMessage: (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback,
-  NOT_CONFIGURED_ERROR: 'Featurebase is not configured. Connect Featurebase in settings.',
 }));
 
 const mockGetClient = vi.mocked(featurebaseConnectionService.getClient);

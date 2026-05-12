@@ -102,7 +102,7 @@ export function registerOrchestrationTools(server: McpServer, http: HttpClient):
     {
       terminalId: z.string().describe('Terminal ID. Discover via terminal_list.'),
       text: z.string().describe('Text to type into the terminal.'),
-      submit: z.boolean().optional().describe('If true, append CR to execute the command.'),
+      submit: z.boolean().optional().describe('If true, append \\n to execute the command.'),
     },
     async ({ terminalId, text, submit }) => {
       const data = await http.post(`/terminals/${terminalId}/send`, {

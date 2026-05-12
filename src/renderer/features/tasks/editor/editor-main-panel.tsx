@@ -3,6 +3,7 @@ import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store'
 import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
 import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
 import { FileErrorRenderer } from '@renderer/lib/editor/file-error-renderer';
+import { HtmlRenderer } from '@renderer/lib/editor/html-renderer';
 import { ImageRenderer } from '@renderer/lib/editor/image-renderer';
 import { SvgRenderer } from '@renderer/lib/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
@@ -19,7 +20,7 @@ export const EditorMainPanel = observer(function EditorMainPanel() {
 
   return (
     <div className="h-full overflow-hidden">
-      <OtherFileRenderer file={activeTab} />
+      <OtherFileRenderer key={`${activeTab.tabId}:${activeTab.path}`} file={activeTab} />
     </div>
   );
 });
@@ -32,6 +33,8 @@ function OtherFileRenderer({ file }: OtherFileRendererProps) {
   switch (file.renderer.kind) {
     case 'svg':
       return <SvgRenderer filePath={file.path} />;
+    case 'html':
+      return <HtmlRenderer filePath={file.path} />;
     case 'image':
       return <ImageRenderer file={file} />;
     case 'too-large':

@@ -8,6 +8,7 @@ import {
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -189,7 +190,10 @@ const TaskMainColumn = observer(function TaskMainColumn() {
         collapsedSize="0%"
         defaultSize="25%"
         minSize="15%"
-        onResize={() => taskView.setTerminalDrawerOpen(!bottomPanelRef.current?.isCollapsed())}
+        onResize={(_panelSize, _id, prevPanelSize) => {
+          if (prevPanelSize === undefined) return;
+          taskView.setTerminalDrawerOpen(!bottomPanelRef.current?.isCollapsed());
+        }}
       >
         <TerminalsPanel />
       </ResizablePanel>
@@ -255,6 +259,8 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
         />
         {/* SVG source toggle — floats over the Monaco host when editing an SVG file */}
         {renderer === 'monaco' && <SvgSourceToggleOverlay />}
+        {/* HTML source toggle — floats over the Monaco host when editing an HTML file */}
+        {renderer === 'monaco' && <HtmlSourceToggleOverlay />}
 
         <Activity mode={renderer === 'markdown' ? 'visible' : 'hidden'}>
           <MarkdownEditorPanel />
@@ -306,5 +312,28 @@ const SvgSourceToggleOverlay = observer(function SvgSourceToggleOverlay() {
         <Pencil className="h-3.5 w-3.5" />
       </ToggleGroupItem>
     </ToggleGroup>
+  );
+});
+
+/**
+ * Shown over the Monaco host when the active tab is an HTML file in source mode.
+ * Lets the user toggle back to the rendered HTML preview.
+ */
+const HtmlSourceToggleOverlay = observer(function HtmlSourceToggleOverlay() {
+  const { taskView } = useProvisionedTask();
+  const { tabManager } = taskView;
+  const activeTab = tabManager.activeFileEntry;
+
+  if (!activeTab || activeTab.renderer.kind !== 'html-source') return null;
+
+  return (
+    <PreviewSourceToggle
+      activeMode="source"
+      onSwitch={(mode) => {
+        if (mode === 'preview') {
+          tabManager.updateRenderer(activeTab.path, () => ({ kind: 'html' }));
+        }
+      }}
+    />
   );
 });

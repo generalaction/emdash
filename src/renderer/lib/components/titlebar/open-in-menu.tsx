@@ -17,19 +17,11 @@ import { cn } from '@renderer/utils/utils';
 
 interface OpenInMenuProps {
   path: string;
-  isRemote?: boolean;
-  sshConnectionId?: string | null;
   className?: string;
   borderless?: boolean;
 }
 
-export const OpenInMenu: React.FC<OpenInMenuProps> = ({
-  path,
-  className,
-  isRemote = false,
-  sshConnectionId = null,
-  borderless = false,
-}) => {
+export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderless = false }) => {
   const { toast } = useToast();
   const { icons, labels, installedApps, availability, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
@@ -53,8 +45,6 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         const res = await rpc.app.openIn({
           app: appId,
           path,
-          isRemote,
-          sshConnectionId: sshConnectionId ?? undefined,
         });
         if (!res?.success) {
           toast({
@@ -71,7 +61,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         });
       }
     },
-    [labels, path, isRemote, sshConnectionId, toast]
+    [labels, path, toast]
   );
 
   const sortedApps = useMemo(() => {

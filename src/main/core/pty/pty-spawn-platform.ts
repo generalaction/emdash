@@ -39,20 +39,25 @@ function getPosixShell(env: NodeJS.ProcessEnv): string {
   return env.SHELL || '/bin/sh';
 }
 
-function getWindowsShell(env: NodeJS.ProcessEnv): string {
+function getWindowsCommandShell(env: NodeJS.ProcessEnv): string {
   return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+}
+
+function getBundledWindowsPowerShell(env: NodeJS.ProcessEnv): string {
+  const systemRoot = getWindowsEnvValue(env, 'SystemRoot') || 'C:\\Windows';
+  return path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 }
 
 /**
  * For interactive shells we prefer `pwsh.exe` when installed (modern
- * cross-platform PowerShell), then bundled Windows PowerShell, then cmd.exe
- * via `ComSpec`. cmd.exe is still used internally for `.cmd`/`.bat` dispatch
- * because it has the right argument-quoting semantics for those wrappers.
+ * cross-platform PowerShell), then bundled Windows PowerShell. cmd.exe is still
+ * used internally for `.cmd`/`.bat` dispatch because it has the right
+ * argument-quoting semantics for those wrappers.
  */
 function getWindowsInteractiveShell(env: NodeJS.ProcessEnv): string {
   const preferred = platformAdapter.preferredInteractiveShell(env);
   if (preferred) return preferred;
-  return getWindowsShell(env);
+  return getBundledWindowsPowerShell(env);
 }
 
 function isWindows(platform: NodeJS.Platform): boolean {
@@ -143,7 +148,7 @@ function resolveWindowsSpawn(
   fileExists: FileExists
 ): ResolvedLocalPtySpawn {
   const warnings = windowsWarnings(intent);
-  const shell = getWindowsShell(env);
+  const commandShell = getWindowsCommandShell(env);
 
   if (intent.kind === 'interactive-shell') {
     return {
@@ -156,7 +161,7 @@ function resolveWindowsSpawn(
 
   if (intent.command.kind === 'shell-line') {
     return {
-      command: shell,
+      command: commandShell,
       args: ['/d', '/s', '/c', intent.command.commandLine],
       cwd: intent.cwd,
       warnings,
@@ -175,7 +180,7 @@ function resolveWindowsSpawn(
 
   if (ext === '.cmd' || ext === '.bat') {
     return {
-      command: shell,
+      command: commandShell,
       args: ['/d', '/s', '/c', [resolvedCommand, ...args].map(quoteForCmdExe).join(' ')],
       cwd: intent.cwd,
       warnings,
@@ -193,7 +198,7 @@ function resolveWindowsSpawn(
 
   if (!ext) {
     return {
-      command: shell,
+      command: commandShell,
       args: ['/d', '/s', '/c', [command, ...args].map(quoteForCmdExe).join(' ')],
       cwd: intent.cwd,
       warnings,

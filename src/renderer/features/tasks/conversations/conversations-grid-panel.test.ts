@@ -8,6 +8,9 @@ const { paneCalls, ptyCalls, mockState } = vi.hoisted(() => ({
   ptyCalls: [] as Array<{ sessionId: string }>,
   mockState: {
     provisioned: null as {
+      workspace: {
+        sshConnectionId: string | null;
+      };
       taskView: {
         agentLayoutMode: 'tabs' | 'side-by-side' | 'stacked' | 'tile';
         agentSlots: string[];
@@ -18,13 +21,19 @@ const { paneCalls, ptyCalls, mockState } = vi.hoisted(() => ({
           string,
           {
             data: { providerId: string; title: string };
-            session: {
-              sessionId: string;
-              status: 'disconnected' | 'connecting' | 'ready';
-              pty: object | null;
-            };
+            setWorking: () => void;
+            clearWorking: () => void;
           }
         >;
+        sessions: Map<
+          string,
+          {
+            sessionId: string;
+            status: 'disconnected' | 'connecting' | 'ready';
+            pty: object | null;
+          }
+        >;
+        touchConversation: (conversationId: string) => void;
       };
     } | null,
   },
@@ -115,7 +124,22 @@ vi.mock('@renderer/utils/utils', () => ({
 }));
 
 function makeProvisioned(slots: string[]) {
+  const sessionEntries = slots.map(
+    (id, index) =>
+      [
+        id,
+        {
+          sessionId: `session-${index + 1}`,
+          status: 'ready' as const,
+          pty: {},
+        },
+      ] as const
+  );
+
   return {
+    workspace: {
+      sshConnectionId: null,
+    },
     taskView: {
       agentLayoutMode: 'side-by-side' as const,
       agentSlots: slots,
@@ -130,14 +154,13 @@ function makeProvisioned(slots: string[]) {
               providerId: index % 2 === 0 ? 'codex' : 'claude',
               title: `Conversation ${index + 1}`,
             },
-            session: {
-              sessionId: `session-${index + 1}`,
-              status: 'ready' as const,
-              pty: {},
-            },
+            setWorking: vi.fn(),
+            clearWorking: vi.fn(),
           },
         ])
       ),
+      sessions: new Map(sessionEntries),
+      touchConversation: vi.fn(),
     },
   };
 }

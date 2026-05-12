@@ -103,15 +103,17 @@ const ConversationRow = observer(function ConversationRow({
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
-          <span className="shrink-0">
-            <AgentLogo
-              logo={config.logo}
-              alt={config.alt}
-              isSvg={config.isSvg}
-              invertInDark={config.invertInDark}
-              className="size-4"
-            />
-          </span>
+          {config ? (
+            <span className="shrink-0">
+              <AgentLogo
+                logo={config.logo}
+                alt={config.alt}
+                isSvg={config.isSvg}
+                invertInDark={config.invertInDark}
+                className="size-4"
+              />
+            </span>
+          ) : null}
           <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
           <span className="shrink-0">
             {conversation.indicatorStatus ? (

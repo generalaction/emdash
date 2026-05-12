@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
+import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { formatProvisionTaskError } from '@main/core/tasks/provision-task-error';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
@@ -53,6 +54,9 @@ export async function provisionTask(taskId: string) {
   }
 
   const { persistData } = result.data;
+  if (persistData.sshConnectionId) {
+    sshConnectionManager.reportChannelRecovered(persistData.sshConnectionId);
+  }
 
   await db
     .update(tasks)
