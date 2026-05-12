@@ -2,10 +2,12 @@ import { CommandPaletteModal } from '@renderer/features/command-palette/command-
 import { IntegrationSetupModal } from '@renderer/features/integrations/integration-setup-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
 import { AddProjectModal } from '@renderer/features/projects/components/add-project-modal/add-project-modal';
+import { ProjectAppearanceModal } from '@renderer/features/projects/components/project-appearance-modal/project-appearance-modal';
 import { ShareProjectConfigModal } from '@renderer/features/projects/components/settings-view/share-project-config-modal';
 import { CreateSkillModal } from '@renderer/features/skills/components/CreateSkillModal';
 import { AddRemoteModal } from '@renderer/features/tasks/add-remote-modal';
 import { CreateConversationModal } from '@renderer/features/tasks/conversations/create-conversation-modal';
+import { RenameConversationModal } from '@renderer/features/tasks/conversations/rename-conversation-modal';
 import { CreateTaskModal } from '@renderer/features/tasks/create-task-modal/create-task-modal';
 import { CreatePrModal } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/create-pr-modal';
 import { ConflictDialog } from '@renderer/features/tasks/editor/conflict-dialog';
@@ -49,6 +51,8 @@ export const modalRegistry = {
   createPrModal: createModal(CreatePrModal, { size: 'md' }),
   renameTaskModal: createModal(RenameTaskModal, { size: 'xs' }),
   shareProjectConfigModal: createModal(ShareProjectConfigModal, { size: 'md' }),
+  renameConversationModal: createModal(RenameConversationModal, { size: 'xs' }),
+  projectAppearanceModal: createModal(ProjectAppearanceModal, { size: 'sm' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   addRemoteModal: createModal(AddRemoteModal),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
