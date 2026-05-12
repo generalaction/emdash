@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "unicorn", "oxc", "import"],
+  "jsPlugins": [{ "name": "emdash", "specifier": "./tooling/oxlint-plugin.js" }],
   "categories": {
     "correctness": "error"
   },
@@ -54,6 +55,17 @@
       "files": ["**/*.test.ts", "**/*.test.tsx"],
       "rules": {
         "typescript/no-explicit-any": "off"
+      }
+    },
+    {
+      "files": [
+        "src/main/**/*.{ts,tsx}",
+        "src/renderer/**/*.{ts,tsx}",
+        "src/preload/**/*.{ts,tsx}"
+      ],
+      "excludeFiles": ["**/*.test.{ts,tsx}"],
+      "rules": {
+        "emdash/no-tooling-imports-in-production": "error"
       }
     }
   ]

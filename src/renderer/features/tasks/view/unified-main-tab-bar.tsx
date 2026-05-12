@@ -356,7 +356,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
                     tab={tab}
                     onSelect={() => tabManager.setActiveTab(tab.tabId)}
                     onPin={() => tabManager.pinTab(tab.tabId)}
-                    onClose={() => tabManager.closeTab(tab.tabId)}
+                    onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
                   />
                 </SortableTabWrapper>
               );

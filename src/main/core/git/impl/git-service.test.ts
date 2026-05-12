@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -231,6 +232,36 @@ describe('GitService.getCurrentBranch', () => {
       })
     );
     expect(await svc.getCurrentBranch()).toBeNull();
+  });
+});
+
+describe('GitService.getStatusFingerprint', () => {
+  it('hashes tracked-only porcelain status output', async () => {
+    const stdout = ' M src/app.ts\0';
+    const svc = makeService(
+      makeExec({
+        '--no-optional-locks status --porcelain=v1 -z -uno': stdout,
+      })
+    );
+
+    await expect(svc.getStatusFingerprint('no')).resolves.toEqual({
+      hash: createHash('sha256').update(stdout).digest('hex'),
+      byteLength: Buffer.byteLength(stdout),
+    });
+  });
+
+  it('can include untracked files in the fingerprint', async () => {
+    const stdout = '?? nested/new-file.ts\0';
+    const svc = makeService(
+      makeExec({
+        '--no-optional-locks status --porcelain=v1 -z --untracked-files=normal': stdout,
+      })
+    );
+
+    await expect(svc.getStatusFingerprint('normal')).resolves.toMatchObject({
+      hash: createHash('sha256').update(stdout).digest('hex'),
+      byteLength: Buffer.byteLength(stdout),
+    });
   });
 });
 

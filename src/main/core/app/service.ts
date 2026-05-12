@@ -26,6 +26,7 @@ import {
   checkCommand,
   checkMacApp,
   checkMacAppByName,
+  checkMacMdfindQuery,
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
@@ -140,6 +141,9 @@ class AppService implements IInitializable, IDisposable {
               break;
             }
           }
+        }
+        if (!isAvailable && platformConfig?.mdfindQuery && platform === 'darwin') {
+          isAvailable = await checkMacMdfindQuery(platformConfig.mdfindQuery);
         }
         availability[openInApp.id] = isAvailable;
       } catch (error) {
