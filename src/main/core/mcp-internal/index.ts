@@ -1,4 +1,6 @@
 import type { McpWorkspaceDevServer } from '@shared/mcp/emdash-drive';
+import type { RawServerEntry } from '@shared/mcp/types';
+import { mcpServerToRaw } from '@main/core/mcp/utils/conversion';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { buildEmdashServer, refreshEmdashCatalogEntry } from './catalog-refresh';
@@ -47,21 +49,14 @@ class McpInternalService implements IInitializable, IDisposable {
   /**
    * Canonical raw config for the emdash MCP catalog entry under current
    * launch. Used by `loadCatalog()` to override the static placeholder so
-   * fresh installs from the UI write the correct command/args/env.
+   * fresh installs from the UI write the full canonical config.
    */
-  getCanonicalRawConfig(): { command: string; args: string[]; env: Record<string, string> } | null {
+  getCanonicalRawConfig(): RawServerEntry | null {
     const env = this.getPtyEnv();
     if (!env) return null;
-    const server = buildEmdashServer(
-      { instanceId: env.instanceId, token: env.token },
-      env.statusUrl,
-      []
+    return mcpServerToRaw(
+      buildEmdashServer({ instanceId: env.instanceId, token: env.token }, env.statusUrl, [])
     );
-    return {
-      command: server.command ?? '',
-      args: server.args ?? [],
-      env: server.env ?? {},
-    };
   }
 
   listWorkspaceDevServers(taskId: string): McpWorkspaceDevServer[] {

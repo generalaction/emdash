@@ -66,6 +66,7 @@ export const McpModal: React.FC<McpModalProps> = ({
       url: initial.url,
       envEntries: toKV(initial.env),
       headerEntries: toKV(initial.headers),
+      passthroughEnv: initial.passthroughEnv,
       selectedProviders: initial.providers,
     },
   });
@@ -92,6 +93,7 @@ export const McpModal: React.FC<McpModalProps> = ({
         env: filledEnv.length
           ? Object.fromEntries(filledEnv.map((e) => [e.key, e.value]))
           : undefined,
+        passthroughEnv: v.passthroughEnv.length ? v.passthroughEnv : undefined,
         providers: v.selectedProviders,
       };
       await onSave(server);
@@ -333,6 +335,7 @@ function getInitialState(mode: McpModalMode) {
       url: s.url ?? '',
       env: Object.entries(s.env ?? {}),
       headers: Object.entries(s.headers ?? {}),
+      passthroughEnv: s.passthroughEnv ?? [],
       providers: s.providers,
     };
   }
@@ -349,6 +352,7 @@ function getInitialState(mode: McpModalMode) {
       url: (cfg.url as string) ?? '',
       env: clearPlaceholders(Object.entries((cfg.env as Record<string, string>) ?? {})),
       headers: clearPlaceholders(Object.entries((cfg.headers as Record<string, string>) ?? {})),
+      passthroughEnv: Array.isArray(cfg.passthroughEnv) ? (cfg.passthroughEnv as string[]) : [],
       providers: [] as string[],
     };
   }
@@ -361,6 +365,7 @@ function getInitialState(mode: McpModalMode) {
     url: '',
     env: [] as [string, string][],
     headers: [] as [string, string][],
+    passthroughEnv: [] as string[],
     providers: [] as string[],
   };
 }

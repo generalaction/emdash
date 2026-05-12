@@ -26,6 +26,7 @@ vi.mock('@main/lib/logger', () => ({
 const mockReadServers = vi.mocked(configIO.readServers);
 const mockWriteServers = vi.mocked(configIO.writeServers);
 const mockGetMeta = vi.mocked(configPaths.getAgentMcpMeta);
+const mockGetAllAgentIds = vi.mocked(configPaths.getAllMcpAgentIds);
 
 const claudeMeta: AgentMcpMeta = {
   agentId: 'claude',
@@ -45,15 +46,26 @@ const cursorMeta: AgentMcpMeta = {
   adapter: 'cursor',
 };
 
+const codexMeta: AgentMcpMeta = {
+  agentId: 'codex',
+  configPath: '/home/test/.codex/config.toml',
+  serversPath: ['mcp_servers'],
+  template: { mcp_servers: {} },
+  isToml: true,
+  adapter: 'codex',
+};
+
 describe('McpService', () => {
   let service: McpService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     service = new McpService();
+    mockGetAllAgentIds.mockReturnValue(['claude', 'cursor']);
     mockGetMeta.mockImplementation((id: string) => {
       if (id === 'claude') return claudeMeta;
       if (id === 'cursor') return cursorMeta;
+      if (id === 'codex') return codexMeta;
       return undefined;
     });
   });
@@ -89,6 +101,27 @@ describe('McpService', () => {
 
       const result = await service.loadAll();
       expect(result.installed).toHaveLength(1);
+    });
+
+    it('preserves codex env_vars as canonical passthroughEnv', async () => {
+      mockGetAllAgentIds.mockReturnValue(['codex']);
+      mockReadServers.mockResolvedValueOnce({
+        emdash: {
+          command: 'node',
+          args: ['server.js'],
+          env: { EMDASH_TOKEN: 'secret' },
+          env_vars: ['EMDASH_SESSION_ID', 'EMDASH_TASK_ID'],
+        },
+      });
+
+      const result = await service.loadAll();
+      expect(result.installed).toEqual([
+        expect.objectContaining({
+          name: 'emdash',
+          passthroughEnv: ['EMDASH_SESSION_ID', 'EMDASH_TASK_ID'],
+          providers: ['codex'],
+        }),
+      ]);
     });
   });
 
@@ -155,6 +188,34 @@ describe('McpService', () => {
           providers: ['claude'],
         })
       ).rejects.toThrow('Invalid server name');
+    });
+
+    it('round-trips passthroughEnv back to codex env_vars on save', async () => {
+      mockGetAllAgentIds.mockReturnValue(['codex']);
+      mockReadServers.mockResolvedValueOnce({});
+      mockWriteServers.mockResolvedValue(undefined);
+
+      await service.saveServer({
+        name: 'emdash',
+        transport: 'stdio',
+        command: 'node',
+        args: ['server.js'],
+        env: { EMDASH_TOKEN: 'secret' },
+        passthroughEnv: ['EMDASH_SESSION_ID', 'EMDASH_TASK_ID'],
+        providers: ['codex'],
+      });
+
+      expect(mockWriteServers).toHaveBeenCalledWith(
+        codexMeta,
+        expect.objectContaining({
+          emdash: {
+            command: 'node',
+            args: ['server.js'],
+            env: { EMDASH_TOKEN: 'secret' },
+            env_vars: ['EMDASH_SESSION_ID', 'EMDASH_TASK_ID'],
+          },
+        })
+      );
     });
   });
 

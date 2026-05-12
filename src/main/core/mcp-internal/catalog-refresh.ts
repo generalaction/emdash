@@ -40,6 +40,10 @@ export function buildEmdashServer(
       EMDASH_STATUS_URL: statusUrl,
       EMDASH_TOKEN: instance.token,
     },
+    // Per-conversation identity flows through PTY-inherited env. Codex's
+    // rmcp-client does not inherit parent env to MCP children by default,
+    // so it must be told which names to forward via `env_vars`.
+    passthroughEnv: ['EMDASH_SESSION_ID', 'EMDASH_TASK_ID', 'EMDASH_PROJECT_ID'],
     providers,
   };
 }

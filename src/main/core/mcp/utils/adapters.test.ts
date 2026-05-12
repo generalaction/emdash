@@ -53,6 +53,27 @@ describe('adaptForward (canonical → agent)', () => {
       expect(result.s1).toEqual(stdioServer);
       expect(result.s2).toBeUndefined();
     });
+
+    it('emits env_vars from passthroughEnv and strips the internal field', () => {
+      const server = { ...stdioServer, passthroughEnv: ['EMDASH_SESSION_ID', 'EMDASH_TASK_ID'] };
+      const result = adaptForward('codex', { s1: server });
+      expect(result.s1).toEqual({
+        command: 'npx',
+        args: ['-y', 'foo'],
+        env_vars: ['EMDASH_SESSION_ID', 'EMDASH_TASK_ID'],
+      });
+      expect(result.s1).not.toHaveProperty('passthroughEnv');
+    });
+  });
+
+  describe('passthroughEnv stripping', () => {
+    it('removes passthroughEnv from non-codex adapter outputs', () => {
+      const server = { ...stdioServer, passthroughEnv: ['FOO'] };
+      for (const adapter of ['passthrough', 'cursor', 'gemini', 'opencode', 'copilot'] as const) {
+        const result = adaptForward(adapter, { s1: server });
+        expect(result.s1).not.toHaveProperty('passthroughEnv');
+      }
+    });
   });
 
   describe('opencode', () => {
@@ -163,6 +184,19 @@ describe('adaptReverse (agent → canonical)', () => {
     it('returns servers as-is (all are stdio)', () => {
       const servers: ServerMap = { s1: { command: 'npx', args: ['foo'] } };
       expect(adaptReverse('codex', servers)).toEqual(servers);
+    });
+
+    it('maps env_vars back to passthroughEnv', () => {
+      const servers: ServerMap = {
+        s1: { command: 'npx', args: ['foo'], env_vars: ['EMDASH_SESSION_ID', 'EMDASH_TASK_ID'] },
+      };
+      expect(adaptReverse('codex', servers)).toEqual({
+        s1: {
+          command: 'npx',
+          args: ['foo'],
+          passthroughEnv: ['EMDASH_SESSION_ID', 'EMDASH_TASK_ID'],
+        },
+      });
     });
   });
 

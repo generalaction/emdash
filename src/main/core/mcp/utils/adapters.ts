@@ -81,7 +81,16 @@ function fwdCodex(servers: ServerMap): ServerMap {
   const result: ServerMap = {};
   for (const [k, v] of Object.entries(servers)) {
     if (typeof v === 'object' && v !== null && isStdio(v)) {
-      result[k] = deepClone(v);
+      const clone = deepClone(v);
+      // codex inherits only DEFAULT_ENV_VARS into MCP children. Names listed
+      // in `env_vars` are additionally looked up in codex's process env and
+      // forwarded — emdash uses this to ship per-conversation EMDASH_* vars
+      // that arrive via PTY-inherited env.
+      const pass = Array.isArray(v.passthroughEnv) ? (v.passthroughEnv as string[]) : null;
+      if (pass && pass.length) {
+        clone.env_vars = pass;
+      }
+      result[k] = clone;
     }
   }
   return result;
@@ -162,7 +171,20 @@ function revCursor(servers: ServerMap): ServerMap {
 }
 
 function revCodex(servers: ServerMap): ServerMap {
-  return deepClone(servers);
+  const result: ServerMap = {};
+  for (const [k, v] of Object.entries(servers)) {
+    if (typeof v === 'object' && v !== null) {
+      const clone = deepClone(v);
+      if (Array.isArray(clone.env_vars)) {
+        clone.passthroughEnv = clone.env_vars;
+        delete clone.env_vars;
+      }
+      result[k] = clone;
+    } else {
+      result[k] = v;
+    }
+  }
+  return result;
 }
 
 function revOpencode(servers: ServerMap): ServerMap {
@@ -228,7 +250,15 @@ const REVERSE: Record<AdapterType, (s: ServerMap) => ServerMap> = {
 };
 
 export function adaptForward(adapter: AdapterType, servers: ServerMap): ServerMap {
-  return FORWARD[adapter](servers);
+  const out = FORWARD[adapter](servers);
+  // `passthroughEnv` is an internal canonical-side field; never write it to
+  // a provider config (codex would reject it via `deny_unknown_fields`).
+  for (const entry of Object.values(out)) {
+    if (typeof entry === 'object' && entry !== null && 'passthroughEnv' in entry) {
+      delete (entry as Record<string, unknown>).passthroughEnv;
+    }
+  }
+  return out;
 }
 
 export function adaptReverse(adapter: AdapterType, servers: ServerMap): ServerMap {

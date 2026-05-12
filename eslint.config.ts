@@ -5,7 +5,16 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  globalIgnores(['dist/**', 'out/**', 'build/**', 'node_modules/**', '**/_*/**']),
+  globalIgnores([
+    'dist/**',
+    'out/**',
+    'build/**',
+    'release/**',
+    'node_modules/**',
+    '.references/**',
+    '.soulforge/**',
+    '**/_*/**',
+  ]),
 
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

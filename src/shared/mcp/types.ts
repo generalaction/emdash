@@ -10,6 +10,13 @@ export interface McpServer {
   headers?: Record<string, string>;
   // common
   env?: Record<string, string>;
+  /**
+   * Env vars expected to be present in the agent CLI's process env (typically
+   * injected by emdash at PTY spawn) that must be forwarded to the MCP child.
+   * Most agent CLIs inherit env to children by default; codex does not, and
+   * requires explicit `env_vars` listing in its TOML — see fwdCodex.
+   */
+  passthroughEnv?: string[];
   providers: string[];
 }
 
