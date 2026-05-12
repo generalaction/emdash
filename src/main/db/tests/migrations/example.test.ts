@@ -21,10 +21,6 @@
  *
  * Running:
  *   pnpm run test:migrations
- *
- * Note: test:migrations rebuilds better-sqlite3 for system Node before
- * running. After running it, run `pnpm run rebuild` to restore Electron
- * compatibility for the dev app.
  */
 
 import { openFixture } from '@tooling/utils/db';
