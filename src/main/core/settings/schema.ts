@@ -1,6 +1,7 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { openInAppIdSchema } from '@shared/openInApps';
+import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
 import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
 
 export const projectSettingsSchema = z.object({
@@ -33,6 +34,7 @@ export const agentAutoApproveDefaultsSchema = z
 
 export const terminalSettingsSchema = z.object({
   fontFamily: z.string().optional(),
+  fontSize: z.number().min(TERMINAL_FONT_SIZE_MIN).max(TERMINAL_FONT_SIZE_MAX).optional(),
   autoCopyOnSelection: z.boolean(),
 });
 
