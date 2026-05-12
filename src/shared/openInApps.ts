@@ -8,6 +8,10 @@ export type PlatformConfig = {
   checkCommands?: string[];
   bundleIds?: string[];
   appNames?: string[];
+  // Free-form mdfind query (darwin only). App is considered installed if the
+  // query returns any results. Use when bundleIds/appNames can't distinguish
+  // the app (e.g., stable and Canary share a bundle ID but differ in display name).
+  mdfindQuery?: string;
   label?: string;
   iconPath?: string;
 };
@@ -42,6 +46,7 @@ const ICON_PATHS = {
   trae: 'trae.png',
   'intellij-idea': 'intellij-idea.svg',
   'android-studio': 'android-studio.svg',
+  'android-studio-canary': 'android-studio-canary.svg',
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
   rustrover: 'rustrover.svg',
@@ -431,6 +436,34 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['studio {{path}}'],
         checkCommands: ['studio'],
+      },
+    },
+  },
+  'android-studio-canary': {
+    id: 'android-studio-canary',
+    label: 'Android Studio Canary',
+    iconPath: ICON_PATHS['android-studio-canary'],
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        // Canary shares bundle ID com.google.android.studio with stable, so we
+        // search by display name containing "Canary" (e.g. "Android Studio Otter
+        // 3 Feature Drop 2025.2.3 Canary 3.app" or "Android Studio Canary X.Y").
+        mdfindQuery:
+          'kMDItemCFBundleIdentifier == "com.google.android.studio" && kMDItemDisplayName == "*Canary*"cd',
+        openCommands: [
+          'CANARY=$(mdfind \'kMDItemCFBundleIdentifier == "com.google.android.studio" && kMDItemDisplayName == "*Canary*"cd\' | head -n 1) && [ -n "$CANARY" ] && open -a "$CANARY" {{path}}',
+          'open -a "Android Studio Preview" {{path}}',
+        ],
+        appNames: ['Android Studio Preview'],
+      },
+      win32: {
+        openCommands: ['studio-preview {{path}}'],
+        checkCommands: ['studio-preview'],
+      },
+      linux: {
+        openCommands: ['studio-preview {{path}}'],
+        checkCommands: ['studio-preview'],
       },
     },
   },

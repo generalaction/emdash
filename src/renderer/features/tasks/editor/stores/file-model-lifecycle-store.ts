@@ -4,6 +4,7 @@ import type { EditorViewSnapshot } from '@shared/view-state';
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
+import { showModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
@@ -71,6 +72,23 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
         { fireImmediately: true }
       )
     );
+
+    // Register as the close coordinator for all tabs. For dirty file tabs this
+    // shows the unsaved-changes dialog before proceeding. All other tab kinds
+    // and clean file tabs close immediately. The handler calls closeTab (force-
+    // close) once it is satisfied, so model unload is handled by the existing
+    // openFilePaths reaction above.
+    tabManager.registerCloseHandler(async (tabId) => {
+      const entry = tabManager.entries.get(tabId);
+      if (entry?.kind === 'file') {
+        const uri = buildMonacoModelPath(this.modelRootPath, entry.path);
+        if (modelRegistry.isDirty(uri)) {
+          const result = await this._confirmClose(entry.path);
+          if (result === 'cancel') return;
+        }
+      }
+      tabManager.closeTab(tabId);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -197,6 +215,24 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
 
   dispose(): void {
     for (const d of this.disposers) d();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private — close guard
+  // ---------------------------------------------------------------------------
+
+  private _confirmClose(path: string): Promise<'proceed' | 'cancel'> {
+    const fileName = path.split('/').pop() ?? path;
+    return new Promise((resolve) =>
+      showModal('unsavedChangesModal', {
+        fileName,
+        onSuccess: (result) => {
+          const savePromise = result === 'save' ? this.saveFile(path) : Promise.resolve();
+          void savePromise.then(() => resolve('proceed'));
+        },
+        onClose: () => resolve('cancel'),
+      })
+    );
   }
 
   // ---------------------------------------------------------------------------

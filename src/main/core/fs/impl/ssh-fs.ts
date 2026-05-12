@@ -49,6 +49,15 @@ const MAX_READ_SIZE = 100 * 1024 * 1024;
  */
 const DEFAULT_MAX_BYTES = 200 * 1024;
 
+function fileEntryMetadataChanged(prev: FileEntry, next: FileEntry): boolean {
+  return (
+    prev.type !== next.type ||
+    prev.size !== next.size ||
+    prev.mode !== next.mode ||
+    prev.mtime?.getTime() !== next.mtime?.getTime()
+  );
+}
+
 /**
  * SshFileSystem implements IFileSystem using SFTP over SSH.
  * Provides path traversal protection and proper error handling.
@@ -978,9 +987,16 @@ export class SshFileSystem implements FileSystemProvider {
 
         const evts: FileWatchEvent[] = [];
         for (const [p, e] of currMap) {
-          if (!prevMap.has(p))
+          const prev = prevMap.get(p);
+          if (!prev)
             evts.push({
               type: 'create',
+              entryType: e.type === 'dir' ? 'directory' : 'file',
+              path: p,
+            });
+          else if (fileEntryMetadataChanged(prev, e))
+            evts.push({
+              type: 'modify',
               entryType: e.type === 'dir' ? 'directory' : 'file',
               path: p,
             });

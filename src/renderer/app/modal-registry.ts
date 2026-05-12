@@ -16,6 +16,7 @@ import { ChangeProjectConnectionModal } from '@renderer/lib/components/change-pr
 import { ConfirmActionDialog } from '@renderer/lib/components/confirm-action-dialog';
 import { FeedbackModal } from '@renderer/lib/components/feedback-modal/feedback-modal';
 import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-device-flow-modal';
+import { UnsavedChangesDialog } from '@renderer/lib/components/unsaved-changes-dialog';
 import { type ModalComponent } from '@renderer/lib/modal/modal-provider';
 
 export type ModalSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -42,6 +43,7 @@ export const modalRegistry = {
   changeProjectConnectionModal: createModal(ChangeProjectConnectionModal, { size: 'sm' }),
   githubDeviceFlowModal: createModal(GithubDeviceFlowModalOverlay, { size: 'md' }),
   confirmActionModal: createModal(ConfirmActionDialog, { size: 'xs' }),
+  unsavedChangesModal: createModal(UnsavedChangesDialog, { size: 'xs' }),
   createConversationModal: createModal(CreateConversationModal),
   feedbackModal: createModal(FeedbackModal),
   mcpServerModal: createModal(McpModal),
