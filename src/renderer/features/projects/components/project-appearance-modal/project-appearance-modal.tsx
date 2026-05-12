@@ -4,11 +4,13 @@ import { Search } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import {
-  PROJECT_EMOJI_DATA,
-  PROJECT_EMOJI_SET,
-  PROJECT_EMOJI_SPRITESHEET_URL,
+  loadProjectEmojiSet,
+  PROJECT_EMOJI_SET_OPTIONS,
   ProjectEmoji,
+  useProjectEmojiSet,
+  type ProjectEmojiSetId,
 } from '@renderer/lib/emoji/project-emoji';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -106,16 +108,10 @@ export const ProjectAppearanceModal = observer(function ProjectAppearanceModal({
             </Tabs.Trigger>
           </Tabs.List>
 
-          <Tabs.Content value="emoji" className="flex justify-center">
-            <Picker
-              data={PROJECT_EMOJI_DATA}
-              onEmojiSelect={(emoji: EmojiMartSelection) => setIconValue(emoji.native)}
-              autoFocus
-              previewPosition="none"
-              skinTonePosition="none"
-              maxFrequentRows={1}
-              set={PROJECT_EMOJI_SET}
-              getSpritesheetURL={() => PROJECT_EMOJI_SPRITESHEET_URL}
+          <Tabs.Content value="emoji" className="flex flex-col items-center gap-3">
+            <EmojiSetSwitcher />
+            <EmojiPickerForCurrentSet
+              onSelect={(emoji: EmojiMartSelection) => setIconValue(emoji.native)}
             />
           </Tabs.Content>
 
@@ -192,7 +188,7 @@ export const ProjectAppearanceModal = observer(function ProjectAppearanceModal({
           <span className="text-xs font-medium text-foreground-muted">Preview</span>
           <div className="flex h-6 w-6 items-center justify-center">
             {parsedIcon.kind === 'emoji' ? (
-              <ProjectEmoji native={parsedIcon.char} className="text-base" />
+              <PreviewEmoji native={parsedIcon.char} />
             ) : parsedIcon.kind === 'lucide' ? (
               <parsedIcon.component className={cn('h-4 w-4', previewColor)} />
             ) : (
@@ -216,4 +212,99 @@ export const ProjectAppearanceModal = observer(function ProjectAppearanceModal({
       </DialogFooter>
     </>
   );
+});
+
+/**
+ * Pill-style switcher for the active emoji set. The selection is persisted as
+ * an app-level setting (`appearance.projectEmojiSet`) so the picker, every
+ * project sidebar item, and the preview row all render through the same
+ * spritesheet without per-component prop plumbing.
+ *
+ * Hovering or clicking a set warms its dataset/spritesheet via
+ * `loadProjectEmojiSet`, so the visible swap to a new style is near-instant
+ * even though the dataset JSON is dynamically imported.
+ */
+const EmojiSetSwitcher = observer(function EmojiSetSwitcher() {
+  const { value: appearance, update } = useAppSettingsKey('appearance');
+  const currentSet: ProjectEmojiSetId = appearance?.projectEmojiSet ?? 'google';
+  return (
+    <div
+      className="flex w-full items-center gap-1 rounded-md border border-border bg-background-secondary p-0.5"
+      role="radiogroup"
+      aria-label="Emoji style"
+    >
+      {PROJECT_EMOJI_SET_OPTIONS.map(({ id, label }) => {
+        const active = currentSet === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onMouseEnter={() => void loadProjectEmojiSet(id)}
+            onClick={() => {
+              void loadProjectEmojiSet(id);
+              update({ projectEmojiSet: id });
+            }}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2 py-1 text-xs',
+              active
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-foreground-muted hover:text-foreground'
+            )}
+          >
+            <ProjectEmoji native="😀" set={id} className="text-base" />
+            <span>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+});
+
+/**
+ * Wraps emoji-mart `<Picker>` so its `data`, `set`, and `getSpritesheetURL`
+ * track the active app-level emoji set. We block render until the dataset is
+ * loaded (rather than letting the Picker render with stale `data`) — that way
+ * switching sets always shows a coherent spritesheet/data pairing.
+ */
+const EmojiPickerForCurrentSet = observer(function EmojiPickerForCurrentSet({
+  onSelect,
+}: {
+  onSelect: (emoji: EmojiMartSelection) => void;
+}) {
+  const { value: appearance } = useAppSettingsKey('appearance');
+  const currentSet: ProjectEmojiSetId = appearance?.projectEmojiSet ?? 'google';
+  const loaded = useProjectEmojiSet(currentSet);
+
+  if (!loaded) {
+    return (
+      <div className="flex h-72 w-full items-center justify-center text-xs text-foreground-muted">
+        Loading {currentSet} emoji…
+      </div>
+    );
+  }
+
+  // emoji-mart caches Pickers by ref equality of `data`. Forcing a remount on
+  // set change avoids it stitching the wrong sprite map onto a previous render.
+  return (
+    <Picker
+      key={currentSet}
+      data={loaded.data}
+      set={currentSet === 'native' ? 'native' : currentSet}
+      onEmojiSelect={onSelect}
+      autoFocus
+      previewPosition="none"
+      skinTonePosition="none"
+      maxFrequentRows={1}
+      getSpritesheetURL={loaded.spritesheetUrl ? () => loaded.spritesheetUrl as string : undefined}
+    />
+  );
+});
+
+/** Preview cell renders through the same set the user has currently picked. */
+const PreviewEmoji = observer(function PreviewEmoji({ native }: { native: string }) {
+  const { value: appearance } = useAppSettingsKey('appearance');
+  const currentSet: ProjectEmojiSetId = appearance?.projectEmojiSet ?? 'google';
+  return <ProjectEmoji native={native} set={currentSet} className="text-base" />;
 });

@@ -28,8 +28,9 @@ import {
   getRepositoryStore,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
-import { ProjectEmoji } from '@renderer/lib/emoji/project-emoji';
+import { ProjectEmoji, type ProjectEmojiSetId } from '@renderer/lib/emoji/project-emoji';
 import {
   useNavigate,
   useParams,
@@ -92,6 +93,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   }, [isProjectActive, prefetchRepository]);
 
   const isExpanded = sidebarStore.expandedProjectIds.has(projectId);
+  // Hooks must run in stable order — keep this above the `if (!project)` guard.
+  const { value: appearance } = useAppSettingsKey('appearance');
+  const emojiSet: ProjectEmojiSetId = appearance?.projectEmojiSet ?? 'google';
 
   if (!project) return null;
 
@@ -145,7 +149,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               >
                 {parsedIcon.kind === 'emoji' ? (
                   <span className="absolute text-base leading-none transition-opacity duration-150 opacity-100 group-hover/row:opacity-0">
-                    <ProjectEmoji native={parsedIcon.char} />
+                    <ProjectEmoji native={parsedIcon.char} set={emojiSet} />
                   </span>
                 ) : (
                   (() => {
