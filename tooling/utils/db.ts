@@ -9,6 +9,7 @@
  * stays Electron-compiled at all times — no rebuild switching needed.
  */
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -41,7 +42,7 @@ export async function openFixture(
   name: 'empty' | 'baseline' | (string & {}) = 'baseline'
 ): Promise<FixtureDb> {
   // Create a temp file so each test gets an isolated writable copy.
-  const tmpPath = path.join(os.tmpdir(), `emdash-test-${name}-${Date.now()}.db`);
+  const tmpPath = path.join(os.tmpdir(), `emdash-test-${name}-${crypto.randomUUID()}.db`);
 
   if (name === 'empty') {
     // Start from scratch — create an empty database and apply all migrations.

@@ -7,10 +7,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Install the isolated better-sqlite3 for system Node unconditionally.
 // Vitest fixture and migration projects alias better-sqlite3 to this copy so
 // the root node_modules/better-sqlite3 can stay Electron-compiled at all times.
-spawnSync('npm', ['install', '--prefix', 'tooling/node-deps'], {
+const toolingInstall = spawnSync('npm', ['install', '--prefix', 'tooling/node-deps'], {
   stdio: 'inherit',
   cwd: path.resolve(__dirname, '..'),
 });
+if (toolingInstall.error) {
+  console.error('postinstall: failed to run npm install for tooling/node-deps:', toolingInstall.error);
+  process.exit(1);
+}
+if (typeof toolingInstall.status === 'number' && toolingInstall.status !== 0) {
+  process.exit(toolingInstall.status);
+}
 
 if (process.env.CI || process.env.EMDASH_SKIP_ELECTRON_REBUILD === '1') {
   process.exit(0);
