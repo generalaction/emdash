@@ -3,6 +3,8 @@ import { createProject, inspectProjectPath } from './operations/createProject';
 import { deleteProject } from './operations/deleteProject';
 import { getProjects } from './operations/getProjects';
 import { openProject } from './operations/openProject';
+import { setProjectArchived } from './operations/setProjectArchived';
+import { updateProjectAppearance } from './operations/updateProjectAppearance';
 import { updateProjectConnection } from './operations/updateProjectConnection';
 import { projectSettingsService } from './settings/project-settings-service';
 
@@ -21,4 +23,6 @@ export const projectController = createRPCController({
     projectSettingsService.migrateProjectConfig(projectId, request),
   updateProjectConnection,
   openProject,
+  setProjectArchived,
+  updateProjectAppearance,
 });

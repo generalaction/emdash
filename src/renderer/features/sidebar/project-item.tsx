@@ -1,9 +1,12 @@
 import {
+  Archive,
+  ArchiveRestore,
   CableIcon,
   ChevronRight,
   FolderClosed,
   FolderInput,
   Loader2,
+  Palette,
   Plus,
   RotateCcw,
   Trash2,
@@ -11,6 +14,10 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useCallback, useEffect } from 'react';
+import {
+  parseProjectIcon,
+  projectIconColorClass,
+} from '@renderer/features/projects/components/project-appearance-modal/icon-catalog';
 import {
   isUnregisteredProject,
   type UnregisteredProject,
@@ -60,6 +67,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const showCreateTaskModal = useShowModal('taskModal');
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
   const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
+  const showProjectAppearanceModal = useShowModal('projectAppearanceModal');
 
   const project = getProjectStore(projectId);
 
@@ -93,7 +101,10 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     ? appState.sshConnections.stateFor(sshConnectionId)
     : null;
   const canReconnect = sshConnectionState !== 'connected';
-  const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
+  const parsedIcon = parseProjectIcon(project.data?.icon);
+  const FallbackIcon = isSshProject ? FolderInput : FolderClosed;
+  const iconColorClass = projectIconColorClass(project.data?.iconColor);
+  const isArchived = project.data?.archived === true;
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
@@ -132,7 +143,23 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                   sidebarStore.toggleProjectExpanded(projectId);
                 }}
               >
-                <ProjectIcon className="absolute h-4 w-4 opacity-100 transition-opacity duration-150 group-hover/row:opacity-0" />
+                {parsedIcon.kind === 'emoji' ? (
+                  <span className="absolute text-base leading-none transition-opacity duration-150 opacity-100 group-hover/row:opacity-0">
+                    {parsedIcon.char}
+                  </span>
+                ) : (
+                  (() => {
+                    const Icon = parsedIcon.kind === 'lucide' ? parsedIcon.component : FallbackIcon;
+                    return (
+                      <Icon
+                        className={cn(
+                          'absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0',
+                          iconColorClass
+                        )}
+                      />
+                    );
+                  })()
+                )}
                 <ChevronRight
                   className={cn(
                     'absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100',
@@ -217,6 +244,41 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <CableIcon className="size-4" />
               Change SSH Connection
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+        {project.data && (
+          <>
+            <ContextMenuItem
+              onClick={() => {
+                showProjectAppearanceModal({
+                  projectId,
+                  currentIcon: project.data?.icon ?? null,
+                  currentIconColor: project.data?.iconColor ?? null,
+                });
+              }}
+            >
+              <Palette className="size-4" />
+              Customize…
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => {
+                void getProjectManagerStore().setProjectArchived(projectId, !isArchived);
+                if (!isArchived && isProjectActive) navigate('home');
+              }}
+            >
+              {isArchived ? (
+                <>
+                  <ArchiveRestore className="size-4" />
+                  Restore
+                </>
+              ) : (
+                <>
+                  <Archive className="size-4" />
+                  Archive
+                </>
+              )}
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>

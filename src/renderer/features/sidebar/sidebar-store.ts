@@ -40,11 +40,13 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   taskOrderByProject: Record<string, string[]> = {};
   expandedProjectIds = observable.set<string>();
   taskSortBy: SidebarTaskSortBy = 'created-at';
+  isArchivedExpanded = false;
 
   constructor(private readonly projectManager: ProjectManagerStore) {
     makeAutoObservable(this, {
       expandedProjectIds: false,
       sidebarRows: computed,
+      archivedProjects: computed,
       pinnedSidebarEntries: computed,
     });
 
@@ -79,7 +81,8 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
 
     const unregistered = all.filter((p): p is UnregisteredProject => p.state === 'unregistered');
     const real = all.filter(
-      (p): p is ProjectStore & { data: LocalProject | SshProject } => p.state !== 'unregistered'
+      (p): p is ProjectStore & { data: LocalProject | SshProject } =>
+        p.state !== 'unregistered' && p.data !== null && !p.data.archived
     );
 
     const sorted = [...real].sort((a, b) => {
@@ -92,6 +95,30 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     });
 
     return [...unregistered, ...sorted];
+  }
+
+  get archivedProjects(): ProjectStore[] {
+    const all = Array.from(this.projectManager.projects.values());
+    const archived = all.filter(
+      (p): p is ProjectStore & { data: LocalProject | SshProject } =>
+        p.state !== 'unregistered' && p.data !== null && p.data.archived
+    );
+    return [...archived].sort((a, b) => {
+      const ai = this.projectOrder.indexOf(a.data.id);
+      const bi = this.projectOrder.indexOf(b.data.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }
+
+  get hasArchivedProjects(): boolean {
+    return this.archivedProjects.length > 0;
+  }
+
+  toggleArchivedExpanded(): void {
+    this.isArchivedExpanded = !this.isArchivedExpanded;
   }
 
   get sidebarRows(): SidebarRow[] {
@@ -164,6 +191,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       projectOrder: [...this.projectOrder],
       taskOrderByProject: { ...this.taskOrderByProject },
       taskSortBy: this.taskSortBy,
+      isArchivedExpanded: this.isArchivedExpanded,
     };
   }
 
@@ -180,6 +208,9 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     if (snapshot.taskSortBy !== undefined) {
       const v = parseSidebarTaskSortBy(snapshot.taskSortBy);
       if (v !== undefined) this.taskSortBy = v;
+    }
+    if (snapshot.isArchivedExpanded !== undefined) {
+      this.isArchivedExpanded = snapshot.isArchivedExpanded;
     }
   }
 
