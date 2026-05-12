@@ -22,11 +22,12 @@ export async function provisionTask(taskId: string) {
   const existingTask = taskManager.getTask(taskId);
 
   if (existingTask) {
-    const wsId = taskManager.getWorkspaceId(taskId) ?? '';
+    const persistData = taskManager.getPersistData(taskId);
+    const wsId = persistData?.workspaceId ?? '';
     return {
       path: workspaceRegistry.get(wsId)?.path ?? '',
       workspaceId: wsId,
-      sshConnectionId: undefined,
+      sshConnectionId: persistData?.sshConnectionId,
     };
   }
 

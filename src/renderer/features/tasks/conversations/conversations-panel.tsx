@@ -1,7 +1,6 @@
 import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
-import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -22,16 +21,13 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const { tabManager: tm } = provisioned.taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
   const isActive = useIsActiveTask(taskId);
-  const mountedProject = asMounted(getProjectStore(projectId));
-  const shouldSetWorkingOnEnter = mountedProject?.data.type !== 'ssh';
-  const remoteConnectionId =
-    mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
+  const remoteConnectionId = provisioned.workspace.sshConnectionId;
+  const shouldSetWorkingOnEnter = !remoteConnectionId;
 
   const autoFocus = isActive && provisioned.taskView.focusedRegion === 'main';
 
   const handleCreate = () =>
     showCreateConversationModal({
-      connectionId: remoteConnectionId,
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {

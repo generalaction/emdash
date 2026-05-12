@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
@@ -24,15 +25,14 @@ function getConversationsPaneSize() {
 }
 
 export const CreateConversationModal = observer(function CreateConversationModal({
-  connectionId,
   onSuccess,
   projectId,
   taskId,
 }: BaseModalProps<{ conversationId: string }> & {
-  connectionId?: string;
   projectId: string;
   taskId: string;
 }) {
+  const connectionId = getProjectSshConnectionId(projectId);
   const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
   const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
   const autoApproveDefaults = useAgentAutoApproveDefaults();
@@ -102,7 +102,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
                   if (providerId) autoApproveDefaults.setDefault(providerId, checked);
                 }}
               />
-              <FieldLabel>Dangerously skip permissions</FieldLabel>
+              <FieldLabel>Auto-approve permissions</FieldLabel>
             </div>
           </Field>
           {error && <p className="text-xs text-destructive">{error}</p>}

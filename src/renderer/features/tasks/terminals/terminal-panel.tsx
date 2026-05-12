@@ -2,7 +2,6 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import {
@@ -32,9 +31,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const lifecycleScriptsMgr = provisionedTask.workspace.lifecycleScripts ?? null;
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const isActive = useIsActiveTask(taskId);
-  const mountedProject = asMounted(getProjectStore(projectId));
-  const remoteConnectionId =
-    mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
+  const remoteConnectionId = provisionedTask.workspace.sshConnectionId;
   const [isPanelFocused, setIsPanelFocused] = useState(false);
   const newTerminalHotkey = getEffectiveHotkey('newTerminal', keyboard);
 

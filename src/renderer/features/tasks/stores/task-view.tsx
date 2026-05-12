@@ -82,6 +82,14 @@ export class TaskViewStore {
       this.tabManager.initializeDefault();
     }
 
+    // Fallback: if no tabs are open after snapshot restoration or
+    // initializeDefault (e.g. a previously saved snapshot had an empty
+    // tabManager, or conversations weren't populated when initializeDefault
+    // ran), try to open the initial conversation now.
+    if (this.tabManager.tabOrder.length === 0) {
+      this.tabManager.initializeDefault();
+    }
+
     // Create FileModelLifecycleStore after tab snapshot restore so the initial
     // model registration fires with the correct set of open file paths.
     this.editorView = new FileModelLifecycleStore(
