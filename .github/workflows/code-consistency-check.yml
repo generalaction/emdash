@@ -99,6 +99,12 @@ jobs:
         shell: bash
         run: pnpm run build
 
+      - name: Rebuild native modules (x64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types scripts/release/rebuild-native.ts --arch x64
+
       - name: Build Windows package
         shell: bash
         run: |
