@@ -1,4 +1,5 @@
 import { FileQuestion } from 'lucide-react';
+import { basenameAny, extnameAny } from '@renderer/utils/path-name';
 
 interface BinaryRendererProps {
   file: { path: string };
@@ -6,8 +7,8 @@ interface BinaryRendererProps {
 
 /** Shown for binary or otherwise unsupported files. */
 export function BinaryRenderer({ file }: BinaryRendererProps) {
-  const fileName = file.path.split('/').pop() ?? file.path;
-  const ext = file.path.split('.').pop()?.toUpperCase();
+  const fileName = basenameAny(file.path) || file.path;
+  const ext = extnameAny(file.path).slice(1).toUpperCase() || undefined;
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
