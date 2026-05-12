@@ -17,10 +17,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { initializeDatabase } from '@main/db/initialize';
 import * as schema from '@main/db/schema';
 
-const fixturesDir = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
-  '../fixtures'
-);
+const fixturesDir = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../fixtures');
 
 export type FixtureDb = {
   db: ReturnType<typeof drizzle<typeof schema>>;

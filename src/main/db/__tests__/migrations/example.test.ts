@@ -27,10 +27,10 @@
  * compatibility for the dev app.
  */
 
+import { openFixture } from '@tooling/utils/db';
 import { count } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { projects, tasks } from '@main/db/schema';
-import { openFixture } from '@tooling/utils/db';
 
 describe('baseline fixture integrity', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;

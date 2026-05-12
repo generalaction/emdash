@@ -20,12 +20,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { seeds } from '@tooling/seeds/index';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { afterAll, describe, it } from 'vitest';
 import { initializeDatabase } from '@main/db/initialize';
 import * as schema from '@main/db/schema';
-import { seeds } from '@tooling/seeds/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixturesDir = path.resolve(__dirname, 'fixtures');
