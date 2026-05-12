@@ -82,3 +82,4 @@ tooling/node-deps/node_modules/
 .pi/extensions/emdash-hook.ts
 .opencode/plugins/emdash-notifications.js
 .references/
+.soulforge

@@ -20,6 +20,9 @@ export function rawToMcpServer(
       typeof raw.env === 'object' && raw.env !== null
         ? (raw.env as Record<string, string>)
         : undefined,
+    passthroughEnv: Array.isArray(raw.passthroughEnv)
+      ? (raw.passthroughEnv as string[])
+      : undefined,
     providers: Array.from(providers),
   };
 }
@@ -35,6 +38,7 @@ export function mcpServerToRaw(server: McpServer): RawServerEntry {
     if (server.args?.length) raw.args = server.args;
   }
   if (server.env && Object.keys(server.env).length) raw.env = server.env;
+  if (server.passthroughEnv?.length) raw.passthroughEnv = server.passthroughEnv;
   return raw;
 }
 
@@ -45,5 +49,6 @@ export function rawEntryToMcpFields(server: McpServer): Record<string, unknown> 
   if (server.url) fields.url = server.url;
   if (server.headers) fields.headers = server.headers;
   if (server.env) fields.env = server.env;
+  if (server.passthroughEnv?.length) fields.passthroughEnv = server.passthroughEnv;
   return fields;
 }
