@@ -12,7 +12,10 @@ const toolingInstall = spawnSync('npm', ['install', '--prefix', 'tooling/node-de
   cwd: path.resolve(__dirname, '..'),
 });
 if (toolingInstall.error) {
-  console.error('postinstall: failed to run npm install for tooling/node-deps:', toolingInstall.error);
+  console.error(
+    'postinstall: failed to run npm install for tooling/node-deps:',
+    toolingInstall.error
+  );
   process.exit(1);
 }
 if (typeof toolingInstall.status === 'number' && toolingInstall.status !== 0) {
