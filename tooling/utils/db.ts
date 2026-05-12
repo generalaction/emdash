@@ -4,10 +4,9 @@
  * Uses our own initializeDatabase() (same code path as the production app)
  * so any bugs in the migration runner itself are caught by the test suite.
  *
- * Note: requires better-sqlite3 compiled for system Node. On a fresh
- * `pnpm install` this is the default. After `pnpm run rebuild` (Electron),
- * run `npm rebuild better-sqlite3` before running DB tests, then
- * `pnpm run rebuild` again to restore Electron compatibility.
+ * better-sqlite3 is resolved via the Vitest alias to tooling/node-deps/,
+ * an isolated copy compiled for system Node. The root node_modules copy
+ * stays Electron-compiled at all times — no rebuild switching needed.
  */
 
 import fs from 'node:fs';

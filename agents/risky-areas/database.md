@@ -33,6 +33,7 @@ tooling/
 ├── docker-ssh/         SSH test container (Docker)
 ├── db/                 gitignored — per-developer dev database
 ├── fixtures/           committed SQLite snapshots (empty.db, baseline.db)
+├── node-deps/          isolated better-sqlite3 compiled for system Node
 ├── seeds/              seed functions that populate fixtures
 ├── generate-fixtures.ts  fixture generator script (run via vitest)
 └── utils/
@@ -60,13 +61,12 @@ Two committed SQLite snapshots live in `tooling/fixtures/`:
 Regenerate after any schema change:
 
 ```bash
-pnpm run db:fixtures   # rebuilds better-sqlite3 for Node, writes .db files
-pnpm run rebuild       # restore better-sqlite3 for Electron after running db:fixtures
+pnpm run db:fixtures   # writes .db files — no rebuild needed
 ```
 
-> **Note:** `pnpm run db:fixtures` rebuilds `better-sqlite3` for system Node so
-> Vitest can load it. After running it, the Electron app needs `pnpm run rebuild`
-> to restore Electron compatibility.
+`db:fixtures` and `test:migrations` use an isolated copy of `better-sqlite3`
+installed under `tooling/node-deps/` (compiled for system Node). The root
+`node_modules/better-sqlite3` stays Electron-compiled at all times.
 
 ### Migration authoring checklist
 
@@ -89,13 +89,11 @@ pnpm run rebuild       # restore better-sqlite3 for Electron after running db:fi
 5. **Regenerate fixtures** so `baseline.db` and `empty.db` include the new schema:
    ```bash
    pnpm run db:fixtures
-   pnpm run rebuild
    ```
 
 6. **Run migration tests**:
    ```bash
    pnpm run test:migrations
-   pnpm run rebuild   # restore Electron after the test run
    ```
 
 7. **Commit everything together**: migration SQL (`drizzle/`), `drizzle/meta/`,
@@ -109,4 +107,4 @@ pnpm run rebuild       # restore better-sqlite3 for Electron after running db:fi
   Import via `@tooling/utils/db` (alias available in all Vitest projects).
 - Migration tests live in `src/main/db/__tests__/migrations/` and run via
   `pnpm run test:migrations` (separate from the main test suite because they
-  require `better-sqlite3` compiled for system Node).
+  use `import.meta.glob`, which requires Vite's transform pipeline).

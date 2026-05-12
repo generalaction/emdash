@@ -11,6 +11,15 @@ const alias = {
   '@tooling': resolve(__dirname, 'tooling'),
 };
 
+// For fixture and migration Vitest projects, redirect better-sqlite3 to an
+// isolated copy installed under tooling/node-deps/ (compiled for system Node).
+// The root node_modules/better-sqlite3 stays Electron-compiled at all times,
+// so no rebuild dance is needed when switching between app dev and DB tests.
+const toolingAlias = {
+  ...alias,
+  'better-sqlite3': resolve(__dirname, 'tooling/node-deps/node_modules/better-sqlite3'),
+};
+
 export default defineConfig({
   resolve: { alias },
   test: {
@@ -32,8 +41,9 @@ export default defineConfig({
       },
       {
         // Fixture generator — run explicitly via `pnpm run db:fixtures`.
-        // Requires better-sqlite3 compiled for system Node (not Electron).
+        // Uses toolingAlias to load the system-Node build of better-sqlite3.
         extends: true,
+        resolve: { alias: toolingAlias },
         test: {
           name: 'fixtures',
           environment: 'node',
@@ -42,8 +52,9 @@ export default defineConfig({
       },
       {
         // Migration tests — run explicitly via `pnpm run test:migrations`.
-        // Requires better-sqlite3 compiled for system Node (not Electron).
+        // Uses toolingAlias to load the system-Node build of better-sqlite3.
         extends: true,
+        resolve: { alias: toolingAlias },
         test: {
           name: 'migrations',
           environment: 'node',

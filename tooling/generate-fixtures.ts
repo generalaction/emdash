@@ -12,11 +12,9 @@
  * tooling/fixtures/. Run this script whenever the schema changes (after
  * `pnpm run db:generate`) to keep the fixtures in sync.
  *
- * Note: better-sqlite3 must be compiled for system Node (not Electron).
- * On a fresh `pnpm install` this is the default. If you have previously run
- * `pnpm run rebuild` for Electron dev, rebuild for Node first:
- *   npm rebuild better-sqlite3
- * Then regenerate fixtures, then run `pnpm run rebuild` again for the app.
+ * better-sqlite3 is resolved via the Vitest alias to tooling/node-deps/,
+ * an isolated copy compiled for system Node. The root node_modules copy
+ * stays Electron-compiled at all times — no rebuild switching needed.
  */
 
 import fs from 'node:fs';

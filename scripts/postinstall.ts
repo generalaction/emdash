@@ -4,6 +4,14 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Install the isolated better-sqlite3 for system Node unconditionally.
+// Vitest fixture and migration projects alias better-sqlite3 to this copy so
+// the root node_modules/better-sqlite3 can stay Electron-compiled at all times.
+spawnSync('npm', ['install', '--prefix', 'tooling/node-deps'], {
+  stdio: 'inherit',
+  cwd: path.resolve(__dirname, '..'),
+});
+
 if (process.env.CI || process.env.EMDASH_SKIP_ELECTRON_REBUILD === '1') {
   process.exit(0);
 }
