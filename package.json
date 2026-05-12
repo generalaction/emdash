@@ -29,9 +29,9 @@
     "run:docker-ssh": "docker compose up --build -d",
     "clean": "rm -rf node_modules dist",
     "reset": "pnpm run clean && pnpm install",
-    "lint": "eslint . --cache --cache-strategy content --cache-location node_modules/.cache/eslint/.eslintcache",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/release/tsconfig.json",
     "docs": "cd docs && pnpm run dev",
     "docs:build": "cd docs && pnpm run build",
@@ -54,8 +54,6 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
-    "@eslint/js": "^9.0.0",
-    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@tailwindcss/vite": "^4.2.1",
     "@types/katex": "^0.16.8",
     "@types/node": "^20.10.0",
@@ -73,18 +71,15 @@
     "electron": "^40.7.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
-    "eslint": "^9.0.0",
-    "eslint-plugin-react-hooks": "^7.0.0",
     "husky": "^9.1.7",
     "jsdom": "^29.0.2",
     "lint-staged": "^16.3.0",
+    "oxfmt": "^0.5.0",
+    "oxlint": "^1.27.0",
     "postcss": "^8.4.32",
-    "prettier": "3.6.2",
-    "prettier-plugin-tailwindcss": "^0.6.14",
     "s3mini": "^0.9.4",
     "tailwindcss": "^4.2.1",
     "typescript": "^6.0.2",
-    "typescript-eslint": "^8.0.0",
     "vite": "^6.4.1",
     "vitest": "^4.1.0",
     "vitest-browser-react": "^2.1.0"
@@ -198,12 +193,11 @@
     ]
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
-      "prettier --write",
-      "eslint --fix"
+    "*.{ts,tsx,js,jsx,json,jsonc,css}": [
+      "oxfmt"
     ],
-    "*.{js,jsx,json,css}": [
-      "prettier --write"
+    "*.{ts,tsx,js,jsx}": [
+      "oxlint --fix"
     ]
   }
 }

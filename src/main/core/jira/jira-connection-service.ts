@@ -150,7 +150,7 @@ export class JiraConnectionService {
           headers: {
             Authorization: `Basic ${auth}`,
             Accept: 'application/json',
-            ...(extraHeaders || {}),
+            ...extraHeaders,
           },
         },
         (res) => {

@@ -196,6 +196,8 @@ export function applyThemeToAll(theme?: SessionTheme): void {
 
 /** Dispose all live FrontendPty instances. Called on app teardown. */
 export function disposeAllPtys(): void {
+  // Snapshot the set because dispose() mutates FrontendPty.all during iteration.
+  // oxlint-disable-next-line unicorn/no-useless-spread
   for (const pty of [...FrontendPty.all]) {
     pty.dispose();
   }

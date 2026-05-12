@@ -91,7 +91,9 @@ void app.whenReady().then(async () => {
     log.error('Failed to initialize database:', error);
     dialog.showErrorBox(
       'Database Initialization Failed',
-      `${PRODUCT_NAME} could not start because the database failed to initialize.\n\n${error instanceof Error ? error.message : String(error)}`
+      `${PRODUCT_NAME} could not start because the database failed to initialize.\n\n${
+        error instanceof Error ? error.message : String(error)
+      }`
     );
     app.quit();
     return;

@@ -231,7 +231,9 @@ export const ImageDiffView = observer(function ImageDiffView({
   const provisioned = useProvisionedTask();
   const git = provisioned.workspace.git;
 
-  const fileKey = `${activeFile.path}|${activeFile.group}|${gitRefToString(activeFile.originalRef)}|${activeFile.modifiedRef ? gitRefToString(activeFile.modifiedRef) : ''}`;
+  const fileKey = `${activeFile.path}|${activeFile.group}|${gitRefToString(activeFile.originalRef)}|${
+    activeFile.modifiedRef ? gitRefToString(activeFile.modifiedRef) : ''
+  }`;
 
   // For disk/staged groups the bytes can change without fileKey changing
   // (in-place overwrite, re-stage). Pinning to lastUpdatedAt reruns the

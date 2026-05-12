@@ -58,7 +58,7 @@ function fwdGemini(servers: ServerMap): ServerMap {
   return transformHttpServers(servers, (s) => {
     const url = s.url ?? '';
     const headers: Record<string, string> = {
-      ...((s.headers as Record<string, string>) ?? {}),
+      ...(s.headers as Record<string, string>),
     };
     ensureHeader(headers, 'Accept', 'application/json, text/event-stream');
     const result: RawServerEntry = { httpUrl: url, headers };
@@ -96,7 +96,7 @@ function fwdOpencode(servers: ServerMap): ServerMap {
     }
     if (isHttpServer(v)) {
       const headers: Record<string, string> = {
-        ...((v.headers as Record<string, string>) ?? {}),
+        ...(v.headers as Record<string, string>),
       };
       ensureHeader(headers, 'Accept', 'application/json, text/event-stream');
       const entry: RawServerEntry = { type: 'remote', url: v.url ?? '', headers, enabled: true };

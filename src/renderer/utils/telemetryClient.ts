@@ -37,7 +37,7 @@ async function captureWithProps(event: TelemetryEvent, properties?: Record<strin
     .capture({
       event,
       properties: {
-        ...(properties ?? {}),
+        ...properties,
         ...getTelemetryScope(),
         ...(sessionId ? { session_id: sessionId } : {}),
       },
