@@ -158,6 +158,17 @@ export class GitService implements GitProvider, IDisposable {
     }
   }
 
+  async isFileCleanlyTracked(filePath: string): Promise<boolean> {
+    try {
+      await this.ctx.exec('git', ['ls-files', '--error-unmatch', '--', filePath]);
+      await this.ctx.exec('git', ['diff', '--quiet', '--', filePath]);
+      await this.ctx.exec('git', ['diff', '--cached', '--quiet', '--', filePath]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async _loadFullStatus(): Promise<FullGitStatus> {
     try {
       const parser = new StatusParser();

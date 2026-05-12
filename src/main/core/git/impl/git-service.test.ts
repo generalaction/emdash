@@ -265,6 +265,41 @@ describe('GitService.getStatusFingerprint', () => {
   });
 });
 
+describe('GitService.isFileCleanlyTracked', () => {
+  it('returns true when the file is tracked and unchanged', async () => {
+    const svc = makeService(
+      makeExec({
+        'ls-files --error-unmatch -- .emdash.json': '.emdash.json\n',
+        'diff --quiet -- .emdash.json': '',
+        'diff --cached --quiet -- .emdash.json': '',
+      })
+    );
+
+    await expect(svc.isFileCleanlyTracked('.emdash.json')).resolves.toBe(true);
+  });
+
+  it('returns false when the file is not tracked', async () => {
+    const svc = makeService(makeExec({}));
+
+    await expect(svc.isFileCleanlyTracked('.emdash.json')).resolves.toBe(false);
+  });
+
+  it('returns false when the file has unstaged changes', async () => {
+    const exec: MockExec = async (_cmd, args = []) => {
+      const key = args.join(' ');
+      if (key === 'ls-files --error-unmatch -- .emdash.json') {
+        return { stdout: '.emdash.json\n', stderr: '' };
+      }
+      if (key === 'diff --quiet -- .emdash.json') {
+        throw Object.assign(new Error('diff found changes'), { code: 1 });
+      }
+      throw new Error(`Unexpected git command: git ${key}`);
+    };
+
+    await expect(makeService(exec).isFileCleanlyTracked('.emdash.json')).resolves.toBe(false);
+  });
+});
+
 describe('GitService.getDefaultBranch', () => {
   it('resolves from symbolic-ref cache (heuristic 1)', async () => {
     const svc = makeService(
