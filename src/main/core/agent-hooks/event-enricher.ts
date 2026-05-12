@@ -19,8 +19,12 @@ function normalizePayload(
     message: body.message as string | undefined,
   };
 
-  if (!payload.notificationType && providerId === 'codex' && body.type === 'agent-turn-complete') {
-    payload.notificationType = 'idle_prompt';
+  if (!payload.notificationType && providerId === 'codex') {
+    if (body.type === 'agent-turn-complete' || body.hook_event_name === 'Stop') {
+      payload.notificationType = 'idle_prompt';
+    } else if (body.hook_event_name === 'PermissionRequest') {
+      payload.notificationType = 'permission_prompt';
+    }
   }
 
   return payload;

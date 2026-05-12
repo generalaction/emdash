@@ -9,6 +9,7 @@ import piEmdashExtension from './pi-emdash-extension.ts?raw';
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
+const CODEX_HOOKS_PATH = '.codex/hooks.json';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
@@ -43,6 +44,26 @@ export class HookConfigWriter {
     }
 
     await this.fs.write(CLAUDE_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    return true;
+  }
+
+  async writeCodexHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('codex', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(CODEX_HOOKS_PATH))
+      ? await this.fs
+          .read(CODEX_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+    for (const hookKey of ['Stop', 'PermissionRequest']) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(existing, makeClaudeHookCommand('notification'));
+    }
+
+    await this.fs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
     return true;
   }
 
@@ -87,6 +108,14 @@ export class HookConfigWriter {
       return;
     }
 
+    if (providerId === 'codex') {
+      const wroteConfig = await this.writeCodexHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([CODEX_HOOKS_PATH]);
+      }
+      return;
+    }
+
     if (providerId === 'pi') {
       const wroteConfig = await this.writePiExtension();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -106,7 +135,7 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'pi', 'opencode'] as const).map((providerId) =>
+      (['claude', 'codex', 'pi', 'opencode'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })

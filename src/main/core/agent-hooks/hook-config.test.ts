@@ -101,14 +101,31 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 
-  it('does not write project-local Codex notify config', async () => {
+  it('writes Codex hooks.json and ignores it in git', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
     const fs = new MemoryFs();
     const writer = makeWriter(fs);
 
     await writer.writeForProvider('codex');
 
+    const config = JSON.parse(fs.files.get('.codex/hooks.json') ?? '{}');
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('EMDASH_HOOK_PORT');
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: notification');
+    expect(config.hooks.PermissionRequest[0].hooks[0].command).toContain('EMDASH_HOOK_PORT');
     expect(fs.files.has('.codex/config.toml')).toBe(false);
-    expect(fs.files.has('.gitignore')).toBe(false);
+    expect(fs.files.get('.gitignore')).toBe('.codex/hooks.json\n');
+  });
+
+  it('does not duplicate Codex hook entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('codex');
+    await writer.writeForProvider('codex');
+
+    const config = JSON.parse(fs.files.get('.codex/hooks.json') ?? '{}');
+    expect(config.hooks.Stop).toHaveLength(1);
+    expect(config.hooks.PermissionRequest).toHaveLength(1);
   });
 });
