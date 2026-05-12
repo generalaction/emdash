@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { platform as platformAdapter } from '@main/core/platform';
 import { log } from '@main/lib/logger';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
 import { buildTmuxShellLine } from './tmux-session-name';
@@ -42,9 +43,21 @@ function getWindowsCommandShell(env: NodeJS.ProcessEnv): string {
   return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
 }
 
-function getWindowsInteractiveShell(env: NodeJS.ProcessEnv): string {
+function getBundledWindowsPowerShell(env: NodeJS.ProcessEnv): string {
   const systemRoot = getWindowsEnvValue(env, 'SystemRoot') || 'C:\\Windows';
   return path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+}
+
+/**
+ * For interactive shells we prefer `pwsh.exe` when installed (modern
+ * cross-platform PowerShell), then bundled Windows PowerShell. cmd.exe is still
+ * used internally for `.cmd`/`.bat` dispatch because it has the right
+ * argument-quoting semantics for those wrappers.
+ */
+function getWindowsInteractiveShell(env: NodeJS.ProcessEnv): string {
+  const preferred = platformAdapter.preferredInteractiveShell(env);
+  if (preferred) return preferred;
+  return getBundledWindowsPowerShell(env);
 }
 
 function isWindows(platform: NodeJS.Platform): boolean {
@@ -149,7 +162,12 @@ function resolveWindowsSpawn(
   const commandShell = getWindowsCommandShell(env);
 
   if (intent.kind === 'interactive-shell') {
-    return { command: getWindowsInteractiveShell(env), args: [], cwd: intent.cwd, warnings };
+    return {
+      command: getWindowsInteractiveShell(env),
+      args: [],
+      cwd: intent.cwd,
+      warnings,
+    };
   }
 
   if (intent.command.kind === 'shell-line') {

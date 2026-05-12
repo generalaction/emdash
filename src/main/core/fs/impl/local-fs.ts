@@ -169,13 +169,21 @@ export class LocalFileSystem implements FileSystemProvider {
     const normalizedRelPath = relPath.replace(/\\/g, '/').replace(/^\//, '');
     const fullPath = resolve(join(this.projectPath, normalizedRelPath));
 
-    // Security: ensure path is within projectPath (handle trailing separator edge cases)
+    // Security: ensure path is within projectPath (handle trailing separator edge cases).
+    // On Windows the filesystem is case-insensitive, so the prefix check needs to
+    // case-fold both sides; otherwise a project recorded as `C:\Users\foo\Project`
+    // can fail to validate paths whose drive letter or directory casing was
+    // returned differently by the OS (`c:\users\foo\project\…`).
+    const caseFold = (p: string): string => (process.platform === 'win32' ? p.toLowerCase() : p);
     const projectPathWithSep = this.projectPath.endsWith(sep)
       ? this.projectPath
       : this.projectPath + sep;
     const fullPathWithSep = fullPath.endsWith(sep) ? fullPath : fullPath + sep;
 
-    if (!fullPathWithSep.startsWith(projectPathWithSep) && fullPath !== this.projectPath) {
+    if (
+      !caseFold(fullPathWithSep).startsWith(caseFold(projectPathWithSep)) &&
+      caseFold(fullPath) !== caseFold(this.projectPath)
+    ) {
       throw new FileSystemError(
         `Path traversal detected: ${relPath}`,
         FileSystemErrorCodes.PATH_ESCAPE,

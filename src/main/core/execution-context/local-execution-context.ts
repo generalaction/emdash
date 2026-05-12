@@ -1,5 +1,6 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import { platform } from '@main/core/platform';
 import {
   GIT_EXECUTABLE,
   isMissingGitExecutableError,
@@ -8,6 +9,23 @@ import {
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * On Windows the Electron main process inherits the GUI PATH (system + user)
+ * but **not** the user's interactive-shell modifications (e.g. nvm switches,
+ * pnpm setup script edits). That means `where codex` from inside Electron
+ * frequently fails to find a CLI the user can invoke from their terminal.
+ *
+ * We sidestep this by augmenting the spawn env with well-known install dirs
+ * (npm global bin, VS Code's bin, JetBrains Toolbox scripts, Git for Windows,
+ * etc. — see `src/main/core/platform/windows.ts`). The augmentation is a no-op
+ * on POSIX. Cached at the `platform` adapter level so this is essentially
+ * free per call.
+ */
+function buildSpawnEnv(): NodeJS.ProcessEnv | undefined {
+  if (!platform.isWindows) return undefined;
+  return platform.augmentEnv(process.env);
+}
 
 export class LocalExecutionContext implements IExecutionContext {
   readonly root: string;
@@ -36,6 +54,7 @@ export class LocalExecutionContext implements IExecutionContext {
       timeout,
       maxBuffer,
       signal: this._signal(opts.signal),
+      env: buildSpawnEnv(),
     }).catch((error) => {
       if (command === 'git' && isMissingGitExecutableError(error)) {
         throw missingGitExecutableError();
@@ -58,7 +77,10 @@ export class LocalExecutionContext implements IExecutionContext {
         return;
       }
 
-      const child = spawn(this.resolveCommand(command), args, { cwd: this.root || undefined });
+      const child = spawn(this.resolveCommand(command), args, {
+        cwd: this.root || undefined,
+        env: buildSpawnEnv(),
+      });
 
       let settled = false;
 

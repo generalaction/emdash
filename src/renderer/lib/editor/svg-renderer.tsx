@@ -6,6 +6,7 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { ContainedImage } from '@renderer/lib/ui/contained-image';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { basenameAny } from '@renderer/utils/path-name';
 
 interface SvgRendererProps {
   filePath: string;
@@ -27,7 +28,7 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
     () => (content ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}` : ''),
     [content]
   );
-  const fileName = filePath.split('/').pop() ?? filePath;
+  const fileName = basenameAny(filePath) || filePath;
 
   return (
     <div className="relative flex h-full items-center justify-center overflow-auto p-4">

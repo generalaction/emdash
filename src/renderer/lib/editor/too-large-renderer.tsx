@@ -1,4 +1,5 @@
 import { FileX } from 'lucide-react';
+import { basenameAny } from '@renderer/utils/path-name';
 
 interface TooLargeRendererProps {
   file: { path: string; totalSize?: number | null };
@@ -12,7 +13,7 @@ function formatBytes(bytes: number): string {
 
 /** Shown when a file exceeds the editor's read limit. */
 export function TooLargeRenderer({ file }: TooLargeRendererProps) {
-  const fileName = file.path.split('/').pop() ?? file.path;
+  const fileName = basenameAny(file.path) || file.path;
 
   return (
     <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
