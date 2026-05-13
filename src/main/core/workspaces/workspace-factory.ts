@@ -10,6 +10,7 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
+import { RemoteStatusFingerprintPoller } from '@main/core/git/remote-status-fingerprint-poller';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
@@ -136,6 +137,10 @@ export function createWorkspaceFactory(
         gitService,
         async () => (await githubConnectionService.getToken()) !== null
       );
+    const statusPoller =
+      type.kind === 'ssh'
+        ? new RemoteStatusFingerprintPoller(context.projectId, workspaceId, gitService)
+        : null;
 
     const workspace: Workspace = {
       id: workspaceId,
@@ -157,6 +162,7 @@ export function createWorkspaceFactory(
         if (ownsFetchService) {
           fetchService.start();
         }
+        statusPoller?.start();
         if (scripts?.setup) {
           void ws.lifecycleService.prepareAndRunLifecycleScript({
             type: 'setup',
@@ -177,6 +183,7 @@ export function createWorkspaceFactory(
       onCreate: context.extraHooks?.onCreate,
 
       onDestroy: async (ws) => {
+        statusPoller?.stop();
         if (ownsFetchService) {
           fetchService.stop();
         }
@@ -206,9 +213,10 @@ export function createWorkspaceFactory(
         await context.extraHooks?.onDestroy?.(ws);
       },
 
-      onDetach: context.extraHooks?.onDetach
-        ? (ws) => context.extraHooks!.onDetach!(ws)
-        : undefined,
+      onDetach: async (ws) => {
+        statusPoller?.stop();
+        await context.extraHooks?.onDetach?.(ws);
+      },
     };
   };
 }

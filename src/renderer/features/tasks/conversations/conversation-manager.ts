@@ -47,8 +47,31 @@ export class ConversationManagerStore {
       hasPreloaded ? { init: preloaded } : undefined
     );
 
+    // When preloaded data is available, populate the maps synchronously so
+    // they are accessible immediately — even when this constructor is called
+    // from within a MobX action, where reaction callbacks (including
+    // fireImmediately) are deferred until the outermost action completes.
+    if (preloaded) {
+      runInAction(() => {
+        for (const conversation of preloaded) {
+          if (!this.conversations.has(conversation.id)) {
+            this.conversations.set(conversation.id, new ConversationStore(conversation));
+          }
+          if (!this.sessions.has(conversation.id)) {
+            this.sessions.set(
+              conversation.id,
+              new PtySession(
+                makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
+              )
+            );
+          }
+        }
+      });
+    }
+
     // Sync conversations and sessions maps whenever resource data changes.
-    // fireImmediately triggers immediately with preloaded data or once load completes.
+    // fireImmediately handles the non-preloaded case; for preloaded data the
+    // maps are already populated above so this is a no-op on first run.
     this._disposeReaction = reaction(
       () => this.list.data,
       (data) => {

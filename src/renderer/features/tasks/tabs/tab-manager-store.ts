@@ -110,6 +110,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
 
   private readonly conversations: ConversationManagerStore;
   private readonly disposers: (() => void)[] = [];
+  private _closeHandler?: (tabId: string) => Promise<void>;
 
   constructor(conversations: ConversationManagerStore, workspaceId: string) {
     this.conversations = conversations;
@@ -529,9 +530,31 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     this._removeTab(id);
   }
 
+  /**
+   * Registers an async handler that is called for user-initiated tab closes.
+   * The handler is responsible for calling closeTab when it is ready to proceed.
+   * Force-closes via closeTab bypass this handler entirely.
+   */
+  registerCloseHandler(handler: (tabId: string) => Promise<void>): void {
+    this._closeHandler = handler;
+  }
+
+  /**
+   * User-initiated close — delegates to the registered close handler if present,
+   * falling back to a direct _removeTab. Use this for all UI and keyboard closes.
+   * Do NOT use for programmatic/internal closes (use closeTab instead).
+   */
+  closeTabWithGuard(id: string): void {
+    if (this._closeHandler) {
+      void this._closeHandler(id);
+    } else {
+      this._removeTab(id);
+    }
+  }
+
   closeActiveTab(): void {
     if (!this.activeTabId) return;
-    this.closeTab(this.activeTabId);
+    this.closeTabWithGuard(this.activeTabId);
   }
 
   setActiveTab(id: string): void {

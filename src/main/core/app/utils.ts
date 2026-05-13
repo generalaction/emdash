@@ -184,3 +184,15 @@ export const checkMacAppByName = (appName: string): Promise<boolean> =>
       }
     );
   });
+
+export const checkMacMdfindQuery = (query: string): Promise<boolean> =>
+  new Promise((resolve) => {
+    execFile(
+      'mdfind',
+      [query],
+      { timeout: 30_000, env: buildExternalToolEnv() },
+      (error, stdout) => {
+        resolve(!error && stdout.trim().length > 0);
+      }
+    );
+  });

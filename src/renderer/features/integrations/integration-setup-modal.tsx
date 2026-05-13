@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -68,6 +69,7 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     isForgejoLoading,
     isFeaturebaseLoading,
   } = useIntegrationsContext();
+  const { toast } = useToast();
 
   // Linear state
   const [linearKey, setLinearKey] = useState('');
@@ -142,6 +144,10 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
           await connectFeaturebase(featurebaseKey.trim());
           break;
       }
+      toast({
+        title: 'Integration connected',
+        description: 'Integration set up successfully.',
+      });
       onSuccess();
     } catch (e) {
       setError((e as Error).message || 'Failed to connect.');
@@ -164,6 +170,7 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     connectPlain,
     connectForgejo,
     connectFeaturebase,
+    toast,
     onSuccess,
   ]);
 

@@ -68,5 +68,25 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
     },
+  },
+
+  // Prevent @tooling imports leaking into production code.
+  // Test files are exempt — they legitimately use openFixture() and other tooling helpers.
+  {
+    files: ['src/main/**/*.{ts,tsx}', 'src/renderer/**/*.{ts,tsx}', 'src/preload/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@tooling', '@tooling/*'],
+              message: '@tooling imports are only allowed in test files.',
+            },
+          ],
+        },
+      ],
+    },
   }
 );

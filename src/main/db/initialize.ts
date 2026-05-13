@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import type BetterSqlite3 from 'better-sqlite3';
 import journal from '@root/drizzle/meta/_journal.json';
-import { sqlite } from './client';
 
 // Vite bundles all migration SQL files at build time — no runtime path resolution needed.
 // Each value is the raw SQL string content of the file.
@@ -86,16 +85,23 @@ function ensureSearchIndex(connection: BetterSqlite3.Database): void {
 }
 
 /**
- * Runs all pending migrations against the shared SQLite connection and validates
- * the schema contract. Call this once in main.ts before any db queries run.
+ * Runs all pending migrations against the provided SQLite connection (or the
+ * app's shared singleton when called without arguments). Call this once in
+ * main.ts before any db queries run.
  *
- * Throws `DatabaseSchemaMismatchError` when required columns/tables are missing
- * after migration (e.g. the user downgraded from a newer build).
+ * Accepts an explicit connection so migration tests and fixture generators can
+ * pass an in-memory database without pulling in the Electron-dependent client
+ * module at import time.
  *
- * Returns the raw better-sqlite3 handle so the caller can close it on shutdown.
+ * Returns the connection that was used.
  */
-export async function initializeDatabase(): Promise<BetterSqlite3.Database> {
-  runBundledMigrations(sqlite);
-  ensureSearchIndex(sqlite);
-  return sqlite;
+export async function initializeDatabase(
+  connection?: BetterSqlite3.Database
+): Promise<BetterSqlite3.Database> {
+  // Lazily import the app singleton only when no explicit connection is given.
+  // This keeps the module importable in non-Electron environments (Vitest).
+  const conn = connection ?? (await import('./client')).sqlite;
+  runBundledMigrations(conn);
+  ensureSearchIndex(conn);
+  return conn;
 }
