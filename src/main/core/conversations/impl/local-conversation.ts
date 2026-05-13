@@ -1,5 +1,4 @@
 import { homedir } from 'node:os';
-import { getProvider } from '@shared/agent-provider-registry';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
@@ -140,20 +139,15 @@ export class LocalConversationProvider implements ConversationProvider {
       rows: initialSize.rows,
     });
 
-    const hookActive = port > 0;
-    const provider = getProvider(conversation.providerId);
-    const shouldKeepClassifierFallback = conversation.providerId === 'codex';
-    const useHooksOnly = hookActive && provider?.supportsHooks && !shouldKeepClassifierFallback;
-
-    if (!useHooksOnly) {
-      wireAgentClassifier({
-        pty,
-        providerId: conversation.providerId,
-        projectId: conversation.projectId,
-        taskId: conversation.taskId,
-        conversationId: conversation.id,
-      });
-    }
+    // Keep the classifier wired even for hook-capable providers so visible terminal output
+    // can still produce agent events if hook delivery is unavailable or misconfigured.
+    wireAgentClassifier({
+      pty,
+      providerId: conversation.providerId,
+      projectId: conversation.projectId,
+      taskId: conversation.taskId,
+      conversationId: conversation.id,
+    });
 
     pty.onExit(({ exitCode }) => {
       ptySessionRegistry.unregister(sessionId);
