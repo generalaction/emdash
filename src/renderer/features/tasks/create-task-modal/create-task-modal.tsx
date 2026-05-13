@@ -10,8 +10,8 @@ import {
 import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useToast } from '@renderer/lib/hooks/use-toast';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -121,15 +121,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     const id = crypto.randomUUID();
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
-
-    if (initialConversation.connectionId && initialConversation.imageAttachments.length > 0) {
-      toast({
-        title: 'Images are not supported for SSH projects yet',
-        description: 'Remove the attached images or create this task in a local project.',
-        variant: 'destructive',
-      });
-      return;
-    }
 
     let initialPromptImages: Awaited<ReturnType<typeof getInitialPromptImages>>;
     try {

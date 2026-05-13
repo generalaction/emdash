@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { basename } from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { withCompensation } from '@main/core/utils/compensation';
@@ -37,32 +36,21 @@ async function prepareInitialPrompt(params: CreateConversationParams): Promise<s
 
   const workspaceId = taskManager.getWorkspaceId(params.taskId);
   const workspace = workspaceId ? workspaceRegistry.get(workspaceId) : undefined;
-  const copyLocalFile = workspace?.fs.copyLocalFile?.bind(workspace.fs);
-  if (!workspace || !copyLocalFile) {
-    if (workspace && !copyLocalFile) {
-      log.warn('Workspace has no copyLocalFile — omitting initial prompt images');
-    }
-    return buildInitialPrompt(params.initialPrompt, []);
-  }
+  const copyLocalFileToTemp = workspace?.fs.copyLocalFileToTemp?.bind(workspace.fs);
+  if (!copyLocalFileToTemp) return buildInitialPrompt(params.initialPrompt, images);
 
-  const imageDir = '.emdash/initial-prompt-images';
-  try {
-    await workspace.fs.mkdir(imageDir, { recursive: true });
-  } catch (error) {
-    log.warn('Failed to create image directory in workspace — omitting initial prompt images', {
-      error,
-    });
-    return buildInitialPrompt(params.initialPrompt, []);
-  }
   const remoteImages = await Promise.all(
     images.map(async (image) => {
       try {
-        const safeName = basename(image.name).replace(/[^a-zA-Z0-9._ -]/g, '_');
-        const remotePath = `${imageDir}/${randomUUID()}-${safeName}`;
-        await copyLocalFile(image.path, remotePath);
-        return { ...image, path: `${workspace.path}/${remotePath}` };
+        return {
+          ...image,
+          path: await copyLocalFileToTemp(image.path, image.name),
+        };
       } catch (error) {
-        log.warn('Failed to copy initial prompt image to workspace', { image: image.name, error });
+        log.warn('Failed to copy initial prompt image to remote temp storage', {
+          image: image.name,
+          error,
+        });
         return { ...image, path: '' };
       }
     })
