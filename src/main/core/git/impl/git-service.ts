@@ -38,8 +38,8 @@ import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
-import type { IDisposable } from '@main/lib/lifecycle';
 import { HookCore } from '@main/lib/hookable';
+import type { IDisposable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { type GitProvider } from '../types';
 import type { WorkspaceGitHooks } from '../workspace-git-provider';
@@ -98,8 +98,8 @@ type HeadInfo =
 export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
-  private readonly _hooks = new HookCore<WorkspaceGitHooks>(
-    (name, e) => log.error(`GitService: ${String(name)} hook error`, e)
+  private readonly _hooks = new HookCore<WorkspaceGitHooks>((name, e) =>
+    log.error(`GitService: ${String(name)} hook error`, e)
   );
 
   constructor(

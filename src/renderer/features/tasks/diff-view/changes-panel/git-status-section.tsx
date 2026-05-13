@@ -5,10 +5,7 @@ import {
   getRepositoryStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
-import {
-  getTaskGitStore,
-  getTaskStore,
-} from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitStore, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { useGitActions } from '@renderer/features/tasks/use-git-actions';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';

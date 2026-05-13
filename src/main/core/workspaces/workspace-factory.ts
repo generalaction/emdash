@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import type { Task } from '@shared/tasks';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
@@ -20,10 +21,9 @@ import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
-import { log } from '@main/lib/logger';
-import { eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { workspaces as workspacesTable } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { TimeoutSignal, withTimeout } from '../projects/utils';

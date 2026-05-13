@@ -7,8 +7,8 @@ import type { FileModelLifecycleStore } from '@renderer/features/tasks/editor/st
 import { conversationRegistry } from './conversation-registry';
 import type { TaskManagerStore } from './task-manager';
 import {
-  isRegistered,
   isProvisioned,
+  isRegistered,
   isUnprovisioned,
   isUnregistered,
   registeredTaskData,
