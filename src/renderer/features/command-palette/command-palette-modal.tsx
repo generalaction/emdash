@@ -9,13 +9,13 @@ import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { getTaskStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
+import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
-import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PaletteNotificationsGroup } from './palette-notifications-group';
