@@ -30,6 +30,7 @@ export const FileDiffView = observer(function FileDiffView() {
   const isImage = activeFile ? isImageForDiff(activeFile.path) : false;
   const showEditor = activeFile !== null && !isBinary;
   const activeFilePath = activeFile?.path ?? '';
+  const imageDiffKey = activeFile ? `${workspaceId}:${activeFile.group}:${activeFile.path}` : '';
 
   const comments = activeFilePath ? (draftComments?.getCommentsForFile(activeFilePath) ?? []) : [];
 
@@ -199,7 +200,12 @@ export const FileDiffView = observer(function FileDiffView() {
           />
         )}
         {activeFile && isImage && (
-          <ImageDiffView projectId={projectId} workspaceId={workspaceId} activeFile={activeFile} />
+          <ImageDiffView
+            key={imageDiffKey}
+            projectId={projectId}
+            workspaceId={workspaceId}
+            activeFile={activeFile}
+          />
         )}
         {isBinary && !isImage && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
