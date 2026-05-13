@@ -6,6 +6,7 @@ import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
+import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -27,7 +28,41 @@ type WorktreeGroup = {
 function getDirectoryName(filePath: string) {
   const trimmed = filePath.replace(/[\\/]+$/, '');
   const separatorIndex = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
-  return separatorIndex > 0 ? trimmed.slice(0, separatorIndex) : filePath;
+  if (separatorIndex < 0) return '';
+  return trimmed.slice(0, separatorIndex) || '/';
+}
+
+const WORKTREE_STATUS_LABELS: Record<ManagedWorktree['status'], string> = {
+  active: 'In use',
+  archived: 'Archived',
+  orphaned: 'Unlinked',
+  missing: 'Missing',
+};
+
+const WORKTREE_STATUS_DESCRIPTIONS: Record<ManagedWorktree['status'], string> = {
+  active: 'Connected to an active task. Cleanup will not remove it.',
+  archived: 'The task is archived. Cleanup may remove this worktree if limits are exceeded.',
+  orphaned:
+    'Found on disk, but no longer linked to a saved task. Cleanup may remove it if limits are exceeded.',
+  missing: 'The saved path no longer exists. Cleanup will clear the stale record.',
+};
+
+function WorktreeStatusBadge({ worktree }: { worktree: ManagedWorktree }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger className="h-auto">
+        <Badge
+          variant={worktree.status === 'missing' ? 'destructive' : 'secondary'}
+          className="cursor-help"
+        >
+          {WORKTREE_STATUS_LABELS[worktree.status]}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent side="left" align="center" className="flex-col items-start gap-0.5">
+        <div>{WORKTREE_STATUS_DESCRIPTIONS[worktree.status]}</div>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 function groupWorktreesByProject(worktrees: ManagedWorktree[]): WorktreeGroup[] {
@@ -362,8 +397,11 @@ export default function WorktreeCleanupSettingsCard() {
                           {worktree.path}
                         </div>
                       </div>
-                      <div className="text-right text-xs tabular-nums text-foreground-passive">
-                        {formatBytes(worktree.sizeBytes)}
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <WorktreeStatusBadge worktree={worktree} />
+                        <div className="text-right text-xs tabular-nums text-foreground-passive">
+                          {formatBytes(worktree.sizeBytes)}
+                        </div>
                       </div>
                     </div>
                   ))}

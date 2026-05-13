@@ -240,6 +240,7 @@ export class WorktreeCleanupService {
     | { expiresAt: number; summary: ManagedWorktreesSummary }
     | undefined;
   private managedWorktreesRefresh: Promise<ManagedWorktreesSummary> | undefined;
+  private cleanupRun: Promise<ManagedWorktreesSummary> | undefined;
   private readonly limitDirectorySize = createConcurrencyLimiter(DIRECTORY_SIZE_CONCURRENCY);
 
   initialize(): void {
@@ -351,7 +352,12 @@ export class WorktreeCleanupService {
 
     for (const project of projects) {
       const configured = parseConfiguredWorktreeDirectory(project.baseProjectSettingsJson);
-      const baseDirectory = configured ? path.resolve(configured) : localWorktreeDefault;
+      const baseDirectory = configured
+        ? path.resolve(configured)
+        : localWorktreeDefault.trim()
+          ? localWorktreeDefault
+          : undefined;
+      if (!baseDirectory) continue;
       const root = path.join(
         baseDirectory,
         safePathSegment(project.projectName, project.projectId)
@@ -410,6 +416,21 @@ export class WorktreeCleanupService {
   }
 
   async cleanup(): Promise<ManagedWorktreesSummary> {
+    if (this.cleanupRun) return this.cleanupRun;
+
+    const run = this.runCleanup();
+    this.cleanupRun = run;
+
+    try {
+      return await run;
+    } finally {
+      if (this.cleanupRun === run) {
+        this.cleanupRun = undefined;
+      }
+    }
+  }
+
+  private async runCleanup(): Promise<ManagedWorktreesSummary> {
     const settings = await appSettingsService.get('worktreeCleanup');
     const summary = await this.listManagedWorktrees({ forceRefresh: true });
     const maxSizeBytes = settings.maxTotalSizeGb > 0 ? settings.maxTotalSizeGb * ONE_GB : Infinity;
