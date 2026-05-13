@@ -31,6 +31,7 @@ import { terminalsController } from './core/terminals/controller';
 import { updateController } from './core/updates/controller';
 import { viewStateController } from './core/view-state/controller';
 import { workspaceController } from './core/workspaces/controller';
+import { worktreeCleanupController } from './core/worktree-cleanup/controller';
 import { legacyPortController } from './db/legacy-port/controller';
 
 export const rpcRouter = createRPCRouter({
@@ -66,6 +67,7 @@ export const rpcRouter = createRPCRouter({
   pullRequests: pullRequestController,
   viewState: viewStateController,
   search: searchController,
+  worktreeCleanup: worktreeCleanupController,
   workspaces: workspaceController,
 });
 
