@@ -1,4 +1,5 @@
 import { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
+import { TaskSwitcherStore } from '@renderer/features/task-switcher/task-switcher-store';
 import { SidebarStore } from '@renderer/features/sidebar/sidebar-store';
 import { DependenciesStore } from './dependencies-store';
 import { NavigationHistoryStore } from './navigation-history-store';
@@ -12,6 +13,7 @@ class AppState {
   readonly update: UpdateStore;
   readonly projects: ProjectManagerStore;
   readonly sidebar: SidebarStore;
+  readonly taskSwitcher: TaskSwitcherStore;
   readonly snapshots: SnapshotRegistry;
   readonly history: NavigationHistoryStore;
   readonly navigation: NavigationStore;
@@ -24,6 +26,7 @@ class AppState {
     this.update = new UpdateStore();
     this.projects = new ProjectManagerStore();
     this.sidebar = new SidebarStore(this.projects);
+    this.taskSwitcher = new TaskSwitcherStore(this.projects);
     this.history = new NavigationHistoryStore();
     this.navigation = new NavigationStore();
     this.dependencies = new DependenciesStore();

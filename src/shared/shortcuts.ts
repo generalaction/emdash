@@ -32,6 +32,20 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open the command palette to quickly search and navigate',
     category: 'Navigation',
   },
+  switcherNextTask: {
+    defaultHotkey: 'Ctrl+Tab',
+    label: 'Next Task (Switcher)',
+    description: 'Switch to the next task in switcher order',
+    category: 'Navigation',
+    hideFromSettings: true,
+  },
+  switcherPrevTask: {
+    defaultHotkey: 'Ctrl+Shift+Tab',
+    label: 'Previous Task (Switcher)',
+    description: 'Switch to the previous task in switcher order',
+    category: 'Navigation',
+    hideFromSettings: true,
+  },
   settings: {
     defaultHotkey: 'Mod+,',
     label: 'Settings',
