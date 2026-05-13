@@ -1,6 +1,6 @@
 import { Command } from 'cmdk';
 import { GitBranch } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -19,6 +19,14 @@ export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
   const { navigate } = useNavigate();
   const { projects, currentTaskId } = useProjectSwitcher();
   const listRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
+
+  // Restore focus to the previously focused element when the modal unmounts
+  useEffect(() => {
+    return () => {
+      previousFocusRef.current?.focus();
+    };
+  }, []);
 
   return (
     <Command className="flex flex-col overflow-hidden" shouldFilter loop>
