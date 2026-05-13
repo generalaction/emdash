@@ -267,6 +267,10 @@ class TaskManager {
     return this._lifecycle.get(taskId)?.persistData.workspaceId;
   }
 
+  getPersistData(taskId: string): ProvisionResult['persistData'] | undefined {
+    return this._lifecycle.get(taskId)?.persistData;
+  }
+
   getBootstrapStatus(taskId: string): TaskBootstrapStatus {
     return this._lifecycle.bootstrapStatus(taskId, formatProvisionTaskError);
   }
