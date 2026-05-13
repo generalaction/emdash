@@ -1,5 +1,5 @@
 import { useObserver } from 'mobx-react-lite';
-import { sortTasksForSwitcher, type SwitcherTask } from '@shared/project-switcher';
+import { sortTasksForSwitcher, type SwitcherTask } from './sort-switcher-tasks';
 import {
   asMounted,
   getProjectManagerStore,

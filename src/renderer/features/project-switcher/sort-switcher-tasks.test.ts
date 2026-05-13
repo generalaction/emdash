@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import type { TaskLifecycleStatus } from '@shared/tasks';
-import { sortTasksForSwitcher } from './project-switcher';
+import { sortTasksForSwitcher } from './sort-switcher-tasks';
 
 function makeTask(status: TaskLifecycleStatus, lastInteractedAt: string) {
   return { id: crypto.randomUUID(), name: `task-${status}`, status, lastInteractedAt };
