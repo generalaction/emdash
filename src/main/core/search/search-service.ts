@@ -9,6 +9,7 @@ import { log } from '@main/lib/logger';
 import { conversationEvents } from '../conversations/conversation-events';
 import { projectEvents } from '../projects/project-events';
 import { taskEvents } from '../tasks/task-events';
+import { workspaceFileIndexService } from './workspace-file-index-service';
 
 type FtsRow = {
   item_type: string;
@@ -101,7 +102,7 @@ class SearchService {
       return [];
     }
 
-    return rows.map((r) => ({
+    const results: SearchItem[] = rows.map((r) => ({
       kind: r.item_type as SearchItemKind,
       id: r.item_id,
       projectId: r.project_id,
@@ -110,6 +111,23 @@ class SearchService {
       subtitle: '',
       score: r.rank,
     }));
+
+    if (context?.workspaceId) {
+      const fileHits = workspaceFileIndexService.search(context.workspaceId, query);
+      for (const h of fileHits) {
+        results.push({
+          kind: 'file',
+          id: h.path,
+          projectId: context.projectId ?? null,
+          taskId: context.taskId ?? null,
+          title: h.filename,
+          subtitle: h.path,
+          score: 0,
+        });
+      }
+    }
+
+    return results;
   }
 
   private recents(context?: CommandPaletteQuery['context']): SearchItem[] {

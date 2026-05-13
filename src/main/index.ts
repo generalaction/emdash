@@ -22,6 +22,7 @@ import {
   stopResourceSampler,
 } from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
+import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
@@ -81,6 +82,7 @@ void app.whenReady().then(async () => {
   try {
     await initializeDatabase();
     searchService.initialize();
+    workspaceFileIndexService.initialize();
     void editorBufferService.pruneStale();
     try {
       viewStateService.pruneOrphans();

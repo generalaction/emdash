@@ -290,7 +290,7 @@ const DiffTabItem = observer(function DiffTabItem({
 
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const taskView = useWorkspaceViewModel();
-  const { projectId, taskId } = useTaskViewContext();
+  const { projectId, taskId, workspaceId } = useTaskViewContext();
   const { tabManager } = taskView;
   const showCommandPalette = useShowModal('commandPaletteModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
@@ -393,7 +393,9 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
         <Button
           size="icon-sm"
           variant="ghost"
-          onClick={() => showCommandPalette({ projectId, taskId })}
+          onClick={() =>
+            showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined })
+          }
           className="flex h-full items-center justify-center px-2 text-foreground-muted hover:text-foreground hover:bg-background-secondary-1/40"
           aria-label="Open files"
           title="Open files"

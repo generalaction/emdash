@@ -15,6 +15,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
+import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PaletteNotificationsGroup } from './palette-notifications-group';
@@ -26,6 +27,7 @@ import { applyContextAffinity } from './search-utils';
 interface CommandPaletteProps {
   projectId?: string;
   taskId?: string;
+  workspaceId?: string;
 }
 
 interface PaletteAction {
@@ -91,9 +93,34 @@ function PaletteItem({
   );
 }
 
+function PaletteFileItem({
+  value,
+  item,
+  onSelect,
+}: {
+  value: string;
+  item: SearchItem;
+  onSelect: () => void;
+}) {
+  return (
+    <Command.Item
+      value={value}
+      onSelect={onSelect}
+      className="flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2"
+    >
+      <FileIcon filename={item.title} size={14} />
+      <span className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
+        <span className="shrink-0">{item.title}</span>
+        <span className="truncate text-xs text-foreground/40">{item.subtitle}</span>
+      </span>
+    </Command.Item>
+  );
+}
+
 export function CommandPaletteModal({
   projectId,
   taskId,
+  workspaceId,
   onClose,
 }: CommandPaletteProps & BaseModalProps) {
   const [view, setView] = useState<'search' | 'resource-monitor'>('search');
@@ -107,17 +134,21 @@ export function CommandPaletteModal({
   // Prefetch recents immediately on mount so the empty-query view is instant.
   useEffect(() => {
     void queryClient.prefetchQuery({
-      queryKey: ['cmdk-search', '', projectId, taskId],
-      queryFn: () => rpc.search.commandPalette({ query: '', context: { projectId, taskId } }),
+      queryKey: ['cmdk-search', '', projectId, taskId, workspaceId],
+      queryFn: () =>
+        rpc.search.commandPalette({ query: '', context: { projectId, taskId, workspaceId } }),
       staleTime: 5_000,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const { data: dbResults = [] } = useQuery({
-    queryKey: ['cmdk-search', debouncedQuery, projectId, taskId],
+    queryKey: ['cmdk-search', debouncedQuery, projectId, taskId, workspaceId],
     queryFn: () =>
-      rpc.search.commandPalette({ query: debouncedQuery, context: { projectId, taskId } }),
+      rpc.search.commandPalette({
+        query: debouncedQuery,
+        context: { projectId, taskId, workspaceId },
+      }),
     // Keep results fresh for 5 s — re-opening the palette with the same query
     // returns cached data instantly rather than waiting for a round-trip.
     staleTime: 5_000,
@@ -203,10 +234,18 @@ export function CommandPaletteModal({
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
 
+  const handleOpenFile = (item: SearchItem) => {
+    if (!item.projectId || !item.taskId) return;
+    getTaskView(item.projectId, item.taskId)?.tabManager.openFile(item.id);
+    onClose();
+    navigate('task', { projectId: item.projectId, taskId: item.taskId });
+  };
+
   const handleSelect = (item: SearchItem) => {
     if (item.kind === 'task') return handleNavigateToTask(item);
     if (item.kind === 'project') return handleNavigateToProject(item);
     if (item.kind === 'conversation') return handleNavigateToConversation(item);
+    if (item.kind === 'file') return handleOpenFile(item);
   };
 
   useEffect(() => {
@@ -317,6 +356,16 @@ export function CommandPaletteModal({
                     />
                   );
                 }
+              }
+              if (item.kind === 'file') {
+                return (
+                  <PaletteFileItem
+                    key={`file:${item.id}`}
+                    value={`file:${item.id}`}
+                    item={item}
+                    onSelect={() => handleOpenFile(item)}
+                  />
+                );
               }
               return (
                 <PaletteItem
