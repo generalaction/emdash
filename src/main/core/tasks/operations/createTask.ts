@@ -232,10 +232,6 @@ export async function createTask(
     type: workspaceType,
   });
   if (!provisionResult.success) {
-    await db
-      .delete(workspaces)
-      .where(eq(workspaces.id, workspaceId))
-      .catch(() => {});
     return err(mapProvisionError(provisionResult.error));
   }
   telemetryService.capture('task_provisioned', {
