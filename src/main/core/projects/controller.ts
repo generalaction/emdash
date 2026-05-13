@@ -4,20 +4,19 @@ import { deleteProject } from './operations/deleteProject';
 import { getProjects } from './operations/getProjects';
 import { openProject } from './operations/openProject';
 import { updateProjectConnection } from './operations/updateProjectConnection';
-import {
-  getProjectSettingsPage,
-  shareProjectSettingsToConfig,
-  updateProjectSettings,
-} from './settings/project-settings-service';
+import { projectSettingsService } from './settings/project-settings-service';
 
 export const projectController = createRPCController({
   createProject,
   inspectProjectPath,
   getProjects,
   deleteProject,
-  getProjectSettingsPage,
-  updateProjectSettings,
-  shareProjectSettingsToConfig,
+  getProjectSettingsPage: (projectId: string) =>
+    projectSettingsService.getProjectSettingsPage(projectId),
+  updateProjectSettings: (projectId, settings) =>
+    projectSettingsService.updateProjectSettings(projectId, settings),
+  shareProjectSettingsToConfig: (projectId, request) =>
+    projectSettingsService.shareProjectSettingsToConfig(projectId, request),
   updateProjectConnection,
   openProject,
 });
