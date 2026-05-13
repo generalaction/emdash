@@ -1,10 +1,11 @@
 import { and, eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 
@@ -24,6 +25,16 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
     if (teardownResult && !teardownResult.success) {
       log.warn('deleteTask: teardown failed', { taskId, error: teardownResult.error.message });
     }
+  }
+
+  if (task.workspaceId) {
+    await db
+      .delete(workspaces)
+      .where(eq(workspaces.id, task.workspaceId))
+      .catch((e) => {
+        log.warn('deleteTask: workspace row deletion failed', { taskId, error: String(e) });
+      });
+    workspaceFileIndexService.deleteIndex(task.workspaceId);
   }
 
   await db.delete(tasks).where(eq(tasks.id, taskId));

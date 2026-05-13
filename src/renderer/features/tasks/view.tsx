@@ -6,11 +6,7 @@ import {
   getTaskStore,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import {
-  ProvisionedTaskProvider,
-  TaskViewWrapper,
-  useProvisionedTask,
-} from '@renderer/features/tasks/task-view-context';
+import { TaskViewWrapper, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { createTaskCommandProvider } from './commands';
 import { EditorProvider } from './editor/editor-provider';
 import { useIsActiveTask } from './hooks/use-is-active-task';
@@ -26,7 +22,7 @@ const TabManagerVisibilitySync = observer(function TabManagerVisibilitySync({
 }: {
   taskId: string;
 }) {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const isActive = useIsActiveTask(taskId);
 
   useEffect(() => {
@@ -73,12 +69,10 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
 
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      <ProvisionedTaskProvider projectId={projectId} taskId={taskId}>
-        <TabManagerVisibilitySync taskId={taskId} />
-        <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
-          {children}
-        </EditorProvider>
-      </ProvisionedTaskProvider>
+      <TabManagerVisibilitySync taskId={taskId} />
+      <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
+        {children}
+      </EditorProvider>
     </TaskViewWrapper>
   );
 });

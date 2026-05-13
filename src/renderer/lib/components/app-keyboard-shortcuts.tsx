@@ -1,5 +1,7 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
+import { useObserver } from 'mobx-react-lite';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -45,9 +47,19 @@ export function AppKeyboardShortcuts() {
         : undefined;
   const currentTaskId = currentView === 'task' ? taskParams.taskId : undefined;
 
+  const currentWorkspaceId = useObserver(() => {
+    if (!currentProjectId || !currentTaskId) return undefined;
+    return getRegisteredTaskData(currentProjectId, currentTaskId)?.workspaceId ?? undefined;
+  });
+
   useHotkey(
     getHotkeyRegistration('commandPalette', keyboard),
-    () => showCommandPalette({ projectId: currentProjectId, taskId: currentTaskId }),
+    () =>
+      showCommandPalette({
+        projectId: currentProjectId,
+        taskId: currentTaskId,
+        workspaceId: currentWorkspaceId,
+      }),
     { enabled: commandPaletteHotkey !== null }
   );
 

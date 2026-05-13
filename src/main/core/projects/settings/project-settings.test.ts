@@ -235,6 +235,28 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     await expect(provider.getWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
   });
 
+  it('migrates legacy remote setting to baseRemote', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    const row = {
+      baseProjectSettingsJson: JSON.stringify({ remote: 'upstream' }),
+      shareableProjectSettingsJson: '{}',
+      legacyConfigMigratedAt: null,
+    };
+    const settingsStorage: ProjectSettingsStorage = {
+      get: async () => row,
+      insertIfMissing: vi.fn(),
+      update: async (_projectId, settings) => {
+        Object.assign(row, settings);
+      },
+    };
+    storageMockState.storage = settingsStorage;
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+
+    await expect(provider.get()).resolves.toMatchObject({ baseRemote: 'upstream' });
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({ baseRemote: 'upstream' });
+  });
+
   it('keeps computed worktreeDirectory default separate from configured overrides', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);

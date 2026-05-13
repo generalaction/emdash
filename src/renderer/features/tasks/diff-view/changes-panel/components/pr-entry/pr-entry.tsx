@@ -2,7 +2,7 @@ import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { getPrNumber, type PullRequest } from '@shared/pull-requests';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
@@ -120,12 +120,13 @@ function computeMergeUiState(pr: PullRequest): MergeUiState {
 }
 
 export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr: PullRequest }) {
-  const task = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const prStatus = pr.status;
-  const prStore = task.workspace.pr;
-  const diffView = task.taskView.diffView;
+  const prStore = taskView.prStore!;
+  const diffView = taskView.diffView;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
+  if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
 

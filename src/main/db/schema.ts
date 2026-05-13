@@ -1,4 +1,4 @@
-import { relations, sql } from 'drizzle-orm';
+import { isNotNull, relations, sql } from 'drizzle-orm';
 import {
   index,
   integer,
@@ -125,12 +125,34 @@ export const tasks = sqliteTable(
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     isPinned: integer('is_pinned').notNull().default(0), // boolean, 0=false, 1=true
-    workspaceProvider: text('workspace_provider'), // 'local' | 'ssh' | null (null = inherit from project settings)
+    workspaceProvider: text('workspace_provider'), // @deprecated — superseded by workspaces.type; still read in resolveBootstrap for legacy BYOI tasks
     workspaceId: text('workspace_id'),
-    workspaceProviderData: text('workspace_provider_data'), // JSON, BYOI only
+    workspaceProviderData: text('workspace_provider_data'), // @deprecated — superseded by workspaces.data
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
+  })
+);
+
+export const workspaces = sqliteTable(
+  'workspaces',
+  {
+    id: text('id').primaryKey(),
+    key: text('key'),
+    type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(),
+    data: text('data'),
+    path: text('path'),
+    linesAdded: integer('lines_added'),
+    linesDeleted: integer('lines_deleted'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    keyIdx: uniqueIndex('idx_workspaces_key').on(table.key).where(isNotNull(table.key)),
   })
 );
 
@@ -427,3 +449,5 @@ export type KvRow = typeof kv.$inferSelect;
 export type KvInsert = typeof kv.$inferInsert;
 export type AppSecretRow = typeof appSecrets.$inferSelect;
 export type AppSecretInsert = typeof appSecrets.$inferInsert;
+export type WorkspaceRow = typeof workspaces.$inferSelect;
+export type WorkspaceInsert = typeof workspaces.$inferInsert;

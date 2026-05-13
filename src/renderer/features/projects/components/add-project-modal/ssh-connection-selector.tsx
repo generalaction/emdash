@@ -1,4 +1,4 @@
-import { ChevronsUpDownIcon, PencilIcon, PlusIcon } from 'lucide-react';
+import { ChevronsUpDownIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { appState } from '@renderer/lib/stores/app-state';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -9,6 +9,7 @@ interface SshConnectionSelectorProps {
   onConnectionIdChange: (connectionId: string) => void;
   onAddConnection: () => void;
   onEditConnection?: (connectionId: string) => void;
+  onDeleteConnection?: (connectionId: string) => void;
 }
 
 export const SshConnectionSelector = observer(function SshConnectionSelector({
@@ -16,6 +17,7 @@ export const SshConnectionSelector = observer(function SshConnectionSelector({
   onConnectionIdChange,
   onAddConnection,
   onEditConnection,
+  onDeleteConnection,
 }: SshConnectionSelectorProps) {
   const { connections } = appState.sshConnections;
 
@@ -47,6 +49,16 @@ export const SshConnectionSelector = observer(function SshConnectionSelector({
           },
         ]
       : []),
+    ...(connectionId && onDeleteConnection
+      ? [
+          {
+            id: 'delete',
+            label: 'Delete Connection',
+            icon: <Trash2Icon className="size-4" />,
+            onClick: () => onDeleteConnection(connectionId),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -59,9 +71,15 @@ export const SshConnectionSelector = observer(function SshConnectionSelector({
         <ComboboxTrigger
           render={
             <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
-              <ComboboxValue
-                placeholder={<p className="text-muted-foreground">Select or add a connection</p>}
-              />
+              <span className="min-w-0 truncate">
+                <ComboboxValue
+                  placeholder={
+                    <p className="min-w-0 truncate text-muted-foreground">
+                      Select or add a connection
+                    </p>
+                  }
+                />
+              </span>
               <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
             </button>
           }

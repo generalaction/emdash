@@ -13,7 +13,13 @@ import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
-import { AutoGenerateTaskNamesRow, AutoTrustWorktreesRow, EnableTmuxRow } from './TaskSettingsRows';
+import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
+import {
+  AutoGenerateTaskNamesRow,
+  AutoTrustWorktreesRow,
+  CreateBranchAndWorktreeRow,
+  EnableTmuxRow,
+} from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
@@ -24,6 +30,7 @@ export type SettingsPageTab =
   | 'account'
   | 'clis-models'
   | 'integrations'
+  | 'connections'
   | 'repository'
   | 'interface'
   | 'docs';
@@ -54,6 +61,7 @@ export function SettingsPage({
     { id: 'account', label: 'Account' },
     { id: 'clis-models', label: 'Agents' },
     { id: 'integrations', label: 'Integrations' },
+    { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
     { id: 'docs', label: 'Docs', isExternal: true },
@@ -75,6 +83,9 @@ export function SettingsPage({
         },
         {
           component: <AutoTrustWorktreesRow />,
+        },
+        {
+          component: <CreateBranchAndWorktreeRow />,
         },
         {
           component: <EnableTmuxRow />,
@@ -116,6 +127,11 @@ export function SettingsPage({
       title: 'Integrations',
       description: 'Connect external services and tools.',
       sections: [{ title: 'Integrations', component: <IntegrationsCard /> }],
+    },
+    connections: {
+      title: 'Connections',
+      description: 'Manage reusable SSH connections for remote projects.',
+      sections: [{ component: <SshConnectionsSettingsCard /> }],
     },
     repository: {
       title: 'Repository',

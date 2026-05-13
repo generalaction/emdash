@@ -16,6 +16,27 @@ export function selectPreferredRemote(
   );
 }
 
+export type ConfiguredRemotes = {
+  baseRemote: Remote;
+  pushRemote: Remote;
+};
+
+export function resolveConfiguredRemotes(
+  settings: { baseRemote?: string; pushRemote?: string } | undefined,
+  remotes: ReadonlyArray<Remote>
+): ConfiguredRemotes {
+  const baseRemote = selectPreferredRemote(settings?.baseRemote, remotes);
+  const pushRemoteName = settings?.pushRemote?.trim();
+  const pushRemote = pushRemoteName
+    ? remotes.find((remote) => remote.name === pushRemoteName)
+    : undefined;
+
+  return {
+    baseRemote,
+    pushRemote: pushRemote ?? baseRemote,
+  };
+}
+
 /**
  * Strips the remote prefix from a fully-qualified remote tracking ref.
  * e.g. "origin/main" → "main", "main" → "main"

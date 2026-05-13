@@ -2,6 +2,7 @@ import { remoteNameFromQualifiedRef } from '@shared/git-utils';
 import {
   baseProjectSettingsSchema,
   DEFAULT_PRESERVE_PATTERNS,
+  legacyBaseProjectSettingsSchema,
   projectSettingsSchema,
   shareableProjectSettingsSchema,
   type BaseProjectSettings,
@@ -53,7 +54,7 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     const projectDefaults = await appSettingsService.get('project');
     return {
       defaultBranch,
-      remote: remoteNameFromQualifiedRef(defaultBranch) ?? 'origin',
+      baseRemote: remoteNameFromQualifiedRef(defaultBranch) ?? 'origin',
       tmux: projectDefaults.tmuxByDefault,
     };
   }
@@ -104,12 +105,18 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
         legacyConfigMigratedAt: null,
       };
     }
+    const baseSettings = readJson(
+      row.baseProjectSettingsJson,
+      legacyBaseProjectSettingsSchema,
+      'base project settings'
+    );
+    const { remote, ...canonicalBaseSettings } = baseSettings;
+
     return {
-      base: readJson(
-        row.baseProjectSettingsJson,
-        baseProjectSettingsSchema,
-        'base project settings'
-      ),
+      base: baseProjectSettingsSchema.parse({
+        ...canonicalBaseSettings,
+        baseRemote: canonicalBaseSettings.baseRemote ?? remote,
+      }),
       shareable: readJson(
         row.shareableProjectSettingsJson,
         shareableProjectSettingsSchema,
@@ -224,13 +231,18 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     const branch = settings.defaultBranch;
     if (!branch) return this.defaultBranchFallback;
     if (typeof branch === 'string') return branch;
-    const remote = settings.remote ?? 'origin';
+    const remote = settings.baseRemote ?? 'origin';
     return `${remote}/${branch.name}`;
   }
 
-  async getRemote(): Promise<string> {
+  async getBaseRemote(): Promise<string> {
     const settings = await this.get();
-    return settings.remote ?? 'origin';
+    return settings.baseRemote ?? 'origin';
+  }
+
+  async getPushRemote(): Promise<string> {
+    const settings = await this.get();
+    return settings.pushRemote ?? settings.baseRemote ?? 'origin';
   }
 
   async getDefaultWorktreeDirectory(): Promise<string> {

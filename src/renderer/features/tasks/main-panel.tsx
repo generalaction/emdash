@@ -7,7 +7,10 @@ import {
   taskErrorMessage,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -23,6 +26,7 @@ import { MarkdownEditorPanel } from './editor/markdown-editor-panel';
 import { TerminalsPanel } from './terminals/terminal-panel';
 import { TaskSidebar } from './view/task-sidebar';
 import { UnifiedMainTabBar } from './view/unified-main-tab-bar';
+import { WorkspaceResolutionView } from './workspace-resolution-view';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -101,13 +105,17 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return null;
   }
 
+  if (kind === 'needs-resolution') {
+    return <WorkspaceResolutionView />;
+  }
+
   return <ReadyTaskMainPanel />;
 });
 
 const SIDEBAR_COLLAPSED_SIZE = '0px';
 
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const sidebarPanelRef = usePanelRef();
 
   useEffect(() => {
@@ -143,7 +151,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
 });
 
 const TaskMainColumn = observer(function TaskMainColumn() {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const bottomPanelRef = usePanelRef();
   const draggingRef = useRef(false);
 
@@ -202,7 +210,7 @@ const TaskMainColumn = observer(function TaskMainColumn() {
 
 const UnifiedMainContent = observer(function UnifiedMainContent() {
   const { projectId, taskId } = useTaskViewContext();
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const { tabManager } = taskView;
   const { setEditorHost, triggerLayout } = useEditorContext();
   const showCreateConversationModal = useShowModal('createConversationModal');
@@ -283,7 +291,7 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
  * Lets the user toggle back to the SVG preview renderer.
  */
 const SvgSourceToggleOverlay = observer(function SvgSourceToggleOverlay() {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const { tabManager } = taskView;
   const activeTab = tabManager.activeFileEntry;
 
@@ -315,7 +323,7 @@ const SvgSourceToggleOverlay = observer(function SvgSourceToggleOverlay() {
  * Lets the user toggle back to the rendered HTML preview.
  */
 const HtmlSourceToggleOverlay = observer(function HtmlSourceToggleOverlay() {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const { tabManager } = taskView;
   const activeTab = tabManager.activeFileEntry;
 
