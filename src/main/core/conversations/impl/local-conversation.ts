@@ -142,7 +142,8 @@ export class LocalConversationProvider implements ConversationProvider {
 
     const hookActive = port > 0;
     const provider = getProvider(conversation.providerId);
-    const useHooksOnly = hookActive && provider?.supportsHooks;
+    const shouldKeepClassifierFallback = conversation.providerId === 'codex';
+    const useHooksOnly = hookActive && provider?.supportsHooks && !shouldKeepClassifierFallback;
 
     if (!useHooksOnly) {
       wireAgentClassifier({

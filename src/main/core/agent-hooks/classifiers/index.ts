@@ -6,6 +6,7 @@ import type { ProviderClassifier } from './base';
 import { createCharmClassifier } from './charm';
 import { createClineClassifier } from './cline';
 import { createCodebuffClassifier } from './codebuff';
+import { createCodexClassifier } from './codex';
 import { createContinueClassifier } from './continue';
 import { createCopilotClassifier } from './copilot';
 import { createCursorClassifier } from './cursor';
@@ -35,6 +36,7 @@ const classifierFactories: Partial<Record<AgentProviderId, () => ProviderClassif
   charm: createCharmClassifier,
   cline: createClineClassifier,
   codebuff: createCodebuffClassifier,
+  codex: createCodexClassifier,
   continue: createContinueClassifier,
   copilot: createCopilotClassifier,
   cursor: createCursorClassifier,
