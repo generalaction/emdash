@@ -63,6 +63,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private readonly projectId: string;
   private readonly workspaceId: string;
   private _loaded = false;
+  private _disposed = false;
   private _watchingConfig = false;
   private _refreshSeq = 0;
   private readonly _unsubscribes: Array<() => void> = [];
@@ -148,20 +149,26 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   }
 
   private async load(): Promise<void> {
+    if (this._disposed) return;
     this._loaded = true;
     await this.watchConfig();
+    if (this._disposed) return;
     await this.reload();
   }
 
   private reloadIfLoaded(): void {
-    if (!this._loaded) return;
+    if (!this._loaded || this._disposed) return;
     void this.reload();
   }
 
   private async watchConfig(): Promise<void> {
-    if (this._watchingConfig) return;
+    if (this._watchingConfig || this._disposed) return;
     try {
       await rpc.fs.watchSetPaths(this.projectId, this.workspaceId, [''], 'lifecycle-scripts');
+      if (this._disposed) {
+        void rpc.fs.watchStop(this.projectId, this.workspaceId, 'lifecycle-scripts');
+        return;
+      }
       this._watchingConfig = true;
     } catch {
       this._watchingConfig = false;
@@ -169,8 +176,10 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   }
 
   private async reload(): Promise<void> {
+    if (this._disposed) return;
     const refreshSeq = ++this._refreshSeq;
     const settings = await rpc.tasks.getWorkspaceSettings(this.projectId, this.workspaceId);
+    if (this._disposed) return;
 
     const entries: { type: ScriptType; command: string; label: string }[] = [];
     if (settings.scripts?.setup) {
@@ -187,9 +196,10 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
       ...entry,
       id: createLifecycleScriptTerminalId(entry.type),
     }));
-    if (refreshSeq !== this._refreshSeq) return;
+    if (refreshSeq !== this._refreshSeq || this._disposed) return;
 
     runInAction(() => {
+      if (this._disposed) return;
       const incomingIds = new Set(resolved.map((entry) => entry.id));
 
       for (const id of Array.from(this.scripts.keys())) {
@@ -222,6 +232,9 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   }
 
   dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this._refreshSeq++;
     for (const unsubscribe of this._unsubscribes) unsubscribe();
     if (this._watchingConfig) {
       void rpc.fs.watchStop(this.projectId, this.workspaceId, 'lifecycle-scripts');

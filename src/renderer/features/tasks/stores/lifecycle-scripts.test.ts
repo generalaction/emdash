@@ -135,4 +135,22 @@ describe('LifecycleScriptsStore', () => {
       .poll(() => store.tabs.map((tab) => tab.data.command))
       .toEqual(['corepack install', 'pnpm dev']);
   });
+
+  it('does not recreate script sessions when an in-flight load completes after dispose', async () => {
+    let resolveSettings: (settings: unknown) => void = () => {};
+    getWorkspaceSettings.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSettings = resolve;
+      })
+    );
+    const store = new LifecycleScriptsStore('project-1', 'workspace-1');
+
+    const loadPromise = (store as unknown as { load(): Promise<void> }).load();
+    store.dispose();
+    resolveSettings({ scripts: { run: 'pnpm dev' } });
+    await loadPromise;
+
+    expect(store.tabs).toEqual([]);
+    expect(watchStop).toHaveBeenCalledWith('project-1', 'workspace-1', 'lifecycle-scripts');
+  });
 });
