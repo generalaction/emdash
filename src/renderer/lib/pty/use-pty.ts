@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
+import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/terminal-settings';
 import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
@@ -349,6 +350,9 @@ export function usePty(
             customFontFamily = terminalSettings.fontFamily.trim();
             if (customFontFamily) frontendPty.terminal.options.fontFamily = customFontFamily;
           }
+          frontendPty.terminal.options.fontSize =
+            terminalSettings?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
+          measureAndResize();
           autoCopyOnSelectionRef.current = terminalSettings?.autoCopyOnSelection ?? false;
         }
       );
@@ -528,9 +532,14 @@ export function usePty(
 
       // ── Font / setting change events ───────────────────────────────────────
       const handleFontChange = (e: Event) => {
-        const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
-        customFontFamily = detail?.fontFamily?.trim() ?? '';
-        terminal.options.fontFamily = customFontFamily || undefined;
+        const detail = (e as CustomEvent<{ fontFamily?: string; fontSize?: number }>).detail;
+        if (detail?.fontFamily !== undefined) {
+          customFontFamily = detail.fontFamily.trim();
+          terminal.options.fontFamily = customFontFamily || undefined;
+        }
+        if (detail?.fontSize !== undefined) {
+          terminal.options.fontSize = detail.fontSize;
+        }
         measureAndResize();
       };
       const handleAutoCopyChange = (e: Event) => {
