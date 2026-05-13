@@ -5,7 +5,7 @@ import {
   getProjectManagerStore,
 } from '@renderer/features/projects/stores/project-selectors';
 import type { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
-import type { TaskStore } from '@renderer/features/tasks/stores/task';
+import type { TaskStore } from '@renderer/features/tasks/stores/task-store';
 import { asProvisioned, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';

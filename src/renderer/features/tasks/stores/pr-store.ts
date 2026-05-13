@@ -13,7 +13,7 @@ import type { RepositoryStore } from '@renderer/features/projects/stores/reposit
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { isRegistered, type TaskStore } from './task';
+import { isRegistered, type TaskStore } from './task-store';
 
 type MergeMode = 'merge' | 'squash' | 'rebase';
 export type MergeResult = { success: true } | { success: false; error: string };

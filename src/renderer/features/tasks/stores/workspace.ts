@@ -7,7 +7,7 @@ import { GitStore } from '../diff-view/stores/git-store';
 import { FilesStore } from '../editor/stores/files-store';
 import { LifecycleScriptsStore } from './lifecycle-scripts';
 import { PrStore } from './pr-store';
-import type { TaskStore } from './task';
+import type { TaskStore } from './task-store';
 
 export class WorkspaceStore {
   readonly tasks = observable.array<TaskStore>();

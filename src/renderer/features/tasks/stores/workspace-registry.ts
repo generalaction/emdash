@@ -1,5 +1,5 @@
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import type { TaskStore } from './task';
+import type { TaskStore } from './task-store';
 import { WorkspaceStore } from './workspace';
 
 type WorkspaceRegistryEntry = {

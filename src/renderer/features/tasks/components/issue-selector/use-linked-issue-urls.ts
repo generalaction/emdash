@@ -1,4 +1,4 @@
-import { isRegistered } from '@renderer/features/tasks/stores/task';
+import { isRegistered } from '@renderer/features/tasks/stores/task-store';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 
 export type LinkedIssueInfo = { taskId: string; taskName: string };

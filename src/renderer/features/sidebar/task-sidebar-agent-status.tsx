@@ -5,7 +5,7 @@ import {
   isUnprovisioned,
   isUnregistered,
   type TaskStore,
-} from '@renderer/features/tasks/stores/task';
+} from '@renderer/features/tasks/stores/task-store';
 import { taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { sidebarStore } from '@renderer/lib/stores/app-state';

@@ -25,7 +25,7 @@ import {
   isUnprovisioned,
   isUnregistered,
   type TaskStore,
-} from './task';
+} from './task-store';
 
 export async function markInitialConversationWorkingAfterProvision(
   task: TaskStore | undefined,
@@ -332,12 +332,22 @@ export class TaskManagerStore {
     const task = this.tasks.get(taskId);
     if (!task || !isUnprovisioned(task)) return;
 
-    let resolution;
+    let resolution: Awaited<ReturnType<typeof rpc.workspaces.resolveBootstrap>>;
+    let savedSnapshot: TaskViewSnapshot | undefined;
+    let preloadedConversations: Conversation[];
+
     try {
-      resolution = await rpc.workspaces.resolveBootstrap({
-        projectId: this.projectId,
-        taskId,
-      });
+      [resolution, savedSnapshot, preloadedConversations] = await Promise.all([
+        rpc.workspaces.resolveBootstrap({ projectId: this.projectId, taskId }),
+        viewStateCache.get(`task:${taskId}`) as Promise<TaskViewSnapshot | undefined>,
+        rpc.conversations.getConversationsForTask(this.projectId, taskId).catch((err: unknown) => {
+          log.warn('TaskManagerStore: failed to pre-load conversations during provision', {
+            taskId,
+            error: err,
+          });
+          return [] as Conversation[];
+        }),
+      ]);
     } catch (err) {
       runInAction(() => {
         const current = this.tasks.get(taskId);
@@ -350,17 +360,6 @@ export class TaskManagerStore {
     }
 
     if (resolution.kind === 'branch_elsewhere' || resolution.kind === 'path_missing') {
-      const [savedSnapshot, preloadedConversations] = await Promise.all([
-        viewStateCache.get(`task:${taskId}`),
-        rpc.conversations.getConversationsForTask(this.projectId, taskId).catch((err: unknown) => {
-          log.warn('TaskManagerStore: failed to pre-load conversations during provision', {
-            taskId,
-            error: err,
-          });
-          return [] as Conversation[];
-        }),
-      ]);
-
       runInAction(() => {
         const current = this.tasks.get(taskId);
         if (current && isUnprovisioned(current)) {
@@ -373,20 +372,7 @@ export class TaskManagerStore {
       return;
     }
 
-    if (resolution.kind === 'adopt') {
-      try {
-        await rpc.workspaces.adoptWorktree({
-          projectId: this.projectId,
-          taskId,
-          candidatePath: resolution.candidatePath,
-        });
-      } catch (err) {
-        log.warn('TaskManagerStore: adoptWorktree failed, continuing provision', {
-          taskId,
-          error: err,
-        });
-      }
-    } else if (resolution.kind === 'needs_create') {
+    if (resolution.kind === 'needs_create') {
       try {
         await rpc.workspaces.createWorktree({ projectId: this.projectId, taskId });
       } catch (err) {
@@ -401,7 +387,7 @@ export class TaskManagerStore {
       }
     }
 
-    await this._finishProvision(taskId);
+    await this._finishProvision(taskId, savedSnapshot, preloadedConversations);
   }
 
   async continueProvision(

@@ -86,7 +86,16 @@ async function resolveBootstrap(params: {
 
   const candidatePath = await worktreeService.findBranchAnywhere(taskBranch);
   if (candidatePath) {
-    return { kind: 'adopt', candidatePath };
+    const connectionId =
+      provider.defaultWorkspaceType.kind === 'ssh'
+        ? provider.defaultWorkspaceType.connectionId
+        : undefined;
+    const key = computeWorkspaceKey(workspace.type, candidatePath, connectionId);
+    await db
+      .update(workspaces)
+      .set({ path: candidatePath, key, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(workspaces.id, workspace.id));
+    return { kind: 'ready' };
   }
 
   return { kind: 'needs_create' };

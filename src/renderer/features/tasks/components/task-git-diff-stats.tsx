@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import type { TaskStore } from '@renderer/features/tasks/stores/task';
+import type { TaskStore } from '@renderer/features/tasks/stores/task-store';
 import { asProvisioned } from '@renderer/features/tasks/stores/task-selectors';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';

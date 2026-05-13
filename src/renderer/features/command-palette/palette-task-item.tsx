@@ -2,7 +2,7 @@ import { Command } from 'cmdk';
 import { GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
-import type { TaskStore } from '@renderer/features/tasks/stores/task';
+import type { TaskStore } from '@renderer/features/tasks/stores/task-store';
 
 const ITEM_CLASS =
   'flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2';

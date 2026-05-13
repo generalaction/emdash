@@ -10,7 +10,7 @@ import {
   registeredTaskData,
   type ProvisionedTask,
   type TaskStore,
-} from './task';
+} from './task-store';
 import type { TaskManagerStore } from './task-manager';
 import type { TaskViewStore } from './task-view';
 

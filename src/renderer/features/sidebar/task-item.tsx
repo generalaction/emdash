@@ -3,7 +3,7 @@ import { selectCurrentPr } from '@shared/pull-requests';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
-import { type TaskStore } from '@renderer/features/tasks/stores/task';
+import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import {
   asProvisioned,
   getTaskManagerStore,
