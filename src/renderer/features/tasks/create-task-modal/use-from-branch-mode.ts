@@ -14,13 +14,14 @@ export function useFromBranchMode(
   isUnborn: boolean,
   currentBranchName?: string | null
 ) {
+  const { autoGenerateName, createBranchAndWorktree } = useTaskSettings();
   const branchSelection = useBranchSelection(
     selectedProjectId,
     defaultBranch,
     isUnborn,
-    currentBranchName
+    currentBranchName,
+    createBranchAndWorktree
   );
-  const { autoGenerateName } = useTaskSettings();
 
   const stableKey = useMemo(() => crypto.randomUUID(), []);
 
