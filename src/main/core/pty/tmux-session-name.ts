@@ -2,14 +2,18 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { log } from '@main/lib/logger';
 
 const TMUX_SESSION_PREFIX = 'emdash-';
+const TMUX_HISTORY_LIMIT = 100_000;
 
 export function buildTmuxShellLine(sessionName: string, commandLine: string): string {
   const quotedName = JSON.stringify(sessionName);
   const quotedCmd = JSON.stringify(commandLine);
   const checkExists = `tmux has-session -t ${quotedName} 2>/dev/null`;
   const newSession = `tmux new-session -d -s ${quotedName} ${quotedCmd}`;
+  const enableMouse = `tmux set-option -t ${quotedName} mouse on 2>/dev/null || true`;
+  const setHistoryLimit = `tmux set-option -t ${quotedName} history-limit ${TMUX_HISTORY_LIMIT} 2>/dev/null || true`;
+  const configure = `(${enableMouse}) && (${setHistoryLimit})`;
   const attach = `tmux attach-session -t ${quotedName}`;
-  return `(${checkExists} && ${attach}) || (${newSession} && ${attach})`;
+  return `(${checkExists} || ${newSession}) && ${configure} && ${attach}`;
 }
 
 export function makeTmuxSessionName(sessionId: string): string {
