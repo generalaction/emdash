@@ -84,11 +84,13 @@ export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
   });
 
   // Ctrl+Tab cycling: Tab moves selection, releasing Ctrl confirms
+  const hasCycled = useRef(false);
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Tab' && e.ctrlKey) {
         e.preventDefault();
         e.stopPropagation();
+        hasCycled.current = true;
         // Dispatch arrow key to move cmdk selection
         const arrow = new KeyboardEvent('keydown', {
           key: e.shiftKey ? 'ArrowUp' : 'ArrowDown',
@@ -98,7 +100,8 @@ export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Control') {
+      if (e.key === 'Control' && hasCycled.current) {
+        hasCycled.current = false;
         // Confirm the currently highlighted item
         const selected = listRef.current?.querySelector(
           '[aria-selected="true"]'
