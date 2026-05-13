@@ -1,13 +1,11 @@
 import { Command } from 'cmdk';
 import { GitBranch } from 'lucide-react';
-import { useObserver } from 'mobx-react-lite';
 import { useRef, useState } from 'react';
-import { getSwitcherTasks, type ProjectTask } from './get-switcher-tasks';
+import { useProjectSwitcher } from './use-project-switcher';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { appState } from '@renderer/lib/stores/app-state';
 import { cn } from '@renderer/utils/utils';
 
 const GROUP_CLASS = cn(
@@ -16,54 +14,11 @@ const GROUP_CLASS = cn(
   '[&_[cmdk-group-heading]]:text-foreground/50'
 );
 
-interface ProjectGroup {
-  id: string;
-  name: string;
-  tasks: ProjectTask[];
-}
-
-function useProjectsWithTasks(): ProjectGroup[] {
-  return useObserver(() => {
-    const nav = appState.navigation;
-    const navParams = nav.viewParamsStore['task'] as { taskId?: string } | undefined;
-    const currentTaskId = nav.currentViewId === 'task' ? navParams?.taskId : undefined;
-
-    const allTasks = getSwitcherTasks();
-
-    // Group by project
-    const grouped = new Map<string, ProjectGroup>();
-    for (const task of allTasks) {
-      let group = grouped.get(task.projectId);
-      if (!group) {
-        group = { id: task.projectId, name: task.projectName, tasks: [] };
-        grouped.set(task.projectId, group);
-      }
-      group.tasks.push(task);
-    }
-
-    // Move current task to end within its group
-    for (const group of grouped.values()) {
-      const currentIdx = group.tasks.findIndex((t) => t.data.id === currentTaskId);
-      if (currentIdx !== -1) {
-        const [current] = group.tasks.splice(currentIdx, 1);
-        group.tasks.push(current);
-      }
-    }
-
-    return [...grouped.values()].filter((g) => g.tasks.length > 0);
-  });
-}
-
 export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
   const [query, setQuery] = useState('');
   const { navigate } = useNavigate();
-  const projects = useProjectsWithTasks();
+  const { projects, currentTaskId } = useProjectSwitcher();
   const listRef = useRef<HTMLDivElement>(null);
-  const currentTaskId = useObserver(() => {
-    const nav = appState.navigation;
-    const navParams = nav.viewParamsStore['task'] as { taskId?: string } | undefined;
-    return nav.currentViewId === 'task' ? navParams?.taskId : undefined;
-  });
 
   return (
     <Command className="flex flex-col overflow-hidden" shouldFilter loop>
