@@ -297,6 +297,8 @@ export class SkillsService {
         await fs.promises.unlink(skillDir);
       } else if (stat.isDirectory()) {
         await fs.promises.rm(skillDir, { recursive: true, force: true });
+      } else {
+        log.warn(`Unexpected entry type at ${skillDir} during uninstall — skipping`);
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
@@ -431,9 +433,7 @@ export class SkillsService {
 
   private isPathInsideSkillsRoot(candidatePath: string): boolean {
     const relativePath = path.relative(SKILLS_ROOT, candidatePath);
-    return (
-      relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
-    );
+    return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
   }
 
   private loadBundledCatalog(): CatalogIndex {
