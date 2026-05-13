@@ -1,8 +1,8 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useObserver } from 'mobx-react-lite';
 import { useEffect } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useProjectSwitcher } from '@renderer/features/project-switcher/use-project-switcher';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import {
   getEffectiveHotkey,

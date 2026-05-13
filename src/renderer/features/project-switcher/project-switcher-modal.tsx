@@ -1,12 +1,12 @@
 import { Command } from 'cmdk';
 import { GitBranch } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { useProjectSwitcher } from './use-project-switcher';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
+import { useProjectSwitcher } from './use-project-switcher';
 
 const GROUP_CLASS = cn(
   '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5',

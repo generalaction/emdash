@@ -1,12 +1,12 @@
 import { useObserver } from 'mobx-react-lite';
-import { sortTasksForSwitcher, type SwitcherTask } from './sort-switcher-tasks';
 import {
   asMounted,
   getProjectManagerStore,
 } from '@renderer/features/projects/stores/project-selectors';
-import { registeredTaskData, type TaskStore } from '@renderer/features/tasks/stores/task';
+import { registeredTaskData, type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
+import { sortTasksForSwitcher, type SwitcherTask } from './sort-switcher-tasks';
 
 export interface ProjectTask {
   projectId: string;
@@ -87,7 +87,8 @@ export function useProjectSwitcher() {
     const allTasks = getAllTasks();
     if (allTasks.length === 0) return;
     const currentIdx = allTasks.findIndex((t) => t.data.id === currentTaskId);
-    const nextIdx = currentIdx === -1 ? 0 : (currentIdx + direction + allTasks.length) % allTasks.length;
+    const nextIdx =
+      currentIdx === -1 ? 0 : (currentIdx + direction + allTasks.length) % allTasks.length;
     const target = allTasks[nextIdx];
     navigate('task', { projectId: target.projectId, taskId: target.data.id });
   };
