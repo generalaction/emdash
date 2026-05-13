@@ -74,7 +74,10 @@ export const SshConnectionsSettingsCard = observer(function SshConnectionsSettin
   };
 
   const requestDelete = async (connection: SshConfig) => {
+    setDeletingId(connection.id);
     const latestUsage = await refreshUsage();
+    setDeletingId(null);
+
     if (!latestUsage) return;
 
     const projects = latestUsage[connection.id] ?? [];
