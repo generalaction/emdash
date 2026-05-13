@@ -21,6 +21,9 @@ import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
 import { log } from '@main/lib/logger';
+import { eq } from 'drizzle-orm';
+import { db } from '@main/db/client';
+import { workspaces as workspacesTable } from '@main/db/schema';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { TimeoutSignal, withTimeout } from '../projects/utils';
@@ -159,6 +162,26 @@ export function createWorkspaceFactory(
       workspace,
 
       onCreateSideEffect: (ws) => {
+        ws.git.on('status:updated', async (status) => {
+          let unstagedAdded = 0;
+          let unstagedDeleted = 0;
+          for (const c of status.unstaged) {
+            unstagedAdded += c.additions;
+            unstagedDeleted += c.deletions;
+          }
+          try {
+            await db
+              .update(workspacesTable)
+              .set({
+                linesAdded: status.totalAdded + unstagedAdded,
+                linesDeleted: status.totalDeleted + unstagedDeleted,
+              })
+              .where(eq(workspacesTable.id, workspaceId));
+          } catch (e) {
+            log.warn('Failed to cache workspace git stats', { workspaceId, error: String(e) });
+          }
+        });
+
         if (ownsFetchService) {
           fetchService.start();
         }

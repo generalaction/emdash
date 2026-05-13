@@ -278,5 +278,5 @@ export async function createTask(
     });
   }
 
-  return ok({ task, warning });
+  return ok({ task: { ...task, workspaceId }, warning });
 }

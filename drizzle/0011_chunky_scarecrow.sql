@@ -4,6 +4,8 @@ CREATE TABLE `workspaces` (
 	`type` text NOT NULL,
 	`data` text,
 	`path` text,
+	`lines_added` integer,
+	`lines_deleted` integer,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );

@@ -39,7 +39,10 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 import type { IDisposable } from '@main/lib/lifecycle';
+import { HookCore } from '@main/lib/hookable';
+import { log } from '@main/lib/logger';
 import { type GitProvider } from '../types';
+import type { WorkspaceGitHooks } from '../workspace-git-provider';
 import { CatFileBatch } from './cat-file-batch';
 import {
   computeBaseRef,
@@ -95,12 +98,19 @@ type HeadInfo =
 export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
+  private readonly _hooks = new HookCore<WorkspaceGitHooks>(
+    (name, e) => log.error(`GitService: ${String(name)} hook error`, e)
+  );
 
   constructor(
     private readonly ctx: IExecutionContext,
     private readonly authCtx: IExecutionContext,
     private readonly fs: FileSystemProvider
   ) {}
+
+  on<K extends keyof WorkspaceGitHooks>(name: K, handler: WorkspaceGitHooks[K]) {
+    return this._hooks.on(name, handler);
+  }
 
   dispose(): void {
     this._catFile?.dispose();
@@ -132,9 +142,14 @@ export class GitService implements GitProvider, IDisposable {
 
   async getFullStatus(): Promise<FullGitStatus> {
     if (this._statusInFlight) return this._statusInFlight;
-    this._statusInFlight = this._loadFullStatus().finally(() => {
-      this._statusInFlight = null;
-    });
+    this._statusInFlight = this._loadFullStatus()
+      .then((status) => {
+        this._hooks.callHookBackground('status:updated', status);
+        return status;
+      })
+      .finally(() => {
+        this._statusInFlight = null;
+      });
     return this._statusInFlight;
   }
 
