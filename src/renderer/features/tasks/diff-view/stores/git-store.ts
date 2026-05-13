@@ -354,7 +354,7 @@ export class GitStore {
   }
 
   async push() {
-    const remote = this.repositoryStore.configuredRemote.name;
+    const remote = this.repositoryStore.pushRemote.name;
     const result = await rpc.git.push(this.projectId, this.workspaceId, remote);
     if (result.success) {
       this.repositoryStore.refreshLocal(); // divergence resets to 0
@@ -371,7 +371,7 @@ export class GitStore {
   async publishBranch() {
     const branchName = this.branchName;
     if (!branchName) return err({ type: 'git_error' as const, message: 'No branch checked out' });
-    const remote = this.repositoryStore.configuredRemote.name;
+    const remote = this.repositoryStore.pushRemote.name;
     const result = await rpc.git.publishBranch(
       this.projectId,
       this.workspaceId,

@@ -1,9 +1,9 @@
 import { remoteNameFromQualifiedRef } from '@shared/git-utils';
 import {
   baseProjectSettingsSchema,
+  legacyBaseProjectSettingsSchema,
   legacyProjectConfigSchema,
   type BaseProjectSettings,
-  type ProjectSettings,
 } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
@@ -24,10 +24,10 @@ export type LegacyProjectSettingsMigrationArgs = {
 };
 
 function normalizeLegacyDefaultBranch(
-  branch: ProjectSettings['defaultBranch'],
+  branch: BaseProjectSettings['defaultBranch'],
   remote: string | undefined,
   fallback: string
-): ProjectSettings['defaultBranch'] {
+): BaseProjectSettings['defaultBranch'] {
   if (!branch) return undefined;
   const branchName = typeof branch === 'string' ? branch.trim() : branch.name.trim();
   if (!branchName) return undefined;
@@ -38,7 +38,12 @@ function normalizeLegacyDefaultBranch(
 
 async function readLegacyProjectConfig(
   configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined
-): Promise<ProjectSettings | undefined> {
+): Promise<
+  | (BaseProjectSettings & {
+      remote?: string;
+    })
+  | undefined
+> {
   if (!configReader) return undefined;
   try {
     if (!(await configReader.exists('.emdash.json'))) return undefined;
@@ -67,22 +72,28 @@ export async function migrateLegacyProjectSettingsIfNeeded({
 
   const current = readJson(
     row.baseProjectSettingsJson,
-    baseProjectSettingsSchema,
+    legacyBaseProjectSettingsSchema,
     'base project settings'
   );
+  const { remote, ...currentSettings } = current;
   const legacy = await readLegacyProjectConfig(configReader);
-  const next: BaseProjectSettings = { ...current };
+  const next: BaseProjectSettings = baseProjectSettingsSchema.parse({
+    ...currentSettings,
+    baseRemote: currentSettings.baseRemote ?? remote,
+  });
 
   if (legacy) {
     if (legacy.worktreeDirectory !== undefined) {
       const normalized = await normalizeStoredWorktreeDirectory(legacy.worktreeDirectory);
       if (normalized.success) next.worktreeDirectory = normalized.data;
     }
-    if (legacy.remote !== undefined) next.remote = legacy.remote;
+    if (legacy.remote !== undefined) next.baseRemote = legacy.remote;
+    if (legacy.baseRemote !== undefined) next.baseRemote = legacy.baseRemote;
+    if (legacy.pushRemote !== undefined) next.pushRemote = legacy.pushRemote;
     if (legacy.defaultBranch !== undefined) {
       next.defaultBranch = normalizeLegacyDefaultBranch(
         legacy.defaultBranch,
-        legacy.remote ?? next.remote,
+        legacy.baseRemote ?? legacy.remote ?? next.baseRemote,
         defaultBranchFallback
       );
     }

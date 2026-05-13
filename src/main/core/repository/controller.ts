@@ -104,12 +104,14 @@ export const repositoryController = createRPCController({
   ) => {
     const project = projectManager.getProject(projectId);
     if (!project) return err({ type: 'not_found' as const });
+    const baseRemote = await project.repository.getBaseRemote();
     const result = await project.repository.fetchPrForReview(
       prNumber,
       headRefName,
       headRepositoryUrl,
       headRefName,
-      isFork
+      isFork,
+      baseRemote
     );
     if (!result.success) return err(result.error);
     return ok({ localBranch: headRefName });

@@ -65,11 +65,11 @@ export class WorktreeService {
   }
 
   private async getRemoteCandidates(): Promise<string[]> {
-    const configuredRemote = (await this.projectSettings.getRemote().catch(() => '')).trim();
-    if (!configuredRemote || configuredRemote === DEFAULT_REMOTE_NAME) {
+    const baseRemote = (await this.projectSettings.getBaseRemote().catch(() => '')).trim();
+    if (!baseRemote || baseRemote === DEFAULT_REMOTE_NAME) {
       return [DEFAULT_REMOTE_NAME];
     }
-    return [configuredRemote, DEFAULT_REMOTE_NAME];
+    return [baseRemote, DEFAULT_REMOTE_NAME];
   }
 
   async existsAtAbsolutePath(absPath: string): Promise<boolean> {

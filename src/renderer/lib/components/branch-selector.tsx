@@ -1,6 +1,6 @@
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import { type Branch } from '@shared/git';
+import { type Branch, type Remote } from '@shared/git';
 import { Badge } from '@renderer/lib/ui/badge';
 import {
   Combobox,
@@ -13,14 +13,22 @@ import {
   ComboboxValue,
 } from '@renderer/lib/ui/combobox';
 import { InputGroupButton } from '@renderer/lib/ui/input-group';
+import { Select, SelectTrigger } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { filterBranchesForPicker } from './branch-selector-utils';
+import { RemoteSelectContent } from './remote-select-content';
 
 type BranchSelectorTab = 'local' | 'remote';
+export type BranchLabelRemoteMode = 'full' | 'short';
 
-function getBranchLabel(branch: Branch): string {
-  return branch.type === 'remote' ? `${branch.remote.name}/${branch.branch}` : branch.branch;
+export function getBranchLabel(
+  branch: Branch,
+  options: { remote?: BranchLabelRemoteMode } = {}
+): string {
+  if (branch.type !== 'remote') return branch.branch;
+  return options.remote === 'short' ? branch.branch : `${branch.remote.name}/${branch.branch}`;
 }
 
 interface BranchSelectorProps {
@@ -28,9 +36,12 @@ interface BranchSelectorProps {
   value?: Branch;
   onValueChange: (value: Branch) => void;
   remoteOnly?: boolean;
+  branchLabelRemote?: BranchLabelRemoteMode;
   trigger?: React.ReactNode;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  remotes?: Remote[];
+  selectedRemoteName?: string;
 }
 
 export function BranchSelector({
@@ -38,9 +49,12 @@ export function BranchSelector({
   value,
   onValueChange,
   remoteOnly = false,
+  branchLabelRemote = 'full',
   trigger,
   onRefresh,
   isRefreshing = false,
+  remotes,
+  selectedRemoteName,
 }: BranchSelectorProps) {
   const valueKey =
     value?.type === 'remote'
@@ -52,31 +66,56 @@ export function BranchSelector({
   const overriddenTab = tabOverride?.valueKey === valueKey ? tabOverride.tab : undefined;
   const tab = remoteOnly ? 'remote' : (overriddenTab ?? value?.type ?? 'local');
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const keepOpenForRemoteSelectRef = React.useRef(false);
+  const [open, setOpen] = useState(false);
+  const [remoteSelectOpen, setRemoteSelectOpen] = useState(false);
+  const [draftRemoteName, setDraftRemoteName] = useState<string | undefined>(undefined);
+  const showRemoteFooter = selectedRemoteName !== undefined;
+  const activeRemoteName =
+    showRemoteFooter && open ? (draftRemoteName ?? selectedRemoteName) : selectedRemoteName;
 
   const localCount = useMemo(() => branches.filter((b) => b.type === 'local').length, [branches]);
-  const remoteCount = useMemo(() => branches.filter((b) => b.type === 'remote').length, [branches]);
+  const remoteCount = useMemo(
+    () =>
+      branches.filter(
+        (b) => b.type === 'remote' && (!showRemoteFooter || b.remote.name === activeRemoteName)
+      ).length,
+    [activeRemoteName, branches, showRemoteFooter]
+  );
 
-  const filteredBranches = useMemo(() => branches.filter((b) => b.type === tab), [branches, tab]);
+  const filteredBranches = useMemo(
+    () => filterBranchesForPicker(branches, tab, showRemoteFooter ? activeRemoteName : undefined),
+    [activeRemoteName, branches, showRemoteFooter, tab]
+  );
 
   const options = useMemo(
     () =>
       filteredBranches.map((branch) => ({
         value: branch,
-        label: getBranchLabel(branch),
+        label: getBranchLabel(branch, { remote: branchLabelRemote }),
         disabled: branch.branch.startsWith('_reserve'),
       })),
-    [filteredBranches]
+    [branchLabelRemote, filteredBranches]
   );
 
   return (
     <Combobox
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && keepOpenForRemoteSelectRef.current) {
+          setOpen(true);
+          return;
+        }
+        setOpen(nextOpen);
+        setDraftRemoteName(nextOpen ? selectedRemoteName : undefined);
+      }}
       items={options}
       autoHighlight
       value={
         value
           ? {
               value,
-              label: getBranchLabel(value),
+              label: getBranchLabel(value, { remote: branchLabelRemote }),
             }
           : undefined
       }
@@ -98,7 +137,9 @@ export function BranchSelector({
           </div>
         </ComboboxTrigger>
       )}
-      <ComboboxContent className="min-w-(--anchor-width) pb-1 border">
+      <ComboboxContent
+        className={cn('min-w-(--anchor-width) border', showRemoteFooter ? 'pb-0' : 'pb-1')}
+      >
         {!remoteOnly && (
           <ToggleGroup
             value={[tab]}
@@ -166,6 +207,47 @@ export function BranchSelector({
           )}
         </ComboboxList>
         <ComboboxEmpty>{branches.length === 0 ? 'no branches exist' : 'no results'}</ComboboxEmpty>
+        {showRemoteFooter && (
+          <div className="border-t border-border">
+            <Select
+              open={remoteSelectOpen}
+              onOpenChange={(nextOpen) => {
+                setRemoteSelectOpen(nextOpen);
+                keepOpenForRemoteSelectRef.current = true;
+                if (nextOpen) {
+                  setOpen(true);
+                } else {
+                  requestAnimationFrame(() => {
+                    keepOpenForRemoteSelectRef.current = false;
+                  });
+                }
+              }}
+              value={activeRemoteName}
+              onValueChange={(remoteName) => {
+                if (!remoteName) return;
+                keepOpenForRemoteSelectRef.current = true;
+                setDraftRemoteName(remoteName);
+                setTabOverride({ tab: 'remote', valueKey });
+                setOpen(true);
+                requestAnimationFrame(() => {
+                  setOpen(true);
+                  inputRef.current?.focus();
+                  keepOpenForRemoteSelectRef.current = false;
+                });
+              }}
+            >
+              <SelectTrigger className="h-7 w-full rounded-none border-0 bg-transparent px-3 text-sm shadow-none hover:bg-background-quaternary-1 focus-visible:ring-0">
+                <span className="min-w-0 flex-1 truncate text-left text-foreground-muted">
+                  {activeRemoteName}
+                </span>
+              </SelectTrigger>
+              <RemoteSelectContent
+                remotes={remotes ?? []}
+                fallbackRemoteName={activeRemoteName ?? selectedRemoteName}
+              />
+            </Select>
+          </div>
+        )}
       </ComboboxContent>
     </Combobox>
   );

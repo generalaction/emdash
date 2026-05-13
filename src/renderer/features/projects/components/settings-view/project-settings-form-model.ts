@@ -16,7 +16,8 @@ export type FormState = {
   scriptTeardown: string;
   worktreeDirectory: string;
   defaultBranch: Branch | null;
-  remote: string;
+  baseRemote: string;
+  pushRemote: string;
   provisionCommand: string;
   terminateCommand: string;
 };
@@ -39,11 +40,11 @@ function blankToUndefined(value: string): string | undefined {
 
 export function settingsToForm(
   s: ProjectSettings,
-  configuredRemote: string,
+  baseRemote: string,
   remotes: { name: string; url: string }[]
 ): FormState {
-  const configuredRemoteMeta = remotes.find((remote) => remote.name === configuredRemote) ?? {
-    name: configuredRemote,
+  const baseRemoteMeta = remotes.find((remote) => remote.name === baseRemote) ?? {
+    name: baseRemote,
     url: '',
   };
 
@@ -55,9 +56,9 @@ export function settingsToForm(
     scriptRun: normalizeScript(s.scripts?.run),
     scriptTeardown: normalizeScript(s.scripts?.teardown),
     worktreeDirectory: s.worktreeDirectory ?? '',
-    defaultBranch:
-      projectDefaultBranchToBranch(s.defaultBranch, configuredRemoteMeta, remotes) ?? null,
-    remote: s.remote ?? '',
+    defaultBranch: projectDefaultBranchToBranch(s.defaultBranch, baseRemoteMeta, remotes) ?? null,
+    baseRemote: s.baseRemote ?? '',
+    pushRemote: s.pushRemote ?? '',
     provisionCommand: s.workspaceProvider?.provisionCommand ?? '',
     terminateCommand: s.workspaceProvider?.terminateCommand ?? '',
   };
@@ -90,7 +91,11 @@ export function formToSettings(f: FormState): ProjectSettings {
     scripts: hasScripts ? scripts : undefined,
     worktreeDirectory: blankToUndefined(f.worktreeDirectory),
     defaultBranch,
-    remote: blankToUndefined(f.remote),
+    baseRemote: blankToUndefined(f.baseRemote),
+    pushRemote:
+      f.pushRemote.trim() && f.pushRemote.trim() !== f.baseRemote.trim()
+        ? f.pushRemote.trim()
+        : undefined,
     workspaceProvider:
       provisionCommand && terminateCommand
         ? {
