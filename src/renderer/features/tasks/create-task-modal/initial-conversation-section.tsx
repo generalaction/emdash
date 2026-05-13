@@ -180,17 +180,12 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
   return (
     <>
       <Field>
-<<<<<<< emdash/new-task-initial-prompt-image-ot788
-        <FieldLabel>Initial Conversation</FieldLabel>
+        <FieldLabel>Initial conversation</FieldLabel>
         <div
           className="flex flex-col border border-border rounded-md"
           onDrop={state.handleImageDrop}
           onDragOver={state.handleImageDragOver}
         >
-=======
-        <FieldLabel>Initial conversation</FieldLabel>
-        <div className="flex flex-col border border-border rounded-md">
->>>>>>> main
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
