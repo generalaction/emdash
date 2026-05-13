@@ -38,6 +38,8 @@ export interface SshConnection extends SshConfig {
   connectedAt?: Date;
 }
 
+export type SshConnectionUsage = Record<string, Array<{ id: string; name: string }>>;
+
 /**
  * Command execution result
  * Returned after executing a command on a remote host
