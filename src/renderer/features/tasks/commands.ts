@@ -1,6 +1,5 @@
 import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
 import {
-  asProvisioned,
   getRegisteredTaskData,
   getTaskGitStore,
   getTaskStore,
@@ -26,10 +25,9 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
     getCommands() {
       const taskStore = getTaskStore(projectId, taskId);
-      const provisioned = asProvisioned(taskStore);
 
       // Guard: only expose commands when the task is fully provisioned.
-      if (!provisioned) return [];
+      if (taskStore?.state !== 'provisioned') return [];
 
       const taskView = getTaskView(projectId, taskId);
       const tabManager = taskView?.tabManager;

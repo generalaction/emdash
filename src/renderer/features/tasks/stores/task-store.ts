@@ -2,9 +2,7 @@ import { makeAutoObservable, observable, runInAction } from 'mobx';
 import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
-import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
 import { rpc } from '@renderer/lib/ipc';
-import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
@@ -29,36 +27,6 @@ export type UnregisteredTaskData = {
   isPinned: boolean;
 };
 
-/**
- * Lean session record: links the active task session to a workspace.
- * Only exists while the task is provisioned.
- *
- * Conversations and terminals are managed by the global registries.
- * Path and git/pr live on WorkspaceStore (accessed via workspaceRegistry).
- */
-export class WorkspaceAttachment implements IDisposable {
-  readonly workspaceId: string;
-  readonly devServers: DevServerStore;
-
-  private readonly _projectId: string;
-
-  constructor(taskStore: TaskStore, workspaceId: string) {
-    this._projectId = (taskStore.data as Task).projectId;
-    this.workspaceId = workspaceId;
-    this.devServers = new DevServerStore((taskStore.data as Task).id, workspaceId);
-    makeAutoObservable(this, { devServers: false });
-  }
-
-  activate(): void {
-    workspaceRegistry.activate(this._projectId, this.workspaceId);
-  }
-
-  dispose(): void {
-    workspaceRegistry.release(this._projectId, this.workspaceId);
-    this.devServers.dispose();
-  }
-}
-
 export class TaskStore {
   state: 'unregistered' | 'unprovisioned' | 'provisioned';
   data: UnregisteredTaskData | Task;
@@ -66,8 +34,8 @@ export class TaskStore {
   errorMessage: string | undefined = undefined;
   provisionProgressMessage: string | null = null;
 
-  /** Active workspace attachment — null when unprovisioned. */
-  attachment: WorkspaceAttachment | null = null;
+  /** The workspace ID for this task session — null when unprovisioned. */
+  workspaceId: string | null = null;
   /**
    * Stable view model — created when task first becomes registered, persists
    * across provision/unprovision cycles. Null only while task is unregistered.
@@ -97,7 +65,7 @@ export class TaskStore {
     this.data = data;
     this.phase = phase;
     makeAutoObservable(this, {
-      attachment: observable.ref,
+      workspaceId: observable,
       viewModel: observable.ref,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
@@ -132,7 +100,7 @@ export class TaskStore {
       baseRef,
       sshConnectionId
     );
-    this.attachment = new WorkspaceAttachment(this, workspaceId);
+    this.workspaceId = workspaceId;
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
@@ -142,8 +110,10 @@ export class TaskStore {
 
   transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
     this.viewModel?.suspend();
-    this.attachment?.dispose();
-    this.attachment = null;
+    if (this.workspaceId) {
+      workspaceRegistry.release(data.projectId, this.workspaceId);
+      this.workspaceId = null;
+    }
     this.data = data;
     this.state = 'unprovisioned';
     this.phase = phase;
@@ -156,8 +126,11 @@ export class TaskStore {
 
   transitionToUnregistered(data: UnregisteredTaskData): void {
     this.viewModel?.suspend();
-    this.attachment?.dispose();
-    this.attachment = null;
+    if (this.workspaceId) {
+      const projectId = (this.data as Task).projectId;
+      workspaceRegistry.release(projectId, this.workspaceId);
+      this.workspaceId = null;
+    }
     this.data = data;
     this.state = 'unregistered';
     this.phase = 'creating';
@@ -165,14 +138,20 @@ export class TaskStore {
   }
 
   activate(): void {
-    this.attachment?.activate();
+    if (this.workspaceId) {
+      const projectId = (this.data as Task).projectId;
+      workspaceRegistry.activate(projectId, this.workspaceId);
+    }
   }
 
   dispose(): void {
     this.viewModel?.dispose();
     this.viewModel = null;
-    this.attachment?.dispose();
-    this.attachment = null;
+    if (this.workspaceId) {
+      const projectId = (this.data as Task).projectId;
+      workspaceRegistry.release(projectId, this.workspaceId);
+      this.workspaceId = null;
+    }
     this.draftComments?.dispose();
     this.draftComments = null;
   }
@@ -302,7 +281,7 @@ export function isUnprovisioned(t: TaskStore): t is UnprovisionedTask {
 
 export function isProvisioned(
   t: TaskStore
-): t is TaskStore & { state: 'provisioned'; data: Task; attachment: WorkspaceAttachment } {
+): t is TaskStore & { state: 'provisioned'; data: Task; workspaceId: string } {
   return t.state === 'provisioned';
 }
 

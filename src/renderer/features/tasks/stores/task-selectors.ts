@@ -8,11 +8,11 @@ import { conversationRegistry } from './conversation-registry';
 import type { TaskManagerStore } from './task-manager';
 import {
   isRegistered,
+  isProvisioned,
   isUnprovisioned,
   isUnregistered,
   registeredTaskData,
   type TaskStore,
-  type WorkspaceAttachment,
 } from './task-store';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
@@ -55,9 +55,9 @@ export function getDiffView(projectId: string, taskId: string): DiffViewStore | 
 }
 
 export function getTaskGitStore(projectId: string, taskId: string) {
-  const attachment = asProvisioned(getTaskStore(projectId, taskId));
-  if (!attachment) return undefined;
-  return workspaceRegistry.get(projectId, attachment.workspaceId)?.git;
+  const store = getTaskStore(projectId, taskId);
+  if (!store?.workspaceId) return undefined;
+  return workspaceRegistry.get(projectId, store.workspaceId)?.git;
 }
 
 export function taskAgentStatus(store: TaskStore): AgentStatus | null {
@@ -121,9 +121,11 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
   return 'ready';
 }
 
-/** Returns the active WorkspaceAttachment if the task is provisioned, otherwise undefined. */
-export function asProvisioned(store: TaskStore | undefined): WorkspaceAttachment | undefined {
-  return store?.attachment ?? undefined;
+/** Returns the narrowed provisioned task store if the task is provisioned, otherwise undefined. */
+export function asProvisioned(
+  store: TaskStore | undefined
+): (TaskStore & { state: 'provisioned'; workspaceId: string }) | undefined {
+  return store && isProvisioned(store) ? store : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -131,15 +133,8 @@ export function asProvisioned(store: TaskStore | undefined): WorkspaceAttachment
 // ---------------------------------------------------------------------------
 
 export function getWorkspaceForTask(projectId: string, taskId: string) {
-  const wsId = getTaskStore(projectId, taskId)?.attachment?.workspaceId;
+  const wsId = getTaskStore(projectId, taskId)?.workspaceId;
   return wsId ? (workspaceRegistry.get(projectId, wsId) ?? undefined) : undefined;
-}
-
-export function getWorkspaceAttachment(
-  projectId: string,
-  taskId: string
-): WorkspaceAttachment | undefined {
-  return getTaskStore(projectId, taskId)?.attachment ?? undefined;
 }
 
 export function getWorkspaceViewModel(

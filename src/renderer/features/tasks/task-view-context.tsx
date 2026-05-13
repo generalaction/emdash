@@ -81,9 +81,9 @@ export function useWorkspaceId(): string {
 /** Returns the DevServerStore. Throws if the task is not provisioned. */
 export function useDevServers(): DevServerStore {
   const { projectId, taskId } = useTaskViewContext();
-  const attachment = getTaskStore(projectId, taskId)?.attachment;
-  if (!attachment) throw new Error('useDevServers: task is not provisioned');
-  return attachment.devServers;
+  const devServers = getTaskStore(projectId, taskId)?.viewModel?.devServers;
+  if (!devServers) throw new Error('useDevServers: task is not provisioned');
+  return devServers;
 }
 
 /** Returns the WorkspaceViewModel. Throws if the task is not registered. */

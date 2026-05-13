@@ -4,6 +4,7 @@ import type { DiffViewSnapshot, TaskViewSnapshot } from '@shared/view-state';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
+import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
 import { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
@@ -37,6 +38,7 @@ export class WorkspaceViewModel implements ILifecycle {
    */
   diffView: DiffViewStore | null = null;
   prStore: PrStore | null = null;
+  devServers: DevServerStore | null = null;
 
   private _diffTabLifecycle: DiffTabLifecycleStore | null = null;
 
@@ -109,10 +111,10 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   private get _workspace() {
-    const attachment = this._taskStore.attachment;
-    if (!attachment) return null;
+    const workspaceId = this._taskStore.workspaceId;
+    if (!workspaceId) return null;
     const projectId = (this._taskStore.data as Task).projectId;
-    return workspaceRegistry.get(projectId, attachment.workspaceId) ?? null;
+    return workspaceRegistry.get(projectId, workspaceId) ?? null;
   }
 
   // -------------------------------------------------------------------------
@@ -206,7 +208,8 @@ export class WorkspaceViewModel implements ILifecycle {
     if (!workspace) return; // defensive — should always have workspace when provisioned
 
     const taskData = this._taskStore.data as Task;
-    const workspaceId = this._taskStore.attachment!.workspaceId;
+    const workspaceId = this._taskStore.workspaceId!;
+    this.devServers = new DevServerStore(this.taskId, workspaceId);
     this.prStore = new PrStore(
       taskData.projectId,
       workspaceId,
@@ -263,6 +266,8 @@ export class WorkspaceViewModel implements ILifecycle {
     this._diffTabLifecycle = null;
     this.prStore?.dispose();
     this.prStore = null;
+    this.devServers?.dispose();
+    this.devServers = null;
 
     // Stop snapshot persistence.
     this._snapshotDisposer?.();

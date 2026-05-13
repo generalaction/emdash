@@ -6,7 +6,6 @@ import {
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
 import {
-  asProvisioned,
   getTaskGitStore,
   getTaskStore,
 } from '@renderer/features/tasks/stores/task-selectors';
@@ -19,7 +18,7 @@ import { getBranchTooltipText, getPublishTooltipText } from './git-status-toolti
 
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
-  const workspaceId = asProvisioned(getTaskStore(projectId, taskId))?.workspaceId;
+  const workspaceId = getTaskStore(projectId, taskId)?.workspaceId;
   const git = getTaskGitStore(projectId, taskId);
   const headDisplay = git?.headDisplay ?? null;
   const headKind = git?.headKind ?? 'branch';
