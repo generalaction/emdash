@@ -141,10 +141,10 @@ export const AddProjectModal = observer(function AddProjectModal({
 
     const projects = usage[id] ?? [];
     if (projects.length > 0) {
+      const projectNames = projects.map((project) => project.name).join(', ');
       showConfirm({
         title: 'Cannot delete SSH connection',
-        description:
-          'This SSH connection is still used by at least one project. Change those projects to another connection before deleting it.',
+        description: `This SSH connection is used by: ${projectNames}. Change those projects to another connection before deleting it.`,
         confirmLabel: 'Close',
         onClose: () => reopenAddProjectModal(id),
         onSuccess: () => reopenAddProjectModal(id),

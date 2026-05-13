@@ -58,7 +58,7 @@ export const SshConnectionRow = observer(function SshConnectionRow({
   projects: SshConnectionProjectUsage;
   isDeleting: boolean;
   onEdit: (connection: SshConfig) => void;
-  onDelete: (connection: SshConfig) => void;
+  onDelete: (connection: SshConfig) => void | Promise<void>;
 }) {
   const state = appState.sshConnections.stateFor(connection.id);
   const projectUsageNames = projectUsageNamesText(projects);
@@ -103,7 +103,7 @@ export const SshConnectionRow = observer(function SshConnectionRow({
           label={`Delete ${connection.name}`}
           className="text-foreground-destructive hover:bg-destructive/10 hover:text-foreground-destructive"
           disabled={isDeleting}
-          onClick={() => onDelete(connection)}
+          onClick={() => void onDelete(connection)}
         >
           <Trash2Icon className="size-4" />
         </ConnectionActionButton>

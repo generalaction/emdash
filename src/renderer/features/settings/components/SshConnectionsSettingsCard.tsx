@@ -19,15 +19,18 @@ export const SshConnectionsSettingsCard = observer(function SshConnectionsSettin
     a.name.localeCompare(b.name)
   );
 
-  const refreshUsage = useCallback(async () => {
+  const refreshUsage = useCallback(async (): Promise<SshConnectionUsage | null> => {
     try {
-      setUsage(await rpc.ssh.getConnectionUsage());
+      const nextUsage = await rpc.ssh.getConnectionUsage();
+      setUsage(nextUsage);
+      return nextUsage;
     } catch (error) {
       toast({
         title: 'Failed to load SSH connection usage',
         description: String(error),
         variant: 'destructive',
       });
+      return null;
     }
   }, []);
 
@@ -70,8 +73,11 @@ export const SshConnectionsSettingsCard = observer(function SshConnectionsSettin
     }
   };
 
-  const requestDelete = (connection: SshConfig) => {
-    const projects = usage[connection.id] ?? [];
+  const requestDelete = async (connection: SshConfig) => {
+    const latestUsage = await refreshUsage();
+    if (!latestUsage) return;
+
+    const projects = latestUsage[connection.id] ?? [];
     if (projects.length > 0) {
       showConfirm({
         title: 'Cannot delete SSH connection',
