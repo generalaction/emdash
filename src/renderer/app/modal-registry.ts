@@ -3,6 +3,7 @@ import { IntegrationSetupModal } from '@renderer/features/integrations/integrati
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
 import { AddProjectModal } from '@renderer/features/projects/components/add-project-modal/add-project-modal';
 import { ShareProjectConfigModal } from '@renderer/features/projects/components/settings-view/share-project-config-modal';
+import { ProjectSwitcherModal } from '@renderer/features/project-switcher/project-switcher-modal';
 import { CreateSkillModal } from '@renderer/features/skills/components/CreateSkillModal';
 import { AddRemoteModal } from '@renderer/features/tasks/add-remote-modal';
 import { CreateConversationModal } from '@renderer/features/tasks/conversations/create-conversation-modal';
@@ -36,6 +37,7 @@ export function createModal<TProps, TResult>(
 
 export const modalRegistry = {
   commandPaletteModal: createModal(CommandPaletteModal, { size: 'md' }),
+  projectSwitcherModal: createModal(ProjectSwitcherModal, { size: 'md' }),
   taskModal: createModal(CreateTaskModal),
   addProjectModal: createModal(AddProjectModal),
   addSshConnModal: createModal(AddSshConnModal),

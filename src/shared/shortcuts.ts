@@ -32,6 +32,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open the command palette to quickly search and navigate',
     category: 'Navigation',
   },
+  projectSwitcher: {
+    defaultHotkey: 'Mod+E',
+    label: 'Project Switcher',
+    description: 'Open the project switcher to quickly switch between tasks and projects',
+    category: 'Navigation',
+  },
   settings: {
     defaultHotkey: 'Mod+,',
     label: 'Settings',
