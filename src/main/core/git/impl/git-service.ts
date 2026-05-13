@@ -87,6 +87,11 @@ function looksLikeLfsPointer(buffer: Buffer): boolean {
   return buffer.slice(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
 }
 
+type HeadInfo =
+  | { kind: 'branch'; name: string }
+  | { kind: 'detached'; shortHash: string }
+  | { kind: 'unborn'; name: string };
+
 export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
@@ -161,13 +166,13 @@ export class GitService implements GitProvider, IDisposable {
   private async _loadFullStatus(): Promise<FullGitStatus> {
     try {
       const parser = new StatusParser();
-      const [, stagedRes, unstagedRes, currentBranch] = await Promise.all([
+      const [, stagedRes, unstagedRes, head] = await Promise.all([
         this._runStatusZ(parser),
         this.ctx.exec('git', ['diff', '--numstat', '--cached']).catch(() => ({
           stdout: '',
         })),
         this.ctx.exec('git', ['diff', '--numstat']).catch(() => ({ stdout: '' })),
-        this.getCurrentBranch(),
+        this._getHeadInfo(),
       ]);
 
       const stagedNumstat = this.parseNumstat(stagedRes.stdout);
@@ -177,18 +182,15 @@ export class GitService implements GitProvider, IDisposable {
         throw new TooManyFilesChangedError();
       }
 
-      return await this._buildFullGitStatus(
-        parser.status,
-        stagedNumstat,
-        unstagedNumstat,
-        currentBranch
-      );
+      return await this._buildFullGitStatus(parser.status, stagedNumstat, unstagedNumstat, head);
     } catch (e) {
       if (e instanceof TooManyFilesChangedError) throw e;
       return {
         staged: [],
         unstaged: [],
         currentBranch: null,
+        headKind: 'branch',
+        shortHash: null,
         totalAdded: 0,
         totalDeleted: 0,
       };
@@ -211,7 +213,7 @@ export class GitService implements GitProvider, IDisposable {
     entries: IFileStatus[],
     stagedNumstat: Map<string, { additions: number; deletions: number }>,
     unstagedNumstat: Map<string, { additions: number; deletions: number }>,
-    currentBranch: string | null
+    head: HeadInfo
   ): Promise<FullGitStatus> {
     const staged: GitChange[] = [];
     const unstaged: GitChange[] = [];
@@ -260,7 +262,15 @@ export class GitService implements GitProvider, IDisposable {
     const totalAdded = staged.reduce((s, c) => s + c.additions, 0);
     const totalDeleted = staged.reduce((s, c) => s + c.deletions, 0);
 
-    return { staged, unstaged, currentBranch, totalAdded, totalDeleted };
+    return {
+      staged,
+      unstaged,
+      currentBranch: head.kind === 'detached' ? null : head.name,
+      headKind: head.kind,
+      shortHash: head.kind === 'detached' ? head.shortHash : null,
+      totalAdded,
+      totalDeleted,
+    };
   }
 
   async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
@@ -1251,15 +1261,35 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getCurrentBranch(): Promise<string | null> {
+    const head = await this._getHeadInfo();
+    return head.kind === 'detached' ? null : head.name;
+  }
+
+  private async _getHeadInfo(): Promise<HeadInfo> {
     try {
       const { stdout } = await this.ctx.exec('git', ['rev-parse', '--symbolic-full-name', 'HEAD']);
       const ref = stdout.trim();
-      if (ref === 'HEAD' || !ref) return null;
-      if (ref.startsWith('refs/heads/')) return ref.slice('refs/heads/'.length);
-      if (ref.startsWith('heads/')) return ref.slice('heads/'.length);
-      return ref;
+      if (ref === 'HEAD' || !ref) {
+        // Detached HEAD — also capture the short commit hash for display
+        try {
+          const { stdout: hashOut } = await this.ctx.exec('git', ['rev-parse', '--short', 'HEAD']);
+          return { kind: 'detached', shortHash: hashOut.trim() };
+        } catch {
+          return { kind: 'detached', shortHash: '' };
+        }
+      }
+      if (ref.startsWith('refs/heads/'))
+        return { kind: 'branch', name: ref.slice('refs/heads/'.length) };
+      if (ref.startsWith('heads/')) return { kind: 'branch', name: ref.slice('heads/'.length) };
+      return { kind: 'branch', name: ref };
     } catch {
-      return null;
+      // Unborn branch — rev-parse fails but symbolic-ref still resolves
+      try {
+        const { stdout: symOut } = await this.ctx.exec('git', ['symbolic-ref', '--short', 'HEAD']);
+        return { kind: 'unborn', name: symOut.trim() };
+      } catch {
+        return { kind: 'unborn', name: 'main' };
+      }
     }
   }
 

@@ -20,7 +20,10 @@ import { getBranchTooltipText, getPublishTooltipText } from './git-status-toolti
 export const GitStatusSection = observer(function GitStatusSection() {
   const { projectId, taskId } = useTaskViewContext();
   const workspaceId = asProvisioned(getTaskStore(projectId, taskId))?.workspaceId;
-  const branchName = getTaskGitStore(projectId, taskId)?.branchName;
+  const git = getTaskGitStore(projectId, taskId);
+  const headDisplay = git?.headDisplay ?? null;
+  const headKind = git?.headKind ?? 'branch';
+  const isDetached = headKind === 'detached';
   const projectName = projectDisplayName(getProjectStore(projectId)) ?? 'repository';
   const repositoryStore = getRepositoryStore(projectId);
   const showAddRemoteModal = useShowModal('addRemoteModal');
@@ -41,12 +44,12 @@ export const GitStatusSection = observer(function GitStatusSection() {
   const shouldOfferAddRemote = (repositoryStore?.remotes.length ?? 0) === 0;
 
   const handlePublishClick = () => {
-    if (!branchName || !workspaceId) return;
+    if (!headDisplay || isDetached || !workspaceId) return;
     if (shouldOfferAddRemote) {
       showAddRemoteModal({
         projectId,
         projectName,
-        branchName,
+        branchName: headDisplay,
         workspaceId,
       });
       return;
@@ -61,12 +64,14 @@ export const GitStatusSection = observer(function GitStatusSection() {
           <Tooltip>
             <TooltipTrigger className="flex min-w-0 items-center gap-2">
               <GitBranch className="size-3 shrink-0" />
-              <span className="truncate text-xs">{branchName}</span>
+              <span className="truncate text-xs">{headDisplay}</span>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{getBranchTooltipText(branchName)}</TooltipContent>
+            <TooltipContent side="bottom">
+              {getBranchTooltipText(headDisplay, headKind)}
+            </TooltipContent>
           </Tooltip>
           <div className="flex items-center gap-1">
-            {hasUpstream ? (
+            {hasUpstream && !isDetached ? (
               <>
                 <Tooltip>
                   <TooltipTrigger>
@@ -121,26 +126,33 @@ export const GitStatusSection = observer(function GitStatusSection() {
                 </Tooltip>
               </>
             ) : (
-              <Tooltip>
-                <TooltipTrigger>
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    disabled={isPublishing || !branchName}
-                    onClick={handlePublishClick}
-                  >
-                    <ArrowUp className="size-3" />
-                    {isPublishing
-                      ? 'Publishing...'
-                      : shouldOfferAddRemote
-                        ? 'Add Remote'
-                        : 'Publish'}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {getPublishTooltipText({ isPublishing, branchName, shouldOfferAddRemote })}
-                </TooltipContent>
-              </Tooltip>
+              !isDetached && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      disabled={isPublishing || !headDisplay}
+                      onClick={handlePublishClick}
+                    >
+                      <ArrowUp className="size-3" />
+                      {isPublishing
+                        ? 'Publishing...'
+                        : shouldOfferAddRemote
+                          ? 'Add Remote'
+                          : 'Publish'}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {getPublishTooltipText({
+                      isPublishing,
+                      headDisplay,
+                      headKind,
+                      shouldOfferAddRemote,
+                    })}
+                  </TooltipContent>
+                </Tooltip>
+              )
             )}
           </div>
         </div>

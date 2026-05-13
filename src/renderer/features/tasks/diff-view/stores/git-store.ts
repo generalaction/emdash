@@ -80,6 +80,8 @@ export class GitStore {
       aheadCount: computed,
       behindCount: computed,
       branchName: computed,
+      headKind: computed,
+      headDisplay: computed,
     });
   }
 
@@ -149,6 +151,22 @@ export class GitStore {
 
   get branchName(): string | null {
     return this.fullStatus.data?.currentBranch ?? null;
+  }
+
+  /** The HEAD state: 'branch' (normal), 'detached' (mid-rebase etc.), or 'unborn' (no commits yet). */
+  get headKind(): 'branch' | 'detached' | 'unborn' {
+    return this.fullStatus.data?.headKind ?? 'branch';
+  }
+
+  /**
+   * Always non-null once hasData is true.
+   * Returns the branch name on a branch/unborn repo, or the short commit hash when detached.
+   */
+  get headDisplay(): string | null {
+    const d = this.fullStatus.data;
+    if (!d) return null;
+    if (d.headKind === 'detached') return d.shortHash;
+    return d.currentBranch;
   }
 
   /** True when this workspace's branch has a remote tracking ref. */
