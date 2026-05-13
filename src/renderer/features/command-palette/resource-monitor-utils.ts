@@ -4,6 +4,7 @@ import type {
   ResourcePtyEntry,
   ResourceSnapshot,
 } from '@shared/resource-monitor';
+import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { formatBytes } from '@renderer/utils/formatBytes';
@@ -110,7 +111,7 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
       const task = mounted?.taskManager.tasks.get(entry.scopeId);
       if (task) {
         taskName = task.displayName;
-        const conv = task.provisionedTask?.conversations.conversations.get(entry.leafId);
+        const conv = conversationRegistry.get(entry.scopeId)?.conversations.get(entry.leafId);
         providerId = conv?.data.providerId;
         conversationTitle = conv?.data.title;
       }

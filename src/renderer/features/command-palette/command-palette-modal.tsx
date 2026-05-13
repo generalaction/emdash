@@ -6,11 +6,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
 import type { SearchItem } from '@shared/search';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import {
-  asProvisioned,
-  getTaskStore,
-  getTaskView,
-} from '@renderer/features/tasks/stores/task-selectors';
+import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
+import { getTaskStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { commandRegistry } from '@renderer/lib/commands/registry';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
@@ -309,9 +306,7 @@ export function CommandPaletteModal({
                 }
               }
               if (item.kind === 'conversation' && item.projectId && item.taskId) {
-                const convStore = asProvisioned(
-                  getTaskStore(item.projectId, item.taskId)
-                )?.conversations.conversations.get(item.id);
+                const convStore = conversationRegistry.get(item.taskId)?.conversations.get(item.id);
                 if (convStore) {
                   return (
                     <PaletteConversationItem
@@ -381,12 +376,9 @@ export function CommandPaletteModal({
             {taskId && conversationResults.length > 0 && (
               <Command.Group heading="Recent Conversations" className={GROUP_CLASS}>
                 {conversationResults.slice(0, 5).map((item) => {
-                  const convStore =
-                    item.projectId && item.taskId
-                      ? asProvisioned(
-                          getTaskStore(item.projectId, item.taskId)
-                        )?.conversations.conversations.get(item.id)
-                      : undefined;
+                  const convStore = item.taskId
+                    ? conversationRegistry.get(item.taskId)?.conversations.get(item.id)
+                    : undefined;
                   return convStore ? (
                     <PaletteConversationItem
                       key={item.id}

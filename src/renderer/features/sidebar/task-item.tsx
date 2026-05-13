@@ -3,12 +3,13 @@ import { selectCurrentPr } from '@shared/pull-requests';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
-import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import {
-  asProvisioned,
+  getTaskGitStore,
   getTaskManagerStore,
   getTaskStore,
+  getWorkspaceForTask,
 } from '@renderer/features/tasks/stores/task-selectors';
+import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
   useNavigate,
@@ -77,13 +78,12 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const canPin = task.state !== 'unregistered';
 
-  const provisionedTask = asProvisioned(task);
+  const workspaceStore = getWorkspaceForTask(projectId, taskId);
+  const git = getTaskGitStore(projectId, taskId);
   const branchName =
-    provisionedTask?.workspace.git.branchName ??
-    ('taskBranch' in task.data ? task.data.taskBranch : undefined);
-  const workspace = provisionedTask?.workspace;
+    git?.branchName ?? ('taskBranch' in task.data ? task.data.taskBranch : undefined);
   const handleReconnect =
-    workspace?.connectionState != null ? () => workspace.reconnect() : undefined;
+    workspaceStore?.connectionState != null ? () => workspaceStore.reconnect() : undefined;
 
   return (
     <TaskContextMenu

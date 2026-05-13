@@ -1,21 +1,22 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getTaskManagerStore, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
+import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
 import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { Button } from '@renderer/lib/ui/button';
 
 export const WorkspaceResolutionView = observer(function WorkspaceResolutionView() {
-  const { projectId, taskId } = useTaskViewContext();
-  const store = getTaskStore(projectId, taskId);
+  const { projectId, taskId, workspaceId } = useTaskViewContext();
   const taskManager = getTaskManagerStore(projectId);
   const [busy, setBusy] = useState(false);
 
-  if (!store || !taskManager || store.phase !== 'needs-resolution' || !store.resolution) {
+  const bs = workspaceId ? workspaceRegistry.bootstrapStateFor(projectId, workspaceId) : null;
+  const resolution = bs?.kind === 'needs-resolution' ? bs.resolution : null;
+
+  if (!taskManager || !resolution) {
     return null;
   }
-
-  const resolution = store.resolution;
 
   async function handle(action: 'adopt' | 'create' | 'cancel', candidatePath?: string) {
     if (busy || !taskManager) return;

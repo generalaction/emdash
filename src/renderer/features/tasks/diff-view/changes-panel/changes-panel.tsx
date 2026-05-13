@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspace, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { cn } from '@renderer/utils/utils';
 import { GitStatusSection } from './git-status-section';
@@ -9,8 +9,10 @@ import { StagedSection } from './staged-section';
 import { UnstagedSection } from './unstaged-section';
 
 export const ChangesPanel = observer(function ChangesPanel() {
-  const provisioned = useProvisionedTask();
-  const changesView = provisioned.taskView.diffView.changesView;
+  const taskView = useWorkspaceViewModel();
+  const workspace = useWorkspace();
+  const diffView = taskView.diffView;
+  const changesView = diffView?.changesView;
 
   const {
     expanded,
@@ -21,9 +23,9 @@ export const ChangesPanel = observer(function ChangesPanel() {
     stagedRef,
     prRef,
     spacerRef,
-  } = usePanelLayout(changesView);
+  } = usePanelLayout(changesView ?? null);
 
-  if (!provisioned.workspace.git.hasData) return null;
+  if (!diffView || !changesView || !workspace.git.hasData) return null;
 
   return (
     <div className="flex h-full flex-col">

@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
-import type { TaskStore } from '@renderer/features/tasks/stores/task-store';
-import { asProvisioned } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
+import { isRegistered, type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 
@@ -15,7 +15,8 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
   task: TaskStore;
   className?: string;
 }) {
-  const git = asProvisioned(task)?.workspace.git;
+  const projectId = isRegistered(task) ? task.data.projectId : undefined;
+  const git = projectId ? getTaskGitStore(projectId, task.data.id) : undefined;
   const linesAdded = git?.totalLinesAdded ?? 0;
   const linesDeleted = git?.totalLinesDeleted ?? 0;
   const visible = git !== undefined && !git.error && (linesAdded > 0 || linesDeleted > 0);

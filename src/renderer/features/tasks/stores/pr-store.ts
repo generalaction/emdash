@@ -1,4 +1,4 @@
-import { makeAutoObservable, type IObservableArray } from 'mobx';
+import { makeAutoObservable } from 'mobx';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
 import { commitRef, mergeBaseRange, refsEqual, remoteRef, type GitChange } from '@shared/git';
 import { parseGitHubRepository } from '@shared/github-repository';
@@ -35,15 +35,14 @@ export class PrStore {
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly repositoryStore: RepositoryStore,
-    private readonly tasks: IObservableArray<TaskStore>
+    private readonly taskStore: TaskStore
   ) {
     makeAutoObservable(this);
   }
 
   get pullRequests(): PullRequest[] {
-    const task = this.tasks[0];
-    if (!task || !isRegistered(task)) return [];
-    return (task.data as Task).prs ?? [];
+    if (!isRegistered(this.taskStore)) return [];
+    return (this.taskStore.data as Task).prs ?? [];
   }
 
   get currentPr(): PullRequest | undefined {

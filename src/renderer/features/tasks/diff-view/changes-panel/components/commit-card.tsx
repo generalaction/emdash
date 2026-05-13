@@ -1,7 +1,13 @@
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  useTaskViewContext,
+  useWorkspace,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Input } from '@renderer/lib/ui/input';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
@@ -21,10 +27,14 @@ interface CommitCardProps {
 }
 
 export const CommitCard = observer(function CommitCard({ autoStage = false }: CommitCardProps) {
-  const provisioned = useProvisionedTask();
-  const git = provisioned.workspace.git;
-  const changesView = provisioned.taskView.diffView.changesView;
-  const hasPRs = changesView.expandedSections.pullRequests;
+  const { projectId, taskId } = useTaskViewContext();
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const workspace = useWorkspace();
+  const git = workspace.git;
+  const diffView = taskView.diffView;
+  const changesView = diffView?.changesView ?? null;
+  const hasPRs = changesView?.expandedSections.pullRequests ?? false;
   const [commitMessage, setCommitMessage] = useState('');
   const [description, setDescription] = useState('');
   const [phase, setPhase] = useState<CommitPhase>('idle');
@@ -32,11 +42,13 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const isInFlight = phase !== 'idle';
 
   const showCreatePrModal = useShowModal('createPrModal');
-  const hasOpenPr = provisioned.workspace.pr.pullRequests.some((p) => p.status === 'open');
+
+  if (!diffView || !changesView) return null;
+
+  const taskData = getRegisteredTaskData(projectId, taskId);
+  const hasOpenPr = taskView.prStore?.pullRequests.some((p) => p.status === 'open') ?? false;
   const canCreatePr =
-    Boolean(provisioned.repositoryStore.repositoryUrl) &&
-    Boolean(provisioned.taskBranch) &&
-    !hasOpenPr;
+    Boolean(workspace.repository.repositoryUrl) && Boolean(taskData?.taskBranch) && !hasOpenPr;
 
   const doCommit = async () => {
     setPhase('committing');
@@ -106,10 +118,10 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     await new Promise((r) => setTimeout(r, 500));
     setPhase('idle');
     showCreatePrModal({
-      repositoryUrl: provisioned.repositoryStore.repositoryUrl ?? '',
-      branchName: provisioned.taskBranch ?? '',
+      repositoryUrl: workspace.repository.repositoryUrl ?? '',
+      branchName: taskData?.taskBranch ?? '',
       draft: false,
-      workspaceId: provisioned.workspaceId,
+      workspaceId,
       onSuccess: () => {},
     });
   };
@@ -128,7 +140,6 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       : []),
   ];
 
-  const diffView = provisioned.taskView.diffView;
   const effectiveAction =
     diffView.effectiveCommitAction === 'commit-pr' && !canCreatePr
       ? 'commit-push'

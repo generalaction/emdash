@@ -55,9 +55,8 @@ async function executeProvision(
   task: Task,
   conversations: Conversation[],
   terminals: Terminal[],
-  hint?: WorkspaceHint
+  hint: WorkspaceHint
 ): Promise<ProvisionResult> {
-  if (!hint?.id) throw new Error('executeProvision called without a workspace hint — this is a bug');
   const workspaceId = hint.id;
 
   const isByoi = hint.type === 'byoi';
@@ -95,7 +94,7 @@ async function executeProvision(
     fetchService: provider.gitFetchService,
     repository: provider.repository,
     logPrefix: `${provider.type}ProjectProvider`,
-    workDir: hint?.path,
+    workDir: hint.path,
   });
 
   if (provider.defaultWorkspaceType.kind === 'local') {
@@ -168,7 +167,7 @@ class TaskManager {
     task: Task,
     conversations: Conversation[],
     terminals: Terminal[],
-    hint?: WorkspaceHint
+    hint: WorkspaceHint
   ): Promise<Result<ProvisionResult, ProvisionTaskError>> {
     return this._lifecycle.provision(task.id, async () => {
       let lastStep: ProvisionStep | null = null;

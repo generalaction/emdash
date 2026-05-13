@@ -18,7 +18,10 @@ import type {
   ResolvedDiffTab,
   ResolvedFileTab,
 } from '@renderer/features/tasks/tabs/tab-manager-store';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
@@ -286,7 +289,7 @@ const DiffTabItem = observer(function DiffTabItem({
 });
 
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const { projectId, taskId } = useTaskViewContext();
   const { tabManager } = taskView;
   const showCommandPalette = useShowModal('commandPaletteModal');

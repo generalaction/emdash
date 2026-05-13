@@ -5,8 +5,9 @@ import {
   getProjectManagerStore,
 } from '@renderer/features/projects/stores/project-selectors';
 import type { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
-import type { TaskStore } from '@renderer/features/tasks/stores/task-store';
-import { asProvisioned, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
+import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { isRegistered, type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
 import { PaletteConversationItem } from './palette-conversation-item';
@@ -44,16 +45,17 @@ export function PaletteNotificationsGroup({
       const pid = mounted.data.id;
 
       for (const [tid, taskStore] of mounted.taskManager.tasks) {
-        const provisioned = asProvisioned(taskStore);
-        if (!provisioned) continue;
+        if (!isRegistered(taskStore)) continue;
+        const conversations = conversationRegistry.get(tid);
+        if (!conversations) continue;
 
-        const status = provisioned.conversations.taskStatus;
+        const status = conversations.taskStatus;
         // Only surface awaiting-input, error, completed — not working or idle.
         if (!status || status === 'idle' || status === 'working') continue;
 
         if (pid === currentProjectId && tid === currentTaskId) {
           // We're already in this task — surface individual unseen conversations.
-          for (const conv of provisioned.conversations.conversations.values()) {
+          for (const conv of conversations.conversations.values()) {
             if (!conv.seen && conv.indicatorStatus) {
               result.push({ kind: 'conversation', projectId: pid, taskId: tid, conv });
             }

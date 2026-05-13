@@ -45,17 +45,21 @@ export async function provisionTask(taskId: string) {
       .then((rows) => rows.map((r) => mapConversationRowToConversation(r, true))),
   ]);
 
-  const workspaceRow = row.workspaceId
-    ? await db
-        .select()
-        .from(workspaces)
-        .where(eq(workspaces.id, row.workspaceId))
-        .then((r) => r[0])
-    : undefined;
+  if (!row.workspaceId) throw new Error(`Task ${taskId} has no workspace — cannot provision`);
 
-  const hint: WorkspaceHint | undefined = workspaceRow
-    ? { id: workspaceRow.id, type: workspaceRow.type, path: workspaceRow.path ?? undefined }
-    : undefined;
+  const workspaceRow = await db
+    .select()
+    .from(workspaces)
+    .where(eq(workspaces.id, row.workspaceId))
+    .then((r) => r[0]);
+
+  if (!workspaceRow) throw new Error(`Workspace ${row.workspaceId} not found for task ${taskId}`);
+
+  const hint: WorkspaceHint = {
+    id: workspaceRow.id,
+    type: workspaceRow.type,
+    path: workspaceRow.path ?? undefined,
+  };
 
   const result = await taskManager.provisionTask(
     project,
@@ -80,7 +84,7 @@ export async function provisionTask(taskId: string) {
     .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: persistData.workspaceId })
     .where(eq(tasks.id, taskId));
 
-  if (workspaceRow && !workspaceRow.path && workspacePath) {
+  if (!workspaceRow.path && workspacePath) {
     const connectionId =
       project.defaultWorkspaceType.kind === 'ssh'
         ? project.defaultWorkspaceType.connectionId
@@ -96,7 +100,7 @@ export async function provisionTask(taskId: string) {
       .where(eq(workspaces.id, workspaceRow.id));
   }
 
-  if (workspaceRow?.type === 'byoi' && persistData.workspaceProviderData) {
+  if (workspaceRow.type === 'byoi' && persistData.workspaceProviderData) {
     await db
       .update(workspaces)
       .set({

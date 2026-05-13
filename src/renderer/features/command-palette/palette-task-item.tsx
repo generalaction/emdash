@@ -2,6 +2,7 @@ import { Command } from 'cmdk';
 import { GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
+import { taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
 import type { TaskStore } from '@renderer/features/tasks/stores/task-store';
 
 const ITEM_CLASS =
@@ -16,7 +17,7 @@ export const PaletteTaskItem = observer(function PaletteTaskItem({
   value: string;
   onSelect: () => void;
 }) {
-  const status = taskStore.provisionedTask?.conversations.taskStatus ?? null;
+  const status = taskAgentStatus(taskStore);
 
   return (
     <Command.Item value={value} onSelect={onSelect} className={ITEM_CLASS}>
