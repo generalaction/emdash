@@ -5,7 +5,9 @@ import type { ManagedWorktreesSummary } from '@shared/worktree-cleanup';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
 import { Button } from '@renderer/lib/ui/button';
+import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import { cn } from '@renderer/utils/utils';
@@ -32,7 +34,11 @@ function groupWorktreesByProject(worktrees: ManagedWorktree[]): WorktreeGroup[] 
   const groups = new Map<string, WorktreeGroup>();
 
   for (const worktree of worktrees) {
-    const key = worktree.projectId ?? worktree.projectName ?? 'unknown-project';
+    const key = worktree.projectId
+      ? `id:${worktree.projectId}`
+      : worktree.projectName
+        ? `name:${worktree.projectName}`
+        : 'unknown-project';
     const label = worktree.projectName ?? 'Unknown project';
     const groupPath = getDirectoryName(worktree.path);
     const existing = groups.get(key);
@@ -149,6 +155,14 @@ export default function WorktreeCleanupSettingsCard() {
     [summary?.worktrees]
   );
 
+  const persistedAutoCleanup = value?.autoCleanupEnabled ?? defaults?.autoCleanupEnabled;
+  const [autoCleanupEnabled, setAutoCleanupEnabled] = React.useState<boolean>(
+    persistedAutoCleanup ?? false
+  );
+  React.useEffect(() => {
+    if (typeof persistedAutoCleanup === 'boolean') setAutoCleanupEnabled(persistedAutoCleanup);
+  }, [persistedAutoCleanup]);
+
   if (!defaults) return null;
   const settings = value ?? defaults;
 
@@ -169,51 +183,93 @@ export default function WorktreeCleanupSettingsCard() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4">
         <SettingRow
-          title="Max worktrees"
-          description="Maximum number of Emdash-managed worktrees to retain across all local workspaces. Older eligible worktrees are removed first."
+          title="Automatic cleanup"
+          description="Periodically remove eligible managed worktrees that exceed the limits below. When off, cleanup only runs when you trigger it manually."
           control={
             <>
               <ResetToDefaultButton
-                visible={isFieldOverridden('maxWorktrees')}
-                defaultLabel={String(defaults.maxWorktrees)}
-                onReset={() => resetField('maxWorktrees')}
+                visible={isFieldOverridden('autoCleanupEnabled')}
+                defaultLabel={defaults.autoCleanupEnabled ? 'On' : 'Off'}
+                onReset={() => resetField('autoCleanupEnabled')}
                 disabled={busy}
               />
-              <NumberStepper
-                value={settings.maxWorktrees}
-                min={1}
-                max={500}
-                step={1}
+              <Switch
+                checked={autoCleanupEnabled}
                 disabled={busy}
-                label="Maximum worktrees"
-                onChange={(maxWorktrees) => update({ maxWorktrees })}
+                onCheckedChange={(next) => {
+                  if (next && !autoCleanupEnabled) {
+                    showConfirm({
+                      title: 'Enable automatic cleanup?',
+                      description:
+                        'Emdash will periodically delete eligible archived, orphaned, or missing managed worktrees in the background once the limits below are exceeded. Active tasks are never touched.',
+                      confirmLabel: 'Enable',
+                      variant: 'destructive',
+                      onSuccess: () => {
+                        setAutoCleanupEnabled(true);
+                        update({ autoCleanupEnabled: true });
+                      },
+                    });
+                    return;
+                  }
+                  setAutoCleanupEnabled(next);
+                  update({ autoCleanupEnabled: next });
+                }}
               />
             </>
           }
         />
-        <SettingRow
-          title="Max total size"
-          description="Maximum total size, in GB, across all Emdash-managed local worktrees. Set to 0 to disable the size limit."
-          control={
-            <>
-              <ResetToDefaultButton
-                visible={isFieldOverridden('maxTotalSizeGb')}
-                defaultLabel={String(defaults.maxTotalSizeGb)}
-                onReset={() => resetField('maxTotalSizeGb')}
-                disabled={busy}
+        <AnimatedHeight>
+          {autoCleanupEnabled && (
+            <div className="flex flex-col gap-4 pt-4">
+              <SettingRow
+                title="Max worktrees"
+                description="Maximum number of Emdash-managed worktrees to retain across all local workspaces. Older eligible worktrees are removed first."
+                control={
+                  <>
+                    <ResetToDefaultButton
+                      visible={isFieldOverridden('maxWorktrees')}
+                      defaultLabel={String(defaults.maxWorktrees)}
+                      onReset={() => resetField('maxWorktrees')}
+                      disabled={busy}
+                    />
+                    <NumberStepper
+                      value={settings.maxWorktrees}
+                      min={1}
+                      max={500}
+                      step={1}
+                      disabled={busy}
+                      label="Maximum worktrees"
+                      onChange={(maxWorktrees) => update({ maxWorktrees })}
+                    />
+                  </>
+                }
               />
-              <NumberStepper
-                value={settings.maxTotalSizeGb}
-                min={0}
-                max={10_000}
-                step={5}
-                disabled={busy}
-                label="Maximum total size in GB"
-                onChange={(maxTotalSizeGb) => update({ maxTotalSizeGb })}
+              <SettingRow
+                title="Max total size"
+                description="Maximum total size, in GB, across all Emdash-managed local worktrees. Set to 0 to disable the size limit."
+                control={
+                  <>
+                    <ResetToDefaultButton
+                      visible={isFieldOverridden('maxTotalSizeGb')}
+                      defaultLabel={String(defaults.maxTotalSizeGb)}
+                      onReset={() => resetField('maxTotalSizeGb')}
+                      disabled={busy}
+                    />
+                    <NumberStepper
+                      value={settings.maxTotalSizeGb}
+                      min={0}
+                      max={10_000}
+                      step={5}
+                      disabled={busy}
+                      label="Maximum total size in GB"
+                      onChange={(maxTotalSizeGb) => update({ maxTotalSizeGb })}
+                    />
+                  </>
+                }
               />
-            </>
-          }
-        />
+            </div>
+          )}
+        </AnimatedHeight>
       </div>
 
       <div className="flex flex-col gap-3">

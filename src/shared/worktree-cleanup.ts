@@ -4,6 +4,7 @@ export type ManagedWorktree = {
   taskName: string | null;
   projectId: string | null;
   projectName: string | null;
+  projectPath: string | null;
   branch: string | null;
   path: string;
   sizeBytes: number;

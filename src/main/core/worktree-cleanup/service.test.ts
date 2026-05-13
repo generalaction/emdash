@@ -50,7 +50,12 @@ vi.mock('../settings/settings-service', () => ({
   appSettingsService: {
     get: vi.fn((key: string) => {
       if (key === 'localProject') return Promise.resolve({ defaultWorktreeDirectory });
-      if (key === 'worktreeCleanup') return Promise.resolve({ maxWorktrees: 0, maxTotalSizeGb: 0 });
+      if (key === 'worktreeCleanup')
+        return Promise.resolve({
+          autoCleanupEnabled: true,
+          maxWorktrees: 0,
+          maxTotalSizeGb: 0,
+        });
       return Promise.resolve({});
     }),
   },

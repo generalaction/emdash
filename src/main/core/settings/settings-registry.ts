@@ -57,6 +57,7 @@ export const SETTINGS_DEFAULTS = {
     enabled: false,
   },
   worktreeCleanup: {
+    autoCleanupEnabled: false,
     maxWorktrees: 20,
     maxTotalSizeGb: 50,
   },

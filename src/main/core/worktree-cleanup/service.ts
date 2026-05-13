@@ -1,5 +1,7 @@
+import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { basenameFromAnyPath, safePathSegment } from '@shared/path-name';
 import type {
   ListManagedWorktreesOptions,
@@ -10,10 +12,13 @@ import { sqlite } from '@main/db/client';
 import { log } from '@main/lib/logger';
 import { appSettingsService } from '../settings/settings-service';
 
+const execFileAsync = promisify(execFile);
+
 const CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
 const STARTUP_CLEANUP_DELAY_MS = 30 * 1000;
 const MANAGED_WORKTREES_CACHE_TTL_MS = 30 * 1000;
 const ONE_GB = 1024 * 1024 * 1024;
+const DIRECTORY_SIZE_CONCURRENCY = 4;
 
 type WorktreeRow = {
   workspaceId: string;
@@ -120,6 +125,33 @@ async function exists(absPath: string): Promise<boolean> {
   }
 }
 
+function createConcurrencyLimiter(limit: number): <T>(task: () => Promise<T>) => Promise<T> {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  const next = () => {
+    active--;
+    queue.shift()?.();
+  };
+  return <T>(task: () => Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const run = () => {
+        active++;
+        task().then(
+          (value) => {
+            next();
+            resolve(value);
+          },
+          (error) => {
+            next();
+            reject(error);
+          }
+        );
+      };
+      if (active < limit) run();
+      else queue.push(run);
+    });
+}
+
 async function directorySize(absPath: string): Promise<number> {
   let total = 0;
   const entries = await fs.readdir(absPath, { withFileTypes: true }).catch(() => []);
@@ -208,28 +240,37 @@ export class WorktreeCleanupService {
     | { expiresAt: number; summary: ManagedWorktreesSummary }
     | undefined;
   private managedWorktreesRefresh: Promise<ManagedWorktreesSummary> | undefined;
+  private readonly limitDirectorySize = createConcurrencyLimiter(DIRECTORY_SIZE_CONCURRENCY);
 
   initialize(): void {
     if (this.timer) return;
     this.timer = setInterval(() => {
-      void this.cleanup().catch((error) => {
-        log.warn('worktree-cleanup: periodic cleanup failed', { error: String(error) });
-      });
+      void this.runScheduledCleanup('periodic');
     }, CLEANUP_INTERVAL_MS);
     this.timer.unref?.();
     this.startupTimer = setTimeout(() => {
       this.startupTimer = undefined;
-      void this.cleanup().catch((error) => {
-        log.warn('worktree-cleanup: startup cleanup failed', { error: String(error) });
-      });
+      void this.runScheduledCleanup('startup');
     }, STARTUP_CLEANUP_DELAY_MS);
     this.startupTimer.unref?.();
+  }
+
+  private async runScheduledCleanup(reason: 'startup' | 'periodic'): Promise<void> {
+    const settings = await appSettingsService.get('worktreeCleanup').catch(() => undefined);
+    if (!settings?.autoCleanupEnabled) return;
+    await this.cleanup().catch((error) => {
+      log.warn(`worktree-cleanup: ${reason} cleanup failed`, { error: String(error) });
+    });
   }
 
   private cacheSummary(summary: ManagedWorktreesSummary): void {
     this.managedWorktreesCache = {
       expiresAt: Date.now() + MANAGED_WORKTREES_CACHE_TTL_MS,
-      summary,
+      summary: {
+        ...summary,
+        cleanedCount: 0,
+        cleanedSizeBytes: 0,
+      },
     };
   }
 
@@ -278,13 +319,16 @@ export class WorktreeCleanupService {
       rows.map(async (row): Promise<ManagedWorktree> => {
         const pathOnDisk = await exists(row.path);
         const status = classify(row, pathOnDisk);
-        const sizeBytes = pathOnDisk ? await directorySize(row.path) : 0;
+        const sizeBytes = pathOnDisk
+          ? await this.limitDirectorySize(() => directorySize(row.path))
+          : 0;
         return {
           workspaceId: row.workspaceId,
           taskId: row.taskId,
           taskName: row.taskName,
           projectId: row.projectId,
           projectName: row.projectName,
+          projectPath: row.projectPath,
           branch: row.taskBranch,
           path: row.path,
           sizeBytes,
@@ -300,7 +344,10 @@ export class WorktreeCleanupService {
     const localWorktreeDefault = (await appSettingsService.get('localProject'))
       .defaultWorktreeDirectory;
     const projects = readLocalProjects();
-    const roots = new Map<string, LocalProjectRow | undefined>();
+    // Only scan project-specific roots (`<base>/<safePathSegment(name,id)>`).
+    // Scanning the bare default worktree directory would treat unrelated git repos
+    // sitting in the user's chosen folder as orphaned Emdash worktrees.
+    const roots = new Map<string, LocalProjectRow>();
 
     for (const project of projects) {
       const configured = parseConfiguredWorktreeDirectory(project.baseProjectSettingsJson);
@@ -311,8 +358,6 @@ export class WorktreeCleanupService {
       );
       roots.set(path.resolve(root), project);
     }
-    const defaultRoot = path.resolve(localWorktreeDefault);
-    if (!roots.has(defaultRoot)) roots.set(defaultRoot, undefined);
 
     const orphans = (
       await Promise.all(
@@ -330,11 +375,12 @@ export class WorktreeCleanupService {
                 workspaceId: `path:${resolvedPath}`,
                 taskId: null,
                 taskName: displayName,
-                projectId: project?.projectId ?? null,
-                projectName: project?.projectName ?? path.basename(path.dirname(worktreePath)),
+                projectId: project.projectId,
+                projectName: project.projectName,
+                projectPath: project.projectPath,
                 branch: null,
                 path: worktreePath,
-                sizeBytes: await directorySize(worktreePath),
+                sizeBytes: await this.limitDirectorySize(() => directorySize(worktreePath)),
                 updatedAt,
                 lastInteractedAt: null,
                 archivedAt: null,
@@ -407,6 +453,18 @@ export class WorktreeCleanupService {
           error: String(error),
         });
       });
+    }
+    if (worktree.projectPath) {
+      // Clear the dangling .git/worktrees/<name> metadata in the parent repo so that
+      // `git worktree list` and future operations don't trip over the removed worktree.
+      await execFileAsync('git', ['-C', worktree.projectPath, 'worktree', 'prune']).catch(
+        (error) => {
+          log.warn('worktree-cleanup: git worktree prune failed', {
+            projectPath: worktree.projectPath,
+            error: String(error),
+          });
+        }
+      );
     }
     if (worktree.taskId) {
       sqlite
