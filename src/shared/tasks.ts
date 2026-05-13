@@ -36,9 +36,8 @@ export type Task = {
   isPinned: boolean;
   prs: PullRequest[];
   conversations: Record<string, number>;
-  workspaceProvider?: 'byoi';
+  workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
-  workspaceProviderData?: string; // JSON, BYOI only
 };
 
 export type TaskBootstrapStatus =

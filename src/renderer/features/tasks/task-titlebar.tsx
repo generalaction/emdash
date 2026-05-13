@@ -23,7 +23,11 @@ import {
   taskDisplayName,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspace,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
@@ -90,8 +94,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
 }) {
   const taskStore = getTaskStore(projectId, taskId)!;
   const taskPayload = getRegisteredTaskData(projectId, taskId)!;
-  const provisionedTask = useProvisionedTask();
-  const { taskView } = provisionedTask;
+  const workspace = useWorkspace();
+  const taskView = useWorkspaceViewModel();
 
   const {
     hasUpstream,
@@ -123,7 +127,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 <span className="text-sm text-foreground-passive">/</span>
                 <span className="flex items-center gap-1.5 min-w-0">
                   <span className="truncate max-w-56">{taskDisplayName(taskStore)}</span>
-                  <ConnectionStatusDot state={provisionedTask.workspace.connectionState} />
+                  <ConnectionStatusDot state={workspace.connectionState} />
                 </span>
               </span>
               <ChevronDown className="size-3.5 shrink-0" />
@@ -136,7 +140,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <div className="flex flex-col gap-1 border border-border rounded-md p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
-                  <span>{provisionedTask.workspace.git.branchName}</span>
+                  <span>{workspace.git.branchName}</span>
                 </span>
                 {taskPayload.sourceBranch && (
                   <span className="flex items-center gap-2 text-foreground-passive">
@@ -254,8 +258,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   void taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                repositoryUrl={provisionedTask.repositoryStore.repositoryUrl ?? ''}
-                projectPath={provisionedTask.path}
+                repositoryUrl={workspace.repository.repositoryUrl ?? ''}
+                projectPath={workspace.path}
                 excludeTaskId={taskId}
               />
             </PopoverContent>
@@ -279,7 +283,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         <div className="flex items-center gap-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
           {!isRemoteProject && (
-            <OpenInMenu path={provisionedTask.path} className="h-7 bg-background" borderless />
+            <OpenInMenu path={workspace.path} className="h-7 bg-background" borderless />
           )}
           <Separator orientation="vertical" className="h-5 self-center!" />
           <Tooltip>

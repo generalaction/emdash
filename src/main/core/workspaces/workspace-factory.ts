@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { getTaskEnvVars } from '@shared/task/envVars';
 import type { Task } from '@shared/tasks';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
@@ -13,6 +14,7 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { RemoteStatusFingerprintPoller } from '@main/core/git/remote-status-fingerprint-poller';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
+import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
@@ -20,6 +22,8 @@ import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
+import { db } from '@main/db/client';
+import { workspaces as workspacesTable } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
@@ -159,10 +163,31 @@ export function createWorkspaceFactory(
       workspace,
 
       onCreateSideEffect: (ws) => {
+        ws.git.on('status:updated', async (status) => {
+          let unstagedAdded = 0;
+          let unstagedDeleted = 0;
+          for (const c of status.unstaged) {
+            unstagedAdded += c.additions;
+            unstagedDeleted += c.deletions;
+          }
+          try {
+            await db
+              .update(workspacesTable)
+              .set({
+                linesAdded: status.totalAdded + unstagedAdded,
+                linesDeleted: status.totalDeleted + unstagedDeleted,
+              })
+              .where(eq(workspacesTable.id, workspaceId));
+          } catch (e) {
+            log.warn('Failed to cache workspace git stats', { workspaceId, error: String(e) });
+          }
+        });
+
         if (ownsFetchService) {
           fetchService.start();
         }
         statusPoller?.start();
+        void workspaceFileIndexService.onWorkspaceCreated(workspaceId, ws);
         if (scripts?.setup) {
           void ws.lifecycleService.prepareAndRunLifecycleScript({
             type: 'setup',
@@ -187,6 +212,7 @@ export function createWorkspaceFactory(
         if (ownsFetchService) {
           fetchService.stop();
         }
+        workspaceFileIndexService.onWorkspaceDestroyed(workspaceId);
         if (scripts?.teardown) {
           try {
             await withTimeout(

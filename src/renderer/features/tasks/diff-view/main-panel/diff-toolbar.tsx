@@ -1,14 +1,14 @@
 import { AlignJustify, Columns2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
 export const DiffToolbar = observer(function DiffToolbar() {
-  const diffView = useProvisionedTask().taskView.diffView;
-  const diffStyle = diffView.diffStyle;
-  const activeFile = diffView.activeFile;
+  const diffView = useWorkspaceViewModel().diffView;
+  const diffStyle = diffView?.diffStyle;
+  const activeFile = diffView?.activeFile;
 
   const diffSourceLabel = useMemo(() => {
     if (activeFile?.group === 'staged') return 'Staged';
@@ -17,6 +17,8 @@ export const DiffToolbar = observer(function DiffToolbar() {
     if (activeFile?.group === 'git') return 'Git';
     return undefined;
   }, [activeFile?.group]);
+
+  if (!diffView || !diffStyle) return null;
 
   return (
     <div className="flex h-[41px] items-center gap-2 border-b border-border px-2 justify-between bg-background-secondary-1">

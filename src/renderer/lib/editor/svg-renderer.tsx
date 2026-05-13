@@ -1,7 +1,7 @@
 import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
@@ -14,7 +14,7 @@ interface SvgRendererProps {
  * Renders an SVG file as an image.
  */
 export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRendererProps) {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const { editorView, tabManager } = taskView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
 

@@ -18,7 +18,10 @@ import type {
   ResolvedDiffTab,
   ResolvedFileTab,
 } from '@renderer/features/tasks/tabs/tab-manager-store';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
@@ -286,8 +289,8 @@ const DiffTabItem = observer(function DiffTabItem({
 });
 
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
-  const { taskView } = useProvisionedTask();
-  const { projectId, taskId } = useTaskViewContext();
+  const taskView = useWorkspaceViewModel();
+  const { projectId, taskId, workspaceId } = useTaskViewContext();
   const { tabManager } = taskView;
   const showCommandPalette = useShowModal('commandPaletteModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
@@ -390,7 +393,9 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
         <Button
           size="icon-sm"
           variant="ghost"
-          onClick={() => showCommandPalette({ projectId, taskId })}
+          onClick={() =>
+            showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined })
+          }
           className="flex h-full items-center justify-center px-2 text-foreground-muted hover:text-foreground hover:bg-background-secondary-1/40"
           aria-label="Open files"
           title="Open files"

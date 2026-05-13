@@ -1,4 +1,5 @@
-import { sql } from 'drizzle-orm';
+import crypto from 'node:crypto';
+import { eq, sql } from 'drizzle-orm';
 import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import { err, ok, type Result } from '@shared/result';
 import type {
@@ -12,7 +13,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { tasks, workspaces } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
 import { createConversation } from '../../conversations/createConversation';
 import { prQueryService } from '../../pull-requests/pr-query-service';
@@ -217,7 +218,19 @@ export async function createTask(
 
   taskEvents._emit('task:created', task);
 
-  const provisionResult = await taskManager.provisionTask(project, task, [], []);
+  const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
+    if (params.workspaceProvider === 'byoi') return 'byoi';
+    if (project.defaultWorkspaceType.kind === 'ssh') return 'project-ssh';
+    return 'local';
+  })();
+  const workspaceId = crypto.randomUUID();
+  await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
+  await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
+
+  const provisionResult = await taskManager.provisionTask(project, task, [], [], {
+    id: workspaceId,
+    type: workspaceType,
+  });
   if (!provisionResult.success) {
     return err(mapProvisionError(provisionResult.error));
   }
@@ -261,5 +274,5 @@ export async function createTask(
     });
   }
 
-  return ok({ task, warning });
+  return ok({ task: { ...task, workspaceId }, warning });
 }

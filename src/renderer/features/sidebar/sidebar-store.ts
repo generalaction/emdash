@@ -10,7 +10,7 @@ import {
   registeredTaskData,
   unregisteredTaskData,
   type TaskStore,
-} from '@renderer/features/tasks/stores/task';
+} from '@renderer/features/tasks/stores/task-store';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 
 function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
