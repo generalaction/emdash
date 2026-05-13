@@ -43,12 +43,14 @@ export const APP_SHORTCUTS = defineShortcuts({
     label: 'Next Task (Switcher)',
     description: 'Switch to the next task in switcher order',
     category: 'Navigation',
+    hideFromSettings: true,
   },
   switcherPrevTask: {
     defaultHotkey: 'Ctrl+Shift+Tab',
     label: 'Previous Task (Switcher)',
     description: 'Switch to the previous task in switcher order',
     category: 'Navigation',
+    hideFromSettings: true,
   },
   settings: {
     defaultHotkey: 'Mod+,',
