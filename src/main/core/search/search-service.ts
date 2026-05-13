@@ -70,7 +70,7 @@ class SearchService {
 
     if (terms.length === 0) return this.recents(context);
 
-    const ftsQuery = terms.join(' AND ');
+    const ftsQuery = terms.map((t) => `"${t}"`).join(' AND ');
 
     let rows: FtsRow[];
     try {

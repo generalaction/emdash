@@ -70,8 +70,10 @@ class WorkspaceFileIndexService {
     await this.crawl(workspaceId, workspace);
   }
 
-  onWorkspaceDestroyed(workspaceId: string): void {
-    this.touchMeta(workspaceId);
+  onWorkspaceDestroyed(_workspaceId: string): void {
+    // Intentionally a no-op: the index ages out 14 days after the last provision.
+    // Calling touchMeta here would reset the staleness clock on every destroy,
+    // preventing eviction of stale entries for frequently-cycled workspaces.
   }
 
   search(workspaceId: string, query: string): FileHit[] {
@@ -82,7 +84,7 @@ class WorkspaceFileIndexService {
 
     if (terms.length === 0) return [];
 
-    const ftsQuery = terms.join(' AND ');
+    const ftsQuery = terms.map((t) => `"${t}"`).join(' AND ');
     try {
       return sqlite
         .prepare(

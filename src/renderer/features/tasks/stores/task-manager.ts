@@ -441,7 +441,10 @@ export class TaskManagerStore {
     });
 
     try {
-      if (action === 'adopt' && candidatePath) {
+      if (action === 'adopt') {
+        if (!candidatePath) {
+          throw new Error('adoptWorktree called without a candidatePath');
+        }
         await rpc.workspaces.adoptWorktree({ projectId: this.projectId, taskId, candidatePath });
       } else if (action === 'create') {
         await rpc.workspaces.createWorktree({ projectId: this.projectId, taskId });
