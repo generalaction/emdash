@@ -1,7 +1,7 @@
 import { Command } from 'cmdk';
 import { GitBranch } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { sortTasksForSwitcher, type SwitcherTask } from '@shared/project-switcher';
 import {
   asMounted,
@@ -12,6 +12,7 @@ import { registeredTaskData, type TaskStore } from '@renderer/features/tasks/sto
 import { taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import { cn } from '@renderer/utils/utils';
 
 const GROUP_CLASS = cn(
@@ -26,12 +27,12 @@ interface ProjectWithTasks {
   tasks: Array<{ store: TaskStore; data: SwitcherTask }>;
 }
 
-interface ProjectSwitcherProps {
-  currentTaskId?: string;
-}
-
-function useProjectsWithTasks(excludeTaskId?: string): ProjectWithTasks[] {
+function useProjectsWithTasks(): ProjectWithTasks[] {
   return useObserver(() => {
+    const nav = appState.navigation;
+    const navParams = nav.viewParamsStore['task'] as { taskId?: string } | undefined;
+    const currentTaskId = nav.currentViewId === 'task' ? navParams?.taskId : undefined;
+
     const result: ProjectWithTasks[] = [];
     for (const store of getProjectManagerStore().projects.values()) {
       const mounted = asMounted(store);
@@ -39,7 +40,7 @@ function useProjectsWithTasks(excludeTaskId?: string): ProjectWithTasks[] {
       const tasks: ProjectWithTasks['tasks'] = [];
       for (const taskStore of mounted.taskManager.tasks.values()) {
         const task = registeredTaskData(taskStore);
-        if (!task || task.archivedAt || task.id === excludeTaskId) continue;
+        if (!task || task.archivedAt) continue;
         tasks.push({
           store: taskStore,
           data: {
@@ -53,10 +54,17 @@ function useProjectsWithTasks(excludeTaskId?: string): ProjectWithTasks[] {
       if (tasks.length > 0) {
         const sorted = sortTasksForSwitcher(tasks.map((t) => t.data));
         const byId = new Map(tasks.map((t) => [t.data.id, t]));
+        const ordered = sorted.map((s) => byId.get(s.id)!);
+        // Move current task to end
+        const currentIdx = ordered.findIndex((t) => t.data.id === currentTaskId);
+        if (currentIdx !== -1) {
+          const [current] = ordered.splice(currentIdx, 1);
+          ordered.push(current);
+        }
         result.push({
           id: mounted.data.id,
           name: store.name ?? mounted.data.id,
-          tasks: sorted.map((s) => byId.get(s.id)!),
+          tasks: ordered,
         });
       }
     }
@@ -64,10 +72,40 @@ function useProjectsWithTasks(excludeTaskId?: string): ProjectWithTasks[] {
   });
 }
 
-export function ProjectSwitcherModal({ currentTaskId, onClose }: ProjectSwitcherProps & BaseModalProps) {
+export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
   const [query, setQuery] = useState('');
   const { navigate } = useNavigate();
-  const projects = useProjectsWithTasks(currentTaskId);
+  const projects = useProjectsWithTasks();
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Ctrl+Tab cycling: Tab moves selection, releasing Ctrl confirms
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab' && e.ctrlKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Dispatch arrow key to move cmdk selection
+        const arrow = new KeyboardEvent('keydown', {
+          key: e.shiftKey ? 'ArrowUp' : 'ArrowDown',
+          bubbles: true,
+        });
+        listRef.current?.dispatchEvent(arrow);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        // Confirm the currently highlighted item
+        const selected = listRef.current?.querySelector('[aria-selected="true"]') as HTMLElement | null;
+        selected?.click();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+    };
+  }, []);
 
   return (
     <Command className="flex flex-col overflow-hidden" shouldFilter loop>
@@ -80,7 +118,7 @@ export function ProjectSwitcherModal({ currentTaskId, onClose }: ProjectSwitcher
           autoFocus
         />
       </div>
-      <Command.List className="h-96 overflow-y-auto p-1">
+      <Command.List ref={listRef} className="h-96 overflow-y-auto p-1">
         <Command.Empty className="py-8 text-center text-sm text-foreground/40">
           No tasks found
         </Command.Empty>

@@ -38,6 +38,18 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open the project switcher to quickly switch between tasks and projects',
     category: 'Navigation',
   },
+  switcherNextTask: {
+    defaultHotkey: 'Ctrl+Tab',
+    label: 'Next Task (Switcher)',
+    description: 'Switch to the next task in switcher order',
+    category: 'Navigation',
+  },
+  switcherPrevTask: {
+    defaultHotkey: 'Ctrl+Shift+Tab',
+    label: 'Previous Task (Switcher)',
+    description: 'Switch to the previous task in switcher order',
+    category: 'Navigation',
+  },
   settings: {
     defaultHotkey: 'Mod+,',
     label: 'Settings',
