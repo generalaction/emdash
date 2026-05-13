@@ -104,8 +104,20 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 
-  it('does not write project-local Codex notify config', async () => {
+  it('writes the Codex notify config and ignores it in git', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('codex');
+
+    expect(fs.files.get('.codex/config.toml')).toContain('notify =');
+    expect(fs.files.get('.codex/config.toml')).toContain('EMDASH_HOOK_PORT');
+    expect(fs.files.get('.gitignore')).toBe('.codex/config.toml\n');
+  });
+
+  it('skips the Codex notify config when codex is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
     const fs = new MemoryFs();
     const writer = makeWriter(fs);
 
