@@ -77,6 +77,11 @@ export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
   const { navigate } = useNavigate();
   const projects = useProjectsWithTasks();
   const listRef = useRef<HTMLDivElement>(null);
+  const currentTaskId = useObserver(() => {
+    const nav = appState.navigation;
+    const navParams = nav.viewParamsStore['task'] as { taskId?: string } | undefined;
+    return nav.currentViewId === 'task' ? navParams?.taskId : undefined;
+  });
 
   // Ctrl+Tab cycling: Tab moves selection, releasing Ctrl confirms
   useEffect(() => {
@@ -140,6 +145,9 @@ export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
               >
                 <GitBranch size={14} className="shrink-0 text-foreground/40" />
                 <span className="flex-1 truncate">{data.name}</span>
+                {data.id === currentTaskId && (
+                  <span className="shrink-0 text-xs text-foreground/40">current</span>
+                )}
                 <AgentStatusIndicator
                   status={taskAgentStatus(store)}
                   disableTooltip
