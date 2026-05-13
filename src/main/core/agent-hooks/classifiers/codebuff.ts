@@ -1,6 +1,6 @@
 import { createProviderClassifier, type ClassificationResult } from './base';
 
-export function createCodebuffClassifier() {
+function createCodebuffLikeClassifier(promptName: 'codebuff' | 'freebuff') {
   return createProviderClassifier((text: string): ClassificationResult => {
     const tail = text.slice(-500);
 
@@ -20,7 +20,7 @@ export function createCodebuffClassifier() {
       };
     }
 
-    if (/codebuff\s*>/i.test(tail)) {
+    if (new RegExp(`${promptName}\\s*>`, 'i').test(tail)) {
       return {
         type: 'notification',
         notificationType: 'idle_prompt',
@@ -52,4 +52,12 @@ export function createCodebuffClassifier() {
 
     return undefined;
   });
+}
+
+export function createCodebuffClassifier() {
+  return createCodebuffLikeClassifier('codebuff');
+}
+
+export function createFreebuffClassifier() {
+  return createCodebuffLikeClassifier('freebuff');
 }
