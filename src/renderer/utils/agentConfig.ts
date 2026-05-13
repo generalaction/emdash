@@ -64,6 +64,7 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
   continue: { name: 'Continue', logo: continueLogo, alt: 'Continue CLI' },
   codebuff: { name: 'Codebuff', logo: codebuffLogo, alt: 'Codebuff CLI' },
+  freebuff: { name: 'Freebuff', logo: codebuffLogo, alt: 'Freebuff CLI' },
   jules: {
     name: 'Jules',
     logo: julesLogoSvg,
