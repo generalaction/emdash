@@ -167,15 +167,21 @@ export function createWorkspaceFactory(
           void ws.lifecycleService.prepareAndRunLifecycleScript({
             type: 'setup',
             script: scripts.setup,
+            shellSetup,
           });
         }
         if (scripts?.run) {
-          void ws.lifecycleService.prepareLifecycleScript({ type: 'run', script: scripts.run });
+          void ws.lifecycleService.prepareLifecycleScript({
+            type: 'run',
+            script: scripts.run,
+            shellSetup,
+          });
         }
         if (scripts?.teardown) {
           void ws.lifecycleService.prepareLifecycleScript({
             type: 'teardown',
             script: scripts.teardown,
+            shellSetup,
           });
         }
       },
@@ -187,11 +193,19 @@ export function createWorkspaceFactory(
         if (ownsFetchService) {
           fetchService.stop();
         }
-        if (scripts?.teardown) {
+        const latestTaskSettings = await getEffectiveTaskSettings({
+          projectSettings: context.settings,
+          taskFs: ws.fs,
+        });
+        const latestProjectSettings = await context.settings.get();
+        const latestShellSetup = latestTaskSettings.shellSetup ?? latestProjectSettings.shellSetup;
+        const teardownScript = latestTaskSettings.scripts?.teardown;
+
+        if (teardownScript) {
           try {
             await withTimeout(
               ws.lifecycleService.runLifecycleScript(
-                { type: 'teardown', script: scripts.teardown },
+                { type: 'teardown', script: teardownScript, shellSetup: latestShellSetup },
                 { waitForExit: true, exit: true }
               ),
               TEARDOWN_SCRIPT_WAIT_MS

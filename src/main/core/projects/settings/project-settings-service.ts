@@ -1,3 +1,4 @@
+import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
 import type {
   ProjectSettings,
   ProjectSettingsPage,
@@ -5,6 +6,7 @@ import type {
 } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
+import { events } from '@main/lib/events';
 import { projectManager } from '../project-manager';
 import type { ProjectProvider } from '../project-provider';
 import { computeProjectSettingsOverrideState } from './sharing/project-settings-override-state';
@@ -49,6 +51,7 @@ export async function updateProjectSettings(
 
   const result = await project.data.settings.update(settings);
   if (!result.success) return result;
+  events.emit(projectSettingsChangedChannel, { projectId });
   return ok(await project.data.settings.get());
 }
 
@@ -63,5 +66,6 @@ export async function shareProjectSettingsToConfig(
   const result = await writeSharedProjectSettingsToConfig(project.data, request, resolvedTargets);
   if (!result.success) return result;
 
+  events.emit(projectSettingsChangedChannel, { projectId });
   return ok(await getProjectSettingsPageForProject(project.data));
 }

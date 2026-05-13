@@ -1,6 +1,6 @@
 import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { createScriptTerminalId } from '@shared/terminals';
+import { createLifecycleScriptTerminalId } from '@shared/terminals';
 import { events } from '@main/lib/events';
 import type { IDisposable } from '@main/lib/lifecycle';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
@@ -12,6 +12,7 @@ const DEFAULT_ROWS = 24;
 type LifecycleScript = {
   type: 'setup' | 'run' | 'teardown';
   script: string;
+  shellSetup?: string;
 };
 
 export class LifecycleScriptService implements IDisposable {
@@ -34,16 +35,11 @@ export class LifecycleScriptService implements IDisposable {
     this.terminals = terminals;
   }
 
-  private async resolveIds(script: LifecycleScript): Promise<{
+  private resolveIds(script: Pick<LifecycleScript, 'type'>): {
     terminalId: string;
     sessionId: string;
-  }> {
-    const terminalId = await createScriptTerminalId({
-      projectId: this.projectId,
-      scopeId: this.workspaceId,
-      type: script.type,
-      script: script.script,
-    });
+  } {
+    const terminalId = createLifecycleScriptTerminalId(script.type);
     const sessionId = makePtySessionId(this.projectId, this.workspaceId, terminalId);
     return { terminalId, sessionId };
   }
@@ -53,7 +49,7 @@ export class LifecycleScriptService implements IDisposable {
     options: { initialSize?: { cols: number; rows: number } } = {}
   ): Promise<void> {
     const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS } } = options;
-    const { terminalId } = await this.resolveIds(script);
+    const { terminalId } = this.resolveIds(script);
 
     await this.terminals.spawnLifecycleScript({
       terminal: {
@@ -62,6 +58,7 @@ export class LifecycleScriptService implements IDisposable {
         taskId: this.workspaceId,
         name: script.type,
       },
+      shellSetup: script.shellSetup,
       initialSize,
       respawnOnExit: false,
       preserveBufferOnExit: true,
@@ -83,7 +80,7 @@ export class LifecycleScriptService implements IDisposable {
       initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     } = options;
 
-    const { sessionId } = await this.resolveIds(script);
+    const { sessionId } = this.resolveIds(script);
 
     if (!ptySessionRegistry.get(sessionId)) {
       await this.prepareLifecycleScript(script, { initialSize });
