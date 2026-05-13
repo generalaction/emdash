@@ -3,6 +3,7 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { createLifecycleScriptTerminalId } from '@shared/terminals';
 import { events } from '@main/lib/events';
 import type { IDisposable } from '@main/lib/lifecycle';
+import type { Pty } from '../pty/pty';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 
@@ -15,10 +16,17 @@ type LifecycleScript = {
   shellSetup?: string;
 };
 
+type LifecycleRespawnRequest = {
+  script: LifecycleScript;
+  initialSize: { cols: number; rows: number };
+};
+
 export class LifecycleScriptService implements IDisposable {
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;
+  private readonly sessionsWithRespawnHandler = new Set<string>();
+  private readonly latestRespawnRequest = new Map<string, LifecycleRespawnRequest>();
   private disposed = false;
 
   constructor({
@@ -33,6 +41,34 @@ export class LifecycleScriptService implements IDisposable {
     this.projectId = projectId;
     this.workspaceId = workspaceId;
     this.terminals = terminals;
+  }
+
+  private respawnAfterExit(sessionId: string): void {
+    const respawnRequest = this.latestRespawnRequest.get(sessionId);
+    this.latestRespawnRequest.delete(sessionId);
+    this.sessionsWithRespawnHandler.delete(sessionId);
+    if (this.disposed || !respawnRequest) return;
+    void this.prepareLifecycleScript(respawnRequest.script, {
+      initialSize: respawnRequest.initialSize,
+    });
+  }
+
+  private ensureRespawnAfterExit({
+    sessionId,
+    pty,
+    script,
+    initialSize,
+  }: {
+    sessionId: string;
+    pty: Pty;
+    script: LifecycleScript;
+    initialSize: { cols: number; rows: number };
+  }): void {
+    this.latestRespawnRequest.set(sessionId, { script, initialSize });
+    if (this.sessionsWithRespawnHandler.has(sessionId)) return;
+
+    this.sessionsWithRespawnHandler.add(sessionId);
+    pty.onExit(() => this.respawnAfterExit(sessionId));
   }
 
   private resolveIds(script: Pick<LifecycleScript, 'type'>): {
@@ -94,10 +130,7 @@ export class LifecycleScriptService implements IDisposable {
     }
 
     if (exit && !waitForExit) {
-      pty.onExit(() => {
-        if (this.disposed) return;
-        void this.prepareLifecycleScript(script, { initialSize });
-      });
+      this.ensureRespawnAfterExit({ sessionId, pty, script, initialSize });
     }
 
     const exitPromise = waitForExit
@@ -129,6 +162,8 @@ export class LifecycleScriptService implements IDisposable {
 
   async dispose(): Promise<void> {
     this.disposed = true;
+    this.sessionsWithRespawnHandler.clear();
+    this.latestRespawnRequest.clear();
     await this.terminals.destroyAll();
   }
 }

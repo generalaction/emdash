@@ -102,4 +102,28 @@ describe('WorkspaceLifecycleService', () => {
     expect(requests[0].terminal.id).toBe(createLifecycleScriptTerminalId('run'));
     expect(spawned[0].writes).toEqual(['pnpm dev; exit\n', 'pnpm start; exit\n']);
   });
+
+  it('respawns with the latest shell setup after repeated exit-backed runs', async () => {
+    const { provider, spawned, requests } = makeTerminalProvider();
+    const service = new LifecycleScriptService({
+      projectId: 'project-3',
+      workspaceId: 'branch:feature',
+      terminals: provider,
+    });
+
+    await service.runLifecycleScript(
+      { type: 'run', script: 'pnpm dev', shellSetup: 'source old-env' },
+      { exit: true }
+    );
+    await service.runLifecycleScript(
+      { type: 'run', script: 'pnpm dev', shellSetup: 'source new-env' },
+      { exit: true }
+    );
+
+    spawned[0].emitExit({ exitCode: 0 });
+
+    await expect.poll(() => spawned.length).toBe(2);
+    expect(requests).toHaveLength(2);
+    expect(requests[1].shellSetup).toBe('source new-env');
+  });
 });
