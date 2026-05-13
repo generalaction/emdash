@@ -76,6 +76,20 @@ class WorkspaceFileIndexService {
     // preventing eviction of stale entries for frequently-cycled workspaces.
   }
 
+  deleteIndex(workspaceId: string): void {
+    try {
+      sqlite.transaction(() => {
+        sqlite.prepare(`DELETE FROM workspace_file_index WHERE workspace_id = ?`).run(workspaceId);
+        sqlite
+          .prepare(`DELETE FROM workspace_file_index_meta WHERE workspace_id = ?`)
+          .run(workspaceId);
+      })();
+      log.info('WorkspaceFileIndexService: deleted index', { workspaceId });
+    } catch (e) {
+      log.warn('WorkspaceFileIndexService: deleteIndex failed', { workspaceId, error: String(e) });
+    }
+  }
+
   search(workspaceId: string, query: string): FileHit[] {
     const terms = query
       .trim()
@@ -174,22 +188,52 @@ class WorkspaceFileIndexService {
         .prepare(`SELECT workspace_id FROM workspace_file_index_meta WHERE indexed_at < ?`)
         .all(cutoff) as Array<{ workspace_id: string }>;
 
-      if (stale.length === 0) return;
+      if (stale.length > 0) {
+        sqlite.transaction(() => {
+          const delIndex = sqlite.prepare(
+            `DELETE FROM workspace_file_index WHERE workspace_id = ?`
+          );
+          const delMeta = sqlite.prepare(
+            `DELETE FROM workspace_file_index_meta WHERE workspace_id = ?`
+          );
+          for (const row of stale) {
+            delIndex.run(row.workspace_id);
+            delMeta.run(row.workspace_id);
+          }
+        })();
+        log.info('WorkspaceFileIndexService: evicted stale indexes', { count: stale.length });
+      }
+    } catch (e) {
+      log.warn('WorkspaceFileIndexService: evictStale failed', { error: String(e) });
+    }
+
+    try {
+      const orphans = sqlite
+        .prepare(
+          `SELECT m.workspace_id
+           FROM workspace_file_index_meta m
+           LEFT JOIN workspaces w ON w.id = m.workspace_id
+           LEFT JOIN tasks t ON t.workspace_id = m.workspace_id AND t.archived_at IS NULL
+           WHERE w.id IS NULL OR t.id IS NULL`
+        )
+        .all() as Array<{ workspace_id: string }>;
+
+      if (orphans.length === 0) return;
 
       sqlite.transaction(() => {
         const delIndex = sqlite.prepare(`DELETE FROM workspace_file_index WHERE workspace_id = ?`);
         const delMeta = sqlite.prepare(
           `DELETE FROM workspace_file_index_meta WHERE workspace_id = ?`
         );
-        for (const row of stale) {
+        for (const row of orphans) {
           delIndex.run(row.workspace_id);
           delMeta.run(row.workspace_id);
         }
       })();
 
-      log.info('WorkspaceFileIndexService: evicted stale indexes', { count: stale.length });
+      log.info('WorkspaceFileIndexService: evicted orphan indexes', { count: orphans.length });
     } catch (e) {
-      log.warn('WorkspaceFileIndexService: evictStale failed', { error: String(e) });
+      log.warn('WorkspaceFileIndexService: evictOrphans failed', { error: String(e) });
     }
   }
 }
