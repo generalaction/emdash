@@ -86,10 +86,10 @@ export function useProjectSwitcher() {
   const switchTask = (direction: 1 | -1) => {
     const allTasks = getAllTasks();
     if (allTasks.length === 0) return;
-    const currentIdx = allTasks.findIndex((t) => t.data.id === currentTaskId);
-    const nextIdx =
-      currentIdx === -1 ? 0 : (currentIdx + direction + allTasks.length) % allTasks.length;
-    const target = allTasks[nextIdx];
+    // Filter out current task to get MRU order, then pick first (next) or last (prev)
+    const others = allTasks.filter((t) => t.data.id !== currentTaskId);
+    if (others.length === 0) return;
+    const target = direction === 1 ? others[0] : others[others.length - 1];
     navigate('task', { projectId: target.projectId, taskId: target.data.id });
   };
 
