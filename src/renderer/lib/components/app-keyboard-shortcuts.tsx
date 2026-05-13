@@ -43,20 +43,45 @@ export function AppKeyboardShortcuts() {
   const switcherNextHotkey = getEffectiveHotkey('switcherNextTask', keyboard);
   const switcherPrevHotkey = getEffectiveHotkey('switcherPrevTask', keyboard);
 
-  // Ctrl+Tab / Ctrl+Shift+Tab: navigate directly to next/prev task
-  const { switchToNext, switchToPrev } = useProjectSwitcher();
+  // Ctrl+Tab / Ctrl+Shift+Tab: cycle through tasks while Ctrl is held
+  const { getTaskList, navigateTo } = useProjectSwitcher();
   useEffect(() => {
     if (!switcherNextHotkey && !switcherPrevHotkey) return;
+    let cycleList: Array<{ projectId: string; taskId: string }> | null = null;
+    let cycleIndex = 0;
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Tab' && e.ctrlKey) {
         e.preventDefault();
-        if (e.shiftKey) switchToPrev();
-        else switchToNext();
+        // Snapshot the list on first Tab press in this Ctrl-hold session
+        if (!cycleList) {
+          cycleList = getTaskList();
+          cycleIndex = 0;
+        }
+        if (!cycleList || cycleList.length === 0) return;
+        // Advance index
+        if (e.shiftKey) {
+          cycleIndex = (cycleIndex - 1 + cycleList.length) % cycleList.length;
+        } else {
+          cycleIndex = (cycleIndex + 1) % cycleList.length;
+        }
+        const target = cycleList[cycleIndex];
+        navigateTo(target);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        cycleList = null;
+        cycleIndex = 0;
       }
     };
     window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [switcherNextHotkey, switcherPrevHotkey, switchToNext, switchToPrev]);
+    window.addEventListener('keyup', onKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+    };
+  }, [switcherNextHotkey, switcherPrevHotkey, getTaskList, navigateTo]);
 
   // Resolve current project/task context for the command palette
   const { currentView } = useWorkspaceSlots();
