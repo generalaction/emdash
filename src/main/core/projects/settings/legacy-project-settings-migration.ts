@@ -3,12 +3,20 @@ import {
   baseProjectSettingsSchema,
   legacyBaseProjectSettingsSchema,
   legacyProjectConfigSchema,
+  shareableProjectSettingsSchema,
   type BaseProjectSettings,
+  type ShareableProjectSettings,
 } from '@shared/project-settings';
+import { mergeShareableProjectSettings } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
 import { log } from '@main/lib/logger';
+import {
+  hasLegacyShareableConfigMigrated,
+  serializeShareableProjectSettings,
+} from './legacy-shareable-migration-marker';
 import { compactUndefined, parseJsonObject, readJson } from './project-settings-json';
 import type { ProjectSettingsStorage, StoredProjectSettings } from './project-settings-storage';
 
@@ -18,6 +26,7 @@ export type LegacyProjectSettingsMigrationArgs = {
   configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined;
   defaultBranchFallback: string;
   storage: ProjectSettingsStorage;
+  git?: Pick<RepositoryGitProvider, 'isFileCleanlyTracked'>;
   normalizeStoredWorktreeDirectory: (
     worktreeDirectory: string
   ) => Promise<Result<string, UpdateProjectSettingsError>>;
@@ -66,14 +75,26 @@ export async function migrateLegacyProjectSettingsIfNeeded({
   configReader,
   defaultBranchFallback,
   storage,
+  git,
   normalizeStoredWorktreeDirectory,
 }: LegacyProjectSettingsMigrationArgs): Promise<void> {
-  if (!row || row.legacyConfigMigratedAt) return;
+  if (!row) return;
+
+  const baseAlreadyMigrated = Boolean(row.legacyConfigMigratedAt);
+  const shareableAlreadyMigrated = hasLegacyShareableConfigMigrated(
+    row.shareableProjectSettingsJson
+  );
+  if (baseAlreadyMigrated && shareableAlreadyMigrated) return;
 
   const current = readJson(
     row.baseProjectSettingsJson,
     legacyBaseProjectSettingsSchema,
     'base project settings'
+  );
+  const currentShareable = readJson(
+    row.shareableProjectSettingsJson,
+    shareableProjectSettingsSchema,
+    'shareable project settings'
   );
   const { remote, ...currentSettings } = current;
   const legacy = await readLegacyProjectConfig(configReader);
@@ -81,8 +102,9 @@ export async function migrateLegacyProjectSettingsIfNeeded({
     ...currentSettings,
     baseRemote: currentSettings.baseRemote ?? remote,
   });
+  let nextShareable: ShareableProjectSettings | undefined;
 
-  if (legacy) {
+  if (legacy && !baseAlreadyMigrated) {
     if (legacy.worktreeDirectory !== undefined) {
       const normalized = await normalizeStoredWorktreeDirectory(legacy.worktreeDirectory);
       if (normalized.success) next.worktreeDirectory = normalized.data;
@@ -103,8 +125,30 @@ export async function migrateLegacyProjectSettingsIfNeeded({
     }
   }
 
-  await storage.update(projectId, {
-    baseProjectSettingsJson: JSON.stringify(compactUndefined(next)),
-    legacyConfigMigratedAt: new Date().toISOString(),
-  });
+  if (legacy && !shareableAlreadyMigrated) {
+    if ((await git?.isFileCleanlyTracked('.emdash.json')) === false) {
+      const legacyShareable = shareableProjectSettingsSchema.parse(legacy);
+      nextShareable = mergeShareableProjectSettings(currentShareable, legacyShareable);
+    }
+  }
+
+  const update: Partial<StoredProjectSettings> = {
+    ...(nextShareable
+      ? {
+          shareableProjectSettingsJson: serializeShareableProjectSettings(nextShareable, {
+            previousRaw: row.shareableProjectSettingsJson,
+            markLegacyShareableConfigMigrated: true,
+          }),
+        }
+      : {}),
+  };
+
+  if (!baseAlreadyMigrated) {
+    update.baseProjectSettingsJson = JSON.stringify(compactUndefined(next));
+    update.legacyConfigMigratedAt = new Date().toISOString();
+  }
+
+  if (Object.keys(update).length > 0) {
+    await storage.update(projectId, update);
+  }
 }
