@@ -93,6 +93,9 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
     if (params !== undefined) {
       this.viewParamsStore = { ...this.viewParamsStore, [viewId]: params };
     }
+    if (viewId === 'task' && params && 'taskId' in params) {
+      appState.taskSwitcher.recordVisit((params as { taskId: string }).taskId);
+    }
     modalStore.closeModal();
   }
 
