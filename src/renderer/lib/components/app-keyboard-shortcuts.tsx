@@ -86,11 +86,9 @@ export function AppKeyboardShortcuts() {
     { enabled: commandPaletteHotkey !== null }
   );
 
-  useHotkey(
-    getHotkeyRegistration('projectSwitcher', keyboard),
-    () => showProjectSwitcher({}),
-    { enabled: projectSwitcherHotkey !== null }
-  );
+  useHotkey(getHotkeyRegistration('projectSwitcher', keyboard), () => showProjectSwitcher({}), {
+    enabled: projectSwitcherHotkey !== null,
+  });
 
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,

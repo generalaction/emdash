@@ -100,7 +100,9 @@ export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Control') {
         // Confirm the currently highlighted item
-        const selected = listRef.current?.querySelector('[aria-selected="true"]') as HTMLElement | null;
+        const selected = listRef.current?.querySelector(
+          '[aria-selected="true"]'
+        ) as HTMLElement | null;
         selected?.click();
       }
     };
@@ -128,11 +130,7 @@ export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
           No tasks found
         </Command.Empty>
         {projects.map((project) => (
-          <Command.Group
-            key={project.id}
-            heading={project.name}
-            className={GROUP_CLASS}
-          >
+          <Command.Group key={project.id} heading={project.name} className={GROUP_CLASS}>
             {project.tasks.map(({ store, data }) => (
               <Command.Item
                 key={data.id}
@@ -148,10 +146,7 @@ export function ProjectSwitcherModal({ onClose }: BaseModalProps) {
                 {data.id === currentTaskId && (
                   <span className="shrink-0 text-xs text-foreground/40">current</span>
                 )}
-                <AgentStatusIndicator
-                  status={taskAgentStatus(store)}
-                  disableTooltip
-                />
+                <AgentStatusIndicator status={taskAgentStatus(store)} disableTooltip />
               </Command.Item>
             ))}
           </Command.Group>
