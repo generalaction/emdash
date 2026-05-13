@@ -13,7 +13,6 @@ import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { CommentsPopover } from './comments-popover';
 import {
   buildLinkedIssueContextAction,
-  buildReviewPromptContextAction,
   buildTaskContextActions,
   type ContextAction,
 } from './context-actions';
@@ -65,15 +64,9 @@ export const ContextBar = observer(function ContextBar() {
 
     let text = action.text;
     const linkedIssue = task?.linkedIssue;
-    if (
-      (action.kind === 'linked-issue' || action.kind === 'review-prompt') &&
-      linkedIssue?.provider === 'linear'
-    ) {
+    if (action.kind === 'linked-issue' && linkedIssue?.provider === 'linear') {
       const refreshedIssue = await refreshLinearIssue(linkedIssue, projectId);
-      const refreshedAction =
-        action.kind === 'linked-issue'
-          ? buildLinkedIssueContextAction(refreshedIssue)
-          : buildReviewPromptContextAction(reviewPrompt, refreshedIssue);
+      const refreshedAction = buildLinkedIssueContextAction(refreshedIssue);
       text = refreshedAction?.text ?? text;
     }
 
