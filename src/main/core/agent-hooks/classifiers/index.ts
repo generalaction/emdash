@@ -5,7 +5,7 @@ import { createAutohandClassifier } from './autohand';
 import type { ProviderClassifier } from './base';
 import { createCharmClassifier } from './charm';
 import { createClineClassifier } from './cline';
-import { createCodebuffClassifier } from './codebuff';
+import { createCodebuffClassifier, createFreebuffClassifier } from './codebuff';
 import { createContinueClassifier } from './continue';
 import { createCopilotClassifier } from './copilot';
 import { createCursorClassifier } from './cursor';
@@ -40,6 +40,7 @@ const classifierFactories: Partial<Record<AgentProviderId, () => ProviderClassif
   cursor: createCursorClassifier,
   devin: createDevinClassifier,
   droid: createDroidClassifier,
+  freebuff: createFreebuffClassifier,
   gemini: createGeminiClassifier,
   goose: createGooseClassifier,
   jules: createJulesClassifier,

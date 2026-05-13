@@ -26,6 +26,7 @@ export const notificationSettingsSchema = z.object({
 export const taskSettingsSchema = z.object({
   autoGenerateName: z.boolean(),
   autoTrustWorktrees: z.boolean(),
+  createBranchAndWorktree: z.boolean(),
 });
 
 export const agentAutoApproveDefaultsSchema = z
