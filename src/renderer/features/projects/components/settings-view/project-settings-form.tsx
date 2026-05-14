@@ -59,7 +59,6 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
-      <h1 className="pb-5 text-xl">Project Settings</h1>
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden py-2"
         style={{ scrollbarWidth: 'none' }}
