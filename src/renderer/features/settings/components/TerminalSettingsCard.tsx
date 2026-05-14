@@ -70,15 +70,12 @@ const TerminalSettingsCard: React.FC = () => {
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
 
   const groups = useMemo<FontGroup[]>(() => {
-    const installedSet = new Set(installedFonts.map((f) => f.toLowerCase()));
     const popularSet = new Set(POPULAR_FONTS.map((f) => f.toLowerCase()));
 
-    const popularItems: FontOption[] = [DEFAULT_OPTION];
-    for (const font of POPULAR_FONTS) {
-      if (installedSet.has(font.toLowerCase())) {
-        popularItems.push({ value: font, label: font });
-      }
-    }
+    const popularItems: FontOption[] = [
+      DEFAULT_OPTION,
+      ...POPULAR_FONTS.map((font) => ({ value: font, label: font })),
+    ];
 
     const installedItems: FontOption[] = [];
     for (const font of installedFonts) {

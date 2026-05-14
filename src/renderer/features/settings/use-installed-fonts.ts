@@ -11,7 +11,7 @@ export function useInstalledFonts() {
     queryKey: ['app', 'installedFonts'],
     queryFn: async () => {
       try {
-        const result = await rpc.app.listInstalledFonts();
+        const result = await rpc.app.listInstalledFonts({ refresh: true });
         if (result?.success && Array.isArray(result.fonts)) {
           return dedupeAndSort(result.fonts);
         }
