@@ -1,18 +1,71 @@
+//! `DOMAIN_MODULES` stay tauri-runtime-free; `TAURI_GLUE_MODULES` are
+//! intentionally tauri-aware. New `pub mod` in `lib.rs` without
+//! classification fails `all_lib_modules_classified`.
+
 use std::path::{Path, PathBuf};
 
+const DOMAIN_MODULES: &[&str] = &["bindings_parser", "greeting", "shell_env"];
+const TAURI_GLUE_MODULES: &[&str] = &["commands", "tauri_bindings"];
+
 #[test]
-fn lib_exported_modules_do_not_import_tauri_runtime() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let src_dir = manifest_dir.join("src");
-    let lib_rs = read(&src_dir.join("lib.rs"));
-
-    assert_no_tauri_runtime_imports(&src_dir.join("lib.rs"), &lib_rs);
-
-    for module in exported_modules(&lib_rs) {
-        let module_path = src_dir.join(format!("{module}.rs"));
+fn domain_modules_do_not_import_tauri_runtime() {
+    let src_dir = src_dir();
+    for module in DOMAIN_MODULES {
+        let module_path = module_file(&src_dir, module);
         let content = read(&module_path);
         assert_no_tauri_runtime_imports(&module_path, &content);
     }
+}
+
+#[test]
+fn all_lib_modules_classified() {
+    let lib_rs = read(&src_dir().join("lib.rs"));
+    let exported = exported_modules(&lib_rs);
+    let unclassified: Vec<&String> = exported
+        .iter()
+        .filter(|m| {
+            !DOMAIN_MODULES.contains(&m.as_str()) && !TAURI_GLUE_MODULES.contains(&m.as_str())
+        })
+        .collect();
+    assert!(
+        unclassified.is_empty(),
+        "lib.rs exports modules not classified in DOMAIN_MODULES or \
+         TAURI_GLUE_MODULES: {unclassified:?} — pick one in \
+         tests/domain_boundaries.rs"
+    );
+}
+
+#[test]
+fn classified_modules_are_disjoint_and_complete() {
+    let lib_rs = read(&src_dir().join("lib.rs"));
+    let exported = exported_modules(&lib_rs);
+
+    for m in DOMAIN_MODULES {
+        assert!(
+            !TAURI_GLUE_MODULES.contains(m),
+            "module `{m}` is in both DOMAIN_MODULES and TAURI_GLUE_MODULES",
+        );
+    }
+
+    // Catches stale entries left behind after a module is removed.
+    for m in DOMAIN_MODULES.iter().chain(TAURI_GLUE_MODULES.iter()) {
+        assert!(
+            exported.contains(&m.to_string()),
+            "module `{m}` is classified but not exported by src/lib.rs",
+        );
+    }
+}
+
+fn src_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src")
+}
+
+fn module_file(src_dir: &Path, module: &str) -> PathBuf {
+    let as_file = src_dir.join(format!("{module}.rs"));
+    if as_file.is_file() {
+        return as_file;
+    }
+    src_dir.join(module).join("mod.rs")
 }
 
 fn exported_modules(lib_rs: &str) -> Vec<String> {

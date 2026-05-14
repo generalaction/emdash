@@ -4,15 +4,12 @@
 )]
 
 mod app;
-mod commands;
 
 fn main() {
-    // CI / pre-commit can drive `cargo run -- --export-bindings` to regenerate
-    // `ui/src/bindings.ts` without launching a webview. Useful for headless
-    // verification that the committed bindings match the live Rust command set.
+    // `--export-bindings`: headless regen for CI / pre-commit.
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--export-bindings") {
-        match app::export_bindings() {
+        match app::export_bindings_default() {
             Ok(()) => std::process::exit(0),
             Err(err) => {
                 eprintln!("export_bindings failed: {err}");

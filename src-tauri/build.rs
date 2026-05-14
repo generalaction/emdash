@@ -1,13 +1,12 @@
-// Build-time invariants for the emdash-dev crate.
-//
-// 1. Standard Tauri 2 codegen via `tauri_build::build()`.
-// 2. Custom capability-allowlist check: every command emitted into the
-//    generated `ui/src/bindings.ts` (i.e. every entry in `collect_commands!`)
-//    must appear in `allowed-commands.json`, and vice versa.
-//    Drift fails the build, forcing intentional review when a command is
-//    added or removed.
+// 1. Tauri 2 codegen.
+// 2. Capability-allowlist drift check (bindings.ts <-> allowed-commands.json).
 
 use std::path::PathBuf;
+
+// Share the parser between build.rs and the lib via #[path]; tests in
+// `pub mod bindings_parser` (lib.rs) cover the same source.
+#[path = "src/bindings_parser.rs"]
+mod bindings_parser;
 
 fn main() {
     tauri_build::build();
@@ -38,7 +37,14 @@ fn check_capability_allowlist() -> Result<(), String> {
 
     let bindings = std::fs::read_to_string(&bindings_path)
         .map_err(|e| format!("  read {}: {e}", bindings_path.display()))?;
-    let in_bindings = extract_invoke_channels(&bindings);
+    let in_bindings = bindings_parser::extract_invoke_channels(&bindings);
+
+    let invalid_shapes: Vec<&String> = allowlist.iter().filter(|c| !is_valid_channel(c)).collect();
+    if !invalid_shapes.is_empty() {
+        return Err(format!(
+            "  - allowed-commands.json contains entries that don't match ^[a-z][a-z0-9_]*$: {invalid_shapes:?}\n    these are typically typos (e.g., trailing whitespace) — fix the JSON\n"
+        ));
+    }
 
     let missing: Vec<&String> = in_bindings
         .iter()
@@ -67,26 +73,13 @@ fn check_capability_allowlist() -> Result<(), String> {
     Ok(())
 }
 
-fn extract_invoke_channels(bindings: &str) -> Vec<String> {
-    // Looks for `__TAURI_INVOKE<...>("channel-name", ...)` and pulls the
-    // channel name. Matches the format tauri-specta currently emits — if
-    // they change the codegen template, this parser must follow.
-    let mut out = Vec::new();
-    for line in bindings.lines() {
-        let Some(start) = line.find("__TAURI_INVOKE<") else {
-            continue;
-        };
-        let rest = &line[start..];
-        let Some(paren) = rest.find("(\"") else {
-            continue;
-        };
-        let after_quote = &rest[paren + 2..];
-        let Some(end) = after_quote.find('"') else {
-            continue;
-        };
-        out.push(after_quote[..end].to_string());
+fn is_valid_channel(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_lowercase() => {}
+        _ => return false,
     }
-    out
+    chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 fn env_var(name: &str) -> Result<String, String> {

@@ -1,4 +1,4 @@
 {
-  "$comment": "Custom allowlist of commands exposed through invoke_handler. Distinct from Tauri's built-in capability system (which gates core/plugin permissions). Every command registered via collect_commands! must appear here; the build script in build.rs fails the build on drift. Each entry must match ^[a-z][a-z0-9_]*$ — build.rs rejects whitespace/typos. To add a command: (1) create it under src/commands/, (2) add to collect_commands! in app.rs, (3) run `cargo run -- --export-bindings`, (4) append its channel name here.",
+  "$comment": "Allowlist of invoke channels. Enforced by build.rs against bindings.ts. Each entry must match ^[a-z][a-z0-9_]*$. To add: create under src/commands/, add to collect_commands! in tauri_bindings.rs, run `cargo run -- --export-bindings`, append here.",
   "commands": ["greet", "get_path"]
 }

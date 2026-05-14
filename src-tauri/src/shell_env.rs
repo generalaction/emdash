@@ -1,14 +1,6 @@
-//! Capture the user's login-shell environment so that subsequent shell-outs
-//! (PTYs, git, package managers) see the full PATH a terminal would see,
-//! even when the app is launched from Finder/Spotlight/AppImage.
-//!
-//! Ported faithfully from emdash Electron's `src/main/utils/userEnv.ts` and
-//! `src/main/utils/childProcessEnv.ts`. The verbatim port — `$SHELL -ilc env`,
-//! the 5 s timeout, the AppImage PATH scrubbing, the PRESERVE blocklist — is
-//! a deliberate choice over Helmor's simpler `$SHELL -l -c env` approach.
-//! See `docs/decisions/0001-initial-scaffold.md` (ADR-0001) for the rationale.
-//!
-//! Must remain free of `tauri::*` imports so `bin/emdash-cli` can link it.
+//! Capture login-shell env so shell-outs see the user's PATH even when the
+//! app is launched from Finder/Spotlight/AppImage. Ported from Electron's
+//! `userEnv.ts` + `childProcessEnv.ts`; see ADR-0001 for the rationale.
 
 use std::collections::HashMap;
 use std::env;
@@ -17,8 +9,7 @@ use std::sync::OnceLock;
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// AppImage runtime vars — must never be overwritten or leaked into the probe
-/// shell. Mirrors `APPIMAGE_ENV_KEYS` in `childProcessEnv.ts`.
+/// AppImage runtime vars — must never leak into the probe shell.
 const APPIMAGE_ENV_KEYS: &[&str] = &[
     "APPDIR",
     "APPIMAGE",
@@ -28,29 +19,24 @@ const APPIMAGE_ENV_KEYS: &[&str] = &[
     "OWD",
 ];
 
-/// PATH-like vars whose entries pointing inside AppImage (`$APPDIR/...` or
-/// `/tmp/.mount_*/...`) must be scrubbed before spawning the probe shell.
-/// Otherwise login-shell hooks that resolve binaries by name through PATH
-/// (mise, starship, oh-my-zsh) can re-enter the AppImage and fork-bomb the
-/// app on Linux. See emdash#1679.
+/// PATH-like vars: entries inside `$APPDIR/...` or `/tmp/.mount_*/...` must be
+/// scrubbed before spawning the probe shell. Without scrubbing, login-shell
+/// hooks that resolve binaries by name (mise, starship, oh-my-zsh) can
+/// re-enter the AppImage and fork-bomb the app. See emdash#1679.
 const APPIMAGE_PATH_LIKE_KEYS: &[&str] = &["PATH", "LD_LIBRARY_PATH", "XDG_DATA_DIRS"];
 
-/// Keys from the captured shell env that must NOT overwrite our inherited
-/// values. Tauri equivalent of `PRESERVE_KEYS` in `userEnv.ts`.
+/// Captured shell env keys that must NOT overwrite inherited values.
 const PRESERVE_KEYS: &[&str] = &[
-    // AppImage
     "APPDIR",
     "APPIMAGE",
     "ARGV0",
     "CHROME_DESKTOP",
     "GSETTINGS_SCHEMA_DIR",
     "OWD",
-    // Build toolchain
     "NODE_ENV",
 ];
 
-/// Vars injected into the probe shell's env to suppress noisy init-time side
-/// effects (auto-updaters, tmux autostart). Mirrors `SHELL_ENV_CAPTURE_GUARD`.
+/// Suppresses noisy init-time side effects in the probe shell.
 const SHELL_ENV_CAPTURE_GUARDS: &[(&str, &str)] = &[
     ("DISABLE_AUTO_UPDATE", "true"),
     ("ZSH_TMUX_AUTOSTART", "false"),
@@ -81,34 +67,28 @@ impl ShellEnv {
 
 static SHELL_ENV: OnceLock<ShellEnv> = OnceLock::new();
 
-/// Returns the cached login-shell env. First call captures (may block up to
-/// `CAPTURE_TIMEOUT`); subsequent calls hit the `OnceLock`.
+/// First call captures (may block up to `CAPTURE_TIMEOUT`); subsequent calls
+/// hit the `OnceLock`.
 pub fn shell_env() -> &'static ShellEnv {
     SHELL_ENV.get_or_init(inherit_login_shell_env)
 }
 
-/// Captures the login-shell environment once and applies the captured values to
-/// this process. This makes future `std::process::Command` calls that inherit
-/// `std::env` see the same PATH and shell-managed variables that `get_path`
-/// exposes to the renderer.
+/// Captures once and applies the result to `std::env` so future `Command::new`
+/// calls inherit the user's PATH.
 pub fn apply_login_shell_env_to_process() -> &'static ShellEnv {
     let shell_env = shell_env();
     apply_captured_env_to_process(&shell_env.captured);
     shell_env
 }
 
-/// Returns the environment map future shell-out helpers should pass explicitly
-/// when they do not want to inherit the whole process environment.
 pub fn external_tool_env() -> HashMap<String, String> {
     shell_env().captured.clone()
 }
 
-/// Captures the user's login-shell environment. Tolerant of nonzero shell
-/// exits, timeouts, and missing `$SHELL`. On any failure path the returned
-/// `ShellEnv` carries the inherited (scrubbed) env and `status = Failed(...)`.
+/// Tolerant of nonzero shell exits, timeouts, and missing `$SHELL`. On any
+/// failure path returns the inherited (scrubbed) env with `status = Failed(...)`.
 pub fn inherit_login_shell_env() -> ShellEnv {
     if cfg!(target_os = "windows") {
-        // Windows PATH is managed differently — no login-shell capture.
         return ShellEnv {
             captured: env::vars().collect(),
             shell: env::var("ComSpec").unwrap_or_else(|_| "cmd.exe".to_string()),
@@ -141,8 +121,7 @@ fn default_shell() -> &'static str {
     }
 }
 
-/// Strip AppImage runtime vars + AppImage-rooted PATH entries from an env map.
-/// Equivalent to `buildExternalToolEnv` in `childProcessEnv.ts`.
+/// Strip AppImage runtime vars + AppImage-rooted PATH entries.
 pub fn build_external_tool_env(base: HashMap<String, String>) -> HashMap<String, String> {
     let app_dir = base.get("APPDIR").cloned();
     let mut out = base;
@@ -232,9 +211,8 @@ fn process_env_keys_to_remove_before_apply(
     keys
 }
 
-/// Merge two PATH strings: shell entries first (the user's full PATH), then
-/// any entries from `current` not already in the shell PATH. Equivalent to
-/// `mergePath` in `userEnv.ts`.
+/// Shell entries first (preserves user's PATH order), then `current` entries
+/// not already in `shell_path`.
 pub fn merge_path(shell_path: &str, current_path: &str) -> String {
     let sep = if cfg!(target_os = "windows") {
         ';'
@@ -252,9 +230,8 @@ pub fn merge_path(shell_path: &str, current_path: &str) -> String {
     out.join(&sep.to_string())
 }
 
-/// Parses `key=value` lines from `env` output. Ignores lines without `=` and
-/// lines whose key doesn't match `^[A-Za-z_]\w*$`. Multi-line values aren't
-/// supported (matches the JS implementation).
+/// Parses `key=value` lines. Ignores lines without `=` and keys not matching
+/// `^[A-Za-z_]\w*$`. Multi-line values not supported.
 pub fn parse_env_output(raw: &str) -> HashMap<String, String> {
     let mut out = HashMap::new();
     for line in raw.split('\n') {
@@ -428,14 +405,11 @@ mod tests {
         captured.insert("CARGO_HOME".to_string(), "/home/user/.cargo".to_string());
 
         let out = merge_shell_env(base, captured);
-        // PRESERVE_KEYS keeps NODE_ENV from being overwritten.
         assert_eq!(out.get("NODE_ENV").map(String::as_str), Some("production"));
-        // PATH gets merged, not overwritten.
         assert_eq!(
             out.get("PATH").map(String::as_str),
             Some("/opt/homebrew/bin:/usr/bin")
         );
-        // Other keys flow through.
         assert_eq!(
             out.get("CARGO_HOME").map(String::as_str),
             Some("/home/user/.cargo"),
@@ -453,6 +427,41 @@ mod tests {
         assert!(!keys.contains(&"PATH"));
         assert!(keys.contains(&"LD_LIBRARY_PATH"));
         assert!(keys.contains(&"XDG_DATA_DIRS"));
+    }
+
+    /// Even if PRESERVE_KEYS protection somehow let an AppImage key into
+    /// `captured`, the remove-phase must still name it (otherwise apply order
+    /// "remove → set" would re-introduce it).
+    #[test]
+    fn remove_phase_always_names_full_appimage_key_set() {
+        let captured: HashMap<String, String> = APPIMAGE_ENV_KEYS
+            .iter()
+            .map(|k| ((*k).to_string(), "leaked".to_string()))
+            .collect();
+        let keys = process_env_keys_to_remove_before_apply(&captured);
+        for app_key in APPIMAGE_ENV_KEYS {
+            assert!(
+                keys.contains(app_key),
+                "{app_key} missing from remove phase"
+            );
+        }
+    }
+
+    /// Mutates `std::env` (not thread-safe). Run with
+    /// `cargo test -- --ignored --test-threads=1`.
+    #[cfg(unix)]
+    #[test]
+    #[ignore]
+    fn apply_login_shell_env_to_process_sets_path() {
+        let captured = inherit_login_shell_env();
+        apply_captured_env_to_process(&captured.captured);
+
+        let live_path = env::var("PATH").expect("PATH must be set after apply");
+        assert!(!live_path.is_empty());
+
+        for app_key in APPIMAGE_ENV_KEYS {
+            assert!(env::var(app_key).is_err(), "{app_key} leaked into std::env");
+        }
     }
 
     #[cfg(unix)]

@@ -1,16 +1,11 @@
-//! `emdash-cli` — a CLI binary that links only against the `emdash_dev` lib
-//! crate, never against the Tauri app module tree. Its existence enforces the
-//! discipline that domain code in `lib.rs` (and modules `pub mod`'d from it)
-//! stays free of `tauri::AppHandle` and webview-only types.
-//!
-//! For EMD-5 the surface is intentionally near-empty: `--version` is enough to
-//! prove the invariant. Later issues add real subcommands as domain modules
-//! land in `lib.rs`.
+//! Companion CLI that links only domain modules. Existence-proof that
+//! `DOMAIN_MODULES` (see `tests/domain_boundaries.rs`) stay webview-free —
+//! a domain module that imports a webview-runtime type fails to link here.
 
 use std::env;
 use std::process::ExitCode;
 
-use emdash_dev::{greeting, shell_env};
+use emdash_dev::{bindings_parser, greeting, shell_env};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -37,9 +32,13 @@ fn main() -> ExitCode {
     }
 }
 
+/// Pull every `DOMAIN_MODULES` entry into the link graph. The
+/// `domain_boundaries` test enforces classification; this function enforces
+/// actual linkage. Must include one symbol per domain module.
 fn link_domain_modules() {
     let _ = greeting::greet("");
     let _ = shell_env::merge_path("", "");
+    let _ = bindings_parser::extract_invoke_channels("");
 }
 
 fn print_help() {
