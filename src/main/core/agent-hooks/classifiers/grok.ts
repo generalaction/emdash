@@ -4,7 +4,7 @@ export function createGrokClassifier() {
   return createProviderClassifier((text: string): ClassificationResult => {
     const tail = text.slice(-500);
 
-    if (/(^|[^-])approve|reject|permission|allow|confirm/i.test(tail)) {
+    if (/(^|[^-])(approve|reject|permission|allow|confirm)/i.test(tail)) {
       return {
         type: 'notification',
         notificationType: 'permission_prompt',
