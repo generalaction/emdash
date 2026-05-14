@@ -5,7 +5,11 @@
 use std::env;
 use std::process::ExitCode;
 
-use emdash_dev::{bindings_parser, greeting, shell_env};
+use emdash_dev::{
+    bindings_parser, db, greeting,
+    secrets::{aead, master_key},
+    shell_env,
+};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -39,6 +43,15 @@ fn link_domain_modules() {
     let _ = greeting::greet("");
     let _ = shell_env::merge_path("", "");
     let _ = bindings_parser::extract_invoke_channels("");
+
+    // db: reference the type and the migrations function so the symbols link.
+    let _: Option<std::sync::Arc<db::Db>> = None;
+    let _ = db::migrations::migrations();
+
+    // secrets: aead + master_key are pure domain; reference one fn from each
+    // so a webview-runtime leak would fail this binary's link step.
+    let _ = aead::aad_for("");
+    let _: Option<Box<dyn master_key::MasterKeyProvider>> = None;
 }
 
 fn print_help() {
