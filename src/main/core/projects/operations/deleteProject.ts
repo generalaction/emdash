@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { automationEvents } from '@main/core/automations/automation-events';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { prSyncEngine } from '@main/core/pull-requests/pr-sync-engine';
@@ -22,6 +23,7 @@ export async function deleteProject(id: string): Promise<void> {
   await prSyncEngine.deleteProjectData(id);
 
   await db.delete(projects).where(eq(projects.id, id));
+  automationEvents._emit('automation:changed');
   void viewStateService.del(`project:${id}`);
   projectEvents._emit('project:deleted', id);
   await projectManager.closeProject(id);

@@ -5,24 +5,31 @@ import { type Issue } from '@shared/tasks';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
 import { getIssueTaskName } from './issue-task-name';
-import { useBranchSelection } from './use-branch-selection';
+import { useBranchSelection, type BranchSelectionInitial } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 
 export type FromIssueModeState = ReturnType<typeof useFromIssueMode>;
+
+export type FromIssueModeInitial = BranchSelectionInitial & {
+  taskName?: string;
+  linkedIssue?: Issue;
+};
 
 export function useFromIssueMode(
   selectedProjectId: string | undefined,
   defaultBranch: Branch | undefined,
   isUnborn: boolean,
-  currentBranchName?: string | null
+  currentBranchName?: string | null,
+  initial?: FromIssueModeInitial
 ) {
   const branchSelection = useBranchSelection(
     selectedProjectId,
     defaultBranch,
     isUnborn,
-    currentBranchName
+    currentBranchName,
+    initial
   );
-  const [linkedIssue, setLinkedIssue] = useState<Issue | null>(null);
+  const [linkedIssue, setLinkedIssue] = useState<Issue | null>(initial?.linkedIssue ?? null);
   const [prevProjectId, setPrevProjectId] = useState(selectedProjectId);
   if (selectedProjectId !== prevProjectId) {
     setPrevProjectId(selectedProjectId);
@@ -32,7 +39,10 @@ export function useFromIssueMode(
   const generatedTaskNameFromIssue = getIssueTaskName(linkedIssue);
 
   const shouldGenerate =
-    autoGenerateName && linkedIssue !== null && generatedTaskNameFromIssue === null;
+    autoGenerateName &&
+    linkedIssue !== null &&
+    generatedTaskNameFromIssue === null &&
+    !initial?.taskName;
 
   const { data: generatedName, isPending: isGenerating } = useQuery({
     queryKey: ['generateTaskName', linkedIssue?.title ?? null, linkedIssue?.description ?? null],
@@ -49,6 +59,7 @@ export function useFromIssueMode(
     generatedName: generatedTaskNameFromIssue ?? (shouldGenerate ? generatedName : undefined),
     isPending: shouldGenerate && isGenerating,
     resetKey: selectedProjectId,
+    initialName: initial?.taskName,
   });
 
   const isValid =

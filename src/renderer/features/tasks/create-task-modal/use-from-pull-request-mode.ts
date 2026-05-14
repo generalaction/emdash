@@ -18,12 +18,17 @@ export function useFromPullRequestMode(
   initialPR?: PullRequest
 ) {
   const [linkedPR, setLinkedPR] = useState<PullRequest | null>(initialPR ?? null);
+  const [prevInitialPRUrl, setPrevInitialPRUrl] = useState(initialPR?.url);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
   const [prevProjectId, setPrevProjectId] = useState(selectedProjectId);
   if (selectedProjectId !== prevProjectId) {
     setPrevProjectId(selectedProjectId);
-    setLinkedPR(null);
+    setLinkedPR(initialPR ?? null);
+    setPrevInitialPRUrl(initialPR?.url);
     setCheckoutMode('checkout');
+  } else if (initialPR?.url !== prevInitialPRUrl) {
+    setPrevInitialPRUrl(initialPR?.url);
+    if (!linkedPR && initialPR) setLinkedPR(initialPR);
   }
   const branchSelection = useBranchSelection(selectedProjectId, defaultBranch, isUnborn);
   const { autoGenerateName } = useTaskSettings();
