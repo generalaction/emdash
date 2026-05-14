@@ -338,3 +338,15 @@ export class WorktreeService {
     }
   }
 }
+
+/**
+ * The subset of WorktreeService methods required by WorkspaceBootstrapService.
+ * Using Pick keeps signatures in sync automatically.
+ */
+export type WorktreeBootstrapOps = Pick<
+  WorktreeService,
+  | 'existsAtAbsolutePath'
+  | 'findBranchAnywhere'
+  | 'checkoutExistingBranch'
+  | 'checkoutBranchWorktree'
+>;
