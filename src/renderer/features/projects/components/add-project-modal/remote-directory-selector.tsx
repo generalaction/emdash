@@ -33,6 +33,10 @@ function parentPath(path: string) {
   return path.split('/').slice(0, -1).join('/') || '/';
 }
 
+function directoryCacheKey(connectionId: string, path: string) {
+  return `${connectionId}\0${path}`;
+}
+
 export function RemoteDirectorySelector({
   connectionId,
   value,
@@ -46,7 +50,9 @@ export function RemoteDirectorySelector({
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<string[]>([initialPath]);
   const [historyIndex, setHistoryIndex] = useState(0);
-  const [directoryCache, setDirectoryCache] = useState<Map<string, FileEntry[]>>(() => new Map());
+  const directoryCacheRef = useRef(new Map<string, FileEntry[]>());
+  const inFlightRequestsRef = useRef(new Map<string, Promise<FileEntry[]>>());
+  const latestRequestIdRef = useRef(0);
   const suppressNextTriggerFocusRef = useRef(false);
 
   useEffect(() => {
@@ -61,37 +67,62 @@ export function RemoteDirectorySelector({
       if (!connectionId) return false;
 
       const nextPath = normalizePath(path);
+      const requestId = latestRequestIdRef.current + 1;
+      latestRequestIdRef.current = requestId;
+      const cacheKey = directoryCacheKey(connectionId, nextPath);
+
       setCurrentPath(nextPath);
       setBrowseError(null);
 
-      if (!options?.force && directoryCache.has(nextPath)) {
-        setFileEntries(directoryCache.get(nextPath) ?? []);
+      const cachedEntries = directoryCacheRef.current.get(cacheKey);
+      if (!options?.force && cachedEntries) {
+        setFileEntries(cachedEntries);
+        setIsBrowsing(false);
         return true;
       }
 
       setIsBrowsing(true);
+      let request = options?.force ? undefined : inFlightRequestsRef.current.get(cacheKey);
+
+      if (!request) {
+        request = rpc.ssh
+          .listFiles({ connectionId, path: nextPath })
+          .then((entries) => {
+            directoryCacheRef.current.set(cacheKey, entries);
+            return entries;
+          })
+          .finally(() => {
+            if (inFlightRequestsRef.current.get(cacheKey) === request) {
+              inFlightRequestsRef.current.delete(cacheKey);
+            }
+          });
+
+        inFlightRequestsRef.current.set(cacheKey, request);
+      }
+
       try {
-        const entries = await rpc.ssh.listFiles({ connectionId, path: nextPath });
+        const entries = await request;
+        if (latestRequestIdRef.current !== requestId) return false;
+
         setFileEntries(entries);
-        setDirectoryCache((previousCache) => {
-          const nextCache = new Map(previousCache);
-          nextCache.set(nextPath, entries);
-          return nextCache;
-        });
         return true;
       } catch (e) {
+        if (latestRequestIdRef.current !== requestId) return false;
+
         setBrowseError(e instanceof Error ? e.message : 'Failed to list directory');
         setFileEntries([]);
         return false;
       } finally {
-        setIsBrowsing(false);
+        if (latestRequestIdRef.current === requestId) setIsBrowsing(false);
       }
     },
-    [connectionId, directoryCache]
+    [connectionId]
   );
 
   useEffect(() => {
-    setDirectoryCache(new Map());
+    directoryCacheRef.current.clear();
+    inFlightRequestsRef.current.clear();
+    latestRequestIdRef.current += 1;
     if (connectionId) void loadDirectory(currentPath, { force: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionId]);
