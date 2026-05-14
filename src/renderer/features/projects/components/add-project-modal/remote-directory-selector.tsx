@@ -194,6 +194,7 @@ export function RemoteDirectorySelector({
 }: RemoteDirectorySelectorProps) {
   const initialPath = initialBrowsePath(value);
   const [open, setOpen] = useState(false);
+  const openRef = useRef(false);
   const [history, dispatchHistory] = useReducer(directoryHistoryReducer, {
     entries: [initialPath],
     index: 0,
@@ -210,10 +211,15 @@ export function RemoteDirectorySelector({
   } = useRemoteDirectoryBrowser(connectionId, initialPath);
 
   useEffect(() => {
+    openRef.current = open;
+  }, [open]);
+
+  useEffect(() => {
     const nextPath = initialBrowsePath(value);
     resetPath(nextPath);
     dispatchHistory({ type: 'reset', path: nextPath });
-  }, [resetPath, value]);
+    if (openRef.current && connectionId) void loadDirectory(nextPath);
+  }, [connectionId, loadDirectory, resetPath, value]);
 
   const navigateToPath = async (path: string, options?: { replaceHistory?: boolean }) => {
     const nextPath = normalizePath(path);
@@ -313,6 +319,8 @@ export function RemoteDirectorySelector({
             >
               {isDirectory ? (
                 <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+              ) : entry.type === 'symlink' ? (
+                <Folder className="h-4 w-4 shrink-0 text-muted-foreground opacity-60" />
               ) : (
                 <FileCode className="h-4 w-4 shrink-0 text-muted-foreground" />
               )}
