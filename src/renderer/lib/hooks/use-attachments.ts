@@ -69,7 +69,7 @@ export function useAttachments() {
   );
 
   const handleDrop = useCallback(
-    (event: React.DragEvent) => {
+    (event: React.DragEvent<HTMLElement>) => {
       event.preventDefault();
       event.stopPropagation();
       dragCounterRef.current = 0;
@@ -80,7 +80,7 @@ export function useAttachments() {
     [addFiles]
   );
 
-  const handleDragOver = useCallback((event: React.DragEvent) => {
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
   }, []);

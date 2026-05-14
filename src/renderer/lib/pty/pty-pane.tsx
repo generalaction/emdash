@@ -1,4 +1,6 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import { RENDERER_FILE_MAX_BYTES } from '@shared/conversations';
+import { quoteShellArg } from '@shared/shell';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
@@ -69,44 +71,43 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
     };
 
     const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
-      try {
-        event.preventDefault();
-        const dt = event.dataTransfer;
-        if (!dt?.files?.length) return;
+      event.preventDefault();
+      const dt = event.dataTransfer;
+      if (!dt?.files?.length) return;
+      const files = Array.from(dt.files);
 
-        const paths: string[] = [];
-        for (const file of Array.from(dt.files)) {
-          const path = window.electronAPI.getPathForFile(file).trim();
-          if (path) paths.push(path);
+      const saveDroppedFile = async (file: File) => {
+        if (file.size > RENDERER_FILE_MAX_BYTES) {
+          throw new Error(`File "${file.name}" is too large to drop into the terminal.`);
         }
-        if (paths.length === 0) return;
+        const buffer = await file.arrayBuffer();
+        return rpc.app.saveRendererFile({
+          name: file.name,
+          data: new Uint8Array(buffer),
+        });
+      };
 
-        void (async () => {
-          try {
-            if (remoteConnectionId) {
-              try {
-                const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
-                if (result.success && result.data?.remotePaths) {
-                  const escaped = result.data.remotePaths
-                    .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
-                    .join(' ');
-                  sendInput(`${escaped} `);
-                }
-              } catch (error) {
-                log.warn('SSH file transfer failed', { error });
-              }
-            } else {
-              const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
-              sendInput(`${escaped} `);
-            }
-            focus();
-          } catch (error) {
-            log.warn('Terminal drop failed', { error });
-          }
-        })();
-      } catch (error) {
-        log.warn('Terminal drop failed', { error });
-      }
+      void (async () => {
+        try {
+          const localPaths = await Promise.all(files.map(saveDroppedFile));
+          if (localPaths.length === 0) return;
+
+          const paths = remoteConnectionId
+            ? await (async () => {
+                const result = await rpc.pty.uploadFiles({ sessionId, localPaths });
+                if (!result.success || !result.data?.remotePaths) return [];
+                return result.data.remotePaths;
+              })()
+            : localPaths;
+
+          if (paths.length === 0) return;
+          const escaped = paths.map((p: string) => quoteShellArg(p)).join(' ');
+          sendInput(`${escaped} `);
+          focus();
+        } catch (error) {
+          log.warn('Terminal drop failed', { error });
+        }
+      })();
     };
 
     return (

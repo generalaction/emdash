@@ -1,6 +1,11 @@
 import { exec } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, extname, join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { clipboard, dialog, shell } from 'electron';
+import { INITIAL_PROMPT_IMAGE_MAX_BYTES, RENDERER_FILE_MAX_BYTES } from '@shared/conversations';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
 import {
   getAppById,
@@ -34,6 +39,89 @@ import {
 } from './utils';
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
+
+const INITIAL_PROMPT_IMAGE_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.svg',
+]);
+const INITIAL_PROMPT_IMAGE_DIR = join(tmpdir(), 'emdash-initial-prompt-images');
+const INITIAL_PROMPT_IMAGE_TTL_MS = 24 * 60 * 60 * 1000;
+const RENDERER_FILE_DIR = join(tmpdir(), 'emdash-renderer-files');
+const RENDERER_FILE_TTL_MS = 60 * 60 * 1000;
+
+function extensionForImage(name: string, mimeType: string): string {
+  const nameExt = extname(name).toLowerCase();
+  if (INITIAL_PROMPT_IMAGE_EXTENSIONS.has(nameExt)) return nameExt;
+  const typeExt = mimeType.startsWith('image/') ? `.${mimeType.slice('image/'.length)}` : '.png';
+  return INITIAL_PROMPT_IMAGE_EXTENSIONS.has(typeExt) ? typeExt : '.png';
+}
+
+function safeImageFileName(name: string, mimeType: string): string {
+  const ext = extensionForImage(name, mimeType);
+  const rawName = basename(name || `image-${randomUUID()}${ext}`);
+  const withExt = extname(rawName) ? rawName : `${rawName}${ext}`;
+  return withExt.replace(/[^a-zA-Z0-9._ -]/g, '_');
+}
+
+function safeFileName(name: string): string {
+  return basename(name || `file-${randomUUID()}`).replace(/[^a-zA-Z0-9._ -]/g, '_');
+}
+
+async function cleanupOldTempFiles(dir: string, ttlMs: number): Promise<void> {
+  try {
+    const entries = await readdir(dir);
+    const now = Date.now();
+    await Promise.all(
+      entries.map(async (entry) => {
+        const path = join(dir, entry);
+        const info = await stat(path).catch(() => null);
+        if (info && now - info.mtimeMs > ttlMs) {
+          await rm(path, { force: true });
+        }
+      })
+    );
+  } catch {
+    /* best-effort */
+  }
+}
+
+let lastCleanupAt = 0;
+const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
+
+function triggerCleanupIfNeeded(): void {
+  const now = Date.now();
+  if (now - lastCleanupAt < CLEANUP_INTERVAL_MS) return;
+  lastCleanupAt = now;
+  void cleanupOldTempFiles(INITIAL_PROMPT_IMAGE_DIR, INITIAL_PROMPT_IMAGE_TTL_MS);
+  void cleanupOldTempFiles(RENDERER_FILE_DIR, RENDERER_FILE_TTL_MS);
+}
+
+async function saveTempFile(args: {
+  dir: string;
+  maxBytes: number;
+  fileName: string;
+  data: Uint8Array;
+  rejectEmpty?: boolean;
+}): Promise<string> {
+  if (!(args.data instanceof Uint8Array)) {
+    throw new Error('Invalid file data');
+  }
+  if (args.rejectEmpty && args.data.byteLength === 0) {
+    throw new Error('File data is empty');
+  }
+  if (args.data.byteLength > args.maxBytes) {
+    throw new Error('File is too large');
+  }
+  await mkdir(args.dir, { recursive: true });
+  const path = join(args.dir, `${randomUUID()}-${args.fileName}`);
+  await writeFile(path, args.data);
+  return path;
+}
 
 type RemoteTerminalLaunchAttempt = {
   file: string;
@@ -360,6 +448,31 @@ class AppService implements IInitializable, IDisposable {
         if (err) return reject(err);
         resolve();
       });
+    });
+  }
+
+  async saveInitialPromptImage(args: {
+    name: string;
+    mimeType: string;
+    data: Uint8Array;
+  }): Promise<string> {
+    triggerCleanupIfNeeded();
+    return saveTempFile({
+      dir: INITIAL_PROMPT_IMAGE_DIR,
+      maxBytes: INITIAL_PROMPT_IMAGE_MAX_BYTES,
+      fileName: safeImageFileName(args.name, args.mimeType),
+      data: args.data,
+      rejectEmpty: true,
+    });
+  }
+
+  async saveRendererFile(args: { name: string; data: Uint8Array }): Promise<string> {
+    triggerCleanupIfNeeded();
+    return saveTempFile({
+      dir: RENDERER_FILE_DIR,
+      maxBytes: RENDERER_FILE_MAX_BYTES,
+      fileName: safeFileName(args.name),
+      data: args.data,
     });
   }
 

@@ -263,6 +263,13 @@ export interface FileSystemProvider {
   copyLocalFile?(localAbsPath: string, destRelPath: string): Promise<void>;
 
   /**
+   * Copy an absolute local file into a filesystem-managed temp location and
+   * return the absolute destination path. Implementations must keep this path
+   * outside the project worktree.
+   */
+  copyLocalFileToTemp?(localAbsPath: string, fileName: string): Promise<string>;
+
+  /**
    * Watch the worktree for filesystem changes. Returns a FileWatcher handle;
    * call update() to hint which paths matter (SSH uses this for polling),
    * call close() to stop. Batches events and delivers them via callback.

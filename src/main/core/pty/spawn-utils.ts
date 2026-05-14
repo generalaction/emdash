@@ -1,11 +1,11 @@
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
+import { quoteShellArg } from '@shared/shell';
 import {
   buildRemoteShellCommand,
   FALLBACK_REMOTE_SHELL_PROFILE,
   type RemoteShellProfile,
 } from '@main/core/ssh/remote-shell-profile';
-import { quoteShellArg } from '@main/utils/shellEscape';
 import { buildTmuxShellLine } from './tmux-session-name';
 
 export type SessionType = 'agent' | 'general';
@@ -31,7 +31,7 @@ function posixShellLineForSsh(
     case 'general': {
       const cfg = config as GeneralSessionConfig;
       const baseCmd = cfg.command
-        ? [cfg.command, ...(cfg.args ?? [])].join(' ')
+        ? [cfg.command, ...(cfg.args ?? [])].map(quoteShellArg).join(' ')
         : `exec ${shell} -il`;
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {

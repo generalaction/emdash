@@ -3,6 +3,8 @@
  * Uses SFTP over SSH for remote filesystem operations
  */
 
+import { randomUUID } from 'node:crypto';
+import { basename } from 'node:path';
 import type { SFTPWrapper } from 'ssh2';
 import type { FileWatchEvent } from '@shared/fs';
 import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
@@ -48,6 +50,7 @@ const MAX_READ_SIZE = 100 * 1024 * 1024;
  * Default max bytes for read operations
  */
 const DEFAULT_MAX_BYTES = 200 * 1024;
+const REMOTE_TEMP_UPLOAD_DIR = '/tmp/emdash-initial-prompt-images';
 
 function fileEntryMetadataChanged(prev: FileEntry, next: FileEntry): boolean {
   return (
@@ -502,6 +505,21 @@ export class SshFileSystem implements FileSystemProvider {
     await new Promise<void>((resolve, reject) => {
       sftp.fastPut(localAbsPath, remoteFull, (e) => (e ? reject(e) : resolve()));
     });
+  }
+
+  async copyLocalFileToTemp(localAbsPath: string, fileName: string): Promise<string> {
+    const safeName = basename(fileName || localAbsPath).replace(/[^a-zA-Z0-9._ -]/g, '_');
+    const remoteFull = `${REMOTE_TEMP_UPLOAD_DIR}/${randomUUID()}-${safeName}`;
+    const mkdirResult = await this.exec(`mkdir -p ${quoteShellArg(REMOTE_TEMP_UPLOAD_DIR)}`);
+    if (mkdirResult.exitCode !== 0) {
+      throw new Error(`Failed to create remote temp directory: ${mkdirResult.stderr}`);
+    }
+
+    const sftp = await this.getSftp();
+    await new Promise<void>((resolve, reject) => {
+      sftp.fastPut(localAbsPath, remoteFull, (e) => (e ? reject(e) : resolve()));
+    });
+    return remoteFull;
   }
 
   async copyFile(src: string, dest: string): Promise<void> {

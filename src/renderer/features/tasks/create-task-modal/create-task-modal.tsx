@@ -10,6 +10,7 @@ import {
 import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -32,7 +33,10 @@ import {
 import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
-import { useInitialConversationState } from './initial-conversation-section';
+import {
+  getInitialPromptImages,
+  useInitialConversationState,
+} from './initial-conversation-section';
 import { useFromBranchMode } from './use-from-branch-mode';
 import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
@@ -79,7 +83,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   useEffect(() => {
     initialConversation.setProvider(null);
     initialConversation.setPrompt('');
-    // setProvider and setPrompt are stable useState setters
+    initialConversation.resetImages();
+    // setProvider, setPrompt, and resetImages are stable state callbacks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectId]);
 
@@ -93,6 +98,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const isUnborn = repo?.isUnborn ?? false;
   const currentBranch = repo?.currentBranch ?? null;
   const { navigate } = useNavigate();
+  const { toast } = useToast();
 
   const repositoryUrl = selectedProjectId
     ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
@@ -110,23 +116,37 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   }[selectedStrategy];
   const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable;
 
-  const handleCreateTask = useCallback(() => {
+  const handleCreateTask = useCallback(async () => {
     if (!selectedProjectId) return;
     const id = crypto.randomUUID();
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
-    const builtInitialConversation = initialConversation.provider
-      ? {
-          id: crypto.randomUUID(),
-          projectId: selectedProjectId,
-          taskId: id,
-          provider: initialConversation.provider,
-          title: nextDefaultConversationTitle(initialConversation.provider, []),
-          initialPrompt: initialConversation.prompt.trim() || undefined,
-          autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
-        }
-      : undefined;
+    let initialPromptImages: Awaited<ReturnType<typeof getInitialPromptImages>>;
+    try {
+      initialPromptImages = await getInitialPromptImages(initialConversation.imageAttachments);
+    } catch (error) {
+      toast({
+        title: 'Failed to attach images',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+      return;
+    }
+    const initialPrompt = initialConversation.prompt.trim();
+    const builtInitialConversation =
+      initialConversation.provider && (initialPrompt || initialPromptImages.length > 0)
+        ? {
+            id: crypto.randomUUID(),
+            projectId: selectedProjectId,
+            taskId: id,
+            provider: initialConversation.provider,
+            title: nextDefaultConversationTitle(initialConversation.provider, []),
+            initialPrompt: initialPrompt || undefined,
+            initialPromptImages,
+            autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
+          }
+        : undefined;
 
     switch (selectedStrategy) {
       case 'from-branch': {
@@ -209,6 +229,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     autoApproveDefaults,
     navigate,
     onClose,
+    toast,
   ]);
 
   return (

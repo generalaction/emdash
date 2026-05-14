@@ -7,8 +7,56 @@ import { conversations } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
+import { taskManager } from '../tasks/task-manager';
+import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
+
+function pathToImageReference(path: string): string {
+  return `file://${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+function buildInitialPrompt(
+  prompt: string | undefined,
+  images: Array<{ name: string; path: string }>
+): string | undefined {
+  const trimmedPrompt = prompt?.trim() ?? '';
+  const validImages = images.filter((image) => image.path);
+  if (validImages.length === 0) return trimmedPrompt || undefined;
+
+  const imagePrompt = validImages
+    .map((image) => `- ${image.name}: ${pathToImageReference(image.path)}`)
+    .join('\n');
+  return [trimmedPrompt, 'Attached images:', imagePrompt].filter(Boolean).join('\n\n');
+}
+
+async function prepareInitialPrompt(params: CreateConversationParams): Promise<string | undefined> {
+  const images = params.initialPromptImages ?? [];
+  if (images.length === 0) return buildInitialPrompt(params.initialPrompt, []);
+
+  const workspaceId = taskManager.getWorkspaceId(params.taskId);
+  const workspace = workspaceId ? workspaceRegistry.get(workspaceId) : undefined;
+  const copyLocalFileToTemp = workspace?.fs.copyLocalFileToTemp?.bind(workspace.fs);
+  if (!copyLocalFileToTemp) return buildInitialPrompt(params.initialPrompt, images);
+
+  const remoteImages = await Promise.all(
+    images.map(async (image) => {
+      try {
+        return {
+          ...image,
+          path: await copyLocalFileToTemp(image.path, image.name),
+        };
+      } catch (error) {
+        log.warn('Failed to copy initial prompt image to remote temp storage', {
+          image: image.name,
+          error,
+        });
+        return { ...image, path: '' };
+      }
+    })
+  );
+  return buildInitialPrompt(params.initialPrompt, remoteImages);
+}
 
 export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
   const id = params.id ?? randomUUID();
@@ -47,12 +95,12 @@ export async function createConversation(params: CreateConversationParams): Prom
   const conversation = mapConversationRowToConversation(row);
 
   await withCompensation({
-    action: () =>
+    action: async () =>
       task.conversations.startSession(
         conversation,
         params.initialSize,
         false,
-        params.initialPrompt
+        await prepareInitialPrompt(params)
       ),
     compensate: async () => {
       await db.delete(conversations).where(eq(conversations.id, row.id)).execute();
