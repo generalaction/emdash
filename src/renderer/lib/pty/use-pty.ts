@@ -249,9 +249,12 @@ export function usePty(
   const measureAndResizeRef = useRef(measureAndResize);
   measureAndResizeRef.current = measureAndResize;
 
-  const applyTheme = useCallback((t?: SessionTheme) => {
-    pty.setTheme(t);
-  }, [pty]);
+  const applyTheme = useCallback(
+    (t?: SessionTheme) => {
+      pty.setTheme(t);
+    },
+    [pty]
+  );
 
   const setTheme = useCallback(
     (t: SessionTheme) => {
