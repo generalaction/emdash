@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderIcon, Minus, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import React from 'react';
+import { dirnameFromAnyPath } from '@shared/path-name';
 import type { ManagedWorktreesSummary } from '@shared/worktree-cleanup';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { rpc } from '@renderer/lib/ipc';
@@ -24,13 +25,6 @@ type WorktreeGroup = {
   worktrees: ManagedWorktree[];
   totalSizeBytes: number;
 };
-
-function getDirectoryName(filePath: string) {
-  const trimmed = filePath.replace(/[\\/]+$/, '');
-  const separatorIndex = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
-  if (separatorIndex < 0) return '';
-  return trimmed.slice(0, separatorIndex) || '/';
-}
 
 const WORKTREE_STATUS_LABELS: Record<ManagedWorktree['status'], string> = {
   active: 'In use',
@@ -58,8 +52,8 @@ function WorktreeStatusBadge({ worktree }: { worktree: ManagedWorktree }) {
           {WORKTREE_STATUS_LABELS[worktree.status]}
         </Badge>
       </TooltipTrigger>
-      <TooltipContent side="left" align="center" className="flex-col items-start gap-0.5">
-        <div>{WORKTREE_STATUS_DESCRIPTIONS[worktree.status]}</div>
+      <TooltipContent side="left" align="center">
+        {WORKTREE_STATUS_DESCRIPTIONS[worktree.status]}
       </TooltipContent>
     </Tooltip>
   );
@@ -75,7 +69,7 @@ function groupWorktreesByProject(worktrees: ManagedWorktree[]): WorktreeGroup[] 
         ? `name:${worktree.projectName}`
         : 'unknown-project';
     const label = worktree.projectName ?? 'Unknown project';
-    const groupPath = getDirectoryName(worktree.path);
+    const groupPath = dirnameFromAnyPath(worktree.path);
     const existing = groups.get(key);
 
     if (existing) {
@@ -190,16 +184,9 @@ export default function WorktreeCleanupSettingsCard() {
     [summary?.worktrees]
   );
 
-  const persistedAutoCleanup = value?.autoCleanupEnabled ?? defaults?.autoCleanupEnabled;
-  const [autoCleanupEnabled, setAutoCleanupEnabled] = React.useState<boolean>(
-    persistedAutoCleanup ?? false
-  );
-  React.useEffect(() => {
-    if (typeof persistedAutoCleanup === 'boolean') setAutoCleanupEnabled(persistedAutoCleanup);
-  }, [persistedAutoCleanup]);
-
   if (!defaults) return null;
   const settings = value ?? defaults;
+  const autoCleanupEnabled = settings.autoCleanupEnabled;
 
   const requestCleanup = () => {
     showConfirm({
@@ -232,22 +219,18 @@ export default function WorktreeCleanupSettingsCard() {
                 checked={autoCleanupEnabled}
                 disabled={busy}
                 onCheckedChange={(next) => {
-                  if (next && !autoCleanupEnabled) {
+                  if (next) {
                     showConfirm({
                       title: 'Enable automatic cleanup?',
                       description:
                         'Emdash will periodically delete eligible archived, orphaned, or missing managed worktrees in the background once the limits below are exceeded. Active tasks are never touched.',
                       confirmLabel: 'Enable',
                       variant: 'destructive',
-                      onSuccess: () => {
-                        setAutoCleanupEnabled(true);
-                        update({ autoCleanupEnabled: true });
-                      },
+                      onSuccess: () => update({ autoCleanupEnabled: true }),
                     });
                     return;
                   }
-                  setAutoCleanupEnabled(next);
-                  update({ autoCleanupEnabled: next });
+                  update({ autoCleanupEnabled: false });
                 }}
               />
             </>

@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { basenameFromAnyPath, safePathSegment } from '@shared/path-name';
+import { baseProjectSettingsSchema } from '@shared/project-settings';
 import type {
   ListManagedWorktreesOptions,
   ManagedWorktree,
@@ -18,7 +19,9 @@ const CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
 const STARTUP_CLEANUP_DELAY_MS = 30 * 1000;
 const MANAGED_WORKTREES_CACHE_TTL_MS = 30 * 1000;
 const ONE_GB = 1024 * 1024 * 1024;
-const DIRECTORY_SIZE_CONCURRENCY = 4;
+// Caps total in-flight readdir/stat syscalls across all directorySize walks.
+// Without this, recursive Promise.all fans out unboundedly into node_modules trees.
+const FS_SIZE_CONCURRENCY = 16;
 
 type WorktreeRow = {
   workspaceId: string;
@@ -43,10 +46,13 @@ type LocalProjectRow = {
   baseProjectSettingsJson: string | null;
 };
 
-function rowRecency(row: WorktreeRow): number {
-  const timestamp = row.lastInteractedAt ?? row.taskUpdatedAt ?? row.workspaceUpdatedAt;
-  const time = Date.parse(timestamp);
-  return Number.isFinite(time) ? time : 0;
+function recencyOf(...timestamps: Array<string | null | undefined>): number {
+  for (const timestamp of timestamps) {
+    if (!timestamp) continue;
+    const time = Date.parse(timestamp);
+    if (Number.isFinite(time)) return time;
+  }
+  return 0;
 }
 
 function readRows(): WorktreeRow[] {
@@ -91,7 +97,8 @@ function readRows(): WorktreeRow[] {
       byWorkspace.set(row.workspaceId, row);
     } else if (
       candidateActive === Boolean(existingActive) &&
-      rowRecency(row) > rowRecency(existing)
+      recencyOf(row.lastInteractedAt, row.taskUpdatedAt, row.workspaceUpdatedAt) >
+        recencyOf(existing.lastInteractedAt, existing.taskUpdatedAt, existing.workspaceUpdatedAt)
     ) {
       byWorkspace.set(row.workspaceId, row);
     }
@@ -152,28 +159,39 @@ function createConcurrencyLimiter(limit: number): <T>(task: () => Promise<T>) =>
     });
 }
 
-async function directorySize(absPath: string): Promise<number> {
+type FsLimit = <T>(task: () => Promise<T>) => Promise<T>;
+
+async function directorySize(absPath: string, limit: FsLimit): Promise<number> {
   let total = 0;
-  const entries = await fs.readdir(absPath, { withFileTypes: true }).catch(() => []);
+  const entries = await limit(() => fs.readdir(absPath, { withFileTypes: true })).catch((error) => {
+    log.debug('worktree-cleanup: directorySize readdir failed', {
+      path: absPath,
+      error: String(error),
+    });
+    return [];
+  });
   await Promise.all(
     entries.map(async (entry) => {
       const entryPath = path.join(absPath, entry.name);
       try {
         if (entry.isDirectory()) {
-          total += await directorySize(entryPath);
+          total += await directorySize(entryPath, limit);
         } else if (entry.isFile()) {
-          total += (await fs.stat(entryPath)).size;
+          total += (await limit(() => fs.stat(entryPath))).size;
         }
-      } catch {}
+      } catch (error) {
+        log.debug('worktree-cleanup: directorySize entry failed', {
+          path: entryPath,
+          error: String(error),
+        });
+      }
     })
   );
   return total;
 }
 
-function getSortTime(worktree: ManagedWorktree): number {
-  const timestamp = worktree.lastInteractedAt ?? worktree.updatedAt;
-  const time = Date.parse(timestamp);
-  return Number.isFinite(time) ? time : 0;
+function sortTime(worktree: ManagedWorktree): number {
+  return recencyOf(worktree.lastInteractedAt, worktree.updatedAt);
 }
 
 function classify(row: WorktreeRow, pathExists: boolean): ManagedWorktree['status'] {
@@ -197,14 +215,14 @@ function cleanupEligible(
   return status !== 'active';
 }
 
+const worktreeDirectoryFieldSchema = baseProjectSettingsSchema.pick({ worktreeDirectory: true });
+
 function parseConfiguredWorktreeDirectory(json: string | null): string | undefined {
   if (!json) return undefined;
   try {
-    const parsed: unknown = JSON.parse(json);
-    if (!parsed || typeof parsed !== 'object' || !('worktreeDirectory' in parsed)) return undefined;
-    const worktreeDirectory = parsed.worktreeDirectory;
-    return typeof worktreeDirectory === 'string' && worktreeDirectory.trim()
-      ? worktreeDirectory
+    const parsed = worktreeDirectoryFieldSchema.safeParse(JSON.parse(json));
+    return parsed.success && parsed.data.worktreeDirectory
+      ? parsed.data.worktreeDirectory
       : undefined;
   } catch {
     return undefined;
@@ -240,7 +258,7 @@ export class WorktreeCleanupService {
     | undefined;
   private managedWorktreesRefresh: Promise<ManagedWorktreesSummary> | undefined;
   private cleanupRun: Promise<ManagedWorktreesSummary> | undefined;
-  private readonly limitDirectorySize = createConcurrencyLimiter(DIRECTORY_SIZE_CONCURRENCY);
+  private readonly limitFs: FsLimit = createConcurrencyLimiter(FS_SIZE_CONCURRENCY);
 
   initialize(): void {
     if (this.timer) return;
@@ -290,7 +308,9 @@ export class WorktreeCleanupService {
       }
     }
 
-    if (!options.forceRefresh && this.managedWorktreesRefresh) {
+    // `forceRefresh` ignores the cache TTL but still rides any in-flight refresh —
+    // running two concurrent filesystem walks would just waste work.
+    if (this.managedWorktreesRefresh) {
       return this.managedWorktreesRefresh;
     }
 
@@ -319,9 +339,7 @@ export class WorktreeCleanupService {
       rows.map(async (row): Promise<ManagedWorktree> => {
         const pathOnDisk = await exists(row.path);
         const status = classify(row, pathOnDisk);
-        const sizeBytes = pathOnDisk
-          ? await this.limitDirectorySize(() => directorySize(row.path))
-          : 0;
+        const sizeBytes = pathOnDisk ? await directorySize(row.path, this.limitFs) : 0;
         return {
           workspaceId: row.workspaceId,
           taskId: row.taskId,
@@ -367,7 +385,7 @@ export class WorktreeCleanupService {
     const orphans = (
       await Promise.all(
         Array.from(roots).map(async ([root, project]) => {
-          if (!(await exists(root))) return [];
+          // findWorktreeDirectories catches readdir errors on missing roots and returns [].
           const paths = await findWorktreeDirectories(root);
           return Promise.all(
             paths.map(async (worktreePath): Promise<ManagedWorktree | null> => {
@@ -385,7 +403,7 @@ export class WorktreeCleanupService {
                 projectPath: project.projectPath,
                 branch: null,
                 path: worktreePath,
-                sizeBytes: await this.limitDirectorySize(() => directorySize(worktreePath)),
+                sizeBytes: await directorySize(worktreePath, this.limitFs),
                 updatedAt,
                 lastInteractedAt: null,
                 archivedAt: null,
@@ -407,7 +425,7 @@ export class WorktreeCleanupService {
     }
 
     return {
-      worktrees: visible.sort((a, b) => getSortTime(b) - getSortTime(a)),
+      worktrees: visible.sort((a, b) => sortTime(b) - sortTime(a)),
       totalSizeBytes: visible.reduce((sum, worktree) => sum + worktree.sizeBytes, 0),
       cleanedCount: 0,
       cleanedSizeBytes: 0,
@@ -434,21 +452,38 @@ export class WorktreeCleanupService {
     const summary = await this.listManagedWorktrees({ forceRefresh: true });
     const maxSizeBytes = settings.maxTotalSizeGb > 0 ? settings.maxTotalSizeGb * ONE_GB : Infinity;
     const removed = new Set<string>();
+    const projectsToPrune = new Set<string>();
     let remainingCount = summary.worktrees.length;
     let remainingSize = summary.totalSizeBytes;
     let cleanedSizeBytes = 0;
 
     const candidates = summary.worktrees
       .filter((worktree) => worktree.cleanupEligible)
-      .sort((a, b) => getSortTime(a) - getSortTime(b));
+      .sort((a, b) => sortTime(a) - sortTime(b));
 
-    for (const worktree of candidates) {
-      if (remainingCount <= settings.maxWorktrees && remainingSize <= maxSizeBytes) break;
-      await this.removeWorktree(worktree);
-      removed.add(worktree.workspaceId);
-      remainingCount -= 1;
-      remainingSize -= worktree.sizeBytes;
-      cleanedSizeBytes += worktree.sizeBytes;
+    try {
+      for (const worktree of candidates) {
+        if (remainingCount <= settings.maxWorktrees && remainingSize <= maxSizeBytes) break;
+        await this.removeWorktree(worktree);
+        removed.add(worktree.workspaceId);
+        if (worktree.projectPath) projectsToPrune.add(worktree.projectPath);
+        remainingCount -= 1;
+        remainingSize -= worktree.sizeBytes;
+        cleanedSizeBytes += worktree.sizeBytes;
+      }
+    } finally {
+      // Prune dangling `.git/worktrees/<name>` metadata once per repo even if cleanup aborts
+      // mid-loop, so subsequent `git worktree list` calls don't trip over removed directories.
+      await Promise.all(
+        Array.from(projectsToPrune).map((projectPath) =>
+          execFileAsync('git', ['-C', projectPath, 'worktree', 'prune']).catch((error) => {
+            log.warn('worktree-cleanup: git worktree prune failed', {
+              projectPath,
+              error: String(error),
+            });
+          })
+        )
+      );
     }
 
     const result: ManagedWorktreesSummary = {
@@ -474,18 +509,6 @@ export class WorktreeCleanupService {
         });
         throw error;
       });
-    }
-    if (worktree.projectPath) {
-      // Clear the dangling .git/worktrees/<name> metadata in the parent repo so that
-      // `git worktree list` and future operations don't trip over the removed worktree.
-      await execFileAsync('git', ['-C', worktree.projectPath, 'worktree', 'prune']).catch(
-        (error) => {
-          log.warn('worktree-cleanup: git worktree prune failed', {
-            projectPath: worktree.projectPath,
-            error: String(error),
-          });
-        }
-      );
     }
     if (worktree.taskId) {
       sqlite
