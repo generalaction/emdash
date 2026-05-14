@@ -127,7 +127,7 @@ export type ProjectSettingsOverrideState = Record<
   ProjectSettingsOverrideSource[]
 >;
 
-export type ProjectConfigMigrationProvider = 'conductor' | 'superset' | 'paseo';
+export type ProjectConfigMigrationProvider = 'conductor' | 'superset' | 'paseo' | 'codex';
 
 export type ProjectConfigMigration = {
   provider: ProjectConfigMigrationProvider;

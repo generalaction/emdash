@@ -394,6 +394,136 @@ describe('config migration', () => {
     });
   });
 
+  it('detects importable Codex local environment settings', async () => {
+    const fs = createFs({
+      '.codex/environments/environment.toml': `
+        version = 1
+        name = "emdash"
+
+        [setup]
+        script = """
+        npm install
+        npm run build
+        """
+
+        [cleanup]
+        script = "docker compose down"
+
+        [[actions]]
+        name = "Run"
+        icon = "run"
+        command = "npm run dev"
+      `,
+    });
+
+    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([
+      {
+        provider: 'codex',
+        label: 'Codex',
+        files: ['.codex/environments/environment.toml'],
+        fields: ['scripts.setup', 'scripts.teardown'],
+        unsupportedFields: ['actions.Run.command', 'actions.Run.icon'],
+      },
+    ]);
+  });
+
+  it('writes Codex local environment settings into .emdash.json', async () => {
+    const fs = createFs({
+      '.codex/environments/environment.toml': `
+        [setup]
+        script = "npm ci"
+
+        [cleanup]
+        script = "rm -rf .cache"
+
+        [[actions]]
+        name = "Test"
+        command = "npm test"
+      `,
+    });
+    const patch = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await migrateProjectConfigFromProvider(
+      {
+        fs,
+        settings: {
+          patch,
+        },
+      } as never,
+      { provider: 'codex', destination: 'shared' }
+    );
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
+      scripts: {
+        setup: 'npm ci',
+        teardown: 'rm -rf .cache',
+      },
+    });
+    expect(patch).toHaveBeenCalledWith({
+      clearShareableFields: ['scripts.setup', 'scripts.teardown'],
+    });
+  });
+
+  it('imports Codex local environment settings into local project settings', async () => {
+    const fs = createFs({
+      '.codex/environments/environment.toml': `
+        [setup]
+        script = "npm ci"
+      `,
+    });
+    const update = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await migrateProjectConfigFromProvider(
+      {
+        fs,
+        settings: {
+          get: vi.fn().mockResolvedValue({
+            scripts: {
+              teardown: 'docker compose down',
+            },
+          }),
+          update,
+        },
+      } as never,
+      { provider: 'codex', destination: 'local' }
+    );
+
+    expect(result.success).toBe(true);
+    expect(fs.write).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      scripts: {
+        setup: 'npm ci',
+        teardown: 'docker compose down',
+      },
+    });
+  });
+
+  it('does not import when only Codex actions are configured', async () => {
+    const fs = createFs({
+      '.codex/environments/environment.toml': `
+        [[actions]]
+        name = "Run"
+        icon = "run"
+        command = "npm run dev"
+      `,
+    });
+
+    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([]);
+    await expect(
+      migrateProjectConfigFromProvider({ fs } as never, {
+        provider: 'codex',
+        destination: 'shared',
+      })
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'write-config-failed',
+        message: 'No supported Codex settings were found.',
+      },
+    });
+  });
+
   it('returns an error when no supported Conductor settings exist', async () => {
     const fs = createFs({
       'conductor.json': JSON.stringify({

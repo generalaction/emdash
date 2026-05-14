@@ -4,6 +4,7 @@ import { err, type Result } from '@shared/result';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import type { ProjectProvider } from '../../project-provider';
+import { codexConfigMigrator } from './codex-config-migration';
 import { conductorConfigMigrator } from './conductor-config-migration';
 import { paseoConfigMigrator } from './paseo-config-migration';
 import { supersetConfigMigrator } from './superset-config-migration';
@@ -24,6 +25,7 @@ const PROJECT_CONFIG_MIGRATORS = [
   conductorConfigMigrator,
   supersetConfigMigrator,
   paseoConfigMigrator,
+  codexConfigMigrator,
 ] as const;
 
 function writeConfigFailed(message: string): Result<never, UpdateProjectSettingsError> {
