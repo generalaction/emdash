@@ -94,6 +94,7 @@ function useRemoteDirectoryBrowser(connectionId: string | undefined, initialPath
 
   const resetPath = useCallback((path: string) => {
     setCurrentPath(path);
+    setFileEntries([]);
     setLoadedPath(null);
   }, []);
 
@@ -230,18 +231,20 @@ export function RemoteDirectorySelector({
     void navigateToPath(parentPath(currentPath));
   };
 
-  const navigateBack = () => {
+  const navigateBack = async () => {
     if (history.index === 0) return;
     const nextPath = history.entries[history.index - 1];
+    const loaded = await loadDirectory(nextPath);
+    if (!loaded) return;
     dispatchHistory({ type: 'back' });
-    void loadDirectory(nextPath);
   };
 
-  const navigateForward = () => {
+  const navigateForward = async () => {
     if (history.index >= history.entries.length - 1) return;
     const nextPath = history.entries[history.index + 1];
+    const loaded = await loadDirectory(nextPath);
+    if (!loaded) return;
     dispatchHistory({ type: 'forward' });
-    void loadDirectory(nextPath);
   };
 
   const refreshCurrentPath = () => {
@@ -371,7 +374,7 @@ export function RemoteDirectorySelector({
               variant="ghost"
               size="icon-xs"
               aria-label="Back"
-              onClick={navigateBack}
+              onClick={() => void navigateBack()}
               disabled={history.index === 0 || isBrowsing}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -381,7 +384,7 @@ export function RemoteDirectorySelector({
               variant="ghost"
               size="icon-xs"
               aria-label="Forward"
-              onClick={navigateForward}
+              onClick={() => void navigateForward()}
               disabled={history.index >= history.entries.length - 1 || isBrowsing}
             >
               <ChevronRight className="h-4 w-4" />
