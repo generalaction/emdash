@@ -98,7 +98,7 @@ describe('scheduleInitialPromptInjection', () => {
     expect(write).toHaveBeenCalledExactlyOnceWith('\x1b[200~line one\nline two\x1b[201~\r');
   });
 
-  it('injects OpenCode prompts through the TUI instead of CLI prompt mode', () => {
+  it('does nothing for OpenCode because its initial prompt is passed to run --interactive', () => {
     const { pty, write, emitData } = makePty();
     scheduleInitialPromptInjection({
       pty,
@@ -108,8 +108,8 @@ describe('scheduleInitialPromptInjection', () => {
     });
 
     emitData('ready');
-    vi.advanceTimersByTime(900);
-    expect(write).toHaveBeenCalledExactlyOnceWith('Fix the bug\r');
+    vi.advanceTimersByTime(20_000);
+    expect(write).not.toHaveBeenCalled();
   });
 
   it('does nothing for providers without keystroke injection', () => {

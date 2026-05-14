@@ -56,13 +56,15 @@ export function scheduleInitialPromptInjection(args: {
   });
 
   args.pty.onExit(() => {
+    const promptWasInjected = injected;
     injected = true;
     if (quietTimer) clearTimeout(quietTimer);
     clearTimeout(maxWaitTimer);
-    if (!sawAnyOutput) {
-      log.warn('ConversationProvider: PTY exited before any output; prompt not injected', {
+    if (!promptWasInjected) {
+      log.warn('ConversationProvider: PTY exited before initial prompt could be injected', {
         providerId: args.conversation.providerId,
         conversationId: args.conversation.id,
+        sawAnyOutput,
       });
     }
   });
