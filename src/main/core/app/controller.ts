@@ -22,8 +22,12 @@ export const appController = createRPCController({
     }
   },
   quit: () => {
-    appService.quit();
-    return { success: true };
+    try {
+      appService.quit();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   },
   openIn: async (args: {
     app: OpenInAppId;
