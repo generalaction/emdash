@@ -9,8 +9,6 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { createTask } from '@main/core/tasks/operations/createTask';
-import { appendAutomationEventContext } from './eventContext';
-import { applyAutomationTemplate } from './template';
 import type { ActionExecutor } from './types';
 
 function stringifyCreateTaskError(error: CreateTaskError): string {
@@ -83,10 +81,7 @@ async function resolveSourceBranch(projectId: string, taskName: string, action: 
 }
 
 export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action, ctx) => {
-  const prompt = appendAutomationEventContext(
-    applyAutomationTemplate(action.prompt, ctx.event),
-    ctx.event
-  ).trim();
+  const prompt = action.prompt.trim();
   if (!prompt) return err('task_create_prompt_empty');
 
   const taskName = action.taskName?.trim() || generateTaskName({ title: ctx.automation.name });
@@ -107,6 +102,7 @@ export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action
       strategy: branchConfig.data.strategy,
       linkedIssue: action.linkedIssue,
       workspaceProvider: action.workspaceProvider,
+      automationId: ctx.automation.id,
       initialConversation: {
         id: conversationId,
         projectId,

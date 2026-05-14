@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
-import { and, desc, eq, isNotNull, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, lte, or } from 'drizzle-orm';
 import type { ActionSpec } from '@shared/automations/actions';
-import type { AutomationEventKind, EventTriggerFilters } from '@shared/automations/events';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
   Automation,
@@ -16,56 +15,19 @@ import type {
 } from '@shared/automations/types';
 import { db } from '@main/db/client';
 import {
-  automationEventCursors,
   automationRuns,
   automations,
   projects,
-  type AutomationEventCursorRow,
   type AutomationRow,
   type AutomationRunRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 
 const DEFAULT_TZ = getLocalTimeZone();
-const EVENT_PROVIDER = 'github';
 
 function fallbackActions(promptTemplate: string): ActionSpec[] {
   const prompt = promptTemplate.trim();
   return prompt ? [{ kind: 'task.create', prompt }] : [];
-}
-
-function asStringArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  return value.every((v) => typeof v === 'string') ? (value as string[]) : undefined;
-}
-
-function parseEventFilters(raw: string | null): EventTriggerFilters | undefined {
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
-    const obj = parsed as Record<string, unknown>;
-    const result: EventTriggerFilters = {};
-    const branches = asStringArray(obj.branches);
-    const authorsInclude = asStringArray(obj.authorsInclude);
-    const authorsExclude = asStringArray(obj.authorsExclude);
-    if (branches) result.branches = branches;
-    if (authorsInclude) result.authorsInclude = authorsInclude;
-    if (authorsExclude) result.authorsExclude = authorsExclude;
-    return Object.keys(result).length > 0 ? result : undefined;
-  } catch (error) {
-    log.warn('automations.repo: failed to parse event_filters JSON', { error: String(error) });
-    return undefined;
-  }
-}
-
-function serializeEventFilters(filters: EventTriggerFilters | undefined): string | null {
-  if (!filters) return null;
-  const cleaned: EventTriggerFilters = {};
-  if (filters.branches?.length) cleaned.branches = filters.branches;
-  if (filters.authorsInclude?.length) cleaned.authorsInclude = filters.authorsInclude;
-  if (filters.authorsExclude?.length) cleaned.authorsExclude = filters.authorsExclude;
-  return Object.keys(cleaned).length > 0 ? JSON.stringify(cleaned) : null;
 }
 
 function parseActions(raw: string, promptTemplate: string): ActionSpec[] {
@@ -96,16 +58,13 @@ function firstTaskCreatePrompt(actions: ActionSpec[]): string {
 }
 
 const RUN_STATUSES: ReadonlySet<AutomationRunStatus> = new Set([
+  'queued',
   'running',
   'success',
   'failed',
   'skipped',
 ]);
-const RUN_TRIGGER_KINDS: ReadonlySet<AutomationRunTriggerKind> = new Set([
-  'cron',
-  'manual',
-  'event',
-]);
+const RUN_TRIGGER_KINDS: ReadonlySet<AutomationRunTriggerKind> = new Set(['cron', 'manual']);
 
 function asRunStatus(value: string): AutomationRunStatus {
   if (RUN_STATUSES.has(value as AutomationRunStatus)) return value as AutomationRunStatus;
@@ -120,21 +79,12 @@ function asRunTriggerKind(value: string): AutomationRunTriggerKind {
 }
 
 function mapAutomationRow(row: AutomationRow): Automation {
-  let trigger: TriggerSpec;
-  if (row.triggerType === 'cron') {
-    if (!row.cronExpr) throw new Error(`automation_row_missing_cron_expr:${row.id}`);
-    trigger = { kind: 'cron', expr: row.cronExpr, tz: row.cronTz ?? DEFAULT_TZ };
-  } else if (row.triggerType === 'event') {
-    if (!row.eventType) throw new Error(`automation_row_missing_event_type:${row.id}`);
-    const filters = parseEventFilters(row.eventFilters);
-    trigger = {
-      kind: 'event',
-      event: row.eventType as AutomationEventKind,
-      ...(filters ? { filters } : {}),
-    };
-  } else {
-    throw new Error(`automation_row_invalid_trigger_type:${row.triggerType}`);
-  }
+  if (!row.cronExpr) throw new Error(`automation_row_missing_cron_expr:${row.id}`);
+  const trigger: TriggerSpec = {
+    kind: 'cron',
+    expr: row.cronExpr,
+    tz: row.cronTz ?? DEFAULT_TZ,
+  };
 
   return {
     id: row.id,
@@ -145,6 +95,7 @@ function mapAutomationRow(row: AutomationRow): Automation {
     actions: parseActions(row.actions, row.promptTemplate),
     projectId: row.projectId,
     enabled: row.enabled === 1,
+    isDraft: row.isDraft === 1,
     lastRunAt: row.lastRunAt,
     nextRunAt: row.nextRunAt,
     builtinTemplateId: row.builtinTemplateId,
@@ -157,6 +108,7 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
   return {
     id: row.id,
     automationId: row.automationId,
+    scheduledAt: row.scheduledAt,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     status: asRunStatus(row.status),
@@ -164,6 +116,7 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
     createdTaskId: row.createdTaskId,
     error: row.error,
     triggerKind: asRunTriggerKind(row.triggerKind),
+    workerId: row.workerId,
   };
 }
 
@@ -171,7 +124,6 @@ export function getNextRunAt(
   trigger: TriggerSpec,
   from: number | Date = new Date()
 ): number | null {
-  if (trigger.kind !== 'cron') return null;
   const next = new Cron(trigger.expr, { timezone: trigger.tz || DEFAULT_TZ }).nextRun(
     from instanceof Date ? from : new Date(from)
   );
@@ -179,25 +131,10 @@ export function getNextRunAt(
 }
 
 function rowValuesFromTrigger(trigger: TriggerSpec) {
-  if (trigger.kind === 'cron') {
-    return {
-      triggerType: 'cron',
-      cronExpr: trigger.expr,
-      cronTz: trigger.tz || DEFAULT_TZ,
-      eventType: null,
-      eventProvider: null,
-      eventFilters: null,
-      nextRunAt: getNextRunAt(trigger),
-    };
-  }
   return {
-    triggerType: 'event',
-    cronExpr: null,
-    cronTz: null,
-    eventType: trigger.event,
-    eventProvider: EVENT_PROVIDER,
-    eventFilters: serializeEventFilters(trigger.filters),
-    nextRunAt: null,
+    cronExpr: trigger.expr,
+    cronTz: trigger.tz || DEFAULT_TZ,
+    nextRunAt: getNextRunAt(trigger),
   };
 }
 
@@ -240,7 +177,8 @@ export async function createAutomation(input: CreateAutomationInput): Promise<Au
       promptTemplate: firstTaskCreatePrompt(input.actions),
       actions: JSON.stringify(input.actions),
       projectId: input.projectId,
-      enabled: input.enabled === false ? 0 : 1,
+      enabled: input.isDraft ? 0 : input.enabled === false ? 0 : 1,
+      isDraft: input.isDraft ? 1 : 0,
       lastRunAt: null,
       builtinTemplateId: input.builtinTemplateId ?? null,
       createdAt: now,
@@ -265,6 +203,7 @@ export async function updateAutomation(
     values.projectId = patch.projectId;
   }
   if (patch.enabled !== undefined) values.enabled = patch.enabled ? 1 : 0;
+  if (patch.isDraft !== undefined) values.isDraft = patch.isDraft ? 1 : 0;
   if (patch.builtinTemplateId !== undefined) values.builtinTemplateId = patch.builtinTemplateId;
   if (patch.trigger !== undefined) Object.assign(values, rowValuesFromTrigger(patch.trigger));
   if (patch.actions !== undefined) {
@@ -290,6 +229,9 @@ export async function setAutomationEnabled(
 ): Promise<Automation | null> {
   const existing = await getAutomation(id);
   if (!existing) return null;
+  if (existing.isDraft && enabled) {
+    throw new Error('automation_is_draft');
+  }
   const nextRunAt = enabled ? getNextRunAt(existing.trigger) : existing.nextRunAt;
   const [row] = await db
     .update(automations)
@@ -316,7 +258,7 @@ export async function dueCronAutomations(now = Date.now()): Promise<Automation[]
     .where(
       and(
         eq(automations.enabled, 1),
-        eq(automations.triggerType, 'cron'),
+        eq(automations.isDraft, 0),
         isNotNull(automations.nextRunAt),
         lte(automations.nextRunAt, now)
       )
@@ -328,33 +270,8 @@ export async function enabledCronAutomations(): Promise<Automation[]> {
   const rows = await db
     .select()
     .from(automations)
-    .where(and(eq(automations.enabled, 1), eq(automations.triggerType, 'cron')));
+    .where(and(eq(automations.enabled, 1), eq(automations.isDraft, 0)));
   return rows.map(mapAutomationRow);
-}
-
-export async function enabledEventAutomations(filter: {
-  kind?: AutomationEventKind;
-  projectId?: string;
-}): Promise<Automation[]> {
-  const conditions = [eq(automations.enabled, 1), eq(automations.triggerType, 'event')];
-  if (filter.kind) conditions.push(eq(automations.eventType, filter.kind));
-  if (filter.projectId) conditions.push(eq(automations.projectId, filter.projectId));
-
-  const rows = await db
-    .select()
-    .from(automations)
-    .where(and(...conditions));
-
-  return rows.map(mapAutomationRow).filter((automation) => automation.trigger.kind === 'event');
-}
-
-export async function hasEnabledEventAutomations(): Promise<boolean> {
-  const rows = await db
-    .select({ id: automations.id })
-    .from(automations)
-    .where(and(eq(automations.enabled, 1), eq(automations.triggerType, 'event')))
-    .limit(1);
-  return rows.length > 0;
 }
 
 export async function countRunningRuns(automationId: string): Promise<number> {
@@ -366,8 +283,96 @@ export async function countRunningRuns(automationId: string): Promise<number> {
   return rows.length;
 }
 
+export async function enqueueAutomationRun(input: {
+  automationId: string;
+  scheduledAt: number;
+  triggerKind: AutomationRunTriggerKind;
+}): Promise<AutomationRun | null> {
+  const existing = await db
+    .select({ id: automationRuns.id })
+    .from(automationRuns)
+    .where(
+      and(
+        eq(automationRuns.automationId, input.automationId),
+        eq(automationRuns.scheduledAt, input.scheduledAt),
+        or(eq(automationRuns.status, 'queued'), eq(automationRuns.status, 'running'))
+      )
+    )
+    .limit(1);
+  if (existing.length > 0) return null;
+
+  return insertRun({
+    automationId: input.automationId,
+    scheduledAt: input.scheduledAt,
+    status: 'queued',
+    triggerKind: input.triggerKind,
+  });
+}
+
+export async function listQueuedCronRuns(limit = 100): Promise<
+  Array<{
+    run: AutomationRun;
+    automation: Automation;
+  }>
+> {
+  const rows = await db
+    .select({ run: automationRuns, automation: automations })
+    .from(automationRuns)
+    .innerJoin(automations, eq(automationRuns.automationId, automations.id))
+    .where(
+      and(
+        eq(automationRuns.status, 'queued'),
+        eq(automationRuns.triggerKind, 'cron'),
+        eq(automations.enabled, 1),
+        eq(automations.isDraft, 0)
+      )
+    )
+    .orderBy(asc(automationRuns.scheduledAt), asc(automationRuns.startedAt))
+    .limit(limit);
+  return rows.map(({ run, automation }) => ({
+    run: mapAutomationRunRow(run),
+    automation: mapAutomationRow(automation),
+  }));
+}
+
+export async function claimQueuedRun(
+  id: string,
+  workerId: string,
+  now = Date.now()
+): Promise<AutomationRun | null> {
+  const [row] = await db
+    .update(automationRuns)
+    .set({ status: 'running', startedAt: now, workerId })
+    .where(and(eq(automationRuns.id, id), eq(automationRuns.status, 'queued')))
+    .returning();
+  return row ? mapAutomationRunRow(row) : null;
+}
+
+export async function markRunningRunsInterrupted(now = Date.now()): Promise<number> {
+  const rows = await db
+    .update(automationRuns)
+    .set({
+      status: 'failed',
+      finishedAt: now,
+      error: 'interrupted_by_restart',
+    })
+    .where(eq(automationRuns.status, 'running'))
+    .returning({ id: automationRuns.id });
+  return rows.length;
+}
+
+export async function recoverQueuedRuns(): Promise<number> {
+  const rows = await db
+    .update(automationRuns)
+    .set({ workerId: null })
+    .where(eq(automationRuns.status, 'queued'))
+    .returning({ id: automationRuns.id });
+  return rows.length;
+}
+
 export async function insertRun(input: {
   automationId: string;
+  scheduledAt?: number | null;
   status: AutomationRunStatus;
   triggerKind: AutomationRunTriggerKind;
   startedAt?: number;
@@ -381,6 +386,7 @@ export async function insertRun(input: {
     .values({
       id: randomUUID(),
       automationId: input.automationId,
+      scheduledAt: input.scheduledAt ?? null,
       startedAt: input.startedAt ?? Date.now(),
       finishedAt: input.finishedAt ?? null,
       status: input.status,
@@ -388,6 +394,7 @@ export async function insertRun(input: {
       createdTaskId: input.createdTaskId ?? input.taskId ?? null,
       error: input.error ?? null,
       triggerKind: input.triggerKind,
+      workerId: null,
     })
     .returning();
   return mapAutomationRunRow(row);
@@ -396,7 +403,17 @@ export async function insertRun(input: {
 export async function updateRun(
   id: string,
   values: Partial<
-    Pick<AutomationRun, 'finishedAt' | 'status' | 'taskId' | 'createdTaskId' | 'error'>
+    Pick<
+      AutomationRun,
+      | 'scheduledAt'
+      | 'startedAt'
+      | 'finishedAt'
+      | 'status'
+      | 'taskId'
+      | 'createdTaskId'
+      | 'error'
+      | 'workerId'
+    >
   >
 ): Promise<AutomationRun | null> {
   const [row] = await db
@@ -433,54 +450,4 @@ export async function listRecentRuns(
     automationName: automation.name,
     projectId: automation.projectId,
   }));
-}
-
-export type AutomationEventCursorRecord = {
-  projectId: string;
-  lastPolledAt: number;
-  cursor: string | null;
-};
-
-function mapCursorRow(row: AutomationEventCursorRow): AutomationEventCursorRecord {
-  return {
-    projectId: row.projectId,
-    lastPolledAt: row.lastPolledAt,
-    cursor: row.cursor,
-  };
-}
-
-export async function getEventCursor(
-  projectId: string
-): Promise<AutomationEventCursorRecord | null> {
-  const [row] = await db
-    .select()
-    .from(automationEventCursors)
-    .where(
-      and(
-        eq(automationEventCursors.provider, EVENT_PROVIDER),
-        eq(automationEventCursors.projectId, projectId)
-      )
-    )
-    .limit(1);
-  return row ? mapCursorRow(row) : null;
-}
-
-export async function upsertEventCursor(input: {
-  projectId: string;
-  cursor: string | null;
-  lastPolledAt?: number;
-}): Promise<void> {
-  const lastPolledAt = input.lastPolledAt ?? Date.now();
-  await db
-    .insert(automationEventCursors)
-    .values({
-      provider: EVENT_PROVIDER,
-      projectId: input.projectId,
-      lastPolledAt,
-      cursor: input.cursor,
-    })
-    .onConflictDoUpdate({
-      target: [automationEventCursors.provider, automationEventCursors.projectId],
-      set: { lastPolledAt, cursor: input.cursor },
-    });
 }

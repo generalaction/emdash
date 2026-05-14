@@ -1,4 +1,3 @@
-import type { AutomationEventKind } from '@shared/automations/events';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
   AutomationRunStatus,
@@ -243,27 +242,14 @@ export function formatCronLabel(expr: string, tz?: string): string {
   return expr;
 }
 
-export function formatEventLabel(event: AutomationEventKind): string {
-  switch (event) {
-    case 'pr.opened':
-      return 'New pull request';
-    case 'pr.merged':
-      return 'PR merged';
-    case 'pr.closed':
-      return 'PR closed';
-    case 'issue.opened':
-      return 'New issue';
-  }
-}
-
 export function formatTriggerLabel(trigger: TriggerSpec): string {
-  return trigger.kind === 'cron'
-    ? formatCronLabel(trigger.expr, trigger.tz)
-    : formatEventLabel(trigger.event);
+  return formatCronLabel(trigger.expr, trigger.tz);
 }
 
 export function formatRunStatusLabel(status: AutomationRunStatus): string | null {
   switch (status) {
+    case 'queued':
+      return 'Queued';
     case 'failed':
       return 'Failed';
     case 'skipped':
@@ -277,9 +263,15 @@ export function formatRunStatusLabel(status: AutomationRunStatus): string | null
 
 const ERROR_MESSAGES: Record<string, string> = {
   project_not_found: 'Project could not be found or opened',
-  task_create_prompt_empty: 'Task prompt is empty',
-  no_actions_configured: 'No actions configured for this automation',
-  previous_still_running: 'Previous run is still in progress',
+  task_create_prompt_empty: 'The task prompt is empty — add one before running',
+  no_actions_configured: 'This automation has no actions yet',
+  interrupted_by_restart: 'The run was interrupted because the app restarted',
+  previous_still_running: 'Skipped because the previous run is still in progress',
+  name_required: 'Give the automation a name',
+  name_too_long: 'The name is too long',
+  actions_required: 'Add at least one action before saving',
+  automation_not_found: 'This automation no longer exists',
+  automation_is_draft: 'Finish setting up the automation before running it',
 };
 
 function formatInnerError(raw: string): string {
@@ -287,14 +279,18 @@ function formatInnerError(raw: string): string {
   if (exact) return exact;
 
   if (raw.startsWith('initial_commit_required:'))
-    return `Branch "${raw.slice(23)}" has no commits yet`;
-  if (raw.startsWith('branch_create_failed:')) return `Failed to create branch "${raw.slice(21)}"`;
+    return `Branch "${raw.slice('initial_commit_required:'.length)}" has no commits yet`;
+  if (raw.startsWith('branch_create_failed:'))
+    return `Could not create branch "${raw.slice('branch_create_failed:'.length)}"`;
   if (raw.startsWith('pr_fetch_failed:'))
-    return `Failed to fetch pull requests from "${raw.slice(16)}"`;
-  if (raw.startsWith('branch_not_found:')) return `Branch "${raw.slice(17)}" was not found`;
+    return `Could not fetch pull requests from "${raw.slice('pr_fetch_failed:'.length)}"`;
+  if (raw.startsWith('branch_not_found:'))
+    return `Branch "${raw.slice('branch_not_found:'.length)}" was not found`;
   if (raw.startsWith('worktree_setup_failed:'))
-    return `Failed to set up worktree for "${raw.slice(22)}"`;
-  if (raw.startsWith('provisioning timed out')) return 'Task provisioning timed out';
+    return `Could not set up the worktree for "${raw.slice('worktree_setup_failed:'.length)}"`;
+  if (raw.startsWith('provisioning timed out'))
+    return 'Setting up the task took too long and timed out';
+  if (raw.startsWith('action_invalid:')) return 'One of the actions is not configured correctly';
 
   return raw;
 }
@@ -305,15 +301,30 @@ export function formatRunError(error: string): string {
   return formatInnerError(error);
 }
 
+export function formatAutomationError(error: unknown): string {
+  if (error instanceof Error) return formatRunError(error.message);
+  if (typeof error === 'string') return formatRunError(error);
+  return 'Something went wrong';
+}
+
 export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): string {
   switch (kind) {
     case 'cron':
       return 'Schedule';
     case 'manual':
       return 'Manual';
-    case 'event':
-      return 'Event';
   }
+}
+
+export function formatRunName(startedAt: number, id: string): string {
+  const date = new Date(startedAt);
+  const dateTime = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+  return `Run ${dateTime} · ${id.slice(0, 8)}`;
 }
 
 export type ScheduleKind = 'daily' | 'weekdays' | 'weekends' | 'weekly' | 'hourly' | 'interval';
@@ -327,6 +338,34 @@ export const WEEKDAY_TOKENS: readonly WeekdayToken[] = [
   'THU',
   'FRI',
   'SAT',
+];
+
+export const WEEKDAY_LABELS: Record<WeekdayToken, string> = {
+  SUN: 'Sunday',
+  MON: 'Monday',
+  TUE: 'Tuesday',
+  WED: 'Wednesday',
+  THU: 'Thursday',
+  FRI: 'Friday',
+  SAT: 'Saturday',
+};
+
+export const SCHEDULE_KIND_LABELS: Record<ScheduleKind, string> = {
+  daily: 'Daily',
+  weekdays: 'Weekdays',
+  weekends: 'Weekends',
+  weekly: 'Weekly',
+  hourly: 'Hourly',
+  interval: 'Every N minutes',
+};
+
+export const SCHEDULE_KIND_ORDER: readonly ScheduleKind[] = [
+  'daily',
+  'weekdays',
+  'weekends',
+  'weekly',
+  'hourly',
+  'interval',
 ];
 
 export const INTERVAL_MINUTE_OPTIONS = [5, 10, 15, 30] as const;

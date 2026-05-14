@@ -113,21 +113,6 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     defaultActions: [{ kind: 'task.create', prompt: TEST_COVERAGE_PROMPT }],
   },
   {
-    id: 'assign-pr-reviewers',
-    category: 'Code review',
-    name: 'Assign PR reviewers',
-    description: 'Assign reviewers based on code changes and auto-approve low-risk PRs',
-    icon: 'GitPullRequest',
-    defaultTrigger: { kind: 'event', event: 'pr.opened' },
-    defaultActions: [
-      {
-        kind: 'task.create',
-        prompt:
-          'Review the newly opened pull request, identify the best reviewers based on ownership and touched areas, and determine whether the PR is low-risk enough to approve. Explain the reviewer rationale and any risks that need human attention.',
-      },
-    ],
-  },
-  {
     id: 'feature-flag-cleanup',
     category: 'Code quality',
     name: 'Clean up feature flags',
@@ -139,22 +124,6 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
         kind: 'task.create',
         prompt:
           'Find stale feature flags that appear fully rolled out or permanently disabled. For safe cases, remove dead branches and simplify affected code. Preserve behavior, update tests, and call out flags that need product confirmation instead of changing them.',
-      },
-    ],
-  },
-  {
-    id: 'pr-security-review',
-    category: 'Security',
-    name: 'Find vulnerabilities',
-    description:
-      'Review pull requests for exploitable security issues and flag only validated findings before merge',
-    icon: 'ShieldCheck',
-    defaultTrigger: { kind: 'event', event: 'pr.opened' },
-    defaultActions: [
-      {
-        kind: 'task.create',
-        prompt:
-          'Review the pull request for exploitable security issues. Focus on concrete attack paths introduced by the change. Flag only validated findings, include severity and reproduction reasoning, and avoid theoretical noise.',
       },
     ],
   },
@@ -205,29 +174,12 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
       },
     ],
   },
-  {
-    id: 'issue-triage',
-    category: 'Incidents & triage',
-    name: 'Triage new issues',
-    description:
-      'Categorize newly opened GitHub issues, suggest labels, severity, and likely owners',
-    icon: 'CircleDot',
-    defaultTrigger: { kind: 'event', event: 'issue.opened' },
-    defaultActions: [
-      {
-        kind: 'task.create',
-        prompt:
-          'A new GitHub issue was opened. Read the issue body, reproduce the reported behavior against the codebase where possible, and classify it: bug vs feature vs question, severity, affected area, and likely owning module. Suggest labels, a short clarifying comment if information is missing, and link related code paths or prior issues. Do not implement a fix — this is a triage pass.',
-      },
-    ],
-  },
 ];
 
 export const automationCatalogCategories = [
   'Status reports',
   'Incidents & triage',
   'Code quality',
-  'Code review',
   'Security',
   'Documentation',
 ] as const;
