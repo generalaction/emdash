@@ -8,7 +8,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
 import { usePaneSizingContext } from './pane-sizing-context';
-import { buildTheme, type FrontendPty, type SessionTheme } from './pty';
+import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
@@ -250,9 +250,8 @@ export function usePty(
   measureAndResizeRef.current = measureAndResize;
 
   const applyTheme = useCallback((t?: SessionTheme) => {
-    if (!termRef.current) return;
-    termRef.current.options.theme = buildTheme(t);
-  }, []);
+    pty.setTheme(t);
+  }, [pty]);
 
   const setTheme = useCallback(
     (t: SessionTheme) => {
@@ -336,7 +335,7 @@ export function usePty(
 
       // Apply current theme before mounting (in case it differs from the
       // theme the terminal was constructed with).
-      frontendPty.terminal.options.theme = buildTheme(themeRef.current);
+      frontendPty.setTheme(themeRef.current);
 
       // Mount: pre-resize then appendChild (flash-free).
       frontendPty.mount(container as HTMLElement, targetDims);
