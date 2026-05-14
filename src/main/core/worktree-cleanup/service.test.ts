@@ -22,6 +22,7 @@ type MockRow = {
 let rows: MockRow[] = [];
 let projectRows: unknown[] = [];
 let defaultWorktreeDirectory = '';
+const workspaceRun = vi.fn();
 const originalCwd = process.cwd();
 
 vi.mock('@main/db/client', () => ({
@@ -30,7 +31,7 @@ vi.mock('@main/db/client', () => ({
       if (sql.includes('FROM workspaces')) {
         return {
           all: () => rows,
-          run: vi.fn(),
+          run: workspaceRun,
         };
       }
       if (sql.includes('FROM projects')) {
@@ -70,6 +71,7 @@ describe('WorktreeCleanupService', () => {
     defaultWorktreeDirectory = path.join(tempDir, 'default-worktrees');
     fs.mkdirSync(defaultWorktreeDirectory, { recursive: true });
     projectRows = [];
+    workspaceRun.mockClear();
   });
 
   afterEach(() => {
@@ -186,6 +188,37 @@ describe('WorktreeCleanupService', () => {
     expect(second.cleanedCount).toBe(1);
     expect(first.worktrees).toHaveLength(0);
     expect(second.worktrees).toHaveLength(0);
+    removeSpy.mockRestore();
+  });
+
+  it('does not clear the workspace record when directory removal fails', async () => {
+    const { WorktreeCleanupService } = await import('./service');
+    const worktreePath = path.join(tempDir, 'archived-worktree');
+    fs.mkdirSync(worktreePath);
+    rows = [
+      {
+        workspaceId: 'archived-workspace',
+        path: worktreePath,
+        workspaceUpdatedAt: '2026-05-01T00:00:00.000Z',
+        taskId: 'archived-task',
+        taskName: 'Archived task',
+        taskBranch: 'feature/archive',
+        taskStatus: 'done',
+        taskUpdatedAt: '2026-05-01T00:00:00.000Z',
+        lastInteractedAt: null,
+        archivedAt: '2026-05-02T00:00:00.000Z',
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: tempDir,
+      },
+    ];
+    const removeError = new Error('permission denied');
+    const removeSpy = vi.spyOn(fs.promises, 'rm').mockRejectedValue(removeError);
+
+    const service = new WorktreeCleanupService();
+    await expect(service.cleanup()).rejects.toThrow(removeError);
+
+    expect(workspaceRun).not.toHaveBeenCalled();
     removeSpy.mockRestore();
   });
 });

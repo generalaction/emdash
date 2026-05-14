@@ -473,6 +473,7 @@ export class WorktreeCleanupService {
           path: worktree.path,
           error: String(error),
         });
+        throw error;
       });
     }
     if (worktree.projectPath) {
