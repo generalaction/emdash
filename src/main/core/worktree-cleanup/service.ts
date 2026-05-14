@@ -157,7 +157,6 @@ async function directorySize(absPath: string): Promise<number> {
   const entries = await fs.readdir(absPath, { withFileTypes: true }).catch(() => []);
   await Promise.all(
     entries.map(async (entry) => {
-      if (entry.isDirectory() && entry.name === 'node_modules') return;
       const entryPath = path.join(absPath, entry.name);
       try {
         if (entry.isDirectory()) {

@@ -191,6 +191,35 @@ describe('WorktreeCleanupService', () => {
     removeSpy.mockRestore();
   });
 
+  it('includes node_modules when enforcing total size limits', async () => {
+    const { WorktreeCleanupService } = await import('./service');
+    const worktreePath = path.join(tempDir, 'archived-worktree');
+    fs.mkdirSync(path.join(worktreePath, 'node_modules', 'dependency'), { recursive: true });
+    fs.writeFileSync(path.join(worktreePath, 'node_modules', 'dependency', 'bundle.js'), 'content');
+    rows = [
+      {
+        workspaceId: 'archived-workspace',
+        path: worktreePath,
+        workspaceUpdatedAt: '2026-05-01T00:00:00.000Z',
+        taskId: 'archived-task',
+        taskName: 'Archived task',
+        taskBranch: 'feature/archive',
+        taskStatus: 'done',
+        taskUpdatedAt: '2026-05-01T00:00:00.000Z',
+        lastInteractedAt: null,
+        archivedAt: '2026-05-02T00:00:00.000Z',
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: tempDir,
+      },
+    ];
+
+    const service = new WorktreeCleanupService();
+    const summary = await service.listManagedWorktrees({ forceRefresh: true });
+
+    expect(summary.totalSizeBytes).toBe(Buffer.byteLength('content'));
+  });
+
   it('does not clear the workspace record when directory removal fails', async () => {
     const { WorktreeCleanupService } = await import('./service');
     const worktreePath = path.join(tempDir, 'archived-worktree');
