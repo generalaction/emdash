@@ -8,6 +8,7 @@ import {
   useWorkspace,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
@@ -16,6 +17,7 @@ import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { cssVar } from '@renderer/utils/cssVars';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
 
@@ -24,6 +26,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const workspace = useWorkspace();
+  const { effectiveTheme } = useTheme();
   const { tabManager: tm } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
   const isActive = useIsActiveTask(taskId);
@@ -55,7 +58,24 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     ? (conversations.sessions.get(activeConversation.data.id) ?? null)
     : null;
   const activeSessionId = activeSession?.sessionId ?? null;
+  const activeProviderId = activeConversation?.data.providerId;
   const hasConversationTabs = tm.resolvedTabs.some((t) => t.kind === 'conversation');
+
+  const themeOverride = useMemo(() => {
+    if (activeProviderId !== 'grok' || effectiveTheme !== 'emlight') return undefined;
+
+    const background = cssVar('--background');
+    const foreground = cssVar('--foreground');
+
+    return {
+      background,
+      foreground,
+      black: background,
+      brightBlack: cssVar('--foreground-muted'),
+      white: foreground,
+      brightWhite: foreground,
+    };
+  }, [activeProviderId, effectiveTheme]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalContainerRef = useRef<HTMLDivElement>(null);
@@ -161,6 +181,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                       className="h-full w-full"
                       onEnterPress={onEnterPress}
                       onInterruptPress={onInterruptPress}
+                      themeOverride={themeOverride}
                       mapShiftEnterToCtrlJ
                       remoteConnectionId={remoteConnectionId}
                     />
