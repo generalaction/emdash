@@ -148,6 +148,120 @@ describe('config migration', () => {
     });
   });
 
+  it('detects importable Superset settings', async () => {
+    const fs = createFs({
+      '.superset/config.json': JSON.stringify({
+        setup: ['bun install', 'cp "$SUPERSET_ROOT_PATH/.env" .env'],
+        run: ['./.superset/run.sh'],
+        teardown: ['docker-compose down'],
+      }),
+    });
+
+    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([
+      {
+        provider: 'superset',
+        label: 'Superset',
+        files: ['.superset/config.json'],
+        fields: ['scripts.setup', 'scripts.run', 'scripts.teardown'],
+        unsupportedFields: [],
+      },
+    ]);
+  });
+
+  it('writes Superset settings into .emdash.json', async () => {
+    const fs = createFs({
+      '.superset/config.json': JSON.stringify({
+        setup: ['bun install', 'cp "$SUPERSET_ROOT_PATH/.env" .env'],
+        run: ['./.superset/run.sh'],
+        teardown: ['docker-compose down'],
+      }),
+    });
+    const patch = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await migrateProjectConfigFromProvider(
+      {
+        fs,
+        settings: {
+          patch,
+        },
+      } as never,
+      { provider: 'superset', destination: 'shared' }
+    );
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
+      scripts: {
+        setup: 'bun install\ncp "$SUPERSET_ROOT_PATH/.env" .env',
+        run: './.superset/run.sh',
+        teardown: 'docker-compose down',
+      },
+    });
+    expect(patch).toHaveBeenCalledWith({
+      clearShareableFields: ['scripts.setup', 'scripts.run', 'scripts.teardown'],
+    });
+  });
+
+  it('imports Superset settings into local project settings', async () => {
+    const fs = createFs({
+      '.superset/config.json': JSON.stringify({
+        run: ['./.superset/run.sh'],
+      }),
+    });
+    const update = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await migrateProjectConfigFromProvider(
+      {
+        fs,
+        settings: {
+          get: vi.fn().mockResolvedValue({
+            scripts: {
+              setup: 'bun install',
+            },
+          }),
+          update,
+        },
+      } as never,
+      { provider: 'superset', destination: 'local' }
+    );
+
+    expect(result.success).toBe(true);
+    expect(fs.write).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      scripts: {
+        setup: 'bun install',
+        run: './.superset/run.sh',
+      },
+    });
+  });
+
+  it('does not import Superset before and after script extensions', async () => {
+    const fs = createFs({
+      '.superset/config.json': JSON.stringify({
+        setup: {
+          before: ["echo 'running pre-setup'"],
+          after: ['./.superset/my-post-setup.sh'],
+        },
+        teardown: {
+          after: ['./.superset/my-cleanup.sh'],
+        },
+      }),
+    });
+
+    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([]);
+    await expect(
+      migrateProjectConfigFromProvider({ fs } as never, {
+        provider: 'superset',
+        destination: 'shared',
+      })
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'write-config-failed',
+        message: 'No supported Superset settings were found.',
+      },
+    });
+  });
+
   it('returns an error when no supported Conductor settings exist', async () => {
     const fs = createFs({
       'conductor.json': JSON.stringify({
