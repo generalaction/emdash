@@ -526,8 +526,9 @@ export class SkillsService {
   }
 
   private async fetchRemoteCatalog(): Promise<CatalogIndex> {
-    const allSkills = await this.fetchSkillsshCatalog();
-    const skills = mergeCatalogSkills(allSkills);
+    const bundledSkills = this.loadBundledCatalog().skills;
+    const skillsshSkills = await this.fetchSkillsshCatalog();
+    const skills = mergeCatalogSkills(bundledSkills, skillsshSkills);
 
     if (skills.length === 0) {
       throw new Error('skills.sh catalog returned no skills');
@@ -579,9 +580,18 @@ export class SkillsService {
 
   private async fetchSkillsshCatalog(): Promise<CatalogSkill[]> {
     const catalogQueries = ['skill', 'ai', 'agent', 'code', 'docs', 'github', 'react', 'cloud'];
-    const skillGroups = await Promise.all(
+    const results = await Promise.allSettled(
       catalogQueries.map((query) => this.fetchSkillsshSearch(query, 100))
     );
+    const skillGroups = results
+      .filter(
+        (result): result is PromiseFulfilledResult<CatalogSkill[]> => result.status === 'fulfilled'
+      )
+      .map((result) => result.value);
+
+    if (skillGroups.length === 0) {
+      throw new Error('All skills.sh catalog queries failed');
+    }
 
     return mergeCatalogSkills(...skillGroups);
   }

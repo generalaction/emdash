@@ -128,4 +128,45 @@ describe('SkillsService agent sync', () => {
     expect(detail?.description).toBe('Brainstorm before implementation');
     expect(detail?.skillMdContent).toContain('# Brainstorming');
   });
+
+  it('keeps bundled OpenAI and Anthropic skills when skills.sh loads', async () => {
+    const catalogQueries = ['skill', 'ai', 'agent', 'code', 'docs', 'github', 'react', 'cloud'];
+    const responses = new Map(
+      catalogQueries.map((query) => [
+        `https://skills.sh/api/search?q=${query}&limit=100`,
+        JSON.stringify({ skills: [] }),
+      ])
+    );
+    const service = await loadService(home, responses);
+
+    const catalog = await service.refreshCatalog();
+
+    expect(catalog.skills.some((skill) => skill.source === 'openai')).toBe(true);
+    expect(catalog.skills.some((skill) => skill.source === 'anthropic')).toBe(true);
+  });
+
+  it('keeps successful skills.sh batches when another query fails', async () => {
+    const responses = new Map([
+      [
+        'https://skills.sh/api/search?q=skill&limit=100',
+        JSON.stringify({
+          skills: [
+            {
+              id: 'obra/superpowers/brainstorming',
+              skillId: 'brainstorming',
+              name: 'brainstorming',
+              installs: 156907,
+              source: 'obra/superpowers',
+            },
+          ],
+        }),
+      ],
+    ]);
+    const service = await loadService(home, responses);
+    await service.initialize();
+
+    const catalog = await service.refreshCatalog();
+
+    expect(catalog.skills.some((skill) => skill.id === 'brainstorming')).toBe(true);
+  });
 });
