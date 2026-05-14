@@ -1,3 +1,11 @@
+import {
+  closestCenter,
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
 import { Eye, Loader2, MessageSquare, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { Activity, useEffect, useRef, type ComponentProps } from 'react';
@@ -21,8 +29,9 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { ConversationsPanel } from './conversations/conversations-panel';
 import { DiffView } from './diff-view/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
-import { useEditorContext } from './editor/editor-provider';
+import { EditorProvider, useEditorContext } from './editor/editor-provider';
 import { MarkdownEditorPanel } from './editor/markdown-editor-panel';
+import { TabGroupContext, useTabGroupContext } from './tabs/tab-group-context';
 import { TerminalsPanel } from './terminals/terminal-panel';
 import { TaskSidebar } from './view/task-sidebar';
 import { UnifiedMainTabBar } from './view/unified-main-tab-bar';
@@ -201,7 +210,7 @@ const TaskMainColumn = observer(function TaskMainColumn() {
   return (
     <ResizablePanelGroup orientation="vertical" id="task-main-vertical">
       <ResizablePanel id="task-main-content" minSize="30%">
-        <UnifiedMainContent />
+        <SplitPaneLayout />
       </ResizablePanel>
       <DraggableResizeHandle className={taskView.isTerminalDrawerOpen ? 'flex' : 'hidden'} />
       <ResizablePanel
@@ -222,22 +231,107 @@ const TaskMainColumn = observer(function TaskMainColumn() {
   );
 });
 
-const UnifiedMainContent = observer(function UnifiedMainContent() {
+/** Renders one vertical pane per tab group inside a ResizablePanelGroup. */
+const SplitPaneLayout = observer(function SplitPaneLayout() {
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
-  const { tabManager } = taskView;
+  const { tabGroupManager } = taskView;
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  function handleGlobalDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) return;
+
+    const draggedTabId = active.id as string;
+    const fromGroup = tabGroupManager.groups.find((g) => g.tabManager.entries.has(draggedTabId));
+    if (!fromGroup) return;
+
+    const overId = over.id as string;
+    let toGroupId: string | undefined;
+
+    if (overId.startsWith('pane-drop-')) {
+      toGroupId = overId.replace('pane-drop-', '');
+    } else {
+      // Dropped onto a specific tab in another pane.
+      toGroupId = tabGroupManager.groups.find((g) => g.tabManager.entries.has(overId))?.groupId;
+    }
+
+    if (!toGroupId || toGroupId === fromGroup.groupId) {
+      // Same pane — delegate to within-pane reorder.
+      const fromTabIds = fromGroup.tabManager.resolvedTabs.map((t) => t.tabId);
+      const fromIdx = fromTabIds.indexOf(draggedTabId);
+      const toIdx = fromTabIds.indexOf(overId);
+      if (fromIdx !== -1 && toIdx !== -1) {
+        fromGroup.tabManager.reorderTabs(fromIdx, toIdx);
+      }
+      return;
+    }
+
+    tabGroupManager.moveTab(draggedTabId, fromGroup.groupId, toGroupId);
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleGlobalDragEnd}
+    >
+      <ResizablePanelGroup orientation="horizontal" id="task-main-split">
+        {tabGroupManager.groups.map((group, i) => (
+          <TabGroupContext.Provider
+            key={group.groupId}
+            value={{ groupId: group.groupId, tabManager: group.tabManager }}
+          >
+            {i > 0 && <ResizableHandle />}
+            <ResizablePanel
+              id={`pane-${group.groupId}`}
+              defaultSize={`${tabGroupManager.paneSizes[i] ?? Math.floor(100 / tabGroupManager.groups.length)}%`}
+              minSize="200px"
+              onPointerDown={() => tabGroupManager.setActiveGroup(group.groupId)}
+            >
+              <EditorProvider taskId={taskId} projectId={projectId}>
+                <PaneContent />
+              </EditorProvider>
+            </ResizablePanel>
+          </TabGroupContext.Provider>
+        ))}
+      </ResizablePanelGroup>
+    </DndContext>
+  );
+});
+
+/** The content for a single pane: tab bar + renderer area. */
+const PaneContent = observer(function PaneContent() {
+  const { projectId, taskId } = useTaskViewContext();
+  const { tabManager: paneTabManager } = useTabGroupContext();
   const { setEditorHost, triggerLayout } = useEditorContext();
   const showCreateConversationModal = useShowModal('createConversationModal');
 
-  const renderer = taskView.activeRenderer;
+  const activeDesc = paneTabManager.activeDescriptor;
+  const activeFileEntry = paneTabManager.activeFileEntry;
+  const renderer: 'monaco' | 'markdown' | 'diff' | 'agents' | 'other-file' = (() => {
+    if (activeDesc?.kind === 'diff') return 'diff';
+    if (!activeFileEntry) return 'agents';
+    switch (activeFileEntry.renderer.kind) {
+      case 'text':
+      case 'svg-source':
+      case 'html-source':
+        return 'monaco';
+      case 'markdown':
+      case 'markdown-source':
+        return 'markdown';
+      default:
+        return 'other-file';
+    }
+  })();
 
-  // Re-run Monaco layout whenever the Monaco slot becomes visible so the editor
-  // fills the host after transitioning from hidden to flex.
+  // Re-run Monaco layout whenever the Monaco slot becomes visible.
   useEffect(() => {
     if (renderer === 'monaco') triggerLayout();
   }, [renderer, triggerLayout]);
 
-  if (tabManager.resolvedTabs.length === 0) {
+  if (paneTabManager.resolvedTabs.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
         <MessageSquare className="h-10 w-10 opacity-20" />
@@ -252,7 +346,7 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
             showCreateConversationModal({
               projectId,
               taskId,
-              onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
+              onSuccess: ({ conversationId }) => paneTabManager.openConversation(conversationId),
             })
           }
           className="flex items-center gap-2"
@@ -278,9 +372,7 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
           className="absolute inset-0"
           style={{ display: renderer === 'monaco' ? 'flex' : 'none' }}
         />
-        {/* SVG source toggle — floats over the Monaco host when editing an SVG file */}
         {renderer === 'monaco' && <SvgSourceToggleOverlay />}
-        {/* HTML source toggle — floats over the Monaco host when editing an HTML file */}
         {renderer === 'monaco' && <HtmlSourceToggleOverlay />}
 
         <Activity mode={renderer === 'markdown' ? 'visible' : 'hidden'}>
@@ -305,8 +397,7 @@ const UnifiedMainContent = observer(function UnifiedMainContent() {
  * Lets the user toggle back to the SVG preview renderer.
  */
 const SvgSourceToggleOverlay = observer(function SvgSourceToggleOverlay() {
-  const taskView = useWorkspaceViewModel();
-  const { tabManager } = taskView;
+  const { tabManager } = useTabGroupContext();
   const activeTab = tabManager.activeFileEntry;
 
   if (!activeTab || activeTab.renderer.kind !== 'svg-source') return null;
@@ -337,8 +428,7 @@ const SvgSourceToggleOverlay = observer(function SvgSourceToggleOverlay() {
  * Lets the user toggle back to the rendered HTML preview.
  */
 const HtmlSourceToggleOverlay = observer(function HtmlSourceToggleOverlay() {
-  const taskView = useWorkspaceViewModel();
-  const { tabManager } = taskView;
+  const { tabManager } = useTabGroupContext();
   const activeTab = tabManager.activeFileEntry;
 
   if (!activeTab || activeTab.renderer.kind !== 'html-source') return null;

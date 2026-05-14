@@ -2,6 +2,7 @@ import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
   useConversations,
   useTaskViewContext,
@@ -24,7 +25,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const workspace = useWorkspace();
-  const { tabManager: tm } = taskView;
+  const { groupId, tabManager: tm } = useTabGroupContext();
   const showCreateConversationModal = useShowModal('createConversationModal');
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
@@ -122,7 +123,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
             }
           }}
         >
-          <PaneSizingProvider paneId="conversations" sessionIds={allSessionIds}>
+          <PaneSizingProvider paneId={`conversations-${groupId}`} sessionIds={allSessionIds}>
             {!hasConversationTabs ? (
               <EmptyState
                 icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}

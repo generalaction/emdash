@@ -1,10 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
+import type { ActiveFile } from '@shared/view-state';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
   useTaskViewContext,
   useWorkspaceId,
@@ -23,7 +25,32 @@ export const FileDiffView = observer(function FileDiffView() {
   const taskView = useWorkspaceViewModel();
   const diffView = taskView.diffView;
   const draftComments = getTaskStore(projectId, taskId)?.draftComments;
-  const activeFile = diffView?.activeFile ?? null;
+
+  // Derive activeFile from the pane-local active diff tab entry rather than
+  // the global DiffViewStore, so each split pane shows its own diff independently.
+  const { tabManager } = useTabGroupContext();
+  const activeDiffEntry = tabManager.activeDiffEntry;
+  const activeFile = useMemo<ActiveFile | null>(
+    () =>
+      activeDiffEntry
+        ? {
+            path: activeDiffEntry.path,
+            type: activeDiffEntry.diffGroup === 'disk' ? 'disk' : 'git',
+            group: activeDiffEntry.diffGroup,
+            originalRef: activeDiffEntry.originalRef,
+            modifiedRef: activeDiffEntry.modifiedRef,
+            prNumber: activeDiffEntry.prNumber,
+          }
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      activeDiffEntry?.path,
+      activeDiffEntry?.diffGroup,
+      activeDiffEntry?.originalRef,
+      activeDiffEntry?.modifiedRef,
+      activeDiffEntry?.prNumber,
+    ]
+  );
   const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
 
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;

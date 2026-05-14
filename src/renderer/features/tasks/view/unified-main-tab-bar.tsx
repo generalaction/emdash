@@ -1,18 +1,12 @@
-import {
-  closestCenter,
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
+import { useDroppable } from '@dnd-kit/core';
 import { horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
-import { FileSearch, Loader2, MessageSquarePlus, X } from 'lucide-react';
+import { Columns2, FileSearch, Loader2, MessageSquarePlus, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { GitChangeStatusIcon } from '@renderer/features/tasks/diff-view/changes-panel/components/changes-list-item';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import type {
   ResolvedConversationTab,
   ResolvedDiffTab,
@@ -291,18 +285,23 @@ const DiffTabItem = observer(function DiffTabItem({
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const taskView = useWorkspaceViewModel();
   const { projectId, taskId, workspaceId } = useTaskViewContext();
-  const { tabManager } = taskView;
+  const { groupId, tabManager } = useTabGroupContext();
+  const { tabGroupManager } = taskView;
   const showCommandPalette = useShowModal('commandPaletteModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
 
-  useTabShortcuts(tabManager, { focused: taskView.focusedRegion === 'main' });
+  useTabShortcuts(tabManager, {
+    focused: taskView.focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId,
+  });
 
   const resolvedTabs = tabManager.resolvedTabs;
   const tabIds = resolvedTabs.map((t) => t.tabId);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  // useDroppable makes this tab bar a valid drop target for cross-pane drags.
+  // The DndContext lives in SplitPaneLayout; we only need to register a droppable here.
+  const { setNodeRef: setDropRef } = useDroppable({ id: `pane-drop-${groupId}` });
 
   useEffect(() => {
     const id = tabManager.activeTabId;
@@ -313,60 +312,54 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
     el?.scrollIntoView({ behavior: 'instant', inline: 'nearest', block: 'nearest' });
   }, [tabManager.activeTabId]);
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const fromIndex = tabIds.indexOf(active.id as string);
-    const toIndex = tabIds.indexOf(over.id as string);
-    if (fromIndex !== -1 && toIndex !== -1) {
-      tabManager.reorderTabs(fromIndex, toIndex);
-    }
-  }
-
   return (
     <div className="flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
-          <div ref={scrollContainerRef} className="flex h-full overflow-x-auto">
-            {resolvedTabs.map((tab) => {
-              if (tab.kind === 'conversation') {
-                return (
-                  <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
-                    <ConversationTabItem
-                      tab={tab}
-                      onSelect={() => tabManager.setActiveTab(tab.tabId)}
-                      onPin={() => tabManager.openConversation(tab.conversationId)}
-                      onClose={() => tabManager.closeTab(tab.tabId)}
-                    />
-                  </SortableTabWrapper>
-                );
-              }
-              if (tab.kind === 'diff') {
-                return (
-                  <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
-                    <DiffTabItem
-                      tab={tab}
-                      onSelect={() => tabManager.setActiveTab(tab.tabId)}
-                      onPin={() => tabManager.pinTab(tab.tabId)}
-                      onClose={() => tabManager.closeTab(tab.tabId)}
-                    />
-                  </SortableTabWrapper>
-                );
-              }
+      <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
+        <div
+          ref={(el) => {
+            scrollContainerRef.current = el;
+            setDropRef(el);
+          }}
+          className="flex h-full overflow-x-auto"
+        >
+          {resolvedTabs.map((tab) => {
+            if (tab.kind === 'conversation') {
               return (
                 <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
-                  <FileTabItem
+                  <ConversationTabItem
                     tab={tab}
                     onSelect={() => tabManager.setActiveTab(tab.tabId)}
-                    onPin={() => tabManager.pinTab(tab.tabId)}
-                    onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
+                    onPin={() => tabManager.openConversation(tab.conversationId)}
+                    onClose={() => tabManager.closeTab(tab.tabId)}
                   />
                 </SortableTabWrapper>
               );
-            })}
-          </div>
-        </SortableContext>
-      </DndContext>
+            }
+            if (tab.kind === 'diff') {
+              return (
+                <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
+                  <DiffTabItem
+                    tab={tab}
+                    onSelect={() => tabManager.setActiveTab(tab.tabId)}
+                    onPin={() => tabManager.pinTab(tab.tabId)}
+                    onClose={() => tabManager.closeTab(tab.tabId)}
+                  />
+                </SortableTabWrapper>
+              );
+            }
+            return (
+              <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
+                <FileTabItem
+                  tab={tab}
+                  onSelect={() => tabManager.setActiveTab(tab.tabId)}
+                  onPin={() => tabManager.pinTab(tab.tabId)}
+                  onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
+                />
+              </SortableTabWrapper>
+            );
+          })}
+        </div>
+      </SortableContext>
       <div className="flex h-full shrink-0 items-center px-1">
         <Tooltip>
           <TooltipTrigger>
@@ -402,6 +395,32 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
         >
           <FileSearch className="size-4" />
         </Button>
+        {tabGroupManager.groups.length < 3 &&
+          (() => {
+            const canSplit = tabManager.resolvedTabs.length >= 2;
+            return (
+              <Tooltip>
+                <TooltipTrigger>
+                  <span>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      disabled={!canSplit}
+                      onClick={() => tabGroupManager.splitRight()}
+                      aria-label="Split pane right"
+                    >
+                      <Columns2 className="size-4" />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {canSplit
+                    ? 'Move active tab to a new pane'
+                    : 'Open at least 2 tabs to split this pane'}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })()}
       </div>
     </div>
   );
