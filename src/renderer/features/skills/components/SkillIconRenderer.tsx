@@ -21,15 +21,26 @@ interface SkillIconRendererProps {
   size?: SkillIconSize;
 }
 
+function getGitHubAvatarUrl(skill: CatalogSkill): string | null {
+  // repoSlug is "owner/repo" (e.g. "anthropics/skills"). Owner avatar comes from
+  // https://github.com/{owner}.png — works for both users and orgs.
+  const slug = skill.repoSlug;
+  if (!slug) return null;
+  const owner = slug.split('/')[0];
+  if (!owner) return null;
+  return `https://github.com/${owner}.png?size=96`;
+}
+
 const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm' }) => {
-  const [imgError, setImgError] = useState(false);
+  const [iconUrlError, setIconUrlError] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
 
   const { container, padding, text } = sizeClasses[size];
   const letter = skill.displayName.charAt(0).toUpperCase();
 
-  // 1. Bundled SVG
+  // 1. Bundled SVG (canonical brand asset)
   const svg = resolveSkillIcon(skill.id, skill.source);
   if (svg) {
     const html = processSvg(svg, isDark ? '#ffffff' : '#000000');
@@ -41,8 +52,8 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
     );
   }
 
-  // 2. Remote iconUrl
-  if (skill.iconUrl && !imgError) {
+  // 2. Remote iconUrl (OpenAI catalog ships brand icons that we render monochrome)
+  if (skill.iconUrl && !iconUrlError) {
     const filter = isDark ? 'brightness(0) invert(1)' : 'brightness(0)';
     return (
       <div
@@ -53,14 +64,32 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
           alt=""
           className="h-full w-full rounded-lg object-contain"
           style={{ filter }}
-          onError={() => setImgError(true)}
+          onError={() => setIconUrlError(true)}
           loading="lazy"
         />
       </div>
     );
   }
 
-  // 3. Letter fallback
+  // 3. GitHub avatar of the repo owner (skills.sh skills) — full color, no filter
+  const avatarUrl = getGitHubAvatarUrl(skill);
+  if (avatarUrl && !avatarError) {
+    return (
+      <div
+        className={`flex ${container} shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40`}
+      >
+        <img
+          src={avatarUrl}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setAvatarError(true)}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  // 4. Letter fallback
   return (
     <div
       className={`flex ${container} shrink-0 items-center justify-center rounded-xl bg-muted/40 ${text} font-semibold text-foreground/60`}
