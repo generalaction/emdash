@@ -116,6 +116,65 @@ describe('HookConfigWriter', () => {
     expect(fs.files.get('.gitignore')).toBe('.codex/hooks.json\n');
   });
 
+  it('removes the legacy Emdash Codex notify key from config.toml', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.codex/config.toml',
+      'model = "gpt-5.1"\nnotify = [ "bash", "-c", "curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook" ]\napproval_policy = "never"\n'
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('codex');
+
+    expect(fs.files.get('.codex/config.toml')).toBe(
+      'model = "gpt-5.1"\napproval_policy = "never"\n'
+    );
+  });
+
+  it('keeps a user-managed Codex notify key in config.toml', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    fs.files.set('.codex/config.toml', 'notify = [ "terminal-notifier", "Codex finished" ]\n');
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('codex');
+
+    expect(fs.files.get('.codex/config.toml')).toBe(
+      'notify = [ "terminal-notifier", "Codex finished" ]\n'
+    );
+  });
+
+  it('removes a multiline legacy Emdash Codex notify key from config.toml', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.codex/config.toml',
+      'notify = [\n  "bash",\n  "-c",\n  "curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook",\n]\nmodel = "gpt-5.1"\n'
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('codex');
+
+    expect(fs.files.get('.codex/config.toml')).toBe('model = "gpt-5.1"\n');
+  });
+
+  it('does not remove non-top-level Codex notify keys from config.toml', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.codex/config.toml',
+      '[some_table]\nnotify = [ "bash", "-c", "curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook" ]\n'
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('codex');
+
+    expect(fs.files.get('.codex/config.toml')).toBe(
+      '[some_table]\nnotify = [ "bash", "-c", "curl http://127.0.0.1:$EMDASH_HOOK_PORT/hook" ]\n'
+    );
+  });
+
   it('does not duplicate Codex hook entries', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
     const fs = new MemoryFs();

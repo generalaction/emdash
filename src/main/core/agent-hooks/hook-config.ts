@@ -9,6 +9,7 @@ import piEmdashExtension from './pi-emdash-extension.ts?raw';
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
+const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
@@ -64,6 +65,7 @@ export class HookConfigWriter {
     }
 
     await this.fs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    await this.removeLegacyCodexNotify();
     return true;
   }
 
@@ -146,6 +148,91 @@ export class HookConfigWriter {
   private buildHookEntries(existing: unknown[], command: string): unknown[] {
     const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
     return [...userEntries, { hooks: [{ type: 'command', command }] }];
+  }
+
+  private async removeLegacyCodexNotify(): Promise<void> {
+    const existing = await this.fs
+      .read(CODEX_CONFIG_PATH)
+      .then((result) => result.content)
+      .catch(() => undefined);
+    if (existing === undefined) return;
+
+    const next = this.removeManagedTomlKey(existing, 'notify');
+    if (next === existing) return;
+
+    await this.fs.write(CODEX_CONFIG_PATH, next);
+  }
+
+  private removeManagedTomlKey(content: string, key: string): string {
+    const lines = content.split(/(?<=\n)/);
+    const next: string[] = [];
+    let inTable = false;
+
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const trimmed = line.trimStart();
+      if (trimmed.startsWith('[')) {
+        inTable = true;
+      }
+
+      if (inTable || !new RegExp(`^${key}\\s*=`).test(trimmed)) {
+        next.push(line);
+        continue;
+      }
+
+      const block = [line];
+      while (!this.isCompleteTomlValue(block.join('')) && index + 1 < lines.length) {
+        index += 1;
+        block.push(lines[index]);
+      }
+
+      if (!block.join('').includes(EMDASH_MARKER)) {
+        next.push(...block);
+      }
+    }
+
+    return next.join('');
+  }
+
+  private isCompleteTomlValue(value: string): boolean {
+    let squareDepth = 0;
+    let braceDepth = 0;
+    let quote: 'single' | 'double' | undefined;
+    let escaped = false;
+
+    for (const char of value) {
+      if (quote === 'double') {
+        if (escaped) {
+          escaped = false;
+        } else if (char === '\\') {
+          escaped = true;
+        } else if (char === '"') {
+          quote = undefined;
+        }
+        continue;
+      }
+
+      if (quote === 'single') {
+        if (char === "'") quote = undefined;
+        continue;
+      }
+
+      if (char === '"') {
+        quote = 'double';
+      } else if (char === "'") {
+        quote = 'single';
+      } else if (char === '[') {
+        squareDepth += 1;
+      } else if (char === ']') {
+        squareDepth = Math.max(0, squareDepth - 1);
+      } else if (char === '{') {
+        braceDepth += 1;
+      } else if (char === '}') {
+        braceDepth = Math.max(0, braceDepth - 1);
+      }
+    }
+
+    return quote === undefined && squareDepth === 0 && braceDepth === 0;
   }
 
   private async ensureGitIgnoreEntries(entries: string[]): Promise<void> {
