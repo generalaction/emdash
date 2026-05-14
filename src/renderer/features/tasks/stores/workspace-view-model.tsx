@@ -106,6 +106,23 @@ export class WorkspaceViewModel implements ILifecycle {
     );
     this._disposers.push(initConvDisposer);
 
+    // Sync all panes' isVisible with whether this task is the currently active view.
+    // Mirrors what TabManagerVisibilitySync previously did in React.
+    this._disposers.push(
+      reaction(
+        () =>
+          appState.navigation.currentViewId === 'task' &&
+          (appState.navigation.viewParamsStore['task'] as { taskId?: string } | undefined)
+            ?.taskId === this.taskId,
+        (isActive) => {
+          for (const { tabManager } of this.tabGroupManager.groups) {
+            tabManager.setVisible(isActive);
+          }
+        },
+        { fireImmediately: true }
+      )
+    );
+
     // Push tab-level history whenever the focused group's active tab changes.
     this._disposers.push(
       reaction(

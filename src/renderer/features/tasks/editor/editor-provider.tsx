@@ -87,7 +87,7 @@ export const EditorProvider = observer(function EditorProvider({
   // guaranteed to be loaded before any pane renders (bootstrap awaits pool init).
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const m = (globalThis as any).__monaco as typeof monacoNS | undefined;
+    const m = codeEditorPool.getMonaco();
     if (!m) return;
 
     const container = document.createElement('div');
@@ -102,7 +102,7 @@ export const EditorProvider = observer(function EditorProvider({
 
     const cleanupActive = registerActiveCodeEditor(editor);
 
-    addMonacoKeyboardShortcuts(editor, m as typeof monacoNS, {
+    addMonacoKeyboardShortcuts(editor, m, {
       onSave: () => {
         const path = paneTabManager.activeFilePath;
         if (path) void editorView.saveFile(path);

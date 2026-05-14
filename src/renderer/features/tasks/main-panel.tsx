@@ -1,11 +1,4 @@
-import {
-  closestCenter,
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
+import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { Eye, Loader2, MessageSquare, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { Activity, useEffect, useRef, type ComponentProps } from 'react';
@@ -29,9 +22,9 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { ConversationsPanel } from './conversations/conversations-panel';
 import { DiffView } from './diff-view/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
-import { EditorProvider, useEditorContext } from './editor/editor-provider';
+import { useEditorContext } from './editor/editor-provider';
 import { MarkdownEditorPanel } from './editor/markdown-editor-panel';
-import { TabGroupContext, useTabGroupContext } from './tabs/tab-group-context';
+import { TabGroupProvider, useTabGroupContext } from './tabs/tab-group-context';
 import { TerminalsPanel } from './terminals/terminal-panel';
 import { TaskSidebar } from './view/task-sidebar';
 import { UnifiedMainTabBar } from './view/unified-main-tab-bar';
@@ -239,50 +232,19 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  function handleGlobalDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over) return;
-
-    const draggedTabId = active.id as string;
-    const fromGroup = tabGroupManager.groups.find((g) => g.tabManager.entries.has(draggedTabId));
-    if (!fromGroup) return;
-
-    const overId = over.id as string;
-    let toGroupId: string | undefined;
-
-    if (overId.startsWith('pane-drop-')) {
-      toGroupId = overId.replace('pane-drop-', '');
-    } else {
-      // Dropped onto a specific tab in another pane.
-      toGroupId = tabGroupManager.groups.find((g) => g.tabManager.entries.has(overId))?.groupId;
-    }
-
-    if (!toGroupId || toGroupId === fromGroup.groupId) {
-      // Same pane — delegate to within-pane reorder.
-      const fromTabIds = fromGroup.tabManager.resolvedTabs.map((t) => t.tabId);
-      const fromIdx = fromTabIds.indexOf(draggedTabId);
-      const toIdx = fromTabIds.indexOf(overId);
-      if (fromIdx !== -1 && toIdx !== -1) {
-        fromGroup.tabManager.reorderTabs(fromIdx, toIdx);
-      }
-      return;
-    }
-
-    tabGroupManager.moveTab(draggedTabId, fromGroup.groupId, toGroupId);
-  }
-
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragEnd={handleGlobalDragEnd}
+      onDragEnd={(event) => {
+        if (event.over) {
+          tabGroupManager.handleDragEnd(event.active.id as string, event.over.id as string);
+        }
+      }}
     >
       <ResizablePanelGroup orientation="horizontal" id="task-main-split">
         {tabGroupManager.groups.map((group, i) => (
-          <TabGroupContext.Provider
-            key={group.groupId}
-            value={{ groupId: group.groupId, tabManager: group.tabManager }}
-          >
+          <TabGroupProvider key={group.groupId} group={group} taskId={taskId} projectId={projectId}>
             {i > 0 && <ResizableHandle />}
             <ResizablePanel
               id={`pane-${group.groupId}`}
@@ -290,11 +252,9 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
               minSize="200px"
               onPointerDown={() => tabGroupManager.setActiveGroup(group.groupId)}
             >
-              <EditorProvider taskId={taskId} projectId={projectId}>
-                <PaneContent />
-              </EditorProvider>
+              <PaneContent />
             </ResizablePanel>
-          </TabGroupContext.Provider>
+          </TabGroupProvider>
         ))}
       </ResizablePanelGroup>
     </DndContext>

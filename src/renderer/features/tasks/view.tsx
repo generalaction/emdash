@@ -6,37 +6,10 @@ import {
   getTaskStore,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { TaskViewWrapper, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
+import { TaskViewWrapper } from '@renderer/features/tasks/task-view-context';
 import { createTaskCommandProvider } from './commands';
-import { useIsActiveTask } from './hooks/use-is-active-task';
 import { TaskMainPanel } from './main-panel';
 import { TaskTitlebar } from './task-titlebar';
-
-/**
- * Syncs every pane's TabManagerStore.isVisible with the active task state.
- * Controls telemetry conversation scope.
- */
-const TabManagerVisibilitySync = observer(function TabManagerVisibilitySync({
-  taskId,
-}: {
-  taskId: string;
-}) {
-  const taskView = useWorkspaceViewModel();
-  const isActive = useIsActiveTask(taskId);
-
-  useEffect(() => {
-    for (const { tabManager } of taskView.tabGroupManager.groups) {
-      tabManager.setVisible(isActive);
-    }
-    return () => {
-      for (const { tabManager } of taskView.tabGroupManager.groups) {
-        tabManager.setVisible(false);
-      }
-    };
-  }, [taskView.tabGroupManager, isActive]);
-
-  return null;
-});
 
 const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProviders({
   children,
@@ -72,7 +45,6 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
 
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      <TabManagerVisibilitySync taskId={taskId} />
       {children}
     </TaskViewWrapper>
   );

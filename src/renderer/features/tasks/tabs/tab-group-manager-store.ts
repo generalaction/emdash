@@ -49,6 +49,7 @@ export class TabGroupManagerStore {
       splitRight: action,
       closeGroup: action,
       moveTab: action,
+      handleDragEnd: action,
       setActiveGroup: action,
       setPaneSizes: action,
       restoreSnapshot: action,
@@ -172,6 +173,33 @@ export class TabGroupManagerStore {
     toGroup.tabManager.tabOrder.push(tabId);
     toGroup.tabManager.activeTabId = tabId;
     this.activeGroupId = toGroupId;
+  }
+
+  /**
+   * Routes a dnd-kit drag-end event: cross-pane move or within-pane reorder.
+   * `draggedTabId` is the dragged tab's id; `overId` is either a tab id or a
+   * `pane-drop-{groupId}` droppable id registered by each tab bar.
+   */
+  handleDragEnd(draggedTabId: string, overId: string): void {
+    const fromGroup = this.groups.find((g) => g.tabManager.entries.has(draggedTabId));
+    if (!fromGroup) return;
+
+    let toGroupId: string | undefined;
+    if (overId.startsWith('pane-drop-')) {
+      toGroupId = overId.replace('pane-drop-', '');
+    } else {
+      toGroupId = this.groups.find((g) => g.tabManager.entries.has(overId))?.groupId;
+    }
+
+    if (!toGroupId || toGroupId === fromGroup.groupId) {
+      const fromTabIds = fromGroup.tabManager.resolvedTabs.map((t) => t.tabId);
+      const fromIdx = fromTabIds.indexOf(draggedTabId);
+      const toIdx = fromTabIds.indexOf(overId);
+      if (fromIdx !== -1 && toIdx !== -1) fromGroup.tabManager.reorderTabs(fromIdx, toIdx);
+      return;
+    }
+
+    this.moveTab(draggedTabId, fromGroup.groupId, toGroupId);
   }
 
   setActiveGroup(groupId: string): void {
