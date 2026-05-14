@@ -62,15 +62,12 @@ export const ModalRenderer = observer(function ModalRenderer() {
   };
 
   const popupRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
 
-  // Capture the focused element when the modal opens; restore it when it closes.
+  // Restore focus to the element captured by modalStore.setModal when the modal closes.
   useEffect(() => {
-    if (modalStore.isOpen) {
-      previousFocusRef.current = document.activeElement as HTMLElement | null;
-    } else if (previousFocusRef.current) {
-      const el = previousFocusRef.current;
-      previousFocusRef.current = null;
+    if (!modalStore.isOpen && modalStore.previousFocus) {
+      const el = modalStore.previousFocus;
+      modalStore.previousFocus = null;
       requestAnimationFrame(() => {
         if (el.isConnected) el.focus();
       });
