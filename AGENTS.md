@@ -1,6 +1,6 @@
 
 ---
-default_branch: main
+default_branch: dev
 package_manager: pnpm
 node_version: "24.x.x"
 start_command: "pnpm run d"
@@ -83,6 +83,52 @@ Start here. Load only the linked `agents/` docs that are relevant to the task.
 - State guards must use `kind !== 'ready'`, never enumerate non-ready states (new states would silently fall through)
 - Access task manager via `getTaskManagerStore(projectId)`, not through `project.taskManager`
 - Access mounted project via `asMounted(getProjectStore(id))`, not via inline `isMountedProject` guards
+
+## emdash-dev (Tauri 2 + Rust rewrite)
+
+A second product lives under `src-tauri/` — the Tauri 2 + Rust rewrite. It
+ships **alongside** the Electron app, not as a replacement. Conventions and
+decisions for it live in `docs/decisions/` (Michael Nygard ADRs).
+
+Rules specific to `src-tauri/`:
+
+- **Domain code in `lib.rs` must stay free of `tauri::AppHandle`.** Modules
+  reachable through `pub mod` from `lib.rs` (`shell_env`, `greeting`, etc.)
+  must not use `#[tauri::command]` annotations or import/accept
+  `tauri::AppHandle`, `tauri::Window`, or any webview-runtime type.
+  `src-tauri/tests/domain_boundaries.rs` enforces this with a source-level
+  guard. The near-empty `src-tauri/src/bin/emdash-cli.rs` exists to keep the
+  library modules compiling from a non-webview entry point.
+- **Every command must be allowlisted.** `src-tauri/allowed-commands.json`
+  enumerates the channels exposed through `invoke_handler`. `build.rs`
+  fails the build if `ui/src/bindings.ts` and the allowlist drift. To add
+  a command: write it under `src/commands/`, append to
+  `collect_commands![]` in `app.rs`, run
+  `cargo run --bin emdash-dev -- --export-bindings`, then add the channel
+  name to `allowed-commands.json`.
+- **`ui/src/bindings.ts` is generated and committed.** Do not hand-edit it.
+  Regenerate via the `--export-bindings` flag above (debug builds also
+  regenerate on startup). Wire-format changes are pinned by an `insta`
+  snapshot in `tests/wire_format.rs`; deliberate changes need
+  `cargo insta accept`.
+- **Single `UiMutationEvent` bridge** *(placeholder, lands in [EMD-7](https://linear.app/emdash-helmor/issue/EMD-7))*.
+  Renderer state mutations will flow through exactly one event channel;
+  rule details ship with that issue.
+- **Versions are pinned exactly.** `tauri`, `tauri-build`, `tauri-specta`,
+  `specta`, and `specta-typescript` are pinned with `=`. Bumping any of
+  them is a deliberate PR; see ADR-0001 for the reasoning.
+
+Build/test commands for `src-tauri/`:
+
+```bash
+cd src-tauri
+cargo check                         # type-check + run capability allowlist
+cargo test                          # unit + wire-format snapshot tests
+cargo run --bin emdash-cli -- -V    # invariant: CLI compiles without webview
+cargo run --bin emdash-dev -- --export-bindings   # regenerate bindings.ts
+```
+
+`cargo tauri dev` requires the Tauri CLI: `cargo install tauri-cli --locked --version "^2"`.
 
 ## Non-Negotiables
 
