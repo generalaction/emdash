@@ -142,8 +142,8 @@ describe('buildAgentCommand', () => {
     { providerId: 'cursor', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
     {
       providerId: 'opencode',
-      freshArgs: ['run', '--interactive', 'Fix the bug'],
-      resumeArgs: ['run', '--interactive', '--continue'],
+      freshArgs: ['--prompt', 'Fix the bug'],
+      resumeArgs: ['--continue'],
     },
     { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
     {

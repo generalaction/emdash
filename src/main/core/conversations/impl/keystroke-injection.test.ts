@@ -98,7 +98,7 @@ describe('scheduleInitialPromptInjection', () => {
     expect(write).toHaveBeenCalledExactlyOnceWith('\x1b[200~line one\nline two\x1b[201~\r');
   });
 
-  it('does nothing for OpenCode because its initial prompt is passed to run --interactive', () => {
+  it('does nothing for OpenCode because its initial prompt is passed with --prompt', () => {
     const { pty, write, emitData } = makePty();
     scheduleInitialPromptInjection({
       pty,
