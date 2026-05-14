@@ -1,6 +1,4 @@
-import { useDroppable } from '@dnd-kit/core';
-import { horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
-import { CSS as DndCSS } from '@dnd-kit/utilities';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { Columns2, FileSearch, Loader2, MessageSquarePlus, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -36,25 +34,39 @@ import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
 
-function SortableTabWrapper({ id, children }: { id: string; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id,
-  });
+function DropIndicator() {
+  return <div className="pointer-events-none absolute inset-y-1 left-0 z-10 w-0.5 bg-foreground" />;
+}
+
+function PaneDropZone({ groupId }: { groupId: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `pane-drop-${groupId}` });
+  return (
+    <div ref={setNodeRef} className="relative h-full flex-1">
+      {isOver && <DropIndicator />}
+    </div>
+  );
+}
+
+function DraggableTab({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef: setDragRef } = useDraggable({ id });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id });
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setDragRef(el);
+        setDropRef(el);
+      }}
       style={{
-        transform: DndCSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : undefined,
         display: 'flex',
         height: '100%',
         alignItems: 'center',
+        position: 'relative',
       }}
       {...attributes}
       {...listeners}
     >
+      {isOver && <DropIndicator />}
       {children}
     </div>
   );
@@ -288,6 +300,59 @@ const DiffTabItem = observer(function DiffTabItem({
   );
 });
 
+/**
+ * Floating drag clone rendered inside DragOverlay during a tab drag.
+ * Looks up the tab across all groups so it works for cross-pane drags.
+ */
+export const TabDragPreview = observer(function TabDragPreview({ tabId }: { tabId: string }) {
+  const { tabGroupManager } = useWorkspaceViewModel();
+  const tab = tabGroupManager.groups
+    .flatMap((g) => g.tabManager.resolvedTabs)
+    .find((t) => t.tabId === tabId);
+  if (!tab) return null;
+
+  let icon: React.ReactNode = null;
+  let label = '';
+
+  if (tab.kind === 'conversation') {
+    const config = agentConfig[tab.store.data.providerId];
+    label = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
+    icon = config ? (
+      <AgentLogo
+        logo={config.logo}
+        alt={config.alt}
+        isSvg={config.isSvg}
+        invertInDark={config.invertInDark}
+        className="size-4 shrink-0"
+      />
+    ) : null;
+  } else if (tab.kind === 'file') {
+    const fileName = tab.path.split('/').pop() ?? 'Untitled';
+    label = fileName;
+    icon = (
+      <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
+        <FileIcon filename={fileName} />
+      </span>
+    );
+  } else {
+    const fileName = tab.path.split('/').pop() ?? 'Untitled';
+    const suffix = diffGroupSuffix(tab.diffGroup);
+    label = `${fileName} ${suffix}`;
+    icon = (
+      <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
+        <FileIcon filename={fileName} />
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex cursor-grabbing items-center gap-1.5 bg-background-secondary-1 text-sm shadow-lg px-2 py-1 border border-border rounded-md opacity-80">
+      {icon}
+      <span className="max-w-[200px] truncate">{label}</span>
+    </div>
+  );
+});
+
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const taskView = useWorkspaceViewModel();
   const { projectId, taskId, workspaceId } = useTaskViewContext();
@@ -316,13 +381,8 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   );
 
   const resolvedTabs = tabManager.resolvedTabs;
-  const tabIds = resolvedTabs.map((t) => t.tabId);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // useDroppable makes this tab bar a valid drop target for cross-pane drags.
-  // The DndContext lives in SplitPaneLayout; we only need to register a droppable here.
-  const { setNodeRef: setDropRef } = useDroppable({ id: `pane-drop-${groupId}` });
 
   useEffect(() => {
     const id = tabManager.activeTabId;
@@ -335,52 +395,45 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
 
   return (
     <div className="flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
-      <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
-        <div
-          ref={(el) => {
-            scrollContainerRef.current = el;
-            setDropRef(el);
-          }}
-          className="flex h-full overflow-x-auto"
-        >
-          {resolvedTabs.map((tab) => {
-            if (tab.kind === 'conversation') {
-              return (
-                <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
-                  <ConversationTabItem
-                    tab={tab}
-                    onSelect={() => tabManager.setActiveTab(tab.tabId)}
-                    onPin={() => tabManager.openConversation(tab.conversationId)}
-                    onClose={() => tabManager.closeTab(tab.tabId)}
-                  />
-                </SortableTabWrapper>
-              );
-            }
-            if (tab.kind === 'diff') {
-              return (
-                <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
-                  <DiffTabItem
-                    tab={tab}
-                    onSelect={() => tabManager.setActiveTab(tab.tabId)}
-                    onPin={() => tabManager.pinTab(tab.tabId)}
-                    onClose={() => tabManager.closeTab(tab.tabId)}
-                  />
-                </SortableTabWrapper>
-              );
-            }
+      <div ref={scrollContainerRef} className="flex h-full w-full overflow-x-auto">
+        {resolvedTabs.map((tab) => {
+          if (tab.kind === 'conversation') {
             return (
-              <SortableTabWrapper key={tab.tabId} id={tab.tabId}>
-                <FileTabItem
+              <DraggableTab key={tab.tabId} id={tab.tabId}>
+                <ConversationTabItem
+                  tab={tab}
+                  onSelect={() => tabManager.setActiveTab(tab.tabId)}
+                  onPin={() => tabManager.openConversation(tab.conversationId)}
+                  onClose={() => tabManager.closeTab(tab.tabId)}
+                />
+              </DraggableTab>
+            );
+          }
+          if (tab.kind === 'diff') {
+            return (
+              <DraggableTab key={tab.tabId} id={tab.tabId}>
+                <DiffTabItem
                   tab={tab}
                   onSelect={() => tabManager.setActiveTab(tab.tabId)}
                   onPin={() => tabManager.pinTab(tab.tabId)}
-                  onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
+                  onClose={() => tabManager.closeTab(tab.tabId)}
                 />
-              </SortableTabWrapper>
+              </DraggableTab>
             );
-          })}
-        </div>
-      </SortableContext>
+          }
+          return (
+            <DraggableTab key={tab.tabId} id={tab.tabId}>
+              <FileTabItem
+                tab={tab}
+                onSelect={() => tabManager.setActiveTab(tab.tabId)}
+                onPin={() => tabManager.pinTab(tab.tabId)}
+                onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
+              />
+            </DraggableTab>
+          );
+        })}
+        <PaneDropZone groupId={groupId} />
+      </div>
       <div className="flex h-full shrink-0 items-center px-1">
         <Tooltip>
           <TooltipTrigger>

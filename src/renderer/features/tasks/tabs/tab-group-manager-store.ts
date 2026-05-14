@@ -157,7 +157,7 @@ export class TabGroupManagerStore {
    * no model reload or state reset occurs. The target group becomes active.
    * Force-removes from source (bypasses the close guard — this is a move, not a close).
    */
-  moveTab(tabId: string, fromGroupId: string, toGroupId: string): void {
+  moveTab(tabId: string, fromGroupId: string, toGroupId: string, insertBeforeTabId?: string): void {
     if (fromGroupId === toGroupId) return;
     const fromGroup = this.groups.find((g) => g.groupId === fromGroupId);
     const toGroup = this.groups.find((g) => g.groupId === toGroupId);
@@ -170,7 +170,14 @@ export class TabGroupManagerStore {
 
     // Insert into target, reusing the same entry object and tabId.
     toGroup.tabManager.entries.set(tabId, entry);
-    toGroup.tabManager.tabOrder.push(tabId);
+    const insertIdx = insertBeforeTabId
+      ? toGroup.tabManager.tabOrder.indexOf(insertBeforeTabId)
+      : -1;
+    if (insertIdx === -1) {
+      toGroup.tabManager.tabOrder.push(tabId);
+    } else {
+      toGroup.tabManager.tabOrder.splice(insertIdx, 0, tabId);
+    }
     toGroup.tabManager.activeTabId = tabId;
     this.activeGroupId = toGroupId;
   }
@@ -194,12 +201,18 @@ export class TabGroupManagerStore {
     if (!toGroupId || toGroupId === fromGroup.groupId) {
       const fromTabIds = fromGroup.tabManager.resolvedTabs.map((t) => t.tabId);
       const fromIdx = fromTabIds.indexOf(draggedTabId);
-      const toIdx = fromTabIds.indexOf(overId);
-      if (fromIdx !== -1 && toIdx !== -1) fromGroup.tabManager.reorderTabs(fromIdx, toIdx);
+      if (fromIdx === -1) return;
+      // pane-drop-* means the user dropped over empty space → move to end
+      const toIdx = overId.startsWith('pane-drop-')
+        ? fromTabIds.length - 1
+        : fromTabIds.indexOf(overId);
+      if (toIdx !== -1) fromGroup.tabManager.reorderTabs(fromIdx, toIdx);
       return;
     }
 
-    this.moveTab(draggedTabId, fromGroup.groupId, toGroupId);
+    // When overId is a specific tab (not the pane-drop fallback), insert before it.
+    const insertBeforeTabId = overId.startsWith('pane-drop-') ? undefined : overId;
+    this.moveTab(draggedTabId, fromGroup.groupId, toGroupId, insertBeforeTabId);
   }
 
   setActiveGroup(groupId: string): void {

@@ -1,7 +1,14 @@
-import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  pointerWithin,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
 import { Eye, Loader2, MessageSquare, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { Activity, useEffect, useRef, type ComponentProps } from 'react';
+import { Activity, useEffect, useRef, useState, type ComponentProps } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
 import {
   getTaskStore,
@@ -27,7 +34,7 @@ import { MarkdownEditorPanel } from './editor/markdown-editor-panel';
 import { TabGroupProvider, useTabGroupContext } from './tabs/tab-group-context';
 import { TerminalsPanel } from './terminals/terminal-panel';
 import { TaskSidebar } from './view/task-sidebar';
-import { UnifiedMainTabBar } from './view/unified-main-tab-bar';
+import { TabDragPreview, UnifiedMainTabBar } from './view/unified-main-tab-bar';
 import { WorkspaceResolutionView } from './workspace-resolution-view';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
@@ -231,16 +238,20 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
   const { tabGroupManager } = taskView;
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={pointerWithin}
+      onDragStart={({ active }) => setActiveDragId(active.id as string)}
       onDragEnd={(event) => {
+        setActiveDragId(null);
         if (event.over) {
           tabGroupManager.handleDragEnd(event.active.id as string, event.over.id as string);
         }
       }}
+      onDragCancel={() => setActiveDragId(null)}
     >
       <ResizablePanelGroup orientation="horizontal" id="task-main-split">
         {tabGroupManager.groups.map((group, i) => (
@@ -257,6 +268,9 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
           </TabGroupProvider>
         ))}
       </ResizablePanelGroup>
+      <DragOverlay dropAnimation={null}>
+        {activeDragId ? <TabDragPreview tabId={activeDragId} /> : null}
+      </DragOverlay>
     </DndContext>
   );
 });
