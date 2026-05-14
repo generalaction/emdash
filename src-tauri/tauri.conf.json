@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "emdash - dev",
+  "version": "0.1.0",
+  "identifier": "com.emdash.dev",
+  "build": {
+    "beforeDevCommand": "pnpm --filter emdash-dev-ui dev",
+    "beforeBuildCommand": "pnpm --filter emdash-dev-ui build",
+    "frontendDist": "./ui/dist",
+    "devUrl": "http://localhost:1420"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "emdash - dev",
+        "width": 1024,
+        "height": 720,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
+  }
+}

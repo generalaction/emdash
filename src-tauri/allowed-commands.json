@@ -1,0 +1,4 @@
+{
+  "$comment": "Custom allowlist of commands exposed through invoke_handler. Distinct from Tauri's built-in capability system (which gates core/plugin permissions). Every command registered via collect_commands! must appear here; the build script in build.rs fails the build on drift. To add a command: (1) create it under src/commands/, (2) add to collect_commands! in app.rs, (3) run `cargo run -- --export-bindings`, (4) append its channel name here.",
+  "commands": ["greet", "get_path"]
+}

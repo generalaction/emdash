@@ -1,0 +1,8 @@
+---
+source: tests/wire_format.rs
+assertion_line: 19
+expression: request_args
+---
+{
+  "name": "world"
+}
