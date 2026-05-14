@@ -16,10 +16,10 @@ pub const READ_POOL_SIZE: u32 = 8;
 pub const WRITE_POOL_SIZE: u32 = 1;
 
 /// 256 MiB mmap size. Matches better-sqlite3's default.
-const MMAP_SIZE_BYTES: i64 = 268_435_456;
+pub const MMAP_SIZE_BYTES: i64 = 268_435_456;
 
 /// 64 MiB cache. Negative value = absolute KiB instead of pages.
-const CACHE_SIZE_KIB: i64 = -64_000;
+pub const CACHE_SIZE_KIB: i64 = -64_000;
 
 #[derive(Debug, Error)]
 pub enum DbError {
@@ -31,23 +31,48 @@ pub enum DbError {
     Migration(#[from] rusqlite_migration::Error),
 }
 
-#[derive(Debug)]
-struct PragmaCustomizer;
+/// Installs the PRAGMAs common to both pools. Used as a helper from the
+/// read/write customizers.
+fn apply_common_pragmas(conn: &mut Connection) -> Result<(), rusqlite::Error> {
+    // journal_mode and synchronous are DB-wide; first connection wins.
+    // The rest are per-connection and must be set every time.
+    conn.pragma_update(None, "journal_mode", "WAL")?;
+    conn.pragma_update(None, "synchronous", "NORMAL")?;
+    conn.pragma_update(None, "foreign_keys", "ON")?;
+    conn.pragma_update(None, "mmap_size", MMAP_SIZE_BYTES)?;
+    conn.pragma_update(None, "cache_size", CACHE_SIZE_KIB)?;
+    Ok(())
+}
 
-impl CustomizeConnection<Connection, rusqlite::Error> for PragmaCustomizer {
+/// Read-pool customizer. Sets `query_only = ON` so any write attempted through
+/// a read connection fails at the SQLite engine level — the two-pool design's
+/// single-writer contract becomes load-bearing instead of convention.
+#[derive(Debug)]
+struct ReadPragmaCustomizer;
+
+impl CustomizeConnection<Connection, rusqlite::Error> for ReadPragmaCustomizer {
     fn on_acquire(&self, conn: &mut Connection) -> Result<(), rusqlite::Error> {
-        // journal_mode and synchronous are DB-wide; first connection wins.
-        // The rest are per-connection and must be set every time.
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "synchronous", "NORMAL")?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
-        conn.pragma_update(None, "mmap_size", MMAP_SIZE_BYTES)?;
-        conn.pragma_update(None, "cache_size", CACHE_SIZE_KIB)?;
+        apply_common_pragmas(conn)?;
+        conn.pragma_update(None, "query_only", "ON")?;
         Ok(())
     }
 }
 
-/// Read-only marker. Holds a connection from the read pool. Use for SELECT.
+/// Write-pool customizer. Does NOT set `query_only`; the single connection in
+/// this pool is the only one allowed to mutate the database.
+#[derive(Debug)]
+struct WritePragmaCustomizer;
+
+impl CustomizeConnection<Connection, rusqlite::Error> for WritePragmaCustomizer {
+    fn on_acquire(&self, conn: &mut Connection) -> Result<(), rusqlite::Error> {
+        apply_common_pragmas(conn)
+    }
+}
+
+/// Read-only marker. Holds a connection from the read pool. The connection
+/// has `PRAGMA query_only = ON` so any attempted write fails at the SQLite
+/// engine level — this is the load-bearing enforcement of the single-writer
+/// contract, not just a convention. Use for SELECT.
 pub struct ReadConn(PooledConnection<SqliteConnectionManager>);
 impl std::ops::Deref for ReadConn {
     type Target = Connection;
@@ -59,6 +84,10 @@ impl std::ops::Deref for ReadConn {
 /// Read-write marker. Holds the single connection from the write pool. Use
 /// for INSERT / UPDATE / DELETE / transactions. Holding one of these blocks
 /// every other writer system-wide — keep critical sections short.
+///
+/// **Never call `db.write()` while holding another `WriteConn`** — the write
+/// pool has capacity 1 and `r2d2::Pool::get()` will block forever. This is
+/// the only known way to deadlock the data layer.
 pub struct WriteConn(PooledConnection<SqliteConnectionManager>);
 impl std::ops::Deref for WriteConn {
     type Target = Connection;
@@ -93,11 +122,11 @@ impl Db {
 
         let read_pool = Pool::builder()
             .max_size(READ_POOL_SIZE)
-            .connection_customizer(Box::new(PragmaCustomizer))
+            .connection_customizer(Box::new(ReadPragmaCustomizer))
             .build(manager_read)?;
         let write_pool = Pool::builder()
             .max_size(WRITE_POOL_SIZE)
-            .connection_customizer(Box::new(PragmaCustomizer))
+            .connection_customizer(Box::new(WritePragmaCustomizer))
             .build(manager_write)?;
 
         // Run migrations through the write pool so the same single-writer
@@ -200,6 +229,32 @@ mod tests {
         for h in handles {
             h.join().unwrap();
         }
+    }
+
+    #[test]
+    fn read_connection_rejects_writes() {
+        let (_dir, db) = open_temp_db();
+        // Seed a row through the write pool so we know the table exists.
+        {
+            let conn = db.write().unwrap();
+            conn.execute(
+                "INSERT INTO projects (id, name, path) VALUES ('p', 'p', '/p')",
+                [],
+            )
+            .unwrap();
+        }
+
+        // A write attempted through the read pool must fail because the
+        // connection has PRAGMA query_only = ON.
+        let conn = db.read().unwrap();
+        let result = conn.execute(
+            "UPDATE projects SET name = 'should-not-stick' WHERE id = 'p'",
+            [],
+        );
+        assert!(
+            result.is_err(),
+            "writes through ReadConn must be refused by SQLite (query_only=ON)"
+        );
     }
 
     #[test]
