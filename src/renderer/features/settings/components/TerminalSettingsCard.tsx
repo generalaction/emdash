@@ -1,7 +1,13 @@
-import { ChevronsUpDownIcon } from 'lucide-react';
+import { ChevronsUpDownIcon, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
+import {
+  TERMINAL_FONT_SIZE_DEFAULT,
+  TERMINAL_FONT_SIZE_MAX,
+  TERMINAL_FONT_SIZE_MIN,
+} from '@shared/terminal-settings';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useInstalledFonts } from '@renderer/features/settings/use-installed-fonts';
+import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
   ComboboxCollection,
@@ -45,6 +51,9 @@ const DEFAULT_OPTION: FontOption = {
   label: 'Default (Menlo)',
 };
 
+const clampFontSize = (size: number) =>
+  Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, size));
+
 const TerminalSettingsCard: React.FC = () => {
   const {
     value: terminal,
@@ -57,6 +66,7 @@ const TerminalSettingsCard: React.FC = () => {
   const { fonts: installedFonts } = useInstalledFonts();
 
   const fontFamily = terminal?.fontFamily ?? '';
+  const fontSize = terminal?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
 
   const groups = useMemo<FontGroup[]>(() => {
@@ -109,6 +119,17 @@ const TerminalSettingsCard: React.FC = () => {
       update({ fontFamily: normalized });
       window.dispatchEvent(
         new CustomEvent('terminal-font-changed', { detail: { fontFamily: normalized } })
+      );
+    },
+    [update]
+  );
+
+  const applyFontSize = useCallback(
+    (next: number) => {
+      const normalized = clampFontSize(next);
+      update({ fontSize: normalized });
+      window.dispatchEvent(
+        new CustomEvent('terminal-font-changed', { detail: { fontSize: normalized } })
       );
     },
     [update]
@@ -192,6 +213,38 @@ const TerminalSettingsCard: React.FC = () => {
                 <ComboboxEmpty>No fonts found.</ComboboxEmpty>
               </ComboboxContent>
             </Combobox>
+          </div>
+        }
+      />
+      <SettingRow
+        title="Terminal font size"
+        description="Adjust the font size used by terminal sessions and CLI agents."
+        control={
+          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={loading || saving || fontSize <= TERMINAL_FONT_SIZE_MIN}
+              onClick={() => applyFontSize(fontSize - 1)}
+              aria-label="Decrease terminal font size"
+            >
+              <Minus />
+            </Button>
+            <div className="flex min-w-14 items-baseline justify-center gap-1 text-sm tabular-nums text-foreground">
+              <span>{fontSize}</span>
+              <span className="text-xs text-muted-foreground">px</span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={loading || saving || fontSize >= TERMINAL_FONT_SIZE_MAX}
+              onClick={() => applyFontSize(fontSize + 1)}
+              aria-label="Increase terminal font size"
+            >
+              <Plus />
+            </Button>
           </div>
         }
       />

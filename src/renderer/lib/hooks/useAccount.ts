@@ -20,6 +20,7 @@ export function useAccountSignIn() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...ACCOUNT_SESSION_KEY] });
       void queryClient.invalidateQueries({ queryKey: ['github:status'] });
+      void queryClient.invalidateQueries({ queryKey: ['feature-flags'] });
     },
   });
 }

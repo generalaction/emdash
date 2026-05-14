@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@renderer/lib/ui/input-group';
+import { Kbd } from '@renderer/lib/ui/kbd';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { cn } from '@renderer/utils/utils';
 
 type StatusFilter = 'open' | 'not-open';
@@ -61,6 +61,7 @@ export function InlinePrSelector({
         limit: 50,
         offset: 0,
         filters: { status: statusFilter },
+        repositoryUrl,
       });
       if (!response?.success) {
         throw new Error(
@@ -214,7 +215,7 @@ export function InlinePrSelector({
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
           <button className="flex items-center gap-2">
-            Select PR <ShortcutHint settingsKey="confirm" />
+            Select PR <Kbd>↵</Kbd>
           </button>
         </div>
       </div>

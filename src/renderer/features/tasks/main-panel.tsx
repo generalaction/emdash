@@ -1,15 +1,32 @@
-import { Loader2 } from 'lucide-react';
+import { Eye, Loader2, MessageSquare, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { Activity } from 'react';
+import { Activity, useEffect, useRef, type ComponentProps } from 'react';
+import { usePanelRef } from 'react-resizable-panels';
 import {
   getTaskStore,
   taskErrorMessage,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
+import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
+import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Button } from '@renderer/lib/ui/button';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
+import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { ConversationsPanel } from './conversations/conversations-panel';
 import { DiffView } from './diff-view/main-panel/diff-view';
 import { EditorMainPanel } from './editor/editor-main-panel';
+import { useEditorContext } from './editor/editor-provider';
+import { MarkdownEditorPanel } from './editor/markdown-editor-panel';
+import { TerminalsPanel } from './terminals/terminal-panel';
+import { TaskSidebar } from './view/task-sidebar';
+import { UnifiedMainTabBar } from './view/unified-main-tab-bar';
+import { WorkspaceResolutionView } from './workspace-resolution-view';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -88,23 +105,252 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return null;
   }
 
+  if (kind === 'needs-resolution') {
+    return <WorkspaceResolutionView />;
+  }
+
   return <ReadyTaskMainPanel />;
 });
 
+const SIDEBAR_COLLAPSED_SIZE = '0px';
+
+/**
+ * ResizableHandle wrapper that flips panelDragStore on/off during a drag so
+ * embedded terminals can suppress fits while the user is dragging.
+ */
+function DraggableResizeHandle(props: ComponentProps<typeof ResizableHandle>) {
+  const draggingRef = useRef(false);
+  const stop = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    panelDragStore.setDragging(false);
+  };
+  return (
+    <ResizableHandle
+      {...props}
+      onPointerDown={(e) => {
+        props.onPointerDown?.(e);
+        e.currentTarget.setPointerCapture(e.pointerId);
+        if (!draggingRef.current) {
+          draggingRef.current = true;
+          panelDragStore.setDragging(true);
+        }
+      }}
+      onPointerUp={(e) => {
+        props.onPointerUp?.(e);
+        stop();
+      }}
+      onPointerCancel={(e) => {
+        props.onPointerCancel?.(e);
+        stop();
+      }}
+    />
+  );
+}
+
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
+  const sidebarPanelRef = usePanelRef();
+
+  useEffect(() => {
+    panelDragStore.suppressFor(140);
+    if (taskView.isSidebarCollapsed) {
+      sidebarPanelRef.current?.collapse();
+    } else {
+      sidebarPanelRef.current?.expand();
+    }
+  }, [taskView.isSidebarCollapsed, sidebarPanelRef]);
 
   return (
-    <>
-      <Activity mode={taskView.view === 'agents' ? 'visible' : 'hidden'}>
-        <ConversationsPanel />
-      </Activity>
-      <Activity mode={taskView.view === 'editor' ? 'visible' : 'hidden'}>
-        <EditorMainPanel />
-      </Activity>
-      <Activity mode={taskView.view === 'diff' ? 'visible' : 'hidden'}>
-        <DiffView />
-      </Activity>
-    </>
+    <ResizablePanelGroup orientation="horizontal" id="task-sidebar-layout">
+      <ResizablePanel id="task-main-area">
+        <TaskMainColumn />
+      </ResizablePanel>
+      <DraggableResizeHandle />
+      <ResizablePanel
+        id="task-sidebar"
+        panelRef={sidebarPanelRef}
+        defaultSize="25%"
+        minSize="280px"
+        maxSize="50%"
+        collapsible
+        collapsedSize={SIDEBAR_COLLAPSED_SIZE}
+        onResize={() =>
+          taskView.setSidebarCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
+        }
+      >
+        <TaskSidebar />
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  );
+});
+
+const TaskMainColumn = observer(function TaskMainColumn() {
+  const taskView = useWorkspaceViewModel();
+  const bottomPanelRef = usePanelRef();
+
+  useEffect(() => {
+    panelDragStore.suppressFor(140);
+    if (taskView.isTerminalDrawerOpen) {
+      bottomPanelRef.current?.expand();
+    } else {
+      bottomPanelRef.current?.collapse();
+    }
+  }, [taskView.isTerminalDrawerOpen, bottomPanelRef]);
+
+  return (
+    <ResizablePanelGroup orientation="vertical" id="task-main-vertical">
+      <ResizablePanel id="task-main-content" minSize="30%">
+        <UnifiedMainContent />
+      </ResizablePanel>
+      <DraggableResizeHandle className={taskView.isTerminalDrawerOpen ? 'flex' : 'hidden'} />
+      <ResizablePanel
+        id="task-terminal-drawer"
+        panelRef={bottomPanelRef}
+        collapsible
+        collapsedSize="0%"
+        defaultSize="25%"
+        minSize="15%"
+        onResize={(_panelSize, _id, prevPanelSize) => {
+          if (prevPanelSize === undefined) return;
+          taskView.setTerminalDrawerOpen(!bottomPanelRef.current?.isCollapsed());
+        }}
+      >
+        <TerminalsPanel />
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  );
+});
+
+const UnifiedMainContent = observer(function UnifiedMainContent() {
+  const { projectId, taskId } = useTaskViewContext();
+  const taskView = useWorkspaceViewModel();
+  const { tabManager } = taskView;
+  const { setEditorHost, triggerLayout } = useEditorContext();
+  const showCreateConversationModal = useShowModal('createConversationModal');
+
+  const renderer = taskView.activeRenderer;
+
+  // Re-run Monaco layout whenever the Monaco slot becomes visible so the editor
+  // fills the host after transitioning from hidden to flex.
+  useEffect(() => {
+    if (renderer === 'monaco') triggerLayout();
+  }, [renderer, triggerLayout]);
+
+  if (tabManager.resolvedTabs.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+        <MessageSquare className="h-10 w-10 opacity-20" />
+        <div className="text-center">
+          <p className="text-sm font-medium opacity-50">No open tabs</p>
+          <p className="mt-1 text-xs opacity-35">Open a conversation from the sidebar</p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            showCreateConversationModal({
+              projectId,
+              taskId,
+              onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
+            })
+          }
+          className="flex items-center gap-2"
+        >
+          New conversation
+          <ShortcutHint settingsKey="newConversation" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <UnifiedMainTabBar />
+      <div className="relative min-h-0 flex-1">
+        {/*
+         * Persistent Monaco host — always in the DOM, never inside an Activity.
+         * CSS display controls visibility so Monaco is never measured at 0×0.
+         * triggerLayout() is called above whenever this transitions to visible.
+         */}
+        <div
+          ref={setEditorHost}
+          className="absolute inset-0"
+          style={{ display: renderer === 'monaco' ? 'flex' : 'none' }}
+        />
+        {/* SVG source toggle — floats over the Monaco host when editing an SVG file */}
+        {renderer === 'monaco' && <SvgSourceToggleOverlay />}
+        {/* HTML source toggle — floats over the Monaco host when editing an HTML file */}
+        {renderer === 'monaco' && <HtmlSourceToggleOverlay />}
+
+        <Activity mode={renderer === 'markdown' ? 'visible' : 'hidden'}>
+          <MarkdownEditorPanel />
+        </Activity>
+        <Activity mode={renderer === 'diff' ? 'visible' : 'hidden'}>
+          <DiffView />
+        </Activity>
+        <Activity mode={renderer === 'agents' ? 'visible' : 'hidden'}>
+          <ConversationsPanel />
+        </Activity>
+        <Activity mode={renderer === 'other-file' ? 'visible' : 'hidden'}>
+          <EditorMainPanel />
+        </Activity>
+      </div>
+    </div>
+  );
+});
+
+/**
+ * Shown over the Monaco host when the active tab is an SVG file in source mode.
+ * Lets the user toggle back to the SVG preview renderer.
+ */
+const SvgSourceToggleOverlay = observer(function SvgSourceToggleOverlay() {
+  const taskView = useWorkspaceViewModel();
+  const { tabManager } = taskView;
+  const activeTab = tabManager.activeFileEntry;
+
+  if (!activeTab || activeTab.renderer.kind !== 'svg-source') return null;
+
+  return (
+    <ToggleGroup
+      value={['svg-source']}
+      onValueChange={(value) => {
+        if (value.includes('svg')) {
+          tabManager.updateRenderer(activeTab.path, () => ({ kind: 'svg' }));
+        }
+      }}
+      size="sm"
+      className="absolute right-3 top-3 z-10"
+    >
+      <ToggleGroupItem value="svg" aria-label="View rendered">
+        <Eye className="h-3.5 w-3.5" />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="svg-source" aria-label="Edit source">
+        <Pencil className="h-3.5 w-3.5" />
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+});
+
+/**
+ * Shown over the Monaco host when the active tab is an HTML file in source mode.
+ * Lets the user toggle back to the rendered HTML preview.
+ */
+const HtmlSourceToggleOverlay = observer(function HtmlSourceToggleOverlay() {
+  const taskView = useWorkspaceViewModel();
+  const { tabManager } = taskView;
+  const activeTab = tabManager.activeFileEntry;
+
+  if (!activeTab || activeTab.renderer.kind !== 'html-source') return null;
+
+  return (
+    <PreviewSourceToggle
+      activeMode="source"
+      onSwitch={(mode) => {
+        if (mode === 'preview') {
+          tabManager.updateRenderer(activeTab.path, () => ({ kind: 'html' }));
+        }
+      }}
+    />
   );
 });

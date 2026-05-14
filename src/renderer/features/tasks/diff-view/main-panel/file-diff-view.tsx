@@ -3,8 +3,14 @@ import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
+import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
+import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  useTaskViewContext,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
+import { isBinaryForDiff, isImageForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
@@ -12,23 +18,25 @@ import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 
 export const FileDiffView = observer(function FileDiffView() {
-  const { projectId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { workspaceId } = provisioned;
-  const diffView = provisioned.taskView.diffView;
-  const draftComments = provisioned.draftComments;
-  const activeFile = diffView.activeFile;
+  const { projectId, taskId } = useTaskViewContext();
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const diffView = taskView.diffView;
+  const draftComments = getTaskStore(projectId, taskId)?.draftComments;
+  const activeFile = diffView?.activeFile ?? null;
   const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
 
   const isBinary = activeFile ? isBinaryForDiff(activeFile.path) : false;
+  const isImage = activeFile ? isImageForDiff(activeFile.path) : false;
   const showEditor = activeFile !== null && !isBinary;
   const activeFilePath = activeFile?.path ?? '';
+  const imageDiffKey = activeFile ? `${workspaceId}:${activeFile.group}:${activeFile.path}` : '';
 
-  const comments = activeFilePath ? draftComments.getCommentsForFile(activeFilePath) : [];
+  const comments = activeFilePath ? (draftComments?.getCommentsForFile(activeFilePath) ?? []) : [];
 
   const handleAddComment = useCallback(
     (lineNumber: number, content: string, lineContent?: string) => {
-      if (!activeFilePath) return;
+      if (!activeFilePath || !draftComments) return;
       draftComments.addComment({
         filePath: activeFilePath,
         lineNumber,
@@ -41,14 +49,14 @@ export const FileDiffView = observer(function FileDiffView() {
 
   const handleEditComment = useCallback(
     (id: string, content: string) => {
-      draftComments.updateComment(id, content);
+      draftComments?.updateComment(id, content);
     },
     [draftComments]
   );
 
   const handleDeleteComment = useCallback(
     (id: string) => {
-      draftComments.deleteComment(id);
+      draftComments?.deleteComment(id);
     },
     [draftComments]
   );
@@ -172,6 +180,8 @@ export const FileDiffView = observer(function FileDiffView() {
     };
   }, [isBinary, originalUri, modifiedUri, language, activeFile, projectId, workspaceId, root, uri]);
 
+  if (!diffView) return null;
+
   return (
     <div className="file-diff-view flex h-full flex-col">
       <div className="relative min-h-0 flex-1">
@@ -189,7 +199,15 @@ export const FileDiffView = observer(function FileDiffView() {
             description="Select a file to view changes"
           />
         )}
-        {isBinary && (
+        {activeFile && isImage && (
+          <ImageDiffView
+            key={imageDiffKey}
+            projectId={projectId}
+            workspaceId={workspaceId}
+            activeFile={activeFile}
+          />
+        )}
+        {isBinary && !isImage && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Binary file — no diff available
           </div>

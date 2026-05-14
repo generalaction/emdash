@@ -1,4 +1,5 @@
-import { sql } from 'drizzle-orm';
+import crypto from 'node:crypto';
+import { eq, sql } from 'drizzle-orm';
 import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import { err, ok, type Result } from '@shared/result';
 import type {
@@ -9,10 +10,11 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
+import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
-import { capture } from '@main/lib/telemetry';
+import { tasks, workspaces } from '@main/db/schema';
+import { telemetryService } from '@main/lib/telemetry';
 import { createConversation } from '../../conversations/createConversation';
 import { prQueryService } from '../../pull-requests/pr-query-service';
 import { appSettingsService } from '../../settings/settings-service';
@@ -43,7 +45,7 @@ export async function createTask(
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
   const { strategy } = params;
   const suffix = Math.random().toString(36).slice(2, 7);
-  const branchPrefix = (await appSettingsService.get('localProject')).branchPrefix ?? '';
+  const branchPrefix = (await appSettingsService.get('project')).branchPrefix ?? '';
   const agentAutoApproveDefaults = await appSettingsService.get('agentAutoApproveDefaults');
   let warning: CreateTaskWarning | undefined;
 
@@ -51,10 +53,7 @@ export async function createTask(
   if (!project) {
     return err({ type: 'project-not-found' });
   }
-  const [, configuredRemote] = await Promise.all([
-    project.repository.getRemotes(),
-    project.repository.getConfiguredRemote(),
-  ]);
+  const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;
@@ -87,12 +86,12 @@ export async function createTask(
         return err({ type: 'branch-create-failed', branch: taskBranch, error: createResult.error });
       }
       if (strategy.pushBranch) {
-        const publishResult = await project.repository.publishBranch(taskBranch, configuredRemote);
+        const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
         if (!publishResult.success) {
           warning = {
             type: 'branch-publish-failed',
             branch: taskBranch,
-            remote: configuredRemote,
+            remote: pushRemote,
             error: publishResult.error,
           };
         }
@@ -120,13 +119,13 @@ export async function createTask(
           strategy.headRepositoryUrl,
           strategy.headBranch,
           strategy.isFork,
-          configuredRemote
+          baseRemote
         );
         if (!fetchResult.success) {
           return err({
             type: 'pr-fetch-failed',
             error: fetchResult.error,
-            remote: configuredRemote,
+            remote: baseRemote,
           });
         }
       }
@@ -154,15 +153,12 @@ export async function createTask(
           });
         }
         if (strategy.pushBranch) {
-          const publishResult = await project.repository.publishBranch(
-            taskBranch,
-            configuredRemote
-          );
+          const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
           if (!publishResult.success) {
             warning = {
               type: 'branch-publish-failed',
               branch: taskBranch,
-              remote: configuredRemote,
+              remote: pushRemote,
               error: publishResult.error,
             };
           }
@@ -214,11 +210,25 @@ export async function createTask(
 
   const task = mapTaskRowToTask(taskRow, prs);
 
-  const provisionResult = await taskManager.provisionTask(project, task, [], []);
+  taskEvents._emit('task:created', task);
+
+  const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
+    if (params.workspaceProvider === 'byoi') return 'byoi';
+    if (project.defaultWorkspaceType.kind === 'ssh') return 'project-ssh';
+    return 'local';
+  })();
+  const workspaceId = crypto.randomUUID();
+  await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
+  await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
+
+  const provisionResult = await taskManager.provisionTask(project, task, [], [], {
+    id: workspaceId,
+    type: workspaceType,
+  });
   if (!provisionResult.success) {
     return err(mapProvisionError(provisionResult.error));
   }
-  capture('task_provisioned', {
+  telemetryService.capture('task_provisioned', {
     project_id: params.projectId,
     task_id: params.id,
   });
@@ -226,6 +236,7 @@ export async function createTask(
   if (params.initialConversation) {
     await createConversation({
       ...params.initialConversation,
+      isInitialConversation: true,
       autoApprove: resolveAgentAutoApprove(
         params.initialConversation.autoApprove,
         agentAutoApproveDefaults,
@@ -241,7 +252,7 @@ export async function createTask(
     return 'branch';
   })();
 
-  capture('task_created', {
+  telemetryService.capture('task_created', {
     strategy: taskCreatedStrategy,
     has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
     has_issue: params.linkedIssue?.provider ?? 'none',
@@ -250,12 +261,12 @@ export async function createTask(
     task_id: params.id,
   });
   if (params.linkedIssue) {
-    capture('issue_linked_to_task', {
+    telemetryService.capture('issue_linked_to_task', {
       provider: params.linkedIssue.provider,
       project_id: params.projectId,
       task_id: params.id,
     });
   }
 
-  return ok({ task, warning });
+  return ok({ task: { ...task, workspaceId }, warning });
 }

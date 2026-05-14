@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -10,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
+import FeaturebaseSetupForm from './FeaturebaseSetupForm';
 import ForgejoSetupForm from './ForgejoSetupForm';
 import GitLabSetupForm from './GitLabSetupForm';
 import { useIntegrationsContext } from './integrations-provider';
@@ -17,7 +19,7 @@ import JiraSetupForm from './JiraSetupForm';
 import LinearSetupForm from './LinearSetupForm';
 import PlainSetupForm from './PlainSetupForm';
 
-type IntegrationType = 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo';
+type IntegrationType = 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase';
 
 type IntegrationSetupModalArgs = {
   integration: IntegrationType;
@@ -46,6 +48,10 @@ const descriptions: Record<IntegrationType, { title: string; subtitle: string }>
     title: 'Connect Forgejo',
     subtitle: 'Enter your Forgejo instance URL and API token.',
   },
+  featurebase: {
+    title: 'Connect Featurebase',
+    subtitle: 'Enter your Featurebase API key to connect your workspace.',
+  },
 };
 
 export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props) {
@@ -55,12 +61,15 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     connectGitlab,
     connectPlain,
     connectForgejo,
+    connectFeaturebase,
     isLinearLoading,
     isJiraLoading,
     isGitlabLoading,
     isPlainLoading,
     isForgejoLoading,
+    isFeaturebaseLoading,
   } = useIntegrationsContext();
+  const { toast } = useToast();
 
   // Linear state
   const [linearKey, setLinearKey] = useState('');
@@ -81,6 +90,9 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
   const [forgejoInstanceUrl, setForgejoInstanceUrl] = useState('');
   const [forgejoToken, setForgejoToken] = useState('');
 
+  // Featurebase state
+  const [featurebaseKey, setFeaturebaseKey] = useState('');
+
   const [error, setError] = useState<string | null>(null);
 
   const isLoading =
@@ -88,14 +100,16 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     (integration === 'jira' && isJiraLoading) ||
     (integration === 'gitlab' && isGitlabLoading) ||
     (integration === 'plain' && isPlainLoading) ||
-    (integration === 'forgejo' && isForgejoLoading);
+    (integration === 'forgejo' && isForgejoLoading) ||
+    (integration === 'featurebase' && isFeaturebaseLoading);
 
   const canSubmit =
     (integration === 'linear' && !!linearKey.trim()) ||
     (integration === 'jira' && !!(jiraSite.trim() && jiraEmail.trim() && jiraToken.trim())) ||
     (integration === 'gitlab' && !!(gitlabInstanceUrl.trim() && gitlabToken.trim())) ||
     (integration === 'plain' && !!plainKey.trim()) ||
-    (integration === 'forgejo' && !!(forgejoInstanceUrl.trim() && forgejoToken.trim()));
+    (integration === 'forgejo' && !!(forgejoInstanceUrl.trim() && forgejoToken.trim())) ||
+    (integration === 'featurebase' && !!featurebaseKey.trim());
 
   const handleSubmit = useCallback(async () => {
     setError(null);
@@ -126,7 +140,14 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
             token: forgejoToken.trim(),
           });
           break;
+        case 'featurebase':
+          await connectFeaturebase(featurebaseKey.trim());
+          break;
       }
+      toast({
+        title: 'Integration connected',
+        description: 'Integration set up successfully.',
+      });
       onSuccess();
     } catch (e) {
       setError((e as Error).message || 'Failed to connect.');
@@ -142,11 +163,14 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     plainKey,
     forgejoInstanceUrl,
     forgejoToken,
+    featurebaseKey,
     connectLinear,
     connectJira,
     connectGitlab,
     connectPlain,
     connectForgejo,
+    connectFeaturebase,
+    toast,
     onSuccess,
   ]);
 
@@ -197,6 +221,13 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
               if (typeof u.instanceUrl === 'string') setForgejoInstanceUrl(u.instanceUrl);
               if (typeof u.token === 'string') setForgejoToken(u.token);
             }}
+            error={error}
+          />
+        )}
+        {integration === 'featurebase' && (
+          <FeaturebaseSetupForm
+            apiKey={featurebaseKey}
+            onChange={setFeaturebaseKey}
             error={error}
           />
         )}

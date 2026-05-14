@@ -52,7 +52,13 @@ export async function maybeShowNotification(event: AgentEvent, appFocused: boole
       if (win.isMinimized()) win.restore();
       win.show();
       win.focus();
-      if (event.taskId) events.emit(notificationFocusTaskChannel, { taskId: event.taskId });
+      if (event.taskId) {
+        events.emit(notificationFocusTaskChannel, {
+          projectId: event.projectId,
+          taskId: event.taskId,
+          conversationId: event.conversationId,
+        });
+      }
     });
 
     notification.show();

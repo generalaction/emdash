@@ -6,14 +6,34 @@ import {
   getTaskStore,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import {
-  ProvisionedTaskProvider,
-  TaskViewWrapper,
-} from '@renderer/features/tasks/task-view-context';
+import { TaskViewWrapper, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
+import { createTaskCommandProvider } from './commands';
 import { EditorProvider } from './editor/editor-provider';
+import { useIsActiveTask } from './hooks/use-is-active-task';
 import { TaskMainPanel } from './main-panel';
-import { TaskRightSidebar } from './right-panel';
 import { TaskTitlebar } from './task-titlebar';
+
+/**
+ * Syncs TabManagerStore.isVisible with the active task state.
+ * Controls telemetry conversation scope.
+ */
+const TabManagerVisibilitySync = observer(function TabManagerVisibilitySync({
+  taskId,
+}: {
+  taskId: string;
+}) {
+  const taskView = useWorkspaceViewModel();
+  const isActive = useIsActiveTask(taskId);
+
+  useEffect(() => {
+    taskView.tabManager.setVisible(isActive);
+    return () => {
+      taskView.tabManager.setVisible(false);
+    };
+  }, [taskView.tabManager, isActive]);
+
+  return null;
+});
 
 const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProviders({
   children,
@@ -49,11 +69,10 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
 
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      <ProvisionedTaskProvider projectId={projectId} taskId={taskId}>
-        <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
-          {children}
-        </EditorProvider>
-      </ProvisionedTaskProvider>
+      <TabManagerVisibilitySync taskId={taskId} />
+      <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
+        {children}
+      </EditorProvider>
     </TaskViewWrapper>
   );
 });
@@ -62,5 +81,6 @@ export const taskView = {
   WrapView: TaskViewWrapperWithProviders,
   TitlebarSlot: TaskTitlebar,
   MainPanel: TaskMainPanel,
-  RightPanel: TaskRightSidebar,
+  commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
+    createTaskCommandProvider(projectId, taskId),
 } satisfies ViewDefinition<{ projectId: string; taskId: string }>;

@@ -1,9 +1,14 @@
 import { RequestError } from '@octokit/request-error';
 import { createRPCController } from '@shared/ipc/rpc';
-import type { ListPrOptions, PullRequestError, PullRequestFile } from '@shared/pull-requests';
+import type {
+  ListPrOptions,
+  PullRequestComment,
+  PullRequestError,
+  PullRequestFile,
+} from '@shared/pull-requests';
 import { err, ok } from '@shared/result';
 import { log } from '@main/lib/logger';
-import { capture } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
 
@@ -164,11 +169,11 @@ export const pullRequestController = createRPCController({
       }
       // Sync the newly created PR into the DB
       void prSyncEngine.syncSingle(params.repositoryUrl, result.data.number);
-      capture('pr_created', { is_draft: params.draft });
+      telemetryService.capture('pr_created', { is_draft: params.draft });
       return ok({ url: result.data.url, number: result.data.number });
     } catch (error) {
       log.error('Failed to create pull request:', error);
-      capture('pr_creation_failed', {
+      telemetryService.capture('pr_creation_failed', {
         error_type: error instanceof Error ? error.name || 'error' : 'unknown_error',
       });
       const ghErrors =
@@ -237,6 +242,23 @@ export const pullRequestController = createRPCController({
       return err<PullRequestError>({
         type: 'files_failed',
         message: error instanceof Error ? error.message : 'Unable to get pull request files',
+      });
+    }
+  },
+
+  getPullRequestComments: async (repositoryUrl: string, prNumber: number) => {
+    try {
+      const result = await prSyncEngine.getPullRequestComments(repositoryUrl, prNumber);
+      if (!result.success) {
+        return err<PullRequestError>({ type: 'invalid_repository', input: result.error.input });
+      }
+      const comments: PullRequestComment[] = result.data;
+      return ok({ comments });
+    } catch (error) {
+      log.error('Failed to get pull request comments:', error);
+      return err<PullRequestError>({
+        type: 'comments_failed',
+        message: error instanceof Error ? error.message : 'Unable to get pull request comments',
       });
     }
   },

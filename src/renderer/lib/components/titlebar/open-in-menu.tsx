@@ -17,17 +17,11 @@ import { cn } from '@renderer/utils/utils';
 
 interface OpenInMenuProps {
   path: string;
-  isRemote?: boolean;
-  sshConnectionId?: string | null;
   className?: string;
+  borderless?: boolean;
 }
 
-export const OpenInMenu: React.FC<OpenInMenuProps> = ({
-  path,
-  className,
-  isRemote = false,
-  sshConnectionId = null,
-}) => {
+export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderless = false }) => {
   const { toast } = useToast();
   const { icons, labels, installedApps, availability, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
@@ -51,8 +45,6 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         const res = await rpc.app.openIn({
           app: appId,
           path,
-          isRemote,
-          sshConnectionId: sshConnectionId ?? undefined,
         });
         if (!res?.success) {
           toast({
@@ -69,7 +61,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         });
       }
     },
-    [labels, path, isRemote, sshConnectionId, toast]
+    [labels, path, toast]
   );
 
   const sortedApps = useMemo(() => {
@@ -104,12 +96,11 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
     { enabled: !!buttonAppId && !loading && openInHotkey !== null }
   );
 
-  const shortenedPath = useMemo(() => path.split('/').slice(-2).join('/'), [path]);
-
   return (
     <div
       className={cn(
         'border border-border rounded-md h-6 flex items-center text-foreground-muted overflow-hidden',
+        borderless && 'border-none',
         className
       )}
     >
@@ -118,7 +109,10 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           <TooltipTrigger className="flex-1 flex min-w-0">
             <button
               type="button"
-              className="group flex items-center w-full min-w-0 gap-1.5 border-r border-border truncate rounded-r-none px-2 text-xs transition-colors hover:bg-background-1 hover:text-foreground"
+              className={cn(
+                'group flex items-center w-full border-r border-border rounded-r-none px-2 text-xs transition-colors hover:bg-background-1 hover:text-foreground min-w-0',
+                borderless && 'border-none  pr-1'
+              )}
               onClick={() => {
                 if (!buttonAppId) return;
                 void triggerOpenIn(buttonAppId);
@@ -135,7 +129,6 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
                   }`}
                 />
               )}
-              <span>{shortenedPath}</span>
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom">

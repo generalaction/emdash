@@ -56,7 +56,7 @@ export function AddRemoteModal({
     queryKey: ['owners'],
     queryFn: () => rpc.github.getOwners(),
   });
-  const selectedRemote = getRepositoryStore(projectId)?.configuredRemote.name ?? 'origin';
+  const selectedRemote = getRepositoryStore(projectId)?.pushRemote.name ?? 'origin';
 
   const owners = data?.owners?.map((o) => ({ value: o.login, label: o.login })) ?? [];
   const owner = selectedOwner ?? owners[0] ?? null;

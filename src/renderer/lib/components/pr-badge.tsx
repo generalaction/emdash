@@ -14,9 +14,10 @@ interface PrBadgeProps {
   variant?: 'default' | 'compact';
   pr: PullRequest;
   className?: string;
+  hoverDelay?: number;
 }
 
-export function PrBadge({ variant = 'default', pr, className }: PrBadgeProps) {
+export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBadgeProps) {
   const renderBadge = () => {
     switch (variant) {
       case 'default':
@@ -43,7 +44,9 @@ export function PrBadge({ variant = 'default', pr, className }: PrBadgeProps) {
 
   return (
     <Popover>
-      <PopoverTrigger openOnHover>{renderBadge()}</PopoverTrigger>
+      <PopoverTrigger openOnHover delay={hoverDelay}>
+        {renderBadge()}
+      </PopoverTrigger>
       <PopoverContent>
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 justify-between no-wrap">
@@ -58,7 +61,7 @@ export function PrBadge({ variant = 'default', pr, className }: PrBadgeProps) {
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="cursor-pointer"
                     onClick={() => rpc.app.openExternal(pr.url)}
                   >
                     <ExternalLink className="size-3.5" />
