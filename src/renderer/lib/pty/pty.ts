@@ -74,6 +74,8 @@ export class FrontendPty {
       rows: 32,
       scrollback: SCROLLBACK_LINES,
       convertEol: true,
+      cursorStyle: 'block',
+      cursorInactiveStyle: 'block',
       fontSize: 13,
       lineHeight: 1.2,
       letterSpacing: 0,
