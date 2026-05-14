@@ -69,3 +69,26 @@ fn bindings_ts_in_sync_with_rust() {
          Run `cargo run --bin emdash-dev -- --export-bindings` and commit."
     );
 }
+
+#[test]
+fn set_secret_wire_format() {
+    let request_args = serde_json::json!({ "key": "github_token", "value": "ghp_abc123" });
+    insta::assert_json_snapshot!("set_secret_request_args", request_args);
+}
+
+#[test]
+fn get_secret_wire_format() {
+    let request_args = serde_json::json!({ "key": "github_token" });
+    insta::assert_json_snapshot!("get_secret_request_args", request_args);
+}
+
+#[test]
+fn secrets_error_envelope_shape() {
+    // Confirms the {code, message} envelope is serialized in snake_case.
+    use emdash_dev::commands::secrets::{SecretsCommandError, SecretsErrorCode};
+    let err = SecretsCommandError {
+        code: SecretsErrorCode::KeyringUnavailable,
+        message: "example".to_string(),
+    };
+    insta::assert_json_snapshot!("secrets_error_envelope", serde_json::to_value(&err).unwrap());
+}

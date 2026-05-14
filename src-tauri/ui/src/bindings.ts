@@ -7,5 +7,27 @@ export const commands = {
 	greet: (name: string) => __TAURI_INVOKE<string>("greet", { name }),
 	/**  Login-shell `$PATH` captured at app startup. OnceLock-cached. */
 	getPath: () => __TAURI_INVOKE<string>("get_path"),
+	setSecret: (key: string, value: string) => typedError<null, SecretsCommandError>(__TAURI_INVOKE("set_secret", { key, value })),
+	getSecret: (key: string) => typedError<string | null, SecretsCommandError>(__TAURI_INVOKE("get_secret", { key })),
 };
+
+/* Types */
+export type SecretsCommandError = {
+	/**  Stable machine-readable identifier. Renderer matches on this. */
+	code: SecretsErrorCode,
+	/**  Human-readable hint. Surface this to the user verbatim. */
+	message: string,
+};
+
+export type SecretsErrorCode = "keyring_unavailable" | "crypto" | "storage" | "invalid_value" | "unknown";
+
+/* Tauri Specta runtime */
+async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
+    try {
+        return { status: "ok", data: await result };
+    } catch (e) {
+        if (e instanceof Error) throw e;
+        return { status: "error", error: e as any };
+    }
+}
 

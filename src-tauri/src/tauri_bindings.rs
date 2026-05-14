@@ -14,6 +14,8 @@ pub fn build_specta() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         commands::greet::greet,
         commands::path::get_path,
+        commands::secrets::set_secret,
+        commands::secrets::get_secret,
     ])
 }
 

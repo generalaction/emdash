@@ -2,3 +2,4 @@
 
 pub mod greet;
 pub mod path;
+pub mod secrets;
