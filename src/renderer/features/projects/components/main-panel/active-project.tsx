@@ -65,7 +65,7 @@ export const ActiveProject = observer(function ActiveProject() {
             activeView={activeView}
             onChange={(view) => store.view.setProjectView(view)}
           />
-          <div className="min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto">
+          <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
             <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col px-1 py-10">
               {activeView === 'tasks' && <TaskList />}
               {activeView === 'pull-request' && <PullRequestView />}
