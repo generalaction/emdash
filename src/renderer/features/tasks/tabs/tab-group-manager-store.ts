@@ -192,8 +192,10 @@ export class TabGroupManagerStore {
     if (!fromGroup) return;
 
     let toGroupId: string | undefined;
-    if (overId.startsWith('pane-drop-')) {
-      toGroupId = overId.replace('pane-drop-', '');
+    if (overId.startsWith('pane-drop-') || overId.startsWith('pane-content-')) {
+      toGroupId = overId.startsWith('pane-drop-')
+        ? overId.slice('pane-drop-'.length)
+        : overId.slice('pane-content-'.length);
     } else {
       toGroupId = this.groups.find((g) => g.tabManager.entries.has(overId))?.groupId;
     }
@@ -202,16 +204,18 @@ export class TabGroupManagerStore {
       const fromTabIds = fromGroup.tabManager.resolvedTabs.map((t) => t.tabId);
       const fromIdx = fromTabIds.indexOf(draggedTabId);
       if (fromIdx === -1) return;
-      // pane-drop-* means the user dropped over empty space → move to end
-      const toIdx = overId.startsWith('pane-drop-')
-        ? fromTabIds.length - 1
-        : fromTabIds.indexOf(overId);
+      // pane-drop-* / pane-content-* means dropped over empty space or renderer → move to end
+      const toIdx =
+        overId.startsWith('pane-drop-') || overId.startsWith('pane-content-')
+          ? fromTabIds.length - 1
+          : fromTabIds.indexOf(overId);
       if (toIdx !== -1) fromGroup.tabManager.reorderTabs(fromIdx, toIdx);
       return;
     }
 
-    // When overId is a specific tab (not the pane-drop fallback), insert before it.
-    const insertBeforeTabId = overId.startsWith('pane-drop-') ? undefined : overId;
+    // When overId is a specific tab (not a pane-drop/pane-content fallback), insert before it.
+    const insertBeforeTabId =
+      overId.startsWith('pane-drop-') || overId.startsWith('pane-content-') ? undefined : overId;
     this.moveTab(draggedTabId, fromGroup.groupId, toGroupId, insertBeforeTabId);
   }
 

@@ -5,6 +5,7 @@ import {
   pointerWithin,
   useSensor,
   useSensors,
+  useDroppable,
 } from '@dnd-kit/core';
 import { Eye, Loader2, MessageSquare, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -278,7 +279,10 @@ const SplitPaneLayout = observer(function SplitPaneLayout() {
 /** The content for a single pane: tab bar + renderer area. */
 const PaneContent = observer(function PaneContent() {
   const { projectId, taskId } = useTaskViewContext();
-  const { tabManager: paneTabManager } = useTabGroupContext();
+  const { groupId, tabManager: paneTabManager } = useTabGroupContext();
+  const { setNodeRef: setContentDropRef, isOver: isOverContent } = useDroppable({
+    id: `pane-content-${groupId}`,
+  });
   const { setEditorHost, triggerLayout } = useEditorContext();
   const showCreateConversationModal = useShowModal('createConversationModal');
 
@@ -335,7 +339,10 @@ const PaneContent = observer(function PaneContent() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <UnifiedMainTabBar />
-      <div className="relative min-h-0 flex-1">
+      <div ref={setContentDropRef} className="relative min-h-0 flex-1">
+        {isOverContent && (
+          <div className="pointer-events-none absolute inset-0 z-20 bg-foreground/10" />
+        )}
         {/*
          * Persistent Monaco host — always in the DOM, never inside an Activity.
          * CSS display controls visibility so Monaco is never measured at 0×0.
