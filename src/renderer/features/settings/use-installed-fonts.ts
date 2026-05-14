@@ -8,7 +8,7 @@ const dedupeAndSort = (fonts: string[]): string[] =>
 
 export function useInstalledFonts() {
   const { data = [], isLoading } = useQuery<string[]>({
-    queryKey: ['app', 'installedFonts'],
+    queryKey: ['app', 'installedFonts', 'all'],
     queryFn: async () => {
       try {
         const result = await rpc.app.listInstalledFonts({ refresh: true });
@@ -20,7 +20,8 @@ export function useInstalledFonts() {
       }
       return [];
     },
-    staleTime: Infinity,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   return { fonts: data, isLoading };
