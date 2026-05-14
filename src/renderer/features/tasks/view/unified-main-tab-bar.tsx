@@ -1,9 +1,11 @@
 import { useDroppable } from '@dnd-kit/core';
 import { horizontalListSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { Columns2, FileSearch, Loader2, MessageSquarePlus, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { GitChangeStatusIcon } from '@renderer/features/tasks/diff-view/changes-panel/components/changes-list-item';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
@@ -19,6 +21,10 @@ import {
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
+import {
+  getEffectiveHotkey,
+  getHotkeyRegistration,
+} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -290,9 +296,24 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
   const showCommandPalette = useShowModal('commandPaletteModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
 
-  useTabShortcuts(tabManager, {
-    focused: taskView.focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId,
-  });
+  const isFocusedPane =
+    taskView.focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId;
+
+  useTabShortcuts(tabManager, { focused: isFocusedPane });
+
+  const { value: keyboard } = useAppSettingsKey('keyboard');
+  const canSplit = tabManager.resolvedTabs.length >= 2 && tabGroupManager.groups.length < 3;
+  useHotkey(
+    getHotkeyRegistration('splitPane', keyboard),
+    (e) => {
+      e.preventDefault();
+      tabGroupManager.splitRight();
+    },
+    {
+      enabled: isFocusedPane && canSplit && getEffectiveHotkey('splitPane', keyboard) !== null,
+      conflictBehavior: 'allow',
+    }
+  );
 
   const resolvedTabs = tabManager.resolvedTabs;
   const tabIds = resolvedTabs.map((t) => t.tabId);
@@ -395,32 +416,33 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
         >
           <FileSearch className="size-4" />
         </Button>
-        {tabGroupManager.groups.length < 3 &&
-          (() => {
-            const canSplit = tabManager.resolvedTabs.length >= 2;
-            return (
-              <Tooltip>
-                <TooltipTrigger>
-                  <span>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      disabled={!canSplit}
-                      onClick={() => tabGroupManager.splitRight()}
-                      aria-label="Split pane right"
-                    >
-                      <Columns2 className="size-4" />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {canSplit
-                    ? 'Move active tab to a new pane'
-                    : 'Open at least 2 tabs to split this pane'}
-                </TooltipContent>
-              </Tooltip>
-            );
-          })()}
+        {tabGroupManager.groups.length < 3 && (
+          <Tooltip>
+            <TooltipTrigger>
+              <span>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={!canSplit}
+                  onClick={() => tabGroupManager.splitRight()}
+                  aria-label="Split pane right"
+                >
+                  <Columns2 className="size-4" />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {canSplit ? (
+                <span className="flex items-center gap-2">
+                  Move active tab to a new pane
+                  <ShortcutHint settingsKey="splitPane" />
+                </span>
+              ) : (
+                'Open at least 2 tabs to split this pane'
+              )}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </div>
   );
