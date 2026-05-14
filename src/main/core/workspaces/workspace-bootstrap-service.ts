@@ -1,11 +1,10 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import type { WorkspaceResolution, WorkspaceType } from '@shared/workspaces';
-import type { AppDb } from '@main/db/client';
-import { db as appDb } from '@main/db/client';
+import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import { mapWorktreeErrorToProvisionError } from '../tasks/provision-task-error';
 import type { WorktreeBootstrapOps } from '../projects/worktrees/worktree-service';
+import { mapWorktreeErrorToProvisionError } from '../tasks/provision-task-error';
 import { computeWorkspaceKey } from './workspace-key';
 
 export type WorktreeContext = {
@@ -172,10 +171,7 @@ export class WorkspaceBootstrapService {
     const key = type !== 'byoi' ? computeWorkspaceKey(type, path, connectionId) : null;
 
     if (key) {
-      const [existing] = await this.db
-        .select()
-        .from(workspaces)
-        .where(eq(workspaces.key, key));
+      const [existing] = await this.db.select().from(workspaces).where(eq(workspaces.key, key));
       if (existing && existing.id !== workspaceId) {
         return existing.id;
       }
@@ -217,7 +213,11 @@ export class WorkspaceBootstrapService {
     ctx: WorktreeContext
   ): Promise<string> {
     const newId = crypto.randomUUID();
-    const workspaceType = this._resolveWorkspaceType(rawWorkspaceId, taskRow.workspaceProvider, ctx);
+    const workspaceType = this._resolveWorkspaceType(
+      rawWorkspaceId,
+      taskRow.workspaceProvider,
+      ctx
+    );
 
     this.db.transaction((tx) => {
       tx.insert(workspaces).values({ id: newId, type: workspaceType }).run();
@@ -236,7 +236,6 @@ export class WorkspaceBootstrapService {
     if (rawWorkspaceId?.startsWith('ssh:') || ctx.connectionId !== undefined) return 'project-ssh';
     return 'local';
   }
-
 }
 
 export const workspaceBootstrapService = new WorkspaceBootstrapService(appDb);

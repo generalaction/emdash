@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import { openFixture } from '@tooling/utils/db';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { projects, tasks, workspaces } from '@main/db/schema';
-import { computeWorkspaceKey } from './workspace-key';
 import { WorkspaceBootstrapService, type WorktreeContext } from './workspace-bootstrap-service';
+import { computeWorkspaceKey } from './workspace-key';
 
 // Prevent the module-level singleton from attempting to open the Electron app DB.
 vi.mock('@main/db/client', () => ({ db: {}, sqlite: {} }));
@@ -20,7 +20,9 @@ function makeCtx(overrides: Partial<WorktreeContext> = {}): WorktreeContext {
     worktreeService: {
       existsAtAbsolutePath: vi.fn().mockResolvedValue(false),
       findBranchAnywhere: vi.fn().mockResolvedValue(undefined),
-      checkoutExistingBranch: vi.fn().mockResolvedValue({ success: true, data: '/worktrees/branch' }),
+      checkoutExistingBranch: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: '/worktrees/branch' }),
       checkoutBranchWorktree: vi
         .fn()
         .mockResolvedValue({ success: true, data: '/worktrees/branch' }),
@@ -93,18 +95,12 @@ describe('WorkspaceBootstrapService', () => {
         },
       });
 
-      await fixture.db
-        .update(tasks)
-        .set({ taskBranch: 'my-branch' })
-        .where(eq(tasks.id, TASK_ID));
+      await fixture.db.update(tasks).set({ taskBranch: 'my-branch' }).where(eq(tasks.id, TASK_ID));
 
       const result = await svc.resolveBootstrap(TASK_ID, ctx);
       expect(result).toEqual({ kind: 'ready' });
 
-      const [ws] = await fixture.db
-        .select()
-        .from(workspaces)
-        .where(eq(workspaces.id, WS_ID));
+      const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));
       expect(ws.path).toBe('/worktrees/found-branch');
       expect(ws.key).toBe(computeWorkspaceKey('local', '/worktrees/found-branch'));
     });
@@ -115,10 +111,7 @@ describe('WorkspaceBootstrapService', () => {
     });
 
     it('returns needs_create when no path and branch not found anywhere', async () => {
-      await fixture.db
-        .update(tasks)
-        .set({ taskBranch: 'my-branch' })
-        .where(eq(tasks.id, TASK_ID));
+      await fixture.db.update(tasks).set({ taskBranch: 'my-branch' }).where(eq(tasks.id, TASK_ID));
 
       const result = await svc.resolveBootstrap(TASK_ID, makeCtx());
       expect(result).toEqual({ kind: 'needs_create' });
@@ -129,10 +122,7 @@ describe('WorkspaceBootstrapService', () => {
         .update(workspaces)
         .set({ path: '/old/path' })
         .where(eq(workspaces.id, WS_ID));
-      await fixture.db
-        .update(tasks)
-        .set({ taskBranch: 'my-branch' })
-        .where(eq(tasks.id, TASK_ID));
+      await fixture.db.update(tasks).set({ taskBranch: 'my-branch' }).where(eq(tasks.id, TASK_ID));
 
       const ctx = makeCtx({
         worktreeService: {
@@ -156,10 +146,7 @@ describe('WorkspaceBootstrapService', () => {
         .update(workspaces)
         .set({ path: '/old/path' })
         .where(eq(workspaces.id, WS_ID));
-      await fixture.db
-        .update(tasks)
-        .set({ taskBranch: 'my-branch' })
-        .where(eq(tasks.id, TASK_ID));
+      await fixture.db.update(tasks).set({ taskBranch: 'my-branch' }).where(eq(tasks.id, TASK_ID));
 
       const result = await svc.resolveBootstrap(TASK_ID, makeCtx());
       expect(result).toEqual({
@@ -178,10 +165,7 @@ describe('WorkspaceBootstrapService', () => {
         .insert(workspaces)
         .values({ id: existingWsId, type: 'local', path: conflictPath, key: conflictKey });
 
-      await fixture.db
-        .update(tasks)
-        .set({ taskBranch: 'my-branch' })
-        .where(eq(tasks.id, TASK_ID));
+      await fixture.db.update(tasks).set({ taskBranch: 'my-branch' }).where(eq(tasks.id, TASK_ID));
 
       const ctx = makeCtx({
         worktreeService: {
@@ -214,10 +198,7 @@ describe('WorkspaceBootstrapService', () => {
     });
 
     it('returns ready immediately for byoi workspace type', async () => {
-      await fixture.db
-        .update(workspaces)
-        .set({ type: 'byoi' })
-        .where(eq(workspaces.id, WS_ID));
+      await fixture.db.update(workspaces).set({ type: 'byoi' }).where(eq(workspaces.id, WS_ID));
 
       const result = await svc.resolveBootstrap(TASK_ID, makeCtx());
       expect(result).toEqual({ kind: 'ready' });
@@ -240,10 +221,7 @@ describe('WorkspaceBootstrapService', () => {
     });
 
     it('checks out existing branch when task has a taskBranch (no sourceBranch)', async () => {
-      await fixture.db
-        .update(tasks)
-        .set({ taskBranch: 'my-branch' })
-        .where(eq(tasks.id, TASK_ID));
+      await fixture.db.update(tasks).set({ taskBranch: 'my-branch' }).where(eq(tasks.id, TASK_ID));
 
       const ctx = makeCtx({
         worktreeService: {
@@ -298,13 +276,18 @@ describe('WorkspaceBootstrapService', () => {
     });
 
     it('includes connectionId in key for SSH workspaces', async () => {
-      await fixture.db.update(workspaces).set({ type: 'project-ssh' }).where(eq(workspaces.id, WS_ID));
+      await fixture.db
+        .update(workspaces)
+        .set({ type: 'project-ssh' })
+        .where(eq(workspaces.id, WS_ID));
 
       const ctx = makeCtx({ connectionId: 'conn-123' });
       await svc.adoptPath(TASK_ID, '/remote/worktrees/branch', ctx);
 
       const [ws] = await fixture.db.select().from(workspaces).where(eq(workspaces.id, WS_ID));
-      expect(ws.key).toBe(computeWorkspaceKey('project-ssh', '/remote/worktrees/branch', 'conn-123'));
+      expect(ws.key).toBe(
+        computeWorkspaceKey('project-ssh', '/remote/worktrees/branch', 'conn-123')
+      );
     });
   });
 
