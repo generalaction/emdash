@@ -83,8 +83,8 @@ export function App() {
       <header>
         <h1>emdash — dev</h1>
         <p className="muted">
-          Tauri 2 + Rust scaffold. Greet + get_path remain from EMD-5; settings
-          round-trip exercises the AEAD secrets pipeline from EMD-6.
+          Tauri 2 + Rust scaffold. Greet + get_path remain from EMD-5; settings round-trip exercises
+          the AEAD secrets pipeline from EMD-6.
         </p>
       </header>
 
@@ -120,8 +120,8 @@ export function App() {
       <section>
         <h2>Settings — secrets round-trip</h2>
         <p className="muted">
-          Stores the value in <code>app_secrets</code> under AEAD, then reads it
-          back via <code>get_secret</code>. Plaintext never leaves Rust at rest.
+          Stores the value in <code>app_secrets</code> under AEAD, then reads it back via{' '}
+          <code>get_secret</code>. Plaintext never leaves Rust at rest.
         </p>
         <div className="row">
           <input
@@ -150,11 +150,7 @@ export function App() {
             {secretsPending ? 'Round-tripping...' : 'Save & read back'}
           </button>
         </div>
-        {readBack !== null && (
-          <pre className="output">
-            stored and re-read: {readBack}
-          </pre>
-        )}
+        {readBack !== null && <pre className="output">stored and re-read: {readBack}</pre>}
       </section>
 
       {error && <pre className="error">{error}</pre>}
