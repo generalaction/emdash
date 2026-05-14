@@ -1,9 +1,10 @@
-import { Loader2, Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Loader2, Plus, Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatAutomationError } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { firstMountedProjectId } from '@renderer/features/projects/stores/project-selectors';
 import { useToast } from '@renderer/lib/hooks/use-toast';
+import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
@@ -20,10 +21,28 @@ export function AutomationsView() {
   const recentRuns = useRecentAutomationRuns(undefined, 200);
   const { toast } = useToast();
   const showConfirmDelete = useShowModal('confirmActionModal');
+  const { params, setParams } = useParams('automations');
   const [panel, setPanel] = useState<PanelState>(null);
   const [search, setSearch] = useState('');
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const automationItems = useMemo(() => automations.data ?? [], [automations.data]);
+
+  // Open the requested automation panel when navigated with `selectedAutomationId`,
+  // then clear the param so subsequent visits start fresh. Syncing local panel
+  // state with the navigation param is an effect-driven side effect.
+  const requestedAutomationId = params.selectedAutomationId;
+  useEffect(() => {
+    if (!requestedAutomationId) return;
+    if (automations.isPending) return;
+    const target = automationItems.find((automation) => automation.id === requestedAutomationId);
+    if (target) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPanel({ kind: 'edit', automation: target });
+    }
+    setParams({ selectedAutomationId: undefined });
+  }, [requestedAutomationId, automations.isPending, automationItems, setParams]);
   const runsByAutomation = useMemo(() => {
     const map = new Map<string, AutomationRun[]>();
     for (const run of recentRuns.data ?? []) {
@@ -57,7 +76,14 @@ export function AutomationsView() {
 
   function closePanel() {
     setPanel(null);
+    setSearchExpanded(false);
   }
+
+  useEffect(() => {
+    if (panelOpen && searchExpanded) {
+      searchInputRef.current?.focus();
+    }
+  }, [panelOpen, searchExpanded]);
 
   useEffect(() => {
     if (!panelOpen) return;
@@ -159,12 +185,7 @@ export function AutomationsView() {
     <div className="flex h-full overflow-hidden bg-background text-foreground">
       <div className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-6 py-8 lg:px-8">
-          <div
-            className={cn(
-              'mb-6 flex gap-4',
-              panelOpen ? 'flex-col items-stretch' : 'items-start justify-between'
-            )}
-          >
+          <div className="mb-6 flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h1 className="truncate text-lg font-semibold">Automations</h1>
               <p className="mt-1 max-w-md text-pretty text-xs text-muted-foreground">
@@ -173,26 +194,54 @@ export function AutomationsView() {
             </div>
 
             {hasAutomations && (
-              <div
-                className={cn('flex min-w-0 items-center gap-2', panelOpen ? 'w-full' : 'shrink-0')}
-              >
-                <SearchInput
-                  placeholder="Search automations..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  containerClassName={panelOpen ? 'flex-1' : undefined}
-                  className={cn('min-w-0', panelOpen ? 'w-full' : 'w-64')}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0 whitespace-nowrap"
-                  disabled={create.isPending}
-                  onClick={openNewAutomation}
-                >
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  New Automation
-                </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                {panelOpen && !searchExpanded && !search ? (
+                  <>
+                    <Button
+                      size="icon-sm"
+                      variant="outline"
+                      className="focus-visible:border-border focus-visible:ring-0"
+                      aria-label="Search automations"
+                      onClick={() => setSearchExpanded(true)}
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon-sm"
+                      variant="outline"
+                      className="focus-visible:border-border focus-visible:ring-0"
+                      aria-label="New automation"
+                      disabled={create.isPending}
+                      onClick={openNewAutomation}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <SearchInput
+                      ref={searchInputRef}
+                      placeholder="Search automations..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      onBlur={() => {
+                        if (panelOpen && !search) setSearchExpanded(false);
+                      }}
+                      aria-label="Search automations"
+                      className={cn('min-w-0', panelOpen ? 'w-48' : 'w-64')}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 whitespace-nowrap"
+                      disabled={create.isPending}
+                      onClick={openNewAutomation}
+                    >
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      New Automation
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </div>

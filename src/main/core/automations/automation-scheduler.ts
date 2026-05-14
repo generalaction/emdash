@@ -5,25 +5,33 @@ import { automationEvents } from './automation-events';
 import { automationRunEvents } from './automation-run-events';
 import {
   claimQueuedRun,
+  countRunningRuns,
   dueCronAutomations,
   enabledCronAutomations,
   enqueueAutomationRun,
   getNextRunAt,
-  listQueuedCronRuns,
+  listQueuedRuns,
   markRunningRunsInterrupted,
   recoverQueuedRuns,
   updateAutomationSchedule,
+  updateRun,
 } from './repo';
 import { emitRunUpdated, runQueuedAutomation } from './runtime';
 
 const TICK_MS = 60_000;
 const MISSED_GRACE_MS = 5 * 60_000;
 const MAX_DUE_ENQUEUE = 100;
-const MAX_CONCURRENT_RUNS = 1;
+const MAX_CONCURRENT_RUNS = 100;
+const QUEUE_DEADLINE_MS = 5 * 60_000;
+
+export function automationRunDeadline(scheduledAt: number): number {
+  return scheduledAt + QUEUE_DEADLINE_MS;
+}
 
 class AutomationScheduler {
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
+  private draining = false;
   private activeWorkers = 0;
   private unsubscribeAutomationChanged: (() => void) | null = null;
   private readonly workerId = `automation-scheduler-${randomUUID()}`;
@@ -111,6 +119,7 @@ class AutomationScheduler {
     const run = await enqueueAutomationRun({
       automationId: automation.id,
       scheduledAt,
+      deadlineAt: automationRunDeadline(scheduledAt),
       triggerKind: 'cron',
     });
     if (run) {
@@ -119,27 +128,69 @@ class AutomationScheduler {
     }
   }
 
-  private async drainQueue(): Promise<void> {
-    while (this.activeWorkers < MAX_CONCURRENT_RUNS) {
-      const [entry] = await listQueuedCronRuns(1);
-      if (!entry) return;
+  async drainQueue(): Promise<void> {
+    if (this.draining) return;
+    this.draining = true;
+    try {
+      while (this.activeWorkers < MAX_CONCURRENT_RUNS) {
+        const [entry] = await listQueuedRuns(1);
+        if (!entry) return;
 
-      const run = await claimQueuedRun(entry.run.id, this.workerId);
-      if (!run) continue;
-
-      this.activeWorkers += 1;
-      void runQueuedAutomation(entry.automation, run)
-        .catch((error) => {
-          log.error('AutomationScheduler worker failed', {
-            automationId: entry.automation.id,
-            runId: run.id,
-            error: String(error),
+        if (entry.run.deadlineAt != null && entry.run.deadlineAt <= Date.now()) {
+          const skipped = await updateRun(entry.run.id, {
+            status: 'skipped',
+            finishedAt: Date.now(),
+            error: 'queue_deadline_exceeded',
           });
-        })
-        .finally(() => {
-          this.activeWorkers -= 1;
-          void this.drainQueue();
-        });
+          if (skipped) {
+            emitRunUpdated(skipped);
+            automationRunEvents._emit(
+              'run:skipped',
+              skipped,
+              entry.automation,
+              'queue_deadline_exceeded'
+            );
+          }
+          continue;
+        }
+
+        if (entry.run.triggerKind === 'cron' && (await countRunningRuns(entry.automation.id)) > 0) {
+          const skipped = await updateRun(entry.run.id, {
+            status: 'skipped',
+            finishedAt: Date.now(),
+            error: 'previous_still_running',
+          });
+          if (skipped) {
+            emitRunUpdated(skipped);
+            automationRunEvents._emit(
+              'run:skipped',
+              skipped,
+              entry.automation,
+              'previous_still_running'
+            );
+          }
+          continue;
+        }
+
+        const run = await claimQueuedRun(entry.run.id, this.workerId);
+        if (!run) continue;
+
+        this.activeWorkers += 1;
+        void runQueuedAutomation(entry.automation, run)
+          .catch((error) => {
+            log.error('AutomationScheduler worker failed', {
+              automationId: entry.automation.id,
+              runId: run.id,
+              error: String(error),
+            });
+          })
+          .finally(() => {
+            this.activeWorkers -= 1;
+            void this.drainQueue();
+          });
+      }
+    } finally {
+      this.draining = false;
     }
   }
 }

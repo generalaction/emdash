@@ -18,7 +18,7 @@ export function RecentRunsList() {
   function handleDeleteRun(run: AutomationRun) {
     showConfirmDelete({
       title: 'Delete run',
-      description: `Run “${formatRunName(run.startedAt, run.id)}” will be permanently removed from the history.`,
+      description: `Run “${formatRunName(run.id)}” will be permanently removed from the history.`,
       confirmLabel: 'Delete',
       onSuccess: () =>
         removeRun.mutate(run.id, {

@@ -188,7 +188,13 @@ export const AutomationRow = observer(function AutomationRow({
             >
               <span>{latestRunStatusLabel}</span>
               <span className="text-muted-foreground/40">·</span>
-              <RelativeTime value={latestRun.startedAt} compact ago />
+              <RelativeTime
+                value={
+                  latestRun.startedAt ?? latestRun.scheduledAt ?? latestRun.finishedAt ?? Date.now()
+                }
+                compact
+                ago
+              />
             </span>
           ) : null}
           {hasAnyRun ? (
@@ -198,7 +204,7 @@ export const AutomationRow = observer(function AutomationRow({
                   key={run?.id ?? `empty-${index}`}
                   className={cn(
                     'h-3 w-0.5 rounded-sm',
-                    run ? runStatusBarClass(run.status) : 'bg-muted-foreground/15'
+                    run ? runStatusBarClass(run.status) : 'bg-muted-foreground/30'
                   )}
                 />
               ))}

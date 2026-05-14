@@ -42,6 +42,7 @@ export async function runAutomation(
       automationId: automation.id,
       status: 'running',
       triggerKind,
+      startedAt: Date.now(),
     });
     return failRun(failed, automation, 'no_actions_configured');
   }
@@ -50,6 +51,7 @@ export async function runAutomation(
     automationId: automation.id,
     status: 'running',
     triggerKind,
+    startedAt: Date.now(),
   });
   emitRunUpdated(run);
   automationRunEvents._emit('run:started', run, automation);
@@ -119,7 +121,7 @@ async function executeAutomationRun(
       taskId: firstTaskId,
       createdTaskId: firstTaskId,
     })) ?? run;
-  await updateAutomationSchedule(automation.id, { lastRunAt: run.startedAt });
+  await updateAutomationSchedule(automation.id, { lastRunAt: run.startedAt ?? Date.now() });
   emitRunUpdated(run, firstSessionId);
   automationRunEvents._emit('run:succeeded', run, automation);
   return ok(run);

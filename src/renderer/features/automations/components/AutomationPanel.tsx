@@ -79,6 +79,14 @@ import {
   ComboboxValue,
 } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
@@ -343,6 +351,7 @@ export const AutomationPanel = observer(function AutomationPanel({
       <PanelHeader
         isEdit={isEdit}
         automation={automation}
+        scheduleLabel={formatCronLabel(cronExpr)}
         onClose={onClose}
         onRunNow={onRunNow ? () => automation && onRunNow(automation) : undefined}
         onToggleEnabled={
@@ -352,23 +361,21 @@ export const AutomationPanel = observer(function AutomationPanel({
         }
         onDelete={onDelete ? () => automation && onDelete(automation) : undefined}
         runNowPending={runNowPending}
+        headerAction={
+          !isEdit ? (
+            <UseTemplateButton
+              open={templatePopoverOpen}
+              onOpenChange={setTemplatePopoverOpen}
+              onSelect={applyTemplate}
+            />
+          ) : null
+        }
       />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-6 px-5 py-5">
+        <div className="flex flex-col gap-5 px-5 py-5">
           <section className="flex flex-col gap-2">
-            <div className="flex items-start justify-between gap-3">
-              <Label className="text-xs font-medium tracking-wide text-muted-foreground">
-                Name
-              </Label>
-              {!isEdit && (
-                <UseTemplateButton
-                  open={templatePopoverOpen}
-                  onOpenChange={setTemplatePopoverOpen}
-                  onSelect={applyTemplate}
-                />
-              )}
-            </div>
+            <Label className="text-xs font-medium text-muted-foreground">Name</Label>
             <Input
               autoFocus={!isEdit && name.trim().length === 0}
               value={name}
@@ -386,9 +393,7 @@ export const AutomationPanel = observer(function AutomationPanel({
           </section>
 
           <section className="flex flex-col gap-2">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground">
-              Prompt
-            </Label>
+            <Label className="text-xs font-medium text-muted-foreground">Prompt</Label>
             <textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
@@ -407,10 +412,8 @@ export const AutomationPanel = observer(function AutomationPanel({
             />
           </section>
 
-          <section className="flex flex-col gap-3">
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Schedule
-            </h3>
+          <section className="flex flex-col gap-2">
+            <h3 className="text-xs font-medium text-muted-foreground">Schedule</h3>
             <div className="rounded-md border border-border bg-muted/10">
               <RowField label="Runs">
                 <SchedulePicker value={cronExpr} onChange={setCronExpr} />
@@ -418,10 +421,8 @@ export const AutomationPanel = observer(function AutomationPanel({
             </div>
           </section>
 
-          <section className="flex flex-col gap-3">
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Execution
-            </h3>
+          <section className="flex flex-col gap-2">
+            <h3 className="text-xs font-medium text-muted-foreground">Execution</h3>
             <div className="rounded-md border border-border bg-muted/10">
               <RowField label="Project">
                 <ProjectSelector
@@ -444,7 +445,7 @@ export const AutomationPanel = observer(function AutomationPanel({
             </div>
 
             {isWorkspaceProviderEnabled ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 pt-1">
                 <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
                 <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
               </div>
@@ -487,21 +488,26 @@ export const AutomationPanel = observer(function AutomationPanel({
 function PanelHeader({
   isEdit,
   automation,
+  scheduleLabel,
   onClose,
   onRunNow,
   onToggleEnabled,
   onDelete,
   runNowPending,
+  headerAction,
 }: {
   isEdit: boolean;
   automation: Automation | undefined;
+  scheduleLabel?: string;
   onClose: () => void;
   onRunNow?: () => void;
   onToggleEnabled?: (enabled: boolean) => void;
   onDelete?: () => void;
   runNowPending?: boolean;
+  headerAction?: ReactNode;
 }) {
   const enabled = automation?.enabled ?? false;
+  const showSubtitle = isEdit && automation && !automation.isDraft && scheduleLabel;
 
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3">
@@ -514,14 +520,32 @@ function PanelHeader({
         >
           <X className="size-4" />
         </button>
-        <h2 className="min-w-0 truncate text-sm font-semibold">
-          {automation?.isDraft
-            ? 'Draft automation'
-            : isEdit
-              ? (automation?.name ?? 'Automation')
-              : 'New automation'}
-        </h2>
+        <div className="flex min-w-0 flex-col">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="min-w-0 truncate text-sm font-semibold">
+              {automation?.isDraft
+                ? 'Draft automation'
+                : isEdit
+                  ? (automation?.name ?? 'Automation')
+                  : 'New automation'}
+            </h2>
+            {isEdit && automation && !automation.isDraft ? (
+              <span
+                aria-label={enabled ? 'Active' : 'Paused'}
+                className={cn(
+                  'size-1.5 shrink-0 rounded-full',
+                  enabled ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+                )}
+              />
+            ) : null}
+          </div>
+          {showSubtitle ? (
+            <span className="truncate text-[11px] text-muted-foreground">{scheduleLabel}</span>
+          ) : null}
+        </div>
       </div>
+
+      {!isEdit && headerAction ? <div className="flex items-center">{headerAction}</div> : null}
 
       {isEdit && automation ? (
         <div className="flex items-center gap-0.5">
@@ -555,16 +579,19 @@ function PanelHeader({
             </Tooltip>
           ) : null}
           {onDelete ? (
-            <Tooltip>
-              <TooltipTrigger
-                onClick={onDelete}
-                aria-label="Delete automation"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Delete</TooltipContent>
-            </Tooltip>
+            <>
+              <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+              <Tooltip>
+                <TooltipTrigger
+                  onClick={onDelete}
+                  aria-label="Delete automation"
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Delete</TooltipContent>
+              </Tooltip>
+            </>
           ) : null}
         </div>
       ) : null}
@@ -591,38 +618,38 @@ function UseTemplateButton({
   onSelect: (template: BuiltinAutomationTemplate) => void;
 }) {
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger
-        className={cn(
-          'inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2.5',
-          'text-xs font-medium text-foreground transition-colors hover:bg-muted/40 outline-none',
-          'data-popup-open:bg-muted/40'
-        )}
-      >
-        Use template
-        <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-64 p-1">
-        <div className="px-2 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Templates
-        </div>
-        {PINNED_TEMPLATES.map((template) => (
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger
+        render={
           <button
-            key={template.id}
-            type="button"
-            onClick={() => onSelect(template)}
-            className="flex w-full flex-col gap-0.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-muted/40 focus:bg-muted/40 focus:outline-none"
-          >
-            <span className="text-sm font-medium text-foreground">{template.name}</span>
-            {template.description ? (
-              <span className="line-clamp-1 text-xs text-muted-foreground">
-                {template.description}
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
+            className={cn(
+              'inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2.5',
+              'text-xs font-medium text-foreground transition-colors hover:bg-muted/40 outline-none',
+              'data-popup-open:bg-muted/40'
+            )}
+          />
+        }
+      >
+        <span>Use template</span>
+        <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-80">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="px-2 py-1 text-[11px] uppercase tracking-wider">
+            Templates
+          </DropdownMenuLabel>
+          {PINNED_TEMPLATES.map((template) => (
+            <DropdownMenuItem
+              key={template.id}
+              onClick={() => onSelect(template)}
+              className="flex-col items-start gap-0.5 py-1.5"
+            >
+              <span className="text-sm font-medium text-foreground">{template.name}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -641,7 +668,7 @@ function RunsSection({ automation }: { automation: Automation }) {
   function handleDeleteRun(run: AutomationRun) {
     showConfirmDelete({
       title: 'Delete run',
-      description: `Run “${formatRunName(run.startedAt, run.id)}” will be permanently removed from the history.`,
+      description: `Run “${formatRunName(run.id)}” will be permanently removed from the history.`,
       confirmLabel: 'Delete',
       onSuccess: () =>
         removeRun.mutate(run.id, {
@@ -656,12 +683,10 @@ function RunsSection({ automation }: { automation: Automation }) {
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Run history
-        </h3>
-        <History className="size-3.5 text-muted-foreground" />
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center gap-1.5">
+        <History className="size-3 text-muted-foreground" />
+        <h3 className="text-xs font-medium text-muted-foreground">Run history</h3>
       </div>
       {runs.isPending ? (
         <div className="flex h-24 items-center justify-center">

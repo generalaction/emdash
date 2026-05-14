@@ -28,7 +28,8 @@ export type AutomationRun = {
   id: string;
   automationId: string;
   scheduledAt: number | null;
-  startedAt: number;
+  deadlineAt: number | null;
+  startedAt: number | null;
   finishedAt: number | null;
   status: AutomationRunStatus;
   taskId: string | null;

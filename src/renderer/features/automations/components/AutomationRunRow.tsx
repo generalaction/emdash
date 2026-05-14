@@ -63,7 +63,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const tool = getPrimaryTool(automation);
   const projectName = showProjectName ? projectDisplayName(getProjectStore(projectId)) : undefined;
 
-  const runName = formatRunName(run.startedAt, run.id);
+  const runName = formatRunName(run.id);
   const metaParts = [
     projectName,
     ...(extraMetaParts ?? []),
@@ -119,7 +119,11 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           </span>
         ))}
         <span className="text-muted-foreground/40">·</span>
-        <RelativeTime value={run.startedAt} compact ago />
+        <RelativeTime
+          value={run.startedAt ?? run.scheduledAt ?? run.finishedAt ?? Date.now()}
+          compact
+          ago
+        />
       </div>
       <ChevronRight
         className={cn(

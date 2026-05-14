@@ -10,8 +10,11 @@ import {
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok, type Result } from '@shared/result';
 import { automationEvents } from './automation-events';
+import { automationRunEvents } from './automation-run-events';
+import { automationRunDeadline, automationScheduler } from './automation-scheduler';
 import {
   createAutomation,
+  enqueueAutomationRun,
   getAutomation,
   listAutomations,
   listRecentRuns,
@@ -21,7 +24,7 @@ import {
   setAutomationEnabled,
   updateAutomation,
 } from './repo';
-import { runAutomation } from './runtime';
+import { emitRunUpdated } from './runtime';
 
 function emitChanged(): void {
   automationEvents._emit('automation:changed');
@@ -110,7 +113,18 @@ export const automationsController = createRPCController({
       const automation = await getAutomation(id);
       if (!automation) return err('automation_not_found');
       if (automation.isDraft) return err('automation_is_draft');
-      return runAutomation(automation, 'manual');
+      const scheduledAt = Date.now();
+      const run = await enqueueAutomationRun({
+        automationId: automation.id,
+        scheduledAt,
+        deadlineAt: automationRunDeadline(scheduledAt),
+        triggerKind: 'manual',
+      });
+      if (!run) return err('automation_run_already_queued');
+      emitRunUpdated(run);
+      automationRunEvents._emit('run:queued', run, automation);
+      void automationScheduler.drainQueue();
+      return ok(run);
     });
   },
 

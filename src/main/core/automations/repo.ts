@@ -109,6 +109,7 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
     id: row.id,
     automationId: row.automationId,
     scheduledAt: row.scheduledAt,
+    deadlineAt: row.deadlineAt,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     status: asRunStatus(row.status),
@@ -286,6 +287,7 @@ export async function countRunningRuns(automationId: string): Promise<number> {
 export async function enqueueAutomationRun(input: {
   automationId: string;
   scheduledAt: number;
+  deadlineAt: number;
   triggerKind: AutomationRunTriggerKind;
 }): Promise<AutomationRun | null> {
   const existing = await db
@@ -304,12 +306,13 @@ export async function enqueueAutomationRun(input: {
   return insertRun({
     automationId: input.automationId,
     scheduledAt: input.scheduledAt,
+    deadlineAt: input.deadlineAt,
     status: 'queued',
     triggerKind: input.triggerKind,
   });
 }
 
-export async function listQueuedCronRuns(limit = 100): Promise<
+export async function listQueuedRuns(limit = 100): Promise<
   Array<{
     run: AutomationRun;
     automation: Automation;
@@ -322,9 +325,14 @@ export async function listQueuedCronRuns(limit = 100): Promise<
     .where(
       and(
         eq(automationRuns.status, 'queued'),
-        eq(automationRuns.triggerKind, 'cron'),
-        eq(automations.enabled, 1),
-        eq(automations.isDraft, 0)
+        or(
+          eq(automationRuns.triggerKind, 'manual'),
+          and(
+            eq(automationRuns.triggerKind, 'cron'),
+            eq(automations.enabled, 1),
+            eq(automations.isDraft, 0)
+          )
+        )
       )
     )
     .orderBy(asc(automationRuns.scheduledAt), asc(automationRuns.startedAt))
@@ -373,9 +381,10 @@ export async function recoverQueuedRuns(): Promise<number> {
 export async function insertRun(input: {
   automationId: string;
   scheduledAt?: number | null;
+  deadlineAt?: number | null;
   status: AutomationRunStatus;
   triggerKind: AutomationRunTriggerKind;
-  startedAt?: number;
+  startedAt?: number | null;
   finishedAt?: number | null;
   taskId?: string | null;
   createdTaskId?: string | null;
@@ -387,7 +396,8 @@ export async function insertRun(input: {
       id: randomUUID(),
       automationId: input.automationId,
       scheduledAt: input.scheduledAt ?? null,
-      startedAt: input.startedAt ?? Date.now(),
+      deadlineAt: input.deadlineAt ?? null,
+      startedAt: input.startedAt ?? null,
       finishedAt: input.finishedAt ?? null,
       status: input.status,
       taskId: input.taskId ?? null,
@@ -406,6 +416,7 @@ export async function updateRun(
     Pick<
       AutomationRun,
       | 'scheduledAt'
+      | 'deadlineAt'
       | 'startedAt'
       | 'finishedAt'
       | 'status'

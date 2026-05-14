@@ -308,7 +308,8 @@ export const automationRuns = sqliteTable(
       .notNull()
       .references(() => automations.id, { onDelete: 'cascade' }),
     scheduledAt: integer('scheduled_at'),
-    startedAt: integer('started_at').notNull(),
+    deadlineAt: integer('deadline_at'),
+    startedAt: integer('started_at'),
     finishedAt: integer('finished_at'),
     status: text('status').notNull(),
     taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),

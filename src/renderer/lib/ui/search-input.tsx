@@ -8,8 +8,13 @@ type SearchInputProps = React.ComponentProps<'input'> & {
   containerClassName?: string;
 };
 
-function SearchInput({ className, containerClassName, ...props }: SearchInputProps) {
+const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
+  { className, containerClassName, ...props },
+  forwardedRef
+) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement);
 
   useHotkey(
     'Mod+F',
@@ -24,6 +29,6 @@ function SearchInput({ className, containerClassName, ...props }: SearchInputPro
       <Input className={cn('pl-8', className)} {...props} ref={inputRef} />
     </div>
   );
-}
+});
 
 export { SearchInput };

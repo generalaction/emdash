@@ -1,3 +1,4 @@
+import { slugFromRunId } from '@shared/automations/run-slug';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
   AutomationRunStatus,
@@ -267,6 +268,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   no_actions_configured: 'This automation has no actions yet',
   interrupted_by_restart: 'The run was interrupted because the app restarted',
   previous_still_running: 'Skipped because the previous run is still in progress',
+  queue_deadline_exceeded: 'Skipped because it waited in the queue for too long',
   name_required: 'Give the automation a name',
   name_too_long: 'The name is too long',
   actions_required: 'Add at least one action before saving',
@@ -316,15 +318,8 @@ export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): strin
   }
 }
 
-export function formatRunName(startedAt: number, id: string): string {
-  const date = new Date(startedAt);
-  const dateTime = new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-  return `Run ${dateTime} · ${id.slice(0, 8)}`;
+export function formatRunName(id: string): string {
+  return slugFromRunId(id);
 }
 
 export type ScheduleKind = 'daily' | 'weekdays' | 'weekends' | 'weekly' | 'hourly' | 'interval';
