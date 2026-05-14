@@ -50,6 +50,13 @@ export type AgentProviderDefinition = {
    * Use for agents whose CLI has no flag for interactive-mode prompt delivery.
    */
   useKeystrokeInjection?: boolean;
+  /**
+   * When true, the initial prompt is piped to the agent via stdin and the
+   * spawn becomes `bash -c 'printf ... | <agent...>'`.
+   * Use for agents that read an initial message from stdin then continue
+   * interactively (e.g. amp's `echo "msg" | amp`).
+   */
+  initialPromptViaStdinPipe?: boolean;
   resumeFlag?: string;
   /**
    * CLI flag to assign a unique session ID per chat instance.
@@ -209,7 +216,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'amp',
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
-    useKeystrokeInjection: true,
+    initialPromptViaStdinPipe: true,
     icon: 'ampcode.png',
     alt: 'Amp CLI',
     terminalOnly: true,
@@ -224,8 +231,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    initialPromptFlag: '',
-    useKeystrokeInjection: true,
+    initialPromptFlag: '--prompt',
     resumeFlag: '--continue',
     icon: 'opencode.png',
     alt: 'OpenCode CLI',
