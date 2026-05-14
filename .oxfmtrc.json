@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "lineWidth": 100,
+  "indentWidth": 2,
+  "indentStyle": "space",
+  "quoteStyle": "single",
+  "jsxQuoteStyle": "double",
+  "semicolons": "always",
+  "trailingCommas": "es5",
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "arrowParentheses": "always",
+  "lineEnding": "lf",
+  "sortTailwindcss": {
+    "stylesheet": "./src/renderer/index.css"
+  }
+}

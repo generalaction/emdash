@@ -85,11 +85,7 @@ export class DependencyManager implements IInitializable {
 
   constructor(
     ctx: IExecutionContext,
-    {
-      emitEvents = true,
-      runInstallCommand = runLocalInstallCommand,
-      connectionId,
-    }: {
+    { emitEvents = true, runInstallCommand = runLocalInstallCommand, connectionId }: {
       emitEvents?: boolean;
       runInstallCommand?: InstallCommandRunner;
       connectionId?: string;

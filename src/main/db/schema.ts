@@ -21,12 +21,8 @@ export const sshConnections = sqliteTable(
     privateKeyPath: text('private_key_path'), // optional, for key auth
     useAgent: integer('use_agent').notNull().default(0), // boolean, 0=false, 1=true
     metadata: text('metadata'), // JSON for additional connection-specific data
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
     nameIdx: uniqueIndex('idx_ssh_connections_name').on(table.name),
@@ -45,12 +41,8 @@ export const projects = sqliteTable(
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
     pathIdx: uniqueIndex('idx_projects_path').on(table.path),
@@ -79,12 +71,8 @@ export const projectSettings = sqliteTable('project_settings', {
   baseProjectSettingsJson: text('base_project_settings_json').notNull().default('{}'),
   shareableProjectSettingsJson: text('shareable_project_settings_json').notNull().default('{}'),
   legacyConfigMigratedAt: text('legacy_config_migrated_at'),
-  createdAt: text('created_at')
-    .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at')
-    .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const appSettings = sqliteTable(
@@ -92,9 +80,7 @@ export const appSettings = sqliteTable(
   {
     key: text('key').primaryKey(),
     value: text('value').notNull(),
-    updatedAt: integer('updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
     keyIdx: uniqueIndex('idx_app_settings_key').on(table.key),
@@ -114,16 +100,10 @@ export const tasks = sqliteTable(
     taskBranch: text('task_branch'),
     linkedIssue: text('linked_issue'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
     lastInteractedAt: text('last_interacted_at'),
-    statusChangedAt: text('status_changed_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    statusChangedAt: text('status_changed_at').notNull().default(sql`CURRENT_TIMESTAMP`),
     isPinned: integer('is_pinned').notNull().default(0), // boolean, 0=false, 1=true
     workspaceProvider: text('workspace_provider'), // @deprecated — superseded by workspaces.type; still read in resolveBootstrap for legacy BYOI tasks
     workspaceId: text('workspace_id'),
@@ -200,12 +180,8 @@ export const pullRequests = sqliteTable(
     mergeStateStatus: text('merge_state_status'),
     reviewDecision: text('review_decision'),
 
-    pullRequestCreatedAt: text('pull_request_created_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    pullRequestUpdatedAt: text('pull_request_updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    pullRequestCreatedAt: text('pull_request_created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+    pullRequestUpdatedAt: text('pull_request_updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
     urlIdx: uniqueIndex('idx_pull_requests_url').on(table.url),
@@ -285,12 +261,8 @@ export const conversations = sqliteTable(
     title: text('title').notNull(),
     provider: text('provider'),
     config: text('config'),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
     lastInteractedAt: text('last_interacted_at'),
     isInitialConversation: integer('is_initial_conversation', { mode: 'boolean' }),
   },
@@ -311,12 +283,8 @@ export const terminals = sqliteTable(
       .references(() => tasks.id, { onDelete: 'cascade' }),
     ssh: integer('ssh').notNull().default(0), // boolean, 0=false, 1=true
     name: text('name').notNull(),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
     taskIdIdx: index('idx_terminals_task_id').on(table.taskId),
@@ -332,9 +300,7 @@ export const messages = sqliteTable(
       .references(() => conversations.id, { onDelete: 'cascade' }),
     content: text('content').notNull(),
     sender: text('sender').notNull(),
-    timestamp: text('timestamp')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    timestamp: text('timestamp').notNull().default(sql`CURRENT_TIMESTAMP`),
     metadata: text('metadata'),
   },
   (table) => ({
@@ -368,9 +334,7 @@ export const kv = sqliteTable(
   {
     key: text('key').primaryKey(),
     value: text('value').notNull(),
-    updatedAt: integer('updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
     keyIdx: uniqueIndex('idx_kv_key').on(table.key),

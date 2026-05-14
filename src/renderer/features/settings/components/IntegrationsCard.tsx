@@ -27,7 +27,9 @@ const SvgLogo = ({ raw }: { raw: string }) => {
 
   return (
     <span
-      className={`inline-flex h-8 w-8 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${isDark ? 'text-primary' : ''}`}
+      className={`inline-flex h-8 w-8 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${
+        isDark ? 'text-primary' : ''
+      }`}
       dangerouslySetInnerHTML={{ __html: processed }}
     />
   );

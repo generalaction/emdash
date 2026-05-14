@@ -52,7 +52,9 @@ export function HomeMainPanel() {
                 className="logo-shimmer-overlay"
                 aria-hidden="true"
                 style={{
-                  WebkitMaskImage: `url(${effectiveTheme === 'emdark' ? emdashLogoWhite : emdashLogo})`,
+                  WebkitMaskImage: `url(${
+                    effectiveTheme === 'emdark' ? emdashLogoWhite : emdashLogo
+                  })`,
                   maskImage: `url(${effectiveTheme === 'emdark' ? emdashLogoWhite : emdashLogo})`,
                   WebkitMaskRepeat: 'no-repeat',
                   maskRepeat: 'no-repeat',

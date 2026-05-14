@@ -35,7 +35,9 @@ const AgentLogo: React.FC<AgentLogoProps> = ({
       <span
         role="img"
         aria-label={alt}
-        className={`inline-flex shrink-0 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${isDark ? 'text-primary' : ''} ${grayscale ? 'grayscale' : ''} ${className}`}
+        className={`inline-flex shrink-0 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${
+          isDark ? 'text-primary' : ''
+        } ${grayscale ? 'grayscale' : ''} ${className}`}
         dangerouslySetInnerHTML={{ __html: processed }}
       />
     );
@@ -45,7 +47,9 @@ const AgentLogo: React.FC<AgentLogoProps> = ({
     <img
       src={logo}
       alt={alt}
-      className={`shrink-0 object-contain ${invertInDark ? 'dark:invert' : ''} ${grayscale ? 'grayscale' : ''} ${className}`}
+      className={`shrink-0 object-contain ${invertInDark ? 'dark:invert' : ''} ${
+        grayscale ? 'grayscale' : ''
+      } ${className}`}
     />
   );
 };

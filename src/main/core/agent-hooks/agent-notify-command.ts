@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, win32 } from 'node:path';
 import { log } from '@main/lib/logger';
+// oxlint-disable-next-line import/default -- vite ?raw query exposes a default export
 import openCodePluginContent from './opencode-notifications-plugin.js?raw';
 
 export type CodexNotifyCommandOptions = {

@@ -37,10 +37,10 @@ export class DependenciesStore {
         onEvent: ({ id, state, connectionId }, ctx) => {
           if (connectionId) {
             const remote = this.getRemote(connectionId);
-            remote.setValue({ ...(remote.data ?? {}), [id]: state as DependencyState });
+            remote.setValue({ ...remote.data, [id]: state as DependencyState });
             return;
           }
-          ctx.set({ ...(ctx.data ?? {}), [id]: state as DependencyState });
+          ctx.set({ ...ctx.data, [id]: state as DependencyState });
         },
       },
     ]);

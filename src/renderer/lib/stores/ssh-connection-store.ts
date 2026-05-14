@@ -58,7 +58,7 @@ export class SshConnectionStore {
         subscribe: (handler) => events.on(sshConnectionEventChannel, handler),
         onEvent: (event, ctx) => {
           if (event.type === 'health-changed') return;
-          const next = { ...(ctx.data ?? {}) };
+          const next = { ...ctx.data };
           next[event.connectionId] = toConnectionState(event);
           ctx.set(next);
           if (event.type === 'connected' || event.type === 'reconnected') {
@@ -76,7 +76,7 @@ export class SshConnectionStore {
           subscribe: (handler) => events.on(sshConnectionEventChannel, handler),
           onEvent: (event, ctx) => {
             if (event.type !== 'health-changed') return;
-            const next = { ...(ctx.data ?? {}) };
+            const next = { ...ctx.data };
             if (event.health.status === 'ok') {
               delete next[event.connectionId];
             } else {

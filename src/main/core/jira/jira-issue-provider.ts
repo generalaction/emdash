@@ -249,7 +249,7 @@ async function doRequest(
         headers: {
           Authorization: `Basic ${auth}`,
           Accept: 'application/json',
-          ...(extraHeaders || {}),
+          ...extraHeaders,
         },
       },
       (res) => {
