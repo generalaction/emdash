@@ -101,7 +101,9 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       rows.push({ kind: 'project', projectId });
       if (this.expandedProjectIds.has(projectId) && project.mountedProject) {
         const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
-          (t) => t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt)
+          (t) =>
+            !t.data.automationId &&
+            (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
         );
         const manualOrder = this.taskOrderByProject[projectId];
         const ordered = manualOrder?.length
@@ -125,7 +127,8 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       if (!projectId) continue;
       for (const task of project.mountedProject.taskManager.tasks.values()) {
         const visible =
-          task.state === 'unregistered' || !('archivedAt' in task.data && task.data.archivedAt);
+          !task.data.automationId &&
+          (task.state === 'unregistered' || !('archivedAt' in task.data && task.data.archivedAt));
         if (!visible || !task.data.isPinned) continue;
         pairs.push({ projectId, task });
       }
@@ -144,6 +147,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     if (!project?.mountedProject) return [];
     const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
       (t) =>
+        !t.data.automationId &&
         !t.data.isPinned &&
         (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
     );
