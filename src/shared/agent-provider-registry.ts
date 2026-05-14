@@ -363,6 +363,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'kiro-cli',
     defaultArgs: ['chat'],
+    autoApproveFlag: '--trust-all-tools',
     initialPromptFlag: '',
     icon: 'kiro.png',
     alt: 'Kiro CLI',
