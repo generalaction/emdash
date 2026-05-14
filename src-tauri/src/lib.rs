@@ -6,6 +6,7 @@
 
 pub mod bindings_parser;
 pub mod commands;
+pub mod db;
 pub mod greeting;
 pub mod secrets;
 pub mod shell_env;
