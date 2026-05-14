@@ -1,4 +1,4 @@
-import { ChevronsUpDownIcon, Minus, Plus } from 'lucide-react';
+import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
@@ -63,7 +63,7 @@ const TerminalSettingsCard: React.FC = () => {
   } = useAppSettingsKey('terminal');
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [query, setQuery] = useState<string>('');
-  const { fonts: installedFonts } = useInstalledFonts();
+  const { fonts: installedFonts, isLoading: loadingFonts } = useInstalledFonts();
 
   const fontFamily = terminal?.fontFamily ?? '';
   const fontSize = terminal?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
@@ -207,6 +207,12 @@ const TerminalSettingsCard: React.FC = () => {
                     </ComboboxGroup>
                   )}
                 </ComboboxList>
+                {loadingFonts ? (
+                  <div className="flex items-center gap-2 border-t border-border px-3 py-2 text-sm text-foreground-muted">
+                    <LoaderCircle className="size-3.5 animate-spin" />
+                    Loading installed fonts...
+                  </div>
+                ) : null}
                 <ComboboxEmpty>No fonts found.</ComboboxEmpty>
               </ComboboxContent>
             </Combobox>
