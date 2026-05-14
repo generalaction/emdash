@@ -1,15 +1,8 @@
 import type { ActionSpec } from '@shared/automations/actions';
-import type { AutomationEventKind, EventTriggerFilters } from '@shared/automations/events';
 
 export const AUTOMATION_NAME_MAX_LENGTH = 120;
 
-export type TriggerSpec =
-  | { kind: 'cron'; expr: string; tz: string }
-  | {
-      kind: 'event';
-      event: AutomationEventKind;
-      filters?: EventTriggerFilters;
-    };
+export type TriggerSpec = { kind: 'cron'; expr: string; tz: string };
 
 export type Automation = {
   id: string;
@@ -20,6 +13,7 @@ export type Automation = {
   actions: ActionSpec[];
   projectId: string;
   enabled: boolean;
+  isDraft: boolean;
   lastRunAt: number | null;
   nextRunAt: number | null;
   builtinTemplateId: string | null;
@@ -27,12 +21,13 @@ export type Automation = {
   updatedAt: number;
 };
 
-export type AutomationRunStatus = 'running' | 'success' | 'failed' | 'skipped';
-export type AutomationRunTriggerKind = 'cron' | 'manual' | 'event';
+export type AutomationRunStatus = 'queued' | 'running' | 'success' | 'failed' | 'skipped';
+export type AutomationRunTriggerKind = 'cron' | 'manual';
 
 export type AutomationRun = {
   id: string;
   automationId: string;
+  scheduledAt: number | null;
   startedAt: number;
   finishedAt: number | null;
   status: AutomationRunStatus;
@@ -40,6 +35,7 @@ export type AutomationRun = {
   createdTaskId: string | null;
   error: string | null;
   triggerKind: AutomationRunTriggerKind;
+  workerId: string | null;
 };
 
 export type AutomationRunWithContext = AutomationRun & {
@@ -65,6 +61,7 @@ export type CreateAutomationInput = {
   actions: ActionSpec[];
   projectId: string;
   enabled?: boolean;
+  isDraft?: boolean;
   builtinTemplateId?: string | null;
 };
 
@@ -72,5 +69,5 @@ export type UpdateAutomationPatch = Partial<
   Pick<
     CreateAutomationInput,
     'name' | 'description' | 'category' | 'trigger' | 'actions' | 'projectId' | 'builtinTemplateId'
-  > & { enabled: boolean }
+  > & { enabled: boolean; isDraft: boolean }
 >;

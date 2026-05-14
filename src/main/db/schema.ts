@@ -257,18 +257,15 @@ export const automations = sqliteTable(
     name: text('name').notNull(),
     description: text('description'),
     category: text('category').notNull(),
-    triggerType: text('trigger_type').notNull(),
     cronExpr: text('cron_expr'),
     cronTz: text('cron_tz'),
-    eventType: text('event_type'),
-    eventProvider: text('event_provider'),
-    eventFilters: text('event_filters'),
     promptTemplate: text('prompt_template').notNull().default(''),
     actions: text('actions').notNull().default('[]'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
     enabled: integer('enabled').notNull().default(1),
+    isDraft: integer('is_draft').notNull().default(0),
     lastRunAt: integer('last_run_at'),
     nextRunAt: integer('next_run_at'),
     builtinTemplateId: text('builtin_template_id'),
@@ -277,28 +274,7 @@ export const automations = sqliteTable(
   },
   (table) => ({
     enabledNextRunIdx: index('idx_automations_enabled_next_run').on(table.enabled, table.nextRunAt),
-    enabledTriggerEventIdx: index('idx_automations_enabled_trigger_event').on(
-      table.enabled,
-      table.triggerType,
-      table.eventType
-    ),
     projectIdIdx: index('idx_automations_project_id').on(table.projectId),
-  })
-);
-
-export const automationEventCursors = sqliteTable(
-  'automation_event_cursors',
-  {
-    provider: text('provider').notNull(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    lastPolledAt: integer('last_polled_at').notNull(),
-    cursor: text('cursor'),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.provider, table.projectId] }),
-    projectIdx: index('idx_automation_event_cursors_project').on(table.projectId),
   })
 );
 
@@ -309,6 +285,7 @@ export const automationRuns = sqliteTable(
     automationId: text('automation_id')
       .notNull()
       .references(() => automations.id, { onDelete: 'cascade' }),
+    scheduledAt: integer('scheduled_at'),
     startedAt: integer('started_at').notNull(),
     finishedAt: integer('finished_at'),
     status: text('status').notNull(),
@@ -316,11 +293,16 @@ export const automationRuns = sqliteTable(
     createdTaskId: text('created_task_id'),
     error: text('error'),
     triggerKind: text('trigger_kind').notNull(),
+    workerId: text('worker_id'),
   },
   (table) => ({
     automationStartedIdx: index('idx_automation_runs_automation_started').on(
       table.automationId,
       table.startedAt
+    ),
+    automationScheduledIdx: index('idx_automation_runs_automation_scheduled').on(
+      table.automationId,
+      table.scheduledAt
     ),
     automationStatusIdx: index('idx_automation_runs_automation_status').on(
       table.automationId,
@@ -517,7 +499,6 @@ export type SshConnectionInsert = typeof sshConnections.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
 export type AutomationRow = typeof automations.$inferSelect;
 export type AutomationRunRow = typeof automationRuns.$inferSelect;
-export type AutomationEventCursorRow = typeof automationEventCursors.$inferSelect;
 export type ProjectSettingsRow = typeof projectSettings.$inferSelect;
 export type ProjectSettingsInsert = typeof projectSettings.$inferInsert;
 export type TaskRow = typeof tasks.$inferSelect;

@@ -5,6 +5,7 @@ CREATE TABLE `automation_runs` (
 	`finished_at` integer,
 	`status` text NOT NULL,
 	`task_id` text,
+	`created_task_id` text,
 	`error` text,
 	`trigger_kind` text NOT NULL,
 	FOREIGN KEY (`automation_id`) REFERENCES `automations`(`id`) ON UPDATE no action ON DELETE cascade,
@@ -16,11 +17,10 @@ CREATE TABLE `automations` (
 	`name` text NOT NULL,
 	`description` text,
 	`category` text NOT NULL,
-	`trigger_type` text NOT NULL,
 	`cron_expr` text,
 	`cron_tz` text,
-	`event_type` text,
-	`prompt_template` text NOT NULL,
+	`prompt_template` text DEFAULT '' NOT NULL,
+	`actions` text DEFAULT '[]' NOT NULL,
 	`project_id` text NOT NULL,
 	`enabled` integer DEFAULT 1 NOT NULL,
 	`last_run_at` integer,
@@ -32,4 +32,6 @@ CREATE TABLE `automations` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_automation_runs_automation_started` ON `automation_runs` (`automation_id`,`started_at`);--> statement-breakpoint
-CREATE INDEX `idx_automations_enabled_next_run` ON `automations` (`enabled`,`next_run_at`);
+CREATE INDEX `idx_automation_runs_automation_status` ON `automation_runs` (`automation_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_automations_enabled_next_run` ON `automations` (`enabled`,`next_run_at`);--> statement-breakpoint
+CREATE INDEX `idx_automations_project_id` ON `automations` (`project_id`);

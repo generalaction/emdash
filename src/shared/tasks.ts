@@ -39,6 +39,7 @@ export type Task = {
   workspaceProvider?: 'byoi';
   workspaceId?: string;
   workspaceProviderData?: string; // JSON, BYOI only
+  automationId?: string;
 };
 
 export type TaskBootstrapStatus =
@@ -76,6 +77,7 @@ export type CreateTaskParams = {
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
   workspaceProvider?: 'byoi';
+  automationId?: string;
 };
 
 export type CreateTaskError =

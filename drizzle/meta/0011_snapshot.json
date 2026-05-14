@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d3a52ba0-6f80-47cd-8346-ea6882203a7e",
-  "prevId": "79109ea2-737d-48d0-b5c6-ec2ceb4b0d3c",
+  "id": "d8e46ec1-6d94-42fd-bd35-b8bcbeb33c47",
+  "prevId": "b8665e8d-b97e-48ff-936e-47e8860da6c7",
   "tables": {
     "app_secrets": {
       "name": "app_secrets",
@@ -115,6 +115,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "created_task_id": {
+          "name": "created_task_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "error": {
           "name": "error",
           "type": "text",
@@ -134,6 +141,11 @@
         "idx_automation_runs_automation_started": {
           "name": "idx_automation_runs_automation_started",
           "columns": ["automation_id", "started_at"],
+          "isUnique": false
+        },
+        "idx_automation_runs_automation_status": {
+          "name": "idx_automation_runs_automation_status",
+          "columns": ["automation_id", "status"],
           "isUnique": false
         }
       },
@@ -191,13 +203,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "trigger_type": {
-          "name": "trigger_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "cron_expr": {
           "name": "cron_expr",
           "type": "text",
@@ -212,19 +217,21 @@
           "notNull": false,
           "autoincrement": false
         },
-        "event_type": {
-          "name": "event_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "prompt_template": {
           "name": "prompt_template",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "''"
+        },
+        "actions": {
+          "name": "actions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "project_id": {
           "name": "project_id",
@@ -281,6 +288,11 @@
         "idx_automations_enabled_next_run": {
           "name": "idx_automations_enabled_next_run",
           "columns": ["enabled", "next_run_at"],
+          "isUnique": false
+        },
+        "idx_automations_project_id": {
+          "name": "idx_automations_project_id",
+          "columns": ["project_id"],
           "isUnique": false
         }
       },
@@ -358,6 +370,20 @@
           "notNull": true,
           "autoincrement": false,
           "default": "CURRENT_TIMESTAMP"
+        },
+        "last_interacted_at": {
+          "name": "last_interacted_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_initial_conversation": {
+          "name": "is_initial_conversation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -610,6 +636,71 @@
           "name": "project_remotes_project_id_remote_name_pk"
         }
       },
+      "uniqueConstraints": {}
+    },
+    "project_settings": {
+      "name": "project_settings",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "base_project_settings_json": {
+          "name": "base_project_settings_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "shareable_project_settings_json": {
+          "name": "shareable_project_settings_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "legacy_config_migrated_at": {
+          "name": "legacy_config_migrated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_settings_project_id_projects_id_fk": {
+          "name": "project_settings_project_id_projects_id_fk",
+          "tableFrom": "project_settings",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
     "projects": {
@@ -1376,6 +1467,27 @@
           "notNull": true,
           "autoincrement": false,
           "default": 0
+        },
+        "workspace_provider": {
+          "name": "workspace_provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "workspace_provider_data": {
+          "name": "workspace_provider_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {

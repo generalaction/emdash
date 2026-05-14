@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a33853e6-865a-42c8-9fdd-2acaa0512b67",
-  "prevId": "d3a52ba0-6f80-47cd-8346-ea6882203a7e",
+  "id": "6a2d9832-0f92-4a61-a02c-be11d9503499",
+  "prevId": "d8e46ec1-6d94-42fd-bd35-b8bcbeb33c47",
   "tables": {
     "app_secrets": {
       "name": "app_secrets",
@@ -70,64 +70,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
-    "automation_event_cursors": {
-      "name": "automation_event_cursors",
-      "columns": {
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "last_polled_at": {
-          "name": "last_polled_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "cursor": {
-          "name": "cursor",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_automation_event_cursors_project": {
-          "name": "idx_automation_event_cursors_project",
-          "columns": ["project_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "automation_event_cursors_project_id_projects_id_fk": {
-          "name": "automation_event_cursors_project_id_projects_id_fk",
-          "tableFrom": "automation_event_cursors",
-          "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "automation_event_cursors_provider_project_id_pk": {
-          "columns": ["provider", "project_id"],
-          "name": "automation_event_cursors_provider_project_id_pk"
-        }
-      },
-      "uniqueConstraints": {}
-    },
     "automation_runs": {
       "name": "automation_runs",
       "columns": {
@@ -143,6 +85,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "scheduled_at": {
+          "name": "scheduled_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "started_at": {
@@ -173,6 +122,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "created_task_id": {
+          "name": "created_task_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "error": {
           "name": "error",
           "type": "text",
@@ -186,12 +142,29 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
         "idx_automation_runs_automation_started": {
           "name": "idx_automation_runs_automation_started",
           "columns": ["automation_id", "started_at"],
+          "isUnique": false
+        },
+        "idx_automation_runs_automation_scheduled": {
+          "name": "idx_automation_runs_automation_scheduled",
+          "columns": ["automation_id", "scheduled_at"],
+          "isUnique": false
+        },
+        "idx_automation_runs_automation_status": {
+          "name": "idx_automation_runs_automation_status",
+          "columns": ["automation_id", "status"],
           "isUnique": false
         }
       },
@@ -249,13 +222,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "trigger_type": {
-          "name": "trigger_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "cron_expr": {
           "name": "cron_expr",
           "type": "text",
@@ -265,20 +231,6 @@
         },
         "cron_tz": {
           "name": "cron_tz",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "event_type": {
-          "name": "event_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "event_provider": {
-          "name": "event_provider",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -356,6 +308,11 @@
           "name": "idx_automations_enabled_next_run",
           "columns": ["enabled", "next_run_at"],
           "isUnique": false
+        },
+        "idx_automations_project_id": {
+          "name": "idx_automations_project_id",
+          "columns": ["project_id"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -432,6 +389,20 @@
           "notNull": true,
           "autoincrement": false,
           "default": "CURRENT_TIMESTAMP"
+        },
+        "last_interacted_at": {
+          "name": "last_interacted_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_initial_conversation": {
+          "name": "is_initial_conversation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -684,6 +655,71 @@
           "name": "project_remotes_project_id_remote_name_pk"
         }
       },
+      "uniqueConstraints": {}
+    },
+    "project_settings": {
+      "name": "project_settings",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "base_project_settings_json": {
+          "name": "base_project_settings_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "shareable_project_settings_json": {
+          "name": "shareable_project_settings_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "legacy_config_migrated_at": {
+          "name": "legacy_config_migrated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_settings_project_id_projects_id_fk": {
+          "name": "project_settings_project_id_projects_id_fk",
+          "tableFrom": "project_settings",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
     "projects": {
@@ -1450,6 +1486,27 @@
           "notNull": true,
           "autoincrement": false,
           "default": 0
+        },
+        "workspace_provider": {
+          "name": "workspace_provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "workspace_provider_data": {
+          "name": "workspace_provider_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
