@@ -9,6 +9,17 @@ import { captureTelemetry } from '@renderer/utils/telemetryClient';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 
+function markSkillInstalled(catalog: CatalogIndex | null | undefined, skillId: string) {
+  if (!catalog) return catalog;
+
+  return {
+    ...catalog,
+    skills: catalog.skills.map((skill) =>
+      skill.id === skillId ? { ...skill, installed: true } : skill
+    ),
+  };
+}
+
 export function useSkills() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -81,6 +92,14 @@ export function useSkills() {
         queryClient
           .getQueryData<CatalogIndex>(CATALOG_QUERY_KEY)
           ?.skills.find((s) => s.id === skillId);
+
+      queryClient.setQueryData<CatalogIndex | null>(CATALOG_QUERY_KEY, (catalog) =>
+        markSkillInstalled(catalog, skillId)
+      );
+      queryClient.setQueriesData<CatalogIndex | null>(
+        { queryKey: ['skills', 'search'] },
+        (catalog) => markSkillInstalled(catalog, skillId)
+      );
 
       captureTelemetry('skill_installed', { source: skill?.source });
       toast({

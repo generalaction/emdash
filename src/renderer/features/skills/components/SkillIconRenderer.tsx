@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { resolveSkillIcon } from './skillIcons';
@@ -10,10 +10,18 @@ const sizeClasses: Record<SkillIconSize, { container: string; padding: string; t
   md: { container: 'h-12 w-12', padding: 'p-2.5', text: 'text-base' },
 };
 
+const processedSvgCache = new Map<string, string>();
+
 function processSvg(raw: string, fillColor: string): string {
+  const cacheKey = `${fillColor}:${raw}`;
+  const cached = processedSvgCache.get(cacheKey);
+  if (cached) return cached;
+
   let svg = raw.replace(/\bwidth="[^"]*"/g, '').replace(/\bheight="[^"]*"/g, '');
   svg = svg.replace('<svg ', `<svg fill="${fillColor}" `);
-  return svg.replace('<svg ', '<svg class="h-full w-full" ');
+  svg = svg.replace('<svg ', '<svg class="h-full w-full" ');
+  processedSvgCache.set(cacheKey, svg);
+  return svg;
 }
 
 interface SkillIconRendererProps {
@@ -31,7 +39,7 @@ function getGitHubAvatarUrl(skill: CatalogSkill): string | null {
   return `https://github.com/${owner}.png?size=96`;
 }
 
-const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm' }) => {
+const SkillIconRenderer: React.FC<SkillIconRendererProps> = React.memo(({ skill, size = 'sm' }) => {
   const [iconUrlError, setIconUrlError] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const { effectiveTheme } = useTheme();
@@ -39,9 +47,10 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
 
   const { container, padding, text } = sizeClasses[size];
   const letter = skill.displayName.charAt(0).toUpperCase();
+  const svg = useMemo(() => resolveSkillIcon(skill.id, skill.source), [skill.id, skill.source]);
+  const avatarUrl = useMemo(() => getGitHubAvatarUrl(skill), [skill.repoSlug]);
 
   // 1. Bundled SVG (canonical brand asset)
-  const svg = resolveSkillIcon(skill.id, skill.source);
   if (svg) {
     const html = processSvg(svg, isDark ? '#ffffff' : '#000000');
     return (
@@ -72,7 +81,6 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
   }
 
   // 3. GitHub avatar of the repo owner (skills.sh skills) — full color, no filter
-  const avatarUrl = getGitHubAvatarUrl(skill);
   if (avatarUrl && !avatarError) {
     return (
       <div
@@ -97,6 +105,8 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
       {letter}
     </div>
   );
-};
+});
+
+SkillIconRenderer.displayName = 'SkillIconRenderer';
 
 export default SkillIconRenderer;

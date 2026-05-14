@@ -21,6 +21,56 @@ const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 
 const MAX_REDIRECTS = 5;
 
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function editDistanceWithin(a: string, b: string, maxDistance: number): boolean {
+  if (Math.abs(a.length - b.length) > maxDistance) return false;
+  if (a === b) return true;
+
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    let rowMin = current[0];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      const value = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost);
+      current[j] = value;
+      rowMin = Math.min(rowMin, value);
+    }
+    if (rowMin > maxDistance) return false;
+    previous = current;
+  }
+
+  return previous[b.length] <= maxDistance;
+}
+
+function skillMatchesCatalogSearch(skill: CatalogSkill, query: string): boolean {
+  const lower = query.toLowerCase();
+  if (
+    skill.id.toLowerCase().includes(lower) ||
+    skill.displayName.toLowerCase().includes(lower) ||
+    skill.description.toLowerCase().includes(lower)
+  ) {
+    return true;
+  }
+
+  if (!skill.repoSlug) return false;
+
+  const [owner] = skill.repoSlug.split('/');
+  const normalizedQuery = normalizeSearchText(query);
+  const normalizedOwner = normalizeSearchText(owner ?? '');
+  const normalizedRepoSlug = normalizeSearchText(skill.repoSlug);
+  if (!normalizedQuery) return false;
+
+  return (
+    normalizedOwner.includes(normalizedQuery) ||
+    normalizedRepoSlug.includes(normalizedQuery) ||
+    (normalizedQuery.length >= 4 && editDistanceWithin(normalizedQuery, normalizedOwner, 2))
+  );
+}
+
 function httpsGet(url: string, redirectCount = 0): Promise<string> {
   return new Promise((resolve, reject) => {
     if (redirectCount >= MAX_REDIRECTS) {
@@ -123,7 +173,7 @@ export class SkillsService {
       for (const skill of searchSkills) {
         this.searchSkillCache.set(skill.id, skill);
       }
-      const catalog = this.catalogCache;
+      const catalog = this.catalogCache ?? (await this.getCatalogIndex().catch(() => null));
       const catalogById = catalog
         ? new Map(catalog.skills.map((s) => [s.id, s]))
         : new Map<string, CatalogSkill>();
@@ -145,16 +195,28 @@ export class SkillsService {
         return { ...base, installed: false };
       });
 
-      // Include installed local skills that match the query so users can find their own.
-      const lower = q.toLowerCase();
+      // Include catalog/installed skills that match locally, including skills.sh author slugs.
       const seenIds = new Set(hydrated.map((s) => s.id));
+      for (const catalogSkill of catalog?.skills ?? []) {
+        if (seenIds.has(catalogSkill.id)) continue;
+        if (skillMatchesCatalogSearch(catalogSkill, q)) {
+          const local = installedById.get(catalogSkill.id);
+          hydrated.push(
+            local
+              ? {
+                  ...catalogSkill,
+                  installed: true,
+                  localPath: local.localPath,
+                  skillMdContent: local.skillMdContent,
+                }
+              : { ...catalogSkill, installed: false }
+          );
+          seenIds.add(catalogSkill.id);
+        }
+      }
       for (const local of installed) {
         if (seenIds.has(local.id)) continue;
-        if (
-          local.id.toLowerCase().includes(lower) ||
-          local.displayName.toLowerCase().includes(lower) ||
-          local.description.toLowerCase().includes(lower)
-        ) {
+        if (skillMatchesCatalogSearch(local, q)) {
           hydrated.unshift(local);
           seenIds.add(local.id);
         }

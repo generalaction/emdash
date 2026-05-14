@@ -169,4 +169,37 @@ describe('SkillsService agent sync', () => {
 
     expect(catalog.skills.some((skill) => skill.id === 'brainstorming')).toBe(true);
   });
+
+  it('matches skills.sh search by author slug from the catalog', async () => {
+    const catalogQueries = ['skill', 'ai', 'agent', 'code', 'docs', 'github', 'react', 'cloud'];
+    const responses = new Map<string, string>([
+      ['https://skills.sh/api/search?q=mattpcock&limit=50', JSON.stringify({ skills: [] })],
+      ...catalogQueries.map<[string, string]>((query) => [
+        `https://skills.sh/api/search?q=${query}&limit=100`,
+        JSON.stringify({
+          skills:
+            query === 'skill'
+              ? [
+                  {
+                    id: 'mattpocock/skills/grill-me',
+                    skillId: 'grill-me',
+                    name: 'grill-me',
+                    installs: 138543,
+                    source: 'mattpocock/skills',
+                  },
+                ]
+              : [],
+        }),
+      ]),
+    ]);
+    const service = await loadService(home, responses);
+    await service.initialize();
+
+    const search = await service.searchCatalog('mattpcock');
+
+    expect(search.skills.some((skill) => skill.id === 'grill-me')).toBe(true);
+    expect(search.skills.find((skill) => skill.id === 'grill-me')?.repoSlug).toBe(
+      'mattpocock/skills'
+    );
+  });
 });

@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Check, Download, Pencil, Plus } from 'lucide-react';
 import React from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
@@ -16,18 +15,16 @@ function formatInstalls(n: number): string {
   return n.toString();
 }
 
-const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => {
+const SkillCard: React.FC<SkillCardProps> = React.memo(({ skill, onSelect, onInstall }) => {
   const subtitle = skill.repoSlug ?? (skill.source === 'local' ? '' : skill.source);
   const description = skill.description?.trim() || skill.frontmatter.description?.trim() || '';
   const showSubtitle = subtitle.length > 0;
   const showMetadata = skill.installs !== undefined || (description.length > 0 && showSubtitle);
 
   return (
-    <motion.div
+    <div
       role="button"
       tabIndex={0}
-      whileTap={{ scale: 0.97 }}
-      transition={{ duration: 0.1, ease: 'easeInOut' }}
       onClick={() => onSelect(skill)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -35,7 +32,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => 
           onSelect(skill);
         }
       }}
-      className="group flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 text-left text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md"
+      className="group flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 text-left text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md active:scale-[0.97]"
     >
       <SkillIconRenderer skill={skill} />
 
@@ -92,8 +89,10 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, onSelect, onInstall }) => 
           </button>
         )}
       </div>
-    </motion.div>
+    </div>
   );
-};
+});
+
+SkillCard.displayName = 'SkillCard';
 
 export default SkillCard;
