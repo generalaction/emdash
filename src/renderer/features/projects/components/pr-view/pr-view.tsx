@@ -247,7 +247,7 @@ export const PullRequestView = observer(function PullRequestView() {
 
   if (!repositoryUrl) {
     return (
-      <div className="flex flex-col max-w-3xl mx-auto w-full h-full pt-6 px-6 min-h-0">
+      <div className="flex h-full min-h-0 w-full flex-col">
         <p className="text-sm text-muted-foreground text-center py-4">
           Pull requests are currently available only for configured GitHub remotes. You can change
           the remote in the project settings.
@@ -258,7 +258,7 @@ export const PullRequestView = observer(function PullRequestView() {
 
   if (needsGhAuth) {
     return (
-      <div className="flex flex-col max-w-3xl mx-auto w-full h-full pt-6 px-6 min-h-0">
+      <div className="flex h-full min-h-0 w-full flex-col">
         <div className="flex w-full flex-col items-center justify-center gap-5 rounded-md border border-border border-dashed p-8 mt-4">
           <span className="relative flex size-8 items-center justify-center overflow-hidden rounded-full bg-background-2">
             <Github className="size-4 text-foreground-muted" />
@@ -285,7 +285,7 @@ export const PullRequestView = observer(function PullRequestView() {
   }
 
   return (
-    <div className="relative flex flex-col max-w-3xl mx-auto w-full h-full pt-6 px-6 min-h-0">
+    <div className="relative flex h-full min-h-0 w-full flex-col">
       {/* ── Header controls ── */}
       <div className="flex flex-col gap-4 border-b border-border pb-2">
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-between">

@@ -29,7 +29,7 @@ export function ProjectSettingsFooter({
   const saveDisabled = saving || !dirty;
 
   return (
-    <div className="flex justify-between gap-2 pt-5 pb-10 px-10">
+    <div className="flex justify-between gap-2 pt-5 pb-10">
       <TooltipProvider delay={150}>
         <Tooltip>
           <TooltipTrigger>
