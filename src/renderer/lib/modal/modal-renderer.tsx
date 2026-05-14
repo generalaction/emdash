@@ -73,6 +73,7 @@ export const ModalRenderer = observer(function ModalRenderer() {
       });
     }
   }, [modalStore.isOpen]);
+
   const initialFocus = useCallback(() => {
     const target = popupRef.current?.querySelector<HTMLElement>('[data-autofocus]');
     if (!target) return true;
