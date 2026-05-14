@@ -5,7 +5,6 @@ import * as path from 'node:path';
 import { agentTargets, skillScanPaths } from '@shared/skills/agentTargets';
 import {
   mergeCatalogSkills,
-  parseSkillsshCatalogHtml,
   SKILLSSH_BASE,
   toSkillsshCatalogSkill,
   type SkillsshDetailResponse,
@@ -30,7 +29,7 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
     }
     const req = https.get(
       url,
-      { headers: { 'User-Agent': 'emdash-skills', Accept: 'application/vnd.github.v3+json' } },
+      { headers: { 'User-Agent': 'emdash-skills', Accept: 'application/json, text/html, */*' } },
       (res) => {
         const status = res.statusCode ?? 0;
         // Follow any 3xx redirect (skills.sh uses 307, GitHub uses 301/302)
@@ -60,6 +59,7 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
 export class SkillsService {
   private static readonly CATALOG_VERSION = 4;
   private catalogCache: CatalogIndex | null = null;
+  private searchSkillCache = new Map<string, CatalogSkill>();
 
   async initialize(): Promise<void> {
     await fs.promises.mkdir(SKILLS_ROOT, { recursive: true });
@@ -71,16 +71,8 @@ export class SkillsService {
       return this.mergeInstalledState(this.catalogCache);
     }
 
-    // Always try skills.sh on first load for this process. The disk cache is only an offline fallback.
-    try {
-      const catalog = await this.fetchRemoteCatalog();
-      this.catalogCache = catalog;
-      return this.mergeInstalledState(catalog);
-    } catch (error) {
-      log.warn('Failed to load remote skills catalog, using cached or bundled catalog', error);
-    }
-
-    // Try disk cache only after the remote catalog fails.
+    // Prefer the disk cache on cold start so the Skills view is not blocked by
+    // a slow network request. Refresh explicitly fetches skills.sh.
     try {
       const data = await fs.promises.readFile(CATALOG_INDEX_PATH, 'utf-8');
       const diskCache = JSON.parse(data) as CatalogIndex;
@@ -88,9 +80,17 @@ export class SkillsService {
         this.catalogCache = diskCache;
         return this.mergeInstalledState(this.catalogCache);
       }
-      // Stale disk cache — fall through to bundled
+      // Stale disk cache — fall through to remote/bundled
     } catch {
-      // No disk cache — fall back to bundled catalog
+      // No disk cache — fall back to remote/bundled catalog
+    }
+
+    try {
+      const catalog = await this.fetchRemoteCatalog();
+      this.catalogCache = catalog;
+      return this.mergeInstalledState(catalog);
+    } catch (error) {
+      log.warn('Failed to load remote skills catalog, using bundled catalog', error);
     }
 
     const bundled = this.loadBundledCatalog();
@@ -120,6 +120,9 @@ export class SkillsService {
 
     try {
       const searchSkills = await this.fetchSkillsshSearch(q);
+      for (const skill of searchSkills) {
+        this.searchSkillCache.set(skill.id, skill);
+      }
       const catalog = this.catalogCache;
       const catalogById = catalog
         ? new Map(catalog.skills.map((s) => [s.id, s]))
@@ -229,8 +232,7 @@ export class SkillsService {
   }
 
   async getSkillDetail(skillId: string): Promise<CatalogSkill | null> {
-    const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    const skill = await this.findCatalogSkill(skillId);
     if (!skill) return null;
 
     // If installed, load the full SKILL.md from disk
@@ -298,8 +300,7 @@ export class SkillsService {
 
   async installSkill(skillId: string): Promise<CatalogSkill> {
     await this.initialize();
-    const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    const skill = await this.findCatalogSkill(skillId);
     if (!skill) throw new Error(`Skill "${skillId}" not found in catalog`);
     if (skill.installed) throw new Error(`Skill "${skillId}" is already installed`);
 
@@ -341,6 +342,7 @@ export class SkillsService {
 
       // Invalidate cache
       this.catalogCache = null;
+      this.searchSkillCache.delete(skillId);
 
       return {
         ...skill,
@@ -516,6 +518,13 @@ export class SkillsService {
     return bundledCatalog as CatalogIndex;
   }
 
+  private async findCatalogSkill(skillId: string): Promise<CatalogSkill | undefined> {
+    const cachedSearchSkill = this.searchSkillCache.get(skillId);
+    if (cachedSearchSkill) return cachedSearchSkill;
+    const catalog = await this.getCatalogIndex();
+    return catalog.skills.find((s) => s.id === skillId);
+  }
+
   private async fetchRemoteCatalog(): Promise<CatalogIndex> {
     const allSkills = await this.fetchSkillsshCatalog();
     const skills = mergeCatalogSkills(allSkills);
@@ -568,110 +577,18 @@ export class SkillsService {
     return { ...catalog, skills: mergedSkills };
   }
 
-  private async fetchOpenAICatalog(): Promise<CatalogSkill[]> {
-    const baseUrl = 'https://api.github.com/repos/openai/skills/contents/skills';
-    const rawBase = 'https://raw.githubusercontent.com/openai/skills/main/skills';
-
-    // Fetch both curated and system skills
-    const [curatedData, systemData] = await Promise.all([
-      httpsGet(`${baseUrl}/.curated`),
-      httpsGet(`${baseUrl}/.system`).catch(() => '[]'),
-    ]);
-
-    const curatedEntries = JSON.parse(curatedData) as Array<{
-      name: string;
-      type: string;
-      html_url?: string;
-    }>;
-    const systemEntries = JSON.parse(systemData) as Array<{
-      name: string;
-      type: string;
-      html_url?: string;
-    }>;
-
-    const allEntries = [
-      ...curatedEntries.map((e) => ({ ...e, category: '.curated' as const })),
-      ...systemEntries.map((e) => ({ ...e, category: '.system' as const })),
-    ].filter((e) => e.type === 'dir');
-
-    // Fetch openai.yaml for each skill in parallel (with fallback)
-    const skills = await Promise.all(
-      allEntries.map(async (entry) => {
-        const fallbackName = entry.name
-          .split('-')
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(' ');
-
-        let displayName = fallbackName;
-        let description = '';
-        let iconUrl: string | undefined;
-        let brandColor: string | undefined;
-        let defaultPrompt: string | undefined;
-
-        try {
-          const yamlUrl = `${rawBase}/${entry.category}/${entry.name}/agents/openai.yaml`;
-          const yamlContent = await httpsGet(yamlUrl);
-          const parsed = this.parseSimpleYaml(yamlContent);
-          displayName = parsed['display_name'] || fallbackName;
-          description = parsed['short_description'] || '';
-          defaultPrompt = parsed['default_prompt'];
-          brandColor = parsed['brand_color'];
-
-          // Resolve icon URL from relative path
-          const iconPath = parsed['icon_small'] || parsed['icon_large'];
-          if (iconPath) {
-            const cleanPath = iconPath.replace(/^\.\//, '');
-            iconUrl = `${rawBase}/${entry.category}/${entry.name}/${cleanPath}`;
-          }
-        } catch {
-          // No openai.yaml — use fallback
-        }
-
-        // If still no description, try fetching SKILL.md frontmatter
-        if (!description) {
-          try {
-            const mdUrl = `${rawBase}/${entry.category}/${entry.name}/SKILL.md`;
-            const md = await httpsGet(mdUrl);
-            const { frontmatter: fm } = parseFrontmatter(md);
-            if (fm.description) description = fm.description;
-          } catch {
-            // Use empty string
-          }
-        }
-
-        if (!description) {
-          description = `${entry.name.replace(/-/g, ' ')}`;
-        }
-
-        const skill: CatalogSkill = {
-          id: entry.name,
-          displayName,
-          description,
-          source: 'openai',
-          sourceUrl: entry.html_url,
-          iconUrl,
-          brandColor: brandColor || '#10a37f',
-          defaultPrompt,
-          frontmatter: { name: entry.name, description },
-          installed: false,
-        };
-        return skill;
-      })
+  private async fetchSkillsshCatalog(): Promise<CatalogSkill[]> {
+    const catalogQueries = ['skill', 'ai', 'agent', 'code', 'docs', 'github', 'react', 'cloud'];
+    const skillGroups = await Promise.all(
+      catalogQueries.map((query) => this.fetchSkillsshSearch(query, 100))
     );
 
-    return skills;
+    return mergeCatalogSkills(...skillGroups);
   }
 
-  private async fetchSkillsshCatalog(): Promise<CatalogSkill[]> {
-    const html = await httpsGet(`${SKILLSSH_BASE}/`);
-    const entries = parseSkillsshCatalogHtml(html);
-
-    return entries.map((entry) => toSkillsshCatalogSkill(entry));
-  }
-
-  private async fetchSkillsshSearch(query: string): Promise<CatalogSkill[]> {
+  private async fetchSkillsshSearch(query: string, limit = 50): Promise<CatalogSkill[]> {
     const data = await httpsGet(
-      `${SKILLSSH_BASE}/api/search?q=${encodeURIComponent(query)}&limit=50`
+      `${SKILLSSH_BASE}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`
     );
     const response = JSON.parse(data) as SkillsshSearchResponse;
 
@@ -737,63 +654,6 @@ export class SkillsService {
   private isPathInside(parentDir: string, childPath: string): boolean {
     const relative = path.relative(path.resolve(parentDir), childPath);
     return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-  }
-
-  private async fetchAnthropicCatalog(): Promise<CatalogSkill[]> {
-    const url = 'https://api.github.com/repos/anthropics/skills/contents/skills';
-    const rawBase = 'https://raw.githubusercontent.com/anthropics/skills/main/skills';
-    const data = await httpsGet(url);
-    const entries = JSON.parse(data) as Array<{ name: string; type: string; html_url?: string }>;
-    const skills: CatalogSkill[] = [];
-
-    for (const entry of entries) {
-      if (entry.type !== 'dir') continue;
-      const fallbackName = entry.name
-        .split('-')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
-
-      let description = '';
-
-      // Try to get description from SKILL.md frontmatter
-      try {
-        const mdUrl = `${rawBase}/${entry.name}/SKILL.md`;
-        const md = await httpsGet(mdUrl);
-        const { frontmatter: fm } = parseFrontmatter(md);
-        if (fm.description) description = fm.description;
-      } catch {
-        // Use fallback
-      }
-
-      if (!description) {
-        description = `${entry.name.replace(/-/g, ' ')}`;
-      }
-
-      skills.push({
-        id: entry.name,
-        displayName: fallbackName,
-        description,
-        source: 'anthropic',
-        sourceUrl: entry.html_url,
-        brandColor: '#d4a574',
-        frontmatter: { name: entry.name, description },
-        installed: false,
-      });
-    }
-
-    return skills;
-  }
-
-  /** Minimal YAML parser for openai.yaml interface block */
-  private parseSimpleYaml(content: string): Record<string, string> {
-    const result: Record<string, string> = {};
-    for (const line of content.split('\n')) {
-      const match = line.match(/^\s+(\w+):\s*"?([^"]*)"?\s*$/);
-      if (match) {
-        result[match[1]] = match[2].trim();
-      }
-    }
-    return result;
   }
 }
 

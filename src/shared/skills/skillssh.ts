@@ -25,16 +25,6 @@ export interface SkillsshDetailResponse {
   hash?: string | null;
 }
 
-export function parseSkillsshCatalogHtml(html: string): SkillsshListSkill[] {
-  const catalogPattern = new RegExp(String.raw`(\[\{\\"source\\"[\s\S]*?\}\]),\\"totalSkills\\"`);
-  const match = html.match(catalogPattern);
-  if (!match) {
-    throw new Error('Unable to parse skills.sh catalog');
-  }
-
-  return JSON.parse(match[1].replace(/\\"/g, '"')) as SkillsshListSkill[];
-}
-
 function titleCase(slug: string): string {
   return slug
     .split('-')
