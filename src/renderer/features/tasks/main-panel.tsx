@@ -3,9 +3,9 @@ import {
   DragOverlay,
   PointerSensor,
   pointerWithin,
+  useDroppable,
   useSensor,
   useSensors,
-  useDroppable,
 } from '@dnd-kit/core';
 import { Eye, Loader2, MessageSquare, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -34,8 +34,9 @@ import { useEditorContext } from './editor/editor-provider';
 import { MarkdownEditorPanel } from './editor/markdown-editor-panel';
 import { TabGroupProvider, useTabGroupContext } from './tabs/tab-group-context';
 import { TerminalsPanel } from './terminals/terminal-panel';
+import { TabDragPreview } from './view/tab-items/tab-drag-preview';
 import { TaskSidebar } from './view/task-sidebar';
-import { TabDragPreview, UnifiedMainTabBar } from './view/unified-main-tab-bar';
+import { UnifiedMainTabBar } from './view/unified-main-tab-bar';
 import { WorkspaceResolutionView } from './workspace-resolution-view';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
