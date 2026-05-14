@@ -55,7 +55,6 @@ export function PaletteProjectsGroup({
             onClose();
           }}
           className={PALETTE_ITEM_CLASS}
-          data-hint-label={`Switch to ${p.name}`}
         >
           <FolderOpen size={14} className="shrink-0 text-foreground/40" />
           <span className="flex-1 truncate">{p.name}</span>

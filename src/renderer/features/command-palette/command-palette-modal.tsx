@@ -1,13 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Command, useCommandState } from 'cmdk';
-import {
-  Activity,
-  CornerDownLeft,
-  FolderOpen,
-  GitBranch,
-  MessageSquare,
-  type LucideIcon,
-} from 'lucide-react';
+import { Command } from 'cmdk';
+import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
@@ -95,18 +88,8 @@ function PaletteItem({
   ) : (
     KIND_ICON[item.kind]
   );
-  const hintLabel = action
-    ? action.title
-    : `${item.kind === 'file' ? 'Open' : 'Switch to'} ${item.title}`;
-
   return (
-    <Command.Item
-      value={value}
-      onSelect={onSelect}
-      className={PALETTE_ITEM_CLASS}
-      data-hint-label={hintLabel}
-      data-hint-shortcut={action?.shortcut}
-    >
+    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       {iconNode}
       <span className="flex-1 truncate">{item.title}</span>
       {action?.shortcut && (
@@ -115,41 +98,6 @@ function PaletteItem({
         </kbd>
       )}
     </Command.Item>
-  );
-}
-
-function readSelectedHint(): { label: string; shortcut?: string } | null {
-  const el = document.querySelector<HTMLElement>('[cmdk-item=""][aria-selected="true"]');
-  const label = el?.getAttribute('data-hint-label');
-  if (!label) return null;
-  return { label, shortcut: el?.getAttribute('data-hint-shortcut') ?? undefined };
-}
-
-function FooterHint() {
-  const value = useCommandState((state) => state.value as string | undefined);
-  const [hint, setHint] = useState<{ label: string; shortcut?: string } | null>(null);
-
-  /* eslint-disable react-hooks/set-state-in-effect -- hint is derived from
-     data-* attributes on the cmdk item that becomes aria-selected="true" only
-     after React commits the new selection; reading the DOM in render returns
-     the previous selection. */
-  useEffect(() => {
-    setHint(value ? readSelectedHint() : null);
-  }, [value]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  if (!hint) return null;
-
-  return (
-    <div className="ml-auto flex min-w-0 items-center gap-1.5 text-xs text-foreground/50">
-      <CornerDownLeft size={12} className="shrink-0" />
-      <span className="truncate">{hint.label}</span>
-      {hint.shortcut && (
-        <kbd className="shrink-0 rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/60">
-          {hint.shortcut}
-        </kbd>
-      )}
-    </div>
   );
 }
 
@@ -163,12 +111,7 @@ function PaletteFileItem({
   onSelect: () => void;
 }) {
   return (
-    <Command.Item
-      value={value}
-      onSelect={onSelect}
-      className={PALETTE_ITEM_CLASS}
-      data-hint-label={`Open ${item.title}`}
-    >
+    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       <FileIcon filename={item.title} size={14} />
       <span className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
         <span className="shrink-0">{item.title}</span>
@@ -500,8 +443,28 @@ export function CommandPaletteModal({
         )}
       </Command.List>
 
-      <div className="flex h-9 items-center border-t border-foreground/10 px-3 py-2">
-        <FooterHint />
+      <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
+        <span className="flex items-center gap-1 text-xs text-foreground/40">
+          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
+            ↑
+          </kbd>
+          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
+            ↓
+          </kbd>
+          Navigate
+        </span>
+        <span className="flex items-center gap-1 text-xs text-foreground/40">
+          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
+            ↵
+          </kbd>
+          Select
+        </span>
+        <span className="flex items-center gap-1 text-xs text-foreground/40">
+          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
+            Esc
+          </kbd>
+          Close
+        </span>
       </div>
     </Command>
   );

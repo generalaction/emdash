@@ -20,12 +20,7 @@ export const PaletteConversationItem = observer(function PaletteConversationItem
   const title = formatConversationTitleForDisplay(conv.data.providerId, conv.data.title ?? '');
 
   return (
-    <Command.Item
-      value={value}
-      onSelect={onSelect}
-      className={PALETTE_ITEM_CLASS}
-      data-hint-label={`Switch to ${title}`}
-    >
+    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       {config ? (
         <AgentLogo
           logo={config.logo}
