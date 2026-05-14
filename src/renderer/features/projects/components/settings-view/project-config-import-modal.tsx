@@ -46,11 +46,6 @@ function filesLabel(files: string[]): string {
   return files.length === 1 ? files[0] : files.join(', ');
 }
 
-function sourceLabel(migration: ProjectConfigMigration | undefined): string {
-  if (!migration) return 'No config selected';
-  return `${migration.label} (${filesLabel(migration.files)})`;
-}
-
 export function ProjectConfigImportModal({
   migrations,
   migrateProjectConfig,
@@ -68,6 +63,10 @@ export function ProjectConfigImportModal({
     () => migrations.find((migration) => migration.provider === selectedProvider) ?? migrations[0],
     [migrations, selectedProvider]
   );
+  const description =
+    migrations.length === 1 && selectedMigration
+      ? `Found configuration file from ${selectedMigration.label} that can be imported into Emdash.`
+      : 'Found configuration files that can be imported into Emdash.';
 
   const disabled = !selectedMigration || status === 'importing';
 
@@ -107,8 +106,9 @@ export function ProjectConfigImportModal({
       </DialogHeader>
       <DialogContentArea className="pt-0">
         <FieldGroup>
-          <Field>
-            {migrations.length > 1 ? (
+          <p className="text-sm text-foreground-muted">{description}</p>
+          {migrations.length > 1 && (
+            <Field>
               <Select
                 value={selectedMigration?.provider ?? ''}
                 onValueChange={(value) =>
@@ -116,78 +116,51 @@ export function ProjectConfigImportModal({
                 }
               >
                 <SelectTrigger className="w-full min-w-0">
-                  <span className="min-w-0 truncate">{sourceLabel(selectedMigration)}</span>
+                  <span className="min-w-0 truncate">
+                    {selectedMigration?.label ?? 'Select config'}
+                  </span>
                 </SelectTrigger>
                 <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
                   {migrations.map((migration) => (
                     <SelectItem key={migration.provider} value={migration.provider}>
-                      {sourceLabel(migration)}
+                      {migration.label} ({filesLabel(migration.files)})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            ) : (
-              <p className="text-sm text-foreground-muted">
-                Found {sourceLabel(selectedMigration)}.
-              </p>
-            )}
-          </Field>
+            </Field>
+          )}
 
-          <div className="grid gap-4 rounded-md border border-border bg-background-secondary/40 p-3">
-            <div className="space-y-2">
-              <FieldTitle>Will import</FieldTitle>
-              <div className="flex flex-wrap gap-2">
-                {selectedMigration?.fields.map((field) => (
-                  <span
-                    key={field}
-                    className="rounded-md border border-border bg-background px-2 py-1 text-xs"
-                  >
-                    {fieldLabel(field)}
-                  </span>
+          {selectedMigration ? (
+            <div className="space-y-2 text-sm">
+              <p>Settings to import</p>
+              <ul className="list-disc space-y-1 pl-5 text-foreground-muted">
+                {selectedMigration.fields.map((field) => (
+                  <li key={field}>{fieldLabel(field)}</li>
                 ))}
-              </div>
+              </ul>
             </div>
-
-            {selectedMigration?.unsupportedFields.length ? (
-              <div className="space-y-2">
-                <FieldTitle>Will skip</FieldTitle>
-                <div className="flex flex-wrap gap-2">
-                  {selectedMigration.unsupportedFields.map((field) => (
-                    <span
-                      key={field}
-                      className="rounded-md border border-border px-2 py-1 text-xs text-foreground-muted"
-                    >
-                      {field}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
+          ) : null}
 
           <Field>
-            <FieldTitle>Save imported settings</FieldTitle>
+            <FieldTitle>Save to</FieldTitle>
             <RadioGroup
               value={destination}
               onValueChange={(value) => setDestination(value as ProjectConfigMigrationDestination)}
-              className="grid gap-2"
+              className="grid"
             >
-              <label className="flex items-start gap-3 rounded-md border border-border px-3 py-2 text-sm">
-                <RadioGroupItem value="local" className="mt-0.5" />
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span>Local project settings</span>
-                  <span className="text-xs text-foreground-muted">
-                    Only apply them on this device.
-                  </span>
+              <label className="grid grid-cols-[1rem_1fr] items-center gap-3 rounded-md text-sm">
+                <RadioGroupItem value="local" />
+                <span className="flex min-w-0 flex-row gap-1.5">
+                  <p>Settings</p>
+                  <p className="text-foreground-muted">– local to this machine</p>
                 </span>
               </label>
-              <label className="flex items-start gap-3 rounded-md border border-border px-3 py-2 text-sm">
-                <RadioGroupItem value="shared" className="mt-0.5" />
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span>.emdash.json</span>
-                  <span className="text-xs text-foreground-muted">
-                    Commit the file to share them with your team.
-                  </span>
+              <label className="grid grid-cols-[1rem_1fr] items-center gap-3 rounded-md text-sm">
+                <RadioGroupItem value="shared" />
+                <span className="flex min-w-0 flex-row gap-1.5">
+                  <p>.emdash.json</p>
+                  <p className="text-foreground-muted">– commit to share with team</p>
                 </span>
               </label>
             </RadioGroup>
