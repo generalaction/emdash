@@ -186,9 +186,10 @@ export function CommandPaletteModal({
     'task.sidebarFiles',
     'task.sidebarConversations',
     'task.toggleTerminalDrawer',
+    'resource-monitor',
   ];
-  const PROJECT_SUGGESTED = ['app.newTask', 'app.settings'];
-  const APP_SUGGESTED = ['app.newProject', 'app.settings'];
+  const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'resource-monitor'];
+  const APP_SUGGESTED = ['app.newProject', 'app.settings', 'resource-monitor'];
 
   const resourceMonitorAction = useMemo<PaletteAction | null>(
     () =>
@@ -208,23 +209,24 @@ export function CommandPaletteModal({
   const actions = useMemo(() => {
     // Empty state: show the ordered context-specific suggested actions only.
     const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
-    const filtered = registryActions
+    const pool = resourceMonitorAction
+      ? [...registryActions, resourceMonitorAction]
+      : registryActions;
+    return pool
       .filter((a) => suggestedIds.includes(a.id))
       .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
       .slice(0, 7);
-
-    if (resourceMonitorAction) filtered.push(resourceMonitorAction);
-
-    return filtered;
   }, [registryActions, resourceMonitorAction, projectId, taskId]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const actionResults = actions;
 
+  const q = debouncedQuery.toLowerCase();
   const matchedResourceMonitor =
     resourceMonitorAction &&
-    debouncedQuery &&
-    resourceMonitorAction.title.toLowerCase().includes(debouncedQuery.toLowerCase())
+    q &&
+    (resourceMonitorAction.title.toLowerCase().includes(q) ||
+      resourceMonitorAction.subtitle?.toLowerCase().includes(q))
       ? resourceMonitorAction
       : null;
   const taskResults = rankedDb.filter((r): r is SearchItem => r.kind === 'task');
