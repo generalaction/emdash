@@ -426,11 +426,15 @@ export class SkillsService {
         const parentDir = path.dirname(targetDir);
         await fs.promises.mkdir(parentDir, { recursive: true });
 
-        // Remove existing symlink/dir if present
+        // Remove existing Emdash-managed symlink if present. Do not delete real
+        // agent skill directories; those may be user-managed.
         try {
           const stat = await fs.promises.lstat(targetDir);
-          if (stat.isSymbolicLink() || stat.isDirectory()) {
-            await fs.promises.rm(targetDir, { recursive: true, force: true });
+          if (stat.isSymbolicLink()) {
+            await fs.promises.unlink(targetDir);
+          } else {
+            log.warn(`Skipping sync of skill "${skillId}" to ${target.name}: target exists`);
+            continue;
           }
         } catch {
           // Doesn't exist, that's fine
@@ -456,7 +460,7 @@ export class SkillsService {
           // Only remove symlinks that point into our central skills root
           const linkTarget = await fs.promises.readlink(targetDir);
           const resolved = path.resolve(path.dirname(targetDir), linkTarget);
-          if (resolved.startsWith(SKILLS_ROOT)) {
+          if (this.isPathInside(SKILLS_ROOT, resolved)) {
             await fs.promises.unlink(targetDir);
           }
         }
