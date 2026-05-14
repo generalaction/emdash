@@ -44,7 +44,9 @@ export function createCodexClassifier() {
       };
     }
 
-    if (/Task complete|Finished|Done\.?|All set/i.test(tail)) {
+    if (
+      /Task complete|Finished|Done\.?|All set|Goal achieved|Goal unmet|Goal abandoned/i.test(tail)
+    ) {
       return {
         type: 'stop',
         message: 'Task completed',
