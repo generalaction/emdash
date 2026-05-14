@@ -1,6 +1,6 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   modalRegistry,
   type ModalPosition,
@@ -62,6 +62,20 @@ export const ModalRenderer = observer(function ModalRenderer() {
   };
 
   const popupRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  // Capture the focused element when the modal opens; restore it when it closes.
+  useEffect(() => {
+    if (modalStore.isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
+    } else if (previousFocusRef.current) {
+      const el = previousFocusRef.current;
+      previousFocusRef.current = null;
+      requestAnimationFrame(() => {
+        if (el.isConnected) el.focus();
+      });
+    }
+  }, [modalStore.isOpen]);
   const initialFocus = useCallback(() => {
     const target = popupRef.current?.querySelector<HTMLElement>('[data-autofocus]');
     if (!target) return true;
