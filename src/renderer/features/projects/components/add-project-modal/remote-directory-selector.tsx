@@ -8,7 +8,7 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { FileEntry } from '@shared/ssh';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
@@ -20,6 +20,22 @@ interface RemoteDirectorySelectorProps {
   connectionId: string | undefined;
   value: string;
   onChange: (path: string) => void;
+}
+
+interface DirectoryHistoryState {
+  entries: string[];
+  index: number;
+}
+
+type DirectoryHistoryAction =
+  | { type: 'reset'; path: string }
+  | { type: 'push'; path: string }
+  | { type: 'replace'; path: string }
+  | { type: 'back' }
+  | { type: 'forward' };
+
+interface LoadDirectoryOptions {
+  force?: boolean;
 }
 
 function normalizePath(path: string | undefined) {
@@ -41,32 +57,48 @@ function directoryCacheKey(connectionId: string, path: string) {
   return `${connectionId}\0${path}`;
 }
 
-export function RemoteDirectorySelector({
-  connectionId,
-  value,
-  onChange,
-}: RemoteDirectorySelectorProps) {
-  const initialPath = initialBrowsePath(value);
+function directoryHistoryReducer(
+  state: DirectoryHistoryState,
+  action: DirectoryHistoryAction
+): DirectoryHistoryState {
+  switch (action.type) {
+    case 'reset':
+      return { entries: [action.path], index: 0 };
+    case 'replace': {
+      const entries = [...state.entries];
+      entries[state.index] = action.path;
+      return { entries, index: state.index };
+    }
+    case 'push': {
+      const activeEntries = state.entries.slice(0, state.index + 1);
+      if (activeEntries[activeEntries.length - 1] === action.path) return state;
+      return { entries: [...activeEntries, action.path], index: activeEntries.length };
+    }
+    case 'back':
+      return { ...state, index: Math.max(0, state.index - 1) };
+    case 'forward':
+      return { ...state, index: Math.min(state.entries.length - 1, state.index + 1) };
+  }
+}
+
+function useRemoteDirectoryBrowser(connectionId: string | undefined, initialPath: string) {
   const [currentPath, setCurrentPath] = useState<string>(initialPath);
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const [history, setHistory] = useState<string[]>([initialPath]);
-  const [historyIndex, setHistoryIndex] = useState(0);
+  const [loadedPath, setLoadedPath] = useState<string | null>(null);
   const directoryCacheRef = useRef(new Map<string, FileEntry[]>());
   const inFlightRequestsRef = useRef(new Map<string, Promise<FileEntry[]>>());
+  const cacheWriteRequestIdsRef = useRef(new Map<string, number>());
   const latestRequestIdRef = useRef(0);
 
-  useEffect(() => {
-    const nextPath = initialBrowsePath(value);
-    setCurrentPath(nextPath);
-    setHistory([nextPath]);
-    setHistoryIndex(0);
-  }, [value]);
+  const resetPath = useCallback((path: string) => {
+    setCurrentPath(path);
+    setLoadedPath(null);
+  }, []);
 
   const loadDirectory = useCallback(
-    async (path: string, options?: { force?: boolean }): Promise<boolean> => {
+    async (path: string, options?: LoadDirectoryOptions): Promise<boolean> => {
       if (!connectionId) return false;
 
       const nextPath = normalizePath(path);
@@ -80,6 +112,7 @@ export function RemoteDirectorySelector({
       const cachedEntries = directoryCacheRef.current.get(cacheKey);
       if (!options?.force && cachedEntries) {
         setFileEntries(cachedEntries);
+        setLoadedPath(nextPath);
         setIsBrowsing(false);
         return true;
       }
@@ -88,15 +121,21 @@ export function RemoteDirectorySelector({
       let request = options?.force ? undefined : inFlightRequestsRef.current.get(cacheKey);
 
       if (!request) {
+        cacheWriteRequestIdsRef.current.set(cacheKey, requestId);
         request = rpc.ssh
           .listFiles({ connectionId, path: nextPath })
           .then((entries) => {
-            directoryCacheRef.current.set(cacheKey, entries);
+            if (cacheWriteRequestIdsRef.current.get(cacheKey) === requestId) {
+              directoryCacheRef.current.set(cacheKey, entries);
+            }
             return entries;
           })
           .finally(() => {
             if (inFlightRequestsRef.current.get(cacheKey) === request) {
               inFlightRequestsRef.current.delete(cacheKey);
+            }
+            if (cacheWriteRequestIdsRef.current.get(cacheKey) === requestId) {
+              cacheWriteRequestIdsRef.current.delete(cacheKey);
             }
           });
 
@@ -108,12 +147,14 @@ export function RemoteDirectorySelector({
         if (latestRequestIdRef.current !== requestId) return false;
 
         setFileEntries(entries);
+        setLoadedPath(nextPath);
         return true;
       } catch (e) {
         if (latestRequestIdRef.current !== requestId) return false;
 
         setBrowseError(e instanceof Error ? e.message : 'Failed to list directory');
         setFileEntries([]);
+        setLoadedPath(null);
         return false;
       } finally {
         if (latestRequestIdRef.current === requestId) setIsBrowsing(false);
@@ -125,30 +166,59 @@ export function RemoteDirectorySelector({
   useEffect(() => {
     directoryCacheRef.current.clear();
     inFlightRequestsRef.current.clear();
+    cacheWriteRequestIdsRef.current.clear();
     latestRequestIdRef.current += 1;
+    setLoadedPath(null);
     if (connectionId) void loadDirectory(currentPath, { force: true });
+    // Only reconnect/connection-switch should clear the browsing cache.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionId]);
+
+  return {
+    currentPath,
+    setCurrentPath,
+    fileEntries,
+    isBrowsing,
+    browseError,
+    loadedPath,
+    loadDirectory,
+    resetPath,
+  };
+}
+
+export function RemoteDirectorySelector({
+  connectionId,
+  value,
+  onChange,
+}: RemoteDirectorySelectorProps) {
+  const initialPath = initialBrowsePath(value);
+  const [open, setOpen] = useState(false);
+  const [history, dispatchHistory] = useReducer(directoryHistoryReducer, {
+    entries: [initialPath],
+    index: 0,
+  });
+  const {
+    currentPath,
+    setCurrentPath,
+    fileEntries,
+    isBrowsing,
+    browseError,
+    loadedPath,
+    loadDirectory,
+    resetPath,
+  } = useRemoteDirectoryBrowser(connectionId, initialPath);
+
+  useEffect(() => {
+    const nextPath = initialBrowsePath(value);
+    resetPath(nextPath);
+    dispatchHistory({ type: 'reset', path: nextPath });
+  }, [resetPath, value]);
 
   const navigateToPath = async (path: string, options?: { replaceHistory?: boolean }) => {
     const nextPath = normalizePath(path);
     const loaded = await loadDirectory(nextPath);
     if (!loaded) return;
-    if (!options?.replaceHistory && history[historyIndex] === nextPath) return;
-
-    setHistory((previousHistory) => {
-      if (options?.replaceHistory) {
-        const updatedHistory = [...previousHistory];
-        updatedHistory[historyIndex] = nextPath;
-        return updatedHistory;
-      }
-
-      const activeHistory = previousHistory.slice(0, historyIndex + 1);
-      const lastPath = activeHistory[activeHistory.length - 1];
-      if (lastPath === nextPath) return activeHistory;
-      return [...activeHistory, nextPath];
-    });
-    if (!options?.replaceHistory) setHistoryIndex((previousIndex) => previousIndex + 1);
+    dispatchHistory({ type: options?.replaceHistory ? 'replace' : 'push', path: nextPath });
   };
 
   const navigateTo = (entry: FileEntry) => {
@@ -161,18 +231,16 @@ export function RemoteDirectorySelector({
   };
 
   const navigateBack = () => {
-    if (historyIndex === 0) return;
-    const nextIndex = historyIndex - 1;
-    const nextPath = history[nextIndex];
-    setHistoryIndex(nextIndex);
+    if (history.index === 0) return;
+    const nextPath = history.entries[history.index - 1];
+    dispatchHistory({ type: 'back' });
     void loadDirectory(nextPath);
   };
 
   const navigateForward = () => {
-    if (historyIndex >= history.length - 1) return;
-    const nextIndex = historyIndex + 1;
-    const nextPath = history[nextIndex];
-    setHistoryIndex(nextIndex);
+    if (history.index >= history.entries.length - 1) return;
+    const nextPath = history.entries[history.index + 1];
+    dispatchHistory({ type: 'forward' });
     void loadDirectory(nextPath);
   };
 
@@ -190,9 +258,12 @@ export function RemoteDirectorySelector({
 
   const handleUseDirectory = () => {
     const selectedPath = normalizePath(currentPath);
+    if (loadedPath !== selectedPath) return;
     onChange(selectedPath);
     setOpen(false);
   };
+
+  const canUseCurrentDirectory = loadedPath === normalizePath(currentPath);
 
   const renderDirectoryList = () => {
     if (isBrowsing && fileEntries.length === 0) {
@@ -301,7 +372,7 @@ export function RemoteDirectorySelector({
               size="icon-xs"
               aria-label="Back"
               onClick={navigateBack}
-              disabled={historyIndex === 0 || isBrowsing}
+              disabled={history.index === 0 || isBrowsing}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -311,7 +382,7 @@ export function RemoteDirectorySelector({
               size="icon-xs"
               aria-label="Forward"
               onClick={navigateForward}
-              disabled={historyIndex >= history.length - 1 || isBrowsing}
+              disabled={history.index >= history.entries.length - 1 || isBrowsing}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -356,7 +427,7 @@ export function RemoteDirectorySelector({
               type="button"
               size="sm"
               onClick={handleUseDirectory}
-              disabled={isBrowsing || Boolean(browseError)}
+              disabled={isBrowsing || Boolean(browseError) || !canUseCurrentDirectory}
             >
               Use this directory
             </Button>
