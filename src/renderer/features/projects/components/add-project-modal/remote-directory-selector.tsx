@@ -28,6 +28,10 @@ function normalizePath(path: string | undefined) {
   return absolutePath === '/' ? absolutePath : absolutePath.replace(/\/+$/, '');
 }
 
+function initialBrowsePath(path: string) {
+  return path.trim().length > 0 ? normalizePath(path) : '/';
+}
+
 function parentPath(path: string) {
   if (path === '/') return '/';
   return path.split('/').slice(0, -1).join('/') || '/';
@@ -42,7 +46,7 @@ export function RemoteDirectorySelector({
   value,
   onChange,
 }: RemoteDirectorySelectorProps) {
-  const initialPath = normalizePath(value);
+  const initialPath = initialBrowsePath(value);
   const [currentPath, setCurrentPath] = useState<string>(initialPath);
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
   const [isBrowsing, setIsBrowsing] = useState(false);
@@ -53,10 +57,9 @@ export function RemoteDirectorySelector({
   const directoryCacheRef = useRef(new Map<string, FileEntry[]>());
   const inFlightRequestsRef = useRef(new Map<string, Promise<FileEntry[]>>());
   const latestRequestIdRef = useRef(0);
-  const suppressNextTriggerFocusRef = useRef(false);
 
   useEffect(() => {
-    const nextPath = normalizePath(value);
+    const nextPath = initialBrowsePath(value);
     setCurrentPath(nextPath);
     setHistory([nextPath]);
     setHistoryIndex(0);
@@ -187,7 +190,6 @@ export function RemoteDirectorySelector({
 
   const handleUseDirectory = () => {
     const selectedPath = normalizePath(currentPath);
-    suppressNextTriggerFocusRef.current = true;
     onChange(selectedPath);
     setOpen(false);
   };
@@ -261,26 +263,30 @@ export function RemoteDirectorySelector({
         onOpenChange={(newOpen, eventDetails) => {
           if (!newOpen && eventDetails.reason === 'trigger-press') return;
           setOpen(newOpen);
+          if (newOpen && connectionId) void loadDirectory(currentPath);
         }}
       >
         <PopoverTrigger
           render={
-            <Input
-              placeholder="/home/user/project"
-              value={value || currentPath}
-              readOnly
-              onFocus={() => {
-                if (suppressNextTriggerFocusRef.current) {
-                  suppressNextTriggerFocusRef.current = false;
-                  return;
-                }
-                if (connectionId) {
-                  setOpen(true);
-                  void loadDirectory(currentPath);
-                }
-              }}
+            <button
+              type="button"
+              className="h-9 border border-border rounded-md p-2 w-full flex items-center gap-2 hover:bg-background-quaternary-1 pr-1.5 transition-colors disabled:pointer-events-none disabled:opacity-50"
               disabled={!connectionId}
-            />
+            >
+              <Folder className="size-4 text-foreground-muted" />
+              <p
+                className={cn(
+                  'text-sm text-foreground-passive truncate min-w-0 flex-1 w-full text-left',
+                  value ? 'text-foreground' : ''
+                )}
+              >
+                {' '}
+                {value || 'Select a directory'}
+              </p>
+              <Button variant="outline" size="xs">
+                Choose
+              </Button>
+            </button>
           }
         />
         <PopoverContent
