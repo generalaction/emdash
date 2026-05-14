@@ -44,11 +44,11 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
 }: ProjectSettingsFormProps) {
   const repo = getRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
-  const configuredRemote = repo?.configuredRemote.name ?? 'origin';
+  const baseRemote = repo?.baseRemote.name ?? 'origin';
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const formModel = useProjectSettingsForm({
     initial,
-    configuredRemote,
+    baseRemote,
     remotes,
     writeTargets,
     overrideState,

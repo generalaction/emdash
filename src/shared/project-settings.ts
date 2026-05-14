@@ -43,7 +43,8 @@ export type ShareableProjectSettings = z.infer<typeof shareableProjectSettingsSc
 export const baseProjectSettingsSchema = z.object({
   worktreeDirectory: z.string().trim().optional(),
   defaultBranch: defaultBranchSettingSchema.optional(),
-  remote: z.string().optional(),
+  baseRemote: z.string().optional(),
+  pushRemote: z.string().optional(),
   tmux: z.boolean().optional(),
   workspaceProvider: z
     .object({
@@ -56,11 +57,17 @@ export const baseProjectSettingsSchema = z.object({
 
 export type BaseProjectSettings = z.infer<typeof baseProjectSettingsSchema>;
 
+export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend({
+  remote: z.string().optional(),
+});
+
 export const projectSettingsSchema = baseProjectSettingsSchema.merge(
   shareableProjectSettingsSchema
 );
 
-export const legacyProjectConfigSchema = projectSettingsSchema;
+export const legacyProjectConfigSchema = legacyBaseProjectSettingsSchema.merge(
+  shareableProjectSettingsSchema
+);
 
 export function defaultShareableProjectSettings(): ShareableProjectSettings {
   return shareableProjectSettingsWithDefaultsSchema.parse({});

@@ -2,14 +2,17 @@ import { observer } from 'mobx-react-lite';
 import React from 'react';
 import type { Branch } from '@shared/git';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import { BranchSelector } from './branch-selector';
+import { BranchSelector, type BranchLabelRemoteMode } from './branch-selector';
 
 export interface ProjectBranchSelectorProps {
   projectId: string;
   value?: Branch;
   onValueChange: (value: Branch) => void;
   remoteOnly?: boolean;
+  remoteName?: string;
+  branchLabelRemote?: BranchLabelRemoteMode;
   trigger?: React.ReactNode;
+  showRemoteSelectorFooter?: boolean;
 }
 
 export const ProjectBranchSelector = observer(function ProjectBranchSelector({
@@ -17,16 +20,20 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
   value,
   onValueChange,
   remoteOnly,
+  remoteName,
+  branchLabelRemote,
   trigger,
+  showRemoteSelectorFooter = false,
 }: ProjectBranchSelectorProps) {
   const repo = getRepositoryStore(projectId);
-  const configuredRemoteName = repo?.configuredRemote.name ?? 'origin';
+  const selectedRemoteName =
+    remoteName ??
+    (value?.type === 'remote' ? value.remote.name : undefined) ??
+    repo?.baseRemote.name ??
+    'origin';
 
-  const branches: Branch[] = repo
-    ? repo.branches.filter(
-        (b) => b.type === 'local' || (b.type === 'remote' && b.remote.name === configuredRemoteName)
-      )
-    : [];
+  const branches: Branch[] = repo ? [...repo.localBranches, ...repo.remoteBranches] : [];
+  const canSelectRemote = showRemoteSelectorFooter && remoteName === undefined;
 
   return (
     <BranchSelector
@@ -34,9 +41,14 @@ export const ProjectBranchSelector = observer(function ProjectBranchSelector({
       value={value}
       onValueChange={onValueChange}
       remoteOnly={remoteOnly}
+      branchLabelRemote={branchLabelRemote}
       trigger={trigger}
       onRefresh={() => repo?.refresh()}
       isRefreshing={repo?.loading ?? false}
+      remotes={canSelectRemote ? repo?.remotes : undefined}
+      selectedRemoteName={
+        showRemoteSelectorFooter || remoteName !== undefined ? selectedRemoteName : undefined
+      }
     />
   );
 });

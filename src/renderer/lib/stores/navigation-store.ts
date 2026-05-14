@@ -1,6 +1,7 @@
 import { makeAutoObservable, toJS } from 'mobx';
 import type { NavigationSnapshot } from '@shared/view-state';
 import { type ViewId, type WrapParams } from '@renderer/app/view-registry';
+import type { NonSettingsViewId } from '@renderer/lib/layout/navigation-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
@@ -31,6 +32,7 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
   currentViewId: ViewId = 'home';
   viewParamsStore: ViewParamsStore = {};
   isNavigating: boolean = false;
+  lastNonSettingsView: NonSettingsViewId = 'home';
 
   constructor() {
     makeAutoObservable(this);
@@ -38,7 +40,8 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
 
   navigate<T extends ViewId>(viewId: T, params?: WrapParams<T>): void {
     if (viewId !== 'task') {
-      appState.history.push({ kind: 'view', viewId, params: params ?? ({} as WrapParams<T>) });
+      const historyParams = params ?? this.viewParamsStore[viewId] ?? ({} as WrapParams<T>);
+      appState.history.push({ kind: 'view', viewId, params: historyParams });
     }
     this._applyNavigation(viewId, params);
   }
@@ -59,6 +62,9 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
         from_view: transition?.previous.view ?? null,
       });
       this.currentViewId = viewId;
+      if (viewId !== 'settings') {
+        this.lastNonSettingsView = viewId;
+      }
       this.isNavigating = true;
     }
     if (params !== undefined) {
@@ -84,7 +90,12 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
   }
 
   restoreSnapshot(snapshot: Partial<NavigationSnapshot>): void {
-    if (snapshot.currentViewId) this.currentViewId = snapshot.currentViewId as ViewId;
+    if (snapshot.currentViewId) {
+      this.currentViewId = snapshot.currentViewId as ViewId;
+      if (snapshot.currentViewId !== 'settings') {
+        this.lastNonSettingsView = snapshot.currentViewId as NonSettingsViewId;
+      }
+    }
     if (snapshot.viewParams) this.viewParamsStore = snapshot.viewParams as ViewParamsStore;
   }
 }

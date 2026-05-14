@@ -13,7 +13,8 @@ export function buildTmuxShellLine(sessionName: string, commandLine: string): st
   const setHistoryLimit = `tmux set-option -t ${quotedName} history-limit ${TMUX_HISTORY_LIMIT} 2>/dev/null || true`;
   const configure = `(${enableMouse}) && (${setHistoryLimit})`;
   const attach = `tmux attach-session -t ${quotedName}`;
-  return `(${checkExists} || ${newSession}) && ${configure} && ${attach}`;
+  const script = `(${checkExists} || ${newSession}) && ${configure} && ${attach}`;
+  return `/bin/sh -c ${JSON.stringify(script)}`;
 }
 
 export function makeTmuxSessionName(sessionId: string): string {

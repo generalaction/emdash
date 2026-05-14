@@ -35,7 +35,8 @@ function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider 
     getDefaultWorktreeDirectory: async () => '',
     getWorktreeDirectory: async () => '',
     getDefaultBranch: async () => 'main',
-    getRemote: async () => 'origin',
+    getBaseRemote: async () => 'origin',
+    getPushRemote: async () => 'origin',
   } as ProjectSettingsProvider;
 }
 
