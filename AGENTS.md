@@ -130,6 +130,13 @@ cargo run --bin emdash-dev -- --export-bindings   # regenerate bindings.ts
 
 `cargo tauri dev` requires the Tauri CLI: `cargo install tauri-cli --locked --version "^2"`.
 
+**pnpm workspace note.** `src-tauri/ui` is a pnpm workspace member, so a plain
+`pnpm install` at the repo root resolves React + Vite for it alongside the
+Electron deps. If you're only working on Electron and want to skip the Tauri
+UI tree, pass `--filter '!emdash-dev-ui'`. CI uses
+`--filter emdash-dev-ui...` to install only the Tauri UI subgraph for the
+emdash-dev build job.
+
 ## Non-Negotiables
 
 - Run `pnpm run format`, `pnpm run lint`, `pnpm run typecheck`, and `pnpm test` before merging.

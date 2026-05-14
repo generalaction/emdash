@@ -98,8 +98,11 @@ jobs:
         working-directory: src-tauri
         run: cargo run --quiet --bin emdash-cli --target ${{ matrix.target }} -- --version
 
-      - name: Verify bindings.ts is up to date (linux only)
-        if: matrix.label == 'linux'
+      - name: Verify bindings.ts is up to date (linux + macos-arm)
+        # tauri-specta codegen should be platform-deterministic. Running on
+        # two host architectures keeps that assumption honest — drift between
+        # them would indicate a codegen bug we want to catch early.
+        if: matrix.label == 'linux' || matrix.label == 'macos-arm'
         working-directory: src-tauri
         run: |
           cargo run --quiet --bin emdash-dev --target ${{ matrix.target }} -- --export-bindings

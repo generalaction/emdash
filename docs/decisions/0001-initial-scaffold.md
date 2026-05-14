@@ -150,6 +150,21 @@ generates the set from a single source PNG.
 (unsigned binaries) on every PR; bundling (DMG, MSI, AppImage) is deferred
 until the icon set lands and signing keys are provisioned.
 
+### 8. CSP intentionally null for the scaffold
+
+`tauri.conf.json` sets `app.security.csp: null`. The current scaffold has no
+remote fetches and no third-party iframes, so a permissive CSP would be
+noise. **Before the first command lands that loads remote content** (auth
+redirects, telemetry POSTs, the EMD-7 mutation bridge if it ever pulls
+from a URL), a CSP must be set. Concrete guidance:
+
+- `default-src 'self'` baseline
+- `connect-src 'self' https://<allowlisted hosts>` for outbound fetches
+- `script-src 'self'` (no `unsafe-eval`); use `nonce-...` for any inline
+  script needed by Vite
+
+Tracked here so the null value isn't normalised by silence.
+
 ## Consequences
 
 **Easier:**
