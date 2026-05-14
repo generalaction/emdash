@@ -1,6 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { automationsChangedChannel } from '@shared/events/automationEvents';
-import { automationScheduler } from '@main/core/automations/automation-scheduler';
+import { automationEvents } from '@main/core/automations/automation-events';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { prSyncEngine } from '@main/core/pull-requests/pr-sync-engine';
@@ -9,7 +8,6 @@ import { taskManager } from '@main/core/tasks/task-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
-import { events } from '@main/lib/events';
 import { telemetryService } from '@main/lib/telemetry';
 
 export async function deleteProject(id: string): Promise<void> {
@@ -25,8 +23,7 @@ export async function deleteProject(id: string): Promise<void> {
   await prSyncEngine.deleteProjectData(id);
 
   await db.delete(projects).where(eq(projects.id, id));
-  events.emit(automationsChangedChannel, undefined);
-  await automationScheduler.reload();
+  automationEvents._emit('automation:changed');
   void viewStateService.del(`project:${id}`);
   projectEvents._emit('project:deleted', id);
   await projectManager.closeProject(id);

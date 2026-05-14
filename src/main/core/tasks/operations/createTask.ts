@@ -215,7 +215,7 @@ export async function createTask(
     }
   }
 
-  const task = mapTaskRowToTask(taskRow, prs);
+  const task = { ...mapTaskRowToTask(taskRow, prs), automationId: params.automationId };
 
   taskEvents._emit('task:created', task);
 
