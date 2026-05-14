@@ -5,6 +5,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import type { ProjectProvider } from '../../project-provider';
 import { conductorConfigMigrator } from './conductor-config-migration';
+import { paseoConfigMigrator } from './paseo-config-migration';
 import { supersetConfigMigrator } from './superset-config-migration';
 import { CONFIG_FILE } from './workspace-config-file';
 
@@ -19,7 +20,11 @@ export type ProjectConfigMigrator = {
   ) => Promise<Result<ProjectConfigMigration, UpdateProjectSettingsError>>;
 };
 
-const PROJECT_CONFIG_MIGRATORS = [conductorConfigMigrator, supersetConfigMigrator] as const;
+const PROJECT_CONFIG_MIGRATORS = [
+  conductorConfigMigrator,
+  supersetConfigMigrator,
+  paseoConfigMigrator,
+] as const;
 
 function writeConfigFailed(message: string): Result<never, UpdateProjectSettingsError> {
   return err({ type: 'write-config-failed', message });

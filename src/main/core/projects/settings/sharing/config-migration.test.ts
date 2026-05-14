@@ -262,6 +262,138 @@ describe('config migration', () => {
     });
   });
 
+  it('detects importable Paseo settings', async () => {
+    const fs = createFs({
+      'paseo.json': JSON.stringify({
+        worktree: {
+          setup: ['npm ci', 'cp "$PASEO_SOURCE_CHECKOUT_PATH/.env" .env', 'npm run db:migrate'],
+          teardown: 'npm run db:drop || true',
+          terminals: [{ name: 'logs', command: 'tail -f dev.log' }],
+        },
+        scripts: {
+          test: { command: 'npm test' },
+          web: { command: 'npm run dev -- --port $PASEO_PORT', type: 'service', port: 3000 },
+        },
+      }),
+    });
+
+    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([
+      {
+        provider: 'paseo',
+        label: 'Paseo',
+        files: ['paseo.json'],
+        fields: ['scripts.setup', 'scripts.teardown'],
+        unsupportedFields: [
+          'scripts.test.command',
+          'scripts.web.command',
+          'scripts.web.type',
+          'scripts.web.port',
+          'worktree.terminals',
+        ],
+      },
+    ]);
+  });
+
+  it('writes Paseo settings into .emdash.json', async () => {
+    const fs = createFs({
+      'paseo.json': JSON.stringify({
+        worktree: {
+          setup: 'npm ci',
+          teardown: ['rm -rf .cache'],
+        },
+        scripts: {
+          web: { command: 'npm run dev', type: 'service', port: 3000 },
+          lint: { command: 'npm run lint' },
+        },
+      }),
+    });
+    const patch = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await migrateProjectConfigFromProvider(
+      {
+        fs,
+        settings: {
+          patch,
+        },
+      } as never,
+      { provider: 'paseo', destination: 'shared' }
+    );
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
+      scripts: {
+        setup: 'npm ci',
+        teardown: 'rm -rf .cache',
+      },
+    });
+    expect(patch).toHaveBeenCalledWith({
+      clearShareableFields: ['scripts.setup', 'scripts.teardown'],
+    });
+  });
+
+  it('imports Paseo settings into local project settings', async () => {
+    const fs = createFs({
+      'paseo.json': JSON.stringify({
+        worktree: {
+          setup: 'npm ci',
+        },
+        scripts: {
+          web: { command: 'npm run dev', type: 'service' },
+        },
+      }),
+    });
+    const update = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await migrateProjectConfigFromProvider(
+      {
+        fs,
+        settings: {
+          get: vi.fn().mockResolvedValue({
+            scripts: {
+              teardown: 'docker compose down',
+            },
+          }),
+          update,
+        },
+      } as never,
+      { provider: 'paseo', destination: 'local' }
+    );
+
+    expect(result.success).toBe(true);
+    expect(fs.write).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      scripts: {
+        setup: 'npm ci',
+        teardown: 'docker compose down',
+      },
+    });
+  });
+
+  it('does not import when only Paseo scripts are configured', async () => {
+    const fs = createFs({
+      'paseo.json': JSON.stringify({
+        scripts: {
+          test: { command: 'npm test' },
+          web: { command: 'npm run dev', type: 'service' },
+        },
+      }),
+    });
+
+    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([]);
+    await expect(
+      migrateProjectConfigFromProvider({ fs } as never, {
+        provider: 'paseo',
+        destination: 'shared',
+      })
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'write-config-failed',
+        message: 'No supported Paseo settings were found.',
+      },
+    });
+  });
+
   it('returns an error when no supported Conductor settings exist', async () => {
     const fs = createFs({
       'conductor.json': JSON.stringify({
