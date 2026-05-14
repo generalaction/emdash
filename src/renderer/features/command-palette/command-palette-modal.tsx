@@ -221,15 +221,12 @@ export function CommandPaletteModal({
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const actionResults = actions;
 
-  const localQueryMatches = useMemo<PaletteAction[]>(() => {
-    if (!debouncedQuery) return [];
-    const q = debouncedQuery.toLowerCase();
-    const matches: PaletteAction[] = [];
-    if (resourceMonitorAction && resourceMonitorAction.title.toLowerCase().includes(q)) {
-      matches.push(resourceMonitorAction);
-    }
-    return matches;
-  }, [debouncedQuery, resourceMonitorAction]);
+  const matchedResourceMonitor =
+    resourceMonitorAction &&
+    debouncedQuery &&
+    resourceMonitorAction.title.toLowerCase().includes(debouncedQuery.toLowerCase())
+      ? resourceMonitorAction
+      : null;
   const taskResults = rankedDb.filter((r): r is SearchItem => r.kind === 'task');
   const conversationResults = rankedDb.filter((r): r is SearchItem => r.kind === 'conversation');
 
@@ -314,14 +311,13 @@ export function CommandPaletteModal({
             <Command.Empty className="py-8 text-center text-sm text-foreground/40">
               No results for &ldquo;{query}&rdquo;
             </Command.Empty>
-            {localQueryMatches.map((item) => (
+            {matchedResourceMonitor && (
               <PaletteItem
-                key={item.id}
-                value={item.id}
-                item={item}
-                onSelect={item.execute}
+                value={matchedResourceMonitor.id}
+                item={matchedResourceMonitor}
+                onSelect={matchedResourceMonitor.execute}
               />
-            ))}
+            )}
             {rankedDb.map((item) => {
               if (item.kind === 'command') {
                 const live = commandRegistry.findById(item.id);
