@@ -166,6 +166,8 @@ export function useSkills() {
     setSelectedSkillId(null);
   }, []);
 
+  const trimmedQuery = searchQuery.trim();
+
   const filteredSkills = useMemo(() => {
     if (!catalog) return [];
     const q = searchQuery.toLowerCase().trim();
@@ -181,7 +183,7 @@ export function useSkills() {
     // When the remote search has returned hits, prefer those (they cover the
     // full skills.sh index, not just the cached top-N catalog). Fall back to
     // the local filter while the request is in flight or if it returned empty.
-    const remoteHits = searchCatalog?.skills ?? [];
+    const remoteHits = trimmedQuery === debouncedSearchQuery ? (searchCatalog?.skills ?? []) : [];
     if (remoteHits.length === 0) return localFilter;
 
     // Merge: local installed/matched first (preserves installed state), then
@@ -199,7 +201,7 @@ export function useSkills() {
       merged.push(s);
     }
     return merged;
-  }, [catalog, searchQuery, searchCatalog]);
+  }, [catalog, searchQuery, trimmedQuery, debouncedSearchQuery, searchCatalog]);
 
   const installedSkills = useMemo(
     () => filteredSkills.filter((s) => s.installed),
@@ -211,13 +213,9 @@ export function useSkills() {
     [filteredSkills]
   );
 
-  const trimmedQuery = searchQuery.trim();
-  // "Active search" = user has typed enough to trigger a remote lookup. We flip this
-  // immediately on keystroke (no debounce) so the UI can render the skills.sh
-  // section header right away instead of waiting for the first response.
-  const hasActiveSearch = trimmedQuery.length >= 2;
+  const hasActiveSearch = debouncedSearchQuery.length >= 2 && trimmedQuery === debouncedSearchQuery;
   const isSearchingRemote =
-    isSearching || (hasActiveSearch && trimmedQuery !== debouncedSearchQuery);
+    isSearching || (trimmedQuery.length >= 2 && trimmedQuery !== debouncedSearchQuery);
 
   return {
     catalog,

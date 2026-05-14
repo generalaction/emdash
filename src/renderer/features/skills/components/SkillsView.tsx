@@ -125,7 +125,7 @@ const SkillsView: React.FC = () => {
 
         <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Skills from{' '}
+            Browse skills from{' '}
             <a
               href="https://skills.sh"
               target="_blank"
@@ -134,8 +134,8 @@ const SkillsView: React.FC = () => {
             >
               skills.sh
             </a>
-            . Install a skill to make it available across all your coding agents. Skills follow the
-            open{' '}
+            , OpenAI, and Anthropic. Install one to make it available across all your coding agents.
+            Skills follow the open{' '}
             <a
               href="https://agentskills.io"
               target="_blank"

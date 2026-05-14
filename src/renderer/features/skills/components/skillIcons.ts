@@ -99,7 +99,6 @@ const keywordRules: Array<{ test: (id: string) => boolean; icon: string }> = [
 ];
 
 const sourceIcons: Record<string, string> = {
-  skillssh: 'vercel',
   openai: 'openai',
   anthropic: 'anthropic',
 };

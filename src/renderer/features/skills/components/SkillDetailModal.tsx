@@ -32,9 +32,13 @@ function getSourceLabel(source: CatalogSkill['source']): string {
   return 'Anthropic';
 }
 
-function getSourceIconUrl(source: CatalogSkill['source']): string {
-  if (source === 'skillssh') return 'https://github.com/vercel.png';
-  if (source === 'openai') return 'https://github.com/openai.png';
+function getSourceIconUrl(skill: CatalogSkill): string {
+  if (skill.repoSlug) {
+    const owner = skill.repoSlug.split('/')[0];
+    if (owner) return `https://github.com/${owner}.png`;
+  }
+  if (skill.source === 'skillssh') return 'https://github.com/skills-sh.png';
+  if (skill.source === 'openai') return 'https://github.com/openai.png';
   return 'https://github.com/anthropics.png';
 }
 
@@ -106,11 +110,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
               {skill.source !== 'local' && (
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
-                    <img
-                      src={getSourceIconUrl(skill.source)}
-                      alt=""
-                      className="h-3.5 w-3.5 rounded-sm"
-                    />
+                    <img src={getSourceIconUrl(skill)} alt="" className="h-3.5 w-3.5 rounded-sm" />
                     {getSourceLabel(skill.source)}
                   </span>
                   {skill.repoSlug && (
