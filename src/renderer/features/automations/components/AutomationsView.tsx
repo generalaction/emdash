@@ -1,92 +1,121 @@
-import { AnimatePresence, motion } from 'framer-motion';
-import { LayoutGrid, Loader2, Plus, X } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/types';
+import { formatAutomationError } from '@shared/automations/format';
+import type { Automation } from '@shared/automations/types';
+import { firstMountedProjectId } from '@renderer/features/projects/stores/project-selectors';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
+import { SearchInput } from '@renderer/lib/ui/search-input';
 import { useAutomations } from '../useAutomations';
-import { AutomationCard } from './AutomationCard';
+import { AutomationPanel, AutomationPanelShell } from './AutomationPanel';
 import { AutomationRow } from './AutomationRow';
-import { AutomationRunsDrawer } from './AutomationRunsDrawer';
 import { RecentRunsList } from './RecentRunsList';
 
+type PanelState = { kind: 'create' } | { kind: 'edit'; automation: Automation } | null;
+
 export function AutomationsView() {
-  const { automations, catalog, remove, setEnabled, runNow } = useAutomations();
+  const { automations, create, remove, setEnabled, runNow } = useAutomations();
   const { toast } = useToast();
   const showConfirmDelete = useShowModal('confirmActionModal');
-  const showCreateAutomation = useShowModal('createAutomationModal');
-  const [runsAutomation, setRunsAutomation] = useState<Automation | null>(null);
-  const [browseOpen, setBrowseOpen] = useState(false);
-
-  useEffect(() => {
-    if (!browseOpen) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setBrowseOpen(false);
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [browseOpen]);
+  const [panel, setPanel] = useState<PanelState>(null);
+  const [search, setSearch] = useState('');
 
   const automationItems = useMemo(() => automations.data ?? [], [automations.data]);
+  const filteredAutomations = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return automationItems;
+    return automationItems.filter((automation) => automation.name.toLowerCase().includes(query));
+  }, [automationItems, search]);
+  const draftAutomations = useMemo(
+    () => filteredAutomations.filter((automation) => automation.isDraft),
+    [filteredAutomations]
+  );
   const activeAutomations = useMemo(
-    () => automationItems.filter((automation) => automation.enabled),
-    [automationItems]
+    () => filteredAutomations.filter((automation) => !automation.isDraft && automation.enabled),
+    [filteredAutomations]
   );
   const pausedAutomations = useMemo(
-    () => automationItems.filter((automation) => !automation.enabled),
-    [automationItems]
+    () => filteredAutomations.filter((automation) => !automation.isDraft && !automation.enabled),
+    [filteredAutomations]
   );
-  const usedTemplateIds = useMemo(
-    () => new Set(automationItems.map((item) => item.builtinTemplateId).filter(Boolean)),
-    [automationItems]
-  );
-  const recommendedTemplates = useMemo(
-    () => (catalog.data ?? []).filter((template) => !usedTemplateIds.has(template.id)),
-    [catalog.data, usedTemplateIds]
-  );
-  const popularTemplates = recommendedTemplates.slice(0, 4);
-  const moreTemplates = recommendedTemplates.slice(4);
-  const isEmpty = automationItems.length === 0 && recommendedTemplates.length === 0;
   const hasAutomations = automationItems.length > 0;
-  const showTemplates = recommendedTemplates.length > 0 && (!hasAutomations || browseOpen);
+  const hasResults = filteredAutomations.length > 0;
+  const panelOpen = panel !== null;
+  const selectedAutomationId = panel?.kind === 'edit' ? panel.automation.id : null;
 
-  function openTemplate(template: BuiltinAutomationTemplate) {
-    showCreateAutomation({
-      template,
-      onSuccess: () => setBrowseOpen(false),
-    });
+  function closePanel() {
+    setPanel(null);
   }
 
+  useEffect(() => {
+    if (!panelOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[role="dialog"], [data-radix-popper-content-wrapper]')) return;
+      event.preventDefault();
+      closePanel();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [panelOpen]);
+
   function openEditAutomation(automation: Automation) {
-    showCreateAutomation({ automation });
+    setPanel({ kind: 'edit', automation });
   }
 
   function openNewAutomation() {
-    showCreateAutomation({});
+    const projectId = firstMountedProjectId();
+    if (!projectId) {
+      toast({
+        title: 'No project available',
+        description: 'Add or mount a project before creating an automation.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setPanel({ kind: 'create' });
   }
 
-  function deleteAutomation(automation: Automation) {
+  function handleDelete(automation: Automation) {
     showConfirmDelete({
       title: 'Delete automation',
       description: `“${automation.name}” will be deleted. Run history for this automation will also be removed.`,
       confirmLabel: 'Delete',
-      onSuccess: () => remove.mutate(automation.id),
+      onSuccess: () =>
+        remove.mutate(automation.id, {
+          onSuccess: () => {
+            if (selectedAutomationId === automation.id) closePanel();
+          },
+        }),
     });
   }
 
-  function runAutomationNow(automation: Automation) {
+  function handleRunNow(automation: Automation) {
+    if (automation.isDraft) return;
     runNow.mutate(automation.id, {
       onError: (error) => {
         toast({
           title: 'Automation failed',
-          description: error instanceof Error ? error.message : String(error),
+          description: formatAutomationError(error),
           variant: 'destructive',
         });
       },
     });
+  }
+
+  function handleToggleEnabled(automation: Automation, enabled: boolean) {
+    if (automation.isDraft) return;
+    setEnabled.mutate({ id: automation.id, enabled });
+  }
+
+  function handleSaved(automation: Automation) {
+    if (panel?.kind === 'create') {
+      closePanel();
+      return;
+    }
+    setPanel({ kind: 'edit', automation });
   }
 
   function renderAutomationRow(automation: Automation) {
@@ -96,15 +125,15 @@ export function AutomationsView() {
         automation={automation}
         busy={runNow.isPending && runNow.variables === automation.id}
         onEdit={openEditAutomation}
-        onDelete={deleteAutomation}
-        onRunNow={runAutomationNow}
-        onSetEnabled={(item, enabled) => setEnabled.mutate({ id: item.id, enabled })}
-        onShowRuns={setRunsAutomation}
+        onDelete={handleDelete}
+        onRunNow={handleRunNow}
+        onSetEnabled={handleToggleEnabled}
+        onShowRuns={openEditAutomation}
       />
     );
   }
 
-  const isLoading = automations.isPending || catalog.isPending;
+  const isLoading = automations.isPending;
 
   if (isLoading) {
     return (
@@ -115,139 +144,118 @@ export function AutomationsView() {
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-y-auto bg-background text-foreground">
-      <div className="mx-auto w-full max-w-3xl px-8 py-8">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-semibold">Automations</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Run agents on a schedule or on events from your repo
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {hasAutomations && recommendedTemplates.length > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setBrowseOpen((prev) => !prev)}
-                className="overflow-hidden"
-              >
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.span
-                    key={browseOpen ? 'close-browse' : 'open-browse'}
-                    initial={{ y: 12, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -12, opacity: 0 }}
-                    transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                    className="inline-flex items-center"
-                  >
-                    {browseOpen ? (
-                      <>
-                        <X className="mr-1.5 h-3.5 w-3.5" />
-                        Close
-                      </>
-                    ) : (
-                      <>
-                        <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
-                        Browse Automations
-                      </>
-                    )}
-                  </motion.span>
-                </AnimatePresence>
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={openNewAutomation}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              New Automation
-            </Button>
-          </div>
-        </div>
+    <div className="flex h-full overflow-hidden bg-background text-foreground">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl px-8 py-8">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold">Automations</h1>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Run agents on a schedule across your projects
+              </p>
+            </div>
 
-        <AnimatePresence initial={false}>
-          {showTemplates && (
-            <motion.div
-              key="automation-templates"
-              initial={{ height: 0, opacity: 0, y: 12 }}
-              animate={{ height: 'auto', opacity: 1, y: 0 }}
-              exit={{ height: 0, opacity: 0, y: 6 }}
-              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              style={{ overflow: 'hidden' }}
-            >
-              <div className="mb-6 space-y-6">
-                {popularTemplates.length > 0 && (
+            {hasAutomations && (
+              <div className="flex min-w-0 shrink-0 items-center gap-2">
+                <SearchInput
+                  placeholder="Search automations..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-64"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={create.isPending}
+                  onClick={openNewAutomation}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  New Automation
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {hasAutomations ? (
+            hasResults ? (
+              <div className="mb-6 space-y-5">
+                {draftAutomations.length > 0 && (
                   <section>
-                    <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-                      Most popular automations
+                    <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
+                      Drafts
                     </h2>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {popularTemplates.map((template) => (
-                        <AutomationCard
-                          key={template.id}
-                          kind="template"
-                          template={template}
-                          onUse={openTemplate}
-                        />
-                      ))}
-                    </div>
+                    <div>{draftAutomations.map(renderAutomationRow)}</div>
                   </section>
                 )}
 
-                {moreTemplates.length > 0 && (
+                {activeAutomations.length > 0 && (
                   <section>
-                    <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-                      More automation templates
+                    <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
+                      Active
                     </h2>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {moreTemplates.map((template) => (
-                        <AutomationCard
-                          key={template.id}
-                          kind="template"
-                          template={template}
-                          onUse={openTemplate}
-                        />
-                      ))}
-                    </div>
+                    <div>{activeAutomations.map(renderAutomationRow)}</div>
+                  </section>
+                )}
+
+                {pausedAutomations.length > 0 && (
+                  <section>
+                    <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
+                      Paused
+                    </h2>
+                    <div>{pausedAutomations.map(renderAutomationRow)}</div>
                   </section>
                 )}
               </div>
-            </motion.div>
+            ) : (
+              <div className="mb-6 py-12 text-center">
+                <p className="text-sm text-muted-foreground">No automations match your search.</p>
+              </div>
+            )
+          ) : (
+            <div className="rounded-md border border-dashed border-border px-6 py-12 text-center">
+              <p className="text-sm text-muted-foreground">
+                No automations yet. Use a template or start from scratch.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                disabled={create.isPending}
+                onClick={openNewAutomation}
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                New Automation
+              </Button>
+            </div>
           )}
-        </AnimatePresence>
 
-        {hasAutomations && (
-          <div className="mb-6 space-y-5">
-            {activeAutomations.length > 0 && (
-              <div>{activeAutomations.map(renderAutomationRow)}</div>
-            )}
-
-            {pausedAutomations.length > 0 && (
-              <section>
-                <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
-                  Paused
-                </h2>
-                <div>{pausedAutomations.map(renderAutomationRow)}</div>
-              </section>
-            )}
-          </div>
-        )}
-
-        {hasAutomations && (
-          <section className="mt-2">
-            <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
-              Recent runs
-            </h2>
-            <RecentRunsList />
-          </section>
-        )}
-
-        {isEmpty && (
-          <div className="py-12 text-center">
-            <p className="text-sm text-muted-foreground">No automations available.</p>
-          </div>
-        )}
+          {hasAutomations && (
+            <section className="mt-2">
+              <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
+                Recent runs
+              </h2>
+              <RecentRunsList />
+            </section>
+          )}
+        </div>
       </div>
 
-      <AutomationRunsDrawer automation={runsAutomation} onClose={() => setRunsAutomation(null)} />
+      <AutomationPanelShell open={panelOpen}>
+        {panel ? (
+          <AutomationPanel
+            key={panel.kind === 'edit' ? panel.automation.id : 'create'}
+            mode={panel}
+            onClose={closePanel}
+            onSaved={handleSaved}
+            onDelete={handleDelete}
+            onRunNow={handleRunNow}
+            onToggleEnabled={handleToggleEnabled}
+            runNowPending={
+              panel.kind === 'edit' && runNow.isPending && runNow.variables === panel.automation.id
+            }
+          />
+        ) : null}
+      </AutomationPanelShell>
     </div>
   );
 }

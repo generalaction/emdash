@@ -1,4 +1,3 @@
-import { CreateAutomationModal } from '@renderer/features/automations/components/CreateAutomationModal';
 import { CommandPaletteModal } from '@renderer/features/command-palette/command-palette-modal';
 import { IntegrationSetupModal } from '@renderer/features/integrations/integration-setup-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
@@ -54,6 +53,5 @@ export const modalRegistry = {
   shareProjectConfigModal: createModal(ShareProjectConfigModal, { size: 'md' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   addRemoteModal: createModal(AddRemoteModal),
-  createAutomationModal: createModal(CreateAutomationModal, { size: 'md' }),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } satisfies Record<string, ModalRegistryEntry<any, any>>;

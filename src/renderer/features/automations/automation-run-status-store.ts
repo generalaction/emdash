@@ -25,7 +25,7 @@ function scheduleClear(automationId: string) {
     setTimeout(() => {
       clearTimers.delete(automationId);
       const current = statuses.get(automationId);
-      if (current?.status === 'running') return;
+      if (current?.status === 'queued' || current?.status === 'running') return;
       statuses.delete(automationId);
       notify();
     }, 8000)
@@ -38,7 +38,7 @@ export function updateAutomationRunStatus(
 ) {
   statuses.set(automationId, { ...snapshot, updatedAt: Date.now() });
 
-  if (snapshot.status === 'running') {
+  if (snapshot.status === 'queued' || snapshot.status === 'running') {
     const existing = clearTimers.get(automationId);
     if (existing) {
       clearTimeout(existing);

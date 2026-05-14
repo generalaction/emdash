@@ -1,8 +1,8 @@
 import { Bot, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import githubSvg from '@/assets/images/Github.svg?raw';
 import {
   formatRunError,
+  formatRunName,
   formatRunStatusLabel,
   formatRunTriggerKindLabel,
 } from '@shared/automations/format';
@@ -53,9 +53,9 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const isFailed = run.status === 'failed';
   const errorMessage = run.error ? formatRunError(run.error) : undefined;
   const tool = getPrimaryTool(automation);
-  const isGithubTriggered = run.triggerKind === 'event';
   const projectName = showProjectName ? projectDisplayName(getProjectStore(projectId)) : undefined;
 
+  const runName = formatRunName(run.startedAt, run.id);
   const metaParts = [
     projectName,
     ...(extraMetaParts ?? []),
@@ -66,7 +66,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   function handleOpenTask() {
     if (!taskId || !interactive) return;
     const taskView = getTaskView(projectId, taskId);
-    taskView?.setView('agents');
+    taskView?.activateLastTabOfKind('conversation');
     navigate('task', { projectId, taskId });
   }
 
@@ -77,7 +77,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const rowContent = (
     <>
-      <span className="relative flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-muted-foreground">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-muted-foreground">
         {tool ? (
           <AgentLogo
             logo={tool.logo}
@@ -89,11 +89,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
         ) : (
           <Bot className="size-4" />
         )}
-        {isGithubTriggered ? (
-          <span className="absolute -bottom-1 -right-1 flex size-3.5 items-center justify-center rounded-full border border-border/70 bg-background text-foreground shadow-sm">
-            <AgentLogo logo={githubSvg} alt="GitHub" isSvg className="size-2.5 rounded-full" />
-          </span>
-        ) : null}
       </span>
       <div className="min-w-0 flex-1">
         <span
@@ -102,11 +97,11 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             isFailed ? 'text-destructive' : 'text-foreground'
           )}
         >
-          {title}
+          {runName}
         </span>
-        {errorMessage ? (
-          <span className="block truncate text-xs text-muted-foreground">{errorMessage}</span>
-        ) : null}
+        <span className="block truncate text-xs text-muted-foreground">
+          {errorMessage ?? title}
+        </span>
       </div>
       <div className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
         {metaParts.map((part, index) => (

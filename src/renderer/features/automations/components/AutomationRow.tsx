@@ -1,7 +1,6 @@
 import { Bot, CirclePause, CirclePlay, History, Loader2, Pencil, Play, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import githubSvg from '@/assets/images/Github.svg?raw';
+import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { formatTriggerLabel } from '@shared/automations/format';
 import type { Automation } from '@shared/automations/types';
 import AgentLogo from '@renderer/lib/components/agent-logo';
@@ -47,24 +46,33 @@ export const AutomationRow = observer(function AutomationRow({
     return () => observer.disconnect();
   }, [automation.name]);
 
-  const dimmed = !automation.enabled;
+  const dimmed = automation.isDraft || !automation.enabled;
+  const isActiveRun = runStatus?.status === 'queued' || runStatus?.status === 'running';
   const isRunning = runStatus?.status === 'running';
-  const isGithubTriggered = automation.trigger.kind === 'event';
-  const tooltipLabel = isGithubTriggered
-    ? primaryTool
-      ? `${primaryTool.label} · GitHub`
-      : 'GitHub automation'
-    : (primaryTool?.label ?? 'Automation');
+  const tooltipLabel = primaryTool?.label ?? 'Automation';
+
+  function handleRowKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+
+    event.preventDefault();
+    onEdit(automation);
+  }
 
   return (
     <div
-      className={`group flex min-h-12 items-center gap-4 px-1 py-2.5 text-left transition-colors hover:bg-muted/20 ${
+      role="button"
+      tabIndex={0}
+      onClick={() => onEdit(automation)}
+      onKeyDown={handleRowKeyDown}
+      aria-label={`Edit ${automation.name}`}
+      className={`group flex min-h-12 cursor-pointer items-center gap-4 px-1 py-2.5 text-left transition-colors hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
         dimmed ? 'opacity-60' : ''
       }`}
     >
       <Tooltip>
         <TooltipTrigger>
-          <span className="relative flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-muted-foreground">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-muted-foreground">
             {primaryTool ? (
               <AgentLogo
                 logo={primaryTool.logo}
@@ -76,11 +84,6 @@ export const AutomationRow = observer(function AutomationRow({
             ) : (
               <Bot className="size-4" />
             )}
-            {isGithubTriggered ? (
-              <span className="absolute -bottom-1 -right-1 flex size-3.5 items-center justify-center rounded-full border border-border/70 bg-background text-foreground shadow-sm">
-                <AgentLogo logo={githubSvg} alt="GitHub" isSvg className="size-2.5 rounded-full" />
-              </span>
-            ) : null}
           </span>
         </TooltipTrigger>
         <TooltipContent>{tooltipLabel}</TooltipContent>
@@ -90,13 +93,21 @@ export const AutomationRow = observer(function AutomationRow({
         <Tooltip>
           <TooltipTrigger
             ref={titleRef}
-            onClick={() => onEdit(automation)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit(automation);
+            }}
             className={cn(
               'block min-w-0 max-w-full truncate rounded-sm text-left text-sm font-medium text-foreground hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-              isRunning && 'text-shimmer'
+              isActiveRun && 'text-shimmer'
             )}
           >
             {automation.name}
+            {automation.isDraft ? (
+              <span className="ml-2 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Draft
+              </span>
+            ) : null}
           </TooltipTrigger>
           {isTitleTruncated ? <TooltipContent>{automation.name}</TooltipContent> : null}
         </Tooltip>
@@ -104,7 +115,7 @@ export const AutomationRow = observer(function AutomationRow({
 
       <div className="relative flex h-8 min-w-36 shrink-0 items-center justify-end">
         <div className="max-w-48 truncate text-right text-xs text-muted-foreground transition-all duration-150 ease-out group-hover:-translate-x-1 group-hover:opacity-0">
-          {triggerLabel}
+          {automation.isDraft ? 'Draft' : triggerLabel}
         </div>
         <div
           className="absolute right-0 flex translate-x-2 items-center justify-end gap-0.5 opacity-0 transition-all duration-150 ease-out group-hover:translate-x-0 group-hover:opacity-100"
@@ -113,18 +124,20 @@ export const AutomationRow = observer(function AutomationRow({
         >
           <Tooltip>
             <TooltipTrigger
-              disabled={busy || isRunning}
+              disabled={automation.isDraft || busy || isActiveRun}
               onClick={() => onRunNow(automation)}
               aria-label={`Run ${automation.name} now`}
               className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
             >
-              {isRunning ? (
+              {isActiveRun ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <Play className="size-4" />
               )}
             </TooltipTrigger>
-            <TooltipContent>{isRunning ? 'Running' : 'Run now'}</TooltipContent>
+            <TooltipContent>
+              {runStatus?.status === 'queued' ? 'Queued' : isRunning ? 'Running' : 'Run now'}
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger
@@ -148,6 +161,7 @@ export const AutomationRow = observer(function AutomationRow({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger
+              disabled={automation.isDraft}
               onClick={() => onSetEnabled(automation, !automation.enabled)}
               aria-label={`${automation.enabled ? 'Pause' : 'Resume'} ${automation.name}`}
               className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -158,7 +172,13 @@ export const AutomationRow = observer(function AutomationRow({
                 <CirclePlay className="size-4" />
               )}
             </TooltipTrigger>
-            <TooltipContent>{automation.enabled ? 'Pause' : 'Resume'}</TooltipContent>
+            <TooltipContent>
+              {automation.isDraft
+                ? 'Start from draft to enable'
+                : automation.enabled
+                  ? 'Pause'
+                  : 'Resume'}
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger

@@ -3,14 +3,12 @@ import type {
   Automation,
   AutomationRun,
   AutomationRunWithContext,
-  BuiltinAutomationTemplate,
   CreateAutomationInput,
   UpdateAutomationPatch,
 } from '@shared/automations/types';
 import { rpc } from '@renderer/lib/ipc';
 
 const automationsKey = (projectId?: string) => ['automations', projectId ?? 'all'] as const;
-const catalogKey = ['automations', 'catalog'] as const;
 const runsKey = (automationId: string, limit: number) =>
   ['automations', 'runs', automationId, limit] as const;
 const recentRunsKey = (projectId: string | undefined, limit: number) =>
@@ -28,11 +26,6 @@ export function useAutomations(projectId?: string) {
   const automations = useQuery({
     queryKey: automationsKey(projectId),
     queryFn: () => unwrap<Automation[]>(rpc.automations.list(projectId)),
-  });
-
-  const catalog = useQuery({
-    queryKey: catalogKey,
-    queryFn: () => unwrap<BuiltinAutomationTemplate[]>(rpc.automations.getCatalog()),
   });
 
   const create = useMutation({
@@ -59,7 +52,6 @@ export function useAutomations(projectId?: string) {
 
   return {
     automations,
-    catalog,
     create,
     update,
     remove,
