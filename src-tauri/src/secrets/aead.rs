@@ -56,7 +56,13 @@ pub fn seal(subkey: &[u8; 32], plaintext: &[u8], aad: &[u8]) -> Result<Sealed, A
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let ciphertext = cipher
-        .encrypt(nonce, Payload { msg: plaintext, aad })
+        .encrypt(
+            nonce,
+            Payload {
+                msg: plaintext,
+                aad,
+            },
+        )
         .map_err(|_| AeadError::Authentication)?;
 
     Ok(Sealed {
@@ -74,7 +80,13 @@ pub fn open(
     let cipher = ChaCha20Poly1305::new(subkey.into());
     let nonce = Nonce::from_slice(nonce);
     cipher
-        .decrypt(nonce, Payload { msg: ciphertext, aad })
+        .decrypt(
+            nonce,
+            Payload {
+                msg: ciphertext,
+                aad,
+            },
+        )
         .map_err(|_| AeadError::Authentication)
 }
 

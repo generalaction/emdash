@@ -90,5 +90,8 @@ fn secrets_error_envelope_shape() {
         code: SecretsErrorCode::KeyringUnavailable,
         message: "example".to_string(),
     };
-    insta::assert_json_snapshot!("secrets_error_envelope", serde_json::to_value(&err).unwrap());
+    insta::assert_json_snapshot!(
+        "secrets_error_envelope",
+        serde_json::to_value(&err).unwrap()
+    );
 }

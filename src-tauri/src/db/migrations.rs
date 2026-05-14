@@ -361,7 +361,10 @@ mod tests {
              VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             rusqlite::params!["k", &[0u8; 12][..], &[0u8; 16][..], b"aad".as_slice()],
         );
-        assert!(result.is_err(), "duplicate key must be rejected by uniqueness");
+        assert!(
+            result.is_err(),
+            "duplicate key must be rejected by uniqueness"
+        );
     }
 
     #[test]

@@ -112,12 +112,10 @@ impl Db {
     /// pool is exposed to the rest of the app. The parent directory must exist.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Arc<Self>, DbError> {
         let manager_read = SqliteConnectionManager::file(path.as_ref()).with_flags(
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
-                | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
         );
         let manager_write = SqliteConnectionManager::file(path.as_ref()).with_flags(
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
-                | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
         );
 
         let read_pool = Pool::builder()

@@ -20,7 +20,10 @@ pub enum SecretsError {
     #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
     #[error("stored secret has invalid length (nonce={nonce_len}, ciphertext_min=16, got={ciphertext_len})")]
-    Malformed { nonce_len: usize, ciphertext_len: usize },
+    Malformed {
+        nonce_len: usize,
+        ciphertext_len: usize,
+    },
     #[error("stored secret is not valid UTF-8")]
     NotUtf8,
 }
@@ -59,9 +62,8 @@ impl Secrets {
     pub fn get(&self, key: &str) -> Result<Option<String>, SecretsError> {
         let row = {
             let conn = self.db.read()?;
-            let mut stmt = conn.prepare_cached(
-                "SELECT nonce, ciphertext, aad FROM app_secrets WHERE key = ?1",
-            )?;
+            let mut stmt = conn
+                .prepare_cached("SELECT nonce, ciphertext, aad FROM app_secrets WHERE key = ?1")?;
             stmt.query_row(rusqlite::params![key], |r| {
                 Ok((
                     r.get::<_, Vec<u8>>(0)?,
@@ -80,12 +82,14 @@ impl Secrets {
             return Ok(None);
         };
 
-        let nonce_arr: [u8; 12] = nonce.as_slice().try_into().map_err(|_| {
-            SecretsError::Malformed {
-                nonce_len: nonce.len(),
-                ciphertext_len: ciphertext.len(),
-            }
-        })?;
+        let nonce_arr: [u8; 12] =
+            nonce
+                .as_slice()
+                .try_into()
+                .map_err(|_| SecretsError::Malformed {
+                    nonce_len: nonce.len(),
+                    ciphertext_len: ciphertext.len(),
+                })?;
 
         let master = self.master.get_or_create()?;
         let subkey = aead::derive_subkey(&master, key);
@@ -119,7 +123,10 @@ mod tests {
     fn set_then_get_roundtrips() {
         let (_d, s) = build();
         s.set("github_token", "ghp_abc123").unwrap();
-        assert_eq!(s.get("github_token").unwrap().as_deref(), Some("ghp_abc123"));
+        assert_eq!(
+            s.get("github_token").unwrap().as_deref(),
+            Some("ghp_abc123")
+        );
     }
 
     #[test]

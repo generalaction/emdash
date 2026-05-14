@@ -81,10 +81,9 @@ fn decode_master_key(stored: &str) -> Result<[u8; 32], MasterKeyError> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(stored)
         .map_err(|e| MasterKeyError::Malformed(format!("base64 decode: {e}")))?;
-    let array: [u8; 32] = bytes
-        .as_slice()
-        .try_into()
-        .map_err(|_| MasterKeyError::Malformed(format!("expected 32 bytes, got {}", bytes.len())))?;
+    let array: [u8; 32] = bytes.as_slice().try_into().map_err(|_| {
+        MasterKeyError::Malformed(format!("expected 32 bytes, got {}", bytes.len()))
+    })?;
     Ok(array)
 }
 
