@@ -1,6 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import type { Remote } from '@shared/git';
 import type {
+  MigrateProjectConfigRequest,
+  MigrateProjectConfigResult,
+  ProjectConfigMigration,
   ProjectSettings,
   ProjectSettingsOverrideState,
   ProjectSettingsPage,
@@ -24,23 +27,30 @@ export interface ProjectSettingsFormProps {
   defaults: ProjectSettingsPage['defaults'];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
+  configMigrations: ProjectConfigMigration[];
   onSuccess: () => void;
   save: (settings: ProjectSettings) => Promise<Result<ProjectSettings, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
   ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
+  migrateProjectConfig: (
+    request: MigrateProjectConfigRequest
+  ) => Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>>;
 }
 
 const EMPTY_REMOTES: Remote[] = [];
+
 export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
   initial,
   defaults,
   writeTargets,
   overrideState,
+  configMigrations,
   onSuccess,
   save,
   writeConfigToRepo,
+  migrateProjectConfig,
 }: ProjectSettingsFormProps) {
   const repo = getRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
@@ -52,9 +62,11 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
     remotes,
     writeTargets,
     overrideState,
+    configMigrations,
     onSuccess,
     save,
     writeConfigToRepo,
+    migrateProjectConfig,
   });
 
   return (
@@ -83,6 +95,9 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             form={formModel.form}
             update={formModel.update}
             getOverrideSources={formModel.getOverrideSources}
+            configMigrations={formModel.configMigrations}
+            importDisabled={formModel.importDisabled}
+            openImportConfigModal={formModel.openImportConfigModal}
           />
         </FieldGroup>
       </div>
