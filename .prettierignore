@@ -8,6 +8,9 @@
 **/build
 **/.turbo
 **/out
+**/target
+**/gen
+**/*.tsbuildinfo
 
 # ignore config files that shouldn't be formatted
 **/.env*
@@ -18,3 +21,6 @@
 **/*.md
 **/*.yaml
 **/*.yml
+
+# generated files
+src-tauri/ui/src/bindings.ts

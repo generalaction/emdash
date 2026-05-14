@@ -1,5 +1,6 @@
 packages:
   - '.'
+  - 'src-tauri/ui'
 
 onlyBuiltDependencies:
   - better-sqlite3

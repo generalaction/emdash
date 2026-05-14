@@ -1,0 +1,5 @@
+---
+source: tests/wire_format.rs
+expression: response_type
+---
+alloc::string::String

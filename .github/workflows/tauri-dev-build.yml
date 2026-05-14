@@ -1,0 +1,130 @@
+name: emdash-dev cross-platform build
+
+on:
+  pull_request:
+    branches: [dev]
+    paths:
+      - 'src-tauri/**'
+      - '.github/workflows/tauri-dev-build.yml'
+      - 'rust-toolchain.toml'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel in-flight runs when a PR is updated.
+concurrency:
+  group: tauri-dev-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macos-intel
+            os: macos-13
+            target: x86_64-apple-darwin
+          - label: macos-arm
+            os: macos-14
+            target: aarch64-apple-darwin
+          - label: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - label: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system deps
+        if: matrix.label == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libsoup-3.0-dev libayatana-appindicator3-dev librsvg2-dev pkg-config
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install JS deps (UI workspace only)
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter emdash-dev-ui...
+
+      - name: Type-check Tauri UI
+        run: pnpm --filter emdash-dev-ui typecheck
+
+      - name: Setup Rust (pinned by rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: cargo check (runs capability-allowlist build script)
+        working-directory: src-tauri
+        run: cargo check --target ${{ matrix.target }}
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings
+
+      - name: cargo test (lib + wire-format snapshots)
+        working-directory: src-tauri
+        run: cargo test --target ${{ matrix.target }}
+
+      - name: emdash-cli invariant (links without webview)
+        working-directory: src-tauri
+        run: cargo run --quiet --bin emdash-cli --target ${{ matrix.target }} -- --version
+
+      - name: Verify bindings.ts is up to date (linux + macos-arm)
+        # tauri-specta codegen should be platform-deterministic. Running on
+        # two host architectures keeps that assumption honest — drift between
+        # them would indicate a codegen bug we want to catch early.
+        if: matrix.label == 'linux' || matrix.label == 'macos-arm'
+        working-directory: src-tauri
+        run: |
+          cargo run --quiet --bin emdash-dev --target ${{ matrix.target }} -- --export-bindings
+          git diff --exit-code ui/src/bindings.ts || {
+            echo "::error::ui/src/bindings.ts is stale. Run 'cargo run --bin emdash-dev -- --export-bindings' and commit."
+            exit 1
+          }
+
+      - name: Build Tauri UI
+        run: pnpm --filter emdash-dev-ui build
+
+      - name: cargo build (unsigned dev artifact)
+        working-directory: src-tauri
+        run: cargo build --bin emdash-dev --target ${{ matrix.target }}
+
+      - name: Upload unsigned binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: emdash-dev-${{ matrix.label }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/debug/emdash-dev
+            src-tauri/target/${{ matrix.target }}/debug/emdash-dev.exe
+            src-tauri/ui/dist/**
+          if-no-files-found: ignore
+          retention-days: 7

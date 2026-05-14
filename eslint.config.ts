@@ -5,7 +5,21 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  globalIgnores(['dist/**', 'out/**', 'build/**', 'node_modules/**', '**/_*/**']),
+  globalIgnores([
+    'dist/**',
+    '**/dist/**',
+    'out/**',
+    '**/out/**',
+    'build/**',
+    '**/build/**',
+    'node_modules/**',
+    '**/node_modules/**',
+    '**/_*/**',
+    'src-tauri/gen/**',
+    'src-tauri/target/**',
+    'src-tauri/ui/src/bindings.ts',
+    '**/*.tsbuildinfo',
+  ]),
 
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

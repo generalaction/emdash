@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default Tauri capability for the main window of emdash-dev. Grants core plugin defaults (path, event, window, app, resources, menu, tray). Custom commands defined under src/commands/ are not enumerated here — they are enforced separately by the capability allowlist build script (EMD-5 step 7).",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

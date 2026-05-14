@@ -1,0 +1,5 @@
+# Cargo build output
+/target
+
+# tauri-build codegen (capabilities schema, etc.)
+/gen

@@ -1,0 +1,5 @@
+---
+source: tests/wire_format.rs
+expression: response
+---
+Hello, world! You've been greeted from emdash-dev (Rust + Tauri 2).
