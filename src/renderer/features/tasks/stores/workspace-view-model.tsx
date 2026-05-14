@@ -106,17 +106,25 @@ export class WorkspaceViewModel implements ILifecycle {
     );
     this._disposers.push(initConvDisposer);
 
-    // Sync all panes' isVisible with whether this task is the currently active view.
-    // Mirrors what TabManagerVisibilitySync previously did in React.
+    // Sync all panes' isVisible/isFocused with task active state and focused pane.
+    // Tracks groupCount so new panes created via splitRight() are initialized immediately.
     this._disposers.push(
       reaction(
-        () =>
-          appState.navigation.currentViewId === 'task' &&
-          (appState.navigation.viewParamsStore['task'] as { taskId?: string } | undefined)
-            ?.taskId === this.taskId,
-        (isActive) => {
-          for (const { tabManager } of this.tabGroupManager.groups) {
+        () => {
+          const isActive =
+            appState.navigation.currentViewId === 'task' &&
+            (appState.navigation.viewParamsStore['task'] as { taskId?: string } | undefined)
+              ?.taskId === this.taskId;
+          return {
+            isActive,
+            activeGroupId: this.tabGroupManager.activeGroupId,
+            groupCount: this.tabGroupManager.groups.length,
+          };
+        },
+        ({ isActive, activeGroupId }) => {
+          for (const { groupId, tabManager } of this.tabGroupManager.groups) {
             tabManager.setVisible(isActive);
+            tabManager.setFocused(isActive && groupId === activeGroupId);
           }
         },
         { fireImmediately: true }
