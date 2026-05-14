@@ -190,29 +190,46 @@ export function CommandPaletteModal({
   const PROJECT_SUGGESTED = ['app.newTask', 'app.settings'];
   const APP_SUGGESTED = ['app.newProject', 'app.settings'];
 
-  const actions = useMemo(() => {
-    const allActions = [...registryActions];
-    if (resourceMonitor?.enabled) {
-      allActions.push({
-        kind: 'action',
-        id: 'resource-monitor',
-        title: 'Resource Monitor',
-        subtitle: 'Show CPU and memory performance for running agents',
-        icon: Activity,
-        execute: () => setView('resource-monitor'),
-      });
-    }
+  const resourceMonitorAction = useMemo<PaletteAction | null>(
+    () =>
+      resourceMonitor?.enabled
+        ? {
+            kind: 'action',
+            id: 'resource-monitor',
+            title: 'Resource Monitor',
+            subtitle: 'Show CPU and memory performance for running agents',
+            icon: Activity,
+            execute: () => setView('resource-monitor'),
+          }
+        : null,
+    [resourceMonitor?.enabled]
+  );
 
+  const actions = useMemo(() => {
     // Empty state: show the ordered context-specific suggested actions only.
     const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
-    return allActions
+    const filtered = registryActions
       .filter((a) => suggestedIds.includes(a.id))
       .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
       .slice(0, 7);
-  }, [registryActions, resourceMonitor?.enabled, projectId, taskId]);
+
+    if (resourceMonitorAction) filtered.push(resourceMonitorAction);
+
+    return filtered;
+  }, [registryActions, resourceMonitorAction, projectId, taskId]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const actionResults = actions;
+
+  const localQueryMatches = useMemo<PaletteAction[]>(() => {
+    if (!debouncedQuery) return [];
+    const q = debouncedQuery.toLowerCase();
+    const matches: PaletteAction[] = [];
+    if (resourceMonitorAction && resourceMonitorAction.title.toLowerCase().includes(q)) {
+      matches.push(resourceMonitorAction);
+    }
+    return matches;
+  }, [debouncedQuery, resourceMonitorAction]);
   const taskResults = rankedDb.filter((r): r is SearchItem => r.kind === 'task');
   const conversationResults = rankedDb.filter((r): r is SearchItem => r.kind === 'conversation');
 
@@ -297,6 +314,14 @@ export function CommandPaletteModal({
             <Command.Empty className="py-8 text-center text-sm text-foreground/40">
               No results for &ldquo;{query}&rdquo;
             </Command.Empty>
+            {localQueryMatches.map((item) => (
+              <PaletteItem
+                key={item.id}
+                value={item.id}
+                item={item}
+                onSelect={item.execute}
+              />
+            ))}
             {rankedDb.map((item) => {
               if (item.kind === 'command') {
                 const live = commandRegistry.findById(item.id);
