@@ -9,14 +9,37 @@ import SkillCard from './SkillCard';
 import SkillDetailModal from './SkillDetailModal';
 import { useSkills } from './useSkills';
 
-function SkillCardSkeleton() {
+const SKELETON_TITLE_WIDTHS = ['65%', '52%', '74%', '58%'] as const;
+const SKELETON_DESC_WIDTHS = ['88%', '76%', '94%', '82%'] as const;
+const SKELETON_META_WIDTHS = ['28%', '34%', '24%', '40%'] as const;
+
+function SkillCardSkeleton({ index = 0 }: { index?: number }) {
+  const titleWidth = SKELETON_TITLE_WIDTHS[index % SKELETON_TITLE_WIDTHS.length];
+  const descWidth = SKELETON_DESC_WIDTHS[index % SKELETON_DESC_WIDTHS.length];
+  const metaWidth = SKELETON_META_WIDTHS[index % SKELETON_META_WIDTHS.length];
+
   return (
-    <div className="flex w-full items-center gap-3 rounded-lg border border-border bg-muted/10 p-4">
-      <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-muted/40" />
+    <div
+      aria-hidden
+      className="flex w-full items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 shadow-sm"
+    >
+      <div className="skeleton-shimmer h-10 w-10 shrink-0 rounded-xl" />
       <div className="min-w-0 flex-1 space-y-2">
-        <div className="h-3 w-2/3 animate-pulse rounded bg-muted/40" />
-        <div className="h-2.5 w-1/2 animate-pulse rounded bg-muted/30" />
+        <div className="skeleton-shimmer h-3.5 rounded" style={{ width: titleWidth }} />
+        <div className="skeleton-shimmer h-3 rounded" style={{ width: descWidth }} />
+        <div className="skeleton-shimmer h-2.5 rounded" style={{ width: metaWidth }} />
       </div>
+      <div className="skeleton-shimmer h-6 w-6 shrink-0 rounded-md" />
+    </div>
+  );
+}
+
+function SkillCardSkeletonGrid({ count = 4 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <SkillCardSkeleton key={i} index={i} />
+      ))}
     </div>
   );
 }
@@ -143,16 +166,14 @@ const SkillsView: React.FC = () => {
           <div className="mb-6">
             <h2 className="mb-3 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground">
               <span>{browseLabel}</span>
-              {isSearching ? (
-                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/70" />
-              ) : (
-                recommendedSkills.length > 0 && (
-                  <span className="text-muted-foreground/60">{recommendedSkills.length}</span>
-                )
+              {!isSearching && recommendedSkills.length > 0 && (
+                <span className="text-muted-foreground/60">{recommendedSkills.length}</span>
               )}
             </h2>
 
-            {recommendedSkills.length > 0 ? (
+            {isSearching ? (
+              <SkillCardSkeletonGrid count={recommendedSkills.length || 4} />
+            ) : recommendedSkills.length > 0 ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {recommendedSkills.map((skill) => (
                   <SkillCard
@@ -162,13 +183,6 @@ const SkillsView: React.FC = () => {
                     onInstall={install}
                   />
                 ))}
-              </div>
-            ) : isSearching ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <SkillCardSkeleton />
-                <SkillCardSkeleton />
-                <SkillCardSkeleton />
-                <SkillCardSkeleton />
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border bg-muted/10 px-4 py-8 text-center">
