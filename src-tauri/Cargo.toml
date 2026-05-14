@@ -52,6 +52,7 @@ zeroize = { version = "1.8", features = ["derive"] }
 thiserror = "2"
 parking_lot = "0.12"
 directories = "5"
+base64 = "0.22"
 
 [dev-dependencies]
 insta = { version = "1.47", features = ["json"] }

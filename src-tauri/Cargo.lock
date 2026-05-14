@@ -843,6 +843,7 @@ checksum = "4ef6b89e5b37196644d8796de5268852ff179b44e96276cf4290264843743bb7"
 name = "emdash-dev"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chacha20poly1305",
  "directories",
  "hkdf",
