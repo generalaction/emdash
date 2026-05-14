@@ -62,6 +62,7 @@ const TASK_SUGGESTED = [
   'task.sidebarFiles',
   'task.sidebarConversations',
   'task.toggleTerminalDrawer',
+  'app.giveFeedback',
 ];
 const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'app.giveFeedback'];
 const APP_SUGGESTED = ['app.newProject', 'app.settings', 'app.giveFeedback'];
