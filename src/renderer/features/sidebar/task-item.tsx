@@ -132,5 +132,5 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
   if (!('prs' in task.data)) return null;
   const pr = selectCurrentPr(task.data.prs);
-  return pr ? <PrBadge variant="compact" pr={pr} /> : null;
+  return pr ? <PrBadge variant="compact" pr={pr} hoverDelay={100} /> : null;
 });

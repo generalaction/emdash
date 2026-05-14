@@ -35,8 +35,8 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
 
   const repo = getRepositoryStore(projectId);
-  const configuredRemote = repo?.configuredRemote;
-  const remoteUrl = configuredRemote?.url;
+  const baseRemote = repo?.baseRemote;
+  const remoteUrl = baseRemote?.url;
   const repositoryUrl = repo?.repositoryUrl;
   const repository = parseGitHubRepository(repositoryUrl);
 

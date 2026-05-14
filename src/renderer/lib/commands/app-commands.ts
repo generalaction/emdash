@@ -1,5 +1,6 @@
 import { APP_COMMAND_DEFS, type AppCommandId, type CommandDef } from '@shared/commands';
 import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
+import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { commandRegistry } from './registry';
@@ -35,7 +36,11 @@ function createAppCommandProvider(): CommandProvider {
           shortcutKey: settingsDef.shortcutKey,
           group: settingsDef.group,
           execute() {
-            appState.navigation.navigate('settings');
+            toggleSettingsView(
+              appState.navigation.navigate.bind(appState.navigation),
+              appState.navigation.currentViewId,
+              appState.navigation.lastNonSettingsView
+            );
           },
         },
         {

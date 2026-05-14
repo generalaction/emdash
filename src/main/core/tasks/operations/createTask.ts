@@ -53,10 +53,7 @@ export async function createTask(
   if (!project) {
     return err({ type: 'project-not-found' });
   }
-  const [, configuredRemote] = await Promise.all([
-    project.repository.getRemotes(),
-    project.repository.getConfiguredRemote(),
-  ]);
+  const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;
@@ -89,12 +86,12 @@ export async function createTask(
         return err({ type: 'branch-create-failed', branch: taskBranch, error: createResult.error });
       }
       if (strategy.pushBranch) {
-        const publishResult = await project.repository.publishBranch(taskBranch, configuredRemote);
+        const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
         if (!publishResult.success) {
           warning = {
             type: 'branch-publish-failed',
             branch: taskBranch,
-            remote: configuredRemote,
+            remote: pushRemote,
             error: publishResult.error,
           };
         }
@@ -122,13 +119,13 @@ export async function createTask(
           strategy.headRepositoryUrl,
           strategy.headBranch,
           strategy.isFork,
-          configuredRemote
+          baseRemote
         );
         if (!fetchResult.success) {
           return err({
             type: 'pr-fetch-failed',
             error: fetchResult.error,
-            remote: configuredRemote,
+            remote: baseRemote,
           });
         }
       }
@@ -156,15 +153,12 @@ export async function createTask(
           });
         }
         if (strategy.pushBranch) {
-          const publishResult = await project.repository.publishBranch(
-            taskBranch,
-            configuredRemote
-          );
+          const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
           if (!publishResult.success) {
             warning = {
               type: 'branch-publish-failed',
               branch: taskBranch,
-              remote: configuredRemote,
+              remote: pushRemote,
               error: publishResult.error,
             };
           }

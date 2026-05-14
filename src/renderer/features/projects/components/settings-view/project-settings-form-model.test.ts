@@ -24,7 +24,8 @@ function makeForm(overrides: Partial<FormState> = {}): FormState {
     scriptTeardown: '',
     worktreeDirectory: '',
     defaultBranch: null,
-    remote: '',
+    baseRemote: '',
+    pushRemote: '',
     provisionCommand: '',
     terminateCommand: '',
     ...overrides,
@@ -45,7 +46,8 @@ describe('project settings form model', () => {
         },
         worktreeDirectory: '../worktrees',
         defaultBranch: 'upstream/main',
-        remote: 'upstream',
+        baseRemote: 'upstream',
+        pushRemote: 'origin',
         workspaceProvider: {
           type: 'script',
           provisionCommand: './provision.sh',
@@ -65,7 +67,8 @@ describe('project settings form model', () => {
       scriptTeardown: 'docker compose down',
       worktreeDirectory: '../worktrees',
       defaultBranch: { type: 'remote', branch: 'main', remote: upstream },
-      remote: 'upstream',
+      baseRemote: 'upstream',
+      pushRemote: 'origin',
       provisionCommand: './provision.sh',
       terminateCommand: './terminate.sh',
     });
@@ -100,7 +103,8 @@ describe('project settings form model', () => {
           scriptRun: 'pnpm dev',
           worktreeDirectory: '../worktrees',
           defaultBranch: { type: 'remote', branch: 'main', remote: origin },
-          remote: 'origin',
+          baseRemote: 'origin',
+          pushRemote: '',
           provisionCommand: ' ./provision.sh ',
           terminateCommand: ' ./terminate.sh ',
         })
@@ -116,7 +120,7 @@ describe('project settings form model', () => {
       },
       worktreeDirectory: '../worktrees',
       defaultBranch: 'origin/main',
-      remote: 'origin',
+      baseRemote: 'origin',
       workspaceProvider: {
         type: 'script',
         provisionCommand: './provision.sh',

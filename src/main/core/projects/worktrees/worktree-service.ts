@@ -65,11 +65,11 @@ export class WorktreeService {
   }
 
   private async getRemoteCandidates(): Promise<string[]> {
-    const configuredRemote = (await this.projectSettings.getRemote().catch(() => '')).trim();
-    if (!configuredRemote || configuredRemote === DEFAULT_REMOTE_NAME) {
+    const baseRemote = (await this.projectSettings.getBaseRemote().catch(() => '')).trim();
+    if (!baseRemote || baseRemote === DEFAULT_REMOTE_NAME) {
       return [DEFAULT_REMOTE_NAME];
     }
-    return [configuredRemote, DEFAULT_REMOTE_NAME];
+    return [baseRemote, DEFAULT_REMOTE_NAME];
   }
 
   async existsAtAbsolutePath(absPath: string): Promise<boolean> {
@@ -338,3 +338,15 @@ export class WorktreeService {
     }
   }
 }
+
+/**
+ * The subset of WorktreeService methods required by WorkspaceBootstrapService.
+ * Using Pick keeps signatures in sync automatically.
+ */
+export type WorktreeBootstrapOps = Pick<
+  WorktreeService,
+  | 'existsAtAbsolutePath'
+  | 'findBranchAnywhere'
+  | 'checkoutExistingBranch'
+  | 'checkoutBranchWorktree'
+>;

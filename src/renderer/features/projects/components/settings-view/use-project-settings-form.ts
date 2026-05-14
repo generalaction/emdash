@@ -32,7 +32,7 @@ import {
 
 type UseProjectSettingsFormArgs = {
   initial: ProjectSettings;
-  configuredRemote: string;
+  baseRemote: string;
   remotes: Remote[];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
@@ -57,7 +57,7 @@ function resolveFormSnapshot(snapshot: FormSnapshot, baseline: FormState): FormS
 
 export function useProjectSettingsForm({
   initial,
-  configuredRemote,
+  baseRemote,
   remotes,
   writeTargets,
   overrideState,
@@ -68,8 +68,8 @@ export function useProjectSettingsForm({
   const { showModal } = useModalContext();
   const { toast } = useToast();
   const baseline = useMemo(
-    () => settingsToForm(initial, configuredRemote, remotes),
-    [initial, configuredRemote, remotes]
+    () => settingsToForm(initial, baseRemote, remotes),
+    [initial, baseRemote, remotes]
   );
   const [formSnapshot, setFormSnapshot] = useState<FormSnapshot>({
     baseline,
@@ -144,7 +144,7 @@ export function useProjectSettingsForm({
     const result = await save(formToSettings(formAtSubmit)).catch(() => err({ type: 'error' }));
 
     if (result.success) {
-      const canonicalForm = settingsToForm(result.data, configuredRemote, remotes);
+      const canonicalForm = settingsToForm(result.data, baseRemote, remotes);
       setWorktreeDirectoryError(null);
       setFormSnapshot({
         baseline: canonicalForm,
@@ -164,7 +164,7 @@ export function useProjectSettingsForm({
 
     setWorktreeDirectoryError(null);
     setSaveStatus('error');
-  }, [configuredRemote, form, onSuccess, remotes, save]);
+  }, [baseRemote, form, onSuccess, remotes, save]);
 
   const openShareConfigModal = useCallback(() => {
     if (!canShareConfig || shareDisabled) return;
@@ -175,7 +175,7 @@ export function useProjectSettingsForm({
       targets: writeTargets,
       writeConfigToRepo,
       onSuccess: ({ page }) => {
-        const nextForm = settingsToForm(page.settings, configuredRemote, remotes);
+        const nextForm = settingsToForm(page.settings, baseRemote, remotes);
         setFormSnapshot({
           baseline: nextForm,
           form: nextForm,
@@ -190,8 +190,8 @@ export function useProjectSettingsForm({
     });
   }, [
     availableWriteFields,
+    baseRemote,
     canShareConfig,
-    configuredRemote,
     defaultSelectedWriteFields,
     initialWriteTarget,
     onSuccess,

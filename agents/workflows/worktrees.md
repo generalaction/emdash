@@ -28,7 +28,8 @@ Base project settings are DB-backed Project Settings, not runtime `.emdash.json`
 
 - `worktreeDirectory`
 - `defaultBranch`
-- `remote`
+- `baseRemote`
+- `pushRemote`
 - `tmux`
 - `workspaceProvider`
 
