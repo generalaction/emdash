@@ -26,7 +26,7 @@ vi.mock('./automation-run-events', () => ({
 
 vi.mock('./repo', () => ({
   claimQueuedRun: vi.fn(),
-  countRunningRuns: vi.fn(),
+  hasRunningRuns: vi.fn(),
   dueCronAutomations: vi.fn(),
   enabledCronAutomations: vi.fn(),
   enqueueAutomationRun: vi.fn(),

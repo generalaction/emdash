@@ -10,7 +10,7 @@ import { log } from '@main/lib/logger';
 import { executeAction } from './actions';
 import type { ActionError, ActionOutcome } from './actions/types';
 import { automationRunEvents } from './automation-run-events';
-import { countRunningRuns, insertRun, updateAutomationSchedule, updateRun } from './repo';
+import { hasRunningRuns, insertRun, updateAutomationSchedule, updateRun } from './repo';
 
 export function emitRunUpdated(run: AutomationRun, sessionId?: string): void {
   events.emit(automationRunUpdatedChannel, {
@@ -26,7 +26,7 @@ export async function runAutomation(
   automation: Automation,
   triggerKind: AutomationRunTriggerKind
 ): Promise<Result<AutomationRun, string>> {
-  if (triggerKind === 'cron' && (await countRunningRuns(automation.id)) > 0) {
+  if (triggerKind === 'cron' && (await hasRunningRuns(automation.id))) {
     const skipped = await insertRun({
       automationId: automation.id,
       status: 'skipped',

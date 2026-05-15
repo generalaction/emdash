@@ -295,13 +295,13 @@ export async function enabledCronAutomations(): Promise<Automation[]> {
   return rows.map(mapAutomationRow);
 }
 
-export async function countRunningRuns(automationId: string): Promise<number> {
+export async function hasRunningRuns(automationId: string): Promise<boolean> {
   const rows = await db
     .select({ id: automationRuns.id })
     .from(automationRuns)
     .where(and(eq(automationRuns.automationId, automationId), eq(automationRuns.status, 'running')))
     .limit(1);
-  return rows.length;
+  return rows.length > 0;
 }
 
 export async function enqueueAutomationRun(input: {

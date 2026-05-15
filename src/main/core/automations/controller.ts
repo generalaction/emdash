@@ -73,11 +73,15 @@ export const automationsController = createRPCController({
     return safe(async () => {
       const nameError = validateName(patch.name);
       if (nameError) return err(nameError);
-      if (patch.actions !== undefined && !patch.isDraft) {
-        if (!Array.isArray(patch.actions) || patch.actions.length === 0) {
+      const shouldValidateActions =
+        patch.isDraft === false || (patch.actions !== undefined && !patch.isDraft);
+      if (shouldValidateActions) {
+        const actions = patch.actions ?? (await getAutomation(id))?.actions;
+        if (!actions) return err('automation_not_found');
+        if (!Array.isArray(actions) || actions.length === 0) {
           return err('actions_required');
         }
-        const invalidIndex = patch.actions.findIndex((action) => !isValidAction(action));
+        const invalidIndex = actions.findIndex((action) => !isValidAction(action));
         if (invalidIndex >= 0) return err(`action_invalid:${invalidIndex}`);
       }
       const automation = await updateAutomation(id, patch);

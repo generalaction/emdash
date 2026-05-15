@@ -5,11 +5,11 @@ import { automationEvents } from './automation-events';
 import { automationRunEvents } from './automation-run-events';
 import {
   claimQueuedRun,
-  countRunningRuns,
   dueCronAutomations,
   enabledCronAutomations,
   enqueueAutomationRun,
   getNextRunAt,
+  hasRunningRuns,
   listQueuedRuns,
   markRunningRunsInterrupted,
   recoverQueuedRuns,
@@ -159,7 +159,7 @@ export class AutomationScheduler {
           continue;
         }
 
-        if (entry.run.triggerKind === 'cron' && (await countRunningRuns(entry.automation.id)) > 0) {
+        if (entry.run.triggerKind === 'cron' && (await hasRunningRuns(entry.automation.id))) {
           const skipped = await updateRun(entry.run.id, {
             status: 'skipped',
             finishedAt: Date.now(),
