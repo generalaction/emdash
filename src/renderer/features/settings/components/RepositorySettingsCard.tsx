@@ -24,14 +24,17 @@ const RepositorySettingsCard: React.FC = () => {
   } = useAppSettingsKey('localProject');
 
   const branchPrefix = project?.branchPrefix ?? '';
+  const appendRandomBranchSuffix = project?.appendRandomBranchSuffix ?? true;
   const pushOnCreate = project?.pushOnCreate ?? true;
   const writeAgentConfigToGitIgnore = localProject?.writeAgentConfigToGitIgnore ?? true;
   const projectBusy = projectLoading || projectSaving;
   const localProjectBusy = localProjectLoading || localProjectSaving;
 
   const example = useMemo(() => {
-    return `${branchPrefix}/my-feature-a3f`;
-  }, [branchPrefix]);
+    const prefix = branchPrefix ? `${branchPrefix}/` : '';
+    const suffix = appendRandomBranchSuffix ? '-a3f' : '';
+    return `${prefix}my-feature${suffix}`;
+  }, [appendRandomBranchSuffix, branchPrefix]);
 
   return (
     <div className="grid gap-8">
@@ -62,6 +65,26 @@ const RepositorySettingsCard: React.FC = () => {
           Example: <code className="rounded bg-muted/60 px-1">{example}</code>
         </div>
       </div>
+      <SettingRow
+        title="Random branch suffix"
+        description="Add a random suffix to branch names."
+        control={
+          <>
+            <ResetToDefaultButton
+              visible={isProjectFieldOverridden('appendRandomBranchSuffix')}
+              defaultLabel="on"
+              onReset={() => resetProjectField('appendRandomBranchSuffix')}
+              disabled={projectBusy}
+            />
+            <Switch
+              checked={appendRandomBranchSuffix}
+              onCheckedChange={(checked) => updateProject({ appendRandomBranchSuffix: checked })}
+              disabled={projectBusy}
+              aria-label="Append random branch suffix"
+            />
+          </>
+        }
+      />
       <SettingRow
         title="Auto-push on create"
         description="Push the new branch to the selected project remote and set upstream after creation."
