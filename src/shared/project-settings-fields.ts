@@ -1,4 +1,5 @@
 import {
+  DEFAULT_PRESERVE_PATTERNS,
   SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
   type ProjectSettings,
   type ShareableProjectSettings,
@@ -30,6 +31,28 @@ function compactScripts(settings: ShareableProjectSettings): void {
   }
 }
 
+function normalizePatterns(patterns: string[] | undefined): string[] {
+  return patterns?.map((pattern) => pattern.trim()).filter(Boolean) ?? [];
+}
+
+export function hasDefaultPreservePatterns(settings: ShareableProjectSettings): boolean {
+  const patterns = normalizePatterns(settings.preservePatterns);
+  return (
+    patterns.length === DEFAULT_PRESERVE_PATTERNS.length &&
+    patterns.every((pattern, index) => pattern === DEFAULT_PRESERVE_PATTERNS[index])
+  );
+}
+
+export function hasConfiguredShareableProjectSettings(settings: ProjectSettings): boolean {
+  return SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS.some((field) => {
+    if (field === 'preservePatterns') {
+      const patterns = normalizePatterns(settings.preservePatterns);
+      return patterns.length > 0 && !hasDefaultPreservePatterns(settings);
+    }
+    return SHAREABLE_FIELD_ACCESSORS[field].displayValue(settings) !== null;
+  });
+}
+
 export const SHAREABLE_FIELD_ACCESSORS = {
   preservePatterns: {
     path: ['preservePatterns'],
@@ -41,7 +64,7 @@ export const SHAREABLE_FIELD_ACCESSORS = {
       delete settings.preservePatterns;
     },
     displayValue: (settings) => {
-      const value = settings.preservePatterns?.filter((pattern) => pattern.trim());
+      const value = normalizePatterns(settings.preservePatterns);
       return value?.length ? value.join('\n') : null;
     },
   },

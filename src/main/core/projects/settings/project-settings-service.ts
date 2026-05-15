@@ -1,13 +1,12 @@
 import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
 import {
-  SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
   type MigrateProjectConfigRequest,
   type MigrateProjectConfigResult,
   type ProjectSettings,
   type ProjectSettingsPage,
   type WriteProjectConfigRequest,
 } from '@shared/project-settings';
-import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
+import { hasConfiguredShareableProjectSettings } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { events } from '@main/lib/events';
@@ -33,12 +32,6 @@ export type ProjectSettingsHooks = {
     settings: ProjectSettings;
   }) => void | Promise<void>;
 };
-
-function hasShareableProjectSettings(settings: ProjectSettings): boolean {
-  return SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS.some(
-    (field) => SHAREABLE_FIELD_ACCESSORS[field].displayValue(settings) !== null
-  );
-}
 
 export class ProjectSettingsService implements Hookable<ProjectSettingsHooks>, IInitializable {
   private readonly _hooks = new HookCore<ProjectSettingsHooks>((name, e) =>
@@ -104,7 +97,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks>, I
     if (!project.success) return project;
 
     const settings = await project.data.settings.get();
-    if (hasShareableProjectSettings(settings)) {
+    if (hasConfiguredShareableProjectSettings(settings)) {
       return err({
         type: 'write-config-failed',
         message: 'Shareable project settings are already configured.',
@@ -134,7 +127,7 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks>, I
     const resolvedTargets = await resolveAllProjectSettingsTargets(project);
     const writeTargets = getProjectSettingsWriteTargets(resolvedTargets);
     const overrideState = await computeProjectSettingsOverrideState(resolvedTargets);
-    const configMigrations = hasShareableProjectSettings(settings)
+    const configMigrations = hasConfiguredShareableProjectSettings(settings)
       ? []
       : await inspectProjectConfigMigrations(project.fs);
     return {
