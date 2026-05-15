@@ -68,7 +68,7 @@ export function ProjectConfigImportModal({
       ? `Found configuration file from ${selectedMigration.label} that can be imported into Emdash.`
       : 'Found configuration files that can be imported into Emdash.';
 
-  const disabled = !selectedMigration || status === 'importing';
+  const disabled = !selectedMigration || status === 'importing' || status === 'imported';
 
   async function handleImport() {
     if (!selectedMigration) return;
@@ -170,7 +170,7 @@ export function ProjectConfigImportModal({
       </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={onClose} disabled={status === 'importing'}>
-          Cancel
+          {status === 'imported' ? 'Close' : 'Cancel'}
         </Button>
         <ConfirmButton onClick={() => void handleImport()} disabled={disabled}>
           <span className="inline-flex items-center justify-center gap-1.5">
