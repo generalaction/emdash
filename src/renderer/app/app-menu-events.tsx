@@ -1,6 +1,7 @@
 import { when } from 'mobx';
 import { useEffect } from 'react';
 import {
+  menuGiveFeedbackChannel,
   menuOpenSettingsChannel,
   menuQuitRequestedChannel,
   notificationFocusTaskChannel,
@@ -15,6 +16,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
   const { navigate } = useNavigate();
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const showConfirmQuitModal = useShowModal('confirmActionModal');
+  const showFeedbackModal = useShowModal('feedbackModal');
 
   useEffect(() => {
     return events.on(menuOpenSettingsChannel, () => {
@@ -39,6 +41,12 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
       });
     });
   }, [showConfirmQuitModal]);
+
+  useEffect(() => {
+    return events.on(menuGiveFeedbackChannel, () => {
+      showFeedbackModal({});
+    });
+  }, [showFeedbackModal]);
 
   useEffect(() => {
     const disposers = new Set<() => void>();
