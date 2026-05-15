@@ -16,6 +16,10 @@ pub fn build_specta() -> Builder<tauri::Wry> {
         commands::path::get_path,
         commands::secrets::set_secret,
         commands::secrets::get_secret,
+        commands::pty::pty_spawn,
+        commands::pty::pty_write,
+        commands::pty::pty_resize,
+        commands::pty::pty_kill,
     ])
 }
 

@@ -95,3 +95,51 @@ fn secrets_error_envelope_shape() {
         serde_json::to_value(&err).unwrap()
     );
 }
+
+#[test]
+fn pty_spawn_wire_format() {
+    // Channel<Vec<u8>> is opaque on the wire (an internal id) — we pin the
+    // user-visible args only. The bindings.ts snapshot covers the full
+    // command signature including the Channel parameter.
+    let request_args = serde_json::json!({
+        "opts": {
+            "command": "/bin/bash",
+            "args": [],
+            "cwd": null,
+            "env": {},
+            "size": { "rows": 24, "cols": 80 }
+        }
+    });
+    insta::assert_json_snapshot!("pty_spawn_request_args", request_args);
+}
+
+#[test]
+fn pty_write_wire_format() {
+    let request_args = serde_json::json!({
+        "id": 1,
+        "bytes": [104, 105]
+    });
+    insta::assert_json_snapshot!("pty_write_request_args", request_args);
+}
+
+#[test]
+fn pty_resize_wire_format() {
+    let request_args = serde_json::json!({
+        "id": 1,
+        "size": { "rows": 40, "cols": 132 }
+    });
+    insta::assert_json_snapshot!("pty_resize_request_args", request_args);
+}
+
+#[test]
+fn pty_kill_wire_format() {
+    let request_args = serde_json::json!({ "id": 1 });
+    insta::assert_json_snapshot!("pty_kill_request_args", request_args);
+}
+
+#[test]
+fn pty_error_envelope_shape() {
+    use emdash_dev::pty::types::{PtyError, PtyId};
+    let err = PtyError::NotFound { id: PtyId(42) };
+    insta::assert_json_snapshot!("pty_error_not_found", serde_json::to_value(&err).unwrap());
+}

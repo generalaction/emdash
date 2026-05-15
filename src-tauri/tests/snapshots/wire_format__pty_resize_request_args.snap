@@ -1,0 +1,11 @@
+---
+source: tests/wire_format.rs
+expression: request_args
+---
+{
+  "id": 1,
+  "size": {
+    "cols": 132,
+    "rows": 40
+  }
+}

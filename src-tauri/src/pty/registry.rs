@@ -2,7 +2,7 @@
 //! shells (the Electron app leaves this implicit; we make it explicit).
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use parking_lot::Mutex;
 
@@ -10,14 +10,14 @@ use crate::pty::session::Session;
 use crate::pty::types::{PtyError, PtyId, PtySize, SpawnOptions};
 
 pub struct Registry {
-    next_id: AtomicU64,
+    next_id: AtomicU32,
     sessions: Mutex<HashMap<PtyId, Session>>,
 }
 
 impl Registry {
     pub fn new() -> Self {
         Self {
-            next_id: AtomicU64::new(1),
+            next_id: AtomicU32::new(1),
             sessions: Mutex::new(HashMap::new()),
         }
     }

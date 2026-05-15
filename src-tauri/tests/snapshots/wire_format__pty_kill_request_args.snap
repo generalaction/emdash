@@ -1,0 +1,7 @@
+---
+source: tests/wire_format.rs
+expression: request_args
+---
+{
+  "id": 1
+}

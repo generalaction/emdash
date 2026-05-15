@@ -1,0 +1,16 @@
+---
+source: tests/wire_format.rs
+expression: request_args
+---
+{
+  "opts": {
+    "args": [],
+    "command": "/bin/bash",
+    "cwd": null,
+    "env": {},
+    "size": {
+      "cols": 80,
+      "rows": 24
+    }
+  }
+}

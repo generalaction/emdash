@@ -1,4 +1,13 @@
 {
   "$comment": "Allowlist of invoke channels. Enforced by build.rs against bindings.ts. Each entry must match ^[a-z][a-z0-9_]*$. To add: create under src/commands/, add to collect_commands! in tauri_bindings.rs, run `cargo run -- --export-bindings`, append here.",
-  "commands": ["greet", "get_path", "set_secret", "get_secret"]
+  "commands": [
+    "greet",
+    "get_path",
+    "set_secret",
+    "get_secret",
+    "pty_spawn",
+    "pty_write",
+    "pty_resize",
+    "pty_kill"
+  ]
 }

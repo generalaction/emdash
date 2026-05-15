@@ -1,0 +1,11 @@
+---
+source: tests/wire_format.rs
+expression: request_args
+---
+{
+  "bytes": [
+    104,
+    105
+  ],
+  "id": 1
+}

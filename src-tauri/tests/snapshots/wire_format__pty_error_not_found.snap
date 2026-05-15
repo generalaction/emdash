@@ -1,0 +1,8 @@
+---
+source: tests/wire_format.rs
+expression: "serde_json::to_value(&err).unwrap()"
+---
+{
+  "id": 42,
+  "kind": "not_found"
+}

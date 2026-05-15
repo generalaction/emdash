@@ -7,7 +7,7 @@ use specta::Type;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 #[serde(transparent)]
-pub struct PtyId(pub u64);
+pub struct PtyId(pub u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct PtySize {
