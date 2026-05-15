@@ -19,9 +19,9 @@ pub async fn pty_spawn(
     on_data: Channel<Vec<u8>>,
 ) -> Result<PtyId, PtyError> {
     registry.spawn(opts, move |bytes| {
-        // Channel::send is fire-and-forget; we have no backpressure signal
-        // from the webview, so we just log the failure mode on first sight.
-        // See ADR-0003 for the (intentional) loss-tolerance.
+        // Channel::send is fire-and-forget; no backpressure signal from the
+        // webview, so we discard the Result. See ADR-0003 for the
+        // (intentional) loss-tolerance.
         let _ = on_data.send(bytes);
     })
 }
