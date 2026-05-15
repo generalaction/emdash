@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "433cfd44-5f93-4a54-936d-16bc4914688d",
+  "id": "e81dcfec-92d9-4f33-8246-1c8ff55bf0f7",
   "prevId": "8e1285fa-dd0b-4ae5-a673-2399129231cd",
   "tables": {
     "app_secrets": {
@@ -173,6 +173,11 @@
           "name": "idx_automation_runs_automation_status",
           "columns": ["automation_id", "status"],
           "isUnique": false
+        },
+        "idx_automation_runs_created_task_id": {
+          "name": "idx_automation_runs_created_task_id",
+          "columns": ["created_task_id"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -242,6 +247,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "prompt_template": {
+          "name": "prompt_template",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "actions": {
           "name": "actions",

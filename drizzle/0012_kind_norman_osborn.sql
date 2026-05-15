@@ -22,6 +22,7 @@ CREATE TABLE `automations` (
 	`category` text NOT NULL,
 	`cron_expr` text,
 	`cron_tz` text,
+	`prompt_template` text DEFAULT '' NOT NULL,
 	`actions` text DEFAULT '[]' NOT NULL,
 	`task_config` text,
 	`project_id` text NOT NULL,
@@ -38,5 +39,6 @@ CREATE TABLE `automations` (
 CREATE INDEX `idx_automation_runs_automation_started` ON `automation_runs` (`automation_id`,`started_at`);--> statement-breakpoint
 CREATE INDEX `idx_automation_runs_automation_scheduled` ON `automation_runs` (`automation_id`,`scheduled_at`);--> statement-breakpoint
 CREATE INDEX `idx_automation_runs_automation_status` ON `automation_runs` (`automation_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_automation_runs_created_task_id` ON `automation_runs` (`created_task_id`);--> statement-breakpoint
 CREATE INDEX `idx_automations_enabled_next_run` ON `automations` (`enabled`,`next_run_at`);--> statement-breakpoint
 CREATE INDEX `idx_automations_project_id` ON `automations` (`project_id`);

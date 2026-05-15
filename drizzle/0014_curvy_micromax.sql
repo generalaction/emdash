@@ -1,1 +1,0 @@
-ALTER TABLE `automations` ADD `prompt_template` text DEFAULT '' NOT NULL;
