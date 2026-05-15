@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { basename } from 'node:path';
+import { writeFile } from 'node:fs/promises';
+import { basename, extname, join } from 'node:path';
+import { app } from 'electron';
 import { createRPCController } from '@shared/ipc/rpc';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
@@ -7,6 +9,33 @@ import { log } from '@main/lib/logger';
 import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { ptySessionRegistry } from './pty-session-registry';
+
+const MAX_DROPPED_BLOB_BYTES = 50 * 1024 * 1024;
+
+const MIME_TO_EXT: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/svg+xml': '.svg',
+  'image/bmp': '.bmp',
+  'image/tiff': '.tiff',
+  'image/heic': '.heic',
+};
+
+function sanitizeName(name: string | undefined): string {
+  if (!name) return '';
+  const base = basename(name).replace(/[^A-Za-z0-9._-]/g, '_');
+  return base.slice(0, 64);
+}
+
+function inferExtension(name: string | undefined, mimeType: string | undefined): string {
+  const fromName = name ? extname(name).toLowerCase() : '';
+  if (fromName) return fromName;
+  if (mimeType && MIME_TO_EXT[mimeType.toLowerCase()]) return MIME_TO_EXT[mimeType.toLowerCase()];
+  return '.bin';
+}
 
 export const ptyController = createRPCController({
   /** Send raw input data to a PTY session. */
@@ -94,6 +123,37 @@ export const ptyController = createRPCController({
         error: (e as Error)?.message || e,
       });
       return err({ type: 'upload_failed' as const, message: String((e as Error)?.message || e) });
+    }
+  },
+
+  /**
+   * Persist a dropped in-memory blob (browser/Slack drag, screenshot paste, etc.)
+   * to a stable file in the OS temp directory and return its absolute path.
+   *
+   * Renderer falls back to this when `webUtils.getPathForFile()` returns a
+   * Chromium drag-temp path that vanishes before Claude/Codex/etc. can read it.
+   */
+  persistDroppedBlob: async (args: { bytes: Uint8Array; name?: string; mimeType?: string }) => {
+    try {
+      if (args.bytes.byteLength > MAX_DROPPED_BLOB_BYTES) {
+        return err({
+          type: 'persist_failed' as const,
+          message: `Dropped file is too large (${args.bytes.byteLength} bytes)`,
+        });
+      }
+
+      const ext = inferExtension(args.name, args.mimeType);
+      const safe = sanitizeName(args.name?.replace(/\.[^.]+$/, ''));
+      const filename = `emdash-drop-${randomUUID()}${safe ? `-${safe}` : ''}${ext}`;
+      const dir = app.getPath('temp');
+      const fullPath = join(dir, filename);
+      await writeFile(fullPath, args.bytes);
+      return ok({ path: fullPath });
+    } catch (e: unknown) {
+      log.error('pty:persistDroppedBlob failed', {
+        error: (e as Error)?.message || e,
+      });
+      return err({ type: 'persist_failed' as const, message: String((e as Error)?.message || e) });
     }
   },
 });
