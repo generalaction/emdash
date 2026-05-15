@@ -1,5 +1,7 @@
 //! PTY data types — wire-visible via specta.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -18,7 +20,7 @@ pub struct SpawnOptions {
     pub command: String,
     pub args: Vec<String>,
     pub cwd: Option<String>,
-    pub env: Vec<(String, String)>,
+    pub env: HashMap<String, String>,
     pub size: PtySize,
 }
 
@@ -55,7 +57,7 @@ mod tests {
             command: "/bin/echo".into(),
             args: vec!["hi".into()],
             cwd: Some("/tmp".into()),
-            env: vec![("FOO".into(), "bar".into())],
+            env: HashMap::from([("FOO".to_string(), "bar".to_string())]),
             size: PtySize { rows: 24, cols: 80 },
         };
         let json = serde_json::to_string(&opts).unwrap();
