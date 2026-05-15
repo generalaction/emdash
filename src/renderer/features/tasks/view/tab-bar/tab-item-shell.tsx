@@ -45,10 +45,10 @@ export const TabItemShell = observer(function TabItemShell({
         title={title}
         data-tabid={tabId}
         className={cn(
-          'group relative flex h-full flex-col bg-background-secondary text-sm',
+          'group relative flex h-full flex-col bg-[var(--task-tab-background)] text-sm hover:bg-muted',
           className,
           isActive &&
-            'bg-background-secondary-1 [box-shadow:inset_0_1px_0_var(--primary)] text-foreground-muted',
+            'bg-[var(--task-tab-active-background)] hover:bg-[var(--task-tab-active-background)] text-foreground-muted',
           isFocused && 'text-foreground'
         )}
       >
