@@ -1,3 +1,4 @@
+import * as toml from 'smol-toml';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { MemoryFs } from '@main/core/fs/test-helpers/memory-fs';
@@ -18,8 +19,8 @@ function makeExecutionContext(): IExecutionContext {
   };
 }
 
-function makeWriter(fs: MemoryFs): HookConfigWriter {
-  return new HookConfigWriter(fs, makeExecutionContext());
+function makeWriter(fs: MemoryFs, userFs = new MemoryFs()): HookConfigWriter {
+  return new HookConfigWriter(fs, makeExecutionContext(), { userFs });
 }
 
 describe('HookConfigWriter', () => {
@@ -61,6 +62,101 @@ describe('HookConfigWriter', () => {
 
     expect(fs.files.has('.pi/extensions/emdash-hook.ts')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
+  it('writes Codex hooks to the global user config and does not update gitignore', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    const userFs = new MemoryFs();
+    const writer = makeWriter(fs, userFs);
+
+    const wroteConfig = await writer.writeForProvider('codex');
+
+    expect(wroteConfig).toBe(true);
+    expect(fs.files.has('.codex/hooks.json')).toBe(false);
+    expect(fs.files.has('.codex/config.toml')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+
+    const config = JSON.parse(userFs.files.get('.codex/hooks.json')!);
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('{"notification_type":"idle_prompt"}');
+    expect(config.hooks.PermissionRequest[0].hooks[0].command).toContain(
+      '{"notification_type":"permission_prompt"}'
+    );
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Pty-Id');
+  });
+
+  it('preserves unrelated Codex hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    const userFs = new MemoryFs();
+    userFs.files.set(
+      '.codex/hooks.json',
+      JSON.stringify({
+        hooks: {
+          Stop: [
+            { hooks: [{ type: 'command', command: 'echo user hook' }] },
+            { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs, userFs);
+
+    await writer.writeForProvider('codex');
+
+    const config = JSON.parse(userFs.files.get('.codex/hooks.json')!);
+    expect(config.hooks.Stop).toHaveLength(2);
+    expect(config.hooks.Stop[0].hooks[0].command).toBe('echo user hook');
+    expect(config.hooks.Stop[1].hooks[0].command).toContain('{"notification_type":"idle_prompt"}');
+  });
+
+  it('removes only the legacy Emdash Codex notify key from project-local config', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    const userFs = new MemoryFs();
+    fs.files.set(
+      '.codex/config.toml',
+      toml.stringify({
+        model: 'gpt-5.2',
+        notify: [
+          'bash',
+          '-c',
+          'curl -sf -X POST ' +
+            "-H 'Content-Type: application/json' " +
+            '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
+            '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
+            '-H "X-Emdash-Event-Type: notification" ' +
+            '-d "$1" ' +
+            '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true',
+          '_',
+        ],
+      })
+    );
+    const writer = makeWriter(fs, userFs);
+
+    await writer.writeForProvider('codex');
+
+    const config = toml.parse(fs.files.get('.codex/config.toml')!) as Record<string, unknown>;
+    expect(config.model).toBe('gpt-5.2');
+    expect(config.notify).toBeUndefined();
+  });
+
+  it('keeps user-managed Codex notify values in project-local config', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    const userFs = new MemoryFs();
+    fs.files.set(
+      '.codex/config.toml',
+      toml.stringify({
+        notify: ['bash', '-c', 'echo user notify'],
+      })
+    );
+    const writer = makeWriter(fs, userFs);
+
+    await writer.writeForProvider('codex');
+
+    const config = toml.parse(fs.files.get('.codex/config.toml')!) as Record<string, unknown>;
+    expect(config.notify).toEqual(['bash', '-c', 'echo user notify']);
   });
 
   it('writes the OpenCode notifications plugin and ignores it in git', async () => {

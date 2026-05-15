@@ -1,17 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
-import { makeCodexNotifyCommand, makeOpenCodePluginContent } from './agent-notify-command';
+import { describe, expect, it } from 'vitest';
+import { makeCodexHookCommand, makeOpenCodePluginContent } from './agent-notify-command';
 
-describe('makeCodexNotifyCommand', () => {
-  it('writes the Windows notify script only once per script path', () => {
-    const writeFile = vi.fn();
-    const mkdir = vi.fn();
-    const scriptPath = 'C:\\Temp\\emdash-codex-notify.ps1';
+describe('makeCodexHookCommand', () => {
+  it('posts native Codex hook events to the Emdash hook server', () => {
+    const content = makeCodexHookCommand('idle_prompt');
 
-    makeCodexNotifyCommand({ platform: 'win32', scriptPath, mkdir, writeFile });
-    makeCodexNotifyCommand({ platform: 'win32', scriptPath, mkdir, writeFile });
-
-    expect(mkdir).toHaveBeenCalledTimes(1);
-    expect(writeFile).toHaveBeenCalledTimes(1);
+    expect(content).toContain('EMDASH_HOOK_PORT');
+    expect(content).toContain('X-Emdash-Token');
+    expect(content).toContain('X-Emdash-Pty-Id');
+    expect(content).toContain('{"notification_type":"idle_prompt"}');
   });
 });
 
