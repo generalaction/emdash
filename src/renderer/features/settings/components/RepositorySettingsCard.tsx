@@ -66,8 +66,8 @@ const RepositorySettingsCard: React.FC = () => {
         </div>
       </div>
       <SettingRow
-        title="Append random branch suffix"
-        description="Add a short random suffix to generated task branch names."
+        title="Random branch suffix"
+        description="Add a random suffix to branch names."
         control={
           <>
             <ResetToDefaultButton
