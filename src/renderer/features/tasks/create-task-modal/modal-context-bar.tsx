@@ -7,7 +7,7 @@ import { ProviderLogo } from '../components/issue-selector/issue-selector';
 
 interface ModalContextBarProps {
   actions: ContextAction[];
-  onActionClick: (text: string) => void;
+  onActionClick: (action: ContextAction) => void;
 }
 
 export function ModalContextBar({ actions, onActionClick }: ModalContextBarProps) {
@@ -26,7 +26,7 @@ export function ModalContextBar({ actions, onActionClick }: ModalContextBarProps
           disabled={false}
           disabledTooltip="Prompt unavailable"
           actionTooltip="Add a prompt to the initial message"
-          onActionClick={(action) => onActionClick(action.text)}
+          onActionClick={onActionClick}
         />
         {issueAction ? (
           <Tooltip>
@@ -34,7 +34,7 @@ export function ModalContextBar({ actions, onActionClick }: ModalContextBarProps
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onActionClick(issueAction.text)}
+                onClick={() => onActionClick(issueAction)}
                 className="h-7 max-w-full rounded-md bg-background-1 px-2 text-xs font-normal hover:bg-background-1/80"
               >
                 {issueAction.provider ? (

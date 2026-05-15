@@ -3,7 +3,10 @@ import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { buildTaskContextActions } from '@renderer/features/tasks/conversations/context-actions';
+import {
+  buildTaskContextActions,
+  type ContextAction,
+} from '@renderer/features/tasks/conversations/context-actions';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
@@ -47,8 +50,13 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
     [linkedIssue, reviewPrompt, promptLibrary]
   );
 
-  const handleActionClick = (text: string) => {
-    state.setPrompt(state.prompt ? `${state.prompt}\n${text}` : text);
+  const handleActionClick = (action: ContextAction) => {
+    if (action.kind === 'review-prompt' || action.kind === 'custom-prompt') {
+      state.setPrompt(action.text);
+      return;
+    }
+
+    state.setPrompt(state.prompt ? `${state.prompt}\n${action.text}` : action.text);
   };
 
   return (
