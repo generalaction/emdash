@@ -86,7 +86,9 @@ export class PromptLibraryService implements IInitializable {
       }
       await promptLibraryKV.set('seedVersion', PROMPT_LIBRARY_SEED_VERSION);
       await this.deleteLegacyPromptSettings();
-    })();
+    })().finally(() => {
+      this.seedPromise = null;
+    });
 
     await this.seedPromise;
   }
