@@ -23,7 +23,7 @@ use crate::pty::types::{PtyError, PtyId, PtySize, SpawnOptions};
 ///   4. `_slave`  — released before master
 ///   5. `master`  — dropped LAST (Windows invariant)
 pub struct Session {
-    pub id: PtyId,
+    id: PtyId,
     child: Mutex<Box<dyn Child + Send + Sync>>,
     writer: Mutex<Box<dyn std::io::Write + Send>>,
     _coalescer_handle: JoinHandle<()>,
@@ -103,6 +103,10 @@ impl Session {
             _slave: pair.slave,
             master: Mutex::new(pair.master),
         })
+    }
+
+    pub fn id(&self) -> PtyId {
+        self.id
     }
 }
 
