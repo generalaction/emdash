@@ -1,12 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { agentConfig } from '@renderer/utils/agentConfig';
-import { cn } from '@renderer/utils/utils';
 import { AgentStatusIndicator } from '../../components/agent-status-indicator';
 import { formatConversationTitleForDisplay } from '../../conversations/conversation-title-utils';
 import type { ResolvedConversationTab } from '../../tabs/tab-manager-store';
 import { TabCloseButton } from './tab-close-button';
 import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
+import { TabTitle } from './tab-title';
 
 export const ConversationTabItem = observer(function ConversationTabItem({
   tab,
@@ -29,9 +29,6 @@ export const ConversationTabItem = observer(function ConversationTabItem({
       title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
       onSelect={onSelect}
       onPin={onPin}
-      className="text-foreground-muted hover:bg-background-secondary-1/40"
-      activeClassName="bg-background-secondary-1 text-foreground hover:bg-background-secondary-1"
-      innerPaddingRight="pr-1"
     >
       {config ? (
         <AgentLogo
@@ -42,7 +39,9 @@ export const ConversationTabItem = observer(function ConversationTabItem({
           className="size-4 shrink-0"
         />
       ) : null}
-      <span className={cn('max-w-24 truncate p-1', tab.isPreview && 'italic')}>{title}</span>
+      <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} maxWidth="max-w-24">
+        {title}
+      </TabTitle>
       <TabCloseButton
         onClose={onClose}
         ariaLabel={`Close ${title}`}

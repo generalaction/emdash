@@ -3,7 +3,7 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
 import { useTabGroupContext } from '../../tabs/tab-group-context';
 import { useWorkspaceViewModel } from '../../task-view-context';
-import { DraggableTab } from '../draggable-tab';
+import { DraggableTab } from './draggable-tab';
 
 export function TabDragPreviewShell({ children }: { children: React.ReactNode }) {
   return (
@@ -45,7 +45,7 @@ export const TabItemShell = observer(function TabItemShell({
         title={title}
         data-tabid={tabId}
         className={cn(
-          'group relative flex h-full flex-col bg-background-secondary text-sm hover:bg-muted',
+          'group relative flex h-full flex-col bg-background-secondary text-sm',
           className,
           isActive &&
             'bg-background-secondary-1 [box-shadow:inset_0_1px_0_var(--primary)] text-foreground-muted',

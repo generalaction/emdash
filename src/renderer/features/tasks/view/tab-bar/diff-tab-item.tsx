@@ -1,10 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
-import { cn } from '@renderer/utils/utils';
 import { GitChangeStatusIcon } from '../../diff-view/changes-panel/components/changes-list-item';
 import type { ResolvedDiffTab } from '../../tabs/tab-manager-store';
 import { TabCloseButton } from './tab-close-button';
 import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
+import { TabTitle } from './tab-title';
 
 export function diffGroupSuffix(diffGroup: ResolvedDiffTab['diffGroup']): string {
   switch (diffGroup) {
@@ -48,10 +48,10 @@ export const DiffTabItem = observer(function DiffTabItem({
       <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
         <FileIcon filename={fileName} />
       </span>
-      <span className={cn('max-w-[200px] truncate p-1 text-sm', tab.isPreview && 'italic')}>
+      <TabTitle isActive={tab.isActive} isPreview={tab.isPreview}>
         {fileName}
         <span className="ml-1 text-xs text-foreground-muted">{suffix}</span>
-      </span>
+      </TabTitle>
       <TabCloseButton
         onClose={onClose}
         ariaLabel={`Close ${fileName} ${suffix}`}

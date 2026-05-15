@@ -34,9 +34,9 @@ import { useEditorContext } from './editor/editor-provider';
 import { MarkdownEditorPanel } from './editor/markdown-editor-panel';
 import { TabGroupProvider, useTabGroupContext } from './tabs/tab-group-context';
 import { TerminalsPanel } from './terminals/terminal-panel';
-import { TabDragPreview } from './view/tab-items/tab-drag-preview';
+import { TabBar } from './view/tab-bar';
+import { TabDragPreview } from './view/tab-bar/tab-drag-preview';
 import { TaskSidebar } from './view/task-sidebar';
-import { UnifiedMainTabBar } from './view/unified-main-tab-bar';
 import { WorkspaceResolutionView } from './workspace-resolution-view';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
@@ -339,7 +339,7 @@ const PaneContent = observer(function PaneContent() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <UnifiedMainTabBar />
+      <TabBar />
       <div ref={setContentDropRef} className="relative min-h-0 flex-1">
         {isOverContent && (
           <div className="pointer-events-none absolute inset-0 z-20 bg-foreground/10" />

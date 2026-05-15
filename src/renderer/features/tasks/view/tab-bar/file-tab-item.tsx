@@ -3,10 +3,10 @@ import { observer } from 'mobx-react-lite';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
-import { cn } from '@renderer/utils/utils';
 import type { ResolvedFileTab } from '../../tabs/tab-manager-store';
 import { TabCloseButton } from './tab-close-button';
 import { TabDragPreviewShell, TabItemShell } from './tab-item-shell';
+import { TabTitle } from './tab-title';
 
 function fileTabErrorTooltip(diskStatus: string, diskUri: string): string | undefined {
   if (diskStatus === 'error') return 'File not found';
@@ -62,15 +62,9 @@ export const FileTabItem = observer(function FileTabItem({
           <FileIcon filename={fileName} />
         )}
       </span>
-      <span
-        className={cn(
-          'max-w-[200px] truncate p-1 text-sm',
-          tab.isPreview && 'italic',
-          hasFileIssue && 'text-foreground-destructive'
-        )}
-      >
+      <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} hasError={hasFileIssue}>
         {fileName}
-      </span>
+      </TabTitle>
       <TabCloseButton
         onClose={onClose}
         ariaLabel={`Close ${fileName}`}
