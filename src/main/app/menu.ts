@@ -1,15 +1,28 @@
-import { app, Menu, shell } from 'electron';
+import { app, clipboard, Menu, shell } from 'electron';
 import {
   menuCheckForUpdatesChannel,
   menuCloseTabChannel,
+  menuGiveFeedbackChannel,
   menuOpenSettingsChannel,
   menuQuitRequestedChannel,
   menuRedoChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
-import { EMDASH_DOCS_URL, EMDASH_RELEASES_URL } from '@shared/urls';
+import { EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL, EMDASH_RELEASES_URL } from '@shared/urls';
 import { events } from '@main/lib/events';
+import { telemetryService } from '@main/lib/telemetry';
 import { getMainWindow } from './window';
+
+function copyInstallationId(): void {
+  const instanceId = telemetryService.getInstanceId() ?? 'unavailable';
+  const lines = [
+    `Emdash ${app.getVersion()}`,
+    `Installation ID: ${instanceId}`,
+    `Platform: ${process.platform} ${process.arch}`,
+    `Electron: ${process.versions.electron}`,
+  ];
+  clipboard.writeText(lines.join('\n'));
+}
 
 function requestQuit(): void {
   const win = getMainWindow();
@@ -157,6 +170,26 @@ export function setupApplicationMenu(): void {
           click: () => {
             void shell.openExternal(EMDASH_RELEASES_URL);
           },
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Troubleshooting',
+          submenu: [
+            {
+              label: 'Report Issue\u2026',
+              click: () => {
+                void shell.openExternal(EMDASH_ISSUES_NEW_URL);
+              },
+            },
+            {
+              label: 'Copy Installation ID',
+              click: copyInstallationId,
+            },
+          ],
+        },
+        {
+          label: 'Give Feedback',
+          click: () => events.emit(menuGiveFeedbackChannel, undefined),
         },
       ],
     },
