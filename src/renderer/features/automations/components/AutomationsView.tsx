@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, Plus, Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatAutomationError } from '@shared/automations/format';
@@ -166,7 +167,6 @@ export function AutomationsView() {
         onDelete={handleDelete}
         onRunNow={handleRunNow}
         onSetEnabled={handleToggleEnabled}
-        onShowRuns={openEditAutomation}
       />
     );
   }
@@ -194,55 +194,78 @@ export function AutomationsView() {
             </div>
 
             {hasAutomations && (
-              <div className="flex shrink-0 items-center gap-2">
-                {panelOpen && !searchExpanded && !search ? (
-                  <>
-                    <Button
-                      size="icon-sm"
-                      variant="outline"
-                      className="focus-visible:border-border focus-visible:ring-0"
-                      aria-label="Search automations"
-                      onClick={() => setSearchExpanded(true)}
+              <motion.div
+                layout
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                className="flex shrink-0 items-center gap-2"
+              >
+                <AnimatePresence initial={false} mode="popLayout">
+                  {panelOpen && !searchExpanded && !search ? (
+                    <motion.div
+                      key="collapsed-actions"
+                      initial={{ opacity: 0, scale: 0.92 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.92 }}
+                      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                      className="flex items-center gap-2"
                     >
-                      <Search className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="outline"
-                      className="focus-visible:border-border focus-visible:ring-0"
-                      aria-label="New automation"
-                      disabled={create.isPending}
-                      onClick={openNewAutomation}
+                      <Button
+                        size="icon-sm"
+                        variant="outline"
+                        className="focus-visible:border-border focus-visible:ring-0"
+                        aria-label="Search automations"
+                        onClick={() => setSearchExpanded(true)}
+                      >
+                        <Search className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="outline"
+                        className="focus-visible:border-border focus-visible:ring-0"
+                        aria-label="New automation"
+                        disabled={create.isPending}
+                        onClick={openNewAutomation}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="expanded-actions"
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.96 }}
+                      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                      className="flex items-center gap-2"
                     >
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <SearchInput
-                      ref={searchInputRef}
-                      placeholder="Search automations..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      onBlur={() => {
-                        if (panelOpen && !search) setSearchExpanded(false);
-                      }}
-                      aria-label="Search automations"
-                      className={cn('min-w-0', panelOpen ? 'w-48' : 'w-64')}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="shrink-0 whitespace-nowrap"
-                      disabled={create.isPending}
-                      onClick={openNewAutomation}
-                    >
-                      <Plus className="mr-1.5 h-3.5 w-3.5" />
-                      New Automation
-                    </Button>
-                  </>
-                )}
-              </div>
+                      <SearchInput
+                        ref={searchInputRef}
+                        placeholder="Search automations..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onBlur={() => {
+                          if (panelOpen && !search) setSearchExpanded(false);
+                        }}
+                        aria-label="Search automations"
+                        className={cn(
+                          'min-w-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none',
+                          panelOpen ? 'w-48' : 'w-64'
+                        )}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0 whitespace-nowrap"
+                        disabled={create.isPending}
+                        onClick={openNewAutomation}
+                      >
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        New Automation
+                      </Button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             )}
           </div>
 

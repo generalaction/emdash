@@ -1,14 +1,4 @@
-import {
-  Bot,
-  CirclePause,
-  CirclePlay,
-  Folder,
-  History,
-  Loader2,
-  Pencil,
-  Play,
-  Trash2,
-} from 'lucide-react';
+import { Bot, CirclePause, CirclePlay, Folder, Loader2, Play, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { formatRunStatusLabel } from '@shared/automations/format';
@@ -34,7 +24,6 @@ interface AutomationRowProps {
   onDelete: (automation: Automation) => void;
   onRunNow: (automation: Automation) => void;
   onSetEnabled: (automation: Automation, enabled: boolean) => void;
-  onShowRuns: (automation: Automation) => void;
 }
 
 function runStatusBarClass(status: AutomationRunStatus): string {
@@ -60,7 +49,6 @@ export const AutomationRow = observer(function AutomationRow({
   onDelete,
   onRunNow,
   onSetEnabled,
-  onShowRuns,
 }: AutomationRowProps) {
   const tools = useMemo(() => collectTools(automation), [automation]);
   const runStatus = useAutomationRunStatus(automation.id);
@@ -117,7 +105,7 @@ export const AutomationRow = observer(function AutomationRow({
       onKeyDown={handleRowKeyDown}
       aria-label={`Edit ${automation.name}`}
       className={cn(
-        'group flex min-h-14 cursor-pointer items-center gap-4 px-1 py-2.5 text-left transition-colors hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+        'group flex min-h-14 cursor-pointer items-center gap-4 px-1 py-2.5 text-left transition-colors hover:bg-muted/20 focus:outline-none focus-visible:outline-none',
         dimmed && 'opacity-60'
       )}
     >
@@ -237,26 +225,6 @@ export const AutomationRow = observer(function AutomationRow({
             <TooltipContent>
               {runStatus?.status === 'queued' ? 'Queued' : isRunning ? 'Running' : 'Run now'}
             </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              onClick={() => onShowRuns(automation)}
-              aria-label={`Show run history for ${automation.name}`}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <History className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent>Run history</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              onClick={() => onEdit(automation)}
-              aria-label={`Edit ${automation.name}`}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <Pencil className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent>Edit</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger

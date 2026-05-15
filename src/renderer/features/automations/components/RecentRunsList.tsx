@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { formatRunName } from '@shared/automations/format';
+import { formatAutomationError, formatRunName } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -11,7 +11,7 @@ const PAGE_LIMIT = 50;
 
 export function RecentRunsList() {
   const runs = useRecentAutomationRuns(undefined, PAGE_LIMIT);
-  const { automations, removeRun } = useAutomations();
+  const { automations, removeRun, runNow } = useAutomations();
   const { toast } = useToast();
   const showConfirmDelete = useShowModal('confirmActionModal');
 
@@ -28,6 +28,17 @@ export function RecentRunsList() {
               description: error instanceof Error ? error.message : String(error),
               variant: 'destructive',
             }),
+        }),
+    });
+  }
+
+  function handleRerun(run: AutomationRun) {
+    runNow.mutate(run.automationId, {
+      onError: (error) =>
+        toast({
+          title: 'Automation failed',
+          description: formatAutomationError(error),
+          variant: 'destructive',
         }),
     });
   }
@@ -60,18 +71,23 @@ export function RecentRunsList() {
 
   return (
     <div>
-      {items.map((run) => (
-        <AutomationRunRow
-          key={run.id}
-          run={run}
-          automation={automationById.get(run.automationId)}
-          projectId={run.projectId}
-          title={run.automationName}
-          showProjectName
-          paddingClass="px-1"
-          onDelete={handleDeleteRun}
-        />
-      ))}
+      {items.map((run) => {
+        const automation = automationById.get(run.automationId);
+        const canRerun = Boolean(automation && !automation.isDraft);
+        return (
+          <AutomationRunRow
+            key={run.id}
+            run={run}
+            automation={automation}
+            projectId={run.projectId}
+            title={run.automationName}
+            showProjectName
+            paddingClass="px-1"
+            onDelete={handleDeleteRun}
+            onRerun={canRerun ? handleRerun : undefined}
+          />
+        );
+      })}
     </div>
   );
 }

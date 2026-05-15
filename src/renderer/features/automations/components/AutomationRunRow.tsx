@@ -1,4 +1,4 @@
-import { Bot, ChevronRight, Trash2 } from 'lucide-react';
+import { Bot, ChevronRight, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
   formatRunError,
@@ -34,6 +34,7 @@ interface AutomationRunRowProps {
   showProjectName?: boolean;
   paddingClass?: string;
   onDelete?: (run: AutomationRun) => void;
+  onRerun?: (run: AutomationRun) => void;
 }
 
 export const AutomationRunRow = observer(function AutomationRunRow({
@@ -45,6 +46,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   showProjectName = false,
   paddingClass = 'px-3',
   onDelete,
+  onRerun,
 }: AutomationRunRowProps) {
   const { navigate } = useNavigate();
   const taskId = run.taskId;
@@ -59,6 +61,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const status = formatRunStatusLabel(run.status);
   const isFailed = run.status === 'failed';
+  const isActive = run.status === 'running' || run.status === 'queued';
   const errorMessage = run.error ? formatRunError(run.error) : undefined;
   const tool = getPrimaryTool(automation);
   const projectName = showProjectName ? projectDisplayName(getProjectStore(projectId)) : undefined;
@@ -102,7 +105,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
         <span
           className={cn(
             'block truncate text-sm font-medium',
-            isFailed ? 'text-destructive' : 'text-foreground'
+            isFailed ? 'text-destructive' : 'text-foreground',
+            isActive && !isFailed && 'text-shimmer'
           )}
         >
           {runName}
@@ -145,7 +149,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             onClick={handleOpenTask}
             className={cn(
               rowClass,
-              'w-full text-left hover:bg-muted/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+              'w-full text-left hover:bg-muted/20 focus:outline-none focus-visible:outline-none'
             )}
           >
             {rowContent}
@@ -158,16 +162,24 @@ export const AutomationRunRow = observer(function AutomationRunRow({
     </Tooltip>
   );
 
-  if (!onDelete) return rowElement;
+  if (!onDelete && !onRerun) return rowElement;
 
   return (
     <ContextMenu>
       <ContextMenuTrigger className="block w-full">{rowElement}</ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem variant="destructive" onClick={() => onDelete(run)}>
-          <Trash2 />
-          Delete run
-        </ContextMenuItem>
+        {onRerun ? (
+          <ContextMenuItem onClick={() => onRerun(run)}>
+            <RotateCcw />
+            Rerun automation
+          </ContextMenuItem>
+        ) : null}
+        {onDelete ? (
+          <ContextMenuItem variant="destructive" onClick={() => onDelete(run)}>
+            <Trash2 />
+            Delete run
+          </ContextMenuItem>
+        ) : null}
       </ContextMenuContent>
     </ContextMenu>
   );
