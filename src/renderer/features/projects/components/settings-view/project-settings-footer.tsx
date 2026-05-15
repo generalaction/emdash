@@ -54,7 +54,7 @@ export function ProjectSettingsFooter({
       <div className="flex items-center gap-2">
         <Button
           variant="outline"
-          size="icon-sm"
+          size="icon-md"
           aria-label="Reset changes"
           onClick={onUndo}
           disabled={!dirty || saving}

@@ -3,11 +3,26 @@ import {
   menuCheckForUpdatesChannel,
   menuCloseTabChannel,
   menuOpenSettingsChannel,
+  menuQuitRequestedChannel,
   menuRedoChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
 import { EMDASH_DOCS_URL, EMDASH_RELEASES_URL } from '@shared/urls';
 import { events } from '@main/lib/events';
+import { getMainWindow } from './window';
+
+function requestQuit(): void {
+  const win = getMainWindow();
+  if (!win || win.webContents.isLoading()) {
+    app.quit();
+    return;
+  }
+
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  events.emit(menuQuitRequestedChannel, undefined);
+}
 
 export function setupApplicationMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -43,7 +58,7 @@ export function setupApplicationMenu(): void {
               {
                 label: `Quit ${app.name}`,
                 accelerator: 'CmdOrCtrl+Q',
-                click: () => app.quit(),
+                click: requestQuit,
               },
             ],
           } as Electron.MenuItemConstructorOptions,
@@ -70,7 +85,11 @@ export function setupApplicationMenu(): void {
               accelerator: 'CmdOrCtrl+W',
               click: () => events.emit(menuCloseTabChannel, undefined),
             }
-          : { role: 'quit' as const },
+          : {
+              label: 'Quit',
+              accelerator: 'CmdOrCtrl+Q',
+              click: requestQuit,
+            },
       ],
     },
     // Edit menu

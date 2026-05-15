@@ -33,21 +33,38 @@ export function toShortBranchName(
 
 export function resolveInitialBaseBranch(
   branches: Branch[],
-  preferredBaseRef: string | undefined,
-  defaultBranch: Branch | undefined
+  preferredBase: Branch | undefined,
+  defaultBranch: Branch | undefined,
+  projectRemoteName: string
 ): Branch | undefined {
-  const preferredName = toShortBranchName(preferredBaseRef, branches);
+  const projectRemoteBranches = branches.filter(
+    (branch) => branch.type === 'remote' && branch.remote.name === projectRemoteName
+  );
+  const preferredName = preferredBase?.branch;
   if (preferredName) {
+    if (preferredBase?.type === 'remote' && preferredBase.remote.name === projectRemoteName) {
+      const preferredRemote = projectRemoteBranches.find(
+        (branch) => branch.branch === preferredName
+      );
+      if (preferredRemote) return preferredRemote;
+    }
+
     const preferredLocal = branches.find(
       (branch) => branch.type === 'local' && branch.branch === preferredName
     );
     if (preferredLocal) return preferredLocal;
 
-    const preferredRemote = branches.find(
-      (branch) => branch.type === 'remote' && branch.branch === preferredName
-    );
+    const preferredRemote = projectRemoteBranches.find((branch) => branch.branch === preferredName);
     if (preferredRemote) return preferredRemote;
   }
 
-  return defaultBranch;
+  if (!defaultBranch) return undefined;
+  if (defaultBranch.type === 'remote') {
+    return projectRemoteBranches.find((branch) => branch.branch === defaultBranch.branch);
+  }
+
+  return (
+    branches.find((branch) => branch.type === 'local' && branch.branch === defaultBranch.branch) ??
+    projectRemoteBranches.find((branch) => branch.branch === defaultBranch.branch)
+  );
 }

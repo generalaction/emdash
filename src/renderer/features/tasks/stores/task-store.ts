@@ -1,19 +1,19 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
-import type { Conversation } from '@shared/conversations';
-import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
-import type { TaskViewSnapshot } from '@shared/view-state';
+import { err, type Result } from '@shared/result';
+import type {
+  Issue,
+  RenameTaskError,
+  RenameTaskSuccess,
+  Task,
+  TaskLifecycleStatus,
+} from '@shared/tasks';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
-import { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
-import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
-import { TaskViewStore } from '@renderer/features/tasks/stores/task-view';
-import type { WorkspaceStore } from '@renderer/features/tasks/stores/workspace';
-import { workspaceRegistry } from '@renderer/features/tasks/stores/workspace-registry';
-import { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 import { rpc } from '@renderer/lib/ipc';
-import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { log } from '@renderer/utils/logger';
+import { conversationRegistry } from './conversation-registry';
+import { workspaceRegistry } from './workspace-registry';
+import { WorkspaceViewModel } from './workspace-view-model';
 
 export type UnregisteredTaskPhase = 'creating' | 'create-error';
 
@@ -34,113 +34,22 @@ export type UnregisteredTaskData = {
   isPinned: boolean;
 };
 
-export class ProvisionedTask {
-  readonly workspace: WorkspaceStore;
-  readonly devServers: DevServerStore;
-  readonly conversations: ConversationManagerStore;
-  readonly terminals: TerminalManagerStore;
-  readonly draftComments: DraftCommentsStore;
-  readonly taskView: TaskViewStore;
-  readonly repositoryStore: RepositoryStore;
-
-  readonly _taskData: Task;
-  readonly path: string;
-  readonly workspaceId: string;
-
-  private readonly _taskStore: TaskStore;
-  private _snapshotDisposer: (() => void) | null = null;
-
-  get snapshot(): TaskViewSnapshot {
-    return this.taskView.snapshot;
-  }
-
-  get taskBranch(): string | undefined {
-    return this._taskData.taskBranch;
-  }
-
-  constructor(
-    taskStore: TaskStore,
-    path: string,
-    workspaceId: string,
-    settingsStore: ProjectSettingsStore,
-    baseRef: string,
-    savedSnapshot?: TaskViewSnapshot,
-    sshConnectionId?: string,
-    preloadedConversations?: Conversation[]
-  ) {
-    this._taskStore = taskStore;
-    const taskData = taskStore.data as Task;
-    this._taskData = taskData;
-    this.path = path;
-    this.workspaceId = workspaceId;
-
-    this.workspace = workspaceRegistry.acquire(
-      taskData.projectId,
-      this.workspaceId,
-      taskStore,
-      settingsStore,
-      baseRef,
-      sshConnectionId
-    );
-    this.repositoryStore = this.workspace.repository;
-    this.devServers = new DevServerStore(taskData.id, this.workspaceId);
-    this.conversations = new ConversationManagerStore(
-      taskData.projectId,
-      taskData.id,
-      preloadedConversations
-    );
-    this.terminals = new TerminalManagerStore(taskData.projectId, taskData.id);
-    this.draftComments = new DraftCommentsStore(taskData.id);
-    this.taskView = new TaskViewStore(
-      {
-        conversations: this.conversations,
-        terminals: this.terminals,
-        git: this.workspace.git,
-        pr: this.workspace.pr,
-        projectId: taskData.projectId,
-        taskId: taskData.id,
-        workspaceId: this.workspaceId,
-      },
-      savedSnapshot
-    );
-
-    makeAutoObservable(this, {
-      workspace: false,
-      devServers: false,
-      conversations: false,
-      terminals: false,
-      draftComments: false,
-      taskView: false,
-      /** Owned by TaskStore.data — do not attach a second observable tree here */
-      _taskData: false,
-    });
-
-    this._snapshotDisposer = snapshotRegistry.register(`task:${taskData.id}`, () => this.snapshot);
-  }
-
-  activate(): void {
-    workspaceRegistry.activate(this._taskData.projectId, this.workspaceId);
-  }
-
-  dispose(): void {
-    this._snapshotDisposer?.();
-    this._snapshotDisposer = null;
-    workspaceRegistry.release(this._taskData.projectId, this.workspaceId, this._taskStore);
-    this.devServers.dispose();
-    this.draftComments.dispose();
-    this.taskView.dispose();
-    this.conversations.dispose();
-    this.terminals.dispose();
-  }
-}
-
 export class TaskStore {
   state: 'unregistered' | 'unprovisioned' | 'provisioned';
   data: UnregisteredTaskData | Task;
   phase: UnregisteredTaskPhase | UnprovisionedTaskPhase | null;
   errorMessage: string | undefined = undefined;
-  provisionedTask: ProvisionedTask | null = null;
   provisionProgressMessage: string | null = null;
+
+  /** The workspace ID for this task session — null when unprovisioned. */
+  workspaceId: string | null = null;
+  /**
+   * Stable view model — created when task first becomes registered, persists
+   * across provision/unprovision cycles. Null only while task is unregistered.
+   */
+  viewModel: WorkspaceViewModel | null = null;
+  /** Task-lifetime store for draft code-review comments. Null while unregistered. */
+  draftComments: DraftCommentsStore | null = null;
 
   get displayName(): string {
     return this.data.name;
@@ -163,10 +72,22 @@ export class TaskStore {
     this.data = data;
     this.phase = phase;
     makeAutoObservable(this, {
-      provisionedTask: observable.ref,
+      workspaceId: observable,
+      viewModel: observable.ref,
       /** Deep observable so nested fields (e.g. `status`) notify observers (e.g. sidebar). */
       data: observable,
     });
+
+    // Create stable task-lifetime stores immediately for registered tasks.
+    if (state !== 'unregistered') {
+      this._initRegisteredStores();
+    }
+  }
+
+  private _initRegisteredStores(): void {
+    const taskData = this.data as Task;
+    this.draftComments = new DraftCommentsStore(taskData.id);
+    this.viewModel = new WorkspaceViewModel(this);
   }
 
   transitionToProvisioned(
@@ -175,40 +96,48 @@ export class TaskStore {
     workspaceId: string,
     settingsStore: ProjectSettingsStore,
     baseRef: string,
-    savedSnapshot?: TaskViewSnapshot,
-    sshConnectionId?: string,
-    preloadedConversations?: Conversation[]
+    sshConnectionId?: string
   ): void {
     this.data = data;
-    this.provisionedTask = new ProvisionedTask(
-      this,
-      path,
+    workspaceRegistry.acquire(
+      data.projectId,
       workspaceId,
+      path,
       settingsStore,
       baseRef,
-      savedSnapshot,
-      sshConnectionId,
-      preloadedConversations
+      sshConnectionId
     );
+    this.workspaceId = workspaceId;
     this.state = 'provisioned';
     this.phase = null;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
+    this.viewModel?.initialize();
   }
 
   transitionToUnprovisioned(data: Task, phase: UnprovisionedTaskPhase = 'idle'): void {
-    this.provisionedTask?.dispose();
-    this.provisionedTask = null;
+    this.viewModel?.suspend();
+    if (this.workspaceId) {
+      workspaceRegistry.release(data.projectId, this.workspaceId);
+      this.workspaceId = null;
+    }
     this.data = data;
     this.state = 'unprovisioned';
     this.phase = phase;
     this.errorMessage = undefined;
     this.provisionProgressMessage = null;
+
+    // Create stable stores on first registration (when transitioning from unregistered).
+    if (!this.draftComments) this._initRegisteredStores();
   }
 
   transitionToUnregistered(data: UnregisteredTaskData): void {
-    this.provisionedTask?.dispose();
-    this.provisionedTask = null;
+    this.viewModel?.suspend();
+    if (this.workspaceId) {
+      const projectId = (this.data as Task).projectId;
+      workspaceRegistry.release(projectId, this.workspaceId);
+      this.workspaceId = null;
+    }
     this.data = data;
     this.state = 'unregistered';
     this.phase = 'creating';
@@ -216,42 +145,55 @@ export class TaskStore {
   }
 
   activate(): void {
-    this.provisionedTask?.activate();
+    if (this.workspaceId) {
+      const projectId = (this.data as Task).projectId;
+      workspaceRegistry.activate(projectId, this.workspaceId);
+    }
   }
 
   dispose(): void {
-    this.provisionedTask?.dispose();
-    this.provisionedTask = null;
+    this.viewModel?.dispose();
+    this.viewModel = null;
+    if (this.workspaceId) {
+      const projectId = (this.data as Task).projectId;
+      workspaceRegistry.release(projectId, this.workspaceId);
+      this.workspaceId = null;
+    }
+    this.draftComments?.dispose();
+    this.draftComments = null;
   }
 
   get conversationStats(): Record<string, number> {
     if (this.state === 'unregistered') {
       return {};
     }
-    if (this.state === 'provisioned' && this.provisionedTask) {
-      const counts: Record<string, number> = {};
-      for (const conv of this.provisionedTask.conversations.conversations.values()) {
-        const id = conv.data.providerId;
-        counts[id] = (counts[id] ?? 0) + 1;
+    if (this.state === 'provisioned') {
+      const mgr = conversationRegistry.get(this.data.id);
+      if (mgr) {
+        const counts: Record<string, number> = {};
+        for (const conv of mgr.conversations.values()) {
+          const id = conv.data.providerId;
+          counts[id] = (counts[id] ?? 0) + 1;
+        }
+        return counts;
       }
-      return counts;
     }
     return (this.data as Task).conversations;
   }
 
-  async rename(name: string): Promise<void> {
-    if (this.state !== 'provisioned') return;
+  async rename(name: string): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
     const task = registeredTaskData(this);
-    if (!task) return;
+    if (!task) return err({ type: 'task-not-found', taskId: this.data.id });
     try {
-      await rpc.tasks.renameTask(task.projectId, task.id, name);
+      const result = await rpc.tasks.renameTask(task.projectId, task.id, name);
+      if (!result.success) {
+        return result;
+      }
       runInAction(() => {
         this.data.name = name;
       });
+      return result;
     } catch (e) {
-      runInAction(() => {
-        this.data.name = task.name;
-      });
       log.error(e);
       throw e;
     }
@@ -346,7 +288,7 @@ export function isUnprovisioned(t: TaskStore): t is UnprovisionedTask {
 
 export function isProvisioned(
   t: TaskStore
-): t is TaskStore & { state: 'provisioned'; data: Task; provisionedTask: ProvisionedTask } {
+): t is TaskStore & { state: 'provisioned'; data: Task; workspaceId: string } {
   return t.state === 'provisioned';
 }
 

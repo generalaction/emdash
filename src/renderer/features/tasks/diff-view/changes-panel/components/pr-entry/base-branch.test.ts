@@ -3,6 +3,7 @@ import type { Branch } from '@shared/git';
 import { resolveInitialBaseBranch, toShortBranchName } from './base-branch';
 
 const originRemote = { name: 'origin', url: 'git@github.com:owner/repo.git' };
+const upstreamRemote = { name: 'upstream', url: 'git@github.com:upstream/repo.git' };
 
 describe('toShortBranchName', () => {
   it('keeps exact branch names unchanged', () => {
@@ -30,9 +31,37 @@ describe('resolveInitialBaseBranch', () => {
     ];
     const defaultBranch: Branch = { type: 'local', branch: 'main' };
 
-    expect(resolveInitialBaseBranch(branches, 'release/v2', defaultBranch)).toEqual({
+    expect(
+      resolveInitialBaseBranch(
+        branches,
+        { type: 'local', branch: 'release/v2' },
+        defaultBranch,
+        'origin'
+      )
+    ).toEqual({
       type: 'local',
       branch: 'release/v2',
+    });
+  });
+
+  it('preserves the source branch remote when multiple remotes share the branch name', () => {
+    const branches: Branch[] = [
+      { type: 'remote', remote: originRemote, branch: 'main' },
+      { type: 'remote', remote: upstreamRemote, branch: 'main' },
+    ];
+    const defaultBranch: Branch = { type: 'remote', remote: originRemote, branch: 'main' };
+
+    expect(
+      resolveInitialBaseBranch(
+        branches,
+        { type: 'remote', remote: upstreamRemote, branch: 'main' },
+        defaultBranch,
+        'upstream'
+      )
+    ).toEqual({
+      type: 'remote',
+      remote: upstreamRemote,
+      branch: 'main',
     });
   });
 
@@ -40,7 +69,14 @@ describe('resolveInitialBaseBranch', () => {
     const branches: Branch[] = [{ type: 'remote', remote: originRemote, branch: 'main' }];
     const defaultBranch: Branch = { type: 'remote', remote: originRemote, branch: 'main' };
 
-    expect(resolveInitialBaseBranch(branches, 'release/v2', defaultBranch)).toEqual({
+    expect(
+      resolveInitialBaseBranch(
+        branches,
+        { type: 'local', branch: 'release/v2' },
+        defaultBranch,
+        'origin'
+      )
+    ).toEqual({
       type: 'remote',
       remote: originRemote,
       branch: 'main',
@@ -50,6 +86,6 @@ describe('resolveInitialBaseBranch', () => {
   it('returns undefined when no preferred branch and no default branch', () => {
     const branches: Branch[] = [{ type: 'remote', remote: originRemote, branch: 'main' }];
 
-    expect(resolveInitialBaseBranch(branches, undefined, undefined)).toBeUndefined();
+    expect(resolveInitialBaseBranch(branches, undefined, undefined, 'origin')).toBeUndefined();
   });
 });

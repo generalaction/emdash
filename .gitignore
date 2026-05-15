@@ -71,5 +71,13 @@ Thumbs.db
 .codex/config.toml
 
 src/main/appConfig.json
+
+# Per-developer dev database (use pnpm run db:dev)
+tooling/db/dev.db
+tooling/db/dev.db-wal
+tooling/db/dev.db-shm
+
+# Isolated better-sqlite3 for system Node (installed by pnpm run db:setup / postinstall)
+tooling/node-deps/node_modules/
 .pi/extensions/emdash-hook.ts
 .opencode/plugins/emdash-notifications.js

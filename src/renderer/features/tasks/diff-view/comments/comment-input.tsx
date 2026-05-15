@@ -47,7 +47,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
         <Comment.Actions>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             className="h-8 w-8"
             onClick={onCancel}
             title="Cancel (Esc)"
@@ -57,7 +57,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
           </Button>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             className="h-8 w-8"
             onClick={handleSubmit}
             disabled={!content.trim()}

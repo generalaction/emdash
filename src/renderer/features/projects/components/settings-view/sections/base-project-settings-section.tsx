@@ -1,5 +1,9 @@
 import type { Branch, Remote } from '@shared/git';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
+import {
+  RemoteSelectContent,
+  RemoteSelectItem,
+} from '@renderer/lib/components/remote-select-content';
 import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
@@ -7,6 +11,8 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
+
+const SAME_AS_BASE_REMOTE = '__same_as_base_remote__';
 
 type BaseProjectSettingsSectionProps = {
   projectId: string;
@@ -25,8 +31,10 @@ export function BaseProjectSettingsSection({
   worktreeDirectoryError,
   update,
 }: BaseProjectSettingsSectionProps) {
-  const remoteValue = form.remote || 'origin';
-  const selectedRemote = remotes.find((remote) => remote.name === remoteValue);
+  const baseRemoteValue = form.baseRemote || 'origin';
+  const pushRemoteValue = form.pushRemote || SAME_AS_BASE_REMOTE;
+  const selectedBaseRemote = remotes.find((remote) => remote.name === baseRemoteValue);
+  const selectedPushRemote = remotes.find((remote) => remote.name === pushRemoteValue);
 
   return (
     <>
@@ -68,38 +76,55 @@ export function BaseProjectSettingsSection({
       <Separator />
 
       <Field>
-        <FieldTitle>Remote</FieldTitle>
+        <FieldTitle>Base remote</FieldTitle>
         <FieldDescription className="text-foreground-muted">
-          The git remote used for fetching and syncing worktrees. Defaults to{' '}
-          <code className="font-mono text-xs">origin</code>.
+          Used for fetching remote branches, choosing task base branches and targeting pull
+          requests.
         </FieldDescription>
-        <Select value={remoteValue} onValueChange={(value) => update('remote', value ?? '')}>
+        <Select
+          value={baseRemoteValue}
+          onValueChange={(value) => update('baseRemote', value ?? '')}
+        >
           <SelectTrigger className="w-full min-w-0">
             <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              <span className="min-w-0 truncate">{selectedRemote?.name ?? remoteValue}</span>
+              <span className="min-w-0 truncate">
+                {selectedBaseRemote?.name ?? baseRemoteValue}
+              </span>
+            </div>
+          </SelectTrigger>
+          <RemoteSelectContent remotes={remotes} />
+        </Select>
+      </Field>
+
+      <Separator />
+
+      <Field>
+        <FieldTitle>Push remote</FieldTitle>
+        <FieldDescription className="text-foreground-muted">
+          Used when publishing task branches and pushing commits.
+        </FieldDescription>
+        <Select
+          value={pushRemoteValue}
+          onValueChange={(value) =>
+            update('pushRemote', value === SAME_AS_BASE_REMOTE ? '' : (value ?? ''))
+          }
+        >
+          <SelectTrigger className="w-full min-w-0">
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <span className="min-w-0 truncate">
+                {pushRemoteValue === SAME_AS_BASE_REMOTE
+                  ? 'Same as base remote'
+                  : (selectedPushRemote?.name ?? pushRemoteValue)}
+              </span>
             </div>
           </SelectTrigger>
           <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
-            {remotes.length > 0 ? (
-              remotes.map((r) => (
-                <SelectItem key={r.name} value={r.name} className="py-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="relative -top-px shrink-0">{r.name}</span>
-                    {r.url ? (
-                      <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">
-                        {r.url}
-                      </span>
-                    ) : null}
-                  </div>
-                </SelectItem>
-              ))
-            ) : (
-              <SelectItem value="origin" className="py-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="relative -top-px shrink-0 font-medium">origin</span>
-                </div>
-              </SelectItem>
-            )}
+            <SelectItem value={SAME_AS_BASE_REMOTE} className="py-2">
+              <span className="relative -top-px shrink-0 font-medium">Same as base remote</span>
+            </SelectItem>
+            {remotes.map((remote) => (
+              <RemoteSelectItem key={remote.name} remote={remote} />
+            ))}
           </SelectContent>
         </Select>
       </Field>

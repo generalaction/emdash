@@ -1,7 +1,7 @@
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { type Task } from '@shared/tasks';
 import { db } from '@main/db/client';
-import { conversations, tasks } from '@main/db/schema';
+import { conversations, tasks, workspaces } from '@main/db/schema';
 import { mapTaskRowToTask } from '../utils/utils';
 
 export async function getTasks(projectId?: string): Promise<Task[]> {
@@ -34,9 +34,29 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
     convByTask.set(taskId, rec);
   }
 
-  return rows.map((row) => ({
-    ...mapTaskRowToTask(row),
-    prs: [],
-    conversations: convByTask.get(row.id) ?? {},
-  }));
+  const wsIds = rows.map((r) => r.workspaceId).filter((id): id is string => id != null);
+  const wsRows = wsIds.length
+    ? await db
+        .select({
+          id: workspaces.id,
+          linesAdded: workspaces.linesAdded,
+          linesDeleted: workspaces.linesDeleted,
+        })
+        .from(workspaces)
+        .where(inArray(workspaces.id, wsIds))
+    : [];
+  const wsByWsId = new Map(wsRows.map((r) => [r.id, r]));
+
+  return rows.map((row) => {
+    const ws = row.workspaceId ? wsByWsId.get(row.workspaceId) : undefined;
+    return {
+      ...mapTaskRowToTask(row),
+      prs: [],
+      conversations: convByTask.get(row.id) ?? {},
+      workspaceGit:
+        ws?.linesAdded != null
+          ? { linesAdded: ws.linesAdded, linesDeleted: ws.linesDeleted ?? 0 }
+          : undefined,
+    };
+  });
 }

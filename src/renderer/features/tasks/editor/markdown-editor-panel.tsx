@@ -3,7 +3,8 @@ import { autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { useEffect, useRef } from 'react';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { MarkdownEditorRenderer } from '@renderer/lib/editor/markdown-renderer';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
@@ -26,8 +27,8 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
  * for plain text/code files.
  */
 export const MarkdownEditorPanel = observer(function MarkdownEditorPanel() {
-  const { taskView } = useProvisionedTask();
-  const activeTab = taskView.tabManager.activeFileEntry;
+  const { tabManager } = useTabGroupContext();
+  const activeTab = tabManager.activeFileEntry;
 
   if (!activeTab) return null;
 
@@ -49,7 +50,7 @@ interface MarkdownSourceEditorProps {
 const MarkdownSourceEditor = observer(function MarkdownSourceEditor({
   filePath,
 }: MarkdownSourceEditorProps) {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const { editorView } = taskView;
   const { effectiveTheme } = useTheme();
 
@@ -152,8 +153,7 @@ interface SourceToggleOverlayProps {
 }
 
 function SourceToggleOverlay({ filePath }: SourceToggleOverlayProps) {
-  const { taskView } = useProvisionedTask();
-  const { tabManager } = taskView;
+  const { tabManager } = useTabGroupContext();
 
   return (
     <ToggleGroup
