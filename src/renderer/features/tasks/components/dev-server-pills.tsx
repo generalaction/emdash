@@ -2,7 +2,7 @@ import { ExternalLink, Globe } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { rpc } from '@renderer/lib/ipc';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { useProvisionedTask } from '../task-view-context';
+import { useDevServers } from '../task-view-context';
 
 function formatUrl(url: string): string {
   try {
@@ -20,7 +20,7 @@ export const DevServerPills = observer(function DevServerPills({
   projectId: string;
   taskId: string;
 }) {
-  const urls = useProvisionedTask().devServers.urls;
+  const urls = useDevServers().urls;
 
   if (urls.length === 0) return null;
 

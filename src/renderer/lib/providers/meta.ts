@@ -25,6 +25,7 @@ import openaiIcon from '@/assets/images/openai.svg?raw';
 import opencodeIcon from '@/assets/images/opencode.png';
 import piIcon from '@/assets/images/pi.png';
 import qwenIcon from '@/assets/images/qwen.png';
+import xaiIcon from '@/assets/images/xai.svg?raw';
 import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/agent-provider-registry';
 
 export type UiAgent = AgentProviderId;
@@ -57,6 +58,7 @@ const ICONS: Record<string, string> = {
   'mistral.png': mistralIcon,
   'pi.png': piIcon,
   'autohand.svg': autohandIcon,
+  'xai.svg': xaiIcon,
 };
 
 export type AgentMeta = {

@@ -35,8 +35,8 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
 
   const repo = getRepositoryStore(projectId);
-  const configuredRemote = repo?.configuredRemote;
-  const remoteUrl = configuredRemote?.url;
+  const baseRemote = repo?.baseRemote;
+  const remoteUrl = baseRemote?.url;
   const repositoryUrl = repo?.repositoryUrl;
   const repository = parseGitHubRepository(repositoryUrl);
 
@@ -127,21 +127,13 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
   if (!mounted) return <Titlebar leftSlot={<ProjectTitlebarLeft projectId={projectId} />} />;
 
   const isRemote = mounted.data.type === 'ssh';
-  const sshConnectionId = mounted.data.type === 'ssh' ? mounted.data.connectionId : null;
 
   return (
     <Titlebar
       leftSlot={<MountedProjectTitlebarLeft projectId={projectId} />}
       rightSlot={
         <div className="flex items-center gap-2 mr-2">
-          {!isRemote && (
-            <OpenInMenu
-              path={mounted.data.path}
-              isRemote={isRemote}
-              sshConnectionId={sshConnectionId}
-              className="bg-background"
-            />
-          )}
+          {!isRemote && <OpenInMenu path={mounted.data.path} className="h-7 bg-background" />}
           <ToggleGroup
             variant="outline"
             size="sm"

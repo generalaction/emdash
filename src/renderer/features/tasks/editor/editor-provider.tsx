@@ -2,7 +2,7 @@ import { autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -47,8 +47,8 @@ export const EditorProvider = observer(function EditorProvider({
   taskId: string;
   projectId: string;
 }) {
-  const provisionedTask = useProvisionedTask();
-  const { editorView, tabManager } = provisionedTask.taskView;
+  const taskView = useWorkspaceViewModel();
+  const { editorView, tabManager } = taskView;
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
 
@@ -115,7 +115,7 @@ export const EditorProvider = observer(function EditorProvider({
 
           lease.disposables.push(
             lease.editor.onDidFocusEditorWidget(() => {
-              provisionedTask.taskView.setFocusedRegion('main');
+              taskView.setFocusedRegion('main');
             })
           );
 
@@ -201,7 +201,7 @@ export const EditorProvider = observer(function EditorProvider({
   // focus Monaco if an editable model is loaded; otherwise queue the intent so
   // it is satisfied once the lease arrives (handled in the lease reaction above).
   // ---------------------------------------------------------------------------
-  const focusedRegion = provisionedTask.taskView.focusedRegion;
+  const focusedRegion = taskView.focusedRegion;
   useEffect(() => {
     if (!isActive || focusedRegion !== 'main') return;
     const editor = editorRef.current;

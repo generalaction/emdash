@@ -3,7 +3,11 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useConversations,
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -28,11 +32,12 @@ const ConversationRow = observer(function ConversationRow({
   conversationId: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const provisioned = useProvisionedTask();
-  const { tabManager } = provisioned.taskView;
+  const taskView = useWorkspaceViewModel();
+  const conversations = useConversations();
+  const { tabManager } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
 
-  const conversation = provisioned.conversations.conversations.get(conversationId);
+  const conversation = conversations.conversations.get(conversationId);
   if (!conversation) return null;
 
   const isActive = tabManager.activeConversationId === conversationId;
@@ -45,7 +50,7 @@ const ConversationRow = observer(function ConversationRow({
 
   const handleRenameSubmit = (newTitle: string) => {
     setIsEditing(false);
-    void provisioned.conversations.renameConversation(conversationId, newTitle);
+    void conversations.renameConversation(conversationId, newTitle);
   };
 
   const handleDelete = () => {
@@ -55,7 +60,7 @@ const ConversationRow = observer(function ConversationRow({
       confirmLabel: 'Delete',
       variant: 'destructive',
       onSuccess: () => {
-        void provisioned.conversations.deleteConversation(conversationId);
+        void conversations.deleteConversation(conversationId);
       },
     });
   };
@@ -103,15 +108,17 @@ const ConversationRow = observer(function ConversationRow({
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
-          <span className="shrink-0">
-            <AgentLogo
-              logo={config.logo}
-              alt={config.alt}
-              isSvg={config.isSvg}
-              invertInDark={config.invertInDark}
-              className="size-4"
-            />
-          </span>
+          {config ? (
+            <span className="shrink-0">
+              <AgentLogo
+                logo={config.logo}
+                alt={config.alt}
+                isSvg={config.isSvg}
+                invertInDark={config.invertInDark}
+                className="size-4"
+              />
+            </span>
+          ) : null}
           <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
           <span className="shrink-0">
             {conversation.indicatorStatus ? (
@@ -143,10 +150,11 @@ const ConversationRow = observer(function ConversationRow({
 
 export const SidebarConversationsList = observer(function SidebarConversationsList() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { tabManager } = provisioned.taskView;
+  const taskView = useWorkspaceViewModel();
+  const conversations = useConversations();
+  const { tabManager } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
-  const conversationIds = Array.from(provisioned.conversations.conversations.values())
+  const conversationIds = Array.from(conversations.conversations.values())
     .sort((a, b) => {
       const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
       const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;

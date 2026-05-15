@@ -18,10 +18,14 @@ import type {
   ResolvedDiffTab,
   ResolvedFileTab,
 } from '@renderer/features/tasks/tabs/tab-manager-store';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
+import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { Button } from '@renderer/lib/ui/button';
@@ -84,13 +88,15 @@ const ConversationTabItem = observer(function ConversationTabItem({
         )}
       >
         <div className="flex h-full items-center gap-1.5 pl-3 pr-1">
-          <AgentLogo
-            logo={config.logo}
-            alt={config.alt}
-            isSvg={config.isSvg}
-            invertInDark={config.invertInDark}
-            className="size-4 shrink-0"
-          />
+          {config ? (
+            <AgentLogo
+              logo={config.logo}
+              alt={config.alt}
+              isSvg={config.isSvg}
+              invertInDark={config.invertInDark}
+              className="size-4 shrink-0"
+            />
+          ) : null}
           <span className={cn('max-w-24 truncate p-1', tab.isPreview && 'italic')}>{title}</span>
           <div className="relative flex size-5 shrink-0 items-center justify-center">
             <span className="transition-opacity group-hover:opacity-0">
@@ -283,11 +289,13 @@ const DiffTabItem = observer(function DiffTabItem({
 });
 
 export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
-  const { taskView } = useProvisionedTask();
-  const { projectId, taskId } = useTaskViewContext();
+  const taskView = useWorkspaceViewModel();
+  const { projectId, taskId, workspaceId } = useTaskViewContext();
   const { tabManager } = taskView;
   const showCommandPalette = useShowModal('commandPaletteModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
+
+  useTabShortcuts(tabManager, { focused: taskView.focusedRegion === 'main' });
 
   const resolvedTabs = tabManager.resolvedTabs;
   const tabIds = resolvedTabs.map((t) => t.tabId);
@@ -351,7 +359,7 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
                     tab={tab}
                     onSelect={() => tabManager.setActiveTab(tab.tabId)}
                     onPin={() => tabManager.pinTab(tab.tabId)}
-                    onClose={() => tabManager.closeTab(tab.tabId)}
+                    onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
                   />
                 </SortableTabWrapper>
               );
@@ -385,7 +393,9 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
         <Button
           size="icon-sm"
           variant="ghost"
-          onClick={() => showCommandPalette({ projectId, taskId })}
+          onClick={() =>
+            showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined })
+          }
           className="flex h-full items-center justify-center px-2 text-foreground-muted hover:text-foreground hover:bg-background-secondary-1/40"
           aria-label="Open files"
           title="Open files"

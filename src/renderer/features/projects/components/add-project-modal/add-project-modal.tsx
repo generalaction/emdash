@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -76,6 +77,7 @@ export const AddProjectModal = observer(function AddProjectModal({
 
   const showSshConnModal = useShowModal('addSshConnModal');
   const showAddProjectModal = useShowModal('addProjectModal');
+  const showConfirm = useShowModal('confirmActionModal');
 
   const handleAddConnection = () => {
     showSshConnModal({
@@ -110,6 +112,70 @@ export const AddProjectModal = observer(function AddProjectModal({
           mode,
           connectionId: id,
         }),
+    });
+  };
+
+  const handleDeleteConnection = async (id: string) => {
+    const conn = appState.sshConnections.connections.find((c) => c.id === id);
+    if (!conn) return;
+
+    const reopenAddProjectModal = (nextConnectionId?: string) => {
+      showAddProjectModal({
+        strategy: 'ssh',
+        mode,
+        connectionId: nextConnectionId,
+      });
+    };
+
+    let usage;
+    try {
+      usage = await rpc.ssh.getConnectionUsage();
+    } catch (error) {
+      toast({
+        title: 'Failed to load SSH connection usage',
+        description: String(error),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const projects = usage[id] ?? [];
+    if (projects.length > 0) {
+      const projectNames = projects.map((project) => project.name).join(', ');
+      showConfirm({
+        title: 'Cannot delete SSH connection',
+        description: `This SSH connection is used by: ${projectNames}. Change those projects to another connection before deleting it.`,
+        confirmLabel: 'Close',
+        onClose: () => reopenAddProjectModal(id),
+        onSuccess: () => reopenAddProjectModal(id),
+      });
+      return;
+    }
+
+    showConfirm({
+      title: 'Delete SSH connection',
+      description: `This will remove "${conn.name}" and its saved credentials from this device.`,
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+      onClose: () => reopenAddProjectModal(id),
+      onSuccess: () => {
+        void appState.sshConnections
+          .deleteConnection(id)
+          .then(() => {
+            const nextConnectionId = appState.sshConnections.connections.find(
+              (connection) => connection.id !== id
+            )?.id;
+            reopenAddProjectModal(nextConnectionId);
+          })
+          .catch((error) => {
+            toast({
+              title: 'Failed to delete SSH connection',
+              description: String(error),
+              variant: 'destructive',
+            });
+            reopenAddProjectModal(id);
+          });
+      },
     });
   };
 
@@ -283,6 +349,7 @@ export const AddProjectModal = observer(function AddProjectModal({
               onConnectionIdChange={setConnectionId}
               onAddConnection={handleAddConnection}
               onEditConnection={handleEditConnection}
+              onDeleteConnection={(id) => void handleDeleteConnection(id)}
             />
           </Field>
         )}

@@ -287,15 +287,25 @@ export class SkillsService {
   async uninstallSkill(skillId: string): Promise<void> {
     const skillDir = path.join(SKILLS_ROOT, skillId);
 
-    // Remove agent symlinks first
+    // Remove agent symlinks first. Never delete real directories from agent config paths —
+    // those may be user-managed skills that Emdash only discovered.
     await this.unsyncFromAgents(skillId);
 
-    // Remove skill directory
     try {
-      await fs.promises.rm(skillDir, { recursive: true, force: true });
+      const stat = await fs.promises.lstat(skillDir);
+      if (stat.isSymbolicLink()) {
+        await fs.promises.unlink(skillDir);
+      } else if (stat.isDirectory()) {
+        await fs.promises.rm(skillDir, { recursive: true, force: true });
+      } else {
+        log.warn(`Unexpected entry type at ${skillDir} during uninstall — skipping`);
+      }
     } catch (error) {
-      log.error(`Failed to remove skill directory ${skillDir}:`, error);
-      throw error;
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT') {
+        log.error(`Failed to remove skill directory ${skillDir}:`, error);
+        throw error;
+      }
     }
 
     // Invalidate cache
@@ -376,19 +386,23 @@ export class SkillsService {
   }
 
   async unsyncFromAgents(skillId: string): Promise<void> {
-    for (const target of agentTargets) {
+    const syncPaths = [
+      ...agentTargets.map((target) => target.getSkillDir(skillId)),
+      ...skillScanPaths.map((scanPath) => path.join(scanPath, skillId)),
+    ];
+
+    for (const targetDir of new Set(syncPaths)) {
       try {
-        const targetDir = target.getSkillDir(skillId);
         const stat = await fs.promises.lstat(targetDir);
         if (stat.isSymbolicLink()) {
-          // Only remove symlinks that point into our central skills root
+          // Only remove symlinks that point into our central skills root.
           const linkTarget = await fs.promises.readlink(targetDir);
           const resolved = path.resolve(path.dirname(targetDir), linkTarget);
-          if (resolved.startsWith(SKILLS_ROOT)) {
+          if (this.isPathInsideSkillsRoot(resolved)) {
             await fs.promises.unlink(targetDir);
           }
         }
-        // Never rm -rf real directories in agent config — they may be user-managed
+        // Never rm -rf real directories in agent config — they may be user-managed.
       } catch {
         // Doesn't exist or can't remove — skip
       }
@@ -416,6 +430,11 @@ export class SkillsService {
   }
 
   // --- Private helpers ---
+
+  private isPathInsideSkillsRoot(candidatePath: string): boolean {
+    const relativePath = path.relative(SKILLS_ROOT, candidatePath);
+    return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+  }
 
   private loadBundledCatalog(): CatalogIndex {
     return bundledCatalog as CatalogIndex;

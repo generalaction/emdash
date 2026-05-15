@@ -21,6 +21,7 @@ interface TerminalDrawerSidebarProps {
   onAddTerminal: () => void;
   onRemoveTerminal: (id: string) => void;
   onRenameTerminal: (id: string, name: string) => void;
+  onHoverTerminal?: (id: string) => void;
   projectId: string;
   className?: string;
 }
@@ -37,6 +38,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
   onAddTerminal,
   onRemoveTerminal,
   onRenameTerminal,
+  onHoverTerminal,
   projectId,
   className,
 }: TerminalDrawerSidebarProps) {
@@ -71,6 +73,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
             isActive={activeTerminalId === terminal.data.id}
             onSelect={() => onSelectTerminal(terminal.data.id)}
             onRename={(name) => onRenameTerminal(terminal.data.id, name)}
+            onHover={onHoverTerminal ? () => onHoverTerminal(terminal.data.id) : undefined}
             action={
               <Tooltip>
                 <TooltipTrigger>
@@ -157,10 +160,19 @@ interface SidebarRowProps {
   isActive: boolean;
   onSelect: () => void;
   onRename?: (name: string) => void;
+  onHover?: () => void;
   action?: ReactNode;
 }
 
-function SidebarRow({ icon, label, isActive, onSelect, onRename, action }: SidebarRowProps) {
+function SidebarRow({
+  icon,
+  label,
+  isActive,
+  onSelect,
+  onRename,
+  onHover,
+  action,
+}: SidebarRowProps) {
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing && onRename) {
@@ -191,6 +203,7 @@ function SidebarRow({ icon, label, isActive, onSelect, onRename, action }: Sideb
         isActive && 'bg-background-2 text-foreground'
       )}
       onClick={onSelect}
+      onMouseEnter={onHover}
       onDoubleClick={(e) => {
         if (!onRename) return;
         e.stopPropagation();

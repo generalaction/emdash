@@ -45,6 +45,7 @@ describe('getEffectiveTaskSettings', () => {
     });
     expect(settings).not.toHaveProperty('tmux');
     expect(settings).not.toHaveProperty('remote');
+    expect(settings).not.toHaveProperty('baseRemote');
   });
 
   it('falls back to defaults plus project settings when the task config is invalid', async () => {

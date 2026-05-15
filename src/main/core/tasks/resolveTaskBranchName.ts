@@ -4,14 +4,18 @@ type ResolveTaskBranchNameInput = {
   rawBranch: string;
   branchPrefix: string;
   suffix: string;
+  appendRandomSuffix: boolean;
   linkedIssue?: Issue;
+  disableRandomSuffix?: boolean;
 };
 
 export function resolveTaskBranchName({
   rawBranch,
   branchPrefix,
   suffix,
+  appendRandomSuffix,
   linkedIssue,
+  disableRandomSuffix = false,
 }: ResolveTaskBranchNameInput): string {
   const linearBranchName =
     linkedIssue?.provider === 'linear' ? linkedIssue.branchName?.trim() : undefined;
@@ -20,5 +24,8 @@ export function resolveTaskBranchName({
     return linearBranchName;
   }
 
-  return branchPrefix ? `${branchPrefix}/${rawBranch}-${suffix}` : `${rawBranch}-${suffix}`;
+  const shouldAppendSuffix =
+    appendRandomSuffix && !disableRandomSuffix && linkedIssue?.provider !== 'linear';
+  const branch = shouldAppendSuffix ? `${rawBranch}-${suffix}` : rawBranch;
+  return branchPrefix ? `${branchPrefix}/${branch}` : branch;
 }

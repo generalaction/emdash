@@ -25,6 +25,8 @@ export type ConnectionState =
   | 'disconnected'
   | 'error';
 
+export type SshHealthState = { status: 'ok' } | { status: 'degraded' };
+
 /**
  * SSH Connection with metadata
  * Extends SshConfig with runtime connection information
@@ -35,6 +37,8 @@ export interface SshConnection extends SshConfig {
   lastError?: string;
   connectedAt?: Date;
 }
+
+export type SshConnectionUsage = Record<string, Array<{ id: string; name: string }>>;
 
 /**
  * Command execution result

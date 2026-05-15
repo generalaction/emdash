@@ -26,6 +26,7 @@ describe('runLifecycleScript', () => {
       },
     } as never);
     vi.mocked(getEffectiveTaskSettings).mockResolvedValue({
+      shellSetup: 'source .envrc',
       scripts: {
         run: 'pnpm dev',
       },
@@ -37,6 +38,9 @@ describe('runLifecycleScript', () => {
       type: 'run',
     });
 
-    expect(lifecycleRun).toHaveBeenCalledWith({ type: 'run', script: 'pnpm dev' }, { exit: true });
+    expect(lifecycleRun).toHaveBeenCalledWith(
+      { type: 'run', script: 'pnpm dev', shellSetup: 'source .envrc' },
+      { exit: true }
+    );
   });
 });

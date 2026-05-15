@@ -1,5 +1,6 @@
-import type { Client, ClientChannel } from 'ssh2';
+import type { ClientChannel } from 'ssh2';
 import { err, ok, type Result } from '@shared/result';
+import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { normalizeSignal } from './exit-signals';
 import type { Pty, PtyDimensions, PtyExitInfo } from './pty';
@@ -60,12 +61,12 @@ export class Ssh2PtySession implements Pty {
 }
 
 export async function openSsh2Pty(
-  sshClient: Client,
+  proxy: SshClientProxy,
   options: Ssh2SpawnOptions
 ): Promise<Result<Ssh2PtySession, Ssh2OpenError>> {
   const { id, command, cols, rows } = options;
   return new Promise((resolve) => {
-    sshClient.exec(
+    proxy.execPty(
       command,
       {
         pty: {

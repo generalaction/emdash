@@ -20,7 +20,8 @@
       "@main/*": ["./src/main/*"],
       "@shared/*": ["./src/shared/*"],
       "@root/*": ["./*"],
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@tooling/*": ["./tooling/*"]
     }
   },
   "include": [
@@ -29,7 +30,8 @@
     "src/preload/**/*",
     "src/shared/**/*",
     "src/types/**/*",
-    "src/test/**/*"
+    "src/test/**/*",
+    "tooling/**/*"
   ],
   "exclude": ["node_modules", "dist", "out", "**/_*/**"]
 }
