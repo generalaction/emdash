@@ -10,7 +10,7 @@ import { EditorMainPanel } from '../editor/editor-main-panel';
 import { useEditorContext } from '../editor/editor-provider';
 import { MarkdownEditorPanel } from '../editor/markdown-editor-panel';
 import { useTabGroupContext } from '../tabs/tab-group-context';
-import { PaneEmptyState } from './main-panel-empty-state';
+import { PaneEmptyState } from './pane-empty-state';
 import { TabBar } from './tab-bar';
 
 /** The content for a single pane: tab bar + renderer area. */

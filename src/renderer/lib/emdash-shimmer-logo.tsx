@@ -47,7 +47,7 @@ export function EmdashShimmerLogo({
               type="translate"
               values="0 0; 998 0; 998 0"
               keyTimes="0; 0.9; 1"
-              dur="10s"
+              dur="7s"
               repeatCount="indefinite"
             />
           )}

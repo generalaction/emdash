@@ -1,8 +1,8 @@
 import { FolderOpen, Github, Plus, Server, type LucideIcon } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useEffect, useState } from 'react';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
+import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Kbd } from '@renderer/lib/ui/kbd';
@@ -41,25 +41,12 @@ export function HomeTitlebar() {
 
 export function HomeMainPanel() {
   const showAddProjectModal = useShowModal('addProjectModal');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const { selectedIndex, setSelectedIndex } = useArrowKeyNavigation(
+    PROJECT_ACTIONS.length,
+    (index) => showAddProjectModal(PROJECT_ACTIONS[index].modalArgs)
+  );
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex((i) => (i + 1) % PROJECT_ACTIONS.length);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex((i) => (i - 1 + PROJECT_ACTIONS.length) % PROJECT_ACTIONS.length);
-      } else if (e.key === 'Enter') {
-        showAddProjectModal(PROJECT_ACTIONS[selectedIndex].modalArgs);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [selectedIndex, showAddProjectModal]);
 
   return (
     <motion.div
