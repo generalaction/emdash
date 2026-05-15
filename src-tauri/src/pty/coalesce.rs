@@ -29,6 +29,9 @@ where
                             on_flush(std::mem::take(&mut buf));
                             buf.reserve(FLUSH_BYTES);
                             deadline = None;
+                        } else {
+                            // "4 ms since the LAST byte" — refresh on every chunk.
+                            deadline = Some(time::Instant::now() + FLUSH_INTERVAL);
                         }
                     }
                     None => break,
@@ -134,6 +137,40 @@ mod tests {
         let flushes = store.lock().clone();
         assert_eq!(flushes.len(), 1, "expected one coalesced flush, got {:?}", flushes);
         assert_eq!(flushes[0], vec![7, 7, 7, 7]);
+
+        drop(tx);
+        h.await.unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn deadline_refreshes_on_each_new_chunk() {
+        // Spec: flush "4 ms since the LAST byte". A trickle of bytes that
+        // stays below FLUSH_BYTES but never pauses for 4 ms must NOT flush.
+        let (store, sink) = make_sink();
+        let (tx, rx) = mpsc::channel::<Vec<u8>>(8);
+        let h = tokio::spawn(run_coalescer(rx, sink));
+
+        // 3 chunks at 2 ms apart — total span 6 ms. With first-byte
+        // anchoring (the bug) we'd flush ~4 ms in. With last-byte
+        // anchoring (correct) no flush fires until the trickle stops.
+        tx.send(vec![1]).await.unwrap();
+        time::sleep(Duration::from_millis(2)).await;
+        tx.send(vec![2]).await.unwrap();
+        time::sleep(Duration::from_millis(2)).await;
+        tx.send(vec![3]).await.unwrap();
+        time::sleep(Duration::from_millis(2)).await;
+        // 2 ms after the last byte — must not have flushed yet.
+        assert!(
+            store.lock().is_empty(),
+            "premature flush: deadline anchored to first byte, got {:?}",
+            store.lock()
+        );
+
+        // Wait past the deadline (4 ms total since last byte) — now it flushes.
+        time::sleep(Duration::from_millis(3)).await;
+        let flushes = store.lock().clone();
+        assert_eq!(flushes.len(), 1, "expected one coalesced flush after quiescence, got {:?}", flushes);
+        assert_eq!(flushes[0], vec![1, 2, 3]);
 
         drop(tx);
         h.await.unwrap();
