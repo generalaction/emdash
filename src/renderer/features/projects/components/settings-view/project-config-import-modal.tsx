@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
-import { Field, FieldGroup, FieldTitle } from '@renderer/lib/ui/field';
+import { Field, FieldGroup } from '@renderer/lib/ui/field';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
@@ -142,29 +142,29 @@ export function ProjectConfigImportModal({
             </div>
           ) : null}
 
-          <Field>
-            <FieldTitle>Save to</FieldTitle>
+          <div className="space-y-2 text-sm">
+            <p>Save to</p>
             <RadioGroup
               value={destination}
               onValueChange={(value) => setDestination(value as ProjectConfigMigrationDestination)}
               className="grid"
             >
-              <label className="grid grid-cols-[1rem_1fr] items-center gap-3 rounded-md text-sm">
-                <RadioGroupItem value="local" />
+              <label className="flex items-center gap-3 rounded-md text-sm">
+                <RadioGroupItem value="local" className="translate-y-px" />
                 <span className="flex min-w-0 flex-row gap-1.5">
                   <p>Settings</p>
                   <p className="text-foreground-muted">– local to this machine</p>
                 </span>
               </label>
-              <label className="grid grid-cols-[1rem_1fr] items-center gap-3 rounded-md text-sm">
-                <RadioGroupItem value="shared" />
+              <label className="flex items-center gap-3 rounded-md text-sm">
+                <RadioGroupItem value="shared" className="translate-y-px" />
                 <span className="flex min-w-0 flex-row gap-1.5">
                   <p>.emdash.json</p>
                   <p className="text-foreground-muted">– commit to share with team</p>
                 </span>
               </label>
             </RadioGroup>
-          </Field>
+          </div>
           {status === 'error' ? <p className="text-xs text-red-500">{errorMessage}</p> : null}
         </FieldGroup>
       </DialogContentArea>
