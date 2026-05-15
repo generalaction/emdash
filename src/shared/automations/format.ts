@@ -55,8 +55,7 @@ function isWeekendToken(token: string): boolean {
     upper === 'SUN,SAT' ||
     upper === '0,6' ||
     upper === '6,0' ||
-    upper === '6-7' ||
-    upper === '0,7'
+    upper === '6-7'
   );
 }
 
@@ -186,6 +185,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   actions_required: 'Add at least one action before saving',
   automation_not_found: 'This automation no longer exists',
   automation_is_draft: 'Finish setting up the automation before running it',
+  automation_run_in_flight: 'Wait for the run to finish before deleting it',
 };
 
 export function formatRunError(raw: string): string {

@@ -126,6 +126,19 @@ describe('automationsController.removeRun', () => {
     expect(removeRunFromDb).not.toHaveBeenCalled();
   });
 
+  it('rejects deleting queued or running runs', async () => {
+    for (const status of ['queued', 'running'] as const) {
+      vi.clearAllMocks();
+      vi.mocked(getRun).mockResolvedValue(makeRun({ status }));
+
+      const result = await automationsController.removeRun('run-1');
+
+      expect(result).toEqual({ success: false, error: 'automation_run_in_flight' });
+      expect(deleteTaskMock).not.toHaveBeenCalled();
+      expect(removeRunFromDb).not.toHaveBeenCalled();
+    }
+  });
+
   it('deletes the row without touching tasks when the run created no task', async () => {
     vi.mocked(getRun).mockResolvedValue(makeRun({ createdTaskId: null }));
     vi.mocked(removeRunFromDb).mockResolvedValue(true);

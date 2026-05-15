@@ -141,6 +141,10 @@ export const automationsController = createRPCController({
       const run = await getRun(id);
       if (!run) return err('automation_run_not_found');
 
+      if (run.status === 'queued' || run.status === 'running') {
+        return err('automation_run_in_flight');
+      }
+
       const createdTaskId = run.createdTaskId;
       if (createdTaskId) {
         const [task] = await db
