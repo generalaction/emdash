@@ -13,6 +13,7 @@ import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-sel
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { appendInitialConversationText } from './initial-conversation-text';
 import { ModalContextBar } from './modal-context-bar';
 
 export type InitialConversationState = {
@@ -50,12 +51,7 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
   );
 
   const handleActionClick = (action: ContextAction) => {
-    if (action.kind === 'prompt') {
-      state.setPrompt(action.text);
-      return;
-    }
-
-    state.setPrompt(state.prompt ? `${state.prompt}\n${action.text}` : action.text);
+    state.setPrompt(appendInitialConversationText(state.prompt, action.text));
   };
 
   return (

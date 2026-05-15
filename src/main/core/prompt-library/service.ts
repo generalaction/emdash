@@ -63,10 +63,14 @@ export class PromptLibraryService implements IInitializable {
         await this.readLegacyAppSetting('promptLibrary')
       );
       const legacyReviewPrompt = await this.readLegacyAppSetting('reviewPrompt');
-      const prompts =
-        existingPrompts.length > 0 || !legacyPromptLibrary.success
-          ? existingPrompts
-          : legacyPromptLibrary.data;
+      const prompts = [...existingPrompts];
+      if (legacyPromptLibrary.success) {
+        for (const legacyPrompt of legacyPromptLibrary.data) {
+          if (!prompts.some((prompt) => prompt.id === legacyPrompt.id)) {
+            prompts.push(legacyPrompt);
+          }
+        }
+      }
       const defaultPrompts = DEFAULT_PROMPT_LIBRARY.map((prompt) =>
         prompt.id === 'review-prompt' && typeof legacyReviewPrompt === 'string'
           ? { ...prompt, prompt: legacyReviewPrompt }
