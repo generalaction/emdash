@@ -17,6 +17,7 @@ export const SETTINGS_DEFAULTS = {
   project: {
     pushOnCreate: true,
     branchPrefix: 'emdash',
+    appendRandomBranchSuffix: true,
     tmuxByDefault: false,
   },
   localProject: () => ({

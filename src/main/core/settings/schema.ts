@@ -8,6 +8,7 @@ import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
 export const projectSettingsSchema = z.object({
   pushOnCreate: z.boolean(),
   branchPrefix: z.string(),
+  appendRandomBranchSuffix: z.boolean(),
   tmuxByDefault: z.boolean(),
 });
 

@@ -11,6 +11,7 @@
 
 - task worktrees are created under the project's DB-backed worktree directory setting
 - branch prefix defaults to `emdash` and is configurable in app settings
+- generated task branch names use the configured prefix plus a random suffix by default; app repository settings can disable only the random suffix
 - selected gitignored files are preserved into worktrees
 - worktree creation is managed by the project provider pattern
 
