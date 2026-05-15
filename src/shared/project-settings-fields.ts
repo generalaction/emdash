@@ -37,10 +37,9 @@ function normalizePatterns(patterns: string[] | undefined): string[] {
 
 export function hasDefaultPreservePatterns(settings: ShareableProjectSettings): boolean {
   const patterns = normalizePatterns(settings.preservePatterns);
-  return (
-    patterns.length === DEFAULT_PRESERVE_PATTERNS.length &&
-    patterns.every((pattern, index) => pattern === DEFAULT_PRESERVE_PATTERNS[index])
-  );
+  if (patterns.length !== DEFAULT_PRESERVE_PATTERNS.length) return false;
+  const patternSet = new Set(patterns);
+  return DEFAULT_PRESERVE_PATTERNS.every((pattern) => patternSet.has(pattern));
 }
 
 export function hasConfiguredShareableProjectSettings(settings: ProjectSettings): boolean {

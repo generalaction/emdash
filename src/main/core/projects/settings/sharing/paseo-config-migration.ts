@@ -95,7 +95,7 @@ function addUnsupportedScripts(
   data: PaseoMigrationData,
   scripts: z.infer<typeof paseoConfigSchema>['scripts']
 ): void {
-  if (!scripts) return undefined;
+  if (!scripts) return;
 
   for (const [name, script] of Object.entries(scripts)) {
     if (script.command !== undefined) data.unsupportedFields.push(`scripts.${name}.command`);

@@ -11,6 +11,14 @@ describe('hasConfiguredShareableProjectSettings', () => {
     ).toBe(false);
   });
 
+  it('does not treat reordered default preserve patterns as configured settings', () => {
+    expect(
+      hasConfiguredShareableProjectSettings({
+        preservePatterns: [...DEFAULT_PRESERVE_PATTERNS].reverse(),
+      })
+    ).toBe(false);
+  });
+
   it('treats non-default preserve patterns as configured settings', () => {
     expect(
       hasConfiguredShareableProjectSettings({
