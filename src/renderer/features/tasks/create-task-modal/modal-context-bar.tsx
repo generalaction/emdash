@@ -14,9 +14,7 @@ export function ModalContextBar({ actions, onActionClick }: ModalContextBarProps
   if (actions.length === 0) return null;
 
   const issueAction = actions.find((a) => a.kind === 'linked-issue') ?? null;
-  const promptActions = actions.filter(
-    (a) => a.kind === 'review-prompt' || a.kind === 'custom-prompt'
-  );
+  const promptActions = actions.filter((a) => a.kind === 'prompt');
 
   return (
     <TooltipProvider>

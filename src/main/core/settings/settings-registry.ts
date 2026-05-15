@@ -8,6 +8,14 @@ import { getDefaultLocalWorktreeDirectory } from './worktree-defaults';
 export const DEFAULT_AGENT_ID = 'claude';
 export const DEFAULT_REVIEW_PROMPT =
   'Review all changes in this worktree. Focus on correctness, regressions, edge cases, and missing tests. List concrete issues first, then note residual risks.';
+export const DEFAULT_PROMPT_LIBRARY = [
+  {
+    id: 'review-prompt',
+    title: 'Review prompt',
+    prompt: DEFAULT_REVIEW_PROMPT,
+  },
+];
+export const PROMPT_LIBRARY_SEED_VERSION = 1;
 
 type SettingsDefaultsMap = {
   [K in AppSettingsKey]: AppSettings[K] | (() => AppSettings[K]);
@@ -43,7 +51,8 @@ export const SETTINGS_DEFAULTS = {
   theme: null,
   defaultAgent: DEFAULT_AGENT_ID,
   reviewPrompt: DEFAULT_REVIEW_PROMPT,
-  promptLibrary: [],
+  promptLibrary: DEFAULT_PROMPT_LIBRARY,
+  promptLibrarySeedVersion: 0,
   keyboard: {},
   openIn: {
     default: 'terminal' as const,

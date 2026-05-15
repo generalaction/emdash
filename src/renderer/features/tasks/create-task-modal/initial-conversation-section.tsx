@@ -42,16 +42,15 @@ interface InitialConversationFieldProps {
 }
 
 export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
-  const { value: reviewPrompt } = useAppSettingsKey('reviewPrompt');
   const { value: promptLibrary } = useAppSettingsKey('promptLibrary');
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, reviewPrompt, undefined, promptLibrary),
-    [linkedIssue, reviewPrompt, promptLibrary]
+    () => buildTaskContextActions(linkedIssue, undefined, promptLibrary),
+    [linkedIssue, promptLibrary]
   );
 
   const handleActionClick = (action: ContextAction) => {
-    if (action.kind === 'review-prompt' || action.kind === 'custom-prompt') {
+    if (action.kind === 'prompt') {
       state.setPrompt(action.text);
       return;
     }

@@ -1,4 +1,4 @@
-import { Pencil, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -8,20 +8,11 @@ import { Input } from '@renderer/lib/ui/input';
 import { cn } from '@renderer/utils/utils';
 import type { PromptFormResult, PromptLibraryPrompt } from './prompt-modal';
 
-type PromptListItem =
-  | {
-      kind: 'review';
-      id: 'review-prompt';
-      title: string;
-      prompt: string;
-      canReset: boolean;
-    }
-  | {
-      kind: 'custom';
-      id: string;
-      title: string;
-      prompt: string;
-    };
+type PromptListItem = {
+  id: string;
+  title: string;
+  prompt: string;
+};
 
 function createPromptId() {
   return globalThis.crypto?.randomUUID?.() ?? `prompt-${Date.now()}`;
@@ -37,14 +28,12 @@ function PromptRow({
   item,
   disabled,
   onEdit,
-  onReset,
   onDelete,
 }: {
   item: PromptListItem;
   disabled: boolean;
   onEdit: () => void;
-  onReset?: () => void;
-  onDelete?: () => void;
+  onDelete: () => void;
 }) {
   return (
     <div className="group flex min-h-[68px] items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 transition-colors hover:bg-background-1">
@@ -69,41 +58,21 @@ function PromptRow({
         >
           <Pencil />
         </Button>
-        {item.kind === 'review' ? (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onReset}
-            disabled={disabled || !item.canReset}
-            aria-label="Reset review prompt"
-          >
-            <RotateCcw />
-          </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onDelete}
-            disabled={disabled}
-            aria-label={`Delete ${item.title}`}
-          >
-            <Trash2 />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={onDelete}
+          disabled={disabled}
+          aria-label={`Delete ${item.title}`}
+        >
+          <Trash2 />
+        </Button>
       </div>
     </div>
   );
 }
 
 export function PromptLibraryView() {
-  const {
-    value: reviewPromptValue,
-    defaults: reviewPromptDefault,
-    update: updateReviewPrompt,
-    reset: resetReviewPrompt,
-    isLoading: isReviewPromptLoading,
-    isSaving: isReviewPromptSaving,
-  } = useAppSettingsKey('reviewPrompt');
   const {
     value: promptLibraryValue,
     update: updatePromptLibrary,
@@ -114,34 +83,12 @@ export function PromptLibraryView() {
   const showConfirm = useShowModal('confirmActionModal');
   const [search, setSearch] = useState('');
 
-  const reviewPrompt = reviewPromptValue ?? '';
   const promptLibrary = useMemo(() => promptLibraryValue ?? [], [promptLibraryValue]);
-  const isDisabled =
-    isReviewPromptLoading ||
-    isReviewPromptSaving ||
-    isPromptLibraryLoading ||
-    isPromptLibrarySaving;
-
-  const items = useMemo<PromptListItem[]>(() => {
-    const reviewItem: PromptListItem = {
-      kind: 'review',
-      id: 'review-prompt',
-      title: 'Review prompt',
-      prompt: reviewPrompt,
-      canReset: reviewPrompt !== (reviewPromptDefault ?? ''),
-    };
-    const customItems: PromptListItem[] = promptLibrary.map((prompt) => ({
-      kind: 'custom',
-      id: prompt.id,
-      title: prompt.title,
-      prompt: prompt.prompt,
-    }));
-    return [reviewItem, ...customItems];
-  }, [promptLibrary, reviewPrompt, reviewPromptDefault]);
+  const isDisabled = isPromptLibraryLoading || isPromptLibrarySaving;
 
   const filteredItems = useMemo(
-    () => items.filter((item) => matchesSearch(item, search.trim())),
-    [items, search]
+    () => promptLibrary.filter((item) => matchesSearch(item, search.trim())),
+    [promptLibrary, search]
   );
 
   const upsertPrompt = (prompt: PromptLibraryPrompt) => {
@@ -157,14 +104,6 @@ export function PromptLibraryView() {
       onSuccess: (result: PromptFormResult) => {
         upsertPrompt({ id: createPromptId(), ...result });
       },
-    });
-  };
-
-  const editReviewPrompt = () => {
-    showPromptModal({
-      initialPrompt: { title: 'Review prompt', prompt: reviewPrompt },
-      titleReadonly: true,
-      onSuccess: (result: PromptFormResult) => updateReviewPrompt(result.prompt),
     });
   };
 
@@ -218,25 +157,11 @@ export function PromptLibraryView() {
 
         <div className={cn('flex flex-col gap-2', filteredItems.length === 0 && 'min-h-64')}>
           {filteredItems.length > 0 ? (
-            filteredItems.map((item) => {
-              if (item.kind === 'review') {
-                return (
-                  <PromptRow
-                    key={item.id}
-                    item={item}
-                    disabled={isDisabled}
-                    onEdit={editReviewPrompt}
-                    onReset={() => resetReviewPrompt()}
-                  />
-                );
-              }
-
-              const prompt = promptLibrary.find((candidate) => candidate.id === item.id);
-              if (!prompt) return null;
+            filteredItems.map((prompt) => {
               return (
                 <PromptRow
-                  key={item.id}
-                  item={item}
+                  key={prompt.id}
+                  item={prompt}
                   disabled={isDisabled}
                   onEdit={() => editPrompt(prompt)}
                   onDelete={() => deletePrompt(prompt)}

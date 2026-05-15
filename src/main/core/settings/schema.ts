@@ -3,7 +3,11 @@ import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-regi
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
-import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
+import {
+  DEFAULT_AGENT_ID,
+  DEFAULT_PROMPT_LIBRARY,
+  DEFAULT_REVIEW_PROMPT,
+} from './settings-registry';
 
 export const projectSettingsSchema = z.object({
   pushOnCreate: z.boolean(),
@@ -57,7 +61,10 @@ export const promptLibraryPromptSchema = z.object({
   prompt: z.string().min(1),
 });
 
-export const promptLibrarySchema = z.array(promptLibraryPromptSchema).default([]);
+export const promptLibrarySchema = z
+  .array(promptLibraryPromptSchema)
+  .default(DEFAULT_PROMPT_LIBRARY);
+export const promptLibrarySeedVersionSchema = z.number().int().min(0).default(0);
 
 export const keyboardSettingsSchema = z
   .optional(
@@ -120,6 +127,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   defaultAgent: defaultAgentSchema,
   reviewPrompt: reviewPromptSchema,
   promptLibrary: promptLibrarySchema,
+  promptLibrarySeedVersion: promptLibrarySeedVersionSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
@@ -138,6 +146,7 @@ export const appSettingsSchema = z.object({
   defaultAgent: defaultAgentSchema,
   reviewPrompt: reviewPromptSchema,
   promptLibrary: promptLibrarySchema,
+  promptLibrarySeedVersion: promptLibrarySeedVersionSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,

@@ -26,7 +26,6 @@ export const ContextBar = observer(function ContextBar() {
   const conversations = useConversations();
   const task = getRegisteredTaskData(projectId, taskId);
   const draftComments = getTaskStore(projectId, taskId)?.draftComments;
-  const { value: reviewPrompt, isSaving: isSavingReviewPrompt } = useAppSettingsKey('reviewPrompt');
   const { value: promptLibrary, isSaving: isSavingPromptLibrary } =
     useAppSettingsKey('promptLibrary');
   const conversationStore = conversations;
@@ -42,19 +41,16 @@ export const ContextBar = observer(function ContextBar() {
     () =>
       buildTaskContextActions(
         task?.linkedIssue,
-        reviewPrompt,
         {
           count: draftComments?.count ?? 0,
           formattedComments: formattedDraftComments,
         },
         promptLibrary
       ),
-    [reviewPrompt, promptLibrary, task?.linkedIssue, draftComments?.count, formattedDraftComments]
+    [promptLibrary, task?.linkedIssue, draftComments?.count, formattedDraftComments]
   );
   const issueAction = actions.find((action) => action.kind === 'linked-issue') ?? null;
-  const promptActions = actions.filter(
-    (action) => action.kind === 'review-prompt' || action.kind === 'custom-prompt'
-  );
+  const promptActions = actions.filter((action) => action.kind === 'prompt');
   const draftCommentsAction = actions.find((action) => action.kind === 'draft-comments') ?? null;
 
   if (
@@ -83,7 +79,7 @@ export const ContextBar = observer(function ContextBar() {
         <div className="flex max-w-full flex-wrap items-center gap-1 rounded-lg border bg-background-2 p-1">
           <PromptActionsMenu
             actions={promptActions}
-            disabled={!canApplyContext || isSavingReviewPrompt || isSavingPromptLibrary}
+            disabled={!canApplyContext || isSavingPromptLibrary}
             disabledTooltip="Create and select a conversation first"
             actionTooltip="Add a prompt to the chat input"
             onActionClick={(action) => void applyContext(action)}

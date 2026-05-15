@@ -18,12 +18,11 @@ export type PromptFormResult = Pick<PromptLibraryPrompt, 'title' | 'prompt'>;
 
 type PromptModalArgs = {
   initialPrompt?: PromptLibraryPrompt | PromptFormResult;
-  titleReadonly?: boolean;
 };
 
 type Props = BaseModalProps<PromptFormResult> & PromptModalArgs;
 
-export function PromptModal({ initialPrompt, titleReadonly = false, onSuccess, onClose }: Props) {
+export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
   const initialForm = useMemo<PromptFormResult>(
     () => ({
       title: initialPrompt?.title ?? '',
@@ -52,17 +51,15 @@ export function PromptModal({ initialPrompt, titleReadonly = false, onSuccess, o
           <Field>
             <FieldLabel>Title</FieldLabel>
             <Input
-              {...(!titleReadonly ? { 'data-autofocus': true } : {})}
+              data-autofocus
               value={form.title}
               onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
               placeholder="Security review"
-              disabled={titleReadonly}
             />
           </Field>
           <Field>
             <FieldLabel>Prompt</FieldLabel>
             <Textarea
-              {...(titleReadonly ? { 'data-autofocus': true } : {})}
               value={form.prompt}
               onChange={(e) => setForm((prev) => ({ ...prev, prompt: e.target.value }))}
               placeholder="Write the prompt agents should receive."
