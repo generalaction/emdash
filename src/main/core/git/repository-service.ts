@@ -12,10 +12,10 @@ import type {
   RemoteBranchesPayload,
   RenameBranchError,
 } from '@shared/git';
-import { selectPreferredRemote } from '@shared/git-utils';
+import { resolveConfiguredRemotes } from '@shared/git-utils';
 import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
-import type { ProjectSettingsProvider } from '@main/core/projects/settings/schema';
+import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { RepositoryGitProvider } from './repository-git-provider';
 
 export class GitRepositoryService {
@@ -24,12 +24,24 @@ export class GitRepositoryService {
     private readonly settings: ProjectSettingsProvider
   ) {}
 
-  async getConfiguredRemote(): Promise<string> {
-    const [configured, remotes] = await Promise.all([
-      this.settings.getRemote().catch(() => undefined),
+  async getConfiguredRemotes(): Promise<{ baseRemote: string; pushRemote: string }> {
+    const [settings, remotes] = await Promise.all([
+      this.settings.get().catch(() => undefined),
       this.git.getRemotes().catch(() => []),
     ]);
-    return selectPreferredRemote(configured, remotes).name;
+    const configured = resolveConfiguredRemotes(settings, remotes);
+    return {
+      baseRemote: configured.baseRemote.name,
+      pushRemote: configured.pushRemote.name,
+    };
+  }
+
+  async getBaseRemote(): Promise<string> {
+    return (await this.getConfiguredRemotes()).baseRemote;
+  }
+
+  async getPushRemote(): Promise<string> {
+    return (await this.getConfiguredRemotes()).pushRemote;
   }
 
   async getRepositoryInfo(): Promise<{ isUnborn: boolean; currentBranch: string | null }> {
@@ -42,7 +54,7 @@ export class GitRepositoryService {
 
   async getBranchesPayload(): Promise<BranchesPayload> {
     const remotes = await this.git.getRemotes();
-    const remote = await this.getConfiguredRemote();
+    const remote = await this.getBaseRemote();
     const branches = await this.git.getBranches();
     const gitDefaultBranch = await this.git.getDefaultBranch(remote);
 
@@ -124,7 +136,7 @@ export class GitRepositoryService {
   }
 
   async getBranches(): Promise<Branch[]> {
-    await this.fetch();
+    await this.fetch(await this.getBaseRemote());
     return this.git.getBranches();
   }
 
@@ -147,7 +159,7 @@ export class GitRepositoryService {
     const [branches, remotes, remote] = await Promise.all([
       this.git.getBranches(),
       this.git.getRemotes(),
-      this.getConfiguredRemote(),
+      this.getBaseRemote(),
     ]);
     const remoteBranches = branches.filter((b): b is RemoteBranch => b.type === 'remote');
     const gitDefaultBranch = await this.git.getDefaultBranch(remote);
@@ -157,7 +169,7 @@ export class GitRepositoryService {
   async getRemoteState(): Promise<ProjectRemoteState> {
     try {
       const remotes = await this.getRemotes();
-      const remoteName = await this.getConfiguredRemote();
+      const remoteName = await this.getBaseRemote();
       const remoteUrl = remotes.find((r) => r.name === remoteName)?.url;
       return { hasRemote: remotes.length > 0, selectedRemoteUrl: remoteUrl ?? null };
     } catch {

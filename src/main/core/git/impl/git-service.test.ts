@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
@@ -234,6 +235,71 @@ describe('GitService.getCurrentBranch', () => {
   });
 });
 
+describe('GitService.getStatusFingerprint', () => {
+  it('hashes tracked-only porcelain status output', async () => {
+    const stdout = ' M src/app.ts\0';
+    const svc = makeService(
+      makeExec({
+        '--no-optional-locks status --porcelain=v1 -z -uno': stdout,
+      })
+    );
+
+    await expect(svc.getStatusFingerprint('no')).resolves.toEqual({
+      hash: createHash('sha256').update(stdout).digest('hex'),
+      byteLength: Buffer.byteLength(stdout),
+    });
+  });
+
+  it('can include untracked files in the fingerprint', async () => {
+    const stdout = '?? nested/new-file.ts\0';
+    const svc = makeService(
+      makeExec({
+        '--no-optional-locks status --porcelain=v1 -z --untracked-files=normal': stdout,
+      })
+    );
+
+    await expect(svc.getStatusFingerprint('normal')).resolves.toMatchObject({
+      hash: createHash('sha256').update(stdout).digest('hex'),
+      byteLength: Buffer.byteLength(stdout),
+    });
+  });
+});
+
+describe('GitService.isFileCleanlyTracked', () => {
+  it('returns true when the file is tracked and unchanged', async () => {
+    const svc = makeService(
+      makeExec({
+        'ls-files --error-unmatch -- .emdash.json': '.emdash.json\n',
+        'diff --quiet -- .emdash.json': '',
+        'diff --cached --quiet -- .emdash.json': '',
+      })
+    );
+
+    await expect(svc.isFileCleanlyTracked('.emdash.json')).resolves.toBe(true);
+  });
+
+  it('returns false when the file is not tracked', async () => {
+    const svc = makeService(makeExec({}));
+
+    await expect(svc.isFileCleanlyTracked('.emdash.json')).resolves.toBe(false);
+  });
+
+  it('returns false when the file has unstaged changes', async () => {
+    const exec: MockExec = async (_cmd, args = []) => {
+      const key = args.join(' ');
+      if (key === 'ls-files --error-unmatch -- .emdash.json') {
+        return { stdout: '.emdash.json\n', stderr: '' };
+      }
+      if (key === 'diff --quiet -- .emdash.json') {
+        throw Object.assign(new Error('diff found changes'), { code: 1 });
+      }
+      throw new Error(`Unexpected git command: git ${key}`);
+    };
+
+    await expect(makeService(exec).isFileCleanlyTracked('.emdash.json')).resolves.toBe(false);
+  });
+});
+
 describe('GitService.getDefaultBranch', () => {
   it('resolves from symbolic-ref cache (heuristic 1)', async () => {
     const svc = makeService(
@@ -310,5 +376,21 @@ describe('computeBaseRef', () => {
 
   it('strips a leading slash from a baseRef that has no remote', () => {
     expect(computeBaseRef('/main')).toBe('main');
+  });
+});
+
+describe('GitService.push', () => {
+  it('pushes the current branch to the preferred remote explicitly', async () => {
+    const svc = makeService(
+      makeExec({
+        'branch --show-current': 'feature/test\n',
+        'push fork HEAD:feature/test': 'pushed',
+      })
+    );
+
+    await expect(svc.push('fork')).resolves.toEqual({
+      success: true,
+      data: { output: 'pushed' },
+    });
   });
 });

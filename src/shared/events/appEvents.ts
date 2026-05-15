@@ -12,6 +12,7 @@ export const menuCheckForUpdatesChannel = defineEvent<void>('menu:check-for-upda
 export const menuUndoChannel = defineEvent<void>('menu:undo');
 export const menuRedoChannel = defineEvent<void>('menu:redo');
 export const menuCloseTabChannel = defineEvent<void>('menu:close-tab');
+export const menuQuitRequestedChannel = defineEvent<void>('menu:quit-requested');
 
 export const gitStatusChangedChannel = defineEvent<{
   taskPath: string;
@@ -19,7 +20,9 @@ export const gitStatusChangedChannel = defineEvent<{
 }>('git:status-changed');
 
 export const notificationFocusTaskChannel = defineEvent<{
+  projectId: string;
   taskId: string;
+  conversationId?: string;
 }>('notification:focus-task');
 
 export const ptyStartedChannel = defineEvent<{

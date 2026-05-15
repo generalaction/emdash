@@ -235,19 +235,6 @@ export interface FileSystemProvider {
   }>;
 
   /**
-   * Read (or auto-create) the project's .emdash.json config file
-   * @returns Promise resolving to the config file content
-   */
-  getProjectConfig?(): Promise<{ success: boolean; content?: string; error?: string }>;
-
-  /**
-   * Write the project's .emdash.json config file after validating JSON
-   * @param content - JSON string to write
-   * @returns Promise resolving to success status
-   */
-  saveProjectConfig?(content: string): Promise<{ success: boolean; error?: string }>;
-
-  /**
    * Copy a local file into the project's .emdash attachments directory.
    * Only supported on local filesystems (srcPath is an absolute local path).
    * @param srcPath - Absolute local path of the source file
@@ -289,28 +276,6 @@ export interface FileSystemProvider {
     options?: { debounceMs?: number }
   ): FileWatcher;
 }
-
-/**
- * Default content written to .emdash.json when the file is first created.
- * Shared between LocalFileSystem and SshFileSystem so both produce identical defaults.
- */
-export const DEFAULT_EMDASH_CONFIG = `{
-  "preservePatterns": [
-    ".env",
-    ".env.keys",
-    ".env.local",
-    ".env.*.local",
-    ".envrc",
-    "docker-compose.override.yml",
-    ".emdash.json"
-  ],
-  "scripts": {
-    "setup": "",
-    "run": "",
-    "teardown": ""
-  }
-}
-`;
 
 /**
  * Base error class for filesystem operations

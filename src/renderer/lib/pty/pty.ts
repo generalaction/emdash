@@ -1,4 +1,3 @@
-import { CanvasAddon } from '@xterm/addon-canvas';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import type { AppSettings } from '@shared/app-settings';
@@ -11,9 +10,8 @@ import { ensureXtermHost } from './xterm-host';
 const SCROLLBACK_LINES = 100_000;
 const DEFAULT_TERMINAL_FONT_FAMILY = 'Menlo, Monaco, Consolas, "Liberation Mono", monospace';
 
-// Applied at construction so the historical buffer renders with the user's
-// font; mutating fontFamily after connect() leaves the CanvasAddon glyph
-// atlas stale.
+// Applied at construction so historical scrollback renders with the user's
+// font instead of being patched after xterm has already measured glyphs.
 let cachedFontFamily = DEFAULT_TERMINAL_FONT_FAMILY;
 let installedFontNames: Set<string> | null = null;
 let prefetchPromise: Promise<void> | null = null;
@@ -59,12 +57,9 @@ async function runTerminalSettingsPrefetch(): Promise<void> {
     if (fontsResult.success) {
       installedFontNames = new Set(fontsResult.fonts.map((font) => font.trim().toLowerCase()));
     }
-    const requested = terminalSettings?.fontFamily?.trim() ?? '';
-    cachedFontFamily = resolveTerminalFontFamily(requested);
+    cachedFontFamily = resolveTerminalFontFamily(terminalSettings?.fontFamily?.trim() ?? '');
   } catch (error) {
     log.warn('prefetchTerminalSettings: failed to load terminal settings', { error });
-    // Allow retry; otherwise a transient failure pins every PTY to the default
-    // font for the rest of the app lifetime.
     prefetchPromise = null;
   }
 }
@@ -125,7 +120,7 @@ export class FrontendPty {
   static readonly all = new Set<FrontendPty>();
   readonly terminal: Terminal;
   readonly ownedContainer: HTMLDivElement;
-  private readonly canvasAddon: CanvasAddon;
+  private theme?: SessionTheme;
   private offData: (() => void) | null = null;
   /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
   lastSentDims: { cols: number; rows: number } | null = null;
@@ -134,6 +129,7 @@ export class FrontendPty {
     readonly sessionId: string,
     theme?: SessionTheme
   ) {
+    this.theme = theme;
     this.ownedContainer = document.createElement('div');
     Object.assign(this.ownedContainer.style, {
       width: '100%',
@@ -161,13 +157,14 @@ export class FrontendPty {
       theme: buildTheme(theme),
     });
 
-    this.canvasAddon = new CanvasAddon();
+    // Keep xterm on its DOM renderer: CanvasAddon repaints the full canvas on resize,
+    // which makes panel/sidebar transitions visibly flicker.
+
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       event.preventDefault();
       rpc.app.openExternal(uri).catch(() => {});
     });
 
-    this.terminal.loadAddon(this.canvasAddon);
     this.terminal.loadAddon(webLinksAddon);
     this.terminal.open(this.ownedContainer);
 
@@ -180,6 +177,15 @@ export class FrontendPty {
 
     ensureXtermHost().appendChild(this.ownedContainer);
     FrontendPty.all.add(this);
+  }
+
+  setTheme(theme?: SessionTheme): void {
+    this.theme = theme;
+    this.terminal.options.theme = buildTheme(theme);
+  }
+
+  refreshTheme(): void {
+    this.terminal.options.theme = buildTheme(this.theme);
   }
 
   /**
@@ -236,13 +242,10 @@ export class FrontendPty {
     ensureXtermHost().appendChild(this.ownedContainer);
   }
 
-  // Atlas + refresh are required: stale glyph metrics from the previous font
-  // otherwise stay painted in the already-rendered scrollback.
   setFontFamily(fontFamily: string): void {
     const resolved = resolveTerminalFontFamily(fontFamily);
     if (this.terminal.options.fontFamily === resolved) return;
     this.terminal.options.fontFamily = resolved;
-    this.canvasAddon.clearTextureAtlas();
     this.terminal.clearTextureAtlas();
     this.terminal.refresh(0, this.terminal.rows - 1);
   }
@@ -270,9 +273,12 @@ export class FrontendPty {
 
 /** Apply a theme to all live terminals. Called on app-level theme change. */
 export function applyThemeToAll(theme?: SessionTheme): void {
-  const xTermTheme = buildTheme(theme);
   for (const pty of FrontendPty.all) {
-    pty.terminal.options.theme = xTermTheme;
+    if (theme) {
+      pty.setTheme(theme);
+    } else {
+      pty.refreshTheme();
+    }
   }
 }
 

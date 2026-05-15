@@ -1,13 +1,41 @@
-import type { GitObjectRef } from '@shared/git';
+import type { GitChangeStatus, GitObjectRef } from '@shared/git';
 
 export type TabViewSnapshot = {
   tabOrder: string[];
   activeTabId: string | undefined;
 };
 
+export type TabDescriptor =
+  | { kind: 'conversation'; tabId: string; conversationId: string; isPreview: boolean }
+  | { kind: 'file'; tabId: string; path: string; isPreview: boolean }
+  | {
+      kind: 'diff';
+      tabId: string;
+      path: string;
+      diffGroup: 'disk' | 'staged' | 'git' | 'pr';
+      originalRef: GitObjectRef;
+      modifiedRef?: GitObjectRef;
+      prNumber?: number;
+      status?: GitChangeStatus;
+      isPreview: boolean;
+    };
+
+export type TabManagerSnapshot = {
+  tabs: TabDescriptor[];
+  activeTabId: string | undefined;
+};
+
+export type TabGroupsSnapshot = {
+  groups: Array<{
+    groupId: string;
+    tabManager: TabManagerSnapshot;
+  }>;
+  activeGroupId: string;
+  /** Percentage sizes parallel to groups[]. */
+  paneSizes: number[];
+};
+
 export type EditorViewSnapshot = {
-  tabs: Array<{ tabId: string; path: string; isPreview: boolean }>;
-  activeTabId: string | null;
   expandedPaths: string[];
 };
 
@@ -15,7 +43,7 @@ export type DiffViewSnapshot = {
   diffStyle: 'unified' | 'split';
   viewMode: 'file';
   activeFile?: ActiveFile;
-  commitAction: 'commit' | 'commit-push' | null;
+  commitAction: 'commit' | 'commit-push' | 'commit-pr' | null;
   prTab?: 'files' | 'commits' | 'checks';
 };
 
@@ -41,10 +69,15 @@ export interface ActiveFile {
 }
 
 export type TaskViewSnapshot = {
-  view: string | null;
-  rightPanelView: string | null;
-  focusedRegion: 'main' | 'right' | 'bottom';
+  sidebarTab?: string;
+  isSidebarCollapsed?: boolean;
+  focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen?: boolean;
+  /** Takes precedence over tabManager when present. */
+  tabGroups?: TabGroupsSnapshot;
+  /** @deprecated Use tabGroups. Kept for migration from single-pane snapshots. */
+  tabManager?: TabManagerSnapshot;
+  /** @deprecated Legacy field from before the unified tab refactor. Used only for migration. */
   conversations?: TabViewSnapshot;
   terminals?: TabViewSnapshot;
   editor?: EditorViewSnapshot;

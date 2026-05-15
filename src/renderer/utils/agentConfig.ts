@@ -15,15 +15,18 @@ import geminiLogo from '../../assets/images/gemini.png';
 import copilotLogoSvg from '../../assets/images/gh-copilot.svg?raw';
 import gooseLogo from '../../assets/images/goose.png';
 import hermesLogo from '../../assets/images/hermesagent.jpg';
+import julesLogoSvg from '../../assets/images/jules.svg?raw';
 import junieLogo from '../../assets/images/junie-color.png';
 import kilocodeLogo from '../../assets/images/kilocode.png';
 import kimiLogo from '../../assets/images/kimi.png';
 import kiroLogo from '../../assets/images/kiro.png';
+import lettaLogoSvg from '../../assets/images/letta.svg?raw';
 import mistralLogo from '../../assets/images/mistral.png';
 import openaiLogoSvg from '../../assets/images/openai.svg?raw';
 import opencodeLogo from '../../assets/images/opencode.png';
 import piLogo from '../../assets/images/pi.png';
 import qwenLogo from '../../assets/images/qwen.png';
+import xaiLogoSvg from '../../assets/images/xai.svg?raw';
 
 export type AgentInfo = {
   name: string;
@@ -37,6 +40,7 @@ export type AgentInfo = {
 export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   claude: { name: 'Claude Code', logo: claudeLogo, alt: 'Claude Code' },
   codex: { name: 'Codex', logo: openaiLogoSvg, alt: 'Codex', isSvg: true },
+  grok: { name: 'Grok', logo: xaiLogoSvg, alt: 'Grok CLI', isSvg: true },
   devin: { name: 'Devin', logo: devinLogo, alt: 'Devin' },
   cursor: { name: 'Cursor', logo: cursorLogoSvg, alt: 'Cursor CLI', isSvg: true },
   gemini: { name: 'Gemini', logo: geminiLogo, alt: 'Gemini CLI' },
@@ -51,12 +55,26 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
   kilocode: { name: 'Kilocode', logo: kilocodeLogo, alt: 'Kilocode CLI' },
+  letta: {
+    name: 'Letta',
+    logo: lettaLogoSvg,
+    alt: 'Letta Code CLI',
+    isSvg: true,
+    invertInDark: true,
+  },
   kiro: { name: 'Kiro', logo: kiroLogo, alt: 'Kiro CLI' },
   cline: { name: 'Cline', logo: clineLogo, alt: 'Cline CLI' },
   continue: { name: 'Continue', logo: continueLogo, alt: 'Continue CLI' },
   codebuff: { name: 'Codebuff', logo: codebuffLogo, alt: 'Codebuff CLI' },
+  freebuff: { name: 'Freebuff', logo: codebuffLogo, alt: 'Freebuff CLI' },
+  jules: {
+    name: 'Jules',
+    logo: julesLogoSvg,
+    alt: 'Jules CLI',
+    isSvg: true,
+  },
   junie: {
-    name: 'Junie CLI',
+    name: 'Junie',
     logo: junieLogo,
     alt: 'Junie CLI',
   },

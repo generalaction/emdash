@@ -2,9 +2,14 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useTerminals,
+  useWorkspace,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -26,22 +31,20 @@ type ActiveItem = { kind: 'terminal'; id: string } | { kind: 'script'; id: strin
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisionedTask = useProvisionedTask();
-  const terminalMgr = provisionedTask.terminals;
-  const terminalTabView = provisionedTask.taskView.terminalTabs;
-  const lifecycleScriptsMgr = provisionedTask.workspace.lifecycleScripts ?? null;
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const workspace = useWorkspace();
+  const terminalMgr = useTerminals();
+  const terminalTabView = taskView.terminalTabs;
+  const lifecycleScriptsMgr = workspace.lifecycleScripts ?? null;
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const isActive = useIsActiveTask(taskId);
-  const mountedProject = asMounted(getProjectStore(projectId));
-  const remoteConnectionId =
-    mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
+  const remoteConnectionId = workspace.sshConnectionId;
   const [isPanelFocused, setIsPanelFocused] = useState(false);
   const newTerminalHotkey = getEffectiveHotkey('newTerminal', keyboard);
 
   const autoFocus =
-    isActive &&
-    provisionedTask.taskView.isTerminalDrawerOpen &&
-    provisionedTask.taskView.focusedRegion === 'bottom';
+    isActive && taskView.isTerminalDrawerOpen && taskView.focusedRegion === 'bottom';
 
   // Unified active item — spans both terminals and scripts sections.
   const [activeItem, setActiveItem] = useState<ActiveItem>(() => {
@@ -62,16 +65,23 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const activeSession =
     activeItem.kind === 'terminal'
-      ? (terminalTabView.tabs.find((t) => t.data.id === activeTerminalId)?.session ?? null)
+      ? (terminalMgr.sessions.get(activeTerminalId ?? '') ?? null)
       : (lifecycleScriptsMgr?.tabs.find((s) => s.data.id === activeItem.id)?.session ?? null);
 
   const allSessionIds = useMemo(
     () => [
-      ...terminalTabView.tabs.map((t) => t.session.sessionId),
+      ...terminalTabView.tabs
+        .map((t) => terminalMgr.sessions.get(t.data.id)?.sessionId)
+        .filter((id): id is string => Boolean(id)),
       ...(lifecycleScriptsMgr?.tabs ?? []).map((s) => s.session.sessionId),
     ],
-    [terminalTabView.tabs, lifecycleScriptsMgr?.tabs]
+    [terminalTabView.tabs, terminalMgr.sessions, lifecycleScriptsMgr?.tabs]
   );
+
+  const handleHoverTerminal = (id: string) => {
+    const session = terminalMgr.sessions.get(id);
+    if (session?.status === 'disconnected') void session.connect();
+  };
 
   const activeStore =
     activeItem.kind === 'terminal' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
@@ -79,7 +89,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const handleCreate = async () => {
     if (!terminalMgr) return;
-    provisionedTask.taskView.setFocusedRegion('bottom');
+    taskView.setFocusedRegion('bottom');
     const id = crypto.randomUUID();
     const name = nextTerminalName((terminalTabView.tabs ?? []).map((s) => s.data.name));
     try {
@@ -107,7 +117,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     void rpc.terminals
       .runLifecycleScript({
         projectId,
-        workspaceId: provisionedTask.workspaceId,
+        workspaceId,
         type: activeScript.data.type,
       })
       .catch(() => {
@@ -154,7 +164,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
       className="h-full"
       onFocus={() => {
         setIsPanelFocused(true);
-        provisionedTask.taskView.setFocusedRegion('bottom');
+        taskView.setFocusedRegion('bottom');
       }}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -203,6 +213,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           onAddTerminal={() => void handleCreate()}
           onRemoveTerminal={(id) => terminalTabView.removeTab(id)}
           onRenameTerminal={(id, name) => void terminalMgr?.renameTerminal(id, name)}
+          onHoverTerminal={handleHoverTerminal}
         />
       </ResizablePanel>
     </ResizablePanelGroup>

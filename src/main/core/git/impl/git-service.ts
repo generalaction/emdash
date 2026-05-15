@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import {
   HEAD_MODE,
@@ -19,6 +21,9 @@ import {
   type GitHeadState,
   type GitInfo,
   type GitObjectRef,
+  type GitStatusFingerprint,
+  type GitStatusUntrackedMode,
+  type ImageReadResult,
   type LocalBranch,
   type MergeBaseRange,
   type PullError,
@@ -32,8 +37,12 @@ import { parseGitHubRepository } from '@shared/github-repository';
 import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import { GIT_EXECUTABLE } from '@main/core/utils/exec';
+import { HookCore } from '@main/lib/hookable';
 import type { IDisposable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import { type GitProvider } from '../types';
+import type { WorkspaceGitHooks } from '../workspace-git-provider';
 import { CatFileBatch } from './cat-file-batch';
 import {
   computeBaseRef,
@@ -51,15 +60,57 @@ import {
   type IFileStatus,
 } from './status-parser';
 
+const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
+const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
+  no: 5_000,
+  normal: 10_000,
+};
+
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+  svg: 'image/svg+xml',
+};
+
+function imageMimeForPath(filePath: string): string | null {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  return ext ? (IMAGE_MIME_BY_EXT[ext] ?? null) : null;
+}
+
+const LFS_POINTER_PREFIX = Buffer.from('version https://git-lfs.github.com/spec/');
+
+// Without an LFS smudge filter, cat-file returns pointer text instead of image bytes.
+function looksLikeLfsPointer(buffer: Buffer): boolean {
+  if (buffer.length > 1024) return false;
+  return buffer.slice(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
+}
+
+type HeadInfo =
+  | { kind: 'branch'; name: string }
+  | { kind: 'detached'; shortHash: string }
+  | { kind: 'unborn'; name: string };
+
 export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
+  private readonly _hooks = new HookCore<WorkspaceGitHooks>((name, e) =>
+    log.error(`GitService: ${String(name)} hook error`, e)
+  );
 
   constructor(
     private readonly ctx: IExecutionContext,
     private readonly authCtx: IExecutionContext,
     private readonly fs: FileSystemProvider
   ) {}
+
+  on<K extends keyof WorkspaceGitHooks>(name: K, handler: WorkspaceGitHooks[K]) {
+    return this._hooks.on(name, handler);
+  }
 
   dispose(): void {
     this._catFile?.dispose();
@@ -91,22 +142,63 @@ export class GitService implements GitProvider, IDisposable {
 
   async getFullStatus(): Promise<FullGitStatus> {
     if (this._statusInFlight) return this._statusInFlight;
-    this._statusInFlight = this._loadFullStatus().finally(() => {
-      this._statusInFlight = null;
-    });
+    this._statusInFlight = this._loadFullStatus()
+      .then((status) => {
+        this._hooks.callHookBackground('status:updated', status);
+        return status;
+      })
+      .finally(() => {
+        this._statusInFlight = null;
+      });
     return this._statusInFlight;
+  }
+
+  async getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint> {
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), STATUS_FINGERPRINT_TIMEOUT_MS[untracked]);
+
+    try {
+      const { stdout } = await this.ctx.exec(
+        'git',
+        [
+          '--no-optional-locks',
+          'status',
+          '--porcelain=v1',
+          '-z',
+          untracked === 'normal' ? '--untracked-files=normal' : '-uno',
+        ],
+        { signal: abort.signal }
+      );
+      return {
+        hash: createHash('sha256').update(stdout).digest('hex'),
+        byteLength: Buffer.byteLength(stdout),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async isFileCleanlyTracked(filePath: string): Promise<boolean> {
+    try {
+      await this.ctx.exec('git', ['ls-files', '--error-unmatch', '--', filePath]);
+      await this.ctx.exec('git', ['diff', '--quiet', '--', filePath]);
+      await this.ctx.exec('git', ['diff', '--cached', '--quiet', '--', filePath]);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async _loadFullStatus(): Promise<FullGitStatus> {
     try {
       const parser = new StatusParser();
-      const [, stagedRes, unstagedRes, currentBranch] = await Promise.all([
+      const [, stagedRes, unstagedRes, head] = await Promise.all([
         this._runStatusZ(parser),
         this.ctx.exec('git', ['diff', '--numstat', '--cached']).catch(() => ({
           stdout: '',
         })),
         this.ctx.exec('git', ['diff', '--numstat']).catch(() => ({ stdout: '' })),
-        this.getCurrentBranch(),
+        this._getHeadInfo(),
       ]);
 
       const stagedNumstat = this.parseNumstat(stagedRes.stdout);
@@ -116,18 +208,15 @@ export class GitService implements GitProvider, IDisposable {
         throw new TooManyFilesChangedError();
       }
 
-      return await this._buildFullGitStatus(
-        parser.status,
-        stagedNumstat,
-        unstagedNumstat,
-        currentBranch
-      );
+      return await this._buildFullGitStatus(parser.status, stagedNumstat, unstagedNumstat, head);
     } catch (e) {
       if (e instanceof TooManyFilesChangedError) throw e;
       return {
         staged: [],
         unstaged: [],
         currentBranch: null,
+        headKind: 'branch',
+        shortHash: null,
         totalAdded: 0,
         totalDeleted: 0,
       };
@@ -150,7 +239,7 @@ export class GitService implements GitProvider, IDisposable {
     entries: IFileStatus[],
     stagedNumstat: Map<string, { additions: number; deletions: number }>,
     unstagedNumstat: Map<string, { additions: number; deletions: number }>,
-    currentBranch: string | null
+    head: HeadInfo
   ): Promise<FullGitStatus> {
     const staged: GitChange[] = [];
     const unstaged: GitChange[] = [];
@@ -199,7 +288,15 @@ export class GitService implements GitProvider, IDisposable {
     const totalAdded = staged.reduce((s, c) => s + c.additions, 0);
     const totalDeleted = staged.reduce((s, c) => s + c.deletions, 0);
 
-    return { staged, unstaged, currentBranch, totalAdded, totalDeleted };
+    return {
+      staged,
+      unstaged,
+      currentBranch: head.kind === 'detached' ? null : head.name,
+      headKind: head.kind,
+      shortHash: head.kind === 'detached' ? head.shortHash : null,
+      totalAdded,
+      totalDeleted,
+    };
   }
 
   async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
@@ -383,6 +480,70 @@ export class GitService implements GitProvider, IDisposable {
     } catch {
       return null;
     }
+  }
+
+  async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
+    return this._readImageBlob(`${ref}:${filePath}`, filePath);
+  }
+
+  async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
+    return this._readImageBlob(`:0:${filePath}`, filePath);
+  }
+
+  // SSH workspaces have no binary-safe exec channel.
+  private async _readImageBlob(spec: string, filePath: string): Promise<ImageReadResult> {
+    if (!this.ctx.supportsLocalSpawn) return { kind: 'unavailable', reason: 'ssh' };
+    const mimeType = imageMimeForPath(filePath);
+    if (!mimeType) return { kind: 'unavailable', reason: 'unsupported' };
+
+    return new Promise((resolve) => {
+      const child = spawn(GIT_EXECUTABLE, ['cat-file', '--filters', spec], {
+        cwd: this.ctx.root || undefined,
+      });
+      const chunks: Buffer[] = [];
+      let total = 0;
+      let aborted = false;
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        if (aborted) return;
+        total += chunk.length;
+        if (total > MAX_IMAGE_BLOB_BYTES) {
+          aborted = true;
+          child.kill();
+          resolve({ kind: 'unavailable', reason: 'too-large' });
+          return;
+        }
+        chunks.push(chunk);
+      });
+      child.stderr.resume();
+      child.on('error', () => resolve({ kind: 'unavailable', reason: 'git-error' }));
+      child.on('close', (code) => {
+        if (aborted) return;
+        if (code !== 0) {
+          resolve(
+            code === 128 ? { kind: 'missing' } : { kind: 'unavailable', reason: 'git-error' }
+          );
+          return;
+        }
+        const buffer = Buffer.concat(chunks);
+        if (buffer.length === 0) {
+          resolve({ kind: 'unavailable', reason: 'git-error' });
+          return;
+        }
+        if (looksLikeLfsPointer(buffer)) {
+          resolve({ kind: 'unavailable', reason: 'lfs-pointer' });
+          return;
+        }
+        resolve({
+          kind: 'image',
+          image: {
+            dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
+            mimeType,
+            size: buffer.length,
+          },
+        });
+      });
+    });
   }
 
   async getFileDiff(
@@ -889,6 +1050,16 @@ export class GitService implements GitProvider, IDisposable {
     };
 
     try {
+      const remote = preferredRemote?.trim();
+      if (remote) {
+        const { stdout } = await this.ctx.exec('git', ['branch', '--show-current']);
+        const currentBranch = stdout.trim();
+        if (!currentBranch) {
+          return err({ type: 'error', message: 'No branch checked out' });
+        }
+        const output = await doPush(['push', remote, `HEAD:${currentBranch}`]);
+        return ok({ output });
+      }
       const output = await doPush(['push']);
       return ok({ output });
     } catch (error: unknown) {
@@ -907,15 +1078,7 @@ export class GitService implements GitProvider, IDisposable {
         try {
           const { stdout: branchOut } = await this.ctx.exec('git', ['branch', '--show-current']);
           const currentBranch = branchOut.trim();
-          let pushRemote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
-          try {
-            const { stdout: remoteOut } = await this.ctx.exec('git', [
-              'config',
-              '--get',
-              `branch.${currentBranch}.remote`,
-            ]);
-            if (remoteOut.trim()) pushRemote = remoteOut.trim();
-          } catch {}
+          const pushRemote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
           const output = await doPush(['push', '--set-upstream', pushRemote, currentBranch]);
           return ok({ output });
         } catch (upstreamError: unknown) {
@@ -1126,15 +1289,35 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getCurrentBranch(): Promise<string | null> {
+    const head = await this._getHeadInfo();
+    return head.kind === 'detached' ? null : head.name;
+  }
+
+  private async _getHeadInfo(): Promise<HeadInfo> {
     try {
       const { stdout } = await this.ctx.exec('git', ['rev-parse', '--symbolic-full-name', 'HEAD']);
       const ref = stdout.trim();
-      if (ref === 'HEAD' || !ref) return null;
-      if (ref.startsWith('refs/heads/')) return ref.slice('refs/heads/'.length);
-      if (ref.startsWith('heads/')) return ref.slice('heads/'.length);
-      return ref;
+      if (ref === 'HEAD' || !ref) {
+        // Detached HEAD — also capture the short commit hash for display
+        try {
+          const { stdout: hashOut } = await this.ctx.exec('git', ['rev-parse', '--short', 'HEAD']);
+          return { kind: 'detached', shortHash: hashOut.trim() };
+        } catch {
+          return { kind: 'detached', shortHash: '' };
+        }
+      }
+      if (ref.startsWith('refs/heads/'))
+        return { kind: 'branch', name: ref.slice('refs/heads/'.length) };
+      if (ref.startsWith('heads/')) return { kind: 'branch', name: ref.slice('heads/'.length) };
+      return { kind: 'branch', name: ref };
     } catch {
-      return null;
+      // Unborn branch — rev-parse fails but symbolic-ref still resolves
+      try {
+        const { stdout: symOut } = await this.ctx.exec('git', ['symbolic-ref', '--short', 'HEAD']);
+        return { kind: 'unborn', name: symOut.trim() };
+      } catch {
+        return { kind: 'unborn', name: 'main' };
+      }
     }
   }
 

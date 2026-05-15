@@ -8,15 +8,24 @@ import type {
   FullGitStatus,
   GitChange,
   GitObjectRef,
+  GitStatusFingerprint,
+  GitStatusUntrackedMode,
+  ImageReadResult,
   MergeBaseRange,
   PullError,
   PushError,
   SoftResetError,
 } from '@shared/git';
 import type { Result } from '@shared/result';
+import type { Hookable } from '@main/lib/hookable';
 
-export interface WorkspaceGitProvider {
+export type WorkspaceGitHooks = {
+  'status:updated': (status: FullGitStatus) => void | Promise<void>;
+};
+
+export interface WorkspaceGitProvider extends Hookable<WorkspaceGitHooks> {
   getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }>;
+  getStatusFingerprint(untracked: GitStatusUntrackedMode): Promise<GitStatusFingerprint>;
   /** Single coalesced status refresh — preferred over separate staged/unstaged calls. */
   getFullStatus(): Promise<FullGitStatus>;
   getStagedChanges(): Promise<{
@@ -39,6 +48,9 @@ export interface WorkspaceGitProvider {
   getFileAtHead(filePath: string): Promise<string | null>;
   getFileAtRef(filePath: string, ref: string): Promise<string | null>;
   getFileAtIndex(filePath: string): Promise<string | null>;
+  /** Reads a binary image blob with smudge filters (e.g. LFS) applied. */
+  getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult>;
+  getImageAtIndex(filePath: string): Promise<ImageReadResult>;
   getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult>;
 
   stageFiles(filePaths: string[]): Promise<void>;

@@ -36,6 +36,7 @@ export function BranchPickerField({
           projectId={projectId}
           value={state.selectedBranch}
           onValueChange={state.setSelectedBranch}
+          showRemoteSelectorFooter
           trigger={
             <ComboboxTrigger className="flex w-full items-center gap-2 justify-between hover:bg-background-1 data-popup-open:bg-background-1 p-2 outline-none">
               <div className="flex flex-col text-left text-sm gap-0.5">

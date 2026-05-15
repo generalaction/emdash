@@ -14,15 +14,18 @@ import geminiIcon from '@/assets/images/gemini.png';
 import ghcopilotIcon from '@/assets/images/gh-copilot.svg?raw';
 import gooseIcon from '@/assets/images/goose.png';
 import hermesIcon from '@/assets/images/hermesagent.jpg';
+import julesIcon from '@/assets/images/jules.svg?raw';
 import junieIcon from '@/assets/images/junie-color.png';
 import kilocodeIcon from '@/assets/images/kilocode.png';
 import kimiIcon from '@/assets/images/kimi.png';
 import kiroIcon from '@/assets/images/kiro.png';
+import lettaIcon from '@/assets/images/letta.svg?raw';
 import mistralIcon from '@/assets/images/mistral.png';
 import openaiIcon from '@/assets/images/openai.svg?raw';
 import opencodeIcon from '@/assets/images/opencode.png';
 import piIcon from '@/assets/images/pi.png';
 import qwenIcon from '@/assets/images/qwen.png';
+import xaiIcon from '@/assets/images/xai.svg?raw';
 import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/agent-provider-registry';
 
 export type UiAgent = AgentProviderId;
@@ -42,10 +45,12 @@ const ICONS: Record<string, string> = {
   'gh-copilot.svg': ghcopilotIcon,
   'goose.png': gooseIcon,
   'hermesagent.jpg': hermesIcon,
+  'jules.svg': julesIcon,
   'junie-color.png': junieIcon,
   'kimi.png': kimiIcon,
   'kilocode.png': kilocodeIcon,
   'kiro.png': kiroIcon,
+  'letta.svg': lettaIcon,
   'atlassian.png': atlassianIcon,
   'cline.png': clineIcon,
   'continue.png': continueIcon,
@@ -53,6 +58,7 @@ const ICONS: Record<string, string> = {
   'mistral.png': mistralIcon,
   'pi.png': piIcon,
   'autohand.svg': autohandIcon,
+  'xai.svg': xaiIcon,
 };
 
 export type AgentMeta = {

@@ -68,6 +68,9 @@
   --color-foreground-diff-modified: var(--foreground-diff-modified);
   --color-foreground-diff-deleted: var(--foreground-diff-deleted);
 
+  --color-selection-foreground: var(--selection-foreground);
+  --color-selection-background: var(--selection-background);
+
   --color-border: var(--border);
   --color-border-1: var(--border-1);
   --color-border-2: var(--border-2);

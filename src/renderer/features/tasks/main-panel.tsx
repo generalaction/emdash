@@ -1,19 +1,21 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { Activity, useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { usePanelRef } from 'react-resizable-panels';
 import {
   getTaskStore,
   taskErrorMessage,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
-import { ConversationsPanel } from './conversations/conversations-panel';
-import { DiffView } from './diff-view/main-panel/diff-view';
-import { EditorMainPanel } from './editor/editor-main-panel';
-import { TerminalsPanel } from './terminals/terminal-panel';
+import { ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
+import { DraggableResizeHandle, TaskMainColumn } from './view/task-main-column';
+import { TaskSidebar } from './view/task-sidebar';
+import { WorkspaceResolutionView } from './workspace-resolution-view';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -92,69 +94,47 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return null;
   }
 
+  if (kind === 'needs-resolution') {
+    return <WorkspaceResolutionView />;
+  }
+
   return <ReadyTaskMainPanel />;
 });
 
+const SIDEBAR_COLLAPSED_SIZE = '0px';
+
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
-  const { taskView } = useProvisionedTask();
-  const bottomPanelRef = usePanelRef();
-  const draggingRef = useRef(false);
+  const taskView = useWorkspaceViewModel();
+  const sidebarPanelRef = usePanelRef();
 
   useEffect(() => {
-    if (taskView.isTerminalDrawerOpen) {
-      bottomPanelRef.current?.expand();
+    panelDragStore.suppressFor(140);
+    if (taskView.isSidebarCollapsed) {
+      sidebarPanelRef.current?.collapse();
     } else {
-      bottomPanelRef.current?.collapse();
+      sidebarPanelRef.current?.expand();
     }
-  }, [taskView.isTerminalDrawerOpen, bottomPanelRef]);
+  }, [taskView.isSidebarCollapsed, sidebarPanelRef]);
 
   return (
-    <ResizablePanelGroup orientation="vertical" id="task-main-vertical">
-      <ResizablePanel id="task-main-content" minSize="30%">
-        <div className="flex h-full flex-col">
-          <Activity mode={taskView.view === 'agents' ? 'visible' : 'hidden'}>
-            <ConversationsPanel />
-          </Activity>
-          <Activity mode={taskView.view === 'editor' ? 'visible' : 'hidden'}>
-            <EditorMainPanel />
-          </Activity>
-          <Activity mode={taskView.view === 'diff' ? 'visible' : 'hidden'}>
-            <DiffView />
-          </Activity>
-        </div>
+    <ResizablePanelGroup orientation="horizontal" id="task-sidebar-layout">
+      <ResizablePanel id="task-main-area">
+        <TaskMainColumn />
       </ResizablePanel>
-      <ResizableHandle
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          if (!draggingRef.current) {
-            draggingRef.current = true;
-            panelDragStore.setDragging(true);
-          }
-        }}
-        onPointerUp={() => {
-          if (draggingRef.current) {
-            draggingRef.current = false;
-            panelDragStore.setDragging(false);
-          }
-        }}
-        onPointerCancel={() => {
-          if (draggingRef.current) {
-            draggingRef.current = false;
-            panelDragStore.setDragging(false);
-          }
-        }}
-        className={taskView.isTerminalDrawerOpen ? 'flex' : 'hidden'}
-      />
+      <DraggableResizeHandle />
       <ResizablePanel
-        id="task-terminal-drawer"
-        panelRef={bottomPanelRef}
-        collapsible
-        collapsedSize="0%"
+        id="task-sidebar"
+        panelRef={sidebarPanelRef}
         defaultSize="25%"
-        minSize="15%"
-        onResize={() => taskView.setTerminalDrawerOpen(!bottomPanelRef.current?.isCollapsed())}
+        minSize="280px"
+        maxSize="50%"
+        collapsible
+        collapsedSize={SIDEBAR_COLLAPSED_SIZE}
+        onResize={() =>
+          taskView.setSidebarCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
+        }
       >
-        <TerminalsPanel />
+        <TaskSidebar />
       </ResizablePanel>
     </ResizablePanelGroup>
   );

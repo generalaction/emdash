@@ -13,8 +13,9 @@ export class PtySession {
     makeAutoObservable(this, {
       pty: false,
     });
-    // Safety net: auto-connect the first time any observer reads status.
-    // Eager connect in manager store load() is the primary path; this covers edge cases.
+    // Lazy connect: auto-connects the first time any observer reads status.
+    // Sessions are created at data-load time without connecting; this fires
+    // when the session is first rendered as the active conversation or terminal.
     onBecomeObserved(this, 'status', () => {
       if (this.disposed) return;
       if (this.status === 'disconnected') void this.connect();
@@ -39,16 +40,14 @@ export class PtySession {
       await prefetchTerminalSettings();
       if (this.disposed) return;
       const pty = new FrontendPty(this.sessionId);
-      this.pty = pty;
       await pty.connect();
       if (this.disposed) {
-        // dispose() ran during pty.connect() — it already nulled this.pty but
-        // can't see the local `pty`, so tear it down here.
+        // dispose() ran while the local PTY was connecting and could not see it.
         pty.dispose();
-        this.pty = null;
         return;
       }
       runInAction(() => {
+        this.pty = pty;
         this.status = 'ready';
       });
     } catch (error) {

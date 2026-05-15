@@ -10,7 +10,7 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import {
   sshConnectionManager,
-  type SshConnectionEvent,
+  type SshConnectionManagerEvent,
 } from '@main/core/ssh/ssh-connection-manager';
 import {
   type LifecycleScriptSpawnRequest,
@@ -44,7 +44,7 @@ export class SshTerminalProvider implements TerminalProvider {
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
   private readonly connectionId: string;
-  private readonly _handleReconnect: (evt: SshConnectionEvent) => void;
+  private readonly _handleReconnect: (evt: SshConnectionManagerEvent) => void;
 
   constructor({
     projectId,
@@ -76,7 +76,7 @@ export class SshTerminalProvider implements TerminalProvider {
     this.ctx = ctx;
     this.proxy = proxy;
     this.connectionId = connectionId;
-    this._handleReconnect = (evt: SshConnectionEvent) => {
+    this._handleReconnect = (evt: SshConnectionManagerEvent) => {
       if (evt.type === 'reconnected' && evt.connectionId === this.connectionId) {
         this.rehydrate().catch((e: unknown) => {
           log.error('SshTerminalProvider: rehydrate failed after reconnect', {
@@ -95,7 +95,7 @@ export class SshTerminalProvider implements TerminalProvider {
     initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     command?: { command: string; args: string[] }
   ): Promise<void> {
-    return this.spawnWithPolicy(terminal, initialSize, command, {
+    return this.spawnWithPolicy(terminal, initialSize, command, undefined, {
       respawnOnExit: true,
       preserveBufferOnExit: false,
       watchDevServer: true,
@@ -106,6 +106,7 @@ export class SshTerminalProvider implements TerminalProvider {
   async spawnLifecycleScript({
     terminal,
     command,
+    shellSetup,
     initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     respawnOnExit = false,
     preserveBufferOnExit = true,
@@ -115,6 +116,7 @@ export class SshTerminalProvider implements TerminalProvider {
       terminal,
       initialSize,
       command === undefined ? undefined : { command, args: [] },
+      shellSetup,
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -128,6 +130,7 @@ export class SshTerminalProvider implements TerminalProvider {
     terminal: Terminal,
     initialSize: { cols: number; rows: number },
     command: { command: string; args: string[] } | undefined,
+    shellSetup: string | undefined,
     policy: SpawnPolicy
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
@@ -140,7 +143,7 @@ export class SshTerminalProvider implements TerminalProvider {
     const cfg: GeneralSessionConfig = {
       taskId: this.scopeId,
       cwd: this.taskPath,
-      shellSetup: this.shellSetup,
+      shellSetup: shellSetup ?? this.shellSetup,
       tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
       command: command?.command,
       args: command?.args,
@@ -149,7 +152,7 @@ export class SshTerminalProvider implements TerminalProvider {
     const profile = await this.proxy.getRemoteShellProfile();
     const sshCommand = resolveSshCommand('general', cfg, this.taskEnvVars, profile);
 
-    const result = await openSsh2Pty(this.proxy.client, {
+    const result = await openSsh2Pty(this.proxy, {
       id: sessionId,
       command: sshCommand,
       cols: initialSize.cols,
@@ -161,7 +164,7 @@ export class SshTerminalProvider implements TerminalProvider {
         sessionId,
         error: result.error.message,
       });
-      return;
+      throw new Error(result.error.message);
     }
     const pty = result.data;
 
@@ -194,7 +197,7 @@ export class SshTerminalProvider implements TerminalProvider {
         }
 
         setTimeout(() => {
-          this.spawnWithPolicy(terminal, initialSize, command, policy).catch((e) => {
+          this.spawnWithPolicy(terminal, initialSize, command, shellSetup, policy).catch((e) => {
             log.error('SshTerminalProvider: respawn failed', {
               terminalId: terminal.id,
               error: String(e),
