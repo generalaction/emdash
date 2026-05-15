@@ -13,6 +13,7 @@ import type {
   TriggerSpec,
   UpdateAutomationPatch,
 } from '@shared/automations/types';
+import type { CreateTaskParams } from '@shared/tasks';
 import { db } from '@main/db/client';
 import {
   automationRuns,
@@ -49,6 +50,20 @@ function parseActions(raw: string, promptTemplate: string): ActionSpec[] {
       error: String(error),
     });
     return fallbackActions(promptTemplate);
+  }
+}
+
+function parseTaskConfig(raw: string | null): CreateTaskParams | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed as CreateTaskParams;
+  } catch (error) {
+    log.warn('automations.repo: failed to parse taskConfig JSON', {
+      error: String(error),
+    });
+    return null;
   }
 }
 
@@ -93,6 +108,7 @@ function mapAutomationRow(row: AutomationRow): Automation {
     category: row.category,
     trigger,
     actions: parseActions(row.actions, row.promptTemplate),
+    taskConfig: parseTaskConfig(row.taskConfig),
     projectId: row.projectId,
     enabled: row.enabled === 1,
     isDraft: row.isDraft === 1,
@@ -177,6 +193,7 @@ export async function createAutomation(input: CreateAutomationInput): Promise<Au
       ...rowValuesFromTrigger(input.trigger),
       promptTemplate: firstTaskCreatePrompt(input.actions),
       actions: JSON.stringify(input.actions),
+      taskConfig: input.taskConfig ? JSON.stringify(input.taskConfig) : null,
       projectId: input.projectId,
       enabled: input.isDraft ? 0 : input.enabled === false ? 0 : 1,
       isDraft: input.isDraft ? 1 : 0,
@@ -210,6 +227,9 @@ export async function updateAutomation(
   if (patch.actions !== undefined) {
     values.actions = JSON.stringify(patch.actions);
     values.promptTemplate = firstTaskCreatePrompt(patch.actions);
+  }
+  if (patch.taskConfig !== undefined) {
+    values.taskConfig = patch.taskConfig ? JSON.stringify(patch.taskConfig) : null;
   }
 
   const [row] = await db.update(automations).set(values).where(eq(automations.id, id)).returning();

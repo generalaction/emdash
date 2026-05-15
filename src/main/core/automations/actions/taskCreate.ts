@@ -3,7 +3,7 @@ import type { TaskCreateAction } from '@shared/automations/actions';
 import { bareRefName } from '@shared/git-utils';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
-import type { CreateTaskError } from '@shared/tasks';
+import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { appSettingsService } from '@main/core/settings/settings-service';
@@ -94,25 +94,30 @@ export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action
     const provider = action.provider ?? (await appSettingsService.get('defaultAgent'));
     const projectId = ctx.automation.projectId;
 
-    const result = await createTask({
+    const storedConfig = ctx.automation.taskConfig;
+    const taskConfig: CreateTaskParams = {
+      ...storedConfig,
       id: taskId,
       projectId,
-      name: taskName,
-      sourceBranch: branchConfig.data.sourceBranch,
-      strategy: branchConfig.data.strategy,
-      linkedIssue: action.linkedIssue,
-      workspaceProvider: action.workspaceProvider,
+      name: storedConfig?.name?.trim() || taskName,
+      sourceBranch: storedConfig?.sourceBranch ?? branchConfig.data.sourceBranch,
+      strategy: storedConfig?.strategy ?? branchConfig.data.strategy,
+      linkedIssue: storedConfig?.linkedIssue ?? action.linkedIssue,
+      workspaceProvider: storedConfig?.workspaceProvider ?? action.workspaceProvider,
       automationId: ctx.automation.id,
       initialConversation: {
+        ...storedConfig?.initialConversation,
         id: conversationId,
         projectId,
         taskId,
-        provider,
-        title: ctx.automation.name,
-        initialPrompt: prompt,
+        provider: storedConfig?.initialConversation?.provider ?? provider,
+        title: storedConfig?.initialConversation?.title ?? ctx.automation.name,
+        initialPrompt: storedConfig?.initialConversation?.initialPrompt ?? prompt,
         autoApprove: true,
       },
-    });
+    };
+
+    const result = await createTask(taskConfig);
 
     if (!result.success) {
       return err({ message: stringifyCreateTaskError(result.error), taskId });

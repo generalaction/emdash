@@ -283,6 +283,7 @@ export const automations = sqliteTable(
     cronTz: text('cron_tz'),
     promptTemplate: text('prompt_template').notNull().default(''),
     actions: text('actions').notNull().default('[]'),
+    taskConfig: text('task_config'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),

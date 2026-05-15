@@ -48,6 +48,7 @@ import {
   type TriggerSpec,
 } from '@shared/automations/types';
 import type { Branch } from '@shared/git';
+import type { CreateTaskParams } from '@shared/tasks';
 import {
   asMounted,
   firstMountedProjectId,
@@ -66,7 +67,6 @@ import AgentLogo from '@renderer/lib/components/agent-logo';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
 import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
@@ -291,6 +291,29 @@ export const AutomationPanel = observer(function AutomationPanel({
     };
   }
 
+  function buildTaskConfig(action: TaskCreateAction): CreateTaskParams {
+    const taskId = crypto.randomUUID();
+    const projectId = effectiveProjectId!;
+    return {
+      id: taskId,
+      projectId,
+      name: action.taskName?.trim() || name.trim(),
+      sourceBranch: action.sourceBranch!,
+      strategy: action.strategy!,
+      linkedIssue: action.linkedIssue,
+      workspaceProvider: action.workspaceProvider,
+      initialConversation: {
+        id: crypto.randomUUID(),
+        projectId,
+        taskId,
+        provider: action.provider ?? provider,
+        title: name.trim(),
+        initialPrompt: action.prompt,
+        autoApprove: true,
+      },
+    };
+  }
+
   async function handleSave() {
     if (!effectiveProjectId || !canSave) return;
     setError(null);
@@ -298,6 +321,7 @@ export const AutomationPanel = observer(function AutomationPanel({
     if (!action) return;
     const triggerSpec = buildTriggerSpec();
     const actions: ActionSpec[] = [action];
+    const taskConfig = buildTaskConfig(action);
     try {
       const trimmedName = name.trim();
       const saved = automation
@@ -307,6 +331,7 @@ export const AutomationPanel = observer(function AutomationPanel({
               name: trimmedName,
               trigger: triggerSpec,
               actions,
+              taskConfig,
               projectId: effectiveProjectId,
               enabled: automation.isDraft ? true : automation.enabled,
               isDraft: false,
@@ -318,6 +343,7 @@ export const AutomationPanel = observer(function AutomationPanel({
             category: appliedTemplate?.category ?? automationCatalogCategories[0],
             trigger: triggerSpec,
             actions,
+            taskConfig,
             projectId: effectiveProjectId,
             builtinTemplateId: appliedTemplate?.id ?? null,
           });
@@ -451,14 +477,12 @@ export const AutomationPanel = observer(function AutomationPanel({
               </div>
             ) : null}
 
-            <AnimatedHeight>
-              <FromBranchContent
-                state={fromBranch}
-                projectId={effectiveProjectId}
-                currentBranch={currentBranch}
-                isUnborn={isUnborn}
-              />
-            </AnimatedHeight>
+            <FromBranchContent
+              state={fromBranch}
+              projectId={effectiveProjectId}
+              currentBranch={currentBranch}
+              isUnborn={isUnborn}
+            />
           </section>
 
           {error && <p className="text-xs text-destructive">{error}</p>}
@@ -656,7 +680,7 @@ function UseTemplateButton({
 function RunsSection({ automation }: { automation: Automation }) {
   const [visibleLimit, setVisibleLimit] = useState(RUNS_PAGE_SIZE);
   const runs = useAutomationRuns(automation.id, visibleLimit + 1);
-  const { removeRun } = useAutomations();
+  const { removeRun, runNow } = useAutomations();
   const { toast } = useToast();
   const showConfirmDelete = useShowModal('confirmActionModal');
   const visibleRuns = useMemo(
@@ -682,6 +706,20 @@ function RunsSection({ automation }: { automation: Automation }) {
     });
   }
 
+  function handleRerun() {
+    if (automation.isDraft) return;
+    runNow.mutate(automation.id, {
+      onError: (error) =>
+        toast({
+          title: 'Automation failed',
+          description: formatAutomationError(error),
+          variant: 'destructive',
+        }),
+    });
+  }
+
+  const canRerun = !automation.isDraft;
+
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center gap-1.5">
@@ -703,6 +741,7 @@ function RunsSection({ automation }: { automation: Automation }) {
               title={automation.name}
               paddingClass="px-3"
               onDelete={handleDeleteRun}
+              onRerun={canRerun ? handleRerun : undefined}
             />
           ))}
         </div>

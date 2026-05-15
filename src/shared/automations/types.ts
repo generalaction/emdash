@@ -1,4 +1,5 @@
 import type { ActionSpec } from '@shared/automations/actions';
+import type { CreateTaskParams } from '@shared/tasks';
 
 export const AUTOMATION_NAME_MAX_LENGTH = 120;
 
@@ -11,6 +12,7 @@ export type Automation = {
   category: string;
   trigger: TriggerSpec;
   actions: ActionSpec[];
+  taskConfig: CreateTaskParams | null;
   projectId: string;
   enabled: boolean;
   isDraft: boolean;
@@ -60,6 +62,7 @@ export type CreateAutomationInput = {
   category: string;
   trigger: TriggerSpec;
   actions: ActionSpec[];
+  taskConfig?: CreateTaskParams | null;
   projectId: string;
   enabled?: boolean;
   isDraft?: boolean;
@@ -70,5 +73,5 @@ export type UpdateAutomationPatch = Partial<
   Pick<
     CreateAutomationInput,
     'name' | 'description' | 'category' | 'trigger' | 'actions' | 'projectId' | 'builtinTemplateId'
-  > & { enabled: boolean; isDraft: boolean }
+  > & { taskConfig: CreateTaskParams | null; enabled: boolean; isDraft: boolean }
 >;
