@@ -31,7 +31,7 @@ function ConnectionActionButton({
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="icon-xs"
               className={className}
               onClick={onClick}
               disabled={disabled}

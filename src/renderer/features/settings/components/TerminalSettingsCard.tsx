@@ -293,7 +293,7 @@ const TerminalSettingsCard: React.FC = () => {
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="icon-xs"
               disabled={loading || saving || fontSize <= TERMINAL_FONT_SIZE_MIN}
               onClick={() => applyFontSize(fontSize - 1)}
               aria-label="Decrease terminal font size"
@@ -307,7 +307,7 @@ const TerminalSettingsCard: React.FC = () => {
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="icon-xs"
               disabled={loading || saving || fontSize >= TERMINAL_FONT_SIZE_MAX}
               onClick={() => applyFontSize(fontSize + 1)}
               aria-label="Increase terminal font size"

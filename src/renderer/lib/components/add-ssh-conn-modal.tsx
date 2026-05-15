@@ -170,7 +170,7 @@ export function AddSshConnModal({
         >
           <div className={`flex items-center gap-2 ${showBackButton ? '-ml-2' : ''}`}>
             {showBackButton && (
-              <Button variant="ghost" size="icon-sm" onClick={onClose}>
+              <Button variant="ghost" size="icon-xs" onClick={onClose}>
                 <ArrowLeftIcon className="w-4 h-4" />
               </Button>
             )}

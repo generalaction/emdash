@@ -39,11 +39,11 @@ export const TabBarActions = observer(function TabBarActions() {
   );
 
   return (
-    <div className="flex h-full shrink-0 items-center px-1">
+    <div className="flex h-full shrink-0 items-center px-2">
       <Tooltip>
         <TooltipTrigger>
           <Button
-            size="icon-xs"
+            size="icon-sm"
             variant="ghost"
             onClick={() =>
               showCreateConversationModal({
@@ -52,40 +52,40 @@ export const TabBarActions = observer(function TabBarActions() {
                 onSuccess: ({ conversationId }) => tabManager.openConversation(conversationId),
               })
             }
-            aria-label="New conversation"
-            title="New conversation"
           >
-            <MessageSquarePlus className="size-3" />
+            <MessageSquarePlus className="size-3.5" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
           New Conversations <ShortcutHint settingsKey="newConversation" />
         </TooltipContent>
       </Tooltip>
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        onClick={() =>
-          showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined })
-        }
-        className="flex h-full items-center justify-center px-2 text-foreground-muted hover:text-foreground hover:bg-background-secondary-1/40"
-        aria-label="Open files"
-        title="Open files"
-      >
-        <FileSearch className="size-3" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={() =>
+              showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined })
+            }
+          >
+            <FileSearch className="size-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Open File</TooltipContent>
+      </Tooltip>
       {tabGroupManager.groups.length < 3 && (
         <Tooltip>
           <TooltipTrigger>
             <span>
               <Button
-                size="icon-xs"
+                size="icon-sm"
                 variant="ghost"
                 disabled={!canSplit}
                 onClick={() => tabGroupManager.splitRight()}
                 aria-label="Split pane right"
               >
-                <Columns2 className="size-3" />
+                <Columns2 className="size-3.5" />
               </Button>
             </span>
           </TooltipTrigger>
