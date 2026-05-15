@@ -133,7 +133,7 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
           </Button>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             onClick={() => prSync?.clear(repositoryUrl)}
             aria-label="Dismiss"
           >

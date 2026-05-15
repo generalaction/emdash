@@ -62,7 +62,7 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
             <>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 className="h-8 w-8"
                 onClick={handleCancel}
                 title="Cancel (Esc)"
@@ -72,7 +72,7 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
               </Button>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 className="h-8 w-8"
                 onClick={handleSave}
                 disabled={!editContent.trim()}
@@ -86,7 +86,7 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
             <>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 className="h-8 w-8"
                 onClick={handleStartEditing}
                 title="Edit"
@@ -96,7 +96,7 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
               </Button>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 className="h-8 w-8 text-destructive hover:text-destructive"
                 onClick={() => void onDelete()}
                 title="Delete"

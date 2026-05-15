@@ -55,7 +55,7 @@ function FilterButton({
       <PopoverTrigger
         disabled={disabled}
         className={
-          'flex items-center text-sm gap-1 hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed ' +
+          'flex items-center text-sm gap-1 hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed' +
           (active ? 'text-foreground font-medium' : 'text-foreground-muted')
         }
       >
@@ -308,7 +308,7 @@ export const PullRequestView = observer(function PullRequestView() {
             />
             <ContextMenu>
               <ContextMenuTrigger>
-                <Button variant="outline" size="icon-sm" onClick={handleRefresh} disabled={syncing}>
+                <Button variant="outline" size="icon-md" onClick={handleRefresh} disabled={syncing}>
                   <motion.div
                     animate={syncing ? { rotate: 360 } : {}}
                     transition={syncing ? { repeat: Infinity, duration: 0.8, ease: 'linear' } : {}}

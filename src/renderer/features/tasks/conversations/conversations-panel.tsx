@@ -2,13 +2,13 @@ import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
   useConversations,
   useTaskViewContext,
   useWorkspace,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
@@ -17,7 +17,6 @@ import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
-import { cssVar } from '@renderer/utils/cssVars';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
 
@@ -26,8 +25,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const workspace = useWorkspace();
-  const { effectiveTheme } = useTheme();
-  const { tabManager: tm } = taskView;
+  const { groupId, tabManager: tm } = useTabGroupContext();
   const showCreateConversationModal = useShowModal('createConversationModal');
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
@@ -58,24 +56,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     ? (conversations.sessions.get(activeConversation.data.id) ?? null)
     : null;
   const activeSessionId = activeSession?.sessionId ?? null;
-  const activeProviderId = activeConversation?.data.providerId;
   const hasConversationTabs = tm.resolvedTabs.some((t) => t.kind === 'conversation');
-
-  const themeOverride = useMemo(() => {
-    if (activeProviderId !== 'grok' || effectiveTheme !== 'emlight') return undefined;
-
-    const background = cssVar('--background');
-    const foreground = cssVar('--foreground');
-
-    return {
-      background,
-      foreground,
-      black: background,
-      brightBlack: cssVar('--foreground-muted'),
-      white: foreground,
-      brightWhite: foreground,
-    };
-  }, [activeProviderId, effectiveTheme]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalContainerRef = useRef<HTMLDivElement>(null);
@@ -142,7 +123,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
             }
           }}
         >
-          <PaneSizingProvider paneId="conversations" sessionIds={allSessionIds}>
+          <PaneSizingProvider paneId={`conversations-${groupId}`} sessionIds={allSessionIds}>
             {!hasConversationTabs ? (
               <EmptyState
                 icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
@@ -181,7 +162,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                       className="h-full w-full"
                       onEnterPress={onEnterPress}
                       onInterruptPress={onInterruptPress}
-                      themeOverride={themeOverride}
                       mapShiftEnterToCtrlJ
                       remoteConnectionId={remoteConnectionId}
                     />

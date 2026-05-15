@@ -298,7 +298,7 @@ export const AddProjectModal = observer(function AddProjectModal({
         </DialogFooter>
       }
     >
-      <DialogContentArea className="gap-4">
+      <DialogContentArea data-autofocus tabIndex={-1} className="gap-4">
         <div className="flex items-center gap-2">
           <ToggleGroup
             className="w-full flex-1"
