@@ -210,10 +210,6 @@ export async function createTask(
     }
   }
 
-  const task = { ...mapTaskRowToTask(taskRow, prs), automationId: params.automationId };
-
-  taskEvents._emit('task:created', task);
-
   const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
     if (params.workspaceProvider === 'byoi') return 'byoi';
     if (project.defaultWorkspaceType.kind === 'ssh') return 'project-ssh';
@@ -222,6 +218,13 @@ export async function createTask(
   const workspaceId = crypto.randomUUID();
   await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
   await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
+  const task = {
+    ...mapTaskRowToTask(taskRow, prs),
+    automationId: params.automationId,
+    workspaceId,
+  };
+
+  taskEvents._emit('task:created', task);
 
   const provisionResult = await taskManager.provisionTask(project, task, [], [], {
     id: workspaceId,
@@ -271,5 +274,5 @@ export async function createTask(
     });
   }
 
-  return ok({ task: { ...task, workspaceId }, warning });
+  return ok({ task, warning });
 }

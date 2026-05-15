@@ -11,7 +11,12 @@ export type ActionOutcome = {
   message?: string;
 };
 
+export type ActionError = {
+  message: string;
+  taskId?: string;
+};
+
 export type ActionExecutor<A> = (
   action: A,
   context: ActionContext
-) => Promise<Result<ActionOutcome, string>>;
+) => Promise<Result<ActionOutcome, ActionError>>;

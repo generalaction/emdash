@@ -155,6 +155,8 @@ export class TaskManagerStore {
       runInAction(() => {
         this.tasks.set(task.id, createUnprovisionedTask(task));
       });
+      conversationRegistry.acquire(task.id, this.projectId);
+      terminalRegistry.acquire(task.id, this.projectId);
     });
 
     this._unsubTaskStatusUpdated = events.on(

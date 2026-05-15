@@ -82,11 +82,11 @@ async function resolveSourceBranch(projectId: string, taskName: string, action: 
 
 export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action, ctx) => {
   const prompt = action.prompt.trim();
-  if (!prompt) return err('task_create_prompt_empty');
+  if (!prompt) return err({ message: 'task_create_prompt_empty' });
 
   const taskName = action.taskName?.trim() || generateTaskName({ title: ctx.automation.name });
   const branchConfig = await resolveSourceBranch(ctx.automation.projectId, taskName, action);
-  if (!branchConfig.success) return err(branchConfig.error);
+  if (!branchConfig.success) return err({ message: branchConfig.error });
 
   try {
     const taskId = randomUUID();
@@ -114,13 +114,15 @@ export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action
       },
     });
 
-    if (!result.success) return err(stringifyCreateTaskError(result.error));
+    if (!result.success) {
+      return err({ message: stringifyCreateTaskError(result.error), taskId });
+    }
 
     return ok({
       taskId,
       sessionId: makePtySessionId(projectId, taskId, conversationId),
     });
   } catch (error) {
-    return err(error instanceof Error ? error.message : String(error));
+    return err({ message: error instanceof Error ? error.message : String(error) });
   }
 };

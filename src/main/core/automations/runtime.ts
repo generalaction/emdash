@@ -8,6 +8,7 @@ import { err, ok, type Result } from '@shared/result';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { executeAction } from './actions';
+import type { ActionError, ActionOutcome } from './actions/types';
 import { automationRunEvents } from './automation-run-events';
 import { countRunningRuns, insertRun, updateAutomationSchedule, updateRun } from './repo';
 
@@ -83,25 +84,28 @@ async function executeAutomationRun(
 
   for (let i = 0; i < automation.actions.length; i++) {
     const action = automation.actions[i];
-    const result = await executeAction(action, ctx).catch((error) => ({
-      success: false as const,
-      error: error instanceof Error ? error.message : String(error),
-    }));
+    const result: Result<ActionOutcome, ActionError> = await executeAction(action, ctx).catch(
+      (error) => ({
+        success: false as const,
+        error: { message: error instanceof Error ? error.message : String(error) },
+      })
+    );
     if (!result.success) {
-      const message = `action_${i}_${action.kind}:${result.error}`;
+      const failedTaskId = firstTaskId ?? result.error.taskId ?? null;
+      const message = `action_${i}_${action.kind}:${result.error.message}`;
       log.error('Automation action failed', {
         automationId: automation.id,
         runId: run.id,
         actionIndex: i,
         actionKind: action.kind,
-        error: result.error,
+        error: result.error.message,
       });
       run =
         (await updateRun(run.id, {
           status: 'failed',
           finishedAt: Date.now(),
-          taskId: firstTaskId,
-          createdTaskId: firstTaskId,
+          taskId: failedTaskId,
+          createdTaskId: failedTaskId,
           error: message,
         })) ?? run;
       emitRunUpdated(run);
