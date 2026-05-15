@@ -20,7 +20,7 @@ function makeExecutionContext(): IExecutionContext {
 }
 
 function makeWriter(fs: MemoryFs, userFs = new MemoryFs()): HookConfigWriter {
-  return new HookConfigWriter(fs, makeExecutionContext(), { userFs });
+  return new HookConfigWriter(fs, makeExecutionContext(), { userFs, platform: 'darwin' });
 }
 
 describe('HookConfigWriter', () => {

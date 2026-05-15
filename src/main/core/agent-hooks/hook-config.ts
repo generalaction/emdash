@@ -49,13 +49,15 @@ const LEGACY_CODEX_NOTIFY_COMMAND = [
 
 export class HookConfigWriter {
   private readonly userFs: FileSystemProvider;
+  private readonly platform: NodeJS.Platform;
 
   constructor(
     private readonly fs: FileSystemProvider,
     private readonly exec: IExecutionContext,
-    options: { userFs?: FileSystemProvider } = {}
+    options: { userFs?: FileSystemProvider; platform?: NodeJS.Platform } = {}
   ) {
     this.userFs = options.userFs ?? new LocalFileSystem(homedir());
+    this.platform = options.platform ?? process.platform;
   }
 
   async writeClaudeHooks(): Promise<boolean> {
@@ -72,7 +74,10 @@ export class HookConfigWriter {
 
     for (const { eventType, hookKey } of HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(existing, makeClaudeHookCommand(eventType));
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
     }
 
     await this.fs.write(CLAUDE_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
@@ -93,7 +98,10 @@ export class HookConfigWriter {
 
     for (const { hookKey, notificationType } of CODEX_HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(existing, makeCodexHookCommand(notificationType));
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeCodexHookCommand(notificationType, { platform: this.platform })
+      );
     }
 
     await this.userFs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
