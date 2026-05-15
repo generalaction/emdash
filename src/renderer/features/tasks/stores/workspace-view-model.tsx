@@ -61,6 +61,7 @@ export class WorkspaceViewModel implements ILifecycle {
   private _snapshotDisposer: (() => void) | null = null;
   /** Saved whenever suspend() is called, restored in next initialize(). */
   private _savedDiffViewSnapshot: DiffViewSnapshot | undefined;
+  private _isCreatingTerminal = false;
 
   readonly taskId: string;
 
@@ -296,6 +297,7 @@ export class WorkspaceViewModel implements ILifecycle {
         const terminals = terminalRegistry.get(this.taskId);
         return (
           this.isTerminalDrawerOpen &&
+          !this._isCreatingTerminal &&
           (terminals?.isLoaded ?? false) &&
           this.terminalTabs.tabs.length === 0
         );
@@ -384,16 +386,24 @@ export class WorkspaceViewModel implements ILifecycle {
 
   /** Opens the terminal drawer and always creates a new terminal session. */
   async openNewTerminal(): Promise<string | undefined> {
+    if (this._isCreatingTerminal) return undefined;
+
+    this._isCreatingTerminal = true;
+    this.isTerminalDrawerOpen = true;
+    this.setFocusedRegion('bottom');
+
     try {
       const terminal = await terminalRegistry.get(this.taskId)?.createDefaultTerminal();
-      this.isTerminalDrawerOpen = true;
-      this.setFocusedRegion('bottom');
       if (!terminal) return undefined;
-      this.terminalTabs.setActiveTab(terminal.id);
+      runInAction(() => this.terminalTabs.setActiveTab(terminal.id));
       return terminal.id;
     } catch (error) {
       log.error('Failed to create terminal:', error);
       return undefined;
+    } finally {
+      runInAction(() => {
+        this._isCreatingTerminal = false;
+      });
     }
   }
 }
