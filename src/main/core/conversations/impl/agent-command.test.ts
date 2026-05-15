@@ -122,6 +122,7 @@ describe('buildAgentCommand', () => {
     resumeArgs: string[];
   }>([
     { providerId: 'cursor', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    { providerId: 'grok', freshArgs: [], resumeArgs: ['-r'] },
     { providerId: 'opencode', freshArgs: [], resumeArgs: ['--continue'] },
     { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
     {

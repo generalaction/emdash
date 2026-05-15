@@ -5,9 +5,7 @@ import type { ConversationStore } from '@renderer/features/tasks/conversations/c
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { agentConfig } from '@renderer/utils/agentConfig';
-
-const ITEM_CLASS =
-  'flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2';
+import { PALETTE_ITEM_CLASS } from './palette-item-styles';
 
 export const PaletteConversationItem = observer(function PaletteConversationItem({
   conv,
@@ -22,7 +20,7 @@ export const PaletteConversationItem = observer(function PaletteConversationItem
   const title = formatConversationTitleForDisplay(conv.data.providerId, conv.data.title ?? '');
 
   return (
-    <Command.Item value={value} onSelect={onSelect} className={ITEM_CLASS}>
+    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       {config ? (
         <AgentLogo
           logo={config.logo}

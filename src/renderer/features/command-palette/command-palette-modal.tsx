@@ -18,6 +18,7 @@ import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
+import { PALETTE_ITEM_CLASS } from './palette-item-styles';
 import { PaletteNotificationsGroup } from './palette-notifications-group';
 import { PaletteProjectsGroup } from './palette-projects-group';
 import { PaletteTaskItem } from './palette-task-item';
@@ -53,6 +54,19 @@ const GROUP_CLASS = cn(
   '[&_[cmdk-group-heading]]:text-foreground/50'
 );
 
+// Ordered allowlists for the "Suggested Actions" empty-state group. Defined at
+// module scope so the arrays keep stable references across renders.
+const TASK_SUGGESTED = [
+  'task.newConversation',
+  'task.sidebarChanges',
+  'task.sidebarFiles',
+  'task.sidebarConversations',
+  'task.toggleTerminalDrawer',
+  'app.giveFeedback',
+];
+const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'app.giveFeedback'];
+const APP_SUGGESTED = ['app.newProject', 'app.settings', 'app.giveFeedback'];
+
 /** Converts a TanStack hotkey string (e.g. 'Mod+Shift+C') to a display label. */
 function formatHotkey(hotkey: string | undefined): string | undefined {
   if (!hotkey) return undefined;
@@ -75,13 +89,8 @@ function PaletteItem({
   ) : (
     KIND_ICON[item.kind]
   );
-
   return (
-    <Command.Item
-      value={value}
-      onSelect={onSelect}
-      className="flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2"
-    >
+    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       {iconNode}
       <span className="flex-1 truncate">{item.title}</span>
       {action?.shortcut && (
@@ -103,11 +112,7 @@ function PaletteFileItem({
   onSelect: () => void;
 }) {
   return (
-    <Command.Item
-      value={value}
-      onSelect={onSelect}
-      className="flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2"
-    >
+    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       <FileIcon filename={item.title} size={14} />
       <span className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
         <span className="shrink-0">{item.title}</span>
@@ -178,17 +183,6 @@ export function CommandPaletteModal({
         };
       })
   );
-
-  // Ordered allowlists for the "Suggested Actions" empty-state group.
-  const TASK_SUGGESTED = [
-    'task.newConversation',
-    'task.sidebarChanges',
-    'task.sidebarFiles',
-    'task.sidebarConversations',
-    'task.toggleTerminalDrawer',
-  ];
-  const PROJECT_SUGGESTED = ['app.newTask', 'app.settings'];
-  const APP_SUGGESTED = ['app.newProject', 'app.settings'];
 
   const actions = useMemo(() => {
     const allActions = [...registryActions];
