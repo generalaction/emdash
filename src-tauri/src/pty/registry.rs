@@ -26,7 +26,7 @@ impl Registry {
     where
         F: Fn(Vec<u8>) + Send + 'static,
     {
-        let id = PtyId(self.next_id.fetch_add(1, Ordering::SeqCst));
+        let id = PtyId(self.next_id.fetch_add(1, Ordering::Relaxed));
         let session = Session::spawn(id, opts, on_flush)?;
         self.sessions.lock().insert(id, session);
         Ok(id)
@@ -51,7 +51,7 @@ impl Registry {
             .remove(&id)
             .ok_or(PtyError::NotFound { id })?;
         let res = session.kill();
-        drop(session); // explicit: trigger ordered drop here, not after the lock
+        drop(session); // explicit drop: invokes Session::Drop before res is returned
         res
     }
 
