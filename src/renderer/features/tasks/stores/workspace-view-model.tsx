@@ -13,6 +13,7 @@ import { appState } from '@renderer/lib/stores/app-state';
 import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
+import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
@@ -382,9 +383,17 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   /** Opens the terminal drawer and always creates a new terminal session. */
-  openNewTerminal(): void {
-    this.isTerminalDrawerOpen = true;
-    this.setFocusedRegion('bottom');
-    void terminalRegistry.get(this.taskId)?.createDefaultTerminal();
+  async openNewTerminal(): Promise<string | undefined> {
+    try {
+      const terminal = await terminalRegistry.get(this.taskId)?.createDefaultTerminal();
+      this.isTerminalDrawerOpen = true;
+      this.setFocusedRegion('bottom');
+      if (!terminal) return undefined;
+      this.terminalTabs.setActiveTab(terminal.id);
+      return terminal.id;
+    } catch (error) {
+      log.error('Failed to create terminal:', error);
+      return undefined;
+    }
   }
 }

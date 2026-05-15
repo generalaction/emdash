@@ -1,8 +1,6 @@
-import { useHotkey } from '@tanstack/react-hotkeys';
 import { Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import {
   useTaskViewContext,
   useTerminals,
@@ -10,10 +8,6 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import {
-  getEffectiveHotkey,
-  getHotkeyRegistration,
-} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
@@ -21,11 +15,9 @@ import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
-import { log } from '@renderer/utils/logger';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
 import { TerminalPtyContent } from './terminal-pty-content';
-import { getTerminalsPaneSize, nextTerminalName } from './terminal-tabs';
 
 type ActiveItem = { kind: 'terminal'; id: string } | { kind: 'script'; id: string };
 
@@ -37,11 +29,9 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const terminalMgr = useTerminals();
   const terminalTabView = taskView.terminalTabs;
   const lifecycleScriptsMgr = workspace.lifecycleScripts ?? null;
-  const { value: keyboard } = useAppSettingsKey('keyboard');
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
   const [isPanelFocused, setIsPanelFocused] = useState(false);
-  const newTerminalHotkey = getEffectiveHotkey('newTerminal', keyboard);
 
   const autoFocus =
     isActive && taskView.isTerminalDrawerOpen && taskView.focusedRegion === 'bottom';
@@ -88,23 +78,8 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   useTabShortcuts(activeStore, { focused: isPanelFocused });
 
   const handleCreate = async () => {
-    if (!terminalMgr) return;
-    taskView.setFocusedRegion('bottom');
-    const id = crypto.randomUUID();
-    const name = nextTerminalName((terminalTabView.tabs ?? []).map((s) => s.data.name));
-    try {
-      await terminalMgr.createTerminal({
-        id,
-        projectId,
-        taskId,
-        name,
-        initialSize: getTerminalsPaneSize(),
-      });
-      terminalTabView.setActiveTab(id);
-      setActiveItem({ kind: 'terminal', id });
-    } catch (error) {
-      log.error('Failed to create terminal:', error);
-    }
+    const id = await taskView.openNewTerminal();
+    if (id) setActiveItem({ kind: 'terminal', id });
   };
 
   const handleRunScript = () => {
@@ -133,10 +108,6 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     if (!activeScript) return;
     void rpc.pty.sendInput(activeScript.session.sessionId, '\x03');
   };
-
-  useHotkey(getHotkeyRegistration('newTerminal', keyboard), () => void handleCreate(), {
-    enabled: activeItem.kind === 'terminal' && newTerminalHotkey !== null,
-  });
 
   const emptyState = (
     <EmptyState
