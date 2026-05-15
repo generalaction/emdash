@@ -54,9 +54,14 @@ parking_lot = "0.12"
 directories = "5"
 base64 = "0.22"
 
+# PTY.
+portable-pty = "=0.9.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
 [dev-dependencies]
 insta = { version = "1.47", features = ["json"] }
 tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
 
 [profile.release]
 panic = "abort"

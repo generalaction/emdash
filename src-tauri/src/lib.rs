@@ -8,6 +8,7 @@ pub mod bindings_parser;
 pub mod commands;
 pub mod db;
 pub mod greeting;
+pub mod pty;
 pub mod secrets;
 pub mod shell_env;
 pub mod tauri_bindings;
