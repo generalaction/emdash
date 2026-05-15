@@ -1,4 +1,4 @@
-import type { AppSettings } from '@shared/app-settings';
+import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import type { Issue } from '@shared/tasks';
 import { ISSUE_PROVIDER_META } from '@renderer/features/integrations/issue-provider-meta';
 
@@ -67,7 +67,7 @@ export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | nu
 }
 
 export function buildPromptLibraryContextActions(
-  prompts: AppSettings['promptLibrary'] | undefined
+  prompts: PromptLibraryPrompt[] | undefined
 ): ContextAction[] {
   return (prompts ?? []).flatMap((prompt) => {
     const text = prompt.prompt.trim();
@@ -103,7 +103,7 @@ export function buildDraftCommentsContextAction(args: {
 export function buildTaskContextActions(
   linkedIssue?: Issue,
   draftComments?: { count: number; formattedComments?: string },
-  promptLibrary?: AppSettings['promptLibrary']
+  promptLibrary?: PromptLibraryPrompt[]
 ): ContextAction[] {
   const linkedIssueAction = buildLinkedIssueContextAction(linkedIssue);
   const draftCommentsAction = draftComments ? buildDraftCommentsContextAction(draftComments) : null;

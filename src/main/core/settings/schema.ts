@@ -3,11 +3,7 @@ import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-regi
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
-import {
-  DEFAULT_AGENT_ID,
-  DEFAULT_PROMPT_LIBRARY,
-  DEFAULT_REVIEW_PROMPT,
-} from './settings-registry';
+import { DEFAULT_AGENT_ID } from './settings-registry';
 
 export const projectSettingsSchema = z.object({
   pushOnCreate: z.boolean(),
@@ -52,19 +48,6 @@ export const themeSchema = z
   .default(null);
 
 export const defaultAgentSchema = z.optional(z.enum(AGENT_PROVIDER_IDS)).default(DEFAULT_AGENT_ID);
-
-export const reviewPromptSchema = z.string().default(DEFAULT_REVIEW_PROMPT);
-
-export const promptLibraryPromptSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  prompt: z.string().min(1),
-});
-
-export const promptLibrarySchema = z
-  .array(promptLibraryPromptSchema)
-  .default(DEFAULT_PROMPT_LIBRARY);
-export const promptLibrarySeedVersionSchema = z.number().int().min(0).default(0);
 
 export const keyboardSettingsSchema = z
   .optional(
@@ -125,9 +108,6 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
-  reviewPrompt: reviewPromptSchema,
-  promptLibrary: promptLibrarySchema,
-  promptLibrarySeedVersion: promptLibrarySeedVersionSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
@@ -144,9 +124,6 @@ export const appSettingsSchema = z.object({
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
-  reviewPrompt: reviewPromptSchema,
-  promptLibrary: promptLibrarySchema,
-  promptLibrarySeedVersion: promptLibrarySeedVersionSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,

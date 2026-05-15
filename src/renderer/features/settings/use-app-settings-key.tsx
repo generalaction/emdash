@@ -13,7 +13,7 @@ function mergeValue<K extends AppSettingsKey>(
   partial: Partial<AppSettings[K]>
 ): AppSettings[K] {
   if (Array.isArray(partial)) {
-    return partial as AppSettings[K];
+    return partial as unknown as AppSettings[K];
   }
   if (
     typeof partial === 'object' &&

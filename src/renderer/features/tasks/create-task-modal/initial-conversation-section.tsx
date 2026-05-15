@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
+import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import {
   buildTaskContextActions,
   type ContextAction,
@@ -42,7 +42,7 @@ interface InitialConversationFieldProps {
 }
 
 export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
-  const { value: promptLibrary } = useAppSettingsKey('promptLibrary');
+  const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
     () => buildTaskContextActions(linkedIssue, undefined, promptLibrary),

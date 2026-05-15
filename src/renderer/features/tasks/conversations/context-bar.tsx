@@ -1,7 +1,7 @@
 import { ArrowUp } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import {
   getRegisteredTaskData,
   getTaskStore,
@@ -26,8 +26,7 @@ export const ContextBar = observer(function ContextBar() {
   const conversations = useConversations();
   const task = getRegisteredTaskData(projectId, taskId);
   const draftComments = getTaskStore(projectId, taskId)?.draftComments;
-  const { value: promptLibrary, isSaving: isSavingPromptLibrary } =
-    useAppSettingsKey('promptLibrary');
+  const { value: promptLibrary, isSaving: isSavingPromptLibrary } = usePromptLibrary();
   const conversationStore = conversations;
   const activeConversation = taskView.tabManager.activeConversation;
   const activeSessionId = activeConversation

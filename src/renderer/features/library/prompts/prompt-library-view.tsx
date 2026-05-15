@@ -1,12 +1,13 @@
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { Input } from '@renderer/lib/ui/input';
 import { cn } from '@renderer/utils/utils';
-import type { PromptFormResult, PromptLibraryPrompt } from './prompt-modal';
+import type { PromptFormResult } from './prompt-modal';
+import { usePromptLibrary } from './use-prompt-library';
 
 type PromptListItem = {
   id: string;
@@ -78,7 +79,7 @@ export function PromptLibraryView() {
     update: updatePromptLibrary,
     isLoading: isPromptLibraryLoading,
     isSaving: isPromptLibrarySaving,
-  } = useAppSettingsKey('promptLibrary');
+  } = usePromptLibrary();
   const showPromptModal = useShowModal('promptModal');
   const showConfirm = useShowModal('confirmActionModal');
   const [search, setSearch] = useState('');
@@ -133,7 +134,7 @@ export function PromptLibraryView() {
           </p>
         </div>
 
-        <div className="prompt-library-toolbar mb-6 flex items-center gap-2">
+        <div className="mb-6 flex [container-type:inline-size] items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -150,8 +151,8 @@ export function PromptLibraryView() {
             disabled={isDisabled}
             aria-label="New Prompt"
           >
-            <Plus className="prompt-library-new-prompt-icon mr-1.5 h-3.5 w-3.5" />
-            <span className="prompt-library-new-prompt-label">New Prompt</span>
+            <Plus className="mr-1.5 h-3.5 w-3.5 [@container(max-width:520px)]:mr-0" />
+            <span className="[@container(max-width:520px)]:hidden">New Prompt</span>
           </Button>
         </div>
 

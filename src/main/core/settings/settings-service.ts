@@ -4,11 +4,7 @@ import { db } from '@main/db/client';
 import { appSettings } from '@main/db/schema';
 import type { IInitializable } from '@main/lib/lifecycle';
 import { APP_SETTINGS_SCHEMA_MAP } from './schema';
-import {
-  DEFAULT_PROMPT_LIBRARY,
-  getDefaultForKey,
-  PROMPT_LIBRARY_SEED_VERSION,
-} from './settings-registry';
+import { getDefaultForKey } from './settings-registry';
 import { computeDelta, computeTrueOverrides, isDeepEqual, isPlainObject, mergeDeep } from './utils';
 
 export type { AppSettings, AppSettingsKey } from '@shared/app-settings';
@@ -139,29 +135,7 @@ export class SettingsStore implements IInitializable {
     return Object.fromEntries(entries) as AppSettings;
   }
 
-  private async seedPromptLibraryIfNeeded(): Promise<void> {
-    const seedVersion = await this.get('promptLibrarySeedVersion');
-    if (seedVersion >= PROMPT_LIBRARY_SEED_VERSION) return;
-
-    const rawPromptLibrary = await this.readRaw('promptLibrary');
-    const parsedPromptLibrary = APP_SETTINGS_SCHEMA_MAP.promptLibrary.safeParse(rawPromptLibrary);
-    const promptLibrary = parsedPromptLibrary.success ? parsedPromptLibrary.data : [];
-    const reviewPrompt = await this.get('reviewPrompt');
-    const seededPrompts = DEFAULT_PROMPT_LIBRARY.map((prompt) =>
-      prompt.id === 'review-prompt' ? { ...prompt, prompt: reviewPrompt } : prompt
-    );
-    const missingSeedPrompts = seededPrompts.filter(
-      (seedPrompt) => !promptLibrary.some((prompt) => prompt.id === seedPrompt.id)
-    );
-
-    if (missingSeedPrompts.length > 0) {
-      await this.update('promptLibrary', [...missingSeedPrompts, ...promptLibrary]);
-    }
-    await this.update('promptLibrarySeedVersion', PROMPT_LIBRARY_SEED_VERSION);
-  }
-
   async initialize(): Promise<void> {
-    await this.seedPromptLibraryIfNeeded();
     await this.getAll();
   }
 }
