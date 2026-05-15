@@ -109,6 +109,47 @@ describe('config migration', () => {
     });
   });
 
+  it('does not import Conductor files to copy when .worktreeinclude is missing', async () => {
+    const fs = createFs({
+      'conductor.json': JSON.stringify({
+        scripts: {
+          setup: 'pnpm install',
+        },
+      }),
+    });
+
+    await expect(inspectProjectConfigMigrations(fs)).resolves.toEqual([
+      {
+        provider: 'conductor',
+        label: 'Conductor',
+        files: ['conductor.json'],
+        fields: ['scripts.setup'],
+        unsupportedFields: [],
+      },
+    ]);
+
+    const patch = vi.fn().mockResolvedValue({ success: true });
+    const result = await migrateProjectConfigFromProvider(
+      {
+        fs,
+        settings: {
+          patch,
+        },
+      } as never,
+      { provider: 'conductor', destination: 'shared' }
+    );
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(fs.content('.emdash.json') ?? '{}')).toEqual({
+      scripts: {
+        setup: 'pnpm install',
+      },
+    });
+    expect(patch).toHaveBeenCalledWith({
+      clearShareableFields: ['scripts.setup'],
+    });
+  });
+
   it('imports Conductor settings into local project settings', async () => {
     const fs = createFs({
       'conductor.json': JSON.stringify({
@@ -529,6 +570,7 @@ describe('config migration', () => {
       'conductor.json': JSON.stringify({
         runScriptMode: 'concurrent',
       }),
+      '.worktreeinclude': '',
     });
 
     await expect(

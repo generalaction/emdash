@@ -76,7 +76,8 @@ async function readConductorMigrationData(
     unsupportedFields: [],
   };
 
-  if (await fs.exists(CONDUCTOR_CONFIG_FILE)) {
+  const hasConductorConfig = await fs.exists(CONDUCTOR_CONFIG_FILE);
+  if (hasConductorConfig) {
     const { content } = await fs.read(CONDUCTOR_CONFIG_FILE);
     const conductorConfig = conductorConfigSchema.parse(parseJsonObject(content));
     data.files.push(CONDUCTOR_CONFIG_FILE);
