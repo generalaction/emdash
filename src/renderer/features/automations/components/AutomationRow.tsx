@@ -2,7 +2,7 @@ import { Bot, CirclePause, CirclePlay, Folder, Loader2, Play, Trash2 } from 'luc
 import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { formatRunStatusLabel } from '@shared/automations/format';
-import type { Automation, AutomationRun, AutomationRunStatus } from '@shared/automations/types';
+import type { Automation, AutomationRun } from '@shared/automations/types';
 import {
   getProjectStore,
   projectDisplayName,
@@ -12,7 +12,8 @@ import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { useAutomationRunStatus } from '../automation-run-status-store';
-import { collectTools } from '../automation-tools';
+import { automationTool } from '../automation-tools';
+import { isActiveStatus, runStatusBarClass } from '../run-status-styles';
 
 const SPARKLINE_SIZE = 6;
 
@@ -26,21 +27,6 @@ interface AutomationRowProps {
   onSetEnabled: (automation: Automation, enabled: boolean) => void;
 }
 
-function runStatusBarClass(status: AutomationRunStatus): string {
-  switch (status) {
-    case 'success':
-      return 'bg-emerald-500';
-    case 'failed':
-      return 'bg-red-500';
-    case 'running':
-      return 'bg-blue-500';
-    case 'queued':
-      return 'bg-amber-500';
-    case 'skipped':
-      return 'bg-muted-foreground/40';
-  }
-}
-
 export const AutomationRow = observer(function AutomationRow({
   automation,
   recentRuns,
@@ -50,9 +36,8 @@ export const AutomationRow = observer(function AutomationRow({
   onRunNow,
   onSetEnabled,
 }: AutomationRowProps) {
-  const tools = useMemo(() => collectTools(automation), [automation]);
+  const primaryTool = useMemo(() => automationTool(automation), [automation]);
   const runStatus = useAutomationRunStatus(automation.id);
-  const primaryTool = tools[0];
 
   const projectName = projectDisplayName(getProjectStore(automation.projectId));
 
@@ -70,7 +55,7 @@ export const AutomationRow = observer(function AutomationRow({
   }, [automation.name]);
 
   const dimmed = automation.isDraft || !automation.enabled;
-  const isActiveRun = runStatus?.status === 'queued' || runStatus?.status === 'running';
+  const isActiveRun = runStatus ? isActiveStatus(runStatus.status) : false;
   const isRunning = runStatus?.status === 'running';
   const tooltipLabel = primaryTool?.label ?? 'Automation';
 

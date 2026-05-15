@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, Plus, Search } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatAutomationError } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { firstMountedProjectId } from '@renderer/features/projects/stores/project-selectors';
@@ -17,33 +17,36 @@ import { RecentRunsList } from './RecentRunsList';
 
 type PanelState = { kind: 'create' } | { kind: 'edit'; automation: Automation } | null;
 
+const RECENT_RUNS_VISIBLE_LIMIT = 50;
+
 export function AutomationsView() {
   const { automations, create, remove, setEnabled, runNow } = useAutomations();
   const recentRuns = useRecentAutomationRuns(undefined, 200);
+  const visibleRecentRuns = useMemo(
+    () => recentRuns.data?.slice(0, RECENT_RUNS_VISIBLE_LIMIT),
+    [recentRuns.data]
+  );
   const { toast } = useToast();
   const showConfirmDelete = useShowModal('confirmActionModal');
   const { params, setParams } = useParams('automations');
-  const [panel, setPanel] = useState<PanelState>(null);
+  const [localPanel, setLocalPanel] = useState<PanelState>(null);
   const [search, setSearch] = useState('');
   const [searchExpanded, setSearchExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const automationItems = useMemo(() => automations.data ?? [], [automations.data]);
 
-  // Open the requested automation panel when navigated with `selectedAutomationId`,
-  // then clear the param so subsequent visits start fresh. Syncing local panel
-  // state with the navigation param is an effect-driven side effect.
   const requestedAutomationId = params.selectedAutomationId;
-  useEffect(() => {
-    if (!requestedAutomationId) return;
-    if (automations.isPending) return;
+  const panel: PanelState = useMemo(() => {
+    if (localPanel) return localPanel;
+    if (!requestedAutomationId) return null;
     const target = automationItems.find((automation) => automation.id === requestedAutomationId);
-    if (target) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPanel({ kind: 'edit', automation: target });
-    }
-    setParams({ selectedAutomationId: undefined });
-  }, [requestedAutomationId, automations.isPending, automationItems, setParams]);
+    return target ? { kind: 'edit', automation: target } : null;
+  }, [localPanel, requestedAutomationId, automationItems]);
+
+  const clearRequestedParam = useCallback(() => {
+    if (requestedAutomationId) setParams({ selectedAutomationId: undefined });
+  }, [requestedAutomationId, setParams]);
   const runsByAutomation = useMemo(() => {
     const map = new Map<string, AutomationRun[]>();
     for (const run of recentRuns.data ?? []) {
@@ -75,10 +78,11 @@ export function AutomationsView() {
   const panelOpen = panel !== null;
   const selectedAutomationId = panel?.kind === 'edit' ? panel.automation.id : null;
 
-  function closePanel() {
-    setPanel(null);
+  const closePanel = useCallback(() => {
+    setLocalPanel(null);
+    clearRequestedParam();
     setSearchExpanded(false);
-  }
+  }, [clearRequestedParam]);
 
   useEffect(() => {
     if (panelOpen && searchExpanded) {
@@ -97,10 +101,11 @@ export function AutomationsView() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [panelOpen]);
+  }, [panelOpen, closePanel]);
 
   function openEditAutomation(automation: Automation) {
-    setPanel({ kind: 'edit', automation });
+    clearRequestedParam();
+    setLocalPanel({ kind: 'edit', automation });
   }
 
   function openNewAutomation() {
@@ -113,7 +118,8 @@ export function AutomationsView() {
       });
       return;
     }
-    setPanel({ kind: 'create' });
+    clearRequestedParam();
+    setLocalPanel({ kind: 'create' });
   }
 
   function handleDelete(automation: Automation) {
@@ -153,7 +159,8 @@ export function AutomationsView() {
       closePanel();
       return;
     }
-    setPanel({ kind: 'edit', automation });
+    clearRequestedParam();
+    setLocalPanel({ kind: 'edit', automation });
   }
 
   function renderAutomationRow(automation: Automation) {
@@ -327,7 +334,11 @@ export function AutomationsView() {
               <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">
                 Recent runs
               </h2>
-              <RecentRunsList />
+              <RecentRunsList
+                runs={visibleRecentRuns}
+                isPending={recentRuns.isPending}
+                automations={automationItems}
+              />
             </section>
           )}
         </div>

@@ -1,51 +1,21 @@
-import { motion } from 'framer-motion';
-import {
-  CalendarClock,
-  ChevronDown,
-  CirclePause,
-  CirclePlay,
-  FolderOpen,
-  History,
-  Loader2,
-  Play,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { ChevronDown, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
-import {
-  AGENT_PROVIDER_IDS,
-  isValidProviderId,
-  type AgentProviderId,
-} from '@shared/agent-provider-registry';
-import type { ActionSpec, TaskCreateAction } from '@shared/automations/actions';
-import {
-  automationCatalogCategories,
-  builtinAutomationCatalog,
-} from '@shared/automations/builtin-catalog';
+import { useMemo, useState, type ReactNode } from 'react';
+import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
+import type { TaskCreateAction } from '@shared/automations/actions';
+import { automationCatalogCategories } from '@shared/automations/builtin-catalog';
 import {
   DEFAULT_SCHEDULE,
   formatAutomationError,
   formatCronLabel,
-  formatRunName,
-  INTERVAL_MINUTE_OPTIONS,
-  parseCronToSchedule,
-  SCHEDULE_KIND_LABELS,
-  SCHEDULE_KIND_ORDER,
   scheduleToCron,
-  WEEKDAY_LABELS,
-  WEEKDAY_TOKENS,
-  type ScheduleKind,
-  type ScheduleSpec,
-  type WeekdayToken,
 } from '@shared/automations/format';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
   type Automation,
-  type AutomationRun,
   type BuiltinAutomationTemplate,
-  type TriggerSpec,
+  type CronTrigger,
 } from '@shared/automations/types';
 import type { Branch } from '@shared/git';
 import type { CreateTaskParams } from '@shared/tasks';
@@ -63,53 +33,24 @@ import {
   useFromBranchMode,
   type FromBranchModeInitial,
 } from '@renderer/features/tasks/create-task-modal/use-from-branch-mode';
-import AgentLogo from '@renderer/lib/components/agent-logo';
-import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
-import {
-  Combobox,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxGroup,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-  ComboboxValue,
-} from '@renderer/lib/ui/combobox';
+import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@renderer/lib/ui/select';
-import { Spinner } from '@renderer/lib/ui/spinner';
 import { Switch } from '@renderer/lib/ui/switch';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
-import { useAutomationRuns, useAutomations } from '../useAutomations';
-import { AutomationRunRow } from './AutomationRunRow';
+import { useAutomations } from '../useAutomations';
+import { AutomationPanelHeader } from './AutomationPanelHeader';
+import { AgentPicker } from './pickers/AgentPicker';
+import { SchedulePicker } from './pickers/SchedulePicker';
+import { UseTemplateButton } from './pickers/UseTemplateButton';
+import { RunHistory } from './RunHistory';
+
+export { AutomationPanelShell } from './AutomationPanelShell';
 
 const DEFAULT_CRON = scheduleToCron(DEFAULT_SCHEDULE);
-const PANEL_EASE = [0.22, 1, 0.36, 1] as const;
-const PANEL_WIDTH = 480;
-const RUNS_PAGE_SIZE = 15;
-const PINNED_TEMPLATES = builtinAutomationCatalog.slice(0, 5);
 
 export type AutomationPanelMode =
   | { kind: 'create'; template?: BuiltinAutomationTemplate }
@@ -125,35 +66,35 @@ interface AutomationPanelProps {
   runNowPending?: boolean;
 }
 
-function extractTaskAction(actions: ActionSpec[] | undefined): TaskCreateAction | undefined {
-  return actions?.find((action): action is TaskCreateAction => action.kind === 'task.create');
+function extractTaskAction(actions: TaskCreateAction[] | undefined): TaskCreateAction | undefined {
+  return actions?.[0];
 }
 
-function cronExprFromTrigger(trigger: TriggerSpec | undefined): string {
-  return trigger?.kind === 'cron' ? trigger.expr : DEFAULT_CRON;
+function cronExprFromTrigger(trigger: CronTrigger | undefined): string {
+  return trigger?.expr ?? DEFAULT_CRON;
 }
 
-function cronTzFromTrigger(trigger: TriggerSpec | undefined): string {
-  return trigger?.kind === 'cron' ? trigger.tz : getLocalTimeZone();
+function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
+  return trigger?.tz ?? getLocalTimeZone();
 }
 
-function branchInitialFromAction(action: TaskCreateAction | undefined): {
+function branchInitialFromConfig(config: CreateTaskParams | null | undefined): {
   createBranchAndWorktree: boolean;
   pushBranch?: boolean;
   branchOverride?: Branch;
 } {
-  if (!action || !action.strategy) return { createBranchAndWorktree: true };
-  if (action.strategy.kind === 'new-branch') {
+  if (!config?.strategy) return { createBranchAndWorktree: true };
+  if (config.strategy.kind === 'new-branch') {
     return {
       createBranchAndWorktree: true,
-      pushBranch: action.strategy.pushBranch,
-      branchOverride: action.sourceBranch,
+      pushBranch: config.strategy.pushBranch,
+      branchOverride: config.sourceBranch ?? undefined,
     };
   }
-  if (action.strategy.kind === 'no-worktree') {
-    return { createBranchAndWorktree: false, branchOverride: action.sourceBranch };
+  if (config.strategy.kind === 'no-worktree') {
+    return { createBranchAndWorktree: false, branchOverride: config.sourceBranch ?? undefined };
   }
-  return { createBranchAndWorktree: true, branchOverride: action.sourceBranch };
+  return { createBranchAndWorktree: true, branchOverride: config.sourceBranch ?? undefined };
 }
 
 function plainBranch(branch: Branch): Branch {
@@ -173,30 +114,6 @@ function plainBranch(branch: Branch): Branch {
     : { type: 'local', branch: branch.branch };
 }
 
-interface AutomationPanelShellProps {
-  open: boolean;
-  children: ReactNode;
-}
-
-export function AutomationPanelShell({ open, children }: AutomationPanelShellProps) {
-  return (
-    <motion.aside
-      initial={false}
-      animate={{ width: open ? PANEL_WIDTH : 0, opacity: open ? 1 : 0 }}
-      transition={{ duration: 0.28, ease: PANEL_EASE }}
-      className="relative shrink-0 overflow-hidden border-l border-border bg-background"
-      aria-hidden={!open}
-    >
-      <div
-        className="absolute inset-y-0 right-0 flex h-full flex-col"
-        style={{ width: PANEL_WIDTH }}
-      >
-        {children}
-      </div>
-    </motion.aside>
-  );
-}
-
 export const AutomationPanel = observer(function AutomationPanel({
   mode,
   onClose,
@@ -214,6 +131,7 @@ export const AutomationPanel = observer(function AutomationPanel({
 
   const seedTrigger = automation?.trigger ?? appliedTemplate?.defaultTrigger;
   const seedTaskAction = extractTaskAction(automation?.actions ?? appliedTemplate?.defaultActions);
+  const seedConfig = automation?.taskConfig;
 
   const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
   const fallbackProvider: AgentProviderId = isValidProviderId(defaultAgentValue)
@@ -225,12 +143,13 @@ export const AutomationPanel = observer(function AutomationPanel({
   const [projectId, setProjectId] = useState<string | undefined>(
     automation?.projectId ?? firstMountedProjectId()
   );
+  const seedProvider = seedConfig?.initialConversation?.provider;
   const [provider, setProvider] = useState<AgentProviderId>(
-    seedTaskAction?.provider ?? fallbackProvider
+    isValidProviderId(seedProvider) ? seedProvider : fallbackProvider
   );
   const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
   const [cronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
-  const [useBYOI, setUseBYOI] = useState(seedTaskAction?.workspaceProvider === 'byoi');
+  const [useBYOI, setUseBYOI] = useState(seedConfig?.workspaceProvider === 'byoi');
   const [error, setError] = useState<string | null>(null);
   const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
 
@@ -242,10 +161,10 @@ export const AutomationPanel = observer(function AutomationPanel({
   const isUnborn = repo?.isUnborn ?? false;
   const currentBranch = repo?.currentBranch ?? null;
 
-  const branchInitial = useMemo(() => branchInitialFromAction(seedTaskAction), [seedTaskAction]);
+  const branchInitial = useMemo(() => branchInitialFromConfig(seedConfig), [seedConfig]);
   const fromBranchInitial: FromBranchModeInitial = useMemo(
-    () => ({ ...branchInitial, taskName: seedTaskAction?.taskName }),
-    [branchInitial, seedTaskAction?.taskName]
+    () => ({ ...branchInitial, taskName: seedConfig?.name }),
+    [branchInitial, seedConfig?.name]
   );
 
   const fromBranch = useFromBranchMode(
@@ -268,11 +187,7 @@ export const AutomationPanel = observer(function AutomationPanel({
     fromBranch.isValid &&
     !isPending;
 
-  function buildTriggerSpec(): TriggerSpec {
-    return { kind: 'cron', expr: cronExpr.trim(), tz: cronTz };
-  }
-
-  function buildTaskAction(): TaskCreateAction | null {
+  function buildTaskConfig(targetProjectId: string): CreateTaskParams | null {
     if (!fromBranch.selectedBranch) return null;
     const strategy = resolveBranchLikeTaskStrategy({
       isUnborn,
@@ -280,35 +195,21 @@ export const AutomationPanel = observer(function AutomationPanel({
       taskBranch: fromBranch.taskName,
       pushBranch: fromBranch.pushBranch,
     });
-    return {
-      kind: 'task.create',
-      prompt: prompt.trim(),
-      provider,
-      workspaceProvider: effectiveUseBYOI ? 'byoi' : undefined,
-      taskName: fromBranch.taskName,
-      sourceBranch: plainBranch(fromBranch.selectedBranch),
-      strategy: effectiveUseBYOI ? { kind: 'no-worktree' } : strategy,
-    };
-  }
-
-  function buildTaskConfig(action: TaskCreateAction): CreateTaskParams {
     const taskId = crypto.randomUUID();
-    const projectId = effectiveProjectId!;
     return {
       id: taskId,
-      projectId,
-      name: action.taskName?.trim() || name.trim(),
-      sourceBranch: action.sourceBranch!,
-      strategy: action.strategy!,
-      linkedIssue: action.linkedIssue,
-      workspaceProvider: action.workspaceProvider,
+      projectId: targetProjectId,
+      name: fromBranch.taskName?.trim() || name.trim(),
+      sourceBranch: plainBranch(fromBranch.selectedBranch),
+      strategy: effectiveUseBYOI ? { kind: 'no-worktree' } : strategy,
+      workspaceProvider: effectiveUseBYOI ? 'byoi' : undefined,
       initialConversation: {
         id: crypto.randomUUID(),
-        projectId,
+        projectId: targetProjectId,
         taskId,
-        provider: action.provider ?? provider,
+        provider,
         title: name.trim(),
-        initialPrompt: action.prompt,
+        initialPrompt: prompt.trim(),
         autoApprove: true,
       },
     };
@@ -317,11 +218,10 @@ export const AutomationPanel = observer(function AutomationPanel({
   async function handleSave() {
     if (!effectiveProjectId || !canSave) return;
     setError(null);
-    const action = buildTaskAction();
-    if (!action) return;
-    const triggerSpec = buildTriggerSpec();
-    const actions: ActionSpec[] = [action];
-    const taskConfig = buildTaskConfig(action);
+    const taskConfig = buildTaskConfig(effectiveProjectId);
+    if (!taskConfig) return;
+    const triggerSpec: CronTrigger = { expr: cronExpr.trim(), tz: cronTz };
+    const actions: TaskCreateAction[] = [{ kind: 'task.create', prompt: prompt.trim() }];
     try {
       const trimmedName = name.trim();
       const saved = automation
@@ -358,23 +258,15 @@ export const AutomationPanel = observer(function AutomationPanel({
     setName(template.name);
     const action = extractTaskAction(template.defaultActions);
     setPrompt(action?.prompt ?? '');
-    if (template.defaultTrigger?.kind === 'cron') {
+    if (template.defaultTrigger) {
       setCronExpr(template.defaultTrigger.expr);
     }
     setTemplatePopoverOpen(false);
   }
 
   return (
-    <div
-      className="flex h-full flex-col"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <PanelHeader
+    <div className="flex h-full flex-col">
+      <AutomationPanelHeader
         isEdit={isEdit}
         automation={automation}
         scheduleLabel={formatCronLabel(cronExpr)}
@@ -487,7 +379,7 @@ export const AutomationPanel = observer(function AutomationPanel({
 
           {error && <p className="text-xs text-destructive">{error}</p>}
 
-          {isEdit && automation ? <RunsSection automation={automation} /> : null}
+          {isEdit && automation ? <RunHistory automation={automation} /> : null}
         </div>
       </div>
 
@@ -509,529 +401,11 @@ export const AutomationPanel = observer(function AutomationPanel({
   );
 });
 
-function PanelHeader({
-  isEdit,
-  automation,
-  scheduleLabel,
-  onClose,
-  onRunNow,
-  onToggleEnabled,
-  onDelete,
-  runNowPending,
-  headerAction,
-}: {
-  isEdit: boolean;
-  automation: Automation | undefined;
-  scheduleLabel?: string;
-  onClose: () => void;
-  onRunNow?: () => void;
-  onToggleEnabled?: (enabled: boolean) => void;
-  onDelete?: () => void;
-  runNowPending?: boolean;
-  headerAction?: ReactNode;
-}) {
-  const enabled = automation?.enabled ?? false;
-  const showSubtitle = isEdit && automation && !automation.isDraft && scheduleLabel;
-
-  return (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close panel"
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <X className="size-4" />
-        </button>
-        <div className="flex min-w-0 flex-col">
-          <div className="flex min-w-0 items-center gap-2">
-            <h2 className="min-w-0 truncate text-sm font-semibold">
-              {automation?.isDraft
-                ? 'Draft automation'
-                : isEdit
-                  ? (automation?.name ?? 'Automation')
-                  : 'New automation'}
-            </h2>
-            {isEdit && automation && !automation.isDraft ? (
-              <span
-                aria-label={enabled ? 'Active' : 'Paused'}
-                className={cn(
-                  'size-1.5 shrink-0 rounded-full',
-                  enabled ? 'bg-emerald-500' : 'bg-muted-foreground/40'
-                )}
-              />
-            ) : null}
-          </div>
-          {showSubtitle ? (
-            <span className="truncate text-[11px] text-muted-foreground">{scheduleLabel}</span>
-          ) : null}
-        </div>
-      </div>
-
-      {!isEdit && headerAction ? <div className="flex items-center">{headerAction}</div> : null}
-
-      {isEdit && automation ? (
-        <div className="flex items-center gap-0.5">
-          {onRunNow ? (
-            <Tooltip>
-              <TooltipTrigger
-                onClick={onRunNow}
-                disabled={runNowPending}
-                aria-label="Run now"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-              >
-                {runNowPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Play className="size-4" />
-                )}
-              </TooltipTrigger>
-              <TooltipContent>Run now</TooltipContent>
-            </Tooltip>
-          ) : null}
-          {onToggleEnabled ? (
-            <Tooltip>
-              <TooltipTrigger
-                onClick={() => onToggleEnabled(!enabled)}
-                aria-label={enabled ? 'Pause' : 'Resume'}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                {enabled ? <CirclePause className="size-4" /> : <CirclePlay className="size-4" />}
-              </TooltipTrigger>
-              <TooltipContent>{enabled ? 'Pause' : 'Resume'}</TooltipContent>
-            </Tooltip>
-          ) : null}
-          {onDelete ? (
-            <>
-              <span aria-hidden className="mx-1 h-4 w-px bg-border" />
-              <Tooltip>
-                <TooltipTrigger
-                  onClick={onDelete}
-                  aria-label="Delete automation"
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>Delete</TooltipContent>
-              </Tooltip>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function RowField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-h-11 items-center gap-3 border-b border-border last:border-b-0 px-3 py-2">
       <span className="w-20 shrink-0 text-xs font-medium text-foreground">{label}</span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
-  );
-}
-
-function UseTemplateButton({
-  open,
-  onOpenChange,
-  onSelect,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSelect: (template: BuiltinAutomationTemplate) => void;
-}) {
-  return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger
-        render={
-          <button
-            className={cn(
-              'inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2.5',
-              'text-xs font-medium text-foreground transition-colors hover:bg-muted/40 outline-none',
-              'data-popup-open:bg-muted/40'
-            )}
-          />
-        }
-      >
-        <span>Use template</span>
-        <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 py-1 text-[11px] uppercase tracking-wider">
-            Templates
-          </DropdownMenuLabel>
-          {PINNED_TEMPLATES.map((template) => (
-            <DropdownMenuItem
-              key={template.id}
-              onClick={() => onSelect(template)}
-              className="flex-col items-start gap-0.5 py-1.5"
-            >
-              <span className="text-sm font-medium text-foreground">{template.name}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function RunsSection({ automation }: { automation: Automation }) {
-  const [visibleLimit, setVisibleLimit] = useState(RUNS_PAGE_SIZE);
-  const runs = useAutomationRuns(automation.id, visibleLimit + 1);
-  const { removeRun, runNow } = useAutomations();
-  const { toast } = useToast();
-  const showConfirmDelete = useShowModal('confirmActionModal');
-  const visibleRuns = useMemo(
-    () => runs.data?.slice(0, visibleLimit) ?? [],
-    [runs.data, visibleLimit]
-  );
-  const hasMore = Boolean(runs.data && runs.data.length > visibleLimit);
-
-  function handleDeleteRun(run: AutomationRun) {
-    showConfirmDelete({
-      title: 'Delete run',
-      description: `Run “${formatRunName(run.id)}” will be permanently removed from the history.`,
-      confirmLabel: 'Delete',
-      onSuccess: () =>
-        removeRun.mutate(run.id, {
-          onError: (error) =>
-            toast({
-              title: 'Failed to delete run',
-              description: error instanceof Error ? error.message : String(error),
-              variant: 'destructive',
-            }),
-        }),
-    });
-  }
-
-  function handleRerun() {
-    if (automation.isDraft) return;
-    runNow.mutate(automation.id, {
-      onError: (error) =>
-        toast({
-          title: 'Automation failed',
-          description: formatAutomationError(error),
-          variant: 'destructive',
-        }),
-    });
-  }
-
-  const canRerun = !automation.isDraft;
-
-  return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5">
-        <History className="size-3 text-muted-foreground" />
-        <h3 className="text-xs font-medium text-muted-foreground">Run history</h3>
-      </div>
-      {runs.isPending ? (
-        <div className="flex h-24 items-center justify-center">
-          <Spinner />
-        </div>
-      ) : visibleRuns.length > 0 ? (
-        <div className="divide-y divide-border/70 overflow-hidden rounded-md border border-border">
-          {visibleRuns.map((run) => (
-            <AutomationRunRow
-              key={run.id}
-              run={run}
-              automation={automation}
-              projectId={automation.projectId}
-              title={automation.name}
-              paddingClass="px-3"
-              onDelete={handleDeleteRun}
-              onRerun={canRerun ? handleRerun : undefined}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
-          No runs yet.
-        </div>
-      )}
-      {hasMore ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={runs.isFetching}
-          onClick={() => setVisibleLimit((limit) => limit + RUNS_PAGE_SIZE)}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          {runs.isFetching ? 'Loading older runs…' : 'Load older runs'}
-        </Button>
-      ) : null}
-    </section>
-  );
-}
-
-const PILL_TRIGGER_CLASS =
-  'inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs ' +
-  'text-foreground hover:bg-muted/40 outline-none data-popup-open:bg-muted/40';
-
-function clampInt(n: number, min: number, max: number): number {
-  if (Number.isNaN(n)) return min;
-  return Math.max(min, Math.min(max, Math.trunc(n)));
-}
-
-function changeScheduleKind(prev: ScheduleSpec, kind: ScheduleKind): ScheduleSpec {
-  const hour = prev.kind === 'interval' || prev.kind === 'hourly' ? 9 : prev.hour;
-  const minute = prev.kind === 'interval' ? 0 : prev.minute;
-  switch (kind) {
-    case 'daily':
-    case 'weekdays':
-    case 'weekends':
-      return { kind, hour, minute };
-    case 'weekly': {
-      const weekday = prev.kind === 'weekly' ? prev.weekday : 'MON';
-      return { kind, hour, minute, weekday };
-    }
-    case 'hourly':
-      return { kind, minute };
-    case 'interval': {
-      const intervalMinutes =
-        prev.kind === 'interval' ? prev.intervalMinutes : INTERVAL_MINUTE_OPTIONS[3];
-      return { kind, intervalMinutes };
-    }
-  }
-}
-
-function formatTimeValue(hour: number, minute: number): string {
-  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-}
-
-function SchedulePicker({ value, onChange }: { value: string; onChange: (next: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const schedule = useMemo<ScheduleSpec>(
-    () => parseCronToSchedule(value) ?? DEFAULT_SCHEDULE,
-    [value]
-  );
-  const label = useMemo(() => formatCronLabel(value), [value]);
-
-  function update(next: ScheduleSpec) {
-    onChange(scheduleToCron(next));
-  }
-
-  function handleTimeChange(event: ChangeEvent<HTMLInputElement>) {
-    if (
-      schedule.kind !== 'daily' &&
-      schedule.kind !== 'weekdays' &&
-      schedule.kind !== 'weekends' &&
-      schedule.kind !== 'weekly'
-    ) {
-      return;
-    }
-    const [rawHour, rawMinute] = event.target.value.split(':');
-    const hour = clampInt(parseInt(rawHour ?? '', 10), 0, 23);
-    const minute = clampInt(parseInt(rawMinute ?? '', 10), 0, 59);
-    update({ ...schedule, hour, minute });
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={cn(PILL_TRIGGER_CLASS, 'w-full justify-between gap-1.5')}>
-        <span className="flex min-w-0 items-center gap-1.5">
-          <CalendarClock className="size-3.5 shrink-0" />
-          <span className="truncate">{label}</span>
-        </span>
-        <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 gap-3 p-3">
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Schedule</Label>
-          <Select
-            value={schedule.kind}
-            onValueChange={(next) => {
-              if (next) update(changeScheduleKind(schedule, next as ScheduleKind));
-            }}
-          >
-            <SelectTrigger size="sm" className="w-full">
-              <SelectValue>
-                {(value) => SCHEDULE_KIND_LABELS[value as ScheduleKind] ?? ''}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false} side="bottom" align="start">
-              {SCHEDULE_KIND_ORDER.map((kind) => (
-                <SelectItem key={kind} value={kind}>
-                  {SCHEDULE_KIND_LABELS[kind]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {schedule.kind === 'weekly' && (
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Day</Label>
-            <Select
-              value={schedule.weekday}
-              onValueChange={(next) => {
-                if (next) update({ ...schedule, weekday: next as WeekdayToken });
-              }}
-            >
-              <SelectTrigger size="sm" className="w-full">
-                <SelectValue>{(value) => WEEKDAY_LABELS[value as WeekdayToken] ?? ''}</SelectValue>
-              </SelectTrigger>
-              <SelectContent alignItemWithTrigger={false} side="bottom" align="start">
-                {WEEKDAY_TOKENS.map((token) => (
-                  <SelectItem key={token} value={token}>
-                    {WEEKDAY_LABELS[token]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {(schedule.kind === 'daily' ||
-          schedule.kind === 'weekdays' ||
-          schedule.kind === 'weekends' ||
-          schedule.kind === 'weekly') && (
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Time</Label>
-            <Input
-              type="time"
-              value={formatTimeValue(schedule.hour, schedule.minute)}
-              onChange={handleTimeChange}
-            />
-          </div>
-        )}
-
-        {schedule.kind === 'hourly' && (
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Minute</Label>
-            <Input
-              type="number"
-              min={0}
-              max={59}
-              value={schedule.minute}
-              onChange={(event) =>
-                update({
-                  kind: 'hourly',
-                  minute: clampInt(parseInt(event.target.value, 10), 0, 59),
-                })
-              }
-            />
-          </div>
-        )}
-
-        {schedule.kind === 'interval' && (
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Every</Label>
-            <Select
-              value={String(schedule.intervalMinutes)}
-              onValueChange={(next) => {
-                if (next) update({ kind: 'interval', intervalMinutes: parseInt(next, 10) });
-              }}
-            >
-              <SelectTrigger size="sm" className="w-full">
-                <SelectValue>{(value) => (value ? `${value} minutes` : '')}</SelectValue>
-              </SelectTrigger>
-              <SelectContent alignItemWithTrigger={false} side="bottom" align="start">
-                {INTERVAL_MINUTE_OPTIONS.map((minutes) => (
-                  <SelectItem key={minutes} value={String(minutes)}>
-                    {minutes} minutes
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-interface PillItem<V> {
-  value: V;
-  label: string;
-  icon?: ReactNode;
-}
-
-function AgentPicker({
-  value,
-  onChange,
-}: {
-  value: AgentProviderId;
-  onChange: (next: AgentProviderId) => void;
-}) {
-  const items = useMemo<PillItem<AgentProviderId>[]>(
-    () =>
-      AGENT_PROVIDER_IDS.filter((id) => agentConfig[id]).map((id) => ({
-        value: id,
-        label: agentConfig[id]?.name ?? id,
-      })),
-    []
-  );
-  const selectedConfig = agentConfig[value];
-  const [open, setOpen] = useState(false);
-  const selected = items.find((item) => item.value === value) ?? null;
-  const label = selected?.label ?? '';
-
-  return (
-    <Combobox
-      items={[{ value: 'agents', items }]}
-      value={selected}
-      onValueChange={(item: PillItem<AgentProviderId> | null) => {
-        if (item) onChange(item.value);
-        setOpen(false);
-      }}
-      open={open}
-      onOpenChange={setOpen}
-      isItemEqualToValue={(a: PillItem<AgentProviderId>, b: PillItem<AgentProviderId>) =>
-        a?.value === b?.value
-      }
-      filter={(item: PillItem<AgentProviderId>, query: string) =>
-        item.label.toLowerCase().includes(query.toLowerCase())
-      }
-      autoHighlight
-    >
-      <ComboboxTrigger className={cn(PILL_TRIGGER_CLASS, 'w-full justify-between')}>
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          {selectedConfig ? (
-            <AgentLogo
-              logo={selectedConfig.logo}
-              alt={selectedConfig.alt}
-              isSvg={selectedConfig.isSvg}
-              invertInDark={selectedConfig.invertInDark}
-              className="size-3.5 shrink-0 rounded-sm"
-            />
-          ) : null}
-          <span className="truncate">{label}</span>
-        </span>
-        <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
-      </ComboboxTrigger>
-      <ComboboxContent className="w-auto min-w-(--anchor-width)">
-        <ComboboxList className="py-1">
-          {(group: { value: string; items: PillItem<AgentProviderId>[] }) => (
-            <ComboboxGroup key={group.value} items={group.items}>
-              <ComboboxCollection>
-                {(item: PillItem<AgentProviderId>) => {
-                  const config = agentConfig[item.value];
-                  return (
-                    <ComboboxItem
-                      key={String(item.value)}
-                      value={item}
-                      className="gap-1.5 py-1.5 pr-7 pl-2 text-xs"
-                    >
-                      {config ? (
-                        <AgentLogo
-                          logo={config.logo}
-                          alt={config.alt}
-                          isSvg={config.isSvg}
-                          invertInDark={config.invertInDark}
-                          className="size-4 shrink-0 rounded-sm"
-                        />
-                      ) : null}
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    </ComboboxItem>
-                  );
-                }}
-              </ComboboxCollection>
-            </ComboboxGroup>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
   );
 }

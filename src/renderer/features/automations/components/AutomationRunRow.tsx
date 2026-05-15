@@ -7,6 +7,7 @@ import {
   formatRunTriggerKindLabel,
 } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
+import { isActiveStatus } from '@renderer/features/automations/run-status-styles';
 import {
   getProjectStore,
   projectDisplayName,
@@ -23,14 +24,13 @@ import {
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { getPrimaryTool } from '../automation-tools';
+import { automationTool } from '../automation-tools';
 
 interface AutomationRunRowProps {
   run: AutomationRun;
   automation: Automation | undefined;
   projectId: string;
   title: string;
-  extraMetaParts?: ReadonlyArray<string | undefined>;
   showProjectName?: boolean;
   paddingClass?: string;
   onDelete?: (run: AutomationRun) => void;
@@ -42,7 +42,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   automation,
   projectId,
   title,
-  extraMetaParts,
   showProjectName = false,
   paddingClass = 'px-3',
   onDelete,
@@ -61,18 +60,15 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const status = formatRunStatusLabel(run.status);
   const isFailed = run.status === 'failed';
-  const isActive = run.status === 'running' || run.status === 'queued';
+  const isActive = isActiveStatus(run.status);
   const errorMessage = run.error ? formatRunError(run.error) : undefined;
-  const tool = getPrimaryTool(automation);
+  const tool = automationTool(automation);
   const projectName = showProjectName ? projectDisplayName(getProjectStore(projectId)) : undefined;
 
   const runName = formatRunName(run.id);
-  const metaParts = [
-    projectName,
-    ...(extraMetaParts ?? []),
-    formatRunTriggerKindLabel(run.triggerKind),
-    status,
-  ].filter((part): part is string => Boolean(part));
+  const metaParts = [projectName, formatRunTriggerKindLabel(run.triggerKind), status].filter(
+    (part): part is string => Boolean(part)
+  );
 
   function handleOpenTask() {
     if (!taskId || !interactive) return;
