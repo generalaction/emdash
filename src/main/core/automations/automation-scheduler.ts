@@ -28,7 +28,7 @@ export function automationRunDeadline(scheduledAt: number): number {
   return scheduledAt + QUEUE_DEADLINE_MS;
 }
 
-class AutomationScheduler {
+export class AutomationScheduler {
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
   private draining = false;
@@ -82,7 +82,7 @@ class AutomationScheduler {
     await Promise.all(
       rows.map(async (automation) => {
         if (automation.nextRunAt && automation.nextRunAt < now - MISSED_GRACE_MS) {
-          await this.enqueueCronAutomation(automation, automation.nextRunAt);
+          await this.enqueueCronAutomation(automation, automation.nextRunAt, now);
         }
         if (!automation.nextRunAt || automation.nextRunAt < now - MISSED_GRACE_MS) {
           await this.advanceNextRun(automation, now);
@@ -99,7 +99,8 @@ class AutomationScheduler {
       const now = Date.now();
       const due = await dueCronAutomations(now);
       for (const automation of due.slice(0, MAX_DUE_ENQUEUE)) {
-        await this.enqueueCronAutomation(automation, automation.nextRunAt ?? now);
+        const enqueueStartedAt = Date.now();
+        await this.enqueueCronAutomation(automation, automation.nextRunAt ?? now, enqueueStartedAt);
         await this.advanceNextRun(automation, Date.now());
       }
       await this.drainQueue();
@@ -115,11 +116,15 @@ class AutomationScheduler {
     await updateAutomationSchedule(automation.id, { nextRunAt });
   }
 
-  private async enqueueCronAutomation(automation: Automation, scheduledAt: number): Promise<void> {
+  private async enqueueCronAutomation(
+    automation: Automation,
+    scheduledAt: number,
+    queuedAt = scheduledAt
+  ): Promise<void> {
     const run = await enqueueAutomationRun({
       automationId: automation.id,
       scheduledAt,
-      deadlineAt: automationRunDeadline(scheduledAt),
+      deadlineAt: automationRunDeadline(queuedAt),
       triggerKind: 'cron',
     });
     if (run) {
