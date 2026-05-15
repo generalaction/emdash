@@ -135,7 +135,12 @@ mod tests {
         }
         time::sleep(FLUSH_INTERVAL + Duration::from_millis(1)).await;
         let flushes = store.lock().clone();
-        assert_eq!(flushes.len(), 1, "expected one coalesced flush, got {:?}", flushes);
+        assert_eq!(
+            flushes.len(),
+            1,
+            "expected one coalesced flush, got {:?}",
+            flushes
+        );
         assert_eq!(flushes[0], vec![7, 7, 7, 7]);
 
         drop(tx);
@@ -169,7 +174,12 @@ mod tests {
         // Wait past the deadline (4 ms total since last byte) — now it flushes.
         time::sleep(Duration::from_millis(3)).await;
         let flushes = store.lock().clone();
-        assert_eq!(flushes.len(), 1, "expected one coalesced flush after quiescence, got {:?}", flushes);
+        assert_eq!(
+            flushes.len(),
+            1,
+            "expected one coalesced flush after quiescence, got {:?}",
+            flushes
+        );
         assert_eq!(flushes[0], vec![1, 2, 3]);
 
         drop(tx);

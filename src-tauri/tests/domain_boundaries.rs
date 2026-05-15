@@ -4,7 +4,14 @@
 
 use std::path::{Path, PathBuf};
 
-const DOMAIN_MODULES: &[&str] = &["bindings_parser", "db", "greeting", "pty", "secrets", "shell_env"];
+const DOMAIN_MODULES: &[&str] = &[
+    "bindings_parser",
+    "db",
+    "greeting",
+    "pty",
+    "secrets",
+    "shell_env",
+];
 const TAURI_GLUE_MODULES: &[&str] = &["commands", "tauri_bindings"];
 
 #[test]

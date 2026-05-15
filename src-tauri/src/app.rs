@@ -40,10 +40,7 @@ pub fn run() {
         .invoke_handler(specta_builder.invoke_handler())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                if let Some(registry) = window
-                    .app_handle()
-                    .try_state::<Arc<Registry>>()
-                {
+                if let Some(registry) = window.app_handle().try_state::<Arc<Registry>>() {
                     registry.drain();
                 }
             }

@@ -1,14 +1,11 @@
-import { useRef, useState } from 'react';
 import { Channel } from '@tauri-apps/api/core';
-import { Terminal } from '@xterm/xterm';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { Terminal } from '@xterm/xterm';
+import { useRef, useState } from 'react';
 import '@xterm/xterm/css/xterm.css';
-
 import { commands } from '../bindings';
 
-const DEFAULT_SHELL = navigator.userAgent.includes('Windows')
-  ? 'cmd.exe'
-  : '/bin/bash';
+const DEFAULT_SHELL = navigator.userAgent.includes('Windows') ? 'cmd.exe' : '/bin/bash';
 
 export function DebugShell() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -38,7 +35,7 @@ export function DebugShell() {
         env: {},
         size: { rows: 24, cols: 80 },
       },
-      onData,
+      onData
     );
 
     if (result.status === 'error') {
@@ -73,8 +70,8 @@ export function DebugShell() {
       <h2>Debug shell</h2>
       <p className="muted">
         Spawns <code>{DEFAULT_SHELL}</code> and streams output through{' '}
-        <code>Channel&lt;Vec&lt;u8&gt;&gt;</code> coalesced at 16 KiB / 4 ms.
-        Available in dev builds only.
+        <code>Channel&lt;Vec&lt;u8&gt;&gt;</code> coalesced at 16 KiB / 4 ms. Available in dev
+        builds only.
       </p>
       <div className="row">
         {sessionId === null ? (

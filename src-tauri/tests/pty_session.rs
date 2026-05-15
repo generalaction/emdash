@@ -93,7 +93,10 @@ async fn write_round_trips_through_cat() {
 async fn resize_does_not_error_on_running_session() {
     let session = Session::spawn(PtyId(4), cat_opts(), |_| {}).expect("spawn ok");
     session
-        .resize(PtySize { rows: 40, cols: 132 })
+        .resize(PtySize {
+            rows: 40,
+            cols: 132,
+        })
         .expect("resize ok");
     session.kill().ok();
 }

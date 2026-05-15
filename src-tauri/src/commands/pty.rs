@@ -48,9 +48,6 @@ pub async fn pty_resize(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn pty_kill(
-    registry: State<'_, Arc<Registry>>,
-    id: PtyId,
-) -> Result<(), PtyError> {
+pub async fn pty_kill(registry: State<'_, Arc<Registry>>, id: PtyId) -> Result<(), PtyError> {
     registry.kill(id)
 }

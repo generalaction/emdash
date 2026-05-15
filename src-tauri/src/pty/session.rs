@@ -45,7 +45,9 @@ impl Session {
                 pixel_width: 0,
                 pixel_height: 0,
             })
-            .map_err(|e| PtyError::SpawnFailed { message: e.to_string() })?;
+            .map_err(|e| PtyError::SpawnFailed {
+                message: e.to_string(),
+            })?;
 
         let mut cmd = CommandBuilder::new(&opts.command);
         for arg in &opts.args {
@@ -61,16 +63,16 @@ impl Session {
         let child = pair
             .slave
             .spawn_command(cmd)
-            .map_err(|e| PtyError::SpawnFailed { message: e.to_string() })?;
+            .map_err(|e| PtyError::SpawnFailed {
+                message: e.to_string(),
+            })?;
 
-        let reader = pair
-            .master
-            .try_clone_reader()
-            .map_err(|e| PtyError::Io { message: e.to_string() })?;
-        let writer = pair
-            .master
-            .take_writer()
-            .map_err(|e| PtyError::Io { message: e.to_string() })?;
+        let reader = pair.master.try_clone_reader().map_err(|e| PtyError::Io {
+            message: e.to_string(),
+        })?;
+        let writer = pair.master.take_writer().map_err(|e| PtyError::Io {
+            message: e.to_string(),
+        })?;
 
         let (tx, rx) = mpsc::channel::<Vec<u8>>(64);
 
@@ -112,12 +114,12 @@ impl Session {
     pub fn write(&self, bytes: &[u8]) -> Result<(), PtyError> {
         use std::io::Write;
         let mut writer = self.writer.lock();
-        writer
-            .write_all(bytes)
-            .map_err(|e| PtyError::Io { message: e.to_string() })?;
-        writer
-            .flush()
-            .map_err(|e| PtyError::Io { message: e.to_string() })
+        writer.write_all(bytes).map_err(|e| PtyError::Io {
+            message: e.to_string(),
+        })?;
+        writer.flush().map_err(|e| PtyError::Io {
+            message: e.to_string(),
+        })
     }
 
     pub fn resize(&self, size: PtySize) -> Result<(), PtyError> {
@@ -134,15 +136,16 @@ impl Session {
                 // the Electron pty silently swallows these. We surface the
                 // first occurrence in case it's diagnostically useful and
                 // let the caller decide.
-                PtyError::Io { message: e.to_string() }
+                PtyError::Io {
+                    message: e.to_string(),
+                }
             })
     }
 
     pub fn kill(&self) -> Result<(), PtyError> {
-        self.child
-            .lock()
-            .kill()
-            .map_err(|e| PtyError::Io { message: e.to_string() })
+        self.child.lock().kill().map_err(|e| PtyError::Io {
+            message: e.to_string(),
+        })
     }
 }
 
