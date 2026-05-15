@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use emdash_dev::db::Db;
+use emdash_dev::pty::registry::Registry;
 use emdash_dev::secrets::{master_key::OsKeyringMasterKey, Secrets};
 use emdash_dev::tauri_bindings;
 use tauri::Manager;
@@ -37,6 +38,16 @@ pub fn run() {
 
     tauri::Builder::default()
         .invoke_handler(specta_builder.invoke_handler())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if let Some(registry) = window
+                    .app_handle()
+                    .try_state::<Arc<Registry>>()
+                {
+                    registry.drain();
+                }
+            }
+        })
         .setup(move |app| {
             specta_builder.mount_events(app);
 
@@ -50,6 +61,8 @@ pub fn run() {
 
             app.manage(db);
             app.manage(secrets);
+            let pty_registry: Arc<Registry> = Arc::new(Registry::new());
+            app.manage(pty_registry);
             Ok(())
         })
         .run(tauri::generate_context!())
