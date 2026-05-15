@@ -31,7 +31,7 @@ export function EmdashLogo({
       className={className}
       xmlns="http://www.w3.org/2000/svg"
     >
-      {EMDASH_PATHS.map(d => (
+      {EMDASH_PATHS.map((d) => (
         <path key={d.slice(0, 8)} d={d} />
       ))}
     </svg>
