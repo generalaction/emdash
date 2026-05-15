@@ -332,6 +332,7 @@ export const automationRuns = sqliteTable(
       table.automationId,
       table.status
     ),
+    createdTaskIdIdx: index('idx_automation_runs_created_task_id').on(table.createdTaskId),
   })
 );
 

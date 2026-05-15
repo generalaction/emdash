@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { formatRunName } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import type { Issue } from '@shared/tasks';
-import { getPrimaryTool } from '@renderer/features/automations/automation-tools';
+import { automationTool } from '@renderer/features/automations/automation-tools';
 import { useAutomationRuns, useAutomations } from '@renderer/features/automations/useAutomations';
 import {
   asMounted,
@@ -137,7 +137,7 @@ function AutomationRunsPopover({
   const [open, setOpen] = useState(false);
   const { navigate } = useNavigate();
   const runs = useAutomationRuns(automationId, 25);
-  const tool = getPrimaryTool(automation);
+  const tool = automationTool(automation);
 
   function handleSelectRun(run: AutomationRun) {
     setOpen(false);
@@ -205,7 +205,7 @@ const AutomationRunPopoverItem = observer(function AutomationRunPopoverItem({
 }: {
   run: AutomationRun;
   projectId: string;
-  tool: ReturnType<typeof getPrimaryTool>;
+  tool: ReturnType<typeof automationTool>;
   isCurrent: boolean;
   onSelect: (run: AutomationRun) => void;
 }) {

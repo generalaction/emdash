@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import type { Automation } from '@shared/automations/types';
 import { log } from '@main/lib/logger';
 import { automationEvents } from './automation-events';
-import { automationRunEvents } from './automation-run-events';
 import {
   claimQueuedRun,
   dueCronAutomations,
@@ -78,13 +77,15 @@ export class AutomationScheduler {
 
   private async bootstrap(): Promise<void> {
     const now = Date.now();
+    const missedBefore = now - MISSED_GRACE_MS;
     const rows = await enabledCronAutomations();
     await Promise.all(
       rows.map(async (automation) => {
-        if (automation.nextRunAt && automation.nextRunAt < now - MISSED_GRACE_MS) {
-          await this.enqueueCronAutomation(automation, automation.nextRunAt, now);
+        const isMissed = automation.nextRunAt != null && automation.nextRunAt < missedBefore;
+        if (isMissed) {
+          await this.enqueueCronAutomation(automation, automation.nextRunAt!, now);
         }
-        if (!automation.nextRunAt || automation.nextRunAt < now - MISSED_GRACE_MS) {
+        if (!automation.nextRunAt || isMissed) {
           await this.advanceNextRun(automation, now);
         }
       })
@@ -129,7 +130,6 @@ export class AutomationScheduler {
     });
     if (run) {
       emitRunUpdated(run);
-      automationRunEvents._emit('run:queued', run, automation);
     }
   }
 
@@ -138,65 +138,53 @@ export class AutomationScheduler {
     this.draining = true;
     try {
       while (this.activeWorkers < MAX_CONCURRENT_RUNS) {
-        const [entry] = await listQueuedRuns(1);
-        if (!entry) return;
+        const capacity = MAX_CONCURRENT_RUNS - this.activeWorkers;
+        const batch = await listQueuedRuns(capacity);
+        if (batch.length === 0) return;
 
-        if (entry.run.deadlineAt != null && entry.run.deadlineAt <= Date.now()) {
-          const skipped = await updateRun(entry.run.id, {
-            status: 'skipped',
-            finishedAt: Date.now(),
-            error: 'queue_deadline_exceeded',
-          });
-          if (skipped) {
-            emitRunUpdated(skipped);
-            automationRunEvents._emit(
-              'run:skipped',
-              skipped,
-              entry.automation,
-              'queue_deadline_exceeded'
-            );
+        for (const entry of batch) {
+          if (this.activeWorkers >= MAX_CONCURRENT_RUNS) break;
+
+          if (entry.run.deadlineAt != null && entry.run.deadlineAt <= Date.now()) {
+            await this.markRunSkipped(entry.run.id, 'queue_deadline_exceeded');
+            continue;
           }
-          continue;
-        }
 
-        if (entry.run.triggerKind === 'cron' && (await hasRunningRuns(entry.automation.id))) {
-          const skipped = await updateRun(entry.run.id, {
-            status: 'skipped',
-            finishedAt: Date.now(),
-            error: 'previous_still_running',
-          });
-          if (skipped) {
-            emitRunUpdated(skipped);
-            automationRunEvents._emit(
-              'run:skipped',
-              skipped,
-              entry.automation,
-              'previous_still_running'
-            );
+          if (entry.run.triggerKind === 'cron' && (await hasRunningRuns(entry.automation.id))) {
+            await this.markRunSkipped(entry.run.id, 'previous_still_running');
+            continue;
           }
-          continue;
-        }
 
-        const run = await claimQueuedRun(entry.run.id, this.workerId);
-        if (!run) continue;
+          const run = await claimQueuedRun(entry.run.id, this.workerId);
+          if (!run) continue;
 
-        this.activeWorkers += 1;
-        void runQueuedAutomation(entry.automation, run)
-          .catch((error) => {
-            log.error('AutomationScheduler worker failed', {
-              automationId: entry.automation.id,
-              runId: run.id,
-              error: String(error),
+          this.activeWorkers += 1;
+          void runQueuedAutomation(entry.automation, run)
+            .catch((error) => {
+              log.error('AutomationScheduler worker failed', {
+                automationId: entry.automation.id,
+                runId: run.id,
+                error: String(error),
+              });
+            })
+            .finally(() => {
+              this.activeWorkers -= 1;
+              void this.drainQueue();
             });
-          })
-          .finally(() => {
-            this.activeWorkers -= 1;
-            void this.drainQueue();
-          });
+        }
       }
     } finally {
       this.draining = false;
     }
+  }
+
+  private async markRunSkipped(runId: string, reason: string): Promise<void> {
+    const skipped = await updateRun(runId, {
+      status: 'skipped',
+      finishedAt: Date.now(),
+      error: reason,
+    });
+    if (skipped) emitRunUpdated(skipped);
   }
 }
 

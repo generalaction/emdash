@@ -1,17 +1,17 @@
-import type { ActionSpec } from '@shared/automations/actions';
+import type { TaskCreateAction } from '@shared/automations/actions';
 import type { CreateTaskParams } from '@shared/tasks';
 
 export const AUTOMATION_NAME_MAX_LENGTH = 120;
 
-export type TriggerSpec = { kind: 'cron'; expr: string; tz: string };
+export type CronTrigger = { expr: string; tz: string };
 
 export type Automation = {
   id: string;
   name: string;
   description: string | null;
   category: string;
-  trigger: TriggerSpec;
-  actions: ActionSpec[];
+  trigger: CronTrigger;
+  actions: TaskCreateAction[];
   taskConfig: CreateTaskParams | null;
   projectId: string;
   enabled: boolean;
@@ -52,16 +52,16 @@ export type BuiltinAutomationTemplate = {
   name: string;
   description: string;
   icon: string;
-  defaultTrigger: TriggerSpec;
-  defaultActions: ActionSpec[];
+  defaultTrigger: CronTrigger;
+  defaultActions: TaskCreateAction[];
 };
 
 export type CreateAutomationInput = {
   name: string;
   description?: string | null;
   category: string;
-  trigger: TriggerSpec;
-  actions: ActionSpec[];
+  trigger: CronTrigger;
+  actions: TaskCreateAction[];
   taskConfig?: CreateTaskParams | null;
   projectId: string;
   enabled?: boolean;

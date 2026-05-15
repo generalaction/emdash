@@ -18,12 +18,6 @@ vi.mock('./automation-events', () => ({
   },
 }));
 
-vi.mock('./automation-run-events', () => ({
-  automationRunEvents: {
-    _emit: vi.fn(),
-  },
-}));
-
 vi.mock('./repo', () => ({
   claimQueuedRun: vi.fn(),
   hasRunningRuns: vi.fn(),
@@ -48,7 +42,7 @@ const baseAutomation: Automation = {
   name: 'Daily follow-up',
   description: null,
   category: 'custom',
-  trigger: { kind: 'cron', expr: '0 9 * * *', tz: 'UTC' },
+  trigger: { expr: '0 9 * * *', tz: 'UTC' },
   actions: [{ kind: 'task.create', prompt: 'Check things' }],
   taskConfig: null,
   projectId: 'project-1',

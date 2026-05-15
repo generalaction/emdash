@@ -1,0 +1,1 @@
+CREATE INDEX `idx_automation_runs_created_task_id` ON `automation_runs` (`created_task_id`);

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
 import { and, asc, desc, eq, isNotNull, lte, or } from 'drizzle-orm';
-import type { ActionSpec } from '@shared/automations/actions';
+import type { TaskCreateAction } from '@shared/automations/actions';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
   Automation,
@@ -10,7 +10,7 @@ import type {
   AutomationRunTriggerKind,
   AutomationRunWithContext,
   CreateAutomationInput,
-  TriggerSpec,
+  CronTrigger,
   UpdateAutomationPatch,
 } from '@shared/automations/types';
 import type { CreateTaskParams } from '@shared/tasks';
@@ -26,12 +26,12 @@ import { log } from '@main/lib/logger';
 
 const DEFAULT_TZ = getLocalTimeZone();
 
-function fallbackActions(promptTemplate: string): ActionSpec[] {
+function fallbackActions(promptTemplate: string): TaskCreateAction[] {
   const prompt = promptTemplate.trim();
   return prompt ? [{ kind: 'task.create', prompt }] : [];
 }
 
-function parseActions(raw: string, promptTemplate: string): ActionSpec[] {
+function parseActions(raw: string, promptTemplate: string): TaskCreateAction[] {
   if (!raw || raw === '[]') return fallbackActions(promptTemplate);
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -43,7 +43,7 @@ function parseActions(raw: string, promptTemplate: string): ActionSpec[] {
         'kind' in item &&
         (item as { kind: unknown }).kind === 'task.create'
     )
-      ? (parsed as ActionSpec[])
+      ? (parsed as TaskCreateAction[])
       : fallbackActions(promptTemplate);
   } catch (error) {
     log.warn('automations.repo: failed to parse actions JSON', {
@@ -51,6 +51,10 @@ function parseActions(raw: string, promptTemplate: string): ActionSpec[] {
     });
     return fallbackActions(promptTemplate);
   }
+}
+
+function firstTaskCreatePrompt(actions: TaskCreateAction[]): string {
+  return actions[0]?.prompt ?? '';
 }
 
 function parseTaskConfig(raw: string | null): CreateTaskParams | null {
@@ -65,11 +69,6 @@ function parseTaskConfig(raw: string | null): CreateTaskParams | null {
     });
     return null;
   }
-}
-
-function firstTaskCreatePrompt(actions: ActionSpec[]): string {
-  const first = actions.find((action) => action.kind === 'task.create');
-  return first ? first.prompt : '';
 }
 
 const RUN_STATUSES: ReadonlySet<AutomationRunStatus> = new Set([
@@ -95,8 +94,7 @@ function asRunTriggerKind(value: string): AutomationRunTriggerKind {
 
 function mapAutomationRow(row: AutomationRow): Automation {
   if (!row.cronExpr) throw new Error(`automation_row_missing_cron_expr:${row.id}`);
-  const trigger: TriggerSpec = {
-    kind: 'cron',
+  const trigger: CronTrigger = {
     expr: row.cronExpr,
     tz: row.cronTz ?? DEFAULT_TZ,
   };
@@ -138,7 +136,7 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
 }
 
 export function getNextRunAt(
-  trigger: TriggerSpec,
+  trigger: CronTrigger,
   from: number | Date = new Date()
 ): number | null {
   const next = new Cron(trigger.expr, { timezone: trigger.tz || DEFAULT_TZ }).nextRun(
@@ -147,7 +145,7 @@ export function getNextRunAt(
   return next?.getTime() ?? null;
 }
 
-function rowValuesFromTrigger(trigger: TriggerSpec) {
+function rowValuesFromTrigger(trigger: CronTrigger) {
   return {
     cronExpr: trigger.expr,
     cronTz: trigger.tz || DEFAULT_TZ,
@@ -225,8 +223,8 @@ export async function updateAutomation(
   if (patch.builtinTemplateId !== undefined) values.builtinTemplateId = patch.builtinTemplateId;
   if (patch.trigger !== undefined) Object.assign(values, rowValuesFromTrigger(patch.trigger));
   if (patch.actions !== undefined) {
-    values.actions = JSON.stringify(patch.actions);
     values.promptTemplate = firstTaskCreatePrompt(patch.actions);
+    values.actions = JSON.stringify(patch.actions);
   }
   if (patch.taskConfig !== undefined) {
     values.taskConfig = patch.taskConfig ? JSON.stringify(patch.taskConfig) : null;
@@ -452,6 +450,11 @@ export async function updateRun(
     .set(values)
     .where(eq(automationRuns.id, id))
     .returning();
+  return row ? mapAutomationRunRow(row) : null;
+}
+
+export async function getRun(id: string): Promise<AutomationRun | null> {
+  const [row] = await db.select().from(automationRuns).where(eq(automationRuns.id, id)).limit(1);
   return row ? mapAutomationRunRow(row) : null;
 }
 

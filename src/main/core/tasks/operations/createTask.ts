@@ -237,8 +237,6 @@ export async function createTask(
     project_id: params.projectId,
     task_id: params.id,
   });
-  events.emit(taskCreatedChannel, { task });
-
   if (params.initialConversation) {
     await createConversation({
       ...params.initialConversation,
@@ -250,6 +248,8 @@ export async function createTask(
       ),
     });
   }
+
+  events.emit(taskCreatedChannel, { task });
 
   const taskCreatedStrategy = (() => {
     if (strategy.kind === 'from-pull-request') return 'pr';

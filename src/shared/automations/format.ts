@@ -1,10 +1,5 @@
 import { slugFromRunId } from '@shared/automations/run-slug';
-import { getLocalTimeZone } from '@shared/automations/timezone';
-import type {
-  AutomationRunStatus,
-  AutomationRunTriggerKind,
-  TriggerSpec,
-} from '@shared/automations/types';
+import type { AutomationRunStatus, AutomationRunTriggerKind } from '@shared/automations/types';
 
 const dayNames = [
   'Sundays',
@@ -116,74 +111,7 @@ function dayDescription(desc: DayOfWeekDesc): string | null {
   }
 }
 
-function getTzOffsetMinutes(date: Date, tz: string): number {
-  try {
-    const dtf = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hourCycle: 'h23',
-    });
-    const parts = dtf.formatToParts(date);
-    const get = (type: string) => {
-      const part = parts.find((p) => p.type === type);
-      return part ? parseInt(part.value, 10) : 0;
-    };
-    const asUTC = Date.UTC(
-      get('year'),
-      get('month') - 1,
-      get('day'),
-      get('hour'),
-      get('minute'),
-      get('second')
-    );
-    return (asUTC - date.getTime()) / 60000;
-  } catch {
-    return 0;
-  }
-}
-
-interface ShiftedWallTime {
-  hour: number;
-  minute: number;
-  dayShift: number;
-}
-
-function shiftWallTimeToLocal(
-  hour: number,
-  minute: number,
-  fromTz: string
-): ShiftedWallTime | null {
-  const localTz = getLocalTimeZone();
-  if (fromTz === localTz) return { hour, minute, dayShift: 0 };
-  const ref = new Date();
-  const fromOffset = getTzOffsetMinutes(ref, fromTz);
-  const toOffset = getTzOffsetMinutes(ref, localTz);
-  if (fromOffset === toOffset) return { hour, minute, dayShift: 0 };
-  const total = hour * 60 + minute + (toOffset - fromOffset);
-  const dayShift = Math.floor(total / 1440);
-  const wrapped = ((total % 1440) + 1440) % 1440;
-  return { hour: Math.floor(wrapped / 60), minute: wrapped % 60, dayShift };
-}
-
-function shiftDayOfWeekDesc(desc: DayOfWeekDesc, shift: number): DayOfWeekDesc {
-  if (shift === 0 || desc.kind === 'all') return desc;
-  const source =
-    desc.kind === 'weekdays' ? [1, 2, 3, 4, 5] : desc.kind === 'weekends' ? [0, 6] : desc.days;
-  const shifted = Array.from(new Set(source.map((d) => (((d + shift) % 7) + 7) % 7))).sort(
-    (a, b) => a - b
-  );
-  const eq = (a: number[], b: number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
-  if (eq(shifted, [1, 2, 3, 4, 5])) return { kind: 'weekdays' };
-  if (eq(shifted, [0, 6])) return { kind: 'weekends' };
-  return { kind: 'list', days: shifted };
-}
-
-export function formatCronLabel(expr: string, tz?: string): string {
+export function formatCronLabel(expr: string): string {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return expr;
   const [min, hour, dom, mon, dow] = parts;
@@ -192,15 +120,7 @@ export function formatCronLabel(expr: string, tz?: string): string {
 
   if (mon === '*' && dow === '*' && /^\d+$/.test(dom) && minNum !== null && hourNum !== null) {
     const day = parseInt(dom, 10);
-    const shifted = tz ? shiftWallTimeToLocal(hourNum, minNum, tz) : null;
-    const localHour = shifted?.hour ?? hourNum;
-    const localMinute = shifted?.minute ?? minNum;
-    const time = formatTimeOfDay(localHour, localMinute);
-    const localDay = day + (shifted?.dayShift ?? 0);
-    if (localDay >= 1 && localDay <= 28) {
-      return `Monthly · ${ordinal(localDay)} · ${time}`;
-    }
-    return `Monthly · ${ordinal(day)} · ${time}`;
+    return `Monthly · ${ordinal(day)} · ${formatTimeOfDay(hourNum, minNum)}`;
   }
 
   if (dom !== '*' || mon !== '*') return expr;
@@ -230,21 +150,13 @@ export function formatCronLabel(expr: string, tz?: string): string {
   }
 
   if (minNum !== null && hourNum !== null) {
-    const shifted = tz ? shiftWallTimeToLocal(hourNum, minNum, tz) : null;
-    const localHour = shifted?.hour ?? hourNum;
-    const localMinute = shifted?.minute ?? minNum;
-    const localDow = shifted ? shiftDayOfWeekDesc(dowDesc, shifted.dayShift) : dowDesc;
-    const time = formatTimeOfDay(localHour, localMinute);
-    if (localDow.kind === 'all') return `Daily · ${time}`;
-    const days = dayDescription(localDow);
+    const time = formatTimeOfDay(hourNum, minNum);
+    if (dowDesc.kind === 'all') return `Daily · ${time}`;
+    const days = dayDescription(dowDesc);
     return days ? `${days} · ${time}` : expr;
   }
 
   return expr;
-}
-
-export function formatTriggerLabel(trigger: TriggerSpec): string {
-  return formatCronLabel(trigger.expr, trigger.tz);
 }
 
 export function formatRunStatusLabel(status: AutomationRunStatus): string | null {
@@ -276,8 +188,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   automation_is_draft: 'Finish setting up the automation before running it',
 };
 
-function formatInnerError(raw: string): string {
-  const exact = ERROR_MESSAGES[raw];
+export function formatRunError(raw: string): string {
+  const legacyActionMatch = raw.match(/^action_\d+_[^:]+:(.+)$/);
+  const normalized = legacyActionMatch?.[1] ?? raw;
+  const exact = ERROR_MESSAGES[normalized];
   if (exact) return exact;
 
   if (raw.startsWith('initial_commit_required:'))
@@ -295,12 +209,6 @@ function formatInnerError(raw: string): string {
   if (raw.startsWith('action_invalid:')) return 'One of the actions is not configured correctly';
 
   return raw;
-}
-
-export function formatRunError(error: string): string {
-  const actionMatch = error.match(/^action_\d+_[^:]+:(.+)$/);
-  if (actionMatch) return formatInnerError(actionMatch[1]);
-  return formatInnerError(error);
 }
 
 export function formatAutomationError(error: unknown): string {

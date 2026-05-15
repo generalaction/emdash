@@ -154,9 +154,12 @@ export class TaskManagerStore {
       if (task.projectId !== this.projectId || this.tasks.has(task.id)) return;
       runInAction(() => {
         this.tasks.set(task.id, createUnprovisionedTask(task));
+        // Acquire conversation/terminal managers inside the same action so the
+        // WorkspaceViewModel's reaction on `conversations.size` registers the
+        // manager's observable map as a dependency on its first evaluation.
+        conversationRegistry.acquire(task.id, this.projectId);
+        terminalRegistry.acquire(task.id, this.projectId);
       });
-      conversationRegistry.acquire(task.id, this.projectId);
-      terminalRegistry.acquire(task.id, this.projectId);
     });
 
     this._unsubTaskStatusUpdated = events.on(

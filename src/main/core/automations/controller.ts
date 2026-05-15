@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { isValidAction } from '@shared/automations/actions';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
@@ -9,13 +10,17 @@ import {
 } from '@shared/automations/types';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok, type Result } from '@shared/result';
+import { deleteTask } from '@main/core/tasks/operations/deleteTask';
+import { db } from '@main/db/client';
+import { tasks } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { automationEvents } from './automation-events';
-import { automationRunEvents } from './automation-run-events';
 import { automationRunDeadline, automationScheduler } from './automation-scheduler';
 import {
   createAutomation,
   enqueueAutomationRun,
   getAutomation,
+  getRun,
   listAutomations,
   listRecentRuns,
   listRuns,
@@ -63,7 +68,6 @@ export const automationsController = createRPCController({
         if (invalidIndex >= 0) return err(`action_invalid:${invalidIndex}`);
       }
       const automation = await createAutomation(input);
-      automationEvents._emit('automation:created', automation);
       emitChanged();
       return ok(automation);
     });
@@ -86,7 +90,6 @@ export const automationsController = createRPCController({
       }
       const automation = await updateAutomation(id, patch);
       if (!automation) return err('automation_not_found');
-      automationEvents._emit('automation:updated', automation);
       emitChanged();
       return ok(automation);
     });
@@ -96,7 +99,6 @@ export const automationsController = createRPCController({
     return safe(async () => {
       const removed = await removeAutomation(id);
       if (!removed) return err('automation_not_found');
-      automationEvents._emit('automation:deleted', id);
       emitChanged();
       return ok();
     });
@@ -106,7 +108,6 @@ export const automationsController = createRPCController({
     return safe(async () => {
       const automation = await setAutomationEnabled(id, enabled);
       if (!automation) return err('automation_not_found');
-      automationEvents._emit('automation:updated', automation);
       emitChanged();
       return ok(automation);
     });
@@ -126,7 +127,6 @@ export const automationsController = createRPCController({
       });
       if (!run) return err('automation_run_already_queued');
       emitRunUpdated(run);
-      automationRunEvents._emit('run:queued', run, automation);
       void automationScheduler.drainQueue();
       return ok(run);
     });
@@ -138,6 +138,30 @@ export const automationsController = createRPCController({
 
   removeRun(id: string): Promise<Result<void, string>> {
     return safe(async () => {
+      const run = await getRun(id);
+      if (!run) return err('automation_run_not_found');
+
+      const createdTaskId = run.createdTaskId;
+      if (createdTaskId) {
+        const [task] = await db
+          .select({ projectId: tasks.projectId })
+          .from(tasks)
+          .where(eq(tasks.id, createdTaskId))
+          .limit(1);
+        if (task) {
+          try {
+            await deleteTask(task.projectId, createdTaskId);
+          } catch (error) {
+            log.warn('automations.removeRun: deleteTask failed', {
+              runId: id,
+              taskId: createdTaskId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            return err('task_delete_failed');
+          }
+        }
+      }
+
       const removed = await removeRunFromDb(id);
       if (!removed) return err('automation_run_not_found');
       emitChanged();

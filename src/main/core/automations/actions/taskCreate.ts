@@ -2,14 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { bareRefName } from '@shared/git-utils';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { err, ok } from '@shared/result';
+import { err, ok, type Result } from '@shared/result';
 import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
+import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { createTask } from '@main/core/tasks/operations/createTask';
-import type { ActionExecutor } from './types';
+import type { ActionContext, ActionError, ActionOutcome } from './types';
 
 function stringifyCreateTaskError(error: CreateTaskError): string {
   switch (error.type) {
@@ -32,11 +33,7 @@ function stringifyCreateTaskError(error: CreateTaskError): string {
   }
 }
 
-async function resolveSourceBranch(projectId: string, taskName: string, action: TaskCreateAction) {
-  if (action.sourceBranch && action.strategy) {
-    return ok({ sourceBranch: action.sourceBranch, strategy: action.strategy });
-  }
-
+async function resolveProjectDefaults(projectId: string, taskName: string) {
   let project = projectManager.getProject(projectId);
   if (!project) {
     const openResult = await openProject(projectId);
@@ -63,66 +60,74 @@ async function resolveSourceBranch(projectId: string, taskName: string, action: 
   const currentBranch = repoInfo.currentBranch
     ? { type: 'local' as const, branch: repoInfo.currentBranch }
     : undefined;
-  const sourceBranch = action.sourceBranch ??
-    localDefault ??
+  const sourceBranch = localDefault ??
     remoteDefault ??
     currentBranch ?? { type: 'local' as const, branch: defaultBranchName };
-  const strategy =
-    action.strategy ??
-    (repoInfo.isUnborn
-      ? { kind: 'no-worktree' as const }
-      : {
-          kind: 'new-branch' as const,
-          taskBranch: taskName,
-          pushBranch: true,
-        });
+  const strategy = repoInfo.isUnborn
+    ? { kind: 'no-worktree' as const }
+    : { kind: 'new-branch' as const, taskBranch: taskName, pushBranch: true };
 
   return ok({ sourceBranch, strategy });
 }
 
-export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action, ctx) => {
+export async function executeTaskCreate(
+  action: TaskCreateAction,
+  ctx: ActionContext
+): Promise<Result<ActionOutcome, ActionError>> {
   const prompt = action.prompt.trim();
   if (!prompt) return err({ message: 'task_create_prompt_empty' });
 
-  const taskName = action.taskName?.trim() || generateTaskName({ title: ctx.automation.name });
-  const branchConfig = await resolveSourceBranch(ctx.automation.projectId, taskName, action);
-  if (!branchConfig.success) return err({ message: branchConfig.error });
+  const projectId = ctx.automation.projectId;
+  const storedConfig = ctx.automation.taskConfig;
+  const taskId = randomUUID();
+  const conversationId = randomUUID();
 
-  try {
-    const taskId = randomUUID();
-    const conversationId = randomUUID();
-    const provider = action.provider ?? (await appSettingsService.get('defaultAgent'));
-    const projectId = ctx.automation.projectId;
-
-    const storedConfig = ctx.automation.taskConfig;
-    const taskConfig: CreateTaskParams = {
+  let taskConfig: CreateTaskParams;
+  if (storedConfig?.initialConversation) {
+    taskConfig = {
+      ...storedConfig,
+      id: taskId,
+      projectId,
+      automationId: ctx.automation.id,
+      initialConversation: {
+        ...storedConfig.initialConversation,
+        id: conversationId,
+        projectId,
+        taskId,
+        initialPrompt: prompt,
+        autoApprove: true,
+      },
+    };
+  } else {
+    const taskName = generateTaskName({ title: ctx.automation.name });
+    const defaults = await resolveProjectDefaults(projectId, taskName);
+    if (!defaults.success) return err({ message: defaults.error });
+    const provider = (await appSettingsService.get('defaultAgent')) ?? DEFAULT_AGENT_ID;
+    taskConfig = {
       ...storedConfig,
       id: taskId,
       projectId,
       name: storedConfig?.name?.trim() || taskName,
-      sourceBranch: storedConfig?.sourceBranch ?? branchConfig.data.sourceBranch,
-      strategy: storedConfig?.strategy ?? branchConfig.data.strategy,
-      linkedIssue: storedConfig?.linkedIssue ?? action.linkedIssue,
-      workspaceProvider: storedConfig?.workspaceProvider ?? action.workspaceProvider,
+      sourceBranch: storedConfig?.sourceBranch ?? defaults.data.sourceBranch,
+      strategy: storedConfig?.strategy ?? defaults.data.strategy,
       automationId: ctx.automation.id,
       initialConversation: {
-        ...storedConfig?.initialConversation,
         id: conversationId,
         projectId,
         taskId,
-        provider: storedConfig?.initialConversation?.provider ?? provider,
-        title: storedConfig?.initialConversation?.title ?? ctx.automation.name,
-        initialPrompt: storedConfig?.initialConversation?.initialPrompt ?? prompt,
+        provider,
+        title: ctx.automation.name,
+        initialPrompt: prompt,
         autoApprove: true,
       },
     };
+  }
 
+  try {
     const result = await createTask(taskConfig);
-
     if (!result.success) {
       return err({ message: stringifyCreateTaskError(result.error), taskId });
     }
-
     return ok({
       taskId,
       sessionId: makePtySessionId(projectId, taskId, conversationId),
@@ -130,4 +135,4 @@ export const executeTaskCreate: ActionExecutor<TaskCreateAction> = async (action
   } catch (error) {
     return err({ message: error instanceof Error ? error.message : String(error) });
   }
-};
+}
