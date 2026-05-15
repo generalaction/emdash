@@ -11,6 +11,7 @@ import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
+import { coordinationService } from './core/coordination/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
@@ -109,6 +110,12 @@ void app.whenReady().then(async () => {
     log.error('Failed to start agent event service:', e);
   });
 
+  // coordination depends on agentHookService's HookServer for route registration
+  // and on taskManager's hooks for provision/teardown — both are available now.
+  coordinationService.initialize().catch((e) => {
+    log.error('Failed to start coordination service:', e);
+  });
+
   emdashAccountService.loadSessionToken().catch((e) => {
     log.warn('Failed to load account session token:', e);
   });
@@ -138,6 +145,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
+    coordinationService.dispose();
     agentHookService.dispose();
     updateService.dispose();
     prSyncScheduler.dispose();
