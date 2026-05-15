@@ -3,6 +3,8 @@ import type { TabGroupsSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 
+const MAX_PANE_COUNT = 8;
+
 export interface TabGroupEntry {
   groupId: string;
   tabManager: TabManagerStore;
@@ -56,11 +58,6 @@ export class TabGroupManagerStore {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Computed
-  // ---------------------------------------------------------------------------
-
-  /** The TabManagerStore for the currently focused (active) pane. */
   get focusedGroup(): TabManagerStore {
     return (
       this.groups.find((g) => g.groupId === this.activeGroupId)?.tabManager ??
@@ -68,11 +65,6 @@ export class TabGroupManagerStore {
     );
   }
 
-  /**
-   * Union of all groups' open file paths, deduplicated.
-   * Used by FileModelLifecycleStore to drive model registration/unregistration.
-   * A model stays registered as long as any pane has the file open.
-   */
   get allOpenFilePaths(): string[] {
     const seen = new Set<string>();
     for (const { tabManager } of this.groups) {
@@ -83,14 +75,6 @@ export class TabGroupManagerStore {
     return [...seen];
   }
 
-  // ---------------------------------------------------------------------------
-  // Actions
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Registers an async close handler on all current groups and stores it for
-   * future groups. Must be called by FileModelLifecycleStore during setup.
-   */
   registerCloseHandler(handler: (tabId: string) => Promise<void>): void {
     this._closeHandler = handler;
     for (const { tabManager } of this.groups) {
@@ -98,13 +82,8 @@ export class TabGroupManagerStore {
     }
   }
 
-  /**
-   * Creates a new pane to the right of the focused group and moves the active
-   * tab into it. Requires at least 2 tabs in the source pane so it is never
-   * left empty. Capped at 3 panes.
-   */
   splitRight(): void {
-    if (this.groups.length >= 3) return;
+    if (this.groups.length >= MAX_PANE_COUNT) return;
 
     const focusedIndex = this.groups.findIndex((g) => g.groupId === this.activeGroupId);
     const sourceGroup = this.groups[focusedIndex === -1 ? 0 : focusedIndex];
@@ -152,11 +131,6 @@ export class TabGroupManagerStore {
     }
   }
 
-  /**
-   * Moves a tab from one group to another, reusing the existing entry object so
-   * no model reload or state reset occurs. The target group becomes active.
-   * Force-removes from source (bypasses the close guard — this is a move, not a close).
-   */
   moveTab(tabId: string, fromGroupId: string, toGroupId: string, insertBeforeTabId?: string): void {
     if (fromGroupId === toGroupId) return;
     const fromGroup = this.groups.find((g) => g.groupId === fromGroupId);
@@ -182,11 +156,6 @@ export class TabGroupManagerStore {
     this.activeGroupId = toGroupId;
   }
 
-  /**
-   * Routes a dnd-kit drag-end event: cross-pane move or within-pane reorder.
-   * `draggedTabId` is the dragged tab's id; `overId` is either a tab id or a
-   * `pane-drop-{groupId}` droppable id registered by each tab bar.
-   */
   handleDragEnd(draggedTabId: string, overId: string): void {
     const fromGroup = this.groups.find((g) => g.tabManager.entries.has(draggedTabId));
     if (!fromGroup) return;
@@ -230,10 +199,6 @@ export class TabGroupManagerStore {
       this.paneSizes = sizes;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Snapshot
-  // ---------------------------------------------------------------------------
 
   get snapshot(): TabGroupsSnapshot {
     return {
@@ -279,10 +244,6 @@ export class TabGroupManagerStore {
       tabManager.dispose();
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
 
   private _createGroup(): TabGroupEntry {
     const groupId = crypto.randomUUID();
