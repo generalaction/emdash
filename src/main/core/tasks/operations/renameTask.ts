@@ -9,6 +9,15 @@ import { tasks } from '@main/db/schema';
 import { appSettingsService } from '../../settings/settings-service';
 import { resolveTaskBranchName } from '../resolveTaskBranchName';
 
+function parseLinkedIssueProvider(linkedIssue: unknown): unknown {
+  if (!linkedIssue || typeof linkedIssue !== 'string') return undefined;
+  try {
+    return (JSON.parse(linkedIssue) as { provider?: unknown }).provider;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function renameTask(
   projectId: string,
   taskId: string,
@@ -37,16 +46,13 @@ export async function renameTask(
         const suffix = Math.random().toString(36).slice(2, 7);
         const projectDefaults = await appSettingsService.get('project');
         const branchPrefix = projectDefaults.branchPrefix ?? '';
-        const linkedIssue =
-          row.linkedIssue && typeof row.linkedIssue === 'string'
-            ? (JSON.parse(row.linkedIssue) as { provider?: unknown })
-            : undefined;
+        const linkedIssueProvider = parseLinkedIssueProvider(row.linkedIssue);
         newBranch = resolveTaskBranchName({
           rawBranch: newName,
           branchPrefix,
           suffix,
           appendRandomSuffix: projectDefaults.appendRandomBranchSuffix ?? true,
-          disableRandomSuffix: linkedIssue?.provider === 'linear',
+          disableRandomSuffix: linkedIssueProvider === 'linear',
         });
 
         const renameResult = await project.repository.renameBranch(oldBranch, newBranch);
