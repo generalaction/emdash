@@ -195,6 +195,7 @@ export async function createTask(
       sourceBranch: toStoredBranch(dbSourceBranch),
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
       workspaceProvider: params.workspaceProvider ?? null,
+      autoCreatePr: params.autoCreatePr ? 1 : 0,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,

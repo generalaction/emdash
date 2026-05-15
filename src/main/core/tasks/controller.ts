@@ -1,4 +1,5 @@
 import { createRPCController } from '@shared/ipc/rpc';
+import './auto-create-pr';
 import { generateTaskName } from './name-generation/generateTaskName';
 import { archiveTask } from './operations/archiveTask';
 import { createTask } from './operations/createTask';

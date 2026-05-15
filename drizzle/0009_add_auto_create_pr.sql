@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `auto_create_pr` integer DEFAULT 0 NOT NULL;

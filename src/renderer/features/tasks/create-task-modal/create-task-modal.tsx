@@ -27,15 +27,18 @@ import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
 } from './create-task-strategy';
+import { FromAutorunContent } from './from-autorun-content';
 import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
 import { useInitialConversationState } from './initial-conversation-section';
+import { runAutorunBatch } from './run-autorun-batch';
+import { useFromAutorunMode } from './use-from-autorun-mode';
 import { useFromBranchMode } from './use-from-branch-mode';
 import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
 
-type CreateTaskStrategy = 'from-branch' | 'from-issue' | 'from-pull-request';
+type CreateTaskStrategy = 'from-branch' | 'from-issue' | 'from-pull-request' | 'autorun';
 
 export const CreateTaskModal = observer(function CreateTaskModal({
   projectId,
@@ -100,12 +103,14 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, isUnborn, initialPR);
+  const fromAutorun = useFromAutorunMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !repositoryUrl;
 
   const activeMode = {
     'from-branch': fromBranch,
     'from-issue': fromIssue,
     'from-pull-request': fromPR,
+    autorun: fromAutorun,
   }[selectedStrategy];
   const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable;
 
@@ -166,6 +171,24 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         });
         break;
       }
+      case 'autorun': {
+        if (!fromAutorun.selectedBranch || fromAutorun.selectedIssues.length === 0) return;
+        const taskManager = projectStore.mountedProject!.taskManager;
+        const provider = initialConversation.provider;
+        const sourceBranch = fromAutorun.selectedBranch;
+        const issues = fromAutorun.selectedIssues;
+        const opts = {
+          projectId: selectedProjectId,
+          sourceBranch,
+          provider,
+          concurrency: fromAutorun.concurrency,
+          autoCreatePr: fromAutorun.autoCreatePr,
+          extraPromptPrefix: fromAutorun.extraPrompt,
+        };
+        void runAutorunBatch(taskManager, issues, opts);
+        onClose();
+        return;
+      }
       case 'from-pull-request': {
         if (!fromPR.linkedPR) return;
         const reviewBranch = fromPR.linkedPR.headRefName;
@@ -201,6 +224,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     fromBranch,
     fromIssue,
     fromPR,
+    fromAutorun,
     isUnborn,
     useBYOI,
     initialConversation,
@@ -225,10 +249,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         <ChevronRight className="size-3.5 text-foreground-passive" />
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
-      <DialogContentArea className="gap-4">
+      <div className="px-6 pb-2 pt-1">
         <ToggleGroup
           className="w-full"
-          value={[selectedStrategy]}
+          value={[selectedStrategy === 'autorun' ? 'from-issue' : selectedStrategy]}
           onValueChange={([value]) => {
             if (value) {
               setSelectedStrategy(value as CreateTaskStrategy);
@@ -236,15 +260,17 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           }}
         >
           <ToggleGroupItem className="flex-1" value="from-branch">
-            From Branch
+            Branch
           </ToggleGroupItem>
           <ToggleGroupItem className="flex-1" value="from-issue">
-            From Issue
+            Issue
           </ToggleGroupItem>
           <ToggleGroupItem className="flex-1" value="from-pull-request">
-            From Pull Request
+            Pull Request
           </ToggleGroupItem>
         </ToggleGroup>
+      </div>
+      <DialogContentArea className="gap-4">
         {isWorkspaceProviderEnabled && (
           <div className="flex items-center gap-2">
             <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
@@ -262,18 +288,49 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               connectionId={connectionId}
             />
           )}
-          {selectedStrategy === 'from-issue' && (
-            <FromIssueContent
-              state={fromIssue}
-              projectId={selectedProjectId}
-              currentBranch={currentBranch}
-              repositoryUrl={repositoryUrl}
-              projectPath={projectData?.path}
-              disabled={isTransitioning}
-              isUnborn={isUnborn}
-              initialConversation={initialConversation}
-              connectionId={connectionId}
-            />
+          {(selectedStrategy === 'from-issue' || selectedStrategy === 'autorun') && (
+            <div className="flex flex-col gap-4">
+              <ToggleGroup
+                className="w-full"
+                value={[selectedStrategy]}
+                onValueChange={([value]) => {
+                  if (value === 'from-issue' || value === 'autorun') {
+                    setSelectedStrategy(value);
+                  }
+                }}
+              >
+                <ToggleGroupItem className="flex-1" value="from-issue">
+                  Single issue
+                </ToggleGroupItem>
+                <ToggleGroupItem className="flex-1" value="autorun">
+                  Autorun issues
+                </ToggleGroupItem>
+              </ToggleGroup>
+              {selectedStrategy === 'from-issue' ? (
+                <FromIssueContent
+                  state={fromIssue}
+                  projectId={selectedProjectId}
+                  currentBranch={currentBranch}
+                  repositoryUrl={repositoryUrl}
+                  projectPath={projectData?.path}
+                  disabled={isTransitioning}
+                  isUnborn={isUnborn}
+                  initialConversation={initialConversation}
+                  connectionId={connectionId}
+                />
+              ) : (
+                <FromAutorunContent
+                  state={fromAutorun}
+                  projectId={selectedProjectId}
+                  currentBranch={currentBranch}
+                  repositoryUrl={repositoryUrl}
+                  projectPath={projectData?.path}
+                  isUnborn={isUnborn}
+                  initialConversation={initialConversation}
+                  connectionId={connectionId}
+                />
+              )}
+            </div>
           )}
           {selectedStrategy === 'from-pull-request' && (
             <div className="flex flex-col gap-3">
@@ -296,7 +353,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </DialogContentArea>
       <DialogFooter>
         <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!canCreate}>
-          Create
+          {selectedStrategy === 'autorun'
+            ? `Run ${fromAutorun.selectedIssues.length} task${fromAutorun.selectedIssues.length === 1 ? '' : 's'}`
+            : 'Create'}
         </ConfirmButton>
       </DialogFooter>
     </>

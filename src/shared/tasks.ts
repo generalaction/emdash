@@ -39,6 +39,7 @@ export type Task = {
   workspaceProvider?: 'byoi';
   workspaceId?: string;
   workspaceProviderData?: string; // JSON, BYOI only
+  autoCreatePr?: boolean;
 };
 
 export type TaskBootstrapStatus =
@@ -76,6 +77,8 @@ export type CreateTaskParams = {
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
   workspaceProvider?: 'byoi';
+  /** When true, the main process creates a draft PR after the initial agent session exits cleanly. GitHub-only. */
+  autoCreatePr?: boolean;
 };
 
 export type CreateTaskError =

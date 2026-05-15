@@ -41,6 +41,12 @@ export const projectSettingsSchema = z.object({
       terminateCommand: z.string().min(1),
     })
     .optional(),
+  autorun: z
+    .object({
+      concurrency: z.number().int().min(1).max(10).optional(),
+      defaultCreateDraftPr: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;

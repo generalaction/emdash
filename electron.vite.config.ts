@@ -37,7 +37,7 @@ export default defineConfig({
       },
     },
     server: {
-      port: 3000,
+      port: Number(process.env.EMDASH_DEV_PORT) || 3000,
     },
   },
 });

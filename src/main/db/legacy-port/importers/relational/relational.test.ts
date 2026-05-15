@@ -60,7 +60,8 @@ function createAppDb(): {
       is_pinned INTEGER NOT NULL DEFAULT 0,
       workspace_provider TEXT,
       workspace_id TEXT,
-      workspace_provider_data TEXT
+      workspace_provider_data TEXT,
+      auto_create_pr INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE conversations (
