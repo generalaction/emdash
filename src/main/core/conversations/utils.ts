@@ -6,13 +6,16 @@ export function mapConversationRowToConversation(
   row: ConversationRow,
   resume: boolean = false
 ): Conversation {
+  const config = row.config ? JSON.parse(row.config) : undefined;
+
   return {
     id: row.id,
     title: row.title,
     taskId: row.taskId,
     projectId: row.projectId,
     providerId: row.provider as AgentProviderId,
-    autoApprove: row.config ? JSON.parse(row.config).autoApprove : undefined,
+    autoApprove: config?.autoApprove,
+    providerSessionId: config?.providerSessionId,
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,

@@ -9,6 +9,7 @@ export type Conversation = {
   lastInteractedAt: string | null;
   resume?: boolean;
   autoApprove?: boolean;
+  providerSessionId?: string;
   isInitialConversation: boolean | null;
 };
 

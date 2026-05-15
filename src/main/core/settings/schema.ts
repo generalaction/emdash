@@ -15,6 +15,7 @@ export const projectSettingsSchema = z.object({
 export const localProjectSettingsSchema = z.object({
   defaultProjectsDirectory: z.string(),
   defaultWorktreeDirectory: z.string(),
+  injectAgentNotificationHooks: z.boolean().default(true),
   writeAgentConfigToGitIgnore: z.boolean(),
 });
 

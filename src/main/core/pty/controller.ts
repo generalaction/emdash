@@ -4,6 +4,7 @@ import { createRPCController } from '@shared/ipc/rpc';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import { log } from '@main/lib/logger';
+import { recordCodexInput } from '../conversations/impl/codex-session-store';
 import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { ptySessionRegistry } from './pty-session-registry';
@@ -13,6 +14,7 @@ export const ptyController = createRPCController({
   sendInput: (sessionId: string, data: string) => {
     const pty = ptySessionRegistry.get(sessionId);
     if (!pty) return err({ type: 'not_found' as const });
+    recordCodexInput(sessionId, data);
     pty.write(data);
     return ok();
   },
