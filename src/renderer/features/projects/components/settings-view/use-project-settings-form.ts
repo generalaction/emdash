@@ -2,6 +2,9 @@ import { useCallback, useMemo, useState } from 'react';
 import type { Remote } from '@shared/git';
 import {
   emptyProjectSettingsOverrideState,
+  type MigrateProjectConfigRequest,
+  type MigrateProjectConfigResult,
+  type ProjectConfigMigration,
   type ProjectSettings,
   type ProjectSettingsOverrideState,
   type ProjectSettingsPage,
@@ -36,11 +39,15 @@ type UseProjectSettingsFormArgs = {
   remotes: Remote[];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
+  configMigrations: ProjectConfigMigration[];
   onSuccess: () => void;
   save: (settings: ProjectSettings) => Promise<Result<ProjectSettings, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
   ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
+  migrateProjectConfig: (
+    request: MigrateProjectConfigRequest
+  ) => Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>>;
 };
 
 type FormSnapshot = {
@@ -61,9 +68,11 @@ export function useProjectSettingsForm({
   remotes,
   writeTargets,
   overrideState,
+  configMigrations,
   onSuccess,
   save,
   writeConfigToRepo,
+  migrateProjectConfig,
 }: UseProjectSettingsFormArgs) {
   const { showModal } = useModalContext();
   const { toast } = useToast();
@@ -90,6 +99,8 @@ export function useProjectSettingsForm({
   const dirty = !areFormStatesEqual(form, savedForm);
   const canShareConfig = availableWriteFields.length > 0 && writeTargets.length > 0;
   const shareDisabled = dirty;
+  const canImportConfig = configMigrations.length > 0;
+  const importDisabled = dirty;
   const initialWriteTarget = writeTargets[0]
     ? projectConfigTargetValue(writeTargets[0])
     : 'project:repository';
@@ -203,6 +214,37 @@ export function useProjectSettingsForm({
     writeTargets,
   ]);
 
+  const openImportConfigModal = useCallback(() => {
+    if (!canImportConfig || importDisabled) return;
+    showModal('projectConfigImportModal', {
+      migrations: configMigrations,
+      migrateProjectConfig,
+      onSuccess: ({ page, migration }) => {
+        const nextForm = settingsToForm(page.settings, baseRemote, remotes);
+        setFormSnapshot({
+          baseline: nextForm,
+          form: nextForm,
+          savedForm: nextForm,
+        });
+        toast({
+          title: `${migration.label} config imported`,
+          description: `${migration.files.join(', ')} was imported successfully.`,
+        });
+        onSuccess();
+      },
+    });
+  }, [
+    baseRemote,
+    canImportConfig,
+    configMigrations,
+    importDisabled,
+    migrateProjectConfig,
+    onSuccess,
+    remotes,
+    showModal,
+    toast,
+  ]);
+
   const handleUndo = useCallback(() => {
     setFormSnapshot({
       ...resolvedSnapshot,
@@ -219,12 +261,16 @@ export function useProjectSettingsForm({
     saveStatus,
     canShareConfig,
     shareDisabled,
+    canImportConfig,
+    importDisabled,
+    configMigrations,
     worktreeDirectoryError: visibleWorktreeDirectoryError,
     workspaceProviderErrors: visibleWorkspaceProviderErrors,
     update,
     getOverrideSources,
     handleSave,
     openShareConfigModal,
+    openImportConfigModal,
     handleUndo,
   };
 }

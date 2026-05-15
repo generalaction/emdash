@@ -3,7 +3,10 @@ import { Home, Server } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
-import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import {
+  getProjectManagerStore,
+  getProjectSettingsStore,
+} from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
@@ -78,6 +81,34 @@ export const AddProjectModal = observer(function AddProjectModal({
   const showSshConnModal = useShowModal('addSshConnModal');
   const showAddProjectModal = useShowModal('addProjectModal');
   const showConfirm = useShowModal('confirmActionModal');
+  const showProjectConfigImportModal = useShowModal('projectConfigImportModal');
+
+  const maybeShowProjectConfigImportPrompt = async (projectId: string) => {
+    const projectManager = getProjectManagerStore();
+    await projectManager.mountProject(projectId).catch((error) => {
+      log.error(error);
+    });
+
+    const settingsStore = getProjectSettingsStore(projectId);
+    if (!settingsStore) return;
+
+    await settingsStore.load();
+    if (!settingsStore.shouldPromptConfigMigration) return;
+
+    const migrations = settingsStore.configMigrations ?? [];
+    if (migrations.length === 0) return;
+
+    showProjectConfigImportModal({
+      migrations,
+      migrateProjectConfig: (request) => settingsStore.migrateProjectConfig(request),
+      onSuccess: ({ migration }) => {
+        toast({
+          title: `${migration.label} config imported`,
+          description: `${migration.files.join(', ')} was imported successfully.`,
+        });
+      },
+    });
+  };
 
   const handleAddConnection = () => {
     showSshConnModal({
@@ -239,9 +270,10 @@ export const AddProjectModal = observer(function AddProjectModal({
         ? { type: 'ssh' as const, connectionId: selectedConnectionId }
         : { type: 'local' as const };
 
+    let createPromise: Promise<string | undefined>;
     switch (mode) {
       case 'pick':
-        void getProjectManagerStore().createProject(
+        createPromise = getProjectManagerStore().createProject(
           projectType,
           {
             mode: 'pick',
@@ -253,7 +285,7 @@ export const AddProjectModal = observer(function AddProjectModal({
         );
         break;
       case 'new':
-        void getProjectManagerStore().createProject(
+        createPromise = getProjectManagerStore().createProject(
           projectType,
           {
             mode: 'new',
@@ -267,7 +299,7 @@ export const AddProjectModal = observer(function AddProjectModal({
         );
         break;
       case 'clone':
-        void getProjectManagerStore().createProject(
+        createPromise = getProjectManagerStore().createProject(
           projectType,
           {
             mode: 'clone',
@@ -279,6 +311,13 @@ export const AddProjectModal = observer(function AddProjectModal({
         );
         break;
     }
+    void createPromise
+      .then((createdProjectId) => {
+        if (createdProjectId === id) void maybeShowProjectConfigImportPrompt(createdProjectId);
+      })
+      .catch((error) => {
+        log.error(error);
+      });
     onClose();
     navigate('project', { projectId: id });
   };
