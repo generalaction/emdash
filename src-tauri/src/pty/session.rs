@@ -108,6 +108,42 @@ impl Session {
     pub fn id(&self) -> PtyId {
         self.id
     }
+
+    pub fn write(&self, bytes: &[u8]) -> Result<(), PtyError> {
+        use std::io::Write;
+        let mut writer = self.writer.lock();
+        writer
+            .write_all(bytes)
+            .map_err(|e| PtyError::Io { message: e.to_string() })?;
+        writer
+            .flush()
+            .map_err(|e| PtyError::Io { message: e.to_string() })
+    }
+
+    pub fn resize(&self, size: PtySize) -> Result<(), PtyError> {
+        self.master
+            .lock()
+            .resize(PortablePtySize {
+                rows: size.rows,
+                cols: size.cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| {
+                // Windows ConPTY frequently returns EBADF/ENOTTY post-exit;
+                // the Electron pty silently swallows these. We surface the
+                // first occurrence in case it's diagnostically useful and
+                // let the caller decide.
+                PtyError::Io { message: e.to_string() }
+            })
+    }
+
+    pub fn kill(&self) -> Result<(), PtyError> {
+        self.child
+            .lock()
+            .kill()
+            .map_err(|e| PtyError::Io { message: e.to_string() })
+    }
 }
 
 impl Drop for Session {
