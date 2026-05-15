@@ -51,6 +51,14 @@ export const defaultAgentSchema = z.optional(z.enum(AGENT_PROVIDER_IDS)).default
 
 export const reviewPromptSchema = z.string().default(DEFAULT_REVIEW_PROMPT);
 
+export const promptLibraryPromptSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  prompt: z.string().min(1),
+});
+
+export const promptLibrarySchema = z.array(promptLibraryPromptSchema).default([]);
+
 export const keyboardSettingsSchema = z
   .optional(
     z.object(
@@ -111,6 +119,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
   reviewPrompt: reviewPromptSchema,
+  promptLibrary: promptLibrarySchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
@@ -128,6 +137,7 @@ export const appSettingsSchema = z.object({
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
   reviewPrompt: reviewPromptSchema,
+  promptLibrary: promptLibrarySchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,

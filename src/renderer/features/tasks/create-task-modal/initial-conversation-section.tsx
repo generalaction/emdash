@@ -40,10 +40,11 @@ interface InitialConversationFieldProps {
 
 export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
   const { value: reviewPrompt } = useAppSettingsKey('reviewPrompt');
+  const { value: promptLibrary } = useAppSettingsKey('promptLibrary');
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, reviewPrompt),
-    [linkedIssue, reviewPrompt]
+    () => buildTaskContextActions(linkedIssue, reviewPrompt, undefined, promptLibrary),
+    [linkedIssue, reviewPrompt, promptLibrary]
   );
 
   const handleActionClick = (text: string) => {

@@ -3,6 +3,7 @@ import type { Issue } from '@shared/tasks';
 import {
   buildDraftCommentsContextAction,
   buildLinkedIssueContextAction,
+  buildPromptLibraryContextActions,
   buildReviewPromptContextAction,
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
@@ -81,6 +82,24 @@ describe('buildReviewPromptContextAction', () => {
   });
 });
 
+describe('buildPromptLibraryContextActions', () => {
+  it('builds one action per non-empty custom prompt', () => {
+    const actions = buildPromptLibraryContextActions([
+      { id: 'one', title: 'Security review', prompt: 'Check auth boundaries.' },
+      { id: 'two', title: 'Empty', prompt: '   ' },
+    ]);
+
+    expect(actions).toEqual([
+      {
+        id: 'custom-prompt:one',
+        kind: 'custom-prompt',
+        label: 'Security review',
+        text: 'Check auth boundaries.',
+      },
+    ]);
+  });
+});
+
 describe('buildDraftCommentsContextAction', () => {
   it('returns null when there are no comments', () => {
     expect(
@@ -117,13 +136,19 @@ describe('buildDraftCommentsContextAction', () => {
 
 describe('buildTaskContextActions', () => {
   it('includes linked issue context, then draft comments, then review prompt', () => {
-    const actions = buildTaskContextActions(makeIssue(), 'Review this worktree for issues.', {
-      count: 1,
-      formattedComments: '<user_comments>test</user_comments>',
-    });
-    expect(actions).toHaveLength(3);
+    const actions = buildTaskContextActions(
+      makeIssue(),
+      'Review this worktree for issues.',
+      {
+        count: 1,
+        formattedComments: '<user_comments>test</user_comments>',
+      },
+      [{ id: 'custom', title: 'Perf review', prompt: 'Look for slow paths.' }]
+    );
+    expect(actions).toHaveLength(4);
     expect(actions[0]?.id).toBe('linked-issue:github:EMD-123');
     expect(actions[1]?.id).toBe('draft-comments');
     expect(actions[2]?.id).toBe('review-prompt');
+    expect(actions[3]?.id).toBe('custom-prompt:custom');
   });
 });

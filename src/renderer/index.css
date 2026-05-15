@@ -405,6 +405,20 @@
     overflow: hidden;
   }
 
+  .prompt-library-toolbar {
+    container-type: inline-size;
+  }
+
+  @container (max-width: 520px) {
+    .prompt-library-new-prompt-label {
+      display: none;
+    }
+
+    .prompt-library-new-prompt-icon {
+      margin-right: 0;
+    }
+  }
+
   .logo-shimmer-overlay::before {
     content: '';
     position: absolute;

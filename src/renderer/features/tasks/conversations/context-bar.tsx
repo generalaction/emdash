@@ -1,4 +1,4 @@
-import { ArrowUp, FileSearch } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { CommentsPopover } from './comments-popover';
 import { buildTaskContextActions, type ContextAction } from './context-actions';
+import { PromptActionsMenu } from './prompt-actions-menu';
 
 export const ContextBar = observer(function ContextBar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -26,6 +27,8 @@ export const ContextBar = observer(function ContextBar() {
   const task = getRegisteredTaskData(projectId, taskId);
   const draftComments = getTaskStore(projectId, taskId)?.draftComments;
   const { value: reviewPrompt, isSaving: isSavingReviewPrompt } = useAppSettingsKey('reviewPrompt');
+  const { value: promptLibrary, isSaving: isSavingPromptLibrary } =
+    useAppSettingsKey('promptLibrary');
   const conversationStore = conversations;
   const activeConversation = taskView.tabManager.activeConversation;
   const activeSessionId = activeConversation
@@ -37,17 +40,28 @@ export const ContextBar = observer(function ContextBar() {
 
   const actions = useMemo(
     () =>
-      buildTaskContextActions(task?.linkedIssue, reviewPrompt, {
-        count: draftComments?.count ?? 0,
-        formattedComments: formattedDraftComments,
-      }),
-    [reviewPrompt, task?.linkedIssue, draftComments?.count, formattedDraftComments]
+      buildTaskContextActions(
+        task?.linkedIssue,
+        reviewPrompt,
+        {
+          count: draftComments?.count ?? 0,
+          formattedComments: formattedDraftComments,
+        },
+        promptLibrary
+      ),
+    [reviewPrompt, promptLibrary, task?.linkedIssue, draftComments?.count, formattedDraftComments]
   );
   const issueAction = actions.find((action) => action.kind === 'linked-issue') ?? null;
-  const reviewAction = actions.find((action) => action.kind === 'review-prompt') ?? null;
+  const promptActions = actions.filter(
+    (action) => action.kind === 'review-prompt' || action.kind === 'custom-prompt'
+  );
   const draftCommentsAction = actions.find((action) => action.kind === 'draft-comments') ?? null;
 
-  if (!draftComments || !hasConversation || (!issueAction && !draftCommentsAction && !reviewAction))
+  if (
+    !draftComments ||
+    !hasConversation ||
+    (!issueAction && !draftCommentsAction && promptActions.length === 0)
+  )
     return null;
 
   const applyContext = async (action: ContextAction) => {
@@ -66,29 +80,14 @@ export const ContextBar = observer(function ContextBar() {
   return (
     <TooltipProvider>
       <div className="px-2 pb-4 flex justify-center items-center gap-2 bg-background-secondary-1 w-full">
-        <div className="border  rounded-lg bg-background-2">
-          {reviewAction ? (
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!canApplyContext || isSavingReviewPrompt}
-                  onClick={() => void applyContext(reviewAction)}
-                  className="h-7 max-w-full rounded-md bg-background-1 px-2 text-xs font-normal hover:bg-background-1/80"
-                >
-                  <FileSearch className="size-3.5 shrink-0" />
-                  <span className="max-w-72 truncate">{reviewAction.label}</span>
-                  <ArrowUp className="size-3 shrink-0" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {canApplyContext
-                  ? 'Add review prompt to the chat input'
-                  : 'Create and select a conversation first'}
-              </TooltipContent>
-            </Tooltip>
-          ) : null}
+        <div className="flex max-w-full flex-wrap items-center gap-1 rounded-lg border bg-background-2 p-1">
+          <PromptActionsMenu
+            actions={promptActions}
+            disabled={!canApplyContext || isSavingReviewPrompt || isSavingPromptLibrary}
+            disabledTooltip="Create and select a conversation first"
+            actionTooltip="Add a prompt to the chat input"
+            onActionClick={(action) => void applyContext(action)}
+          />
           {issueAction ? (
             <Tooltip>
               <TooltipTrigger>

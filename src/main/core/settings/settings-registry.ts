@@ -43,6 +43,7 @@ export const SETTINGS_DEFAULTS = {
   theme: null,
   defaultAgent: DEFAULT_AGENT_ID,
   reviewPrompt: DEFAULT_REVIEW_PROMPT,
+  promptLibrary: [],
   keyboard: {},
   openIn: {
     default: 'terminal' as const,
