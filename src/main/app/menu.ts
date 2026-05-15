@@ -134,8 +134,14 @@ export function setupApplicationMenu(): void {
     { role: 'windowMenu' as const },
     // Help menu
     {
+      role: 'help' as const,
       label: 'Help',
       submenu: [
+        {
+          label: 'Check for Updates\u2026',
+          click: () => events.emit(menuCheckForUpdatesChannel, undefined),
+        },
+        { type: 'separator' as const },
         {
           label: 'Docs',
           click: () => {
@@ -148,15 +154,6 @@ export function setupApplicationMenu(): void {
             void shell.openExternal(EMDASH_RELEASES_URL);
           },
         },
-        ...(!isMac
-          ? [
-              { type: 'separator' as const },
-              {
-                label: 'Check for Updates\u2026',
-                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
-              },
-            ]
-          : []),
       ],
     },
   ];
