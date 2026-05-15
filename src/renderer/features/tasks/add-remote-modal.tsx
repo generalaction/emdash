@@ -209,14 +209,14 @@ export function AddRemoteModal({
                 value={visibility}
                 onValueChange={(v) => setVisibility(v as 'public' | 'private')}
               >
-                <div className="flex items-center gap-3">
+                <Label className="flex items-center gap-3 cursor-pointer font-normal">
                   <RadioGroupItem value="private" />
-                  <Label className="cursor-pointer font-normal">Private</Label>
-                </div>
-                <div className="flex items-center gap-3">
+                  Private
+                </Label>
+                <Label className="flex items-center gap-3 cursor-pointer font-normal">
                   <RadioGroupItem value="public" />
-                  <Label className="cursor-pointer font-normal">Public</Label>
-                </div>
+                  Public
+                </Label>
               </RadioGroup>
             </Field>
           </FieldGroup>
