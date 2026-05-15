@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { commands, type SecretsCommandError } from './bindings';
+import { DebugShell } from './components/DebugShell';
 
 function formatThrown(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -152,6 +153,8 @@ export function App() {
         </div>
         {readBack !== null && <pre className="output">stored and re-read: {readBack}</pre>}
       </section>
+
+      {import.meta.env.DEV && <DebugShell />}
 
       {error && <pre className="error">{error}</pre>}
     </main>
