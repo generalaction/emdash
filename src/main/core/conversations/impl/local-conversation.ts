@@ -124,6 +124,7 @@ export class LocalConversationProvider implements ConversationProvider {
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
+    const provider = getProvider(conversation.providerId);
     const pty = spawnLocalPty({
       id: sessionId,
       command: resolved.command,
@@ -132,7 +133,7 @@ export class LocalConversationProvider implements ConversationProvider {
       env: {
         ...buildAgentEnv({
           hook: port > 0 ? { port, ptyId, token } : undefined,
-          providerVars: providerEnv,
+          providerVars: { ...provider?.runtimeEnv, ...providerEnv },
         }),
         ...this.taskEnvVars,
       },
@@ -141,7 +142,6 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const hookActive = port > 0;
-    const provider = getProvider(conversation.providerId);
     const useHooksOnly = hookActive && provider?.supportsHooks;
 
     if (!useHooksOnly) {

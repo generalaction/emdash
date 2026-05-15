@@ -72,6 +72,8 @@ export type AgentProviderDefinition = {
   invertInDark?: boolean;
   terminalOnly?: boolean;
   supportsHooks?: boolean;
+  /** Extra env vars injected when this provider is launched. */
+  runtimeEnv?: Record<string, string>;
 };
 
 export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
@@ -231,6 +233,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'ampcode.png',
     alt: 'Amp CLI',
     terminalOnly: true,
+    supportsHooks: true,
+    runtimeEnv: { PLUGINS: 'all' },
   },
   {
     id: 'opencode',

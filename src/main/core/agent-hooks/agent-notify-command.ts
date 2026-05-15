@@ -1,7 +1,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, win32 } from 'node:path';
+import type { AgentEventType } from '@shared/events/agentEvents';
 import { log } from '@main/lib/logger';
+import ampPluginContent from './amp-notifications-plugin.js?raw';
 import openCodePluginContent from './opencode-notifications-plugin.js?raw';
 
 export type CodexNotifyCommandOptions = {
@@ -13,7 +15,7 @@ export type CodexNotifyCommandOptions = {
 
 const ensuredWindowsCodexNotifyScriptPaths = new Set<string>();
 
-export function makeClaudeHookCommand(eventType: string): string {
+export function makeClaudeHookCommand(eventType: AgentEventType): string {
   return (
     'curl -sf -X POST ' +
     '-H "Content-Type: application/json" ' +
@@ -27,6 +29,10 @@ export function makeClaudeHookCommand(eventType: string): string {
 
 export function makeOpenCodePluginContent(): string {
   return openCodePluginContent;
+}
+
+export function makeAmpPluginContent(): string {
+  return ampPluginContent;
 }
 
 function makePosixCodexNotifyCommand(): string[] {

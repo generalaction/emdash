@@ -5,6 +5,10 @@ import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import type { RawHookRequest } from './hook-server';
 
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
 function normalizePayload(
   providerId: string,
   body: Record<string, unknown>
@@ -15,8 +19,8 @@ function normalizePayload(
     lastAssistantMessage: (body.last_assistant_message ?? body.lastAssistantMessage) as
       | string
       | undefined,
-    title: body.title as string | undefined,
-    message: body.message as string | undefined,
+    title: readString(body.title),
+    message: readString(body.message) ?? readString(body.error_type),
   };
 
   if (!payload.notificationType && providerId === 'codex' && body.type === 'agent-turn-complete') {

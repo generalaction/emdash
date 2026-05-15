@@ -1,10 +1,12 @@
 import * as toml from 'smol-toml';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentEventType } from '@shared/events/agentEvents';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import {
+  makeAmpPluginContent,
   makeClaudeHookCommand,
   makeCodexNotifyCommand,
   makeOpenCodePluginContent,
@@ -17,13 +19,16 @@ const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
+const AMP_PLUGIN_PATH = '.amp/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
   { eventType: 'stop', hookKey: 'Stop' },
-] satisfies { eventType: string; hookKey: string }[];
+  { eventType: 'working', hookKey: 'UserPromptSubmit' },
+  { eventType: 'error', hookKey: 'StopFailure' },
+] satisfies { eventType: AgentEventType; hookKey: string }[];
 
 export class HookConfigWriter {
   constructor(
@@ -68,29 +73,31 @@ export class HookConfigWriter {
   }
 
   async writePiExtension(): Promise<boolean> {
-    if (!(await resolveCommandPath('pi', this.exec))) return false;
-
-    const existing = await this.fs
-      .read(PI_EMDASH_EXTENSION_PATH)
-      .then((r) => r.content)
-      .catch(() => undefined);
-    if (existing === piEmdashExtension) return true;
-
-    await this.fs.write(PI_EMDASH_EXTENSION_PATH, piEmdashExtension);
-    return true;
+    return this.writeStaticHookFile('pi', PI_EMDASH_EXTENSION_PATH, piEmdashExtension);
   }
 
   async writeOpenCodePlugin(): Promise<boolean> {
-    if (!(await resolveCommandPath('opencode', this.exec))) return false;
+    return this.writeStaticHookFile('opencode', OPENCODE_PLUGIN_PATH, makeOpenCodePluginContent());
+  }
 
-    const pluginContent = makeOpenCodePluginContent();
+  async writeAmpPlugin(): Promise<boolean> {
+    return this.writeStaticHookFile('amp', AMP_PLUGIN_PATH, makeAmpPluginContent());
+  }
+
+  private async writeStaticHookFile(
+    command: string,
+    path: string,
+    content: string
+  ): Promise<boolean> {
+    if (!(await resolveCommandPath(command, this.exec))) return false;
+
     const existing = await this.fs
-      .read(OPENCODE_PLUGIN_PATH)
+      .read(path)
       .then((r) => r.content)
       .catch(() => undefined);
-    if (existing === pluginContent) return true;
+    if (existing === content) return true;
 
-    await this.fs.write(OPENCODE_PLUGIN_PATH, pluginContent);
+    await this.fs.write(path, content);
     return true;
   }
 
@@ -131,11 +138,19 @@ export class HookConfigWriter {
       }
       return;
     }
+
+    if (providerId === 'amp') {
+      const wroteConfig = await this.writeAmpPlugin();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([AMP_PLUGIN_PATH]);
+      }
+      return;
+    }
   }
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'pi', 'opencode'] as const).map((providerId) =>
+      (['claude', 'codex', 'pi', 'opencode', 'amp'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })
