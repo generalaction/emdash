@@ -4,16 +4,17 @@
 
 use std::path::{Path, PathBuf};
 
-const DOMAIN_MODULES: &[&str] = &["bindings_parser", "greeting", "shell_env"];
+const DOMAIN_MODULES: &[&str] = &["bindings_parser", "db", "greeting", "secrets", "shell_env"];
 const TAURI_GLUE_MODULES: &[&str] = &["commands", "tauri_bindings"];
 
 #[test]
 fn domain_modules_do_not_import_tauri_runtime() {
     let src_dir = src_dir();
     for module in DOMAIN_MODULES {
-        let module_path = module_file(&src_dir, module);
-        let content = read(&module_path);
-        assert_no_tauri_runtime_imports(&module_path, &content);
+        for file in module_files(&src_dir, module) {
+            let content = read(&file);
+            assert_no_tauri_runtime_imports(&file, &content);
+        }
     }
 }
 
@@ -60,12 +61,33 @@ fn src_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src")
 }
 
-fn module_file(src_dir: &Path, module: &str) -> PathBuf {
+fn module_files(src_dir: &Path, module: &str) -> Vec<PathBuf> {
     let as_file = src_dir.join(format!("{module}.rs"));
     if as_file.is_file() {
-        return as_file;
+        return vec![as_file];
     }
-    src_dir.join(module).join("mod.rs")
+    let dir = src_dir.join(module);
+    if !dir.is_dir() {
+        panic!(
+            "module `{module}` has neither `{}.rs` nor `{module}/mod.rs`",
+            module
+        );
+    }
+    let mut out = Vec::new();
+    walk(&dir, &mut out);
+    out
+}
+
+fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).expect("read_dir") {
+        let entry = entry.expect("dir entry");
+        let path = entry.path();
+        if path.is_dir() {
+            walk(&path, out);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+            out.push(path);
+        }
+    }
 }
 
 fn exported_modules(lib_rs: &str) -> Vec<String> {

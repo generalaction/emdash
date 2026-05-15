@@ -1,6 +1,12 @@
 //! Tauri runtime glue. Domain logic stays in `emdash_dev::*` lib modules.
 
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use emdash_dev::db::Db;
+use emdash_dev::secrets::{master_key::OsKeyringMasterKey, Secrets};
 use emdash_dev::tauri_bindings;
+use tauri::Manager;
 
 pub fn export_bindings_default() -> Result<(), Box<dyn std::error::Error>> {
     let path = format!(
@@ -33,8 +39,35 @@ pub fn run() {
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
             specta_builder.mount_events(app);
+
+            let db_path = resolve_db_path(app.handle())?;
+            if let Some(parent) = db_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let db = Db::open(&db_path)?;
+            let master = Arc::new(OsKeyringMasterKey::new());
+            let secrets = Arc::new(Secrets::new(master, db.clone()));
+
+            app.manage(db);
+            app.manage(secrets);
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running emdash-dev");
+}
+
+/// `EMDASH_DEV_DB_FILE` env var overrides everything (set in dev shells, tests,
+/// portable mode). Otherwise the path is `<app_data_dir>/emdash-dev.db`. The
+/// app_data_dir on macOS is `~/Library/Application Support/com.emdash.dev/`
+/// per the bundle identifier in tauri.conf.json.
+fn resolve_db_path(handle: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    if let Some(explicit) = std::env::var_os("EMDASH_DEV_DB_FILE") {
+        let p = PathBuf::from(explicit);
+        if p.as_os_str().is_empty() {
+            return Err("EMDASH_DEV_DB_FILE is set but empty".into());
+        }
+        return Ok(p);
+    }
+    let dir = handle.path().app_data_dir()?;
+    Ok(dir.join("emdash-dev.db"))
 }

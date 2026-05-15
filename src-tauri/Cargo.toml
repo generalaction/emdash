@@ -29,8 +29,34 @@ specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 
+# DB stack — rusqlite bundled so we don't depend on system libsqlite3 version.
+rusqlite = { version = "0.32", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.25"
+rusqlite_migration = "1.3"
+
+# Secrets stack.
+# keyring 3.x exposes platform-native backends behind feature flags. The exact
+# flag names have churned across patch releases; if `cargo check` reports an
+# unknown feature, replace with the current names from the keyring 3.x README
+# (typically apple-native + windows-native + a sync linux backend such as
+# `sync-secret-service` or `linux-native-sync-persistent`).
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+zeroize = { version = "1.8", features = ["derive"] }
+
+# Shared.
+thiserror = "2"
+parking_lot = "0.12"
+directories = "5"
+base64 = "0.22"
+
 [dev-dependencies]
 insta = { version = "1.47", features = ["json"] }
+tempfile = "3"
 
 [profile.release]
 panic = "abort"

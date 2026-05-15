@@ -48,3 +48,6 @@ What becomes easier and what becomes harder as a result.
 - [0000-template](./0000-template.md) — Template, not a real decision.
 - [0001-initial-scaffold](./0001-initial-scaffold.md) — Tauri/specta version
   pins, crate layout, capability-allowlist mechanism, shell_env source.
+- [0002-db-and-secrets-foundation](./0002-db-and-secrets-foundation.md) —
+  Two-pool rusqlite topology, collapsed bootstrap migration, master key in
+  OS keychain, per-row ChaCha20-Poly1305 AEAD.
