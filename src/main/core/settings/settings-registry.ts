@@ -59,6 +59,15 @@ export const SETTINGS_DEFAULTS = {
   resourceMonitor: {
     enabled: false,
   },
+  mcpServer: {
+    // Whether to expose emdash as an MCP server. Defaults to off; the user
+    // opts in from the Settings UI and the service then starts the loopback
+    // HTTP transport.
+    enabled: false,
+    // Port for the MCP HTTP server (loopback only). 7457 is unassigned by
+    // IANA and unlikely to collide with common dev tooling.
+    port: 7457,
+  },
 } satisfies SettingsDefaultsMap;
 
 export function getDefaultForKey<K extends AppSettingsKey>(key: K): AppSettings[K] {
