@@ -22,6 +22,9 @@ export type PortLegacySettingsOptions = {
     get<K extends AppSettingsKey>(key: K): Promise<AppSettings[K]>;
     update<K extends AppSettingsKey>(key: K, value: AppSettings[K]): Promise<void>;
   };
+  promptLibraryStore?: {
+    upsertReviewPrompt(prompt: string): Promise<void>;
+  };
 };
 
 type LegacyTheme = 'light' | 'dark' | 'dark-black' | 'system';
@@ -111,6 +114,9 @@ export async function portLegacySettings(
   const settingsStore =
     options.settingsStore ??
     new (await import('@main/core/settings/settings-service')).SettingsStore();
+  const promptLibraryStore =
+    options.promptLibraryStore ??
+    (await import('@main/core/prompt-library/service')).promptLibraryService;
   const repository = isPlainObject(legacyRaw.repository) ? legacyRaw.repository : null;
   if (repository) {
     const patch: Record<string, unknown> = {};
@@ -217,7 +223,7 @@ export async function portLegacySettings(
     const prompt = readTrimmedString(review.prompt);
     if (prompt) {
       try {
-        await updateScalarSetting(settingsStore, 'reviewPrompt', prompt);
+        await promptLibraryStore.upsertReviewPrompt(prompt);
         summary.imported.push('reviewPrompt');
       } catch {
         summary.skipped.push('reviewPrompt:validation-failed');

@@ -1,4 +1,4 @@
-import { FolderInput, FolderPlus, MessageSquareShare, Plug, Puzzle, Settings } from 'lucide-react';
+import { FolderInput, FolderPlus, Library, MessageSquareShare, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import {
@@ -78,22 +78,17 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               <ShortcutHint settingsKey="newProject" />
             </SidebarMenuButton>
             <SidebarMenuButton
-              isActive={isCurrentView(currentView, 'skills')}
-              onClick={() => navigate('skills')}
-              aria-label="Skills"
+              isActive={
+                isCurrentView(currentView, 'library') ||
+                isCurrentView(currentView, 'skills') ||
+                isCurrentView(currentView, 'mcp')
+              }
+              onClick={() => navigate('library')}
+              aria-label="Library"
               className="w-full justify-start"
             >
-              <Puzzle className="h-5 w-5 sm:h-4 sm:w-4" />
-              Skills
-            </SidebarMenuButton>
-            <SidebarMenuButton
-              isActive={isCurrentView(currentView, 'mcp')}
-              onClick={() => navigate('mcp')}
-              aria-label="MCP"
-              className="w-full justify-start"
-            >
-              <Plug className="h-5 w-5 sm:h-4 sm:w-4" />
-              MCP
+              <Library className="h-5 w-5 sm:h-4 sm:w-4" />
+              Library
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'settings')}

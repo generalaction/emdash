@@ -17,6 +17,7 @@ import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
+import { promptLibraryService } from './core/prompt-library/service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import {
   reconcileResourceSampler,
@@ -118,6 +119,7 @@ void app.whenReady().then(async () => {
   prSyncScheduler.initialize();
   appService.initialize();
   await appSettingsService.initialize();
+  await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
