@@ -17,6 +17,7 @@ import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
 import { plainController } from './core/plain/controller';
 import { projectController } from './core/projects/controller';
+import { promptLibraryController } from './core/prompt-library/controller';
 import { ptyController } from './core/pty/controller';
 import { pullRequestController } from './core/pull-requests/controller';
 import { repositoryController } from './core/repository/controller';
@@ -54,6 +55,7 @@ export const rpcRouter = createRPCRouter({
   jira: jiraController,
   linear: linearController,
   plain: plainController,
+  promptLibrary: promptLibraryController,
   skills: skillsController,
   ssh: sshController,
   projects: projectController,

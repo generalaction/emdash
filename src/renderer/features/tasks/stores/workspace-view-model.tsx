@@ -5,7 +5,8 @@ import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
 import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
-import { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
+import { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
+import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -28,9 +29,18 @@ export class WorkspaceViewModel implements ILifecycle {
   isTerminalDrawerOpen: boolean;
 
   /** Stable sub-stores — live for the full WorkspaceViewModel lifetime. */
-  readonly tabManager: TabManagerStore;
+  readonly tabGroupManager: TabGroupManagerStore;
   readonly terminalTabs: TerminalTabViewStore;
   readonly editorView: FileModelLifecycleStore;
+
+  /**
+   * Backwards-compatible getter returning the focused pane's TabManagerStore.
+   * All callers outside the split-pane render tree use this to access tab state
+   * without needing to know about multiple groups.
+   */
+  get tabManager(): TabManagerStore {
+    return this.tabGroupManager.focusedGroup;
+  }
 
   /**
    * Session-scoped: created in initialize() with live workspace git/pr references,
@@ -65,15 +75,19 @@ export class WorkspaceViewModel implements ILifecycle {
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
 
-    this.tabManager = new TabManagerStore(
+    this.tabGroupManager = new TabGroupManagerStore(
       () => conversationRegistry.get(this.taskId) ?? null,
       workspaceId
     );
     this.terminalTabs = new TerminalTabViewStore(() => terminalRegistry.get(this.taskId) ?? null);
-    this.editorView = new FileModelLifecycleStore(this.tabManager, taskData.projectId, workspaceId);
+    this.editorView = new FileModelLifecycleStore(
+      this.tabGroupManager,
+      taskData.projectId,
+      workspaceId
+    );
 
     makeAutoObservable(this, {
-      tabManager: false,
+      tabGroupManager: false,
       terminalTabs: false,
       editorView: false,
       diffView: observable.ref,
@@ -84,18 +98,43 @@ export class WorkspaceViewModel implements ILifecycle {
     const initConvDisposer = reaction(
       () => conversationRegistry.get(this.taskId)?.conversations.size ?? 0,
       (size) => {
-        if (size > 0 && this.tabManager.tabOrder.length === 0) {
-          runInAction(() => this.tabManager.initializeDefault());
+        if (size > 0 && this.tabGroupManager.focusedGroup.tabOrder.length === 0) {
+          runInAction(() => this.tabGroupManager.focusedGroup.initializeDefault());
           initConvDisposer();
         }
       }
     );
     this._disposers.push(initConvDisposer);
 
-    // Push tab-level history whenever the active tab changes.
+    // Sync all panes' isVisible/isFocused with task active state and focused pane.
+    // Tracks groupCount so new panes created via splitRight() are initialized immediately.
     this._disposers.push(
       reaction(
-        () => this.tabManager.resolvedActiveTabId,
+        () => {
+          const isActive =
+            appState.navigation.currentViewId === 'task' &&
+            (appState.navigation.viewParamsStore['task'] as { taskId?: string } | undefined)
+              ?.taskId === this.taskId;
+          return {
+            isActive,
+            activeGroupId: this.tabGroupManager.activeGroupId,
+            groupCount: this.tabGroupManager.groups.length,
+          };
+        },
+        ({ isActive, activeGroupId }) => {
+          for (const { groupId, tabManager } of this.tabGroupManager.groups) {
+            tabManager.setVisible(isActive);
+            tabManager.setFocused(isActive && groupId === activeGroupId);
+          }
+        },
+        { fireImmediately: true }
+      )
+    );
+
+    // Push tab-level history whenever the focused group's active tab changes.
+    this._disposers.push(
+      reaction(
+        () => this.tabGroupManager.focusedGroup.resolvedActiveTabId,
         (tabId) => {
           if (!tabId) return;
           appState.history.push({
@@ -145,7 +184,7 @@ export class WorkspaceViewModel implements ILifecycle {
       isSidebarCollapsed: this.isSidebarCollapsed,
       focusedRegion: this.focusedRegion,
       isTerminalDrawerOpen: this.isTerminalDrawerOpen,
-      tabManager: this.tabManager.snapshot,
+      tabGroups: this.tabGroupManager.snapshot,
       terminals: this.terminalTabs.snapshot,
       editor: this.editorView.snapshot,
       diffView: this.diffView?.snapshot ?? this._savedDiffViewSnapshot,
@@ -166,24 +205,41 @@ export class WorkspaceViewModel implements ILifecycle {
     this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot.isTerminalDrawerOpen ?? false;
 
-    if (savedSnapshot.tabManager) {
-      this.tabManager.restoreSnapshot(savedSnapshot.tabManager);
+    if (savedSnapshot.tabGroups) {
+      // Current format: multi-group snapshot.
+      this.tabGroupManager.restoreSnapshot(savedSnapshot.tabGroups);
+    } else if (savedSnapshot.tabManager) {
+      // Legacy migration: single-pane tabManager snapshot from before split panes.
+      this.tabGroupManager.restoreSnapshot({
+        groups: [{ groupId: crypto.randomUUID(), tabManager: savedSnapshot.tabManager }],
+        activeGroupId: '',
+        paneSizes: [100],
+      });
     } else if (savedSnapshot.conversations?.tabOrder?.length) {
       // Legacy migration: conversation tabs were stored under `conversations` before
       // the unified tab refactor.
-      this.tabManager.restoreSnapshot({
-        tabs: savedSnapshot.conversations.tabOrder.map((id) => ({
-          kind: 'conversation' as const,
-          tabId: crypto.randomUUID(),
-          conversationId: id,
-          isPreview: false,
-        })),
-        activeTabId: undefined,
+      this.tabGroupManager.restoreSnapshot({
+        groups: [
+          {
+            groupId: crypto.randomUUID(),
+            tabManager: {
+              tabs: savedSnapshot.conversations.tabOrder.map((id) => ({
+                kind: 'conversation' as const,
+                tabId: crypto.randomUUID(),
+                conversationId: id,
+                isPreview: false,
+              })),
+              activeTabId: undefined,
+            },
+          },
+        ],
+        activeGroupId: '',
+        paneSizes: [100],
       });
     }
 
-    if (this.tabManager.tabOrder.length === 0) {
-      this.tabManager.initializeDefault();
+    if (this.tabGroupManager.focusedGroup.tabOrder.length === 0) {
+      this.tabGroupManager.focusedGroup.initializeDefault();
     }
 
     if (savedSnapshot.terminals) {
@@ -224,7 +280,7 @@ export class WorkspaceViewModel implements ILifecycle {
     }
 
     this._diffTabLifecycle = new DiffTabLifecycleStore(
-      this.tabManager,
+      this.tabGroupManager.focusedGroup,
       workspace.git,
       this.prStore,
       this.diffView
@@ -286,7 +342,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.suspend();
     appState.history.prune((e) => e.kind === 'tab' && e.taskId === this.taskId);
     for (const d of this._disposers) d();
-    this.tabManager.dispose();
+    this.tabGroupManager.dispose();
     this.terminalTabs.dispose();
     this.editorView.dispose();
   }

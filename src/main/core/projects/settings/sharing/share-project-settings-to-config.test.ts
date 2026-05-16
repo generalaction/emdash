@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ShareableProjectSettings } from '@shared/project-settings';
-import { computeProjectSettingsOverrideState } from './sharing/project-settings-override-state';
+import { computeProjectSettingsOverrideState } from './project-settings-override-state';
 import {
   getProjectSettingsWriteTargets,
   resolveAllProjectSettingsTargets,
-} from './sharing/project-settings-target-resolver';
-import { shareProjectSettingsToConfig } from './sharing/share-project-settings-to-config';
+} from './project-settings-target-resolver';
+import { shareProjectSettingsToConfig } from './share-project-settings-to-config';
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),

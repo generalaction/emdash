@@ -3,6 +3,7 @@ import { autorun, reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { useEffect, useRef } from 'react';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
 import { MarkdownEditorRenderer } from '@renderer/lib/editor/markdown-renderer';
@@ -26,8 +27,8 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
  * for plain text/code files.
  */
 export const MarkdownEditorPanel = observer(function MarkdownEditorPanel() {
-  const taskView = useWorkspaceViewModel();
-  const activeTab = taskView.tabManager.activeFileEntry;
+  const { tabManager } = useTabGroupContext();
+  const activeTab = tabManager.activeFileEntry;
 
   if (!activeTab) return null;
 
@@ -152,8 +153,7 @@ interface SourceToggleOverlayProps {
 }
 
 function SourceToggleOverlay({ filePath }: SourceToggleOverlayProps) {
-  const taskView = useWorkspaceViewModel();
-  const { tabManager } = taskView;
+  const { tabManager } = useTabGroupContext();
 
   return (
     <ToggleGroup

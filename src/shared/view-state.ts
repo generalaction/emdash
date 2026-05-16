@@ -25,6 +25,16 @@ export type TabManagerSnapshot = {
   activeTabId: string | undefined;
 };
 
+export type TabGroupsSnapshot = {
+  groups: Array<{
+    groupId: string;
+    tabManager: TabManagerSnapshot;
+  }>;
+  activeGroupId: string;
+  /** Percentage sizes parallel to groups[]. */
+  paneSizes: number[];
+};
+
 export type EditorViewSnapshot = {
   expandedPaths: string[];
 };
@@ -63,6 +73,9 @@ export type TaskViewSnapshot = {
   isSidebarCollapsed?: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen?: boolean;
+  /** Takes precedence over tabManager when present. */
+  tabGroups?: TabGroupsSnapshot;
+  /** @deprecated Use tabGroups. Kept for migration from single-pane snapshots. */
   tabManager?: TabManagerSnapshot;
   /** @deprecated Legacy field from before the unified tab refactor. Used only for migration. */
   conversations?: TabViewSnapshot;

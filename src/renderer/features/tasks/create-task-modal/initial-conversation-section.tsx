@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
+import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { buildTaskContextActions } from '@renderer/features/tasks/conversations/context-actions';
+import {
+  buildTaskContextActions,
+  type ContextAction,
+} from '@renderer/features/tasks/conversations/context-actions';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { appendInitialConversationText } from './initial-conversation-text';
 import { ModalContextBar } from './modal-context-bar';
 
 export type InitialConversationState = {
@@ -39,15 +43,15 @@ interface InitialConversationFieldProps {
 }
 
 export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
-  const { value: reviewPrompt } = useAppSettingsKey('reviewPrompt');
+  const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, reviewPrompt),
-    [linkedIssue, reviewPrompt]
+    () => buildTaskContextActions(linkedIssue, undefined, promptLibrary),
+    [linkedIssue, promptLibrary]
   );
 
-  const handleActionClick = (text: string) => {
-    state.setPrompt(state.prompt ? `${state.prompt}\n${text}` : text);
+  const handleActionClick = (action: ContextAction) => {
+    state.setPrompt(appendInitialConversationText(state.prompt, action.text));
   };
 
   return (

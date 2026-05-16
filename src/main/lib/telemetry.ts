@@ -452,6 +452,10 @@ class TelemetryService implements IInitializable, IDisposable {
     };
   }
 
+  getInstanceId(): string | undefined {
+    return this.instanceId;
+  }
+
   setTelemetryEnabledViaUser(enabledFlag: boolean): void {
     this.userOptOut = !enabledFlag;
     void this.kv.set('enabled', String(enabledFlag));

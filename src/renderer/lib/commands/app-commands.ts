@@ -25,6 +25,7 @@ function createAppCommandProvider(): CommandProvider {
 
       const settingsDef = appDef('app.settings');
       const newProjectDef = appDef('app.newProject');
+      const giveFeedbackDef = appDef('app.giveFeedback');
       const navigateBackDef = appDef('app.navigateBack');
       const navigateForwardDef = appDef('app.navigateForward');
 
@@ -54,6 +55,17 @@ function createAppCommandProvider(): CommandProvider {
           },
         },
       ];
+
+      commands.push({
+        id: giveFeedbackDef.id,
+        label: giveFeedbackDef.label,
+        description: giveFeedbackDef.description,
+        shortcutKey: giveFeedbackDef.shortcutKey,
+        group: giveFeedbackDef.group,
+        execute() {
+          showModal('feedbackModal', {});
+        },
+      });
 
       if (projectId) {
         const newTaskDef = appDef('app.newTask');

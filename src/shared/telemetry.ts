@@ -4,7 +4,15 @@ import type { TaskLifecycleStatus } from '@shared/tasks';
 
 type EmptyProps = Record<string, never>;
 
-export type FocusView = 'home' | 'project' | 'task' | 'settings' | 'skills' | 'mcp' | 'automations';
+export type FocusView =
+  | 'home'
+  | 'project'
+  | 'task'
+  | 'settings'
+  | 'library'
+  | 'skills'
+  | 'mcp'
+  | 'automations';
 export type FocusMainPanel = 'agents' | 'editor' | 'diff';
 export type FocusedRegion = 'main' | 'bottom';
 
@@ -44,6 +52,7 @@ export type TelemetryEventProperties = {
   project_viewed: { from_view: FocusView | null };
   task_viewed: { from_view: FocusView | null };
   settings_viewed: { from_view: FocusView | null };
+  library_viewed: { from_view: FocusView | null };
   skills_viewed: { from_view: FocusView | null };
   mcp_viewed: { from_view: FocusView | null };
   automations_viewed: { from_view: FocusView | null };

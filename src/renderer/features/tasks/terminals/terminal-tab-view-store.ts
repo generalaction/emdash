@@ -62,10 +62,6 @@ export class TerminalTabViewStore
           if (!this.activeTabId && this.tabOrder.length > 0) {
             this.activeTabId = this.tabOrder[0];
           }
-          // When all terminals have been removed, create a replacement immediately
-          if (ids.length === 0) {
-            void this._getResource()?.createDefaultTerminal();
-          }
         })
       )
     );

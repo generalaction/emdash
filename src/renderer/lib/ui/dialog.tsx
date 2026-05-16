@@ -143,12 +143,19 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
 export function DialogContentArea({
   className,
   children,
+  ...props
 }: {
   className?: string;
   children: React.ReactNode;
-}) {
+} & React.ComponentProps<'div'>) {
   return (
-    <div className={cn('flex flex-col gap-2 w-full min-h-0 overflow-y-auto p-6 pt-0', className)}>
+    <div
+      className={cn(
+        'flex flex-col gap-2 w-full min-h-0 overflow-y-auto p-6 pt-0 focus-visible:outline-none',
+        className
+      )}
+      {...props}
+    >
       {children}
     </div>
   );
