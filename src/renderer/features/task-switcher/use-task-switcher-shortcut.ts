@@ -17,8 +17,10 @@ export function useTaskSwitcherShortcut(
 ): void {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigateRef = useRef(navigate);
+  const showModalRef = useRef(showModal);
   useEffect(() => {
     navigateRef.current = navigate;
+    showModalRef.current = showModal;
   });
 
   const clearTimer = useCallback(() => {
@@ -53,7 +55,7 @@ export function useTaskSwitcherShortcut(
         if (!started) return;
         // Start modal delay
         timerRef.current = setTimeout(() => {
-          if (store.isCycling) showModal();
+          if (store.isCycling) showModalRef.current();
         }, MODAL_DELAY_MS);
       } else {
         store.advance(e.shiftKey ? -1 : 1);
@@ -88,6 +90,7 @@ export function useTaskSwitcherShortcut(
       window.removeEventListener('keyup', onKeyUp, true);
       window.removeEventListener('blur', onBlur);
       clearTimer();
+      if (store.isCycling) store.cancel();
     };
-  }, [enabled, currentTaskId, showModal, clearTimer]);
+  }, [enabled, currentTaskId, clearTimer]);
 }

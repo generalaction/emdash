@@ -1,6 +1,6 @@
 import { GitBranch } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 
@@ -9,6 +9,12 @@ export function TabSwitcherModal(_props: BaseModalProps) {
   const pendingTask = useObserver(() => appState.taskSwitcher.pendingTask);
   const currentTaskId = useObserver(() => appState.taskSwitcher.currentTaskId);
   const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pendingTask || !listRef.current) return;
+    const el = listRef.current.querySelector<HTMLElement>(`[data-active="true"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [pendingTask]);
 
   if (tasks.length === 0) return null;
 
