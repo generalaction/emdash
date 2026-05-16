@@ -23,11 +23,16 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
+import { getCurrentLocalDroidSessionIds, rememberDroidSessionId } from './droid-session-resolver';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const MAX_RESPAWNS = 2;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export class LocalConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
@@ -42,6 +47,7 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly taskEnvVars: Record<string, string>;
   private readonly hookConfigWriter: HookConfigWriter;
   private readonly preparedHookProviders = new Map<string, boolean>();
+  private droidFreshStartQueue: Promise<void> = Promise.resolve();
 
   constructor({
     projectId,
@@ -84,124 +90,181 @@ export class LocalConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
 
-    await claudeTrustService.maybeAutoTrustLocal({
-      providerId: conversation.providerId,
-      cwd: this.taskPath,
-      homedir: homedir(),
-    });
-    await this.prepareHookConfig(conversation.providerId);
-
-    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const { command, args } = buildAgentCommand({
-      providerId: conversation.providerId,
-      providerConfig,
-      autoApprove: conversation.autoApprove,
-      sessionId: conversation.id,
-      isResuming,
-      initialPrompt,
-    });
-    const providerEnv = resolveProviderEnv(providerConfig);
-
-    const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
-
-    const resolved = resolveLocalPtySpawn({
-      platform: process.platform,
-      env: process.env,
-      intent: {
-        kind: 'run-command',
-        cwd: this.taskPath,
-        command: { kind: 'argv', command, args },
-        shellSetup: this.shellSetup,
-        tmuxSessionName,
-      },
-    });
-
-    logLocalPtySpawnWarnings('LocalConversationProvider', resolved.warnings, {
-      conversationId: conversation.id,
-      sessionId,
-    });
-
-    const ptyId = makePtyId(conversation.providerId, conversation.id);
-    const port = agentHookService.getPort();
-    const token = agentHookService.getToken();
-    const pty = spawnLocalPty({
-      id: sessionId,
-      command: resolved.command,
-      args: resolved.args,
-      cwd: resolved.cwd,
-      env: {
-        ...buildAgentEnv({
-          hook: port > 0 ? { port, ptyId, token } : undefined,
-          providerVars: providerEnv,
-        }),
-        ...this.taskEnvVars,
-      },
-      cols: initialSize.cols,
-      rows: initialSize.rows,
-    });
-
-    const hookActive = port > 0;
-    const provider = getProvider(conversation.providerId);
-    const useHooksOnly = hookActive && provider?.supportsHooks;
-
-    if (!useHooksOnly) {
-      wireAgentClassifier({
-        pty,
-        providerId: conversation.providerId,
-        projectId: conversation.projectId,
-        taskId: conversation.taskId,
-        conversationId: conversation.id,
-      });
+    let releaseDroidFreshStart: (() => void) | undefined;
+    let releasedDroidFreshStart = false;
+    const releaseQueuedDroidFreshStart = () => {
+      if (!releaseDroidFreshStart || releasedDroidFreshStart) return;
+      releasedDroidFreshStart = true;
+      releaseDroidFreshStart();
+    };
+    if (conversation.providerId === 'droid' && !isResuming) {
+      const previousDroidFreshStart = this.droidFreshStartQueue;
+      this.droidFreshStartQueue = previousDroidFreshStart.then(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseDroidFreshStart = resolve;
+          })
+      );
+      await previousDroidFreshStart;
     }
 
-    pty.onExit(({ exitCode }) => {
-      ptySessionRegistry.unregister(sessionId);
-      const shouldRespawn = this.sessions.has(sessionId);
-      this.sessions.delete(sessionId);
-      telemetryService.capture('agent_run_finished', {
-        provider: conversation.providerId,
-        exit_code: typeof exitCode === 'number' ? exitCode : -1,
-        project_id: conversation.projectId,
-        task_id: conversation.taskId,
-        conversation_id: conversation.id,
+    let startedAt = 0;
+    let existingDroidSessionIds: string[] = [];
+    try {
+      await claudeTrustService.maybeAutoTrustLocal({
+        providerId: conversation.providerId,
+        cwd: this.taskPath,
+        homedir: homedir(),
       });
-      events.emit(agentSessionExitedChannel, {
-        sessionId,
-        projectId: conversation.projectId,
-        conversationId: conversation.id,
-        taskId: conversation.taskId,
-        exitCode,
-      });
-      if (shouldRespawn && !this.tmux) {
-        const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
-        this.respawnCounts.set(sessionId, count);
+      await this.prepareHookConfig(conversation.providerId);
 
-        if (count > MAX_RESPAWNS && !isResuming) {
-          log.error('LocalConversationProvider: respawn limit reached, giving up', {
-            conversationId: conversation.id,
-          });
-          this.respawnCounts.delete(sessionId);
-          return;
-        }
-
-        const resumeNext = isResuming && count <= MAX_RESPAWNS;
-        if (count > MAX_RESPAWNS) this.respawnCounts.set(sessionId, 0);
-
-        setTimeout(() => {
-          this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
-            log.error('LocalConversationProvider: respawn failed', {
-              conversationId: conversation.id,
-              error: String(e),
-            });
-          });
-        }, 500);
+      const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+      if (conversation.providerId === 'droid' && !isResuming) {
+        existingDroidSessionIds = await getCurrentLocalDroidSessionIds(this.taskPath);
       }
-    });
+      if (conversation.providerId === 'droid' && isResuming && !conversation.providerSessionId) {
+        throw new Error('Cannot resume Droid session without a stored provider session id.');
+      }
+      const { command, args } = buildAgentCommand({
+        providerId: conversation.providerId,
+        providerConfig,
+        autoApprove: conversation.autoApprove,
+        sessionId: conversation.providerSessionId ?? conversation.id,
+        isResuming,
+        initialPrompt,
+      });
+      const providerEnv = resolveProviderEnv(providerConfig);
 
-    ptySessionRegistry.register(sessionId, pty, {
-      metadata: { providerId: conversation.providerId, title: conversation.title },
-    });
-    this.sessions.set(sessionId, pty);
+      const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+
+      const resolved = resolveLocalPtySpawn({
+        platform: process.platform,
+        env: process.env,
+        intent: {
+          kind: 'run-command',
+          cwd: this.taskPath,
+          command: { kind: 'argv', command, args },
+          shellSetup: this.shellSetup,
+          tmuxSessionName,
+        },
+      });
+
+      logLocalPtySpawnWarnings('LocalConversationProvider', resolved.warnings, {
+        conversationId: conversation.id,
+        sessionId,
+      });
+
+      startedAt = Date.now();
+      const ptyId = makePtyId(conversation.providerId, conversation.id);
+      const port = agentHookService.getPort();
+      const token = agentHookService.getToken();
+      const pty = spawnLocalPty({
+        id: sessionId,
+        command: resolved.command,
+        args: resolved.args,
+        cwd: resolved.cwd,
+        env: {
+          ...buildAgentEnv({
+            hook: port > 0 ? { port, ptyId, token } : undefined,
+            providerVars: providerEnv,
+          }),
+          ...this.taskEnvVars,
+        },
+        cols: initialSize.cols,
+        rows: initialSize.rows,
+      });
+
+      const hookActive = port > 0;
+      const provider = getProvider(conversation.providerId);
+      const useHooksOnly = hookActive && provider?.supportsHooks;
+
+      if (!useHooksOnly) {
+        wireAgentClassifier({
+          pty,
+          providerId: conversation.providerId,
+          projectId: conversation.projectId,
+          taskId: conversation.taskId,
+          conversationId: conversation.id,
+        });
+      }
+
+      pty.onExit(({ exitCode }) => {
+        ptySessionRegistry.unregister(sessionId);
+        const shouldRespawn = this.sessions.has(sessionId);
+        this.sessions.delete(sessionId);
+        telemetryService.capture('agent_run_finished', {
+          provider: conversation.providerId,
+          exit_code: typeof exitCode === 'number' ? exitCode : -1,
+          project_id: conversation.projectId,
+          task_id: conversation.taskId,
+          conversation_id: conversation.id,
+        });
+        events.emit(agentSessionExitedChannel, {
+          sessionId,
+          projectId: conversation.projectId,
+          conversationId: conversation.id,
+          taskId: conversation.taskId,
+          exitCode,
+        });
+        if (shouldRespawn && !this.tmux) {
+          const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
+          this.respawnCounts.set(sessionId, count);
+
+          if (count > MAX_RESPAWNS && !isResuming) {
+            log.error('LocalConversationProvider: respawn limit reached, giving up', {
+              conversationId: conversation.id,
+            });
+            this.respawnCounts.delete(sessionId);
+            return;
+          }
+
+          const resumeNext = isResuming && count <= MAX_RESPAWNS;
+          if (count > MAX_RESPAWNS) this.respawnCounts.set(sessionId, 0);
+
+          setTimeout(() => {
+            this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
+              log.error('LocalConversationProvider: respawn failed', {
+                conversationId: conversation.id,
+                error: String(e),
+              });
+            });
+          }, 500);
+        }
+      });
+
+      ptySessionRegistry.register(sessionId, pty, {
+        metadata: { providerId: conversation.providerId, title: conversation.title },
+      });
+      this.sessions.set(sessionId, pty);
+    } catch (error) {
+      releaseQueuedDroidFreshStart();
+      throw error;
+    }
+
+    if (conversation.providerId === 'droid' && !isResuming) {
+      void (async () => {
+        try {
+          for (const delay of [1000, 2000, 4000]) {
+            await sleep(delay);
+            const stored = await rememberDroidSessionId({
+              conversationId: conversation.id,
+              cwd: this.taskPath,
+              startedAt,
+              initialPrompt,
+              existingSessionIds: existingDroidSessionIds,
+            });
+            if (stored) return;
+          }
+        } catch (error) {
+          log.warn('LocalConversationProvider: failed to remember Droid session id', {
+            conversationId: conversation.id,
+            error: String(error),
+          });
+        } finally {
+          releaseQueuedDroidFreshStart();
+        }
+      })();
+    }
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,

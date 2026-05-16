@@ -209,6 +209,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'droid',
     initialPromptFlag: '',
+    resumeFlag: '--resume',
     sessionIdFlag: '--session-id',
     sessionIdOnResumeOnly: true,
     icon: 'droid.svg',

@@ -94,7 +94,7 @@ describe('buildAgentCommand', () => {
     expect(result.args).toEqual(['run', '-s', '--resume']);
   });
 
-  it('does not pass Droid session id on fresh sessions', () => {
+  it('starts Droid fresh sessions with an initial prompt', () => {
     const result = buildAgentCommand({
       providerId: 'droid',
       providerConfig: providerConfigDefaults.droid,
@@ -105,7 +105,7 @@ describe('buildAgentCommand', () => {
     expect(result.args).toEqual(['Fix the bug']);
   });
 
-  it('passes Droid session id when resuming', () => {
+  it('resumes Droid using its interactive resume flag with a provider session id', () => {
     const result = buildAgentCommand({
       providerId: 'droid',
       providerConfig: providerConfigDefaults.droid,
@@ -113,7 +113,7 @@ describe('buildAgentCommand', () => {
       isResuming: true,
     });
 
-    expect(result.args).toEqual(['--session-id', 'conv-1']);
+    expect(result.args).toEqual(['--resume', 'conv-1']);
   });
 
   it.each<{

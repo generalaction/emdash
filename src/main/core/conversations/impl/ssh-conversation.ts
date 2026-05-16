@@ -18,11 +18,28 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
+import {
+  getCurrentRemoteDroidSessionIds,
+  rememberRemoteDroidSessionId,
+} from './droid-session-resolver';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const MAX_RESPAWNS = 2;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function remoteNowMs(ctx: IExecutionContext): Promise<number> {
+  try {
+    const { stdout } = await ctx.exec('date', ['+%s']);
+    const seconds = Number(stdout.trim());
+    if (Number.isFinite(seconds)) return seconds * 1000;
+  } catch {}
+  return Date.now();
+}
 
 export class SshConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
@@ -36,6 +53,8 @@ export class SshConversationProvider implements ConversationProvider {
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
+  private readonly remoteFs: SshFileSystem;
+  private droidFreshStartQueue: Promise<void> = Promise.resolve();
 
   constructor({
     projectId,
@@ -64,6 +83,7 @@ export class SshConversationProvider implements ConversationProvider {
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.proxy = proxy;
+    this.remoteFs = new SshFileSystem(proxy, '/');
   }
 
   async startSession(
@@ -81,121 +101,198 @@ export class SshConversationProvider implements ConversationProvider {
 
     if (this.sessions.has(sessionId)) return;
 
-    await claudeTrustService.maybeAutoTrustSsh({
-      providerId: conversation.providerId,
-      cwd: this.taskPath,
-      ctx: this.ctx,
-      remoteFs: new SshFileSystem(this.proxy, '/'),
-    });
-
-    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const { command, args } = buildAgentCommand({
-      providerId: conversation.providerId,
-      providerConfig,
-      autoApprove: conversation.autoApprove,
-      sessionId: conversation.id,
-      isResuming,
-      initialPrompt,
-    });
-    const providerEnv = resolveProviderEnv(providerConfig);
-
-    const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
-
-    const cfg: AgentSessionConfig = {
-      taskId: this.taskId,
-      conversationId: conversation.id,
-      providerId: conversation.providerId,
-      command,
-      args,
-      cwd: this.taskPath,
-      shellSetup: this.shellSetup,
-      tmuxSessionName,
-      autoApprove: conversation.autoApprove ?? false,
-      resume: isResuming,
+    let releaseDroidFreshStart: (() => void) | undefined;
+    let releasedDroidFreshStart = false;
+    const releaseQueuedDroidFreshStart = () => {
+      if (!releaseDroidFreshStart || releasedDroidFreshStart) return;
+      releasedDroidFreshStart = true;
+      releaseDroidFreshStart();
     };
-
-    const profile = await this.proxy.getRemoteShellProfile();
-    const sshCommand = resolveSshCommand(
-      'agent',
-      cfg,
-      { ...providerEnv, ...this.taskEnvVars },
-      profile
-    );
-
-    const result = await openSsh2Pty(this.proxy, {
-      id: sessionId,
-      command: sshCommand,
-      cols: initialSize.cols,
-      rows: initialSize.rows,
-    });
-
-    if (!result.success) {
-      log.error('SshConversationProvider: failed to open SSH channel', {
-        sessionId,
-        error: result.error.message,
-      });
-      throw new Error(result.error.message);
+    if (conversation.providerId === 'droid' && !isResuming) {
+      const previousDroidFreshStart = this.droidFreshStartQueue;
+      this.droidFreshStartQueue = previousDroidFreshStart.then(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseDroidFreshStart = resolve;
+          })
+      );
+      await previousDroidFreshStart;
     }
 
-    const pty = result.data;
-
-    // hooks not supported yet, rely on classifier for visual indicator
-    wireAgentClassifier({
-      pty,
-      providerId: conversation.providerId,
-      projectId: conversation.projectId,
-      taskId: conversation.taskId,
-      conversationId: conversation.id,
-    });
-
-    pty.onExit(({ exitCode }) => {
-      ptySessionRegistry.unregister(sessionId);
-      const shouldRespawn = this.sessions.has(sessionId);
-      this.sessions.delete(sessionId);
-      telemetryService.capture('agent_run_finished', {
-        provider: conversation.providerId,
-        exit_code: typeof exitCode === 'number' ? exitCode : -1,
-        project_id: conversation.projectId,
-        task_id: conversation.taskId,
-        conversation_id: conversation.id,
+    try {
+      await claudeTrustService.maybeAutoTrustSsh({
+        providerId: conversation.providerId,
+        cwd: this.taskPath,
+        ctx: this.ctx,
+        remoteFs: this.remoteFs,
       });
-      events.emit(agentSessionExitedChannel, {
-        sessionId,
-        projectId: conversation.projectId,
-        conversationId: conversation.id,
-        taskId: conversation.taskId,
-        exitCode,
-      });
-      if (shouldRespawn && !this.tmux) {
-        const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
-        this.respawnCounts.set(sessionId, count);
+    } catch (error) {
+      releaseQueuedDroidFreshStart();
+      throw error;
+    }
 
-        if (count > MAX_RESPAWNS && !isResuming) {
-          log.error('SshConversationProvider: respawn limit reached, giving up', {
-            conversationId: conversation.id,
-          });
-          this.respawnCounts.delete(sessionId);
-          return;
-        }
-
-        const resumeNext = isResuming && count <= MAX_RESPAWNS;
-        if (count > MAX_RESPAWNS) this.respawnCounts.set(sessionId, 0);
-
-        setTimeout(() => {
-          this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
-            log.error('SshConversationProvider: respawn failed', {
-              conversationId: conversation.id,
-              error: String(e),
-            });
-          });
-        }, 500);
+    let startedAt = 0;
+    let existingDroidSessionIds: string[] = [];
+    try {
+      const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+      if (conversation.providerId === 'droid' && !isResuming) {
+        existingDroidSessionIds = await getCurrentRemoteDroidSessionIds({
+          cwd: this.taskPath,
+          ctx: this.ctx,
+          fs: this.remoteFs,
+        });
       }
-    });
+      if (conversation.providerId === 'droid' && isResuming && !conversation.providerSessionId) {
+        releaseQueuedDroidFreshStart();
+        throw new Error('Cannot resume Droid session without a stored provider session id.');
+      }
+      const { command, args } = buildAgentCommand({
+        providerId: conversation.providerId,
+        providerConfig,
+        autoApprove: conversation.autoApprove,
+        sessionId: conversation.providerSessionId ?? conversation.id,
+        isResuming,
+        initialPrompt,
+      });
+      const providerEnv = resolveProviderEnv(providerConfig);
 
-    ptySessionRegistry.register(sessionId, pty, {
-      metadata: { providerId: conversation.providerId, title: conversation.title },
-    });
-    this.sessions.set(sessionId, pty);
+      const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+
+      const cfg: AgentSessionConfig = {
+        taskId: this.taskId,
+        conversationId: conversation.id,
+        providerId: conversation.providerId,
+        command,
+        args,
+        cwd: this.taskPath,
+        shellSetup: this.shellSetup,
+        tmuxSessionName,
+        autoApprove: conversation.autoApprove ?? false,
+        resume: isResuming,
+      };
+
+      const profile = await this.proxy.getRemoteShellProfile();
+      const sshCommand = resolveSshCommand(
+        'agent',
+        cfg,
+        { ...providerEnv, ...this.taskEnvVars },
+        profile
+      );
+
+      startedAt = await remoteNowMs(this.ctx);
+      let result: Awaited<ReturnType<typeof openSsh2Pty>>;
+      try {
+        result = await openSsh2Pty(this.proxy, {
+          id: sessionId,
+          command: sshCommand,
+          cols: initialSize.cols,
+          rows: initialSize.rows,
+        });
+      } catch (error) {
+        releaseQueuedDroidFreshStart();
+        throw error;
+      }
+
+      if (!result.success) {
+        releaseQueuedDroidFreshStart();
+        log.error('SshConversationProvider: failed to open SSH channel', {
+          sessionId,
+          error: result.error.message,
+        });
+        throw new Error(result.error.message);
+      }
+
+      const pty = result.data;
+
+      // hooks not supported yet, rely on classifier for visual indicator
+      wireAgentClassifier({
+        pty,
+        providerId: conversation.providerId,
+        projectId: conversation.projectId,
+        taskId: conversation.taskId,
+        conversationId: conversation.id,
+      });
+
+      pty.onExit(({ exitCode }) => {
+        ptySessionRegistry.unregister(sessionId);
+        const shouldRespawn = this.sessions.has(sessionId);
+        this.sessions.delete(sessionId);
+        telemetryService.capture('agent_run_finished', {
+          provider: conversation.providerId,
+          exit_code: typeof exitCode === 'number' ? exitCode : -1,
+          project_id: conversation.projectId,
+          task_id: conversation.taskId,
+          conversation_id: conversation.id,
+        });
+        events.emit(agentSessionExitedChannel, {
+          sessionId,
+          projectId: conversation.projectId,
+          conversationId: conversation.id,
+          taskId: conversation.taskId,
+          exitCode,
+        });
+        if (shouldRespawn && !this.tmux) {
+          const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
+          this.respawnCounts.set(sessionId, count);
+
+          if (count > MAX_RESPAWNS && !isResuming) {
+            log.error('SshConversationProvider: respawn limit reached, giving up', {
+              conversationId: conversation.id,
+            });
+            this.respawnCounts.delete(sessionId);
+            return;
+          }
+
+          const resumeNext = isResuming && count <= MAX_RESPAWNS;
+          if (count > MAX_RESPAWNS) this.respawnCounts.set(sessionId, 0);
+
+          setTimeout(() => {
+            this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
+              log.error('SshConversationProvider: respawn failed', {
+                conversationId: conversation.id,
+                error: String(e),
+              });
+            });
+          }, 500);
+        }
+      });
+
+      ptySessionRegistry.register(sessionId, pty, {
+        metadata: { providerId: conversation.providerId, title: conversation.title },
+      });
+      this.sessions.set(sessionId, pty);
+    } catch (error) {
+      releaseQueuedDroidFreshStart();
+      throw error;
+    }
+
+    if (conversation.providerId === 'droid' && !isResuming) {
+      void (async () => {
+        try {
+          for (const delay of [1000, 2000, 4000]) {
+            await sleep(delay);
+            const stored = await rememberRemoteDroidSessionId({
+              conversationId: conversation.id,
+              cwd: this.taskPath,
+              startedAt,
+              initialPrompt,
+              existingSessionIds: existingDroidSessionIds,
+              ctx: this.ctx,
+              fs: this.remoteFs,
+            });
+            if (stored) return;
+          }
+        } catch (error) {
+          log.warn('SshConversationProvider: failed to remember Droid session id', {
+            conversationId: conversation.id,
+            error: String(error),
+          });
+        } finally {
+          releaseQueuedDroidFreshStart();
+        }
+      })();
+    }
+
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,
