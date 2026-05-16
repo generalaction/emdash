@@ -10,7 +10,6 @@ import {
   getWorkspaceForTask,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
   useNavigate,
   useParams,
@@ -34,7 +33,6 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   rowVariant = 'underProject',
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
-  const { setCollapsed } = useWorkspaceLayoutContext();
   const showRename = useShowModal('renameTaskModal');
   const showConfirm = useShowModal('confirmActionModal');
 
@@ -109,7 +107,6 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           handleProvision();
           navigate('task', { projectId, taskId });
         }}
-        onDoubleClick={() => setCollapsed('left', true)}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
           <span
