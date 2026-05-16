@@ -27,6 +27,8 @@ function normalizeRelativePath(filePath: string, options?: { allowEmpty?: boolea
   if (
     !filePath ||
     path.isAbsolute(filePath) ||
+    path.posix.isAbsolute(normalized) ||
+    path.win32.isAbsolute(filePath) ||
     normalized === '..' ||
     normalized.startsWith('../') ||
     normalized.includes('/../')
