@@ -7,10 +7,11 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { useMcpServerStatus } from './use-mcp-server-status';
 
-type SnippetKey = 'claudeCode' | 'cursor' | 'codex';
+type SnippetKey = 'claudeCodeCli' | 'claudeCode' | 'cursor' | 'codex';
 
 const SNIPPET_LABELS: Record<SnippetKey, string> = {
-  claudeCode: 'Claude Code',
+  claudeCodeCli: 'Claude Code (CLI)',
+  claudeCode: 'Claude Code (config file)',
   cursor: 'Cursor',
   codex: 'Codex',
 };

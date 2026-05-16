@@ -183,6 +183,7 @@ describe('mcpServerController', () => {
       const result = await mcpServerController.getConfigSnippets();
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected ok');
+      expect(result.data.claudeCodeCli).toContain('7457');
       expect(result.data.claudeCode).toContain('7457');
       expect(result.data.cursor).toContain('7457');
       expect(result.data.codex).toContain('7457');
@@ -190,6 +191,27 @@ describe('mcpServerController', () => {
       for (const snippet of Object.values(result.data)) {
         expect(snippet).toContain('emdash-mcp');
       }
+    });
+
+    it('emits a `claude mcp add` one-liner with user scope, env, and the bridge command', async () => {
+      mockGetStatus.mockResolvedValue({
+        enabled: true,
+        running: true,
+        port: 7457,
+        tokenPresent: true,
+        uptimeMs: 100,
+        lastError: null,
+      });
+      const result = await mcpServerController.getConfigSnippets();
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected ok');
+      // Single-line, starts with the CLI invocation, uses user scope, mirrors
+      // the env var the JSON form sets, and ends with `-- node <bridge-path>`.
+      expect(result.data.claudeCodeCli).not.toContain('\n');
+      expect(result.data.claudeCodeCli).toMatch(/^claude mcp add emdash\b/);
+      expect(result.data.claudeCodeCli).toContain('--scope user');
+      expect(result.data.claudeCodeCli).toContain('-e EMDASH_MCP_PORT=7457');
+      expect(result.data.claudeCodeCli).toContain('-- node /abs/path/to/out/main/emdash-mcp.js');
     });
 
     it('falls back to the configured port when the server is not running', async () => {
@@ -205,6 +227,7 @@ describe('mcpServerController', () => {
       const result = await mcpServerController.getConfigSnippets();
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected ok');
+      expect(result.data.claudeCodeCli).toContain('9999');
       expect(result.data.claudeCode).toContain('9999');
       expect(result.data.codex).toContain('9999');
     });

@@ -115,7 +115,7 @@ async function revealTokenFile(): Promise<Result<{ path: string }, string>> {
  * can override the file's port without a restart).
  */
 async function getConfigSnippets(): Promise<
-  Result<{ claudeCode: string; cursor: string; codex: string }, string>
+  Result<{ claudeCodeCli: string; claudeCode: string; cursor: string; codex: string }, string>
 > {
   try {
     const status = await mcpServerService.getStatus();
@@ -125,6 +125,19 @@ async function getConfigSnippets(): Promise<
     const settings = await appSettingsService.get('mcpServer');
     const port = status.port ?? settings.port;
     const { command, args } = getBridgeCommand();
+
+    // One-liner that writes the same config the JSON block below would, via
+    // `claude mcp add`. `--scope user` so it's available from any directory;
+    // `-e EMDASH_MCP_PORT=<port>` mirrors the env we set in the JSON form. The
+    // `--` separator hands the rest verbatim to the spawned stdio bridge.
+    const claudeCodeCli = [
+      'claude mcp add emdash',
+      '--scope user',
+      `-e EMDASH_MCP_PORT=${port}`,
+      '--',
+      shellQuote(command),
+      ...args.map(shellQuote),
+    ].join(' ');
 
     const claudeCode = JSON.stringify(
       {
@@ -164,12 +177,23 @@ async function getConfigSnippets(): Promise<
       `EMDASH_MCP_PORT = "${port}"`,
     ].join('\n');
 
-    return ok({ claudeCode, cursor, codex });
+    return ok({ claudeCodeCli, claudeCode, cursor, codex });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log.error('[mcp-server] getConfigSnippets failed', error);
     return err(message);
   }
+}
+
+/**
+ * Minimal POSIX-shell quoter: bare words stay bare, anything else gets single
+ * quotes (with any embedded `'` rewritten as `'\''`). Sufficient for paths and
+ * args we emit into copy-paste snippets — we don't try to be a full shell
+ * tokenizer.
+ */
+function shellQuote(value: string): string {
+  if (value.length > 0 && /^[A-Za-z0-9_\-./:=@%+,]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 export const mcpServerController = createRPCController({
