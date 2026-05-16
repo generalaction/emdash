@@ -8,9 +8,15 @@ interface RecentRunsListProps {
   runs: AutomationRunWithContext[] | undefined;
   isPending: boolean;
   automations: Automation[];
+  searchActive?: boolean;
 }
 
-export function RecentRunsList({ runs, isPending, automations }: RecentRunsListProps) {
+export function RecentRunsList({
+  runs,
+  isPending,
+  automations,
+  searchActive = false,
+}: RecentRunsListProps) {
   const { deleteRun, rerunFrom } = useAutomationRunActions();
 
   const automationById = useMemo(() => {
@@ -32,7 +38,9 @@ export function RecentRunsList({ runs, isPending, automations }: RecentRunsListP
   if (!runs || runs.length === 0) {
     return (
       <div className="py-12 text-center">
-        <p className="text-sm text-muted-foreground">No automation runs yet.</p>
+        <p className="text-sm text-muted-foreground">
+          {searchActive ? 'No runs match your search.' : 'No automation runs yet.'}
+        </p>
       </div>
     );
   }

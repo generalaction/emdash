@@ -2,15 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation } from '@shared/automations/types';
 import { automationRunDeadline, AutomationScheduler } from './automation-scheduler';
 import {
+  claimQueuedRun,
   dueCronAutomations,
   enabledCronAutomations,
   enqueueAutomationRun,
   getNextRunAt,
+  hasRunningRuns,
   listQueuedRuns,
   markRunningRunsInterrupted,
   recoverQueuedRuns,
   updateAutomationSchedule,
+  updateRun,
 } from './repo';
+import { emitRunUpdated, runQueuedAutomation } from './runtime';
 
 vi.mock('./automation-events', () => ({
   automationEvents: {
@@ -64,9 +68,29 @@ describe('AutomationScheduler missed runs', () => {
     vi.mocked(enabledCronAutomations).mockResolvedValue([]);
     vi.mocked(dueCronAutomations).mockResolvedValue([]);
     vi.mocked(listQueuedRuns).mockResolvedValue([]);
+    vi.mocked(claimQueuedRun).mockResolvedValue(null);
+    vi.mocked(hasRunningRuns).mockResolvedValue(false);
     vi.mocked(enqueueAutomationRun).mockResolvedValue(null);
     vi.mocked(getNextRunAt).mockReturnValue(null);
     vi.mocked(updateAutomationSchedule).mockResolvedValue();
+    vi.mocked(updateRun).mockResolvedValue(null);
+    vi.mocked(runQueuedAutomation).mockResolvedValue({
+      success: true,
+      data: {
+        id: 'run-1',
+        automationId: baseAutomation.id,
+        scheduledAt: null,
+        deadlineAt: null,
+        startedAt: 1,
+        finishedAt: 2,
+        status: 'success',
+        taskId: null,
+        createdTaskId: null,
+        error: null,
+        triggerKind: 'manual',
+        workerId: 'worker-1',
+      },
+    });
   });
 
   it('queues one missed cron run with a fresh queue deadline on bootstrap', async () => {
@@ -106,5 +130,51 @@ describe('AutomationScheduler missed runs', () => {
     expect(enqueueAutomationRun).toHaveBeenCalledTimes(1);
     expect(updateAutomationSchedule).toHaveBeenCalledTimes(1);
     expect(getNextRunAt).toHaveBeenCalledWith(automation.trigger, now);
+  });
+
+  it('marks a claimed run failed when the worker throws', async () => {
+    const queuedRun = {
+      id: 'run-1',
+      automationId: baseAutomation.id,
+      scheduledAt: Date.now(),
+      deadlineAt: Date.now() + 60_000,
+      startedAt: null,
+      finishedAt: null,
+      status: 'queued' as const,
+      taskId: null,
+      createdTaskId: null,
+      error: null,
+      triggerKind: 'manual' as const,
+      workerId: null,
+    };
+    const runningRun = {
+      ...queuedRun,
+      status: 'running' as const,
+      startedAt: Date.now(),
+      workerId: 'worker-1',
+    };
+    const failedRun = {
+      ...runningRun,
+      status: 'failed' as const,
+      finishedAt: Date.now(),
+      error: 'boom',
+    };
+    vi.mocked(listQueuedRuns).mockResolvedValueOnce([
+      { run: queuedRun, automation: baseAutomation },
+    ]);
+    vi.mocked(claimQueuedRun).mockResolvedValue(runningRun);
+    vi.mocked(runQueuedAutomation).mockRejectedValue(new Error('boom'));
+    vi.mocked(updateRun).mockResolvedValue(failedRun);
+
+    await new AutomationScheduler().drainQueue();
+    await vi.waitFor(() => {
+      expect(updateRun).toHaveBeenCalledWith(runningRun.id, {
+        status: 'failed',
+        finishedAt: expect.any(Number),
+        error: 'boom',
+      });
+    });
+
+    expect(emitRunUpdated).toHaveBeenCalledWith(failedRun);
   });
 });

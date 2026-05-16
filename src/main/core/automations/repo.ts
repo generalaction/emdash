@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
-import { and, asc, desc, eq, isNotNull, lte, or } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, lte, or, sql } from 'drizzle-orm';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
@@ -471,7 +471,7 @@ export async function listRuns(automationId: string, limit = 20): Promise<Automa
     .select()
     .from(automationRuns)
     .where(eq(automationRuns.automationId, automationId))
-    .orderBy(desc(automationRuns.startedAt))
+    .orderBy(desc(automationRuns.scheduledAt))
     .limit(limit);
   return rows.map(mapAutomationRunRow);
 }
@@ -485,7 +485,9 @@ export async function listRecentRuns(
     .from(automationRuns)
     .innerJoin(automations, eq(automationRuns.automationId, automations.id));
   const rows = await (projectId ? base.where(eq(automations.projectId, projectId)) : base)
-    .orderBy(desc(automationRuns.startedAt))
+    .orderBy(
+      sql`coalesce(${automationRuns.startedAt}, ${automationRuns.scheduledAt}, ${automationRuns.finishedAt}) desc`
+    )
     .limit(limit);
   return rows.map(({ run, automation }) => ({
     ...mapAutomationRunRow(run),

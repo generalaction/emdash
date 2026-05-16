@@ -160,12 +160,19 @@ export class AutomationScheduler {
 
           this.activeWorkers += 1;
           void runQueuedAutomation(entry.automation, run)
-            .catch((error) => {
+            .catch(async (error) => {
+              const message = error instanceof Error ? error.message : String(error);
               log.error('AutomationScheduler worker failed', {
                 automationId: entry.automation.id,
                 runId: run.id,
-                error: String(error),
+                error: message,
               });
+              const failed = await updateRun(run.id, {
+                status: 'failed',
+                finishedAt: Date.now(),
+                error: message,
+              });
+              if (failed) emitRunUpdated(failed);
             })
             .finally(() => {
               this.activeWorkers -= 1;

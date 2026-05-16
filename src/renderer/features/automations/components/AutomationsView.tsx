@@ -1,9 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, Plus, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { formatAutomationError } from '@shared/automations/format';
+import {
+  formatAutomationError,
+  formatRunStatusLabel,
+  formatRunTriggerKindLabel,
+} from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
-import { firstMountedProjectId } from '@renderer/features/projects/stores/project-selectors';
+import {
+  firstMountedProjectId,
+  getProjectStore,
+  projectDisplayName,
+} from '@renderer/features/projects/stores/project-selectors';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -22,10 +30,6 @@ const RECENT_RUNS_VISIBLE_LIMIT = 50;
 export function AutomationsView() {
   const { automations, create, remove, setEnabled, runNow } = useAutomations();
   const recentRuns = useRecentAutomationRuns(undefined, 200);
-  const visibleRecentRuns = useMemo(
-    () => recentRuns.data?.slice(0, RECENT_RUNS_VISIBLE_LIMIT),
-    [recentRuns.data]
-  );
   const { toast } = useToast();
   const showConfirmDelete = useShowModal('confirmActionModal');
   const { params, setParams } = useParams('automations');
@@ -56,11 +60,30 @@ export function AutomationsView() {
     }
     return map;
   }, [recentRuns.data]);
+  const searchQuery = search.trim().toLowerCase();
   const filteredAutomations = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return automationItems;
-    return automationItems.filter((automation) => automation.name.toLowerCase().includes(query));
-  }, [automationItems, search]);
+    if (!searchQuery) return automationItems;
+    return automationItems.filter((automation) =>
+      automation.name.toLowerCase().includes(searchQuery)
+    );
+  }, [automationItems, searchQuery]);
+  const visibleRecentRuns = useMemo(() => {
+    const runs = recentRuns.data;
+    if (!runs) return undefined;
+    const filtered = searchQuery
+      ? runs.filter((run) => {
+          if (run.automationName.toLowerCase().includes(searchQuery)) return true;
+          const projectName = projectDisplayName(getProjectStore(run.projectId));
+          if (projectName && projectName.toLowerCase().includes(searchQuery)) return true;
+          const statusLabel = formatRunStatusLabel(run.status);
+          if (statusLabel && statusLabel.toLowerCase().includes(searchQuery)) return true;
+          if (formatRunTriggerKindLabel(run.triggerKind).toLowerCase().includes(searchQuery))
+            return true;
+          return false;
+        })
+      : runs;
+    return filtered.slice(0, RECENT_RUNS_VISIBLE_LIMIT);
+  }, [recentRuns.data, searchQuery]);
   const draftAutomations = useMemo(
     () => filteredAutomations.filter((automation) => automation.isDraft),
     [filteredAutomations]
@@ -338,6 +361,7 @@ export function AutomationsView() {
                 runs={visibleRecentRuns}
                 isPending={recentRuns.isPending}
                 automations={automationItems}
+                searchActive={searchQuery.length > 0}
               />
             </section>
           )}

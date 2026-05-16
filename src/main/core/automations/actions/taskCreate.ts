@@ -12,6 +12,10 @@ import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskN
 import { createTask } from '@main/core/tasks/operations/createTask';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
+function taskExistsForCreateTaskError(error: CreateTaskError): boolean {
+  return error.type === 'provision-failed' || error.type === 'provision-timeout';
+}
+
 function stringifyCreateTaskError(error: CreateTaskError): string {
   switch (error.type) {
     case 'project-not-found':
@@ -126,7 +130,10 @@ export async function executeTaskCreate(
   try {
     const result = await createTask(taskConfig);
     if (!result.success) {
-      return err({ message: stringifyCreateTaskError(result.error), taskId });
+      return err({
+        message: stringifyCreateTaskError(result.error),
+        taskId: taskExistsForCreateTaskError(result.error) ? taskId : undefined,
+      });
     }
     return ok({
       taskId,
