@@ -156,6 +156,15 @@ function resolveWindowsSpawn(
   const ext = path.win32.extname(resolvedCommand).toLowerCase();
 
   if (ext === '.cmd' || ext === '.bat') {
+    // When the resolved shim path contains whitespace (e.g. npm globals under
+    // `C:\Program Files\nodejs`), wrapping through `cmd.exe /d /s /c "..."`
+    // breaks because node-pty's argv escaping mangles the inner quotes and
+    // cmd.exe ends up trying to run `'"C:\Program Files\nodejs\codex.CMD"'`
+    // (quotes preserved literally). Spawn the shim directly — node-pty handles
+    // .cmd/.bat invocation on Windows correctly when given the absolute path.
+    if (/\s/.test(resolvedCommand)) {
+      return { command: resolvedCommand, args, cwd: intent.cwd, warnings };
+    }
     return {
       command: shell,
       args: ['/d', '/s', '/c', [resolvedCommand, ...args].map(quoteForCmdExe).join(' ')],
