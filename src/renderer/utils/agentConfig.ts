@@ -26,6 +26,7 @@ import openaiLogoSvg from '../../assets/images/openai.svg?raw';
 import opencodeLogo from '../../assets/images/opencode.png';
 import piLogo from '../../assets/images/pi.png';
 import qwenLogo from '../../assets/images/qwen.png';
+import xaiLogoSvg from '../../assets/images/xai.svg?raw';
 
 export type AgentInfo = {
   name: string;
@@ -39,6 +40,7 @@ export type AgentInfo = {
 export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   claude: { name: 'Claude Code', logo: claudeLogo, alt: 'Claude Code' },
   codex: { name: 'Codex', logo: openaiLogoSvg, alt: 'Codex', isSvg: true },
+  grok: { name: 'Grok', logo: xaiLogoSvg, alt: 'Grok CLI', isSvg: true },
   devin: { name: 'Devin', logo: devinLogo, alt: 'Devin' },
   cursor: { name: 'Cursor', logo: cursorLogoSvg, alt: 'Cursor CLI', isSvg: true },
   gemini: { name: 'Gemini', logo: geminiLogo, alt: 'Gemini CLI' },
