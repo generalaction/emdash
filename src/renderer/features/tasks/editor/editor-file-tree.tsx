@@ -17,6 +17,7 @@ import { getDraggedFilePaths, hasDraggedFiles } from '@renderer/lib/drag-files';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
+import { showModal } from '@renderer/lib/modal/modal-provider';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -31,6 +32,12 @@ function resultErrorMessage(error: { message?: string; type?: string }): string 
   return error.message ?? error.type ?? 'Unknown error';
 }
 
+function existingFilePath(message: string): string | null {
+  const marker = 'File already exists: ';
+  const markerIndex = message.indexOf(marker);
+  return markerIndex === -1 ? null : message.slice(markerIndex + marker.length);
+}
+
 function joinRelPath(dir: string, name: string): string {
   return dir ? `${dir}/${name}` : name;
 }
@@ -41,8 +48,9 @@ async function importLocalFiles(args: {
   workspaceId: string;
   srcPaths: string[];
   destDirPath: string;
+  overwrite?: boolean;
 }): Promise<void> {
-  const { files, projectId, workspaceId, srcPaths, destDirPath } = args;
+  const { files, projectId, workspaceId, srcPaths, destDirPath, overwrite = false } = args;
 
   // Optimistic insert — tree updates the moment the drop lands. The watcher
   // event arriving after the copy finishes is a no-op for already-present nodes.
@@ -54,14 +62,38 @@ async function importLocalFiles(args: {
   );
 
   try {
-    const result = await rpc.fs.copyLocalFiles(projectId, workspaceId, srcPaths, destDirPath);
+    const result = await rpc.fs.copyLocalFiles(projectId, workspaceId, srcPaths, destDirPath, {
+      overwrite,
+    });
     if (!result.success) throw new Error(resultErrorMessage(result.error));
   } catch (error) {
     for (const p of inserted) files.removeNode(p);
     await files.loadDir(destDirPath, true);
+    const message = error instanceof Error ? error.message : 'The file could not be imported.';
+    const existingPath = existingFilePath(message);
+    if (existingPath && !overwrite) {
+      showModal('confirmActionModal', {
+        title: 'Replace existing file?',
+        description: `${existingPath} already exists. Replace it with the dropped file?`,
+        confirmLabel: 'Replace',
+        variant: 'destructive',
+        onSuccess: () => {
+          void importLocalFiles({
+            files,
+            projectId,
+            workspaceId,
+            srcPaths,
+            destDirPath,
+            overwrite: true,
+          });
+        },
+      });
+      return;
+    }
+
     toast({
       title: 'Import failed',
-      description: error instanceof Error ? error.message : 'The file could not be imported.',
+      description: message,
       variant: 'destructive',
     });
   }

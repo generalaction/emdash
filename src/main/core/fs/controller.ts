@@ -211,7 +211,8 @@ export const filesController = createRPCController({
     projectId: string,
     workspaceId: string,
     srcPaths: string[],
-    destDirPath: string
+    destDirPath: string,
+    options?: { overwrite?: boolean }
   ) => {
     const env = resolveWorkspace(projectId, workspaceId);
     if (!env)
@@ -241,7 +242,7 @@ export const filesController = createRPCController({
         if (seenDestPaths.has(destRelPath))
           throw new Error(`Duplicate destination: ${destRelPath}`);
         seenDestPaths.add(destRelPath);
-        if (await env.fs.exists(destRelPath))
+        if (!options?.overwrite && (await env.fs.exists(destRelPath)))
           throw new Error(`File already exists: ${destRelPath}`);
       }
 
