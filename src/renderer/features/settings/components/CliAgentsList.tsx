@@ -10,6 +10,7 @@ import type { DependencyState } from '@shared/dependencies';
 import { type CliAgentStatus } from '@renderer/features/settings/components/connections';
 import CustomCommandModal from '@renderer/features/settings/components/CustomCommandModal';
 import IntegrationRow from '@renderer/features/settings/components/IntegrationRow';
+import { ProviderUsageBar } from '@renderer/features/settings/components/ProviderUsageBar';
 import { getAgentInstallErrorMessage } from '@renderer/lib/components/agent-selector/agent-install';
 import { AgentInstallButton } from '@renderer/lib/components/agent-selector/agent-install-button';
 import { useToast } from '@renderer/lib/hooks/use-toast';
@@ -59,6 +60,8 @@ type AgentRowActions = {
   onSettingsClick: (id: string) => void;
 };
 
+const USAGE_BAR_PROVIDERS = new Set<string>(['claude', 'codex']);
+
 const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
   const logo = agentMeta[agent.id as keyof typeof agentMeta]?.icon;
   const providerId = isValidProviderId(agent.id) ? agent.id : null;
@@ -76,59 +79,62 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
   const isDetected = agent.status === 'connected';
   const indicatorClass = isDetected ? 'bg-emerald-500' : 'bg-muted-foreground/50';
   const statusLabel = isDetected ? 'Detected' : 'Not detected';
+  const showUsageBar = isDetected && USAGE_BAR_PROVIDERS.has(agent.id);
 
   return (
-    <IntegrationRow
-      key={agent.id}
-      logoSrc={logo}
-      icon={
-        logo ? undefined : (
-          <Sparkles className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-        )
-      }
-      name={agent.name}
-      onNameClick={handleNameClick}
-      status={agent.status}
-      statusLabel={statusLabel}
-      showStatusPill={false}
-      installCommand={agent.installCommand}
-      middle={
-        <span className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className={`h-1.5 w-1.5 rounded-full ${indicatorClass}`} />
-          {statusLabel}
-        </span>
-      }
-      rightExtra={
-        isDetected ? (
-          <TooltipProvider delay={150}>
-            <Tooltip>
-              <TooltipTrigger>
-                <button
-                  type="button"
-                  onClick={() => actions.onSettingsClick(agent.id)}
-                  className={ICON_BUTTON}
-                  aria-label={`${agent.name} execution settings`}
-                >
-                  <Settings2 className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                Execution settings
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : providerId ? (
-          <AgentInstallButton
-            agentId={providerId}
-            canInstall={!!agent.installCommand}
-            isInstalled={isDetected}
-            isInstalling={actions.isInstalling(providerId)}
-            tooltipSide="top"
-            onInstall={() => actions.onInstallClick(agent)}
-          />
-        ) : null
-      }
-    />
+    <div key={agent.id}>
+      <IntegrationRow
+        logoSrc={logo}
+        icon={
+          logo ? undefined : (
+            <Sparkles className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          )
+        }
+        name={agent.name}
+        onNameClick={handleNameClick}
+        status={agent.status}
+        statusLabel={statusLabel}
+        showStatusPill={false}
+        installCommand={agent.installCommand}
+        middle={
+          <span className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className={`h-1.5 w-1.5 rounded-full ${indicatorClass}`} />
+            {statusLabel}
+          </span>
+        }
+        rightExtra={
+          isDetected ? (
+            <TooltipProvider delay={150}>
+              <Tooltip>
+                <TooltipTrigger>
+                  <button
+                    type="button"
+                    onClick={() => actions.onSettingsClick(agent.id)}
+                    className={ICON_BUTTON}
+                    aria-label={`${agent.name} execution settings`}
+                  >
+                    <Settings2 className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Execution settings
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : providerId ? (
+            <AgentInstallButton
+              agentId={providerId}
+              canInstall={!!agent.installCommand}
+              isInstalled={isDetected}
+              isInstalling={actions.isInstalling(providerId)}
+              tooltipSide="top"
+              onInstall={() => actions.onInstallClick(agent)}
+            />
+          ) : null
+        }
+      />
+      {showUsageBar ? <ProviderUsageBar providerId={agent.id as 'claude' | 'codex'} /> : null}
+    </div>
   );
 };
 
