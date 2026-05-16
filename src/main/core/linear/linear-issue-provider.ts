@@ -61,6 +61,22 @@ type LinearIssueNode = {
   history: LinearConnection<LinearHistoryNode>;
 };
 
+type LinearIssueSearchResultNode = {
+  id: string;
+  identifier: string;
+  title: string;
+  description: string | null;
+  url: string;
+  branchName: string | null;
+  state: { name: string; type: string; color: string } | null;
+  team: { name: string; key: string } | null;
+  project: { name: string } | null;
+  assignee: { displayName: string; name: string } | null;
+  updatedAt: string;
+  comments?: LinearConnection<LinearCommentNode>;
+  history?: LinearConnection<LinearHistoryNode>;
+};
+
 const ACTIVITY_PAGE_SIZE = 50;
 
 const ISSUE_DETAILS_FRAGMENT = `
@@ -178,12 +194,54 @@ const ISSUES_QUERY = `
 `;
 
 const SEARCH_QUERY = `
-  ${ISSUE_DETAILS_FRAGMENT}
-
   query SearchIssues($term: String!, $limit: Int!) {
     searchIssues(term: $term, first: $limit) {
       nodes {
-        ...IssueDetails
+        id
+        identifier
+        title
+        description
+        url
+        branchName
+        state { name type color }
+        team { name key }
+        project { name }
+        assignee { displayName name }
+        updatedAt
+        comments(first: ${ACTIVITY_PAGE_SIZE}, orderBy: createdAt) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            id
+            body
+            createdAt
+            updatedAt
+            url
+            user { displayName name }
+          }
+        }
+        history(first: ${ACTIVITY_PAGE_SIZE}, orderBy: createdAt) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            id
+            createdAt
+            updatedAt
+            actor { ... on User { displayName name } }
+            fromState { name }
+            toState { name }
+            fromAssignee { displayName name }
+            toAssignee { displayName name }
+            fromProject { name }
+            toProject { name }
+            fromCycle { name }
+            toCycle { name }
+            fromPriority
+            toPriority
+            fromEstimate
+            toEstimate
+            fromTitle
+            toTitle
+          }
+        }
       }
     }
   }
@@ -419,13 +477,20 @@ async function searchIssues(searchTerm: string, limit = 20): Promise<IssueListRe
 
   try {
     const { data } = await client.client.rawRequest<
-      { searchIssues: { nodes: LinearIssueNode[] } },
+      { searchIssues: { nodes: LinearIssueSearchResultNode[] } },
       { term: string; limit: number }
     >(SEARCH_QUERY, {
       term,
       limit: sanitizedLimit,
     });
-    const issues = await hydrateIssuesActivity(client, data?.searchIssues?.nodes ?? []);
+    const issues = await hydrateIssuesActivity(
+      client,
+      (data?.searchIssues?.nodes ?? []).map((issue) => ({
+        ...issue,
+        comments: issue.comments ?? { nodes: [] },
+        history: issue.history ?? { nodes: [] },
+      }))
+    );
 
     return {
       success: true,
@@ -433,7 +498,8 @@ async function searchIssues(searchTerm: string, limit = 20): Promise<IssueListRe
     };
   } catch (error) {
     log.error('[Linear] searchIssues error:', error);
-    return { success: true, issues: [] };
+    const message = error instanceof Error ? error.message : 'Unable to search Linear issues.';
+    return { success: false, error: message };
   }
 }
 

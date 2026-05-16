@@ -133,7 +133,7 @@ describe('linearIssueProvider', () => {
 
     expect(rawRequest).toHaveBeenCalledTimes(1);
     expect(rawRequest).toHaveBeenCalledWith(
-      expect.stringContaining('branchName'),
+      expect.not.stringContaining('...IssueDetails'),
       expect.objectContaining({ term: 'GEN-626', limit: 5 })
     );
     expect(result).toEqual({
@@ -146,6 +146,18 @@ describe('linearIssueProvider', () => {
         }),
       ],
     });
+  });
+
+  it('returns an error when Linear search fails', async () => {
+    const rawRequest = vi.fn().mockRejectedValue(new Error('400: invalid fragment'));
+    mockGetClient.mockResolvedValue(makeLinearClient(rawRequest) as never);
+
+    const result = await linearIssueProvider.searchIssues({
+      searchTerm: 'GEN-626',
+      limit: 5,
+    });
+
+    expect(result).toEqual({ success: false, error: '400: invalid fragment' });
   });
 
   it('paginates Linear comments and history before building issue context', async () => {
