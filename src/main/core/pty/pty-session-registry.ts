@@ -11,12 +11,18 @@ export interface PtySessionMetadata {
 const FLUSH_INTERVAL_MS = 16; // ~60 fps
 const RING_BUFFER_CAP = 64 * 1024; // 64 KB per session
 
+export type PtyDataListener = (delta: string) => void;
+
 export class PtySessionRegistry {
   private ptyMap: Map<string, Pty> = new Map();
   private ptyInputSubscriptions: Map<string, () => void> = new Map();
   private ringBuffers: Map<string, string> = new Map();
   private activeConsumers: Set<string> = new Set();
   private metadata: Map<string, PtySessionMetadata> = new Map();
+  // In-process data listeners (e.g. MCP resource subscriptions). Distinct
+  // from `activeConsumers` (renderer IPC) — listeners fire on every PTY data
+  // chunk and never affect consumer-count accounting.
+  private dataListeners: Map<string, Set<PtyDataListener>> = new Map();
 
   register(
     sessionId: string,
@@ -29,6 +35,8 @@ export class PtySessionRegistry {
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
     this.metadata.delete(sessionId);
+    // Don't clear `dataListeners` — a long-lived MCP resource subscription
+    // for this sessionId should keep working across respawns.
     if (options?.metadata) this.metadata.set(sessionId, options.metadata);
 
     this.ptyMap.set(sessionId, pty);
@@ -53,6 +61,17 @@ export class PtySessionRegistry {
       let rb = (this.ringBuffers.get(sessionId) ?? '') + data;
       if (rb.length > RING_BUFFER_CAP) rb = rb.slice(-RING_BUFFER_CAP);
       this.ringBuffers.set(sessionId, rb);
+      // Fan out to in-process listeners (MCP resource subscriptions, etc).
+      const listeners = this.dataListeners.get(sessionId);
+      if (listeners) {
+        for (const listener of listeners) {
+          try {
+            listener(data);
+          } catch {
+            // Swallow — a misbehaving listener must not break PTY plumbing.
+          }
+        }
+      }
     });
 
     pty.onExit((info) => {
@@ -90,6 +109,37 @@ export class PtySessionRegistry {
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
     this.metadata.delete(sessionId);
+    this.dataListeners.delete(sessionId);
+  }
+
+  /**
+   * Snapshot the ring buffer without registering an IPC consumer. Use this
+   * from in-process readers (MCP tools / resources) that must not affect
+   * renderer consumer-count accounting.
+   */
+  peek(sessionId: string): string {
+    return this.ringBuffers.get(sessionId) ?? '';
+  }
+
+  /**
+   * Subscribe to in-process PTY data deltas for a session. The listener is
+   * invoked with the raw chunk for every `pty.onData` event. Returns an
+   * unsubscribe function. Does NOT touch `activeConsumers` — that set is
+   * reserved for renderer IPC delivery.
+   */
+  onData(sessionId: string, listener: PtyDataListener): () => void {
+    let listeners = this.dataListeners.get(sessionId);
+    if (!listeners) {
+      listeners = new Set();
+      this.dataListeners.set(sessionId, listeners);
+    }
+    listeners.add(listener);
+    return () => {
+      const set = this.dataListeners.get(sessionId);
+      if (!set) return;
+      set.delete(listener);
+      if (set.size === 0) this.dataListeners.delete(sessionId);
+    };
   }
 
   get(sessionId: string): Pty | undefined {

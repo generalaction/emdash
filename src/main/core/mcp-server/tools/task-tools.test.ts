@@ -87,7 +87,7 @@ interface MockDeps {
   updateLinkedIssue: ReturnType<typeof vi.fn>;
   setTaskPinned: ReturnType<typeof vi.fn>;
   ptyGet: ReturnType<typeof vi.fn>;
-  ptySubscribe: ReturnType<typeof vi.fn>;
+  ptyPeek: ReturnType<typeof vi.fn>;
   ptyList: ReturnType<typeof vi.fn>;
   wsGet: ReturnType<typeof vi.fn>;
   appOpenIn: ReturnType<typeof vi.fn>;
@@ -105,7 +105,7 @@ function makeMockDeps(): MockDeps {
     updateLinkedIssue: vi.fn().mockResolvedValue(undefined),
     setTaskPinned: vi.fn().mockResolvedValue(undefined),
     ptyGet: vi.fn(),
-    ptySubscribe: vi.fn().mockReturnValue(''),
+    ptyPeek: vi.fn().mockReturnValue(''),
     ptyList: vi.fn().mockReturnValue([]),
     wsGet: vi.fn(),
     appOpenIn: vi.fn().mockResolvedValue(undefined),
@@ -129,7 +129,7 @@ function installMockDeps(m: MockDeps): void {
     setTaskPinned: m.setTaskPinned,
     ptySessionRegistry: {
       get: m.ptyGet,
-      subscribe: m.ptySubscribe,
+      peek: m.ptyPeek,
       listActiveSessions: m.ptyList,
     },
     workspaceRegistry: {
@@ -365,7 +365,7 @@ describe('task-tools', () => {
   describe('task.getOutput', () => {
     it('returns the ring buffer contents and a usable cursor', async () => {
       const buffer = 'hello world\n';
-      deps.ptySubscribe.mockReturnValue(buffer);
+      deps.ptyPeek.mockReturnValue(buffer);
       // PTY is still alive → eof=false
       deps.ptyGet.mockReturnValue({});
 
@@ -386,7 +386,7 @@ describe('task-tools', () => {
 
     it('honours sinceCursor for incremental reads', async () => {
       const buffer = 'AAAABBBB';
-      deps.ptySubscribe.mockReturnValue(buffer);
+      deps.ptyPeek.mockReturnValue(buffer);
       deps.ptyGet.mockReturnValue(undefined); // session exited → eof=true
 
       const handler = server.handlers.get('task.getOutput')!;

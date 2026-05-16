@@ -23,7 +23,9 @@
  *   task.archive      → `archiveTask`          (operations/archiveTask.ts)
  *   task.unarchive    → `restoreTask`          (operations/restoreTask.ts)
  *   task.sendInput    → `pty.write`            (pty/pty-session-registry.ts)
- *   task.getOutput    → `ringBuffer subscribe` (pty/pty-session-registry.ts)
+ *   task.getOutput    → `ringBuffer peek`     (pty/pty-session-registry.ts) — uses
+ *                       `peek()` rather than `subscribe()` to avoid leaking
+ *                       an active-consumer registration (see T4 review).
  *   task.listSessions → `listActiveSessions`   (pty/pty-session-registry.ts)
  *   task.openInIDE    → `appService.openIn`    (app/service.ts)
  *
@@ -474,7 +476,9 @@ export function registerTaskTools(server: McpServer): void {
     },
     withRecording('task.getOutput', async (args: z.infer<z.ZodObject<typeof outputInput>>) => {
       const deps = await loadDeps();
-      const buffer = deps.ptySessionRegistry.subscribe(args.sessionId);
+      // `peek` returns the ring buffer WITHOUT registering an IPC consumer —
+      // every MCP call would otherwise leak one into `activeConsumers`.
+      const buffer = deps.ptySessionRegistry.peek(args.sessionId);
       const eof = deps.ptySessionRegistry.get(args.sessionId) === undefined;
       // The registry buffer is a string; `cursor` is the byte length of the
       // delivered slice — clients pass the value back as `sinceCursor` to
