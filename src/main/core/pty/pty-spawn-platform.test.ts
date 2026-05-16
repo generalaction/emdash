@@ -70,6 +70,55 @@ describe('resolveLocalPtySpawn - Windows', () => {
     });
   });
 
+  it('direct-spawns extensionless commands that resolve to .cmd shims under paths with spaces', () => {
+    // Regression for npm globals installed under `C:\Program Files\nodejs`:
+    // the cmd.exe wrapper used to fail with `'"C:\Program Files\nodejs\codex.CMD"'
+    // is not recognized as an internal or external command`.
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: {
+        ...winEnv,
+        Path: 'C:\\Program Files\\nodejs',
+      },
+      fileExists: (candidate) => candidate === 'C:\\Program Files\\nodejs\\codex.CMD',
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        command: { kind: 'argv', command: 'codex', args: ['--version'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Program Files\\nodejs\\codex.CMD',
+      args: ['--version'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
+  it('direct-spawns .cmd argv commands when the absolute command path contains spaces', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: winEnv,
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        command: {
+          kind: 'argv',
+          command: 'C:\\Program Files\\nodejs\\codex.cmd',
+          args: ['--version'],
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Program Files\\nodejs\\codex.cmd',
+      args: ['--version'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
   it('direct-spawns extensionless commands that resolve to exe files', () => {
     const result = resolveLocalPtySpawn({
       platform: 'win32',
