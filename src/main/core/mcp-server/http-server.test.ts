@@ -16,8 +16,11 @@ describe('McpHttpServer', () => {
   let port: number;
 
   async function startServer(token = TOKEN, listenPort = 0): Promise<number> {
-    const mcpServer = createMcpServer();
-    const { port: bound } = await server.start({ port: listenPort, token, mcpServer });
+    const { port: bound } = await server.start({
+      port: listenPort,
+      token,
+      mcpServerFactory: createMcpServer,
+    });
     return bound;
   }
 
@@ -203,8 +206,9 @@ describe('McpHttpServer', () => {
       const placeholder = await listenOnEphemeralPort();
       const taken = (placeholder.address() as AddressInfo).port;
       try {
-        const mcpServer = createMcpServer();
-        await expect(server.start({ port: taken, token: TOKEN, mcpServer })).rejects.toMatchObject({
+        await expect(
+          server.start({ port: taken, token: TOKEN, mcpServerFactory: createMcpServer })
+        ).rejects.toMatchObject({
           name: 'McpServerStartError',
           code: 'PORT_IN_USE',
         });

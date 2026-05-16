@@ -50,7 +50,7 @@ describe('mcp-server end-to-end (HTTP + SDK client)', () => {
     const { port: bound } = await httpServer.start({
       port: 0,
       token,
-      mcpServer: buildTestMcpServer(),
+      mcpServerFactory: buildTestMcpServer,
     });
     port = bound;
   });
@@ -153,6 +153,28 @@ describe('mcp-server end-to-end (HTTP + SDK client)', () => {
     expect(body.statusCode).toBe(421);
   });
 
+  it('supports multiple concurrent sessions on the same server', async () => {
+    // Regression: a single McpServer instance can only be connected to one
+    // transport at a time (the SDK throws "Already connected to a transport"
+    // on the second connect()). The server must mint a fresh McpServer per
+    // session via the factory. Drive two sequential `initialize` round-trips
+    // and confirm both succeed and both can call tools.
+    const first = await connectClient({ port, token });
+    try {
+      const second = await connectClient({ port, token });
+      try {
+        const r1 = await first.callTool({ name: 'echo', arguments: { text: 'first' } });
+        const r2 = await second.callTool({ name: 'echo', arguments: { text: 'second' } });
+        expect(r1.content).toMatchObject([{ type: 'text', text: 'first' }]);
+        expect(r2.content).toMatchObject([{ type: 'text', text: 'second' }]);
+      } finally {
+        await second.close().catch(() => undefined);
+      }
+    } finally {
+      await first.close().catch(() => undefined);
+    }
+  });
+
   it('stop() releases the port so a second server can bind to the same port', async () => {
     // The fixture's `afterEach` will run a second `stop()` — that's fine
     // because `stop()` is idempotent. What we assert here is that *during*
@@ -167,7 +189,7 @@ describe('mcp-server end-to-end (HTTP + SDK client)', () => {
       const { port: reboundPort } = await second.start({
         port: previousPort,
         token: generateToken(),
-        mcpServer: buildTestMcpServer(),
+        mcpServerFactory: buildTestMcpServer,
       });
       expect(reboundPort).toBe(previousPort);
       expect(second.isRunning()).toBe(true);

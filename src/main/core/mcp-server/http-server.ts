@@ -40,7 +40,17 @@ export class McpServerStartError extends Error {
 export interface McpHttpServerStartOptions {
   port: number;
   token: string;
-  mcpServer: McpServer;
+  /**
+   * Builds a fresh `McpServer` for each new session.
+   *
+   * The MCP SDK forbids connecting a single `McpServer` to more than one
+   * transport at a time, and `StreamableHTTPServerTransport` is one transport
+   * per HTTP session. So every new session needs its own `McpServer`. Tool
+   * and resource registration is cheap (just map inserts), and per-session
+   * isolation also keeps any per-connection state — subscriptions, request
+   * handlers — from leaking between clients.
+   */
+  mcpServerFactory: () => McpServer;
 }
 
 /**
@@ -68,18 +78,26 @@ export class McpHttpServer {
   private tokenBuffer: Buffer | null = null;
 
   /**
-   * One transport per session. The SDK transport is stateful — for SSE
-   * subscriptions to work across multiple HTTP requests the client must keep
-   * sending the same `mcp-session-id`, and we must hand the request to the
-   * same transport instance each time.
+   * One session entry per active client. The SDK transport is stateful — for
+   * SSE subscriptions to work across multiple HTTP requests the client must
+   * keep sending the same `mcp-session-id`, and we must hand the request to
+   * the same transport (and its bound `McpServer`) each time.
+   *
+   * Each session pairs a `StreamableHTTPServerTransport` with the
+   * `McpServer` it's connected to. We keep a reference to the `McpServer` so
+   * we can `close()` it when the session ends, releasing per-session
+   * subscriptions and handlers held by the SDK.
    */
-  private readonly transports = new Map<string, StreamableHTTPServerTransport>();
+  private readonly sessions = new Map<
+    string,
+    { transport: StreamableHTTPServerTransport; mcpServer: McpServer }
+  >();
 
   /**
-   * The active `McpServer` for the current run. Connected to every new
-   * transport so that all sessions share the same tool/resource registry.
+   * Factory for the active run. Invoked once per new session to mint an
+   * `McpServer` with the full tool / resource catalog registered.
    */
-  private mcpServer: McpServer | null = null;
+  private mcpServerFactory: (() => McpServer) | null = null;
 
   /**
    * Starts the HTTP server. Rejects with `McpServerStartError` on bind
@@ -100,7 +118,7 @@ export class McpHttpServer {
     }
 
     this.tokenBuffer = Buffer.from(opts.token, 'utf8');
-    this.mcpServer = opts.mcpServer;
+    this.mcpServerFactory = opts.mcpServerFactory;
 
     const server = createServer((req, res) => {
       this.handle(req, res).catch((err) => {
@@ -175,13 +193,16 @@ export class McpHttpServer {
     this.httpServer = null;
     this.boundPort = null;
     this.tokenBuffer = null;
-    this.mcpServer = null;
+    this.mcpServerFactory = null;
 
-    // Close all open transports first so in-flight SSE streams shut down
-    // before we kill the underlying socket.
-    const transports = Array.from(this.transports.values());
-    this.transports.clear();
-    await Promise.allSettled(transports.map((t) => t.close()));
+    // Close all open sessions first so in-flight SSE streams shut down before
+    // we kill the underlying socket. Close the transport AND its paired
+    // McpServer so per-session subscriptions don't leak.
+    const sessions = Array.from(this.sessions.values());
+    this.sessions.clear();
+    await Promise.allSettled(
+      sessions.flatMap(({ transport, mcpServer }) => [transport.close(), mcpServer.close()])
+    );
 
     if (!server) return;
     await new Promise<void>((resolve) => {
@@ -255,61 +276,81 @@ export class McpHttpServer {
     const sessionHeader = req.headers[MCP_SESSION_HEADER];
     const sessionId = Array.isArray(sessionHeader) ? sessionHeader[0] : sessionHeader;
 
-    let transport = sessionId ? this.transports.get(sessionId) : undefined;
+    const existing = sessionId ? this.sessions.get(sessionId) : undefined;
+    if (existing) {
+      await existing.transport.handleRequest(req, res);
+      return;
+    }
 
-    if (!transport) {
-      const mcpServer = this.mcpServer;
-      if (!mcpServer) {
-        this.respondJson(res, 503, { error: 'mcp_server_not_ready' });
-        return;
-      }
-      // `onsessioninitialized` fires from inside `handleRequest` once the
-      // SDK has assigned a session id to the transport. This is the only
-      // point at which `createdTransport.sessionId` is guaranteed to be set,
-      // so it is the correct hook for registering the transport in our map
-      // — doing it *before* `handleRequest` runs would always observe
-      // `undefined`. (See `StreamableHTTPServerTransport` in
-      // `@modelcontextprotocol/sdk`.)
-      //
-      // The closures reference `createdTransport` via a one-element ref so
-      // we can build the SDK options object before the transport itself
-      // exists (the SDK assigns `this` to a per-instance setup, so it must
-      // see the same reference both ways).
-      const transportRef: { current: StreamableHTTPServerTransport | null } = { current: null };
-      const createdTransport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (initializedId) => {
-          if (transportRef.current) {
-            this.transports.set(initializedId, transportRef.current);
-          }
-        },
-        onsessionclosed: (closedId) => {
-          const existing = this.transports.get(closedId);
-          if (existing) {
-            this.transports.delete(closedId);
-            existing.close().catch((err) => {
-              log.warn('[mcp-server] error closing transport on session-closed', err);
-            });
-          }
-        },
-      });
-      transportRef.current = createdTransport;
-      transport = createdTransport;
+    const factory = this.mcpServerFactory;
+    if (!factory) {
+      this.respondJson(res, 503, { error: 'mcp_server_not_ready' });
+      return;
+    }
 
-      const originalOnClose = createdTransport.onclose;
-      createdTransport.onclose = () => {
-        // Remove from the map whenever the transport closes for any reason
-        // (client disconnect, explicit close, etc.).
-        if (createdTransport.sessionId) {
-          this.transports.delete(createdTransport.sessionId);
+    // Mint a brand-new McpServer for this session. The SDK forbids connecting
+    // a single McpServer to more than one transport at a time, so each new
+    // session gets its own; tool/resource registration is cheap.
+    const sessionMcpServer = factory();
+
+    // `onsessioninitialized` fires from inside `handleRequest` once the SDK
+    // assigns a session id to the transport — that's the only point at which
+    // `transport.sessionId` is guaranteed to be set, so it's the correct hook
+    // for registering the session. The closures reach `transport` via a
+    // one-element ref so we can build the SDK options object before the
+    // transport itself exists.
+    const transportRef: { current: StreamableHTTPServerTransport | null } = { current: null };
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (initializedId) => {
+        const t = transportRef.current;
+        if (t) {
+          this.sessions.set(initializedId, { transport: t, mcpServer: sessionMcpServer });
         }
-        originalOnClose?.();
-      };
+      },
+      onsessionclosed: (closedId) => {
+        this.dropSession(closedId);
+      },
+    });
+    transportRef.current = transport;
 
-      await mcpServer.connect(createdTransport);
+    const originalOnClose = transport.onclose;
+    transport.onclose = () => {
+      // Remove on any close (client disconnect, explicit close, etc.). The
+      // SDK calls onsessionclosed too in many cases but this catches early
+      // disconnects before a session id was ever assigned.
+      if (transport.sessionId) {
+        this.dropSession(transport.sessionId);
+      } else {
+        sessionMcpServer.close().catch((err) => {
+          log.warn('[mcp-server] error closing per-session McpServer on early disconnect', err);
+        });
+      }
+      originalOnClose?.();
+    };
+
+    try {
+      await sessionMcpServer.connect(transport);
+    } catch (err) {
+      // Connect failure means the transport never became part of a session;
+      // drop the brand-new McpServer so we don't leak it.
+      await sessionMcpServer.close().catch(() => {});
+      throw err;
     }
 
     await transport.handleRequest(req, res);
+  }
+
+  private dropSession(sessionId: string): void {
+    const existing = this.sessions.get(sessionId);
+    if (!existing) return;
+    this.sessions.delete(sessionId);
+    existing.transport.close().catch((err) => {
+      log.warn('[mcp-server] error closing transport on session-closed', err);
+    });
+    existing.mcpServer.close().catch((err) => {
+      log.warn('[mcp-server] error closing McpServer on session-closed', err);
+    });
   }
 
   private respondJson(res: ServerResponse, status: number, body: unknown): void {

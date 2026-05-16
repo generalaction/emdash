@@ -87,6 +87,13 @@ Tools call into existing operation functions (e.g.
 `src/main/core/tasks/operations/createTask.ts`) **directly, in-process**. No
 IPC round-trip; no duplicated business logic.
 
+**Per-session `McpServer` instances.** The SDK's `McpServer` may only be
+connected to one transport at a time. `StreamableHTTPServerTransport` is
+one transport per HTTP session, so each new session mints a fresh `McpServer`
+via a factory (`createMcpServer`). Tool / resource registration is cheap
+(map inserts), and per-session isolation also keeps subscriptions and
+request handlers from leaking between clients.
+
 ## Tool catalog (v1)
 
 Each tool returns the same `Result<T, E>` shape as the underlying op.

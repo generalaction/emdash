@@ -210,20 +210,23 @@ export class McpServerService implements IInitializable, IDisposable {
   private async startAndEmit(port: number): Promise<void> {
     try {
       const tokenFile = await ensureTokenFile(port);
-      const mcpServer = createMcpServer();
-      // Defensive: if a future refactor reverts `createMcpServer` to a stub,
-      // skip starting rather than crash. The spec contract is that the
-      // service tolerates an absent server until tools are wired up.
-      if (!mcpServer) {
+      // Pass `createMcpServer` itself as the factory — each new HTTP session
+      // gets its own McpServer instance (the SDK forbids reusing one across
+      // transports). Smoke-check by minting one upfront so we fail loudly at
+      // start time rather than on the first client request.
+      const probe = createMcpServer();
+      if (!probe) {
         this.lastError = 'createMcpServer() returned no server; transport not started.';
         log.warn('[mcp-server]', this.lastError);
         await this.emitStatus();
         return;
       }
+      // The probe was just a sanity check; close it so it doesn't leak.
+      await probe.close().catch(() => {});
       const { port: boundPort } = await this.httpServer.start({
         port,
         token: tokenFile.token,
-        mcpServer,
+        mcpServerFactory: () => createMcpServer(),
       });
       this.startedAt = Date.now();
       this.lastError = null;
