@@ -141,6 +141,42 @@ describe('HookConfigWriter', () => {
     expect(config.notify).toBeUndefined();
   });
 
+  it('still reports Codex hooks available when legacy notify cleanup fails', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
+    const fs = new MemoryFs();
+    const userFs = new MemoryFs();
+    fs.files.set(
+      '.codex/config.toml',
+      toml.stringify({
+        notify: [
+          'bash',
+          '-c',
+          'curl -sf -X POST ' +
+            "-H 'Content-Type: application/json' " +
+            '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
+            '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
+            '-H "X-Emdash-Event-Type: notification" ' +
+            '-d "$1" ' +
+            '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true',
+          '_',
+        ],
+      })
+    );
+    const originalWrite = fs.write.bind(fs);
+    fs.write = vi.fn(async (path, content) => {
+      if (path === '.codex/config.toml') {
+        throw new Error('read-only config');
+      }
+      return originalWrite(path, content);
+    });
+    const writer = makeWriter(fs, userFs);
+
+    const wroteConfig = await writer.writeForProvider('codex');
+
+    expect(wroteConfig).toBe(true);
+    expect(userFs.files.get('.codex/hooks.json')).toContain('PermissionRequest');
+  });
+
   it('keeps user-managed Codex notify values in project-local config', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
     const fs = new MemoryFs();

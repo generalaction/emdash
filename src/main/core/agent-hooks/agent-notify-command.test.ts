@@ -56,7 +56,7 @@ describe('makeCodexHookCommand', () => {
     expect(content).toContain('-EncodedCommand');
     expect(script).toContain('X-Emdash-Token');
     expect(script).toContain('X-Emdash-Pty-Id');
-    expect(script).toContain('{"notification_type":"permission_prompt"}');
+    expect(script).toContain('$payload = \'{"notification_type":"permission_prompt"}\'');
     expect(script).toContain("'X-Emdash-Event-Type' = 'notification'");
   });
 });

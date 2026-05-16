@@ -105,7 +105,9 @@ export class HookConfigWriter {
     }
 
     await this.userFs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
-    await this.removeLegacyCodexNotify();
+    await this.removeLegacyCodexNotify().catch((err: Error) => {
+      log.warn('CodexHooks: failed to remove legacy notify entry', { error: String(err) });
+    });
     return true;
   }
 

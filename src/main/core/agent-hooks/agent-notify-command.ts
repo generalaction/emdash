@@ -27,13 +27,17 @@ function makePosixHookPostCommand({ eventType, payload }: HookPostCommandOptions
   );
 }
 
+function quotePowerShellString(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
 function makeWindowsHookPostCommand({ eventType, payload }: HookPostCommandOptions): string {
   const script = [
     "$ErrorActionPreference = 'SilentlyContinue'",
     'if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_TOKEN -or -not $env:EMDASH_PTY_ID) { exit 0 }',
     payload === 'stdin'
       ? '$payload = [Console]::In.ReadToEnd()'
-      : `$payload = ${JSON.stringify(payload.json)} | ConvertFrom-Json | ConvertTo-Json -Compress`,
+      : `$payload = ${quotePowerShellString(JSON.stringify(payload.json))}`,
     'try { Invoke-WebRequest -UseBasicParsing -Method POST ' +
       "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
       '-Headers @{ ' +
