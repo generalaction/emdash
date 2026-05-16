@@ -13,6 +13,7 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { getDraggedFilePaths, hasDraggedFiles } from '@renderer/lib/drag-files';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
@@ -30,18 +31,6 @@ function resultErrorMessage(error: { message?: string; type?: string }): string 
   return error.message ?? error.type ?? 'Unknown error';
 }
 
-function getLocalFilePaths(dataTransfer: DataTransfer): string[] {
-  return Array.from(dataTransfer.files)
-    .map((file) => window.electronAPI.getPathForFile(file).trim())
-    .filter(Boolean);
-}
-
-// `dataTransfer.files` is empty during `dragover`/`dragenter` — only `types`
-// is populated until the drop fires. Use this for dragover detection.
-function hasFileDrag(dataTransfer: DataTransfer): boolean {
-  return dataTransfer.types.includes('Files');
-}
-
 function joinRelPath(dir: string, name: string): string {
   return dir ? `${dir}/${name}` : name;
 }
@@ -57,11 +46,12 @@ async function importLocalFiles(args: {
 
   // Optimistic insert — tree updates the moment the drop lands. The watcher
   // event arriving after the copy finishes is a no-op for already-present nodes.
-  const inserted: string[] = [];
-  for (const srcPath of srcPaths) {
-    const destRel = joinRelPath(destDirPath, basenameFromAnyPath(srcPath));
-    if (files.addOptimisticNode(destRel, 'file')) inserted.push(destRel);
-  }
+  const inserted = files.addOptimisticNodes(
+    srcPaths.map((srcPath) => ({
+      relPath: joinRelPath(destDirPath, basenameFromAnyPath(srcPath)),
+      type: 'file',
+    }))
+  );
 
   try {
     const result = await rpc.fs.copyLocalFiles(projectId, workspaceId, srcPaths, destDirPath);
@@ -185,7 +175,7 @@ const FileTreeRow = observer(function FileTreeRow({
   const [isDropTarget, setIsDropTarget] = useState(false);
 
   const handleDragOver = (event: React.DragEvent) => {
-    if (!hasFileDrag(event.dataTransfer)) return;
+    if (!hasDraggedFiles(event.dataTransfer)) return;
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = 'copy';
@@ -199,7 +189,7 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const handleDrop = (event: React.DragEvent) => {
     setIsDropTarget(false);
-    const srcPaths = getLocalFilePaths(event.dataTransfer);
+    const srcPaths = getDraggedFilePaths(event.dataTransfer);
     if (srcPaths.length === 0) return;
     event.preventDefault();
     event.stopPropagation();
@@ -319,7 +309,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   const handleRootDrop = (event: React.DragEvent) => {
     setIsDragOverRoot(false);
-    const srcPaths = getLocalFilePaths(event.dataTransfer);
+    const srcPaths = getDraggedFilePaths(event.dataTransfer);
     if (srcPaths.length === 0) return;
     event.preventDefault();
     event.stopPropagation();
@@ -334,7 +324,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
   };
 
   const handleRootDragOver = (event: React.DragEvent) => {
-    if (!hasFileDrag(event.dataTransfer)) return;
+    if (!hasDraggedFiles(event.dataTransfer)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
     setIsDragOverRoot(true);

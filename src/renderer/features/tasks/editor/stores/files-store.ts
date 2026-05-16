@@ -130,22 +130,22 @@ export class FilesStore {
     this._bumpTreeDebounced();
   }
 
-  /**
-   * Optimistically insert a node so the UI updates the instant a file is
-   * dropped, before the RPC copy finishes. The follow-up watcher event is a
-   * no-op when the node already exists.
-   * Returns true if a node was inserted (call `removeNode` on failure to roll back).
-   */
-  addOptimisticNode(relPath: string, type: 'file' | 'directory'): boolean {
-    if (!relPath || isExcluded(relPath)) return false;
-    if (this._nodes.has(relPath)) return false;
+  /** Optimistically insert dropped nodes and bump the tree once. */
+  addOptimisticNodes(nodes: Array<{ relPath: string; type: 'file' | 'directory' }>): string[] {
+    const inserted: string[] = [];
 
-    const parent = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
-    if (!this._loadedPaths.has(parent)) return false;
+    for (const { relPath, type } of nodes) {
+      if (!relPath || isExcluded(relPath) || this._nodes.has(relPath)) continue;
 
-    this._addNode(makeNode(relPath, type));
-    this._bumpTree();
-    return true;
+      const parent = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
+      if (!this._loadedPaths.has(parent)) continue;
+
+      this._addNode(makeNode(relPath, type));
+      inserted.push(relPath);
+    }
+
+    if (inserted.length > 0) this._bumpTree();
+    return inserted;
   }
 
   removeNode(relPath: string): void {

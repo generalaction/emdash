@@ -228,13 +228,24 @@ export const filesController = createRPCController({
       const destDir = normalizeRelativePath(destDirPath, { allowEmpty: true });
       await env.fs.mkdir(destDir || '.', { recursive: true });
 
-      for (const srcPath of srcPaths) {
+      const plannedCopies = srcPaths.map((srcPath) => {
         if (!path.isAbsolute(srcPath)) throw new Error('Source path must be absolute');
         const fileName = path.basename(srcPath);
         if (!fileName) throw new Error('Source path must include a file name');
         const destRelPath = destDir ? path.posix.join(destDir, fileName) : fileName;
+        return { srcPath, destRelPath };
+      });
+
+      const seenDestPaths = new Set<string>();
+      for (const { destRelPath } of plannedCopies) {
+        if (seenDestPaths.has(destRelPath))
+          throw new Error(`Duplicate destination: ${destRelPath}`);
+        seenDestPaths.add(destRelPath);
         if (await env.fs.exists(destRelPath))
           throw new Error(`File already exists: ${destRelPath}`);
+      }
+
+      for (const { srcPath, destRelPath } of plannedCopies) {
         await env.fs.copyLocalFile(srcPath, destRelPath);
       }
 
