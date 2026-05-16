@@ -14,6 +14,8 @@ import type { GitStore } from './git-store';
  *  - Auto-closes or transitions stale diff tabs when git file lists change.
  *
  * Extracted from TaskViewStore to keep diff domain logic self-contained.
+ * Session-scoped: created in WorkspaceViewModel.initialize(), disposed in suspend(),
+ * so the workspace is always live while this store exists — no null guards needed.
  */
 export class DiffTabLifecycleStore {
   private readonly disposers: (() => void)[] = [];
@@ -58,9 +60,9 @@ export class DiffTabLifecycleStore {
           for (const id of this.tabManager.tabOrder) {
             const t = this.tabManager.entries.get(id);
             if (!t || t.kind !== 'diff' || t.diffGroup !== 'pr' || t.prNumber == null) continue;
-            const pr = this.pr.pullRequests.find((p) => getPrNumber(p) === t.prNumber);
-            if (pr) {
-              for (const f of this.pr.getFiles(pr).data ?? []) valid.add(`pr:${f.path}`);
+            const matchedPr = this.pr.pullRequests.find((p) => getPrNumber(p) === t.prNumber);
+            if (matchedPr) {
+              for (const f of this.pr.getFiles(matchedPr).data ?? []) valid.add(`pr:${f.path}`);
             }
           }
           return valid;

@@ -1,13 +1,41 @@
-import { app, Menu, shell } from 'electron';
+import { app, clipboard, Menu, shell } from 'electron';
 import {
   menuCheckForUpdatesChannel,
   menuCloseTabChannel,
+  menuGiveFeedbackChannel,
   menuOpenSettingsChannel,
+  menuQuitRequestedChannel,
   menuRedoChannel,
   menuUndoChannel,
 } from '@shared/events/appEvents';
-import { EMDASH_DOCS_URL, EMDASH_RELEASES_URL } from '@shared/urls';
+import { EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL, EMDASH_RELEASES_URL } from '@shared/urls';
 import { events } from '@main/lib/events';
+import { telemetryService } from '@main/lib/telemetry';
+import { getMainWindow } from './window';
+
+function copyInstallationId(): void {
+  const instanceId = telemetryService.getInstanceId() ?? 'unavailable';
+  const lines = [
+    `Emdash ${app.getVersion()}`,
+    `Installation ID: ${instanceId}`,
+    `Platform: ${process.platform} ${process.arch}`,
+    `Electron: ${process.versions.electron}`,
+  ];
+  clipboard.writeText(lines.join('\n'));
+}
+
+function requestQuit(): void {
+  const win = getMainWindow();
+  if (!win || win.webContents.isLoading()) {
+    app.quit();
+    return;
+  }
+
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  events.emit(menuQuitRequestedChannel, undefined);
+}
 
 export function setupApplicationMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -43,7 +71,7 @@ export function setupApplicationMenu(): void {
               {
                 label: `Quit ${app.name}`,
                 accelerator: 'CmdOrCtrl+Q',
-                click: () => app.quit(),
+                click: requestQuit,
               },
             ],
           } as Electron.MenuItemConstructorOptions,
@@ -70,7 +98,11 @@ export function setupApplicationMenu(): void {
               accelerator: 'CmdOrCtrl+W',
               click: () => events.emit(menuCloseTabChannel, undefined),
             }
-          : { role: 'quit' as const },
+          : {
+              label: 'Quit',
+              accelerator: 'CmdOrCtrl+Q',
+              click: requestQuit,
+            },
       ],
     },
     // Edit menu
@@ -115,8 +147,18 @@ export function setupApplicationMenu(): void {
     { role: 'windowMenu' as const },
     // Help menu
     {
+      role: 'help' as const,
       label: 'Help',
       submenu: [
+        ...(!isMac
+          ? [
+              {
+                label: 'Check for Updates\u2026',
+                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
+              },
+              { type: 'separator' as const },
+            ]
+          : []),
         {
           label: 'Docs',
           click: () => {
@@ -129,15 +171,26 @@ export function setupApplicationMenu(): void {
             void shell.openExternal(EMDASH_RELEASES_URL);
           },
         },
-        ...(!isMac
-          ? [
-              { type: 'separator' as const },
-              {
-                label: 'Check for Updates\u2026',
-                click: () => events.emit(menuCheckForUpdatesChannel, undefined),
+        { type: 'separator' as const },
+        {
+          label: 'Troubleshooting',
+          submenu: [
+            {
+              label: 'Report Issue\u2026',
+              click: () => {
+                void shell.openExternal(EMDASH_ISSUES_NEW_URL);
               },
-            ]
-          : []),
+            },
+            {
+              label: 'Copy Installation ID',
+              click: copyInstallationId,
+            },
+          ],
+        },
+        {
+          label: 'Give Feedback',
+          click: () => events.emit(menuGiveFeedbackChannel, undefined),
+        },
       ],
     },
   ];

@@ -1,15 +1,13 @@
 import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
 import {
-  asProvisioned,
   getRegisteredTaskData,
   getTaskGitStore,
-  getTaskManagerStore,
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { showModal } from '@renderer/lib/modal/modal-provider';
-import { appState } from '@renderer/lib/stores/app-state';
+import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 
 function taskDef(id: TaskCommandId): CommandDef {
   return TASK_COMMAND_DEFS.find((d) => d.id === id)!;
@@ -27,16 +25,14 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
     getCommands() {
       const taskStore = getTaskStore(projectId, taskId);
-      const provisioned = asProvisioned(taskStore);
 
       // Guard: only expose commands when the task is fully provisioned.
-      if (!provisioned) return [];
+      if (taskStore?.state !== 'provisioned') return [];
 
       const taskView = getTaskView(projectId, taskId);
       const tabManager = taskView?.tabManager;
 
-      const taskMgr = getTaskManagerStore(projectId);
-      const taskIds = taskMgr ? Array.from(taskMgr.tasks.keys()) : [];
+      const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
       const currentIdx = taskIds.indexOf(taskId);
 
       const git = getTaskGitStore(projectId, taskId);

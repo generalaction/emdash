@@ -1,5 +1,6 @@
 import { APP_COMMAND_DEFS, type AppCommandId, type CommandDef } from '@shared/commands';
 import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
+import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { commandRegistry } from './registry';
@@ -24,6 +25,7 @@ function createAppCommandProvider(): CommandProvider {
 
       const settingsDef = appDef('app.settings');
       const newProjectDef = appDef('app.newProject');
+      const giveFeedbackDef = appDef('app.giveFeedback');
       const navigateBackDef = appDef('app.navigateBack');
       const navigateForwardDef = appDef('app.navigateForward');
 
@@ -35,7 +37,11 @@ function createAppCommandProvider(): CommandProvider {
           shortcutKey: settingsDef.shortcutKey,
           group: settingsDef.group,
           execute() {
-            appState.navigation.navigate('settings');
+            toggleSettingsView(
+              appState.navigation.navigate.bind(appState.navigation),
+              appState.navigation.currentViewId,
+              appState.navigation.lastNonSettingsView
+            );
           },
         },
         {
@@ -49,6 +55,17 @@ function createAppCommandProvider(): CommandProvider {
           },
         },
       ];
+
+      commands.push({
+        id: giveFeedbackDef.id,
+        label: giveFeedbackDef.label,
+        description: giveFeedbackDef.description,
+        shortcutKey: giveFeedbackDef.shortcutKey,
+        group: giveFeedbackDef.group,
+        execute() {
+          showModal('feedbackModal', {});
+        },
+      });
 
       if (projectId) {
         const newTaskDef = appDef('app.newTask');

@@ -8,7 +8,6 @@ import {
   useWorkspaceWrapParams,
 } from '@renderer/lib/layout/navigation-provider';
 import { WorkspaceContentLayout, WorkspaceLayout } from '@renderer/lib/layout/workspace-layout';
-import { ModalRenderer } from '@renderer/lib/modal/modal-renderer';
 import { Toaster } from '@renderer/lib/ui/toaster';
 
 export function Workspace() {
@@ -25,7 +24,6 @@ export function Workspace() {
         leftSidebar={<LeftSidebar />}
         mainContent={
           <WrapView {...wrapParams}>
-            <ModalRenderer />
             <WorkspaceViewContent />
           </WrapView>
         }

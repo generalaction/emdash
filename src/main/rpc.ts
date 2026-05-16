@@ -16,6 +16,7 @@ import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
 import { plainController } from './core/plain/controller';
 import { projectController } from './core/projects/controller';
+import { promptLibraryController } from './core/prompt-library/controller';
 import { ptyController } from './core/pty/controller';
 import { pullRequestController } from './core/pull-requests/controller';
 import { repositoryController } from './core/repository/controller';
@@ -30,6 +31,7 @@ import { telemetryController } from './core/telemetry/controller';
 import { terminalsController } from './core/terminals/controller';
 import { updateController } from './core/updates/controller';
 import { viewStateController } from './core/view-state/controller';
+import { workspaceController } from './core/workspaces/controller';
 import { legacyPortController } from './db/legacy-port/controller';
 
 export const rpcRouter = createRPCRouter({
@@ -51,6 +53,7 @@ export const rpcRouter = createRPCRouter({
   jira: jiraController,
   linear: linearController,
   plain: plainController,
+  promptLibrary: promptLibraryController,
   skills: skillsController,
   ssh: sshController,
   projects: projectController,
@@ -65,6 +68,7 @@ export const rpcRouter = createRPCRouter({
   pullRequests: pullRequestController,
   viewState: viewStateController,
   search: searchController,
+  workspaces: workspaceController,
 });
 
 export type RpcRouter = typeof rpcRouter;

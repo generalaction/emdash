@@ -1,4 +1,4 @@
-export type SearchItemKind = 'task' | 'project' | 'conversation' | 'command';
+export type SearchItemKind = 'task' | 'project' | 'conversation' | 'command' | 'file';
 
 export interface SearchItem {
   kind: SearchItemKind;
@@ -15,5 +15,6 @@ export interface CommandPaletteQuery {
   context?: {
     projectId?: string;
     taskId?: string;
+    workspaceId?: string;
   };
 }

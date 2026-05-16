@@ -37,9 +37,8 @@ export type Task = {
   isPinned: boolean;
   prs: PullRequest[];
   conversations: Record<string, number>;
-  workspaceProvider?: 'byoi';
+  workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
-  workspaceProviderData?: string; // JSON, BYOI only
 };
 
 export type TaskBootstrapStatus =
@@ -99,6 +98,22 @@ export type CreateTaskWarning = {
 export type CreateTaskSuccess = {
   task: Task;
   warning?: CreateTaskWarning;
+};
+
+export type RenameTaskError =
+  | { type: 'task-not-found'; taskId: string }
+  | { type: 'project-not-found'; projectId: string }
+  | { type: 'branch-already-exists'; branch: string }
+  | { type: 'branch-rename-failed'; branch: string; message: string };
+
+export type RenameTaskWarning = {
+  type: 'branch-remote-push-failed';
+  branch: string;
+  message: string;
+};
+
+export type RenameTaskSuccess = {
+  warning?: RenameTaskWarning;
 };
 
 export type ProvisionTaskResult = {
