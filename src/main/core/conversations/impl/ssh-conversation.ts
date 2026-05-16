@@ -19,27 +19,17 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
 import {
-  getCurrentRemoteDroidSessionIds,
-  rememberRemoteDroidSessionId,
+  DroidFreshStartQueue,
+  listDroidSessionIds,
+  rememberDroidSessionId,
+  remoteDroidSessionStore,
+  scheduleDroidSessionRemember,
 } from './droid-session-resolver';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const MAX_RESPAWNS = 2;
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function remoteNowMs(ctx: IExecutionContext): Promise<number> {
-  try {
-    const { stdout } = await ctx.exec('date', ['+%s']);
-    const seconds = Number(stdout.trim());
-    if (Number.isFinite(seconds)) return seconds * 1000;
-  } catch {}
-  return Date.now();
-}
 
 export class SshConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
@@ -54,7 +44,7 @@ export class SshConversationProvider implements ConversationProvider {
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
   private readonly remoteFs: SshFileSystem;
-  private droidFreshStartQueue: Promise<void> = Promise.resolve();
+  private droidFreshStartQueue = new DroidFreshStartQueue();
 
   constructor({
     projectId,
@@ -101,24 +91,14 @@ export class SshConversationProvider implements ConversationProvider {
 
     if (this.sessions.has(sessionId)) return;
 
-    let releaseDroidFreshStart: (() => void) | undefined;
-    let releasedDroidFreshStart = false;
-    const releaseQueuedDroidFreshStart = () => {
-      if (!releaseDroidFreshStart || releasedDroidFreshStart) return;
-      releasedDroidFreshStart = true;
-      releaseDroidFreshStart();
-    };
-    if (conversation.providerId === 'droid' && !isResuming) {
-      const previousDroidFreshStart = this.droidFreshStartQueue;
-      this.droidFreshStartQueue = previousDroidFreshStart.then(
-        () =>
-          new Promise<void>((resolve) => {
-            releaseDroidFreshStart = resolve;
-          })
-      );
-      await previousDroidFreshStart;
-    }
+    const isDroidFreshStart = conversation.providerId === 'droid' && !isResuming;
+    const droidStore = remoteDroidSessionStore({ ctx: this.ctx, fs: this.remoteFs });
+    const releaseFreshStartSlot = isDroidFreshStart
+      ? await this.droidFreshStartQueue.acquire()
+      : null;
+    let scheduledRemember = false;
 
+    let existingDroidSessionIds: string[] = [];
     try {
       await claudeTrustService.maybeAutoTrustSsh({
         providerId: conversation.providerId,
@@ -126,24 +106,12 @@ export class SshConversationProvider implements ConversationProvider {
         ctx: this.ctx,
         remoteFs: this.remoteFs,
       });
-    } catch (error) {
-      releaseQueuedDroidFreshStart();
-      throw error;
-    }
 
-    let startedAt = 0;
-    let existingDroidSessionIds: string[] = [];
-    try {
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-      if (conversation.providerId === 'droid' && !isResuming) {
-        existingDroidSessionIds = await getCurrentRemoteDroidSessionIds({
-          cwd: this.taskPath,
-          ctx: this.ctx,
-          fs: this.remoteFs,
-        });
+      if (isDroidFreshStart) {
+        existingDroidSessionIds = await listDroidSessionIds(this.taskPath, droidStore);
       }
       if (conversation.providerId === 'droid' && isResuming && !conversation.providerSessionId) {
-        releaseQueuedDroidFreshStart();
         throw new Error('Cannot resume Droid session without a stored provider session id.');
       }
       const { command, args } = buildAgentCommand({
@@ -179,22 +147,14 @@ export class SshConversationProvider implements ConversationProvider {
         profile
       );
 
-      startedAt = await remoteNowMs(this.ctx);
-      let result: Awaited<ReturnType<typeof openSsh2Pty>>;
-      try {
-        result = await openSsh2Pty(this.proxy, {
-          id: sessionId,
-          command: sshCommand,
-          cols: initialSize.cols,
-          rows: initialSize.rows,
-        });
-      } catch (error) {
-        releaseQueuedDroidFreshStart();
-        throw error;
-      }
+      const result = await openSsh2Pty(this.proxy, {
+        id: sessionId,
+        command: sshCommand,
+        cols: initialSize.cols,
+        rows: initialSize.rows,
+      });
 
       if (!result.success) {
-        releaseQueuedDroidFreshStart();
         log.error('SshConversationProvider: failed to open SSH channel', {
           sessionId,
           error: result.error.message,
@@ -261,36 +221,23 @@ export class SshConversationProvider implements ConversationProvider {
         metadata: { providerId: conversation.providerId, title: conversation.title },
       });
       this.sessions.set(sessionId, pty);
-    } catch (error) {
-      releaseQueuedDroidFreshStart();
-      throw error;
-    }
 
-    if (conversation.providerId === 'droid' && !isResuming) {
-      void (async () => {
-        try {
-          for (const delay of [1000, 2000, 4000]) {
-            await sleep(delay);
-            const stored = await rememberRemoteDroidSessionId({
+      if (isDroidFreshStart && releaseFreshStartSlot) {
+        scheduleDroidSessionRemember({
+          remember: () =>
+            rememberDroidSessionId({
               conversationId: conversation.id,
               cwd: this.taskPath,
-              startedAt,
-              initialPrompt,
               existingSessionIds: existingDroidSessionIds,
-              ctx: this.ctx,
-              fs: this.remoteFs,
-            });
-            if (stored) return;
-          }
-        } catch (error) {
-          log.warn('SshConversationProvider: failed to remember Droid session id', {
-            conversationId: conversation.id,
-            error: String(error),
-          });
-        } finally {
-          releaseQueuedDroidFreshStart();
-        }
-      })();
+              store: droidStore,
+            }),
+          release: releaseFreshStartSlot,
+          logContext: { conversationId: conversation.id, kind: 'ssh' },
+        });
+        scheduledRemember = true;
+      }
+    } finally {
+      if (releaseFreshStartSlot && !scheduledRemember) releaseFreshStartSlot();
     }
 
     telemetryService.capture('agent_run_started', {

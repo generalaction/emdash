@@ -7,24 +7,17 @@ const { findDroidSessionIdForTest } = await import('./droid-session-resolver');
 const cwd = '/repo/project';
 const sessionDir = '/home/user/.factory/sessions/-repo-project';
 
-function sessionStartLine({ id, title = 'New Session' }: { id: string; title?: string }) {
-  return JSON.stringify({
-    type: 'session_start',
-    id,
-    title,
-    sessionTitle: title,
-    cwd,
-  });
+function sessionStartLine(id: string) {
+  return JSON.stringify({ type: 'session_start', id, cwd });
 }
 
 describe('findDroidSessionIdForTest', () => {
-  it('ignores existing sessions even when their mtime updates after start', async () => {
+  it('ignores existing sessions and returns the newest remaining by mtime', async () => {
     const oldId = '11111111-1111-4111-8111-111111111111';
     const newId = '22222222-2222-4222-8222-222222222222';
 
     const result = await findDroidSessionIdForTest({
       cwd,
-      startedAt: 1_000,
       existingSessionIds: [oldId],
       store: {
         async home() {
@@ -44,10 +37,8 @@ describe('findDroidSessionIdForTest', () => {
           ];
         },
         async readFirstLine(filePath) {
-          if (filePath.endsWith(`${oldId}.jsonl`))
-            return sessionStartLine({ id: oldId, title: '1' });
-          if (filePath.endsWith(`${newId}.jsonl`))
-            return sessionStartLine({ id: newId, title: '3' });
+          if (filePath.endsWith(`${oldId}.jsonl`)) return sessionStartLine(oldId);
+          if (filePath.endsWith(`${newId}.jsonl`)) return sessionStartLine(newId);
           return null;
         },
       },

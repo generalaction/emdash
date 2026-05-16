@@ -23,16 +23,18 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
-import { getCurrentLocalDroidSessionIds, rememberDroidSessionId } from './droid-session-resolver';
+import {
+  DroidFreshStartQueue,
+  listDroidSessionIds,
+  localDroidSessionStore,
+  rememberDroidSessionId,
+  scheduleDroidSessionRemember,
+} from './droid-session-resolver';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 const MAX_RESPAWNS = 2;
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export class LocalConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
@@ -47,7 +49,7 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly taskEnvVars: Record<string, string>;
   private readonly hookConfigWriter: HookConfigWriter;
   private readonly preparedHookProviders = new Map<string, boolean>();
-  private droidFreshStartQueue: Promise<void> = Promise.resolve();
+  private droidFreshStartQueue = new DroidFreshStartQueue();
 
   constructor({
     projectId,
@@ -90,25 +92,12 @@ export class LocalConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
 
-    let releaseDroidFreshStart: (() => void) | undefined;
-    let releasedDroidFreshStart = false;
-    const releaseQueuedDroidFreshStart = () => {
-      if (!releaseDroidFreshStart || releasedDroidFreshStart) return;
-      releasedDroidFreshStart = true;
-      releaseDroidFreshStart();
-    };
-    if (conversation.providerId === 'droid' && !isResuming) {
-      const previousDroidFreshStart = this.droidFreshStartQueue;
-      this.droidFreshStartQueue = previousDroidFreshStart.then(
-        () =>
-          new Promise<void>((resolve) => {
-            releaseDroidFreshStart = resolve;
-          })
-      );
-      await previousDroidFreshStart;
-    }
+    const isDroidFreshStart = conversation.providerId === 'droid' && !isResuming;
+    const releaseFreshStartSlot = isDroidFreshStart
+      ? await this.droidFreshStartQueue.acquire()
+      : null;
+    let scheduledRemember = false;
 
-    let startedAt = 0;
     let existingDroidSessionIds: string[] = [];
     try {
       await claudeTrustService.maybeAutoTrustLocal({
@@ -119,8 +108,8 @@ export class LocalConversationProvider implements ConversationProvider {
       await this.prepareHookConfig(conversation.providerId);
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-      if (conversation.providerId === 'droid' && !isResuming) {
-        existingDroidSessionIds = await getCurrentLocalDroidSessionIds(this.taskPath);
+      if (isDroidFreshStart) {
+        existingDroidSessionIds = await listDroidSessionIds(this.taskPath, localDroidSessionStore);
       }
       if (conversation.providerId === 'droid' && isResuming && !conversation.providerSessionId) {
         throw new Error('Cannot resume Droid session without a stored provider session id.');
@@ -154,7 +143,6 @@ export class LocalConversationProvider implements ConversationProvider {
         sessionId,
       });
 
-      startedAt = Date.now();
       const ptyId = makePtyId(conversation.providerId, conversation.id);
       const port = agentHookService.getPort();
       const token = agentHookService.getToken();
@@ -236,35 +224,25 @@ export class LocalConversationProvider implements ConversationProvider {
         metadata: { providerId: conversation.providerId, title: conversation.title },
       });
       this.sessions.set(sessionId, pty);
-    } catch (error) {
-      releaseQueuedDroidFreshStart();
-      throw error;
-    }
 
-    if (conversation.providerId === 'droid' && !isResuming) {
-      void (async () => {
-        try {
-          for (const delay of [1000, 2000, 4000]) {
-            await sleep(delay);
-            const stored = await rememberDroidSessionId({
+      if (isDroidFreshStart && releaseFreshStartSlot) {
+        scheduleDroidSessionRemember({
+          remember: () =>
+            rememberDroidSessionId({
               conversationId: conversation.id,
               cwd: this.taskPath,
-              startedAt,
-              initialPrompt,
               existingSessionIds: existingDroidSessionIds,
-            });
-            if (stored) return;
-          }
-        } catch (error) {
-          log.warn('LocalConversationProvider: failed to remember Droid session id', {
-            conversationId: conversation.id,
-            error: String(error),
-          });
-        } finally {
-          releaseQueuedDroidFreshStart();
-        }
-      })();
+              store: localDroidSessionStore,
+            }),
+          release: releaseFreshStartSlot,
+          logContext: { conversationId: conversation.id, kind: 'local' },
+        });
+        scheduledRemember = true;
+      }
+    } finally {
+      if (releaseFreshStartSlot && !scheduledRemember) releaseFreshStartSlot();
     }
+
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,

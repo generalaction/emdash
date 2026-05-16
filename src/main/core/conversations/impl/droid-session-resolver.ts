@@ -8,100 +8,152 @@ import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 
-type ConversationConfig = {
-  autoApprove?: boolean;
-  providerSessionId?: string;
-};
-
 const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const REMEMBER_RETRY_DELAYS = [1000, 2000, 4000] as const;
 
 function droidSessionDirName(cwd: string) {
   return cwd.replace(/\//g, '-');
 }
 
-function parseConfig(config: string | null): ConversationConfig {
+function parseRawConfig(config: string | null): Record<string, unknown> {
   if (!config) return {};
   try {
     const parsed = JSON.parse(config) as unknown;
-    if (!parsed || typeof parsed !== 'object') return {};
-    const candidate = parsed as ConversationConfig;
-    return {
-      ...(typeof candidate.autoApprove === 'boolean' ? { autoApprove: candidate.autoApprove } : {}),
-      ...(typeof candidate.providerSessionId === 'string'
-        ? { providerSessionId: candidate.providerSessionId }
-        : {}),
-    };
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as Record<string, unknown>;
   } catch {
     return {};
   }
 }
 
 export function getProviderSessionId(config: string | null | undefined): string | undefined {
-  const providerSessionId = parseConfig(config ?? null).providerSessionId;
-  return providerSessionId && SESSION_ID_RE.test(providerSessionId) ? providerSessionId : undefined;
+  const value = parseRawConfig(config ?? null).providerSessionId;
+  return typeof value === 'string' && SESSION_ID_RE.test(value) ? value : undefined;
 }
 
-type DroidSessionStart = {
-  id: string;
-  title?: string;
-  sessionTitle?: string;
-};
-
-type DroidSessionFile = {
-  filePath: string;
-  mtimeMs: number;
-};
-
-type DroidSessionStore = {
+export type DroidSessionStore = {
   home(): Promise<string>;
   joinPath(...parts: string[]): string;
   realpath(filePath: string): Promise<string>;
-  listSessionFiles(dir: string): Promise<DroidSessionFile[]>;
+  listSessionFiles(dir: string): Promise<Array<{ filePath: string; mtimeMs: number }>>;
   readFirstLine(filePath: string): Promise<string | null>;
 };
 
-export type DroidSessionStoreForTest = DroidSessionStore;
+type DroidSessionEntry = { id: string; mtimeMs: number };
 
-function parseDroidSessionStart(
-  firstLine: string,
-  cwd: string,
-  realCwd: string
-): DroidSessionStart | null {
+function parseSessionStartId(firstLine: string, cwd: string, realCwd: string): string | null {
   try {
-    const event = JSON.parse(firstLine) as {
-      type?: unknown;
-      id?: unknown;
-      cwd?: unknown;
-      title?: unknown;
-      sessionTitle?: unknown;
-    };
+    const event = JSON.parse(firstLine) as { type?: unknown; id?: unknown; cwd?: unknown };
     if (event.type !== 'session_start') return null;
     if (event.cwd !== cwd && event.cwd !== realCwd) return null;
     if (typeof event.id !== 'string' || !SESSION_ID_RE.test(event.id)) return null;
-    return {
-      id: event.id,
-      ...(typeof event.title === 'string' ? { title: event.title } : {}),
-      ...(typeof event.sessionTitle === 'string' ? { sessionTitle: event.sessionTitle } : {}),
-    };
+    return event.id;
   } catch {
     return null;
   }
 }
 
-const localDroidSessionStore: DroidSessionStore = {
+async function readSessionEntries(
+  cwd: string,
+  store: DroidSessionStore
+): Promise<DroidSessionEntry[]> {
+  const realCwd = await store.realpath(cwd);
+  const dir = store.joinPath(
+    await store.home(),
+    '.factory',
+    'sessions',
+    droidSessionDirName(realCwd)
+  );
+  let files: Array<{ filePath: string; mtimeMs: number }> = [];
+  try {
+    files = await store.listSessionFiles(dir);
+  } catch {
+    return [];
+  }
+  const entries: DroidSessionEntry[] = [];
+  for (const file of files) {
+    const firstLine = await store.readFirstLine(file.filePath);
+    if (!firstLine) continue;
+    const id = parseSessionStartId(firstLine, cwd, realCwd);
+    if (id) entries.push({ id, mtimeMs: file.mtimeMs });
+  }
+  return entries;
+}
+
+async function findNewestSessionId(
+  cwd: string,
+  existingSessionIds: readonly string[],
+  store: DroidSessionStore
+): Promise<string | null> {
+  const existing = new Set(existingSessionIds);
+  const entries = (await readSessionEntries(cwd, store))
+    .filter((entry) => !existing.has(entry.id))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return entries[0]?.id ?? null;
+}
+
+export async function listDroidSessionIds(
+  cwd: string,
+  store: DroidSessionStore
+): Promise<string[]> {
+  return (await readSessionEntries(cwd, store)).map((entry) => entry.id);
+}
+
+export async function findDroidSessionIdForTest(args: {
+  cwd: string;
+  existingSessionIds: readonly string[];
+  store: DroidSessionStore;
+}): Promise<string | null> {
+  return findNewestSessionId(args.cwd, args.existingSessionIds, args.store);
+}
+
+export async function rememberDroidSessionId({
+  conversationId,
+  cwd,
+  existingSessionIds,
+  store,
+}: {
+  conversationId: string;
+  cwd: string;
+  existingSessionIds: readonly string[];
+  store: DroidSessionStore;
+}): Promise<boolean> {
+  const [row] = await db
+    .select({ config: conversations.config })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .limit(1);
+  if (!row) return false;
+
+  const rawConfig = parseRawConfig(row.config);
+  if (typeof rawConfig.providerSessionId === 'string') return true;
+
+  const id = await findNewestSessionId(cwd, existingSessionIds, store);
+  if (!id) return false;
+
+  await db
+    .update(conversations)
+    .set({ config: JSON.stringify({ ...rawConfig, providerSessionId: id }) })
+    .where(eq(conversations.id, conversationId));
+
+  log.debug('rememberDroidSessionId: stored Droid provider session id', {
+    conversationId,
+    providerSessionId: id,
+  });
+  return true;
+}
+
+export const localDroidSessionStore: DroidSessionStore = {
   async home() {
     return process.env.HOME ?? '';
   },
-
-  joinPath(...parts: string[]) {
+  joinPath(...parts) {
     return path.join(...parts);
   },
-
-  async realpath(filePath: string) {
+  async realpath(filePath) {
     return fs.realpath(filePath).catch(() => filePath);
   },
-
-  async listSessionFiles(dir: string) {
+  async listSessionFiles(dir) {
     const dirents = await fs.readdir(dir, { withFileTypes: true });
     return Promise.all(
       dirents
@@ -113,8 +165,7 @@ const localDroidSessionStore: DroidSessionStore = {
         })
     );
   },
-
-  async readFirstLine(filePath: string) {
+  async readFirstLine(filePath) {
     try {
       const handle = await fs.open(filePath, 'r');
       try {
@@ -130,9 +181,9 @@ const localDroidSessionStore: DroidSessionStore = {
   },
 };
 
-function remoteDroidSessionStore({
+export function remoteDroidSessionStore({
   ctx,
-  fs,
+  fs: remoteFs,
 }: {
   ctx: IExecutionContext;
   fs: FileSystemProvider;
@@ -141,28 +192,21 @@ function remoteDroidSessionStore({
     async home() {
       return resolveRemoteHome(ctx);
     },
-
-    joinPath(...parts: string[]) {
+    joinPath(...parts) {
       return path.posix.join(...parts);
     },
-
-    async realpath(filePath: string) {
-      return fs.realPath(filePath).catch(() => filePath);
+    async realpath(filePath) {
+      return remoteFs.realPath(filePath).catch(() => filePath);
     },
-
-    async listSessionFiles(dir: string) {
-      const result = await fs.list(dir, { includeHidden: true });
+    async listSessionFiles(dir) {
+      const result = await remoteFs.list(dir, { includeHidden: true });
       return result.entries
         .filter((entry) => entry.type === 'file' && entry.path.endsWith('.jsonl'))
-        .map((entry) => ({
-          filePath: entry.path,
-          mtimeMs: entry.mtime?.getTime() ?? 0,
-        }));
+        .map((entry) => ({ filePath: entry.path, mtimeMs: entry.mtime?.getTime() ?? 0 }));
     },
-
-    async readFirstLine(filePath: string) {
+    async readFirstLine(filePath) {
       try {
-        const result = await fs.read(filePath, 4096);
+        const result = await remoteFs.read(filePath, 4096);
         return result.content.split('\n')[0] ?? null;
       } catch {
         return null;
@@ -171,186 +215,54 @@ function remoteDroidSessionStore({
   };
 }
 
-async function readDroidSessionStarts(
-  cwd: string,
-  store: DroidSessionStore
-): Promise<Array<DroidSessionStart & { mtimeMs: number }>> {
-  const realCwd = await store.realpath(cwd);
-  const dir = store.joinPath(
-    await store.home(),
-    '.factory',
-    'sessions',
-    droidSessionDirName(realCwd)
-  );
-  let entries: DroidSessionFile[] = [];
-  try {
-    entries = await store.listSessionFiles(dir);
-  } catch {
-    return [];
-  }
+/**
+ * Serializes fresh Droid starts within a single provider instance so concurrent
+ * fresh sessions in the same cwd don't race to claim each other's session id.
+ */
+export class DroidFreshStartQueue {
+  private chain: Promise<void> = Promise.resolve();
 
-  const starts: Array<DroidSessionStart & { mtimeMs: number }> = [];
-  for (const entry of entries) {
-    const firstLine = await store.readFirstLine(entry.filePath);
-    if (!firstLine) continue;
-
-    const start = parseDroidSessionStart(firstLine, cwd, realCwd);
-    if (start) starts.push({ ...start, mtimeMs: entry.mtimeMs });
-  }
-
-  return starts;
-}
-
-async function getCurrentDroidSessionIds(cwd: string, store: DroidSessionStore): Promise<string[]> {
-  return (await readDroidSessionStarts(cwd, store)).map((start) => start.id);
-}
-
-async function findNewestDroidSessionId(
-  cwd: string,
-  startedAt: number,
-  expectedTitle: string | undefined,
-  existingSessionIds: readonly string[],
-  store: DroidSessionStore
-): Promise<string | null> {
-  const existingIds = new Set(existingSessionIds);
-  const starts = (await readDroidSessionStarts(cwd, store))
-    .filter((start) => !existingIds.has(start.id) && start.mtimeMs >= startedAt - 1000)
-    .sort((a, b) => b.mtimeMs - a.mtimeMs);
-
-  if (expectedTitle) {
-    const matchingStart = starts.find(
-      (start) => start.title === expectedTitle || start.sessionTitle === expectedTitle
+  async acquire(): Promise<() => void> {
+    const previous = this.chain;
+    let release: () => void = () => {};
+    let released = false;
+    this.chain = previous.then(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
     );
-    if (matchingStart) return matchingStart.id;
+    await previous;
+    return () => {
+      if (released) return;
+      released = true;
+      release();
+    };
   }
-
-  return starts[0]?.id ?? null;
 }
 
-async function rememberDroidSessionIdFromStore({
-  conversationId,
-  cwd,
-  startedAt,
-  initialPrompt,
-  existingSessionIds,
-  store,
+export function scheduleDroidSessionRemember({
+  remember,
+  release,
+  logContext,
 }: {
-  conversationId: string;
-  cwd: string;
-  startedAt: number;
-  initialPrompt?: string;
-  existingSessionIds: readonly string[];
-  store: DroidSessionStore;
-}): Promise<boolean> {
-  const [row] = await db
-    .select({ config: conversations.config })
-    .from(conversations)
-    .where(eq(conversations.id, conversationId))
-    .limit(1);
-  if (!row) return false;
-
-  const config = parseConfig(row.config);
-  if (config.providerSessionId) return true;
-
-  const id = await findNewestDroidSessionId(
-    cwd,
-    startedAt,
-    initialPrompt,
-    existingSessionIds,
-    store
-  );
-  if (!id) return false;
-
-  await db
-    .update(conversations)
-    .set({ config: JSON.stringify({ ...config, providerSessionId: id }) })
-    .where(eq(conversations.id, conversationId));
-
-  log.debug('rememberDroidSessionId: stored Droid provider session id', {
-    conversationId,
-    providerSessionId: id,
-  });
-  return true;
-}
-
-export async function findDroidSessionIdForTest({
-  cwd,
-  startedAt,
-  expectedTitle,
-  existingSessionIds,
-  store,
-}: {
-  cwd: string;
-  startedAt: number;
-  expectedTitle?: string;
-  existingSessionIds: readonly string[];
-  store: DroidSessionStoreForTest;
-}): Promise<string | null> {
-  return findNewestDroidSessionId(cwd, startedAt, expectedTitle, existingSessionIds, store);
-}
-
-export async function getCurrentLocalDroidSessionIds(cwd: string): Promise<string[]> {
-  return getCurrentDroidSessionIds(cwd, localDroidSessionStore);
-}
-
-export async function rememberDroidSessionId({
-  conversationId,
-  cwd,
-  startedAt,
-  initialPrompt,
-  existingSessionIds,
-}: {
-  conversationId: string;
-  cwd: string;
-  startedAt: number;
-  initialPrompt?: string;
-  existingSessionIds: readonly string[];
-}): Promise<boolean> {
-  return rememberDroidSessionIdFromStore({
-    conversationId,
-    cwd,
-    startedAt,
-    initialPrompt,
-    existingSessionIds,
-    store: localDroidSessionStore,
-  });
-}
-
-export async function getCurrentRemoteDroidSessionIds({
-  cwd,
-  ctx,
-  fs,
-}: {
-  cwd: string;
-  ctx: IExecutionContext;
-  fs: FileSystemProvider;
-}): Promise<string[]> {
-  return getCurrentDroidSessionIds(cwd, remoteDroidSessionStore({ ctx, fs }));
-}
-
-export async function rememberRemoteDroidSessionId({
-  conversationId,
-  cwd,
-  startedAt,
-  initialPrompt,
-  existingSessionIds,
-  ctx,
-  fs,
-}: {
-  conversationId: string;
-  cwd: string;
-  startedAt: number;
-  initialPrompt?: string;
-  existingSessionIds: readonly string[];
-  ctx: IExecutionContext;
-  fs: FileSystemProvider;
-}): Promise<boolean> {
-  return rememberDroidSessionIdFromStore({
-    conversationId,
-    cwd,
-    startedAt,
-    initialPrompt,
-    existingSessionIds,
-    store: remoteDroidSessionStore({ ctx, fs }),
-  });
+  remember: () => Promise<boolean>;
+  release: () => void;
+  logContext: Record<string, unknown>;
+}): void {
+  void (async () => {
+    try {
+      for (const delay of REMEMBER_RETRY_DELAYS) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        if (await remember()) return;
+      }
+    } catch (error) {
+      log.warn('scheduleDroidSessionRemember: failed to remember Droid session id', {
+        ...logContext,
+        error: String(error),
+      });
+    } finally {
+      release();
+    }
+  })();
 }
