@@ -3,8 +3,12 @@ import { Home, Server } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
-import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import {
+  getProjectManagerStore,
+  getProjectSettingsStore,
+} from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal, type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -76,6 +80,35 @@ export const AddProjectModal = observer(function AddProjectModal({
 
   const showSshConnModal = useShowModal('addSshConnModal');
   const showAddProjectModal = useShowModal('addProjectModal');
+  const showConfirm = useShowModal('confirmActionModal');
+  const showProjectConfigImportModal = useShowModal('projectConfigImportModal');
+
+  const maybeShowProjectConfigImportPrompt = async (projectId: string) => {
+    const projectManager = getProjectManagerStore();
+    await projectManager.mountProject(projectId).catch((error) => {
+      log.error(error);
+    });
+
+    const settingsStore = getProjectSettingsStore(projectId);
+    if (!settingsStore) return;
+
+    await settingsStore.load();
+    if (!settingsStore.shouldPromptConfigMigration) return;
+
+    const migrations = settingsStore.configMigrations ?? [];
+    if (migrations.length === 0) return;
+
+    showProjectConfigImportModal({
+      migrations,
+      migrateProjectConfig: (request) => settingsStore.migrateProjectConfig(request),
+      onSuccess: ({ migration }) => {
+        toast({
+          title: `${migration.label} config imported`,
+          description: `${migration.files.join(', ')} was imported successfully.`,
+        });
+      },
+    });
+  };
 
   const handleAddConnection = () => {
     showSshConnModal({
@@ -113,6 +146,70 @@ export const AddProjectModal = observer(function AddProjectModal({
     });
   };
 
+  const handleDeleteConnection = async (id: string) => {
+    const conn = appState.sshConnections.connections.find((c) => c.id === id);
+    if (!conn) return;
+
+    const reopenAddProjectModal = (nextConnectionId?: string) => {
+      showAddProjectModal({
+        strategy: 'ssh',
+        mode,
+        connectionId: nextConnectionId,
+      });
+    };
+
+    let usage;
+    try {
+      usage = await rpc.ssh.getConnectionUsage();
+    } catch (error) {
+      toast({
+        title: 'Failed to load SSH connection usage',
+        description: String(error),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const projects = usage[id] ?? [];
+    if (projects.length > 0) {
+      const projectNames = projects.map((project) => project.name).join(', ');
+      showConfirm({
+        title: 'Cannot delete SSH connection',
+        description: `This SSH connection is used by: ${projectNames}. Change those projects to another connection before deleting it.`,
+        confirmLabel: 'Close',
+        onClose: () => reopenAddProjectModal(id),
+        onSuccess: () => reopenAddProjectModal(id),
+      });
+      return;
+    }
+
+    showConfirm({
+      title: 'Delete SSH connection',
+      description: `This will remove "${conn.name}" and its saved credentials from this device.`,
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+      onClose: () => reopenAddProjectModal(id),
+      onSuccess: () => {
+        void appState.sshConnections
+          .deleteConnection(id)
+          .then(() => {
+            const nextConnectionId = appState.sshConnections.connections.find(
+              (connection) => connection.id !== id
+            )?.id;
+            reopenAddProjectModal(nextConnectionId);
+          })
+          .catch((error) => {
+            toast({
+              title: 'Failed to delete SSH connection',
+              description: String(error),
+              variant: 'destructive',
+            });
+            reopenAddProjectModal(id);
+          });
+      },
+    });
+  };
+
   const { value: localProjectSettings } = useAppSettingsKey('localProject');
   const defaultPath =
     strategy === 'local' ? (localProjectSettings?.defaultProjectsDirectory ?? '') : '';
@@ -131,8 +228,12 @@ export const AddProjectModal = observer(function AddProjectModal({
     queryKey: ['projectPathStatus', strategy, selectedConnectionId, pickState.path],
     queryFn: () =>
       strategy === 'ssh'
-        ? rpc.projects.getSshProjectPathStatus(pickState.path, selectedConnectionId!)
-        : rpc.projects.getLocalProjectPathStatus(pickState.path),
+        ? rpc.projects.inspectProjectPath({
+            type: 'ssh',
+            path: pickState.path,
+            connectionId: selectedConnectionId!,
+          })
+        : rpc.projects.inspectProjectPath({ type: 'local', path: pickState.path }),
     enabled: shouldCheckPickPathStatus,
   });
   const requiresGitInitialization =
@@ -149,24 +250,15 @@ export const AddProjectModal = observer(function AddProjectModal({
 
   const handleSubmit = async () => {
     try {
-      if (strategy === 'local') {
-        const project = await rpc.projects.getLocalProjectByPath(pickState.path);
-        if (project) {
-          navigate('project', { projectId: project.id });
-          onClose();
-          return;
-        }
-      }
-      if (strategy === 'ssh') {
-        const project = await rpc.projects.getSshProjectByPath(
-          pickState.path,
-          selectedConnectionId!
-        );
-        if (project) {
-          navigate('project', { projectId: project.id });
-          onClose();
-          return;
-        }
+      const inspection = await rpc.projects.inspectProjectPath(
+        strategy === 'ssh'
+          ? { type: 'ssh', path: pickState.path, connectionId: selectedConnectionId! }
+          : { type: 'local', path: pickState.path }
+      );
+      if (inspection.existingProject) {
+        navigate('project', { projectId: inspection.existingProject.id });
+        onClose();
+        return;
       }
     } catch (e) {
       log.error(e);
@@ -178,9 +270,10 @@ export const AddProjectModal = observer(function AddProjectModal({
         ? { type: 'ssh' as const, connectionId: selectedConnectionId }
         : { type: 'local' as const };
 
+    let createPromise: Promise<string | undefined>;
     switch (mode) {
       case 'pick':
-        void getProjectManagerStore().createProject(
+        createPromise = getProjectManagerStore().createProject(
           projectType,
           {
             mode: 'pick',
@@ -192,7 +285,7 @@ export const AddProjectModal = observer(function AddProjectModal({
         );
         break;
       case 'new':
-        void getProjectManagerStore().createProject(
+        createPromise = getProjectManagerStore().createProject(
           projectType,
           {
             mode: 'new',
@@ -206,7 +299,7 @@ export const AddProjectModal = observer(function AddProjectModal({
         );
         break;
       case 'clone':
-        void getProjectManagerStore().createProject(
+        createPromise = getProjectManagerStore().createProject(
           projectType,
           {
             mode: 'clone',
@@ -218,6 +311,13 @@ export const AddProjectModal = observer(function AddProjectModal({
         );
         break;
     }
+    void createPromise
+      .then((createdProjectId) => {
+        if (createdProjectId === id) void maybeShowProjectConfigImportPrompt(createdProjectId);
+      })
+      .catch((error) => {
+        log.error(error);
+      });
     onClose();
     navigate('project', { projectId: id });
   };
@@ -237,7 +337,7 @@ export const AddProjectModal = observer(function AddProjectModal({
         </DialogFooter>
       }
     >
-      <DialogContentArea className="gap-4">
+      <DialogContentArea data-autofocus tabIndex={-1} className="gap-4">
         <div className="flex items-center gap-2">
           <ToggleGroup
             className="w-full flex-1"
@@ -288,6 +388,7 @@ export const AddProjectModal = observer(function AddProjectModal({
               onConnectionIdChange={setConnectionId}
               onAddConnection={handleAddConnection}
               onEditConnection={handleEditConnection}
+              onDeleteConnection={(id) => void handleDeleteConnection(id)}
             />
           </Field>
         )}

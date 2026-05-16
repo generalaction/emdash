@@ -3,11 +3,17 @@ import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { Activity, useEffect, useMemo, useRef, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
+import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import {
   StackedDiffPanelStore,
   type DiffSlotStore,
 } from '@renderer/features/tasks/diff-view/stores/stacked-diff-panel-store';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspace,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
@@ -19,22 +25,25 @@ const LARGE_DIFF_LINE_THRESHOLD = 1500;
 
 export const StackedDiffView = observer(function StackedDiffView() {
   const { projectId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { workspaceId } = provisioned;
-  const diffView = provisioned.taskView.diffView;
-  const git = provisioned.workspace.git;
-  const pr = provisioned.workspace.pr;
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const workspace = useWorkspace();
+  const diffView = taskView.diffView;
+  const git = workspace.git;
+  const pr = taskView.prStore;
 
   const panelStore = useMemo(
-    () => new StackedDiffPanelStore(projectId, workspaceId, diffView, git, pr),
+    () => (diffView ? new StackedDiffPanelStore(projectId, workspaceId, diffView, git, pr!) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
   useEffect(() => {
-    return () => panelStore.dispose();
+    return () => panelStore?.dispose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (!panelStore) return null;
 
   return <StackedDiffPanel panelStore={panelStore} />;
 });
@@ -44,8 +53,7 @@ interface StackedDiffPanelProps {
 }
 
 const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: StackedDiffPanelProps) {
-  const provisioned = useProvisionedTask();
-  const diffView = provisioned.taskView.diffView;
+  const diffView = useWorkspaceViewModel().diffView;
   const { visibleSlots } = panelStore;
   const scrollRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScroll = useRef(false);
@@ -56,7 +64,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: Stac
   useEffect(
     () =>
       reaction(
-        () => diffView.activeFile?.path,
+        () => diffView?.activeFile?.path,
         (path) => {
           if (!path || !scrollRef.current) return;
           const el = scrollRef.current.querySelector<HTMLElement>(
@@ -88,6 +96,8 @@ const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: Stac
     []
   );
 
+  if (!diffView) return null;
+
   function handleScroll() {
     if (isProgrammaticScroll.current) return;
     if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
@@ -101,7 +111,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: Stac
       const path = el?.dataset.filePath;
       if (!path) return;
       const slot = panelStore.visibleSlots.find((s) => s.file?.path === path);
-      if (!slot?.file) return;
+      if (!slot?.file || !diffView) return;
       diffView.setActiveFile({
         path: slot.file.path,
         type: slot.diffType === 'disk' ? 'disk' : 'git',
@@ -136,7 +146,7 @@ const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: Stac
 interface StackedFileSlotProps {
   slotStore: DiffSlotStore;
   panelStore: StackedDiffPanelStore;
-  diffView: ReturnType<typeof useProvisionedTask>['taskView']['diffView'];
+  diffView: DiffViewStore;
 }
 
 const MIN_EDITOR_HEIGHT = 100;

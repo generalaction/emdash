@@ -1,9 +1,12 @@
 import { makeAutoObservable, toJS } from 'mobx';
 import type { NavigationSnapshot } from '@shared/view-state';
 import { type ViewId, type WrapParams } from '@renderer/app/view-registry';
+import type { NonSettingsViewId } from '@renderer/lib/layout/navigation-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+// Resolved at call-site (not at module init); circular with app-state is safe.
+import { appState } from './app-state';
 import type { Snapshottable } from './snapshottable';
 
 type ViewParamsStore = Partial<{ [K in ViewId]: WrapParams<K> }>;
@@ -29,12 +32,21 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
   currentViewId: ViewId = 'home';
   viewParamsStore: ViewParamsStore = {};
   isNavigating: boolean = false;
+  lastNonSettingsView: NonSettingsViewId = 'home';
 
   constructor() {
     makeAutoObservable(this);
   }
 
   navigate<T extends ViewId>(viewId: T, params?: WrapParams<T>): void {
+    if (viewId !== 'task') {
+      const historyParams = params ?? this.viewParamsStore[viewId] ?? ({} as WrapParams<T>);
+      appState.history.push({ kind: 'view', viewId, params: historyParams });
+    }
+    this._applyNavigation(viewId, params);
+  }
+
+  _applyNavigation<T extends ViewId>(viewId: T, params?: WrapParams<T>): void {
     if (viewId !== this.currentViewId) {
       const transition = focusTracker.transition(
         viewId === 'task'
@@ -50,6 +62,9 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
         from_view: transition?.previous.view ?? null,
       });
       this.currentViewId = viewId;
+      if (viewId !== 'settings') {
+        this.lastNonSettingsView = viewId;
+      }
       this.isNavigating = true;
     }
     if (params !== undefined) {
@@ -75,7 +90,12 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
   }
 
   restoreSnapshot(snapshot: Partial<NavigationSnapshot>): void {
-    if (snapshot.currentViewId) this.currentViewId = snapshot.currentViewId as ViewId;
+    if (snapshot.currentViewId) {
+      this.currentViewId = snapshot.currentViewId as ViewId;
+      if (snapshot.currentViewId !== 'settings') {
+        this.lastNonSettingsView = snapshot.currentViewId as NonSettingsViewId;
+      }
+    }
     if (snapshot.viewParams) this.viewParamsStore = snapshot.viewParams as ViewParamsStore;
   }
 }

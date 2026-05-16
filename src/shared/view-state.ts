@@ -6,7 +6,7 @@ export type TabViewSnapshot = {
 };
 
 export type TabDescriptor =
-  | { kind: 'conversation'; id: string; isPreview: boolean }
+  | { kind: 'conversation'; tabId: string; conversationId: string; isPreview: boolean }
   | { kind: 'file'; tabId: string; path: string; isPreview: boolean }
   | {
       kind: 'diff';
@@ -25,11 +25,17 @@ export type TabManagerSnapshot = {
   activeTabId: string | undefined;
 };
 
+export type TabGroupsSnapshot = {
+  groups: Array<{
+    groupId: string;
+    tabManager: TabManagerSnapshot;
+  }>;
+  activeGroupId: string;
+  /** Percentage sizes parallel to groups[]. */
+  paneSizes: number[];
+};
+
 export type EditorViewSnapshot = {
-  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
-  tabs?: Array<{ tabId: string; path: string; isPreview: boolean }>;
-  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
-  activeTabId?: string | null;
   expandedPaths: string[];
 };
 
@@ -37,7 +43,7 @@ export type DiffViewSnapshot = {
   diffStyle: 'unified' | 'split';
   viewMode: 'file';
   activeFile?: ActiveFile;
-  commitAction: 'commit' | 'commit-push' | null;
+  commitAction: 'commit' | 'commit-push' | 'commit-pr' | null;
   prTab?: 'files' | 'commits' | 'checks';
 };
 
@@ -63,14 +69,15 @@ export interface ActiveFile {
 }
 
 export type TaskViewSnapshot = {
-  view: string | null;
   sidebarTab?: string;
   isSidebarCollapsed?: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen?: boolean;
-  /** New unified tab manager snapshot. Takes precedence over legacy fields when present. */
+  /** Takes precedence over tabManager when present. */
+  tabGroups?: TabGroupsSnapshot;
+  /** @deprecated Use tabGroups. Kept for migration from single-pane snapshots. */
   tabManager?: TabManagerSnapshot;
-  /** Legacy: kept for backward-compat restore. */
+  /** @deprecated Legacy field from before the unified tab refactor. Used only for migration. */
   conversations?: TabViewSnapshot;
   terminals?: TabViewSnapshot;
   editor?: EditorViewSnapshot;

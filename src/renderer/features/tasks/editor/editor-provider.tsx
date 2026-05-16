@@ -1,9 +1,11 @@
-import { autorun, reaction } from 'mobx';
+import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
+import { DEFAULT_EDITOR_OPTIONS } from '@renderer/lib/editor/utils';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
@@ -14,17 +16,16 @@ import {
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { defineMonacoThemes, getMonacoTheme } from '@renderer/lib/monaco/monaco-themes';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
-import { useMonacoLease } from '@renderer/lib/monaco/use-monaco-lease';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 
 interface EditorContextValue {
   /**
-   * Ref callback that appends the task's stable Monaco editor container to the
-   * given DOM element. Called by UnifiedMainContent to position the editor host.
+   * Ref callback that appends the pane's stable Monaco editor container to the
+   * given DOM element. Called by PaneContent to position the editor host.
    */
   setEditorHost: (el: HTMLElement | null) => void;
   /**
-   * Explicitly re-runs layout() on the leased Monaco editor.
+   * Explicitly re-runs layout() on the Monaco editor.
    * Call this whenever the Monaco host transitions from hidden to visible
    * (e.g. when activeRenderer switches to 'monaco').
    */
@@ -48,24 +49,22 @@ export const EditorProvider = observer(function EditorProvider({
   taskId: string;
   projectId: string;
 }) {
-  const provisionedTask = useProvisionedTask();
-  const { editorView, tabManager } = provisionedTask.taskView;
+  const taskView = useWorkspaceViewModel();
+  const { editorView, tabGroupManager } = taskView;
+  const { groupId, tabManager: paneTabManager } = useTabGroupContext();
   const { effectiveTheme } = useTheme();
   const isActive = useIsActiveTask(taskId);
 
   // Conflict dialog — shown when editorView.pendingConflictUri is set.
   const showConflictModal = useShowModal('conflictDialog');
 
-  // Lease is exposed as a MobX observable box — unified with activeFilePath and
-  // modelStatus in a single autorun for reliable model attachment.
-  const leaseBox = useMonacoLease(codeEditorPool);
-
-  // editorRef — shared with useDiffDecorations and the focus-restore effect.
-  // Updated reactively from leaseBox via a reaction below.
+  // The directly-created Monaco editor for this pane.
   const editorRef = useRef<monacoNS.editor.IStandaloneCodeEditor | null>(null);
+  // The container <div> appended to the pane's host element.
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const focusPendingRef = useRef(false);
 
-  // Stable host element provided by UnifiedMainContent via setEditorHost.
+  // Stable host element provided by PaneContent via setEditorHost.
   const hostRef = useRef<HTMLElement | null>(null);
 
   // Tracks the previously-attached buffer URI so modelRegistry.attach can
@@ -74,6 +73,7 @@ export const EditorProvider = observer(function EditorProvider({
 
   // ---------------------------------------------------------------------------
   // Theme sync — update editor theme when app theme changes.
+  // When this pane's editor is created it will inherit the current theme.
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const m = codeEditorPool.getMonaco();
@@ -82,81 +82,78 @@ export const EditorProvider = observer(function EditorProvider({
   }, [effectiveTheme]);
 
   // ---------------------------------------------------------------------------
-  // Editor setup — fires when the lease arrives. Configures the editor,
-  // registers keyboard shortcuts, updates editorRef, satisfies any pending
-  // focus request, and appends the container to the host.
+  // Editor creation — fires once on mount. Creates a Monaco editor directly
+  // (no pool lease) using the globally-loaded Monaco instance. Monaco is
+  // guaranteed to be loaded before any pane renders (bootstrap awaits pool init).
   // ---------------------------------------------------------------------------
-  useEffect(
-    () =>
-      reaction(
-        () => leaseBox.get(),
-        (lease) => {
-          editorRef.current = lease?.editor ?? null;
+  useEffect(() => {
+    const m = codeEditorPool.getMonaco();
+    if (!m) return;
 
-          if (!lease) return;
+    const container = document.createElement('div');
+    container.style.width = '100%';
+    container.style.height = '100%';
+    containerRef.current = container;
 
-          lease.editor.updateOptions({ glyphMargin: true });
-          configureMonacoEditor(lease.editor);
+    const editor = m.editor.create(container, { ...DEFAULT_EDITOR_OPTIONS, glyphMargin: true });
+    editorRef.current = editor;
 
-          const cleanupActive = registerActiveCodeEditor(lease.editor);
-          lease.disposables.push({ dispose: cleanupActive });
+    configureMonacoEditor(editor);
 
-          const monaco = codeEditorPool.getMonaco();
-          if (monaco) {
-            addMonacoKeyboardShortcuts(lease.editor, monaco as typeof monacoNS, {
-              onSave: () => {
-                const path = tabManager.activeFilePath;
-                if (path) void editorView.saveFile(path);
-              },
-              onSaveAll: () => {
-                void editorView.saveAllFiles(tabManager.openFilePaths);
-              },
-            });
-          }
+    const cleanupActive = registerActiveCodeEditor(editor);
 
-          lease.disposables.push(
-            lease.editor.onDidFocusEditorWidget(() => {
-              provisionedTask.taskView.setFocusedRegion('main');
-            })
-          );
+    addMonacoKeyboardShortcuts(editor, m, {
+      onSave: () => {
+        const path = paneTabManager.activeFilePath;
+        if (path) void editorView.saveFile(path);
+      },
+      onSaveAll: () => {
+        void editorView.saveAllFiles();
+      },
+    });
 
-          // Satisfy any focus request that arrived before the lease resolved.
-          if (focusPendingRef.current && lease.editor.getModel()) {
-            focusPendingRef.current = false;
-            lease.editor.focus();
-          }
+    const focusDisposable = editor.onDidFocusEditorWidget(() => {
+      taskView.setFocusedRegion('main');
+      tabGroupManager.setActiveGroup(groupId);
+    });
 
-          if (hostRef.current) {
-            hostRef.current.appendChild(lease.container);
-            lease.editor.layout();
-          }
-        }
-      ),
+    // Satisfy any focus request that arrived before the editor was ready.
+    if (focusPendingRef.current && editor.getModel()) {
+      focusPendingRef.current = false;
+      editor.focus();
+    }
+
+    if (hostRef.current) {
+      hostRef.current.appendChild(container);
+      editor.layout();
+    }
+
+    return () => {
+      focusDisposable.dispose();
+      cleanupActive();
+      editor.dispose();
+      container.remove();
+      editorRef.current = null;
+      containerRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  }, []);
 
   // ---------------------------------------------------------------------------
-  // Model attachment — single autorun that re-evaluates whenever any of the
-  // three inputs changes: lease, activeFilePath, or modelStatus.
-  // Replaces the reaction+onceBufferReady pattern and the restore-effect
-  // onceBufferReady. Covers: initial mount, remount, tab switching, and the
-  // async model-registration race on first file open.
+  // Model attachment — autorun that re-evaluates whenever the pane-local active
+  // file or model registration status changes.
   // ---------------------------------------------------------------------------
   useEffect(
     () =>
       autorun(() => {
-        const lease = leaseBox.get(); // reactive
-        const activePath = tabManager.activeFilePath; // reactive
+        const editor = editorRef.current;
+        if (!editor) return;
 
-        if (!lease) return;
-
-        const newBufUri = activePath
-          ? buildMonacoModelPath(editorView.modelRootPath, activePath)
-          : null;
+        const entry = paneTabManager.activeFileEntry; // reactive
+        const newBufUri = entry ? buildMonacoModelPath(editorView.modelRootPath, entry.path) : null;
 
         if (!newBufUri) {
-          lease.editor.setModel(null);
+          editor.setModel(null);
           prevBufUriRef.current = undefined;
           return;
         }
@@ -164,7 +161,7 @@ export const EditorProvider = observer(function EditorProvider({
         const status = modelRegistry.modelStatus.get(newBufUri); // reactive
         if (status !== 'ready') return;
 
-        modelRegistry.attach(lease.editor, newBufUri, prevBufUriRef.current);
+        modelRegistry.attach(editor, newBufUri, prevBufUriRef.current);
         prevBufUriRef.current = newBufUri;
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,7 +170,6 @@ export const EditorProvider = observer(function EditorProvider({
 
   // ---------------------------------------------------------------------------
   // Restore — re-apply crash-recovery buffer content for persisted open tabs.
-  // Model registration is handled reactively by TaskViewStore (fireImmediately).
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!taskId) return;
@@ -186,62 +182,58 @@ export const EditorProvider = observer(function EditorProvider({
   // ---------------------------------------------------------------------------
   useEffect(
     () =>
-      reaction(
-        () => editorView.pendingConflictUri,
-        (uri) => {
-          if (!uri) return;
-          const filePath = uri.replace(`file://${editorView.modelRootPath}/`, '');
-          const tab = tabManager.tabs.find((t) => t.kind === 'file' && t.path === filePath);
-          if (!tab) return;
-          showConflictModal({
-            filePath,
-            onSuccess: (accept) => {
-              void editorView.resolveConflict(accept);
-            },
-          });
-        }
-      ),
+      autorun(() => {
+        const uri = editorView.pendingConflictUri; // reactive
+        if (!uri) return;
+        const filePath = uri.replace(`file://${editorView.modelRootPath}/`, '');
+        if (!editorView.openFilePaths.includes(filePath)) return;
+        showConflictModal({
+          filePath,
+          onSuccess: (accept) => {
+            void editorView.resolveConflict(accept);
+          },
+        });
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
   // ---------------------------------------------------------------------------
   // Focus restore — when this task becomes active and focusedRegion is 'main',
-  // focus Monaco if an editable model is loaded; otherwise queue the intent so
-  // it is satisfied once the lease arrives (handled in the lease reaction above).
+  // focus Monaco if a model is loaded; otherwise queue the intent.
   // ---------------------------------------------------------------------------
-  const focusedRegion = provisionedTask.taskView.focusedRegion;
+  const focusedRegion = taskView.focusedRegion;
   useEffect(() => {
     if (!isActive || focusedRegion !== 'main') return;
+    // Only the focused pane should attempt to focus.
+    if (tabGroupManager.activeGroupId !== groupId) return;
     const editor = editorRef.current;
     if (editor?.getModel()) {
       editor.focus();
     } else {
       focusPendingRef.current = true;
     }
-  }, [isActive, focusedRegion]);
+  }, [isActive, focusedRegion, groupId, tabGroupManager.activeGroupId]);
 
   // ---------------------------------------------------------------------------
-  // setEditorHost — called by UnifiedMainContent to give the editor a stable DOM node.
+  // setEditorHost — called by PaneContent to give the editor a stable DOM node.
   // ---------------------------------------------------------------------------
-  const setEditorHost = useCallback(
-    (el: HTMLElement | null) => {
-      hostRef.current = el;
-      const lease = leaseBox.get();
-      if (el && lease) {
-        el.appendChild(lease.container);
-        lease.editor.layout();
-      }
-    },
-    [leaseBox]
-  );
+  const setEditorHost = useCallback((el: HTMLElement | null) => {
+    hostRef.current = el;
+    const container = containerRef.current;
+    const editor = editorRef.current;
+    if (el && container && editor) {
+      el.appendChild(container);
+      editor.layout();
+    }
+  }, []);
 
   // ---------------------------------------------------------------------------
   // triggerLayout — called when the Monaco host transitions from hidden to visible.
   // ---------------------------------------------------------------------------
   const triggerLayout = useCallback(() => {
-    leaseBox.get()?.editor.layout();
-  }, [leaseBox]);
+    editorRef.current?.layout();
+  }, []);
 
   return (
     <EditorContext.Provider value={{ setEditorHost, triggerLayout }}>

@@ -2,8 +2,12 @@ import { ArrowUp, FileSearch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  getRegisteredTaskData,
+  getTaskStore,
+} from '@renderer/features/tasks/stores/task-selectors';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import { useConversations, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
 import { Button } from '@renderer/lib/ui/button';
@@ -14,30 +18,34 @@ import { buildTaskContextActions, type ContextAction } from './context-actions';
 
 export const ContextBar = observer(function ContextBar() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
+  const conversations = useConversations();
   const task = getRegisteredTaskData(projectId, taskId);
+  const draftComments = getTaskStore(projectId, taskId)?.draftComments;
   const { value: reviewPrompt, isSaving: isSavingReviewPrompt } = useAppSettingsKey('reviewPrompt');
-  const conversationStore = provisioned.conversations;
-  const draftComments = provisioned.draftComments;
-  const activeConversation = provisioned.taskView.tabManager.activeConversation;
-  const activeSessionId = activeConversation?.session.sessionId;
+  const conversationStore = conversations;
+  const { tabManager } = useTabGroupContext();
+  const activeConversation = tabManager.activeConversation;
+  const activeSessionId = activeConversation
+    ? conversations.sessions.get(activeConversation.data.id)?.sessionId
+    : undefined;
   const canApplyContext = Boolean(activeSessionId);
   const hasConversation = conversationStore.conversations.size > 0;
-  const formattedDraftComments = draftComments.formattedForAgent;
+  const formattedDraftComments = draftComments?.formattedForAgent ?? '';
 
   const actions = useMemo(
     () =>
       buildTaskContextActions(task?.linkedIssue, reviewPrompt, {
-        count: draftComments.count,
+        count: draftComments?.count ?? 0,
         formattedComments: formattedDraftComments,
       }),
-    [reviewPrompt, task?.linkedIssue, draftComments.count, formattedDraftComments]
+    [reviewPrompt, task?.linkedIssue, draftComments?.count, formattedDraftComments]
   );
   const issueAction = actions.find((action) => action.kind === 'linked-issue') ?? null;
   const reviewAction = actions.find((action) => action.kind === 'review-prompt') ?? null;
   const draftCommentsAction = actions.find((action) => action.kind === 'draft-comments') ?? null;
 
-  if (!hasConversation || (!issueAction && !draftCommentsAction && !reviewAction)) return null;
+  if (!draftComments || !hasConversation || (!issueAction && !draftCommentsAction && !reviewAction))
+    return null;
 
   const applyContext = async (action: ContextAction) => {
     if (!activeSessionId) return;
@@ -49,7 +57,7 @@ export const ContextBar = observer(function ContextBar() {
       sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
     });
 
-    activeConversation?.session.pty?.terminal.focus();
+    conversations.sessions.get(activeConversation?.data.id ?? '')?.pty?.terminal.focus();
   };
 
   return (

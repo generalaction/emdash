@@ -5,7 +5,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useRef } from 'react';
 import type { FileNode } from '@shared/fs';
 import { buildVisibleRows } from '@renderer/features/tasks/editor/stores/files-store-utils';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspace, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { cn } from '@renderer/utils/utils';
 
@@ -16,13 +16,13 @@ const FileTreeRow = observer(function FileTreeRow({
   node: FileNode;
   style: React.CSSProperties;
 }) {
-  const taskState = useProvisionedTask();
-  const { taskView } = taskState;
+  const taskView = useWorkspaceViewModel();
+  const workspace = useWorkspace();
   const editorView = taskView.editorView;
 
   const isExpanded = editorView.expandedPaths.has(node.path);
-  const isSelected = taskView.view === 'editor' && taskView.tabManager.activeFilePath === node.path;
-  const fileStatus = taskState.workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
+  const isSelected = taskView.tabManager.activeFilePath === node.path;
+  const fileStatus = workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = node.depth * 12 + 4;
 
   const handleClick = (e: React.MouseEvent) => {
@@ -58,8 +58,8 @@ const FileTreeRow = observer(function FileTreeRow({
         editorView.expandedPaths.delete(node.path);
       } else {
         editorView.expandedPaths.add(node.path);
-        if (!taskState.workspace.files.loadedPaths.has(node.path)) {
-          void taskState.workspace.files.loadDir(node.path);
+        if (!workspace.files.loadedPaths.has(node.path)) {
+          void workspace.files.loadDir(node.path);
         }
       }
     });
@@ -121,9 +121,10 @@ const FileTreeRow = observer(function FileTreeRow({
 });
 
 export const EditorFileTree = observer(function EditorFileTree() {
-  const taskState = useProvisionedTask();
-  const files = taskState.workspace.files;
-  const editorView = taskState.taskView.editorView;
+  const workspace = useWorkspace();
+  const taskView = useWorkspaceViewModel();
+  const files = workspace.files;
+  const editorView = taskView.editorView;
 
   const visibleRows = files
     ? buildVisibleRows(files.nodes, files.childIndex, editorView.expandedPaths)

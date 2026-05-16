@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "29632d19-3259-4323-8aa3-8d5cdf373ff2",
+  "id": "44fce29b-43c5-4a52-98b0-22f4c2a840dd",
   "prevId": "f7518b53-ae00-412e-a92c-68667522bca3",
   "tables": {
     "app_secrets": {
@@ -134,6 +134,13 @@
         "last_interacted_at": {
           "name": "last_interacted_at",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_initial_conversation": {
+          "name": "is_initial_conversation",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1056,119 +1063,6 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "task_activity": {
-      "name": "task_activity",
-      "columns": {
-        "task_id": {
-          "name": "task_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "summary": {
-          "name": "summary",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_event_at": {
-          "name": "last_event_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "task_activity_task_id_tasks_id_fk": {
-          "name": "task_activity_task_id_tasks_id_fk",
-          "tableFrom": "task_activity",
-          "tableTo": "tasks",
-          "columnsFrom": ["task_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "task_touched_files": {
-      "name": "task_touched_files",
-      "columns": {
-        "task_id": {
-          "name": "task_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_path": {
-          "name": "file_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "last_touched_at": {
-          "name": "last_touched_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
-        }
-      },
-      "indexes": {
-        "idx_task_touched_files_path": {
-          "name": "idx_task_touched_files_path",
-          "columns": ["file_path"],
-          "isUnique": false
-        },
-        "idx_task_touched_files_task_id": {
-          "name": "idx_task_touched_files_task_id",
-          "columns": ["task_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "task_touched_files_task_id_tasks_id_fk": {
-          "name": "task_touched_files_task_id_tasks_id_fk",
-          "tableFrom": "task_touched_files",
-          "tableTo": "tasks",
-          "columnsFrom": ["task_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "task_touched_files_task_id_file_path_pk": {
-          "columns": ["task_id", "file_path"],
-          "name": "task_touched_files_task_id_file_path_pk"
-        }
-      },
       "uniqueConstraints": {}
     },
     "tasks": {

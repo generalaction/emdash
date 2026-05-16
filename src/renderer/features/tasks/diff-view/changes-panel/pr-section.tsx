@@ -3,7 +3,13 @@ import { getPrSyncStore } from '@renderer/features/projects/stores/project-selec
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { useProvisionedTask, useTaskViewContext } from '../../task-view-context';
+import { getRegisteredTaskData } from '../../stores/task-selectors';
+import {
+  useTaskViewContext,
+  useWorkspace,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '../../task-view-context';
 import { PullRequestEntry } from './components/pr-entry/pr-entry';
 import { PullRequestSectionHeader } from './components/section-header';
 
@@ -14,12 +20,15 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }) {
-  const { projectId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { pr } = provisioned.workspace;
-  const repositoryUrl = provisioned.repositoryStore.repositoryUrl;
-  const taskBranch = provisioned.taskBranch;
-  const { pullRequests, currentPr } = pr;
+  const { projectId, taskId } = useTaskViewContext();
+  const workspaceId = useWorkspaceId();
+  const workspace = useWorkspace();
+  const taskView = useWorkspaceViewModel();
+  const prStore = taskView.prStore;
+  const repositoryUrl = workspace.repository.repositoryUrl;
+  const taskBranch = getRegisteredTaskData(projectId, taskId)?.taskBranch;
+  const pullRequests = prStore?.pullRequests ?? [];
+  const currentPr = prStore?.currentPr;
   const showCreatePrModal = useShowModal('createPrModal');
 
   const hasOpenPr = pullRequests.some((p) => p.status === 'open');
@@ -41,7 +50,19 @@ export const PullRequestsSection = observer(function PullRequestsSection({
                   repositoryUrl: repositoryUrl ?? '',
                   branchName: taskBranch,
                   draft: false,
-                  workspaceId: provisioned.workspaceId,
+                  workspaceId,
+                  onSuccess: () => {},
+                })
+            : undefined
+        }
+        onCreateDraftPr={
+          taskBranch
+            ? () =>
+                showCreatePrModal({
+                  repositoryUrl: repositoryUrl ?? '',
+                  branchName: taskBranch,
+                  draft: true,
+                  workspaceId,
                   onSuccess: () => {},
                 })
             : undefined

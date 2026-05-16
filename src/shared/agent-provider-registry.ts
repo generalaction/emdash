@@ -1,6 +1,7 @@
 export const AGENT_PROVIDER_IDS = [
   'codex',
   'claude',
+  'grok',
   'devin',
   'qwen',
   'droid',
@@ -20,10 +21,12 @@ export const AGENT_PROVIDER_IDS = [
   'cline',
   'continue',
   'codebuff',
+  'freebuff',
   'mistral',
   'jules',
   'junie',
   'pi',
+  'letta',
   'autohand',
 ] as const;
 
@@ -57,6 +60,7 @@ export type AgentProviderDefinition = {
    * e.g. '--session-id' for Claude Code.
    */
   sessionIdFlag?: string;
+  newConversationFlag?: string;
   sessionIdOnResumeOnly?: boolean;
   defaultArgs?: string[];
   planActivateCommand?: string;
@@ -108,6 +112,23 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'Claude Code',
     terminalOnly: true,
     supportsHooks: true,
+  },
+  {
+    id: 'grok',
+    name: 'Grok',
+    description:
+      "xAI's Grok CLI for terminal-first coding sessions with plans, subagents, and parallel work.",
+    docUrl: 'https://x.ai/cli',
+    installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+    commands: ['grok'],
+    versionArgs: ['--version'],
+    cli: 'grok',
+    autoApproveFlag: '--always-approve',
+    useKeystrokeInjection: true,
+    resumeFlag: '-r',
+    icon: 'xai.svg',
+    alt: 'Grok CLI',
+    terminalOnly: true,
   },
   {
     id: 'devin',
@@ -360,6 +381,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'kiro-cli',
     defaultArgs: ['chat'],
+    autoApproveFlag: '--trust-all-tools',
     initialPromptFlag: '',
     icon: 'kiro.png',
     alt: 'Kiro CLI',
@@ -428,6 +450,21 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     terminalOnly: true,
   },
   {
+    id: 'freebuff',
+    name: 'Freebuff',
+    description:
+      'Freebuff is a standalone Codebuff package for project-directory assistance and day-to-day development tasks.',
+    docUrl: 'https://freebuff.com',
+    installCommand: 'npm install -g freebuff',
+    commands: ['freebuff'],
+    versionArgs: ['--version'],
+    cli: 'freebuff',
+    initialPromptFlag: '',
+    icon: 'codebuff.png',
+    alt: 'Freebuff CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'mistral',
     name: 'Mistral Vibe',
     description:
@@ -489,6 +526,27 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '-c',
     icon: 'pi.png',
     alt: 'Pi CLI',
+    terminalOnly: true,
+  },
+  {
+    id: 'letta',
+    name: 'Letta',
+    description:
+      'Memory-first coding agent CLI with persistent agents that learn across sessions and portable memory across models.',
+    docUrl: 'https://docs.letta.com/letta-code/cli',
+    installCommand: 'npm install -g @letta-ai/letta-code',
+    commands: ['letta'],
+    versionArgs: ['--version'],
+    cli: 'letta',
+    autoApproveFlag: '--yolo',
+    initialPromptFlag: '',
+    // Bare `letta` auto-resumes the cwd's last conversation; `--new` is
+    // required to start a fresh one when emdash spins up a new chat.
+    newConversationFlag: '--new',
+    useKeystrokeInjection: true,
+    icon: 'letta.svg',
+    alt: 'Letta Code CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {

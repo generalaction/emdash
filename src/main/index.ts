@@ -17,10 +17,17 @@ import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
+import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
+import {
+  reconcileResourceSampler,
+  stopResourceSampler,
+} from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
+import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
+import { viewStateService } from './core/view-state/view-state-service';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import { telemetryService } from './lib/telemetry';
@@ -77,7 +84,13 @@ void app.whenReady().then(async () => {
   try {
     await initializeDatabase();
     searchService.initialize();
+    workspaceFileIndexService.initialize();
     void editorBufferService.pruneStale();
+    try {
+      viewStateService.pruneOrphans();
+    } catch (e: unknown) {
+      log.warn('view-state: failed to prune orphaned entries', { error: e });
+    }
   } catch (error) {
     log.error('Failed to initialize database:', error);
     dialog.showErrorBox(
@@ -102,6 +115,7 @@ void app.whenReady().then(async () => {
   });
 
   gitWatcherRegistry.initialize();
+  projectSettingsService.initialize();
   prSyncScheduler.initialize();
   appService.initialize();
   await appSettingsService.initialize();
@@ -123,6 +137,8 @@ void app.whenReady().then(async () => {
   providerTokenRegistry.register('github', (token) => githubConnectionService.storeToken(token));
 
   registerRPCRouter(rpcRouter, ipcMain);
+
+  void reconcileResourceSampler();
 
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
@@ -147,6 +163,7 @@ app.on('before-quit', (event) => {
   void telemetryService.dispose().finally(() => {
     coordinationService.dispose();
     agentHookService.dispose();
+    stopResourceSampler();
     updateService.dispose();
     prSyncScheduler.dispose();
     void gitWatcherRegistry.dispose();

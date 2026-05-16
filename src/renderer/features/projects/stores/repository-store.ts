@@ -8,7 +8,12 @@ import type {
   RemoteBranch,
   RemoteBranchesPayload,
 } from '@shared/git';
-import { resolveDefaultBranch, selectPreferredRemote } from '@shared/git-utils';
+import {
+  projectDefaultBranchToBranch,
+  resolveConfiguredRemotes,
+  resolveDefaultBranch,
+  type ConfiguredRemotes,
+} from '@shared/git-utils';
 import { parseGitHubRepository } from '@shared/github-repository';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
@@ -68,23 +73,30 @@ export class RepositoryStore {
 
     // Invalidate remote data when settings that affect remote resolution change.
     this._settingsDisposer = reaction(
-      () => [settingsStore.settings?.remote, settingsStore.settings?.defaultBranch],
+      () => [
+        settingsStore.settings?.baseRemote,
+        settingsStore.settings?.pushRemote,
+        settingsStore.settings?.defaultBranch,
+      ],
       () => this.remoteData.invalidate()
     );
 
-    makeObservable<this, 'defaultBranchPreference'>(this, {
+    makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference'>(this, {
       isUnborn: computed,
       currentBranch: computed,
       branches: computed,
       localBranches: computed,
       remoteBranches: computed,
-      configuredRemote: computed,
+      configuredRemotes: computed,
+      baseRemote: computed,
+      pushRemote: computed,
       defaultBranchPreference: computed,
       defaultBranch: computed,
       remotes: computed,
       loading: computed,
       isGitHubRemote: computed,
       repositoryUrl: computed,
+      pushRepositoryUrl: computed,
     });
   }
 
@@ -116,36 +128,49 @@ export class RepositoryStore {
     return this.remoteData.data?.remoteBranches ?? [];
   }
 
-  get configuredRemote(): Remote {
-    const setting = this.settingsStore.settings?.remote;
+  private get configuredRemotes(): ConfiguredRemotes {
     const remotes = this.remoteData.data?.remotes ?? [];
-    return selectPreferredRemote(setting, remotes);
+    return resolveConfiguredRemotes(this.settingsStore.settings ?? undefined, remotes);
+  }
+
+  get baseRemote(): Remote {
+    return this.configuredRemotes.baseRemote;
+  }
+
+  get pushRemote(): Remote {
+    return this.configuredRemotes.pushRemote;
   }
 
   get remotes(): Remote[] {
     return this.remoteData.data?.remotes ?? [];
   }
 
-  /** True when the configured remote points to a GitHub.com repository. */
+  /** True when the base remote points to a GitHub.com repository. */
   get isGitHubRemote(): boolean {
-    const url = this.configuredRemote.url;
+    const url = this.baseRemote.url;
     return parseGitHubRepository(url) !== null;
   }
 
   /**
-   * The normalised HTTPS GitHub URL for the configured remote
+   * The normalised HTTPS GitHub URL for the base remote
    * (e.g. `https://github.com/owner/repo`), or `null` if not a GitHub remote.
    */
   get repositoryUrl(): string | null {
-    const url = this.configuredRemote.url;
+    const url = this.baseRemote.url;
+    return parseGitHubRepository(url)?.repositoryUrl ?? null;
+  }
+
+  get pushRepositoryUrl(): string | null {
+    const url = this.pushRemote.url;
     return parseGitHubRepository(url)?.repositoryUrl ?? null;
   }
 
   private get defaultBranchPreference(): Branch | undefined {
-    const raw = this.settingsStore.settings?.defaultBranch;
-    if (raw === undefined) return undefined;
-    if (typeof raw === 'string') return { type: 'local', branch: raw };
-    return { type: 'remote', branch: raw.name, remote: this.configuredRemote };
+    return projectDefaultBranchToBranch(
+      this.settingsStore.settings?.defaultBranch,
+      this.baseRemote,
+      this.remotes
+    );
   }
 
   get defaultBranch(): LocalBranch | RemoteBranch | undefined {
@@ -154,7 +179,7 @@ export class RepositoryStore {
     return resolveDefaultBranch({
       preference: this.defaultBranchPreference,
       branches: this.branches,
-      configuredRemoteName: this.configuredRemote.name,
+      configuredRemoteName: this.baseRemote.name,
       gitDefaultBranch: d.gitDefaultBranch,
       baseRef: this.baseRef,
     });
@@ -173,7 +198,7 @@ export class RepositoryStore {
   }
 
   isBranchOnRemote(branchName: string): boolean {
-    const remoteName = this.configuredRemote.name;
+    const remoteName = this.pushRemote.name;
     return this.remoteBranches.some((b) => b.branch === branchName && b.remote.name === remoteName);
   }
 

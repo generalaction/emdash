@@ -1,5 +1,6 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
@@ -55,6 +56,18 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
       await project.removeTaskWorktree(task.taskBranch).catch((e) => {
         log.warn('archiveTask: worktree removal failed', { taskId, error: String(e) });
       });
+    }
+  }
+
+  if (task.workspaceId) {
+    const workspaceSiblings = await db
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(and(eq(tasks.workspaceId, task.workspaceId), isNull(tasks.archivedAt)))
+      .limit(1);
+
+    if (workspaceSiblings.length === 0) {
+      workspaceFileIndexService.deleteIndex(task.workspaceId);
     }
   }
 }

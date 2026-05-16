@@ -1,5 +1,25 @@
 export type DiffLine = { left?: string; right?: string; type: 'context' | 'add' | 'del' };
 
+export interface ImageBlob {
+  dataUrl: string;
+  mimeType: string;
+  size: number;
+}
+
+/** Why a preview could not be produced — distinguishes a real add/delete
+ *  (`missing`) from "we can't show this" (`unavailable`). */
+export type ImageUnavailableReason =
+  | 'ssh'
+  | 'unsupported'
+  | 'too-large'
+  | 'lfs-pointer'
+  | 'git-error';
+
+export type ImageReadResult =
+  | { kind: 'image'; image: ImageBlob }
+  | { kind: 'missing' }
+  | { kind: 'unavailable'; reason: ImageUnavailableReason };
+
 export type GitChangeStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'conflicted';
 
 export type GitChange = {
@@ -13,9 +33,28 @@ export type GitChange = {
 export interface FullGitStatus {
   staged: GitChange[];
   unstaged: GitChange[];
+  /**
+   * The checked-out branch name, or null when HEAD is detached.
+   * Use headKind to distinguish detached HEAD from an unborn branch.
+   */
   currentBranch: string | null;
+  /**
+   * - 'branch': a normal branch is checked out
+   * - 'detached': HEAD is detached (e.g. mid-rebase); shortHash is populated
+   * - 'unborn': the branch exists but has no commits yet; currentBranch is set
+   */
+  headKind: 'branch' | 'detached' | 'unborn';
+  /** Short commit hash (7 chars). Only set when headKind === 'detached'. */
+  shortHash: string | null;
   totalAdded: number;
   totalDeleted: number;
+}
+
+export type GitStatusUntrackedMode = 'no' | 'normal';
+
+export interface GitStatusFingerprint {
+  hash: string;
+  byteLength: number;
 }
 
 export interface DiffResult {

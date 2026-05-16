@@ -94,6 +94,12 @@ export class WorkspaceRegistry {
     return this.entries.get(key)?.workspace;
   }
 
+  listForProject(projectId: string): { workspaceId: string; path: string }[] {
+    return Array.from(this.entries.entries())
+      .filter(([, entry]) => entry.projectId === projectId)
+      .map(([workspaceId, entry]) => ({ workspaceId, path: entry.workspace.path }));
+  }
+
   refCount(key: string): number {
     return this.entries.get(key)?.refCount ?? 0;
   }

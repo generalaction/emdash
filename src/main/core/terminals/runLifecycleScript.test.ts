@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
+import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import { resolveWorkspace } from '../projects/utils';
 import { runLifecycleScript } from './runLifecycleScript';
 
-vi.mock('../projects/settings/task-settings', () => ({
+vi.mock('../projects/settings/effective-task-settings', () => ({
   getEffectiveTaskSettings: vi.fn(),
 }));
 
@@ -26,6 +26,7 @@ describe('runLifecycleScript', () => {
       },
     } as never);
     vi.mocked(getEffectiveTaskSettings).mockResolvedValue({
+      shellSetup: 'source .envrc',
       scripts: {
         run: 'pnpm dev',
       },
@@ -37,6 +38,9 @@ describe('runLifecycleScript', () => {
       type: 'run',
     });
 
-    expect(lifecycleRun).toHaveBeenCalledWith({ type: 'run', script: 'pnpm dev' }, { exit: true });
+    expect(lifecycleRun).toHaveBeenCalledWith(
+      { type: 'run', script: 'pnpm dev', shellSetup: 'source .envrc' },
+      { exit: true }
+    );
   });
 });

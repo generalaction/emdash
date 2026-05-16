@@ -1,13 +1,20 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { openInAppIdSchema } from '@shared/openInApps';
+import { APP_SHORTCUTS } from '@shared/shortcuts';
+import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
 import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
+
+export const projectSettingsSchema = z.object({
+  pushOnCreate: z.boolean(),
+  branchPrefix: z.string(),
+  appendRandomBranchSuffix: z.boolean(),
+  tmuxByDefault: z.boolean(),
+});
 
 export const localProjectSettingsSchema = z.object({
   defaultProjectsDirectory: z.string(),
   defaultWorktreeDirectory: z.string(),
-  branchPrefix: z.string(),
-  pushOnCreate: z.boolean(),
   writeAgentConfigToGitIgnore: z.boolean(),
 });
 
@@ -21,6 +28,7 @@ export const notificationSettingsSchema = z.object({
 export const taskSettingsSchema = z.object({
   autoGenerateName: z.boolean(),
   autoTrustWorktrees: z.boolean(),
+  createBranchAndWorktree: z.boolean(),
 });
 
 export const agentAutoApproveDefaultsSchema = z
@@ -29,6 +37,7 @@ export const agentAutoApproveDefaultsSchema = z
 
 export const terminalSettingsSchema = z.object({
   fontFamily: z.string().optional(),
+  fontSize: z.number().min(TERMINAL_FONT_SIZE_MIN).max(TERMINAL_FONT_SIZE_MAX).optional(),
   autoCopyOnSelection: z.boolean(),
 });
 
@@ -45,41 +54,11 @@ export const reviewPromptSchema = z.string().default(DEFAULT_REVIEW_PROMPT);
 
 export const keyboardSettingsSchema = z
   .optional(
-    z.object({
-      commandPalette: z.string().nullable().optional(),
-      settings: z.string().nullable().optional(),
-      toggleLeftSidebar: z.string().nullable().optional(),
-      toggleRightSidebar: z.string().nullable().optional(),
-      toggleTheme: z.string().nullable().optional(),
-      closeModal: z.string().nullable().optional(),
-      nextProject: z.string().nullable().optional(),
-      prevProject: z.string().nullable().optional(),
-      newTask: z.string().nullable().optional(),
-      newProject: z.string().nullable().optional(),
-      openInEditor: z.string().nullable().optional(),
-      taskViewAgents: z.string().nullable().optional(),
-      taskViewDiff: z.string().nullable().optional(),
-      taskViewEditor: z.string().nullable().optional(),
-      sidebarChanges: z.string().nullable().optional(),
-      sidebarConversations: z.string().nullable().optional(),
-      sidebarFiles: z.string().nullable().optional(),
-      tabNext: z.string().nullable().optional(),
-      tabPrev: z.string().nullable().optional(),
-      tabClose: z.string().nullable().optional(),
-      tab1: z.string().nullable().optional(),
-      tab2: z.string().nullable().optional(),
-      tab3: z.string().nullable().optional(),
-      tab4: z.string().nullable().optional(),
-      tab5: z.string().nullable().optional(),
-      tab6: z.string().nullable().optional(),
-      tab7: z.string().nullable().optional(),
-      tab8: z.string().nullable().optional(),
-      tab9: z.string().nullable().optional(),
-      newConversation: z.string().nullable().optional(),
-      newTerminal: z.string().nullable().optional(),
-      confirm: z.string().nullable().optional(),
-      toggleTerminalDrawer: z.string().nullable().optional(),
-    })
+    z.object(
+      Object.fromEntries(
+        Object.keys(APP_SHORTCUTS).map((k) => [k, z.string().nullable().optional()])
+      ) as Record<keyof typeof APP_SHORTCUTS, z.ZodOptional<z.ZodNullable<z.ZodString>>>
+    )
   )
   .default({});
 
@@ -119,6 +98,8 @@ export const interfaceSettingsSchema = z.object({
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -126,6 +107,7 @@ export const openInSettingsSchema = z.object({
 
 export const APP_SETTINGS_SCHEMA_MAP = {
   localProject: localProjectSettingsSchema,
+  project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
@@ -137,10 +119,12 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  resourceMonitor: resourceMonitorSettingsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
   localProject: localProjectSettingsSchema,
+  project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
@@ -152,4 +136,5 @@ export const appSettingsSchema = z.object({
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
+  resourceMonitor: resourceMonitorSettingsSchema,
 });

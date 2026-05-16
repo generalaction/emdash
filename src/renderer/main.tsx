@@ -3,6 +3,7 @@ import { App } from './App';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import './index.css';
 import 'devicon/devicon.min.css';
+import 'katex/dist/katex.min.css';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
@@ -13,6 +14,7 @@ import { codeEditorPool } from '@renderer/lib/monaco/monaco-code-pool';
 import { diffEditorPool } from '@renderer/lib/monaco/monaco-diff-pool';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { wirePrCacheInvalidation } from '@renderer/lib/pr-cache-invalidation';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
 import { appState } from './lib/stores/app-state';
@@ -24,12 +26,13 @@ async function bootstrap() {
   wireCommitHistoryInvalidation();
 
   appState.update.start();
+  appState.resourceMonitor.start();
   initSoundPlayer();
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here
   // guarantees __monaco is set before React renders, so StickyDiffEditor can
   // create editors synchronously on mount without any async coordination.
-  const [, , navResult, sidebarResult] = await Promise.all([
+  const [, , navResult, sidebarResult, allViewState] = await Promise.all([
     codeEditorPool.init(0).catch((error: unknown) => {
       log.warn('[monaco-code-pool] init failed:', error);
     }),
@@ -38,8 +41,11 @@ async function bootstrap() {
     }),
     rpc.viewState.get('navigation') as Promise<NavigationSnapshot> | null,
     rpc.viewState.get('sidebar'),
+    rpc.viewState.getAll(),
     appState.projects.load(),
   ]);
+
+  viewStateCache.populate(allViewState as Record<string, unknown>);
 
   if (navResult) appState.navigation.restoreSnapshot(navResult);
   setupAppCommandProvider();
