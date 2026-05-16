@@ -70,6 +70,26 @@ describe('resolveLocalPtySpawn - Windows', () => {
     });
   });
 
+  it('double-wraps cmd shim paths containing spaces so /S /C does not eat the outer quotes', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: windowsPathEnv,
+      fileExists: (candidate) => candidate === 'C:\\Program Files\\nodejs\\claude.CMD',
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        command: { kind: 'argv', command: 'claude', args: [] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', '""C:\\Program Files\\nodejs\\claude.CMD""'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
   it('direct-spawns extensionless commands that resolve to exe files', () => {
     const result = resolveLocalPtySpawn({
       platform: 'win32',
