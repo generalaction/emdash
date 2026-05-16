@@ -107,31 +107,25 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     }
   };
 
-  const handleRunScript = () => {
-    const activeScript =
-      activeItem.kind === 'script'
-        ? lifecycleScriptsMgr?.tabs.find((s) => s.data.id === activeItem.id)
-        : null;
-    if (!activeScript) return;
-    activeScript.markRunning();
+  const handleRunScript = (id: string) => {
+    const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
+    if (!script) return;
+    script.markRunning();
     void rpc.terminals
       .runLifecycleScript({
         projectId,
         workspaceId,
-        type: activeScript.data.type,
+        type: script.data.type,
       })
       .catch(() => {
-        activeScript.markExited();
+        script.markExited();
       });
   };
 
-  const handleStopScript = () => {
-    const activeScript =
-      activeItem.kind === 'script'
-        ? lifecycleScriptsMgr?.tabs.find((s) => s.data.id === activeItem.id)
-        : null;
-    if (!activeScript) return;
-    void rpc.pty.sendInput(activeScript.session.sessionId, '\x03');
+  const handleStopScript = (id: string) => {
+    const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
+    if (!script) return;
+    void rpc.pty.sendInput(script.session.sessionId, '\x03');
   };
 
   useHotkey(getHotkeyRegistration('newTerminal', keyboard), () => void handleCreate(), {
