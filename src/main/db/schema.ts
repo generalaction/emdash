@@ -279,7 +279,7 @@ export const automations = sqliteTable(
     name: text('name').notNull(),
     description: text('description'),
     category: text('category').notNull(),
-    cronExpr: text('cron_expr'),
+    cronExpr: text('cron_expr').notNull(),
     cronTz: text('cron_tz'),
     promptTemplate: text('prompt_template').notNull().default(''),
     actions: text('actions').notNull().default('[]'),

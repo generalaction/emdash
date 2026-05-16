@@ -20,7 +20,7 @@ CREATE TABLE `automations` (
 	`name` text NOT NULL,
 	`description` text,
 	`category` text NOT NULL,
-	`cron_expr` text,
+	`cron_expr` text NOT NULL,
 	`cron_tz` text,
 	`prompt_template` text DEFAULT '' NOT NULL,
 	`actions` text DEFAULT '[]' NOT NULL,
