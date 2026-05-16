@@ -263,8 +263,26 @@ export class McpHttpServer {
         this.respondJson(res, 503, { error: 'mcp_server_not_ready' });
         return;
       }
-      transport = new StreamableHTTPServerTransport({
+      // `onsessioninitialized` fires from inside `handleRequest` once the
+      // SDK has assigned a session id to the transport. This is the only
+      // point at which `createdTransport.sessionId` is guaranteed to be set,
+      // so it is the correct hook for registering the transport in our map
+      // — doing it *before* `handleRequest` runs would always observe
+      // `undefined`. (See `StreamableHTTPServerTransport` in
+      // `@modelcontextprotocol/sdk`.)
+      //
+      // The closures reference `createdTransport` via a one-element ref so
+      // we can build the SDK options object before the transport itself
+      // exists (the SDK assigns `this` to a per-instance setup, so it must
+      // see the same reference both ways).
+      const transportRef: { current: StreamableHTTPServerTransport | null } = { current: null };
+      const createdTransport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (initializedId) => {
+          if (transportRef.current) {
+            this.transports.set(initializedId, transportRef.current);
+          }
+        },
         onsessionclosed: (closedId) => {
           const existing = this.transports.get(closedId);
           if (existing) {
@@ -275,8 +293,9 @@ export class McpHttpServer {
           }
         },
       });
+      transportRef.current = createdTransport;
+      transport = createdTransport;
 
-      const createdTransport = transport;
       const originalOnClose = createdTransport.onclose;
       createdTransport.onclose = () => {
         // Remove from the map whenever the transport closes for any reason
@@ -288,10 +307,6 @@ export class McpHttpServer {
       };
 
       await mcpServer.connect(createdTransport);
-
-      if (createdTransport.sessionId) {
-        this.transports.set(createdTransport.sessionId, createdTransport);
-      }
     }
 
     await transport.handleRequest(req, res);
