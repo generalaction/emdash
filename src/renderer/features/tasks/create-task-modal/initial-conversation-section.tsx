@@ -69,7 +69,7 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
             placeholder="Start with a prompt... (optional)"
             value={state.prompt}
             onChange={(e) => state.setPrompt(e.target.value)}
-            className="min-h-24 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
+            className="min-h-24 max-h-64 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
           />
           <ModalContextBar actions={contextActions} onActionClick={handleActionClick} />
         </div>
