@@ -17,7 +17,9 @@ export function useTaskSwitcherShortcut(
 ): void {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigateRef = useRef(navigate);
-  navigateRef.current = navigate;
+  useEffect(() => {
+    navigateRef.current = navigate;
+  });
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
