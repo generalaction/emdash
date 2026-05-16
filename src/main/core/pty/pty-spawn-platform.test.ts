@@ -90,6 +90,26 @@ describe('resolveLocalPtySpawn - Windows', () => {
     });
   });
 
+  it('double-wraps spaced-path cmd shims even when arguments are present', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: windowsPathEnv,
+      fileExists: (candidate) => candidate === 'C:\\Program Files\\nodejs\\claude.CMD',
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        command: { kind: 'argv', command: 'claude', args: ['--version'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', '""C:\\Program Files\\nodejs\\claude.CMD" --version"'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
   it('direct-spawns extensionless commands that resolve to exe files', () => {
     const result = resolveLocalPtySpawn({
       platform: 'win32',
