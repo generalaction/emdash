@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatCronLabel, parseCronToSchedule } from './format';
+import { formatCronLabel } from './format';
+import { parseCronToSchedule } from './schedule';
 
 describe('automation schedule formatting', () => {
   it('does not treat 0,7 as a weekend schedule', () => {

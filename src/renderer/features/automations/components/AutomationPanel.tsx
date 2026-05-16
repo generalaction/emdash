@@ -4,12 +4,8 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { automationCatalogCategories } from '@shared/automations/builtin-catalog';
-import {
-  DEFAULT_SCHEDULE,
-  formatAutomationError,
-  formatCronLabel,
-  scheduleToCron,
-} from '@shared/automations/format';
+import { formatAutomationError, formatCronLabel } from '@shared/automations/format';
+import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import {
   AUTOMATION_NAME_MAX_LENGTH,

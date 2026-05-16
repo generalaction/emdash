@@ -1,8 +1,8 @@
 import { CalendarClock, ChevronDown } from 'lucide-react';
 import { useMemo, useState, type ChangeEvent } from 'react';
+import { formatCronLabel } from '@shared/automations/format';
 import {
   DEFAULT_SCHEDULE,
-  formatCronLabel,
   INTERVAL_MINUTE_OPTIONS,
   parseCronToSchedule,
   SCHEDULE_KIND_LABELS,
@@ -13,7 +13,7 @@ import {
   type ScheduleKind,
   type ScheduleSpec,
   type WeekdayToken,
-} from '@shared/automations/format';
+} from '@shared/automations/schedule';
 import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
