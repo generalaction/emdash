@@ -9,6 +9,10 @@ import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
+import { McpServerAdvancedCard } from './mcp-server/McpServerAdvancedCard';
+import { McpServerConnectionCard } from './mcp-server/McpServerConnectionCard';
+import { McpServerRecentCallsCard } from './mcp-server/McpServerRecentCallsCard';
+import { McpServerStatusCard } from './mcp-server/McpServerStatusCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
@@ -31,6 +35,7 @@ export type SettingsPageTab =
   | 'clis-models'
   | 'integrations'
   | 'connections'
+  | 'mcp-server'
   | 'repository'
   | 'interface'
   | 'docs';
@@ -62,6 +67,7 @@ export function SettingsPage({
     { id: 'clis-models', label: 'Agents' },
     { id: 'integrations', label: 'Integrations' },
     { id: 'connections', label: 'Connections' },
+    { id: 'mcp-server', label: 'MCP Server' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
     { id: 'docs', label: 'Docs', isExternal: true },
@@ -132,6 +138,17 @@ export function SettingsPage({
       title: 'Connections',
       description: 'Manage reusable SSH connections for remote projects.',
       sections: [{ component: <SshConnectionsSettingsCard /> }],
+    },
+    'mcp-server': {
+      title: 'MCP Server',
+      description:
+        'Expose emdash as a local MCP server so external agents (Claude Code, Cursor, Codex) can drive it.',
+      sections: [
+        { title: 'Status', component: <McpServerStatusCard /> },
+        { title: 'Connection', component: <McpServerConnectionCard /> },
+        { title: 'Recent calls', component: <McpServerRecentCallsCard /> },
+        { title: 'Advanced', component: <McpServerAdvancedCard /> },
+      ],
     },
     repository: {
       title: 'Repository',
