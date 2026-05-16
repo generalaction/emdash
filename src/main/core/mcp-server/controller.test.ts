@@ -22,6 +22,13 @@ vi.mock('./service', () => ({
     reconcile: mockReconcile,
     rotateToken: mockRotateToken,
   },
+  // The controller's `getConfigSnippets` calls `getBridgeCommand()` to build
+  // the snippet body. Stub it with a deterministic value so the assertions
+  // can pin the substring without depending on the real `process.cwd()`.
+  getBridgeCommand: () => ({
+    command: 'node',
+    args: ['/abs/path/to/out/main/emdash-mcp.js'],
+  }),
 }));
 
 vi.mock('@main/core/settings/settings-service', () => ({

@@ -25,6 +25,7 @@
     "build": "electron-vite build",
     "build:main": "electron-vite build --filter main",
     "build:renderer": "electron-vite build --filter renderer",
+    "mcp:bridge": "electron-vite build --filter main && node out/main/emdash-mcp.js",
     "package": "pnpm run build && electron-builder --config electron-builder.config.ts",
     "package:mac": "pnpm run build && electron-builder --mac --config electron-builder.config.ts",
     "package:linux": "pnpm run build && electron-builder --linux --publish never --config electron-builder.config.ts",

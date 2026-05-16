@@ -17,7 +17,7 @@ import {
   type RecentCallEntry,
   type RecentCallSnapshotOptions,
 } from './recent-calls';
-import { mcpServerService } from './service';
+import { getBridgeCommand, mcpServerService } from './service';
 
 /**
  * Returns the live status snapshot. Never fails (the underlying service
@@ -107,13 +107,12 @@ async function revealTokenFile(): Promise<Result<{ path: string }, string>> {
  * stdio→HTTP shim) instead of speaking HTTP directly so they don't have to
  * juggle a bearer token themselves.
  *
- * The bin is shipped with the packaged app; in dev / non-packaged runs it
- * lives at `bin/emdash-mcp` relative to the install. Per spec these snippets
- * are display-only and the user pastes them by hand, so referring to the
- * `emdash-mcp` bin name is sufficient for v1.
- *
- * Token + port are inlined into each snippet so the user has everything they
- * need in one block.
+ * `getBridgeCommand()` resolves the actually-deployable command: the
+ * unpacked resource path inside the packaged app, or the dev-time
+ * `out/main/emdash-mcp.js` build artifact otherwise. The bin reads
+ * `~/.emdash/mcp.json` for the token itself, so we never inline the bearer
+ * token here — only the port (mirrored into `EMDASH_MCP_PORT` so the bridge
+ * can override the file's port without a restart).
  */
 async function getConfigSnippets(): Promise<
   Result<{ claudeCode: string; cursor: string; codex: string }, string>
@@ -125,18 +124,14 @@ async function getConfigSnippets(): Promise<
     // later" workflows.
     const settings = await appSettingsService.get('mcpServer');
     const port = status.port ?? settings.port;
-    // Mirror the stdio bridge contract: the bin reads ~/.emdash/mcp.json for
-    // the token itself, so the snippet does NOT inline the bearer token.
-    // The bridge bin path is referenced by name; the user installs the
-    // packaged app which puts `emdash-mcp` on PATH.
-    const bin = 'emdash-mcp';
+    const { command, args } = getBridgeCommand();
 
     const claudeCode = JSON.stringify(
       {
         mcpServers: {
           emdash: {
-            command: bin,
-            args: [],
+            command,
+            args,
             env: { EMDASH_MCP_PORT: String(port) },
           },
         },
@@ -149,8 +144,8 @@ async function getConfigSnippets(): Promise<
       {
         mcpServers: {
           emdash: {
-            command: bin,
-            args: [],
+            command,
+            args,
             env: { EMDASH_MCP_PORT: String(port) },
           },
         },
@@ -162,8 +157,8 @@ async function getConfigSnippets(): Promise<
     // Codex's MCP config uses a TOML block.
     const codex = [
       '[mcp_servers.emdash]',
-      `command = "${bin}"`,
-      'args = []',
+      `command = "${command}"`,
+      `args = ${JSON.stringify(args)}`,
       '',
       '[mcp_servers.emdash.env]',
       `EMDASH_MCP_PORT = "${port}"`,

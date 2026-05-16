@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import {
   mcpServerErrorChannel,
   mcpServerStatusChannel,
@@ -10,6 +11,57 @@ import { log } from '@main/lib/logger';
 import { McpHttpServer, McpServerStartError } from './http-server';
 import { createMcpServer } from './server';
 import { ensureTokenFile, readTokenFile, rotateToken as rotateTokenFile } from './token-store';
+
+/**
+ * Returns the command external MCP clients should run to spawn the
+ * `emdash-mcp` stdio bridge.
+ *
+ * - **Packaged app:** the bridge JS lives in the unpacked resources directory
+ *   (`process.resourcesPath/bin/emdash-mcp.js`, configured in
+ *   `electron-builder.config.ts`). We invoke it via the platform Node, so the
+ *   user never has to chmod or codesign anything themselves.
+ * - **Dev / test:** the bundled output sits at `out/main/emdash-mcp.js` after
+ *   `electron-vite build`. We point at it relative to the cwd; if the file
+ *   doesn't exist yet (fresh checkout that hasn't been built) the snippet
+ *   still tells the developer the correct command — running it without a
+ *   build will fail loudly, which is the correct signal.
+ *
+ * The exposed shape is `{ command, args }` rather than a single string so the
+ * snippet generator can emit each transport's preferred config format
+ * (Claude Code uses `command + args`, Codex uses TOML keys, etc.).
+ */
+export interface BridgeCommand {
+  command: string;
+  args: string[];
+}
+
+export function getBridgeCommand(): BridgeCommand {
+  // `process.resourcesPath` is only set when running inside the Electron
+  // runtime (and even then is only meaningful for the packaged app).
+  // `process.defaultApp` is `true` in `electron .` dev mode and `undefined`
+  // in the packaged app — the inverse of the packaged check we want here.
+  // Together they let us decide between the dev path and the packaged path
+  // without taking a hard runtime dependency on the `electron` module
+  // (which keeps unit tests happy without `vi.mock('electron', …)`).
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const isPackaged =
+    typeof resourcesPath === 'string' &&
+    resourcesPath.length > 0 &&
+    (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp !== true;
+
+  const bridgeFileName = 'emdash-mcp.js';
+  const bridgePath = isPackaged
+    ? join(resourcesPath as string, 'bin', bridgeFileName)
+    : join(process.cwd(), 'out', 'main', bridgeFileName);
+
+  // `node` is universally available wherever Electron itself runs (and the
+  // packaged app ships its own; advanced users can override `command` in
+  // their MCP client config if they prefer a specific runtime).
+  return {
+    command: 'node',
+    args: [bridgePath],
+  };
+}
 
 /**
  * Singleton service that owns the lifecycle of the in-process emdash MCP HTTP
