@@ -9,7 +9,7 @@ import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { McpHttpServer, McpServerStartError } from './http-server';
 import { createMcpServer } from './server';
-import { ensureTokenFile, readTokenFile } from './token-store';
+import { ensureTokenFile, readTokenFile, rotateToken as rotateTokenFile } from './token-store';
 
 /**
  * Singleton service that owns the lifecycle of the in-process emdash MCP HTTP
@@ -120,6 +120,39 @@ export class McpServerService implements IInitializable, IDisposable {
     }
 
     await this.startAndEmit(settings.port);
+  }
+
+  /**
+   * Regenerates the bearer token, rewrites `~/.emdash/mcp.json`, and
+   * reconciles the running server so all transports pick up the new token
+   * (effectively kicking active sessions).
+   *
+   * Returns the freshly-generated token so the renderer can display it
+   * exactly once on the Settings page.
+   */
+  async rotateToken(): Promise<{ token: string }> {
+    let settings: { enabled: boolean; port: number };
+    try {
+      settings = await appSettingsService.get('mcpServer');
+    } catch (err) {
+      log.error('[mcp-server] failed to read mcpServer settings for rotateToken', err);
+      throw err;
+    }
+    const port = this.currentPort ?? settings.port;
+    const file = await rotateTokenFile(port);
+    // Reconcile after rotation: if the server is enabled we restart it so the
+    // HTTP transport reads the new token; this terminates all in-flight
+    // sessions, which is the desired behaviour per spec ("terminates active
+    // sessions so they reconnect with the new token").
+    if (settings.enabled) {
+      if (this.httpServer.isRunning()) {
+        await this.stopAndEmit('port-change');
+      }
+      await this.startAndEmit(port);
+    } else {
+      await this.emitStatus();
+    }
+    return { token: file.token };
   }
 
   private async startAndEmit(port: number): Promise<void> {

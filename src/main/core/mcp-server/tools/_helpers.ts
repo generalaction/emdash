@@ -145,14 +145,57 @@ export function withRecording<Args>(
     try {
       const reply = await handler(args);
       const ms = Date.now() - startedAt;
-      const status: 'ok' | 'error' = 'isError' in reply && reply.isError ? 'error' : 'ok';
-      recentCallsRing.record({ tool: name, ms, status });
+      const isError = 'isError' in reply && reply.isError === true;
+      if (isError) {
+        const { code, message } = extractErrorFields(reply);
+        recentCallsRing.record({
+          tool: name,
+          ms,
+          status: 'error',
+          errorCode: code,
+          errorMessage: message,
+        });
+      } else {
+        recentCallsRing.record({ tool: name, ms, status: 'ok' });
+      }
       return reply;
     } catch (err) {
       const ms = Date.now() - startedAt;
       const message = err instanceof Error ? err.message : String(err);
-      recentCallsRing.record({ tool: name, ms, status: 'error', error: message });
+      recentCallsRing.record({
+        tool: name,
+        ms,
+        status: 'error',
+        errorCode: 'UNHANDLED',
+        errorMessage: message,
+      });
       return formatErr('UNHANDLED', message);
     }
   };
+}
+
+/**
+ * Pull `{ code, message }` out of an MCP error reply's JSON-text body. The
+ * fields are best-effort — a malformed body still yields `undefined`s, which
+ * the ring buffer is happy to store.
+ */
+function extractErrorFields(reply: McpToolReply): {
+  code: string | undefined;
+  message: string | undefined;
+} {
+  const text = reply.content[0]?.text;
+  if (typeof text !== 'string') return { code: undefined, message: undefined };
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as Record<string, unknown>;
+      return {
+        code: typeof obj.code === 'string' ? obj.code : undefined,
+        message: typeof obj.message === 'string' ? obj.message : undefined,
+      };
+    }
+  } catch {
+    // ignore — non-JSON error bodies are rare but tolerated
+  }
+  return { code: undefined, message: undefined };
 }

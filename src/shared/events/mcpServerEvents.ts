@@ -35,3 +35,32 @@ export const mcpServerErrorChannel = defineEvent<{
   code: string;
   message: string;
 }>('mcp-server:error');
+
+/**
+ * Single recent-call entry surfaced on `mcpServerRecentCallChannel` and
+ * returned by `mcpServer.getRecentCalls`. The renderer Settings page renders
+ * the last 200 entries as a live-updating list.
+ */
+export interface RecentCallEntry {
+  /** Stable identifier (UUID) so the renderer can key list items. */
+  id: string;
+  /** Fully-qualified tool name (e.g. `task.create`). */
+  tool: string;
+  /** Whether the tool reply was an MCP error reply. */
+  status: 'ok' | 'error';
+  /** End-to-end handler duration in milliseconds. */
+  ms: number;
+  /** Wall-clock timestamp (ms since epoch) when the call completed. */
+  ts: number;
+  /** Structured error code (e.g. `CONFIRM_REQUIRED`) when `status === 'error'`. */
+  errorCode?: string;
+  /** Human-readable error message when `status === 'error'`. */
+  errorMessage?: string;
+}
+
+/**
+ * Channel for individual recent-call events. Emitted once per tool invocation
+ * after the handler resolves so the Settings page can append to its
+ * live-updating list without polling `getRecentCalls`.
+ */
+export const mcpServerRecentCallChannel = defineEvent<RecentCallEntry>('mcp-server:recent-call');
