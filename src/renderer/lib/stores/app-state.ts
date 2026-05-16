@@ -1,6 +1,6 @@
 import { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
-import { TaskSwitcherStore } from '@renderer/features/task-switcher/task-switcher-store';
 import { SidebarStore } from '@renderer/features/sidebar/sidebar-store';
+import { TaskSwitcherStore } from '@renderer/features/task-switcher/task-switcher-store';
 import { DependenciesStore } from './dependencies-store';
 import { NavigationHistoryStore } from './navigation-history-store';
 import { NavigationStore } from './navigation-store';
