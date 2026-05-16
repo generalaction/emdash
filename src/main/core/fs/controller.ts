@@ -252,7 +252,7 @@ export const filesController = createRPCController({
         seenDestPaths.add(destRelPath);
         if (!options?.overwrite && (await env.fs.exists(destRelPath))) conflicts.push(destRelPath);
       }
-      if (conflicts.length > 0) throw new Error(`Files already exist: ${conflicts.join(', ')}`);
+      if (conflicts.length > 0) throw new Error(`Files already exist:\n${conflicts.join('\n')}`);
 
       for (const { srcPath, destRelPath } of plannedCopies) {
         await env.fs.copyLocalFile(srcPath, destRelPath);

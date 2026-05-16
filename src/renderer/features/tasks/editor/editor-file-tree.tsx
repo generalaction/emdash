@@ -33,15 +33,18 @@ function resultErrorMessage(error: { message?: string; type?: string }): string 
 }
 
 function existingFilePaths(message: string): string[] {
-  const markers = ['Files already exist: ', 'File already exists: '];
-  const marker = markers.find((m) => message.includes(m));
-  if (!marker) return [];
-  const markerIndex = message.indexOf(marker);
-  return message
-    .slice(markerIndex + marker.length)
-    .split(',')
-    .map((p) => p.trim())
-    .filter(Boolean);
+  const pluralMarker = 'Files already exist:\n';
+  if (message.includes(pluralMarker)) {
+    return message
+      .slice(message.indexOf(pluralMarker) + pluralMarker.length)
+      .split('\n')
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
+
+  const singularMarker = 'File already exists: ';
+  const markerIndex = message.indexOf(singularMarker);
+  return markerIndex === -1 ? [] : [message.slice(markerIndex + singularMarker.length)];
 }
 
 function joinRelPath(dir: string, name: string): string {
