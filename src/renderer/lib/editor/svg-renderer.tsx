@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import { ContainedImage } from '@renderer/lib/ui/contained-image';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
 interface SvgRendererProps {
@@ -31,7 +32,7 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
   return (
     <div className="relative flex h-full items-center justify-center overflow-auto p-4">
       {svgUrl ? (
-        <img src={svgUrl} alt={fileName} className="max-h-full max-w-full object-contain" />
+        <ContainedImage src={svgUrl} alt={fileName} className="max-h-full max-w-full" />
       ) : (
         <div className="text-xs text-foreground-passive">Loading…</div>
       )}

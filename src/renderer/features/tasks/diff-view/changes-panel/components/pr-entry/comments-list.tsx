@@ -65,11 +65,7 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
             comment.isOutdated && 'text-foreground-passive'
           )}
         >
-          <MarkdownRenderer
-            content={comment.body}
-            variant="compact"
-            allowHtml={isBotAuthor(comment)}
-          />
+          <MarkdownRenderer content={comment.body} variant="compact" allowHtml />
         </div>
       </div>
       <button

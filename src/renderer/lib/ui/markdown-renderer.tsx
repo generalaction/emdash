@@ -11,6 +11,7 @@ import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
+import { ContainedImage } from './contained-image';
 import { normalizeLatexDelimiters } from './markdown-latex';
 import { MermaidDiagram } from './mermaid-diagram';
 
@@ -100,7 +101,7 @@ const ResolvedImage: React.FC<{
       <span className="my-3 inline-block text-xs text-muted-foreground">Loading image...</span>
     );
   }
-  return <img src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
+  return <ContainedImage src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
 };
 
 type WithChildren = { children?: React.ReactNode };
@@ -240,7 +241,7 @@ function useFullComponents(
         if (!isExternal && resolveImage && src) {
           return <ResolvedImage src={src} alt={alt || ''} resolveImage={resolveImage} />;
         }
-        return <img src={src} alt={alt || ''} className="my-3 max-w-full rounded" />;
+        return <ContainedImage src={src} alt={alt || ''} className="my-3 max-w-full rounded" />;
       },
       strong: ({ children }: WithChildren) => (
         <strong className="font-semibold text-foreground">{children}</strong>
@@ -322,6 +323,13 @@ function useCompactComponents(isDark: boolean) {
           </a>
         );
       },
+      img: ({ src, alt }: ImgProps) => (
+        <ContainedImage
+          src={src}
+          alt={alt || ''}
+          className="my-2 h-auto max-h-80 max-w-full rounded"
+        />
+      ),
     }),
     [isDark]
   );
