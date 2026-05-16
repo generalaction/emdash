@@ -79,6 +79,10 @@ export class TaskSwitcherStore {
 
   /** Begin a Ctrl+Tab cycle. No-op if nothing to switch to. */
   startCycle(currentTaskId: string | undefined): boolean {
+    // Prune stale entries no longer in the live task list
+    const liveIds = new Set(this.tasks.map((t) => t.taskId));
+    this._mruStack = this._mruStack.filter((id) => liveIds.has(id));
+
     const others = this.tasks.filter((t) => t.taskId !== currentTaskId);
     if (others.length === 0) return false;
     const current = this.tasks.find((t) => t.taskId === currentTaskId);
