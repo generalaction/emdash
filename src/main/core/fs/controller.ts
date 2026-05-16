@@ -1,3 +1,4 @@
+import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { planEventChannel } from '@shared/events/appEvents';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
@@ -229,22 +230,27 @@ export const filesController = createRPCController({
       const destDir = normalizeRelativePath(destDirPath, { allowEmpty: true });
       await env.fs.mkdir(destDir || '.', { recursive: true });
 
-      const plannedCopies = srcPaths.map((srcPath) => {
-        if (!path.isAbsolute(srcPath)) throw new Error('Source path must be absolute');
-        const fileName = path.basename(srcPath);
-        if (!fileName) throw new Error('Source path must include a file name');
-        const destRelPath = destDir ? path.posix.join(destDir, fileName) : fileName;
-        return { srcPath, destRelPath };
-      });
+      const plannedCopies = await Promise.all(
+        srcPaths.map(async (srcPath) => {
+          if (!path.isAbsolute(srcPath)) throw new Error('Source path must be absolute');
+          const fileName = path.basename(srcPath);
+          if (!fileName) throw new Error('Source path must include a file name');
+          const srcStat = await fs.stat(srcPath);
+          if (srcStat.isDirectory()) throw new Error(`Cannot import directories: ${srcPath}`);
+          const destRelPath = destDir ? path.posix.join(destDir, fileName) : fileName;
+          return { srcPath, destRelPath };
+        })
+      );
 
       const seenDestPaths = new Set<string>();
+      const conflicts: string[] = [];
       for (const { destRelPath } of plannedCopies) {
         if (seenDestPaths.has(destRelPath))
           throw new Error(`Duplicate destination: ${destRelPath}`);
         seenDestPaths.add(destRelPath);
-        if (!options?.overwrite && (await env.fs.exists(destRelPath)))
-          throw new Error(`File already exists: ${destRelPath}`);
+        if (!options?.overwrite && (await env.fs.exists(destRelPath))) conflicts.push(destRelPath);
       }
+      if (conflicts.length > 0) throw new Error(`Files already exist: ${conflicts.join(', ')}`);
 
       for (const { srcPath, destRelPath } of plannedCopies) {
         await env.fs.copyLocalFile(srcPath, destRelPath);

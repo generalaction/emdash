@@ -32,10 +32,16 @@ function resultErrorMessage(error: { message?: string; type?: string }): string 
   return error.message ?? error.type ?? 'Unknown error';
 }
 
-function existingFilePath(message: string): string | null {
-  const marker = 'File already exists: ';
+function existingFilePaths(message: string): string[] {
+  const markers = ['Files already exist: ', 'File already exists: '];
+  const marker = markers.find((m) => message.includes(m));
+  if (!marker) return [];
   const markerIndex = message.indexOf(marker);
-  return markerIndex === -1 ? null : message.slice(markerIndex + marker.length);
+  return message
+    .slice(markerIndex + marker.length)
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
 }
 
 function joinRelPath(dir: string, name: string): string {
@@ -70,11 +76,15 @@ async function importLocalFiles(args: {
     for (const p of inserted) files.removeNode(p);
     await files.loadDir(destDirPath, true);
     const message = error instanceof Error ? error.message : 'The file could not be imported.';
-    const existingPath = existingFilePath(message);
-    if (existingPath && !overwrite) {
+    const existingPaths = existingFilePaths(message);
+    if (existingPaths.length > 0 && !overwrite) {
+      const description =
+        existingPaths.length === 1
+          ? `${existingPaths[0]} already exists. Replace it with the dropped file?`
+          : `${existingPaths.length} files already exist: ${existingPaths.join(', ')}. Replace them with the dropped files?`;
       showModal('confirmActionModal', {
-        title: 'Replace existing file?',
-        description: `${existingPath} already exists. Replace it with the dropped file?`,
+        title: existingPaths.length === 1 ? 'Replace existing file?' : 'Replace existing files?',
+        description,
         confirmLabel: 'Replace',
         variant: 'destructive',
         onSuccess: () => {
@@ -220,11 +230,11 @@ const FileTreeRow = observer(function FileTreeRow({
   };
 
   const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
     setIsDropTarget(false);
     const srcPaths = getDraggedFilePaths(event.dataTransfer);
     if (srcPaths.length === 0) return;
-    event.preventDefault();
-    event.stopPropagation();
 
     // Expand the target directory so the new node is visible immediately.
     if (node.type === 'directory' && !editorView.expandedPaths.has(node.path)) {
@@ -340,11 +350,11 @@ export const EditorFileTree = observer(function EditorFileTree() {
   });
 
   const handleRootDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
     setIsDragOverRoot(false);
     const srcPaths = getDraggedFilePaths(event.dataTransfer);
     if (srcPaths.length === 0) return;
-    event.preventDefault();
-    event.stopPropagation();
 
     void importLocalFiles({
       files: workspace.files,
