@@ -36,7 +36,6 @@
 import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import type { OpenInAppId } from '@shared/openInApps';
 import type { Result } from '@shared/result';
 import type {
   CreateTaskError,
@@ -57,6 +56,8 @@ import type { appService as AppService } from '@main/core/app/service';
 import type { ptySessionRegistry as PtySessionRegistry } from '@main/core/pty/pty-session-registry';
 import type { workspaceRegistry as WorkspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import {
+  editorSchema,
+  editorToOpenInAppId,
   formatErr,
   formatOk,
   fromResult,
@@ -193,19 +194,6 @@ const taskCreateStrategyKindSchema = z.enum([
   'from-pull-request',
   'no-worktree',
 ]);
-
-const editorSchema = z.enum(['vscode', 'cursor', 'zed', 'sublime', 'terminal']);
-
-// `sublime` isn't in OPEN_IN_APPS; map it to a sensible fallback so the
-// LLM-facing enum can stay short. (Sublime support would need a new entry
-// in `src/shared/openInApps.ts` — a follow-up, not part of this task.)
-const editorToOpenInAppId: Record<z.infer<typeof editorSchema>, OpenInAppId> = {
-  vscode: 'vscode',
-  cursor: 'cursor',
-  zed: 'zed',
-  sublime: 'zed', // best-effort fallback until a sublime entry is added
-  terminal: 'terminal',
-};
 
 // ─── Tool registration ────────────────────────────────────────────────────
 

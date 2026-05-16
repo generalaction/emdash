@@ -19,8 +19,36 @@
  * tool name + duration + status lands in the recent-calls ring buffer that
  * the Settings UI surfaces.
  */
+import { z } from 'zod';
+import type { OpenInAppId } from '@shared/openInApps';
 import type { Result } from '@shared/result';
 import { recentCallsRing } from '../recent-calls';
+
+// ─── Shared schemas / mappings ─────────────────────────────────────────────
+
+/**
+ * Editor enum exposed to MCP clients. Kept short on purpose — the catalog of
+ * `OPEN_IN_APPS` (in `src/shared/openInApps.ts`) is much larger, but those
+ * are renderer-facing and over-specific for the LLM surface. Anything not
+ * present here can still be opened via the renderer.
+ */
+export const editorSchema = z.enum(['vscode', 'cursor', 'zed', 'sublime', 'terminal']);
+export type EditorChoice = z.infer<typeof editorSchema>;
+
+/**
+ * Maps the MCP-facing `editor` value to a canonical `OpenInAppId`.
+ *
+ * `sublime` isn't in OPEN_IN_APPS today; it falls back to `zed` so the
+ * external client gets *something* rather than a hard error. Adding a real
+ * Sublime entry to `OPEN_IN_APPS` is a follow-up.
+ */
+export const editorToOpenInAppId: Record<EditorChoice, OpenInAppId> = {
+  vscode: 'vscode',
+  cursor: 'cursor',
+  zed: 'zed',
+  sublime: 'zed',
+  terminal: 'terminal',
+};
 
 /**
  * Shape of the message body returned by every emdash MCP tool handler.
