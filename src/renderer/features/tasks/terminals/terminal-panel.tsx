@@ -109,7 +109,9 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const handleRunScript = (id: string) => {
     const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
-    if (!script) return;
+    if (!script || script.isRunning) return;
+    lifecycleScriptsMgr?.setActiveTab(id);
+    setActiveItem({ kind: 'script', id });
     script.markRunning();
     void rpc.terminals
       .runLifecycleScript({
