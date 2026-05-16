@@ -12,6 +12,7 @@ export interface SwitcherEntry {
 
 export class TaskSwitcherStore {
   isCycling = false;
+  isVisible = false;
   /** Snapshot of the task list frozen at cycle start. */
   private _cycleList: SwitcherEntry[] = [];
   private _currentTaskId: string | null = null;
@@ -113,8 +114,13 @@ export class TaskSwitcherStore {
     this._reset();
   }
 
+  show(): void {
+    this.isVisible = true;
+  }
+
   private _reset(): void {
     this.isCycling = false;
+    this.isVisible = false;
     this._cycleList = [];
     this._currentTaskId = null;
     this._index = 0;

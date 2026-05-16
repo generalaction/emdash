@@ -20,7 +20,6 @@ import { modalStore } from '@renderer/lib/modal/modal-store';
 export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const showCommandPalette = useShowModal('commandPaletteModal');
-  const showTabSwitcher = useShowModal('tabSwitcherModal');
   const { toggleLeft } = useWorkspaceLayoutContext();
   const { toggleTheme } = useTheme();
   const { navigate } = useNavigate();
@@ -79,11 +78,8 @@ export function AppKeyboardShortcuts() {
   });
 
   // Ctrl+Tab: drives TaskSwitcherStore, opens modal after delay
-  useTaskSwitcherShortcut(
-    !!(switcherNextHotkey || switcherPrevHotkey),
-    currentTaskId,
-    (target) => navigate('task', { projectId: target.projectId, taskId: target.taskId }),
-    () => showTabSwitcher({})
+  useTaskSwitcherShortcut(!!(switcherNextHotkey || switcherPrevHotkey), currentTaskId, (target) =>
+    navigate('task', { projectId: target.projectId, taskId: target.taskId })
   );
 
   return null;
