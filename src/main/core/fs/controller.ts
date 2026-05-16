@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { planEventChannel } from '@shared/events/appEvents';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { createRPCController } from '@shared/ipc/rpc';
@@ -18,6 +19,30 @@ const watcherRegistry = new Map<string, FileWatcher>();
 // Per-label path groups, keyed by `${projectId}::${workspaceId}` → label → paths.
 // Paths are forwarded to update() for SSH compatibility; local ignores them.
 const watcherLabeledPaths = new Map<string, Map<string, string[]>>();
+
+function normalizeRelativePath(filePath: string, options?: { allowEmpty?: boolean }): string {
+  if (!filePath && options?.allowEmpty) return '';
+  const normalized = path.posix.normalize(filePath.replaceAll('\\', '/'));
+  if (
+    !filePath ||
+    path.isAbsolute(filePath) ||
+    normalized === '..' ||
+    normalized.startsWith('../') ||
+    normalized.includes('/../')
+  ) {
+    throw new Error('Invalid file path');
+  }
+  return normalized === '.' ? '' : normalized;
+}
+
+function joinWorkspacePath(rootPath: string, filePath: string): string {
+  if (!filePath) return rootPath;
+  const separator =
+    rootPath.includes('\\') && !rootPath.includes('/') ? path.win32.sep : path.posix.sep;
+  return rootPath.endsWith('/') || rootPath.endsWith('\\')
+    ? `${rootPath}${filePath}`
+    : `${rootPath}${separator}${filePath}`;
+}
 
 export const filesController = createRPCController({
   listFiles: async (
@@ -165,6 +190,55 @@ export const filesController = createRPCController({
     try {
       const exists = await env.fs.exists(filePath);
       return ok({ exists });
+    } catch (e) {
+      return err({ type: 'fs_error' as const, message: String(e) });
+    }
+  },
+
+  getAbsolutePath: async (projectId: string, workspaceId: string, filePath: string) => {
+    const env = resolveWorkspace(projectId, workspaceId);
+    if (!env)
+      return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
+
+    try {
+      return ok({ path: joinWorkspacePath(env.path, normalizeRelativePath(filePath)) });
+    } catch (e) {
+      return err({ type: 'fs_error' as const, message: String(e) });
+    }
+  },
+
+  copyLocalFiles: async (
+    projectId: string,
+    workspaceId: string,
+    srcPaths: string[],
+    destDirPath: string
+  ) => {
+    const env = resolveWorkspace(projectId, workspaceId);
+    if (!env)
+      return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
+
+    if (!env.fs.copyLocalFile) {
+      return err({
+        type: 'fs_error' as const,
+        message: 'copyLocalFile not supported by this filesystem',
+      });
+    }
+
+    try {
+      const destDir = normalizeRelativePath(destDirPath, { allowEmpty: true });
+      await env.fs.mkdir(destDir || '.', { recursive: true });
+
+      for (const srcPath of srcPaths) {
+        if (!path.isAbsolute(srcPath)) throw new Error('Source path must be absolute');
+        const fileName = path.basename(srcPath);
+        if (!fileName) throw new Error('Source path must include a file name');
+        const destRelPath = destDir ? path.posix.join(destDir, fileName) : fileName;
+        if (await env.fs.exists(destRelPath))
+          throw new Error(`File already exists: ${destRelPath}`);
+        await env.fs.copyLocalFile(srcPath, destRelPath);
+      }
+
+      return ok({ copied: srcPaths.length });
     } catch (e) {
       return err({ type: 'fs_error' as const, message: String(e) });
     }

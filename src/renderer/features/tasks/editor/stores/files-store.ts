@@ -130,6 +130,30 @@ export class FilesStore {
     this._bumpTreeDebounced();
   }
 
+  /**
+   * Optimistically insert a node so the UI updates the instant a file is
+   * dropped, before the RPC copy finishes. The follow-up watcher event is a
+   * no-op when the node already exists.
+   * Returns true if a node was inserted (call `removeNode` on failure to roll back).
+   */
+  addOptimisticNode(relPath: string, type: 'file' | 'directory'): boolean {
+    if (!relPath || isExcluded(relPath)) return false;
+    if (this._nodes.has(relPath)) return false;
+
+    const parent = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
+    if (!this._loadedPaths.has(parent)) return false;
+
+    this._addNode(makeNode(relPath, type));
+    this._bumpTree();
+    return true;
+  }
+
+  removeNode(relPath: string): void {
+    if (!this._nodes.has(relPath)) return;
+    this._removeNode(relPath);
+    this._bumpTree();
+  }
+
   async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {
     const parts = filePath.split('/').filter(Boolean);
     const dirs: string[] = [];
