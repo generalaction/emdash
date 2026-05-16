@@ -32,6 +32,7 @@ import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { rpc } from '@renderer/lib/ipc';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
@@ -69,13 +70,20 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   const taskStore = getTaskStore(projectId, taskId)!;
   const projectName = projectDisplayName(getProjectStore(projectId));
   const name = taskDisplayName(taskStore);
+  const { navigate } = useNavigate();
 
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2 text-sm text-foreground-muted">
           <span className="flex items-center gap-1">
-            <span className="text-sm text-foreground-passive">{projectName}</span>
+            <button
+              type="button"
+              className="text-sm text-foreground-passive hover:text-foreground"
+              onClick={() => navigate('project', { projectId })}
+            >
+              {projectName}
+            </button>
             <span className="text-sm text-foreground-passive">/</span>
             {name}
           </span>
@@ -114,21 +122,26 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const projectStore = asMounted(getProjectStore(projectId));
 
   const projectName = projectDisplayName(getProjectStore(projectId));
+  const { navigate } = useNavigate();
 
   const isRemoteProject = projectStore?.data.type === 'ssh';
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
+          <button
+            type="button"
+            className="text-sm text-foreground-passive hover:text-foreground"
+            onClick={() => navigate('project', { projectId })}
+          >
+            {projectName}
+          </button>
+          <span className="text-sm text-foreground-passive">/</span>
           <Popover>
             <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-              <span className="flex items-center gap-1">
-                <span className="text-sm text-foreground-passive">{projectName}</span>
-                <span className="text-sm text-foreground-passive">/</span>
-                <span className="flex items-center gap-1.5 min-w-0">
-                  <span className="truncate max-w-56">{taskDisplayName(taskStore)}</span>
-                  <ConnectionStatusDot state={workspace.connectionState} />
-                </span>
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="truncate max-w-56">{taskDisplayName(taskStore)}</span>
+                <ConnectionStatusDot state={workspace.connectionState} />
               </span>
               <ChevronDown className="size-3.5 shrink-0" />
             </PopoverTrigger>
