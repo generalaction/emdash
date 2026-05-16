@@ -57,6 +57,8 @@ import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-s
 import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
 
+const AUTOMATION_RUNS_POPOVER_LIMIT = 50;
+
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
@@ -136,7 +138,7 @@ function AutomationRunsPopover({
 }) {
   const [open, setOpen] = useState(false);
   const { navigate } = useNavigate();
-  const runs = useAutomationRuns(automationId, 25);
+  const runs = useAutomationRuns(automationId, AUTOMATION_RUNS_POPOVER_LIMIT);
   const tool = automationTool(automation);
 
   function handleSelectRun(run: AutomationRun) {
