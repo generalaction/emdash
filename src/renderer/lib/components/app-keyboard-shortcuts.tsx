@@ -77,7 +77,7 @@ export function AppKeyboardShortcuts() {
     enabled: toggleThemeHotkey !== null,
   });
 
-  // Ctrl+Tab: drives TaskSwitcherStore, opens modal after delay
+  // Ctrl+Tab: task switcher cycling
   useTaskSwitcherShortcut(!!(switcherNextHotkey || switcherPrevHotkey), currentTaskId, (target) =>
     navigate('task', { projectId: target.projectId, taskId: target.taskId })
   );
