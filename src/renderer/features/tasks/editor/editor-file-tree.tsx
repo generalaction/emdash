@@ -236,18 +236,25 @@ const FileTreeRow = observer(function FileTreeRow({
     const srcPaths = getDraggedFilePaths(event.dataTransfer);
     if (srcPaths.length === 0) return;
 
-    // Expand the target directory so the new node is visible immediately.
-    if (node.type === 'directory' && !editorView.expandedPaths.has(node.path)) {
-      runInAction(() => editorView.expandedPaths.add(node.path));
-    }
+    void (async () => {
+      // Expand and load the target directory so optimistic nodes can be inserted immediately.
+      if (node.type === 'directory') {
+        if (!editorView.expandedPaths.has(node.path)) {
+          runInAction(() => editorView.expandedPaths.add(node.path));
+        }
+        if (!workspace.files.loadedPaths.has(node.path)) {
+          await workspace.files.loadDir(node.path);
+        }
+      }
 
-    void importLocalFiles({
-      files: workspace.files,
-      projectId,
-      workspaceId,
-      srcPaths,
-      destDirPath: targetDirPath,
-    });
+      await importLocalFiles({
+        files: workspace.files,
+        projectId,
+        workspaceId,
+        srcPaths,
+        destDirPath: targetDirPath,
+      });
+    })();
   };
 
   return (
