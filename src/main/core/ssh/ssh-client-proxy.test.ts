@@ -109,6 +109,38 @@ describe('SshClientProxy remote shell profile', () => {
     });
     expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(2);
   });
+
+  it('deduplicates get calls while a refresh is in flight', async () => {
+    let resolveRefresh!: (profile: { shell: string; env: Record<string, string> }) => void;
+    const refreshCapture = new Promise<{ shell: string; env: Record<string, string> }>(
+      (resolve) => {
+        resolveRefresh = resolve;
+      }
+    );
+    const client = {};
+    mocks.captureRemoteShellProfile.mockReturnValueOnce(refreshCapture);
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    const refresh = proxy.refreshRemoteShellProfile();
+    const concurrentGet = proxy.getRemoteShellProfile();
+    resolveRefresh({ shell: '/bin/zsh', env: { PATH: '/refreshed:/usr/bin' } });
+
+    await expect(refresh).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    await expect(concurrentGet).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(1);
+    await expect(proxy.getRemoteShellProfile()).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('SshClientProxy channel health reporting', () => {
