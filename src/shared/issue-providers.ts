@@ -36,6 +36,10 @@ export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProvide
     requiresProjectPath: false,
     requiresRepositoryUrl: false,
   },
+  asana: {
+    requiresProjectPath: false,
+    requiresRepositoryUrl: false,
+  },
 };
 
 export type ConnectionStatus = {
