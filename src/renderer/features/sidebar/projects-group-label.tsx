@@ -13,6 +13,8 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
   const showAddProjectModal = useShowModal('addProjectModal');
@@ -51,15 +53,23 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          className="hover:bg-transparent text-foreground-muted hover:text-foreground"
-          aria-label="Add Project"
-          onClick={() => showAddProjectModal({})}
-        >
-          <Plus />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              className="hover:bg-transparent text-foreground-muted hover:text-foreground"
+              aria-label="Add Project"
+              onClick={() => showAddProjectModal({})}
+            >
+              <Plus />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="flex items-center gap-2">
+            Add Project
+            <ShortcutHint settingsKey="newProject" />
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
