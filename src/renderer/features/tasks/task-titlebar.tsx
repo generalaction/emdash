@@ -138,13 +138,20 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
           </button>
           <span className="text-sm text-foreground-passive">/</span>
           <Popover>
-            <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-              <span className="flex items-center gap-1.5 min-w-0">
-                <span className="truncate max-w-56">{taskDisplayName(taskStore)}</span>
-                <ConnectionStatusDot state={workspace.connectionState} />
-              </span>
-              <ChevronDown className="size-3.5 shrink-0" />
-            </PopoverTrigger>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate max-w-56">{taskDisplayName(taskStore)}</span>
+                      <ConnectionStatusDot state={workspace.connectionState} />
+                    </span>
+                    <ChevronDown className="size-3.5 shrink-0" />
+                  </PopoverTrigger>
+                }
+              />
+              <TooltipContent>Link to issue</TooltipContent>
+            </Tooltip>
             <PopoverContent align="start" className="w-96 p-4 flex flex-col gap-2">
               <div className="flex flex-col gap-1 w-full">
                 <MicroLabel className="text-foreground-passive items-center flex">Task</MicroLabel>
