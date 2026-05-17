@@ -62,10 +62,11 @@ const TASK_SUGGESTED = [
   'task.sidebarFiles',
   'task.sidebarConversations',
   'task.toggleTerminalDrawer',
+  'resource-monitor',
   'app.giveFeedback',
 ];
-const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'app.giveFeedback'];
-const APP_SUGGESTED = ['app.newProject', 'app.settings', 'app.giveFeedback'];
+const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
+const APP_SUGGESTED = ['app.newProject', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
 
 /** Converts a TanStack hotkey string (e.g. 'Mod+Shift+C') to a display label. */
 function formatHotkey(hotkey: string | undefined): string | undefined {
@@ -184,29 +185,44 @@ export function CommandPaletteModal({
       })
   );
 
-  const actions = useMemo(() => {
-    const allActions = [...registryActions];
-    if (resourceMonitor?.enabled) {
-      allActions.push({
-        kind: 'action',
-        id: 'resource-monitor',
-        title: 'Resource Monitor',
-        subtitle: 'Show CPU and memory performance for running agents',
-        icon: Activity,
-        execute: () => setView('resource-monitor'),
-      });
-    }
+  const resourceMonitorAction = useMemo<PaletteAction | null>(
+    () =>
+      resourceMonitor?.enabled
+        ? {
+            kind: 'action',
+            id: 'resource-monitor',
+            title: 'Resource Monitor',
+            subtitle: 'Show CPU and memory performance for running agents',
+            icon: Activity,
+            execute: () => setView('resource-monitor'),
+          }
+        : null,
+    [resourceMonitor?.enabled]
+  );
 
+  const actions = useMemo(() => {
     // Empty state: show the ordered context-specific suggested actions only.
     const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
-    return allActions
+    const pool = resourceMonitorAction
+      ? [...registryActions, resourceMonitorAction]
+      : registryActions;
+    return pool
       .filter((a) => suggestedIds.includes(a.id))
       .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
       .slice(0, 7);
-  }, [registryActions, resourceMonitor?.enabled, projectId, taskId]);
+  }, [registryActions, resourceMonitorAction, projectId, taskId]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const actionResults = actions;
+
+  const q = debouncedQuery.toLowerCase();
+  const matchedResourceMonitor =
+    resourceMonitorAction &&
+    q &&
+    (resourceMonitorAction.title.toLowerCase().includes(q) ||
+      resourceMonitorAction.subtitle?.toLowerCase().includes(q))
+      ? resourceMonitorAction
+      : null;
   const taskResults = rankedDb.filter((r): r is SearchItem => r.kind === 'task');
   const conversationResults = rankedDb.filter((r): r is SearchItem => r.kind === 'conversation');
 
@@ -291,6 +307,13 @@ export function CommandPaletteModal({
             <Command.Empty className="py-8 text-center text-sm text-foreground/40">
               No results for &ldquo;{query}&rdquo;
             </Command.Empty>
+            {matchedResourceMonitor && (
+              <PaletteItem
+                value={matchedResourceMonitor.id}
+                item={matchedResourceMonitor}
+                onSelect={matchedResourceMonitor.execute}
+              />
+            )}
             {rankedDb.map((item) => {
               if (item.kind === 'command') {
                 const live = commandRegistry.findById(item.id);
