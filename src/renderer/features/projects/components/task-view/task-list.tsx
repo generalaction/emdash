@@ -178,7 +178,7 @@ export const TaskList = observer(function TaskList() {
   };
 
   return (
-    <div className="relative flex flex-col max-w-3xl mx-auto w-full h-full pt-6 px-6 min-h-0">
+    <div className="relative flex h-full min-h-0 w-full flex-col">
       <div className="flex flex-col gap-4 border-b border-border pb-3 shrink-0">
         <div className="flex items-center gap-2 flex-wrap justify-between">
           <ToggleGroup
