@@ -52,24 +52,23 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
     }
   };
 
-  const connectCli = async () => {
+  const refreshCliAuth = async () => {
     setError(null);
     setCliLoading(true);
     try {
-      const result = await rpc.github.connectCli();
-      if (!result.success) {
+      const status = await checkStatus({ refresh: true });
+      if (!status.authenticated || status.tokenSource !== 'cli') {
         setError({
           method: 'cli',
-          message: result.error ?? 'No GitHub CLI session found. Run gh auth login first.',
+          message: 'No GitHub CLI session found. Run gh auth login first.',
         });
         return;
       }
 
-      await checkStatus();
       void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
       toast({
         title: 'GitHub CLI detected',
-        description: result.user ? `Using @${result.user.login} via GitHub CLI.` : undefined,
+        description: status.user ? `Using @${status.user.login} via GitHub CLI.` : undefined,
       });
       onSuccess();
     } finally {
@@ -117,14 +116,14 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
                 in your terminal
               </p>
             </div>
-            <Button variant="outline" onClick={() => void connectCli()} disabled={anyLoading}>
+            <Button variant="outline" onClick={() => void refreshCliAuth()} disabled={anyLoading}>
               {cliLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Checking…
                 </>
               ) : (
-                'Detect'
+                'Refresh'
               )}
             </Button>
           </div>
