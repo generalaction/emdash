@@ -1,11 +1,11 @@
 import { Search } from 'lucide-react';
-import { useObserver } from 'mobx-react-lite';
+import { observer } from 'mobx-react-lite';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 
-export function SidebarSearchTrigger() {
+export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
   const showCommandPalette = useShowModal('commandPaletteModal');
   const { currentView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
@@ -19,10 +19,10 @@ export function SidebarSearchTrigger() {
         : undefined;
   const currentTaskId = currentView === 'task' ? taskParams.taskId : undefined;
 
-  const currentWorkspaceId = useObserver(() => {
-    if (!currentProjectId || !currentTaskId) return undefined;
-    return getRegisteredTaskData(currentProjectId, currentTaskId)?.workspaceId ?? undefined;
-  });
+  const currentWorkspaceId =
+    currentProjectId && currentTaskId
+      ? getRegisteredTaskData(currentProjectId, currentTaskId)?.workspaceId
+      : undefined;
 
   return (
     <div className="px-3 pt-3 pb-2">
@@ -44,4 +44,4 @@ export function SidebarSearchTrigger() {
       </button>
     </div>
   );
-}
+});
