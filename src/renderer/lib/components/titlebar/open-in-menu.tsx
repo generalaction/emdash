@@ -65,12 +65,38 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
   );
 
   const sortedApps = useMemo(() => {
-    if (!defaultApp) return installedApps;
-    return [...installedApps].sort((a, b) => {
+    const groupOf = (app: { id: string; variantOf?: string }) => app.variantOf ?? app.id;
+
+    // First, cluster every app next to its parent so variants are always adjacent.
+    const byGroup = new Map<string, typeof installedApps>();
+    for (const app of installedApps) {
+      const key = groupOf(app);
+      const list = byGroup.get(key) ?? [];
+      list.push(app);
+      byGroup.set(key, list);
+    }
+    const clustered = installedApps.flatMap((app) => {
+      if (app.variantOf) return [];
+      return byGroup.get(app.id) ?? [app];
+    });
+
+    if (!defaultApp) return clustered;
+
+    const defaultConfig = clustered.find((a) => a.id === defaultApp);
+    if (!defaultConfig) return clustered;
+    const defaultGroup = groupOf(defaultConfig);
+
+    const inDefaultGroup = clustered.filter((a) => groupOf(a) === defaultGroup);
+    const others = clustered.filter((a) => groupOf(a) !== defaultGroup);
+
+    // Within the default group, the chosen default app comes first.
+    inDefaultGroup.sort((a, b) => {
       if (a.id === defaultApp) return -1;
       if (b.id === defaultApp) return 1;
       return 0;
     });
+
+    return [...inDefaultGroup, ...others];
   }, [defaultApp, installedApps]);
 
   const menuApps = useMemo(
@@ -151,8 +177,9 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
           <TooltipTrigger
             render={
               <SelectTrigger
+                size="sm"
                 showChevron={false}
-                className="group shrink-0 size-6 border-none bg-transparent flex items-center justify-center transition-colors hover:bg-background-1 hover:text-foreground"
+                className="group shrink-0 h-full w-7 p-0 rounded-none border-none bg-transparent flex items-center justify-center transition-colors hover:bg-background-1 hover:text-foreground"
                 aria-label="Open in options"
               >
                 <ChevronDown className="size-3.5" />
