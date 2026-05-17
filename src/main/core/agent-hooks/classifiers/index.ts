@@ -55,6 +55,7 @@ const classifierFactories: Partial<Record<AgentProviderId, () => ProviderClassif
   letta: createLettaClassifier,
   mistral: createMistralClassifier,
   opencode: createOpenCodeClassifier,
+  'oh-my-pi': createPiClassifier,
   pi: createPiClassifier,
   qwen: createQwenClassifier,
   rovo: createRovoClassifier,

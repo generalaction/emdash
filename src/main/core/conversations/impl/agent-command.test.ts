@@ -245,6 +245,7 @@ describe('buildAgentCommand', () => {
       freshArgs: ['--conversation=conv-1', '-i', 'Fix the bug'],
       resumeArgs: ['--conversation=conv-1'],
     },
+    { providerId: 'oh-my-pi', freshArgs: ['Fix the bug'], resumeArgs: ['-c'] },
   ])('builds fresh and resume args for $providerId', ({ providerId, freshArgs, resumeArgs }) => {
     const fresh = buildAgentCommand({
       providerId,
