@@ -6,12 +6,16 @@ export interface GitHubUser {
   avatar_url: string;
 }
 
-export type GitHubTokenSource = 'secure_storage' | 'cli' | null;
+export type GitHubTokenSource = 'secure_storage' | 'cli' | 'emdash_oauth' | 'device_flow' | null;
 
 export interface GitHubStatusResponse {
   authenticated: boolean;
   user: GitHubUser | null;
   tokenSource: GitHubTokenSource;
+}
+
+export interface GitHubStatusOptions {
+  refresh?: boolean;
 }
 
 export interface GitHubAuthResponse {
