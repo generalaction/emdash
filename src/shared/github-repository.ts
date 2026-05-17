@@ -32,6 +32,7 @@ function toRepositoryRef(
   };
 }
 
+// TODO: May want to look at extending the ref support for GitLab, Bitbucket etc.
 export function parseGitHubRepository(input?: string | null): GitHubRepositoryRef | null {
   const value = input?.trim();
   if (!value) return null;
