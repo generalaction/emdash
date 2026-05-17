@@ -55,7 +55,6 @@ type IntegrationCardItem = {
   name: string;
   description: string;
   logoSvg: string;
-  avatarUrl?: string;
   connected: boolean;
   loading: boolean;
   onConnect?: () => void;
@@ -197,7 +196,6 @@ const IntegrationsCard: React.FC = () => {
       name: 'GitHub',
       description: githubDescription,
       logoSvg: githubSvg,
-      avatarUrl: authenticated ? user?.avatar_url : undefined,
       connected: authenticated,
       loading: isLoading,
       onConnect: () => showGithubConnect({}),
