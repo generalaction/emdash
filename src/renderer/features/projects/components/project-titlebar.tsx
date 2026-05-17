@@ -14,6 +14,7 @@ import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Button } from '@renderer/lib/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,16 +81,21 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
             orientation="vertical"
             className="h-4 data-[orientation=vertical]:self-center"
           />
-          <button
+          <Button
+            variant="ghost"
             className="flex items-center gap-1.5 text-foreground-muted text-sm hover:text-foreground group transition-colors"
-            onClick={() => void rpc.app.openExternal(remoteUrl ?? '')}
+            onClick={() =>
+              void rpc.app.openExternal(
+                isGithubUrl ? (parseGitHubRepository(remoteUrl)?.repositoryUrl ?? '') : remoteUrl
+              )
+            }
           >
             <div className="text-sm flex items-center gap-1">
               {isGithubUrl ? <GithubIcon className="size-3.5" /> : <Globe className="size-3.5" />}
               <span className="truncate">{repoLabel}</span>
             </div>
             <ExternalLink className="size-3.5 shrink-0 opacity-0 group-hover:opacity-100 text-foreground-muted hover:text-foreground transition-opacity" />
-          </button>
+          </Button>
         </>
       )}
     </div>
