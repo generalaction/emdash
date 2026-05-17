@@ -128,7 +128,7 @@ async function searchIssues(searchTerm: string, limit: number): Promise<IssueLis
       {
         text: term,
         resource_subtype: 'default_task',
-        'completed.not': true,
+        completed: false,
         limit: sanitizedLimit,
         opt_fields: TASK_OPT_FIELDS,
       }
