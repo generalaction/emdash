@@ -1,6 +1,6 @@
 import { Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   useTaskViewContext,
   useTerminals,
@@ -17,9 +17,8 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
+import { resolveTerminalPanelActiveItem } from './terminal-panel-selection';
 import { TerminalPtyContent } from './terminal-pty-content';
-
-type ActiveItem = { kind: 'terminal'; id: string } | { kind: 'script'; id: string };
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -36,37 +35,30 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const autoFocus =
     isActive && taskView.isTerminalDrawerOpen && taskView.focusedRegion === 'bottom';
 
+  const terminalTabs = terminalTabView.tabs;
+  const lifecycleScriptTabs = lifecycleScriptsMgr?.tabs ?? [];
+
   // Unified active item — spans both terminals and scripts sections.
-  const [activeItem, setActiveItem] = useState<ActiveItem>(() => {
-    if (terminalTabView.activeTabId) {
-      return { kind: 'terminal', id: terminalTabView.activeTabId };
-    }
-    const firstScript = lifecycleScriptsMgr?.tabs[0];
-    if (firstScript) {
-      return { kind: 'script', id: firstScript.data.id };
-    }
-    return { kind: 'terminal', id: '' };
+  const activeItem = resolveTerminalPanelActiveItem({
+    requestedActiveItem: taskView.terminalDrawerActiveItem,
+    activeTerminalId: terminalTabView.activeTabId,
+    terminalIds: terminalTabs.map((terminal) => terminal.data.id),
+    scriptIds: lifecycleScriptTabs.map((script) => script.data.id),
   });
 
-  // Always derive the active terminal id from the MobX-authoritative store so that
-  // auto-selection (e.g. after removal) is reflected without stale local state.
-  const activeTerminalId =
-    activeItem.kind === 'terminal' ? (terminalTabView.activeTabId ?? activeItem.id) : undefined;
+  const activeTerminalId = activeItem.kind === 'terminal' ? activeItem.id : undefined;
 
   const activeSession =
     activeItem.kind === 'terminal'
       ? (terminalMgr.sessions.get(activeTerminalId ?? '') ?? null)
-      : (lifecycleScriptsMgr?.tabs.find((s) => s.data.id === activeItem.id)?.session ?? null);
+      : (lifecycleScriptTabs.find((s) => s.data.id === activeItem.id)?.session ?? null);
 
-  const allSessionIds = useMemo(
-    () => [
-      ...terminalTabView.tabs
-        .map((t) => terminalMgr.sessions.get(t.data.id)?.sessionId)
-        .filter((id): id is string => Boolean(id)),
-      ...(lifecycleScriptsMgr?.tabs ?? []).map((s) => s.session.sessionId),
-    ],
-    [terminalTabView.tabs, terminalMgr.sessions, lifecycleScriptsMgr?.tabs]
-  );
+  const allSessionIds = [
+    ...terminalTabs
+      .map((t) => terminalMgr.sessions.get(t.data.id)?.sessionId)
+      .filter((id): id is string => Boolean(id)),
+    ...lifecycleScriptTabs.map((s) => s.session.sessionId),
+  ];
 
   const handleHoverTerminal = (id: string) => {
     const session = terminalMgr.sessions.get(id);
@@ -78,15 +70,14 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   useTabShortcuts(activeStore, { focused: isPanelFocused });
 
   const handleCreate = async () => {
-    const id = await taskView.openNewTerminal();
-    if (id) setActiveItem({ kind: 'terminal', id });
+    await taskView.openNewTerminal();
   };
 
   const handleRunScript = (id: string) => {
     const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
     if (!script || script.isRunning) return;
     lifecycleScriptsMgr?.setActiveTab(id);
-    setActiveItem({ kind: 'script', id });
+    taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
     script.markRunning();
     void rpc.terminals
       .runLifecycleScript({
@@ -167,7 +158,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           activeScriptId={activeItem.kind === 'script' ? activeItem.id : undefined}
           onSelectScript={(id) => {
             lifecycleScriptsMgr?.setActiveTab(id);
-            setActiveItem({ kind: 'script', id });
+            taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
           }}
           onRunScript={handleRunScript}
           onStopScript={handleStopScript}
@@ -175,7 +166,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           activeTerminalId={activeTerminalId}
           onSelectTerminal={(id) => {
             terminalTabView.setActiveTab(id);
-            setActiveItem({ kind: 'terminal', id });
+            taskView.setTerminalDrawerActiveItem({ kind: 'terminal', id });
           }}
           onAddTerminal={() => void handleCreate()}
           onRemoveTerminal={(id) => terminalTabView.removeTab(id)}
