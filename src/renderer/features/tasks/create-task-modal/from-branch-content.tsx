@@ -11,7 +11,7 @@ interface FromBranchContentProps {
   projectId?: string;
   currentBranch?: string | null;
   isUnborn?: boolean;
-  initialConversation: InitialConversationState;
+  initialConversation?: InitialConversationState;
 }
 
 export function FromBranchContent({
@@ -30,7 +30,7 @@ export function FromBranchContent({
         isUnborn={isUnborn}
       />
       <TaskNameField state={state} />
-      <InitialConversationField state={initialConversation} />
+      {initialConversation && <InitialConversationField state={initialConversation} />}
     </div>
   );
 }

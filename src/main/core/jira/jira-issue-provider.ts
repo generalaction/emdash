@@ -1,10 +1,10 @@
-import { request } from 'node:https';
 import { URL } from 'node:url';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
 import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { jiraConnectionService } from './jira-connection-service';
+import { jiraGet, jiraRequest } from './jira-http';
 
 interface RawJiraIssueFields {
   summary?: string;
@@ -41,10 +41,6 @@ interface JiraPickerResult {
 }
 
 let projectKeys: string[] = [];
-
-function encodeBasic(email: string, token: string): string {
-  return Buffer.from(`${email}:${token}`).toString('base64');
-}
 
 async function listIssues(limit = 50): Promise<IssueListResult> {
   try {
@@ -153,7 +149,7 @@ async function searchRaw(
     fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
   });
 
-  const body = await doRequest(url, email, token, 'POST', payload, {
+  const body = await jiraRequest(url, email, token, 'POST', payload, {
     'Content-Type': 'application/json',
   });
 
@@ -164,7 +160,7 @@ async function searchRaw(
 async function fetchProjectKeys(siteUrl: string, email: string, token: string): Promise<string[]> {
   try {
     const url = new URL('/rest/api/3/project', siteUrl);
-    const body = await doGet(url, email, token);
+    const body = await jiraGet(url, email, token);
     const data = JSON.parse(body || '[]') as Array<{ key?: string }>;
     if (!Array.isArray(data)) return [];
     return data.map((project) => String(project?.key || '')).filter(Boolean);
@@ -182,7 +178,7 @@ async function getIssueByKey(
   const url = new URL(`/rest/api/3/issue/${encodeURIComponent(key)}`, siteUrl);
   url.searchParams.set('fields', 'summary,description,updated,project,status,assignee');
 
-  const body = await doGet(url, email, token);
+  const body = await jiraGet(url, email, token);
   const data = JSON.parse(body || '{}') as RawJiraIssue;
   if (!data || data.errorMessages) {
     return null;
@@ -201,7 +197,7 @@ async function getRecentIssueKeys(
   url.searchParams.set('query', '');
   url.searchParams.set('currentJQL', '');
 
-  const body = await doGet(url, email, token);
+  const body = await jiraGet(url, email, token);
   const data = JSON.parse(body || '{}') as JiraPickerResult;
 
   const keys: string[] = [];
@@ -223,58 +219,6 @@ async function getRecentIssueKeys(
   }
 
   return keys;
-}
-
-async function doGet(url: URL, email: string, token: string): Promise<string> {
-  return doRequest(url, email, token, 'GET');
-}
-
-async function doRequest(
-  url: URL,
-  email: string,
-  token: string,
-  method: 'GET' | 'POST',
-  payload?: string,
-  extraHeaders?: Record<string, string>
-): Promise<string> {
-  const auth = encodeBasic(email, token);
-
-  return new Promise<string>((resolve, reject) => {
-    const req = request(
-      {
-        hostname: url.hostname,
-        path: url.pathname + url.search,
-        protocol: url.protocol,
-        method,
-        headers: {
-          Authorization: `Basic ${auth}`,
-          Accept: 'application/json',
-          ...(extraHeaders || {}),
-        },
-      },
-      (res) => {
-        let data = '';
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        res.on('end', () => {
-          if (res.statusCode && res.statusCode >= 400) {
-            const snippet = data?.slice(0, 200) || '';
-            reject(new Error(`Jira API error ${res.statusCode}${snippet ? `: ${snippet}` : ''}`));
-            return;
-          }
-
-          resolve(data);
-        });
-      }
-    );
-
-    req.on('error', reject);
-    if (payload && method === 'POST') {
-      req.write(payload);
-    }
-    req.end();
-  });
 }
 
 function flattenAdf(node: AdfNode | string | null | undefined): string {

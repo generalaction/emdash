@@ -70,7 +70,7 @@ function DialogHeader({
   return (
     <div
       data-slot="dialog-header"
-      className="flex items-center gap-2 p-6 justify-between"
+      className="flex shrink-0 items-center gap-2 p-6 justify-between"
       {...props}
     >
       <div className={cn('flex items-center gap-2', className)}>{children}</div>
@@ -101,7 +101,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        'flex flex-col-reverse gap-2 p-3 border-t border-border bg-background-quaternary-1 sm:flex-row sm:justify-end',
+        'flex shrink-0 flex-col-reverse gap-2 p-3 border-t border-border bg-background-quaternary-1 sm:flex-row sm:justify-end',
         className
       )}
       {...props}

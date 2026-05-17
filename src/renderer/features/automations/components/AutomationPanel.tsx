@@ -1,0 +1,407 @@
+import { ChevronDown, FolderOpen } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { useMemo, useState, type ReactNode } from 'react';
+import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
+import type { TaskCreateAction } from '@shared/automations/actions';
+import { automationCatalogCategories } from '@shared/automations/builtin-catalog';
+import { formatAutomationError, formatCronLabel } from '@shared/automations/format';
+import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
+import { getLocalTimeZone } from '@shared/automations/timezone';
+import {
+  AUTOMATION_NAME_MAX_LENGTH,
+  type Automation,
+  type BuiltinAutomationTemplate,
+  type CronTrigger,
+} from '@shared/automations/types';
+import type { Branch } from '@shared/git';
+import type { CreateTaskParams } from '@shared/tasks';
+import {
+  asMounted,
+  firstMountedProjectId,
+  getProjectStore,
+  getRepositoryStore,
+} from '@renderer/features/projects/stores/project-selectors';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { resolveBranchLikeTaskStrategy } from '@renderer/features/tasks/create-task-modal/create-task-strategy';
+import { FromBranchContent } from '@renderer/features/tasks/create-task-modal/from-branch-content';
+import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import {
+  useFromBranchMode,
+  type FromBranchModeInitial,
+} from '@renderer/features/tasks/create-task-modal/use-from-branch-mode';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
+import { Button } from '@renderer/lib/ui/button';
+import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
+import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import { Input } from '@renderer/lib/ui/input';
+import { Label } from '@renderer/lib/ui/label';
+import { Switch } from '@renderer/lib/ui/switch';
+import { cn } from '@renderer/utils/utils';
+import { useAutomations } from '../useAutomations';
+import { AutomationPanelHeader } from './AutomationPanelHeader';
+import { AgentPicker } from './pickers/AgentPicker';
+import { SchedulePicker } from './pickers/SchedulePicker';
+import { UseTemplateButton } from './pickers/UseTemplateButton';
+import { RunHistory } from './RunHistory';
+
+export { AutomationPanelShell } from './AutomationPanelShell';
+
+const DEFAULT_CRON = scheduleToCron(DEFAULT_SCHEDULE);
+
+export type AutomationPanelMode =
+  | { kind: 'create'; template?: BuiltinAutomationTemplate }
+  | { kind: 'edit'; automation: Automation };
+
+interface AutomationPanelProps {
+  mode: AutomationPanelMode;
+  onClose: () => void;
+  onSaved?: (automation: Automation) => void;
+  onDelete?: (automation: Automation) => void;
+  onRunNow?: (automation: Automation) => void;
+  onToggleEnabled?: (automation: Automation, enabled: boolean) => void;
+  runNowPending?: boolean;
+}
+
+function extractTaskAction(actions: TaskCreateAction[] | undefined): TaskCreateAction | undefined {
+  return actions?.[0];
+}
+
+function cronExprFromTrigger(trigger: CronTrigger | undefined): string {
+  return trigger?.expr ?? DEFAULT_CRON;
+}
+
+function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
+  return trigger?.tz ?? getLocalTimeZone();
+}
+
+function branchInitialFromConfig(config: CreateTaskParams | null | undefined): {
+  createBranchAndWorktree: boolean;
+  pushBranch?: boolean;
+  branchOverride?: Branch;
+} {
+  if (!config?.strategy) return { createBranchAndWorktree: true };
+  if (config.strategy.kind === 'new-branch') {
+    return {
+      createBranchAndWorktree: true,
+      pushBranch: config.strategy.pushBranch,
+      branchOverride: config.sourceBranch ?? undefined,
+    };
+  }
+  if (config.strategy.kind === 'no-worktree') {
+    return { createBranchAndWorktree: false, branchOverride: config.sourceBranch ?? undefined };
+  }
+  return { createBranchAndWorktree: true, branchOverride: config.sourceBranch ?? undefined };
+}
+
+function plainBranch(branch: Branch): Branch {
+  if (branch.type === 'remote') {
+    return {
+      type: 'remote',
+      branch: branch.branch,
+      remote: { name: branch.remote.name, url: branch.remote.url },
+    };
+  }
+  return branch.remote
+    ? {
+        type: 'local',
+        branch: branch.branch,
+        remote: { name: branch.remote.name, url: branch.remote.url },
+      }
+    : { type: 'local', branch: branch.branch };
+}
+
+export const AutomationPanel = observer(function AutomationPanel({
+  mode,
+  onClose,
+  onSaved,
+  onDelete,
+  onRunNow,
+  onToggleEnabled,
+  runNowPending,
+}: AutomationPanelProps) {
+  const isEdit = mode.kind === 'edit';
+  const automation = mode.kind === 'edit' ? mode.automation : undefined;
+  const [appliedTemplate, setAppliedTemplate] = useState<BuiltinAutomationTemplate | undefined>(
+    mode.kind === 'create' ? mode.template : undefined
+  );
+
+  const seedTrigger = automation?.trigger ?? appliedTemplate?.defaultTrigger;
+  const seedTaskAction = extractTaskAction(automation?.actions ?? appliedTemplate?.defaultActions);
+  const seedConfig = automation?.taskConfig;
+
+  const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
+  const fallbackProvider: AgentProviderId = isValidProviderId(defaultAgentValue)
+    ? defaultAgentValue
+    : 'claude';
+
+  const [name, setName] = useState(automation?.name ?? appliedTemplate?.name ?? '');
+  const [prompt, setPrompt] = useState(seedTaskAction?.prompt ?? '');
+  const [projectId, setProjectId] = useState<string | undefined>(
+    automation?.projectId ?? firstMountedProjectId()
+  );
+  const seedProvider = seedConfig?.initialConversation?.provider;
+  const [provider, setProvider] = useState<AgentProviderId>(
+    isValidProviderId(seedProvider) ? seedProvider : fallbackProvider
+  );
+  const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
+  const [cronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
+  const [useBYOI, setUseBYOI] = useState(seedConfig?.workspaceProvider === 'byoi');
+  const [error, setError] = useState<string | null>(null);
+  const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
+
+  const effectiveProjectId =
+    projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
+
+  const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
+  const defaultBranch = repo?.defaultBranch;
+  const isUnborn = repo?.isUnborn ?? false;
+  const currentBranch = repo?.currentBranch ?? null;
+
+  const branchInitial = useMemo(() => branchInitialFromConfig(seedConfig), [seedConfig]);
+  const fromBranchInitial: FromBranchModeInitial = useMemo(
+    () => ({ ...branchInitial, taskName: seedConfig?.name }),
+    [branchInitial, seedConfig?.name]
+  );
+
+  const fromBranch = useFromBranchMode(
+    effectiveProjectId,
+    defaultBranch,
+    isUnborn,
+    currentBranch,
+    fromBranchInitial
+  );
+
+  const { create, update } = useAutomations();
+  const isPending = create.isPending || update.isPending;
+  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
+  const effectiveUseBYOI = isWorkspaceProviderEnabled && useBYOI;
+
+  const canSave =
+    name.trim().length > 0 &&
+    prompt.trim().length > 0 &&
+    !!effectiveProjectId &&
+    fromBranch.isValid &&
+    !isPending;
+
+  function buildTaskConfig(targetProjectId: string): CreateTaskParams | null {
+    if (!fromBranch.selectedBranch) return null;
+    const strategy = resolveBranchLikeTaskStrategy({
+      isUnborn,
+      createBranchAndWorktree: fromBranch.createBranchAndWorktree,
+      taskBranch: fromBranch.taskName,
+      pushBranch: fromBranch.pushBranch,
+    });
+    const taskId = crypto.randomUUID();
+    return {
+      id: taskId,
+      projectId: targetProjectId,
+      name: fromBranch.taskName?.trim() || name.trim(),
+      sourceBranch: plainBranch(fromBranch.selectedBranch),
+      strategy: effectiveUseBYOI ? { kind: 'no-worktree' } : strategy,
+      workspaceProvider: effectiveUseBYOI ? 'byoi' : undefined,
+      initialConversation: {
+        id: crypto.randomUUID(),
+        projectId: targetProjectId,
+        taskId,
+        provider,
+        title: name.trim(),
+        initialPrompt: prompt.trim(),
+        autoApprove: true,
+      },
+    };
+  }
+
+  async function handleSave() {
+    if (!effectiveProjectId || !canSave) return;
+    setError(null);
+    const taskConfig = buildTaskConfig(effectiveProjectId);
+    if (!taskConfig) return;
+    const triggerSpec: CronTrigger = { expr: cronExpr.trim(), tz: cronTz };
+    const actions: TaskCreateAction[] = [{ kind: 'task.create', prompt: prompt.trim() }];
+    try {
+      const trimmedName = name.trim();
+      const saved = automation
+        ? await update.mutateAsync({
+            id: automation.id,
+            patch: {
+              name: trimmedName,
+              trigger: triggerSpec,
+              actions,
+              taskConfig,
+              projectId: effectiveProjectId,
+              enabled: automation.isDraft ? true : automation.enabled,
+              isDraft: false,
+            },
+          })
+        : await create.mutateAsync({
+            name: trimmedName,
+            description: null,
+            category: appliedTemplate?.category ?? automationCatalogCategories[0],
+            trigger: triggerSpec,
+            actions,
+            taskConfig,
+            projectId: effectiveProjectId,
+            builtinTemplateId: appliedTemplate?.id ?? null,
+          });
+      onSaved?.(saved);
+    } catch (saveError) {
+      setError(formatAutomationError(saveError));
+    }
+  }
+
+  function applyTemplate(template: BuiltinAutomationTemplate) {
+    setAppliedTemplate(template);
+    setName(template.name);
+    const action = extractTaskAction(template.defaultActions);
+    setPrompt(action?.prompt ?? '');
+    if (template.defaultTrigger) {
+      setCronExpr(template.defaultTrigger.expr);
+    }
+    setTemplatePopoverOpen(false);
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <AutomationPanelHeader
+        isEdit={isEdit}
+        automation={automation}
+        scheduleLabel={formatCronLabel(cronExpr)}
+        onClose={onClose}
+        onRunNow={onRunNow ? () => automation && onRunNow(automation) : undefined}
+        onToggleEnabled={
+          onToggleEnabled
+            ? (enabled) => automation && onToggleEnabled(automation, enabled)
+            : undefined
+        }
+        onDelete={onDelete ? () => automation && onDelete(automation) : undefined}
+        runNowPending={runNowPending}
+        headerAction={
+          !isEdit ? (
+            <UseTemplateButton
+              open={templatePopoverOpen}
+              onOpenChange={setTemplatePopoverOpen}
+              onSelect={applyTemplate}
+            />
+          ) : null
+        }
+      />
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-5 px-5 py-5">
+          <section className="flex flex-col gap-2">
+            <Label className="text-xs font-medium text-muted-foreground">Name</Label>
+            <Input
+              autoFocus={!isEdit && name.trim().length === 0}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                  event.preventDefault();
+                  void handleSave();
+                }
+              }}
+              placeholder="Name this automation"
+              maxLength={AUTOMATION_NAME_MAX_LENGTH}
+              className="h-9 text-sm"
+            />
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <Label className="text-xs font-medium text-muted-foreground">Prompt</Label>
+            <textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                  event.preventDefault();
+                  void handleSave();
+                }
+              }}
+              placeholder="Describe what this automation should do…"
+              className={cn(
+                'block w-full resize-none rounded-md border border-border bg-background',
+                'px-3 py-2 text-sm placeholder:text-muted-foreground outline-none',
+                'min-h-20 max-h-64 overflow-y-auto field-sizing-content focus:ring-1 focus:ring-ring'
+              )}
+            />
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <h3 className="text-xs font-medium text-muted-foreground">Schedule</h3>
+            <div className="rounded-md border border-border bg-muted/10">
+              <RowField label="Runs">
+                <SchedulePicker value={cronExpr} onChange={setCronExpr} />
+              </RowField>
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <h3 className="text-xs font-medium text-muted-foreground">Execution</h3>
+            <div className="rounded-md border border-border bg-muted/10">
+              <RowField label="Project">
+                <ProjectSelector
+                  value={effectiveProjectId}
+                  onChange={setProjectId}
+                  trigger={
+                    <ComboboxTrigger className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs outline-none hover:bg-muted/40 data-popup-open:bg-muted/40">
+                      <span className="inline-flex min-w-0 items-center gap-2">
+                        <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
+                        <ComboboxValue placeholder="Select a project" />
+                      </span>
+                      <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
+                    </ComboboxTrigger>
+                  }
+                />
+              </RowField>
+              <RowField label="Agent">
+                <AgentPicker value={provider} onChange={setProvider} />
+              </RowField>
+            </div>
+
+            {isWorkspaceProviderEnabled ? (
+              <div className="flex items-center gap-2 pt-1">
+                <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
+                <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+              </div>
+            ) : null}
+
+            <FromBranchContent
+              state={fromBranch}
+              projectId={effectiveProjectId}
+              currentBranch={currentBranch}
+              isUnborn={isUnborn}
+            />
+          </section>
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
+
+          {isEdit && automation ? <RunHistory automation={automation} /> : null}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border bg-background px-5 py-3">
+        <Button variant="outline" size="sm" onClick={onClose}>
+          Cancel
+        </Button>
+        <ConfirmButton size="sm" onClick={() => void handleSave()} disabled={!canSave}>
+          {isPending
+            ? 'Saving…'
+            : automation?.isDraft
+              ? 'Start from draft'
+              : isEdit
+                ? 'Save'
+                : 'Create'}
+        </ConfirmButton>
+      </div>
+    </div>
+  );
+});
+
+function RowField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-h-11 items-center gap-3 border-b border-border last:border-b-0 px-3 py-2">
+      <span className="w-20 shrink-0 text-xs font-medium text-foreground">{label}</span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}

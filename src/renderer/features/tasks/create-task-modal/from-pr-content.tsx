@@ -12,7 +12,7 @@ interface FromPrContentProps {
   projectId?: string;
   repositoryUrl?: string;
   disabled?: boolean;
-  initialConversation: InitialConversationState;
+  initialConversation?: InitialConversationState;
 }
 
 export function FromPrContent({
@@ -38,7 +38,7 @@ export function FromPrContent({
         disabled={disabled}
       />
       <TaskNameField state={state} />
-      <InitialConversationField state={initialConversation} />
+      {initialConversation && <InitialConversationField state={initialConversation} />}
     </div>
   );
 }

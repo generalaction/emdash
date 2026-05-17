@@ -52,6 +52,14 @@ export function asMounted(store: ProjectStore | undefined): MountedProject | und
   return store?.mountedProject ?? undefined;
 }
 
+/** Returns the id of the first mounted project, or undefined if none are mounted. */
+export function firstMountedProjectId(): string | undefined {
+  for (const [id, store] of getProjectManagerStore().projects.entries()) {
+    if (asMounted(store)) return id;
+  }
+  return undefined;
+}
+
 export function mountedProjectData(
   store: ProjectStore | undefined
 ): LocalProject | SshProject | null {

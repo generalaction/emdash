@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
+import { taskCreatedChannel } from '@shared/events/taskEvents';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
@@ -14,6 +15,7 @@ import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { telemetryService } from '@main/lib/telemetry';
 import { createConversation } from '../../conversations/createConversation';
 import { prQueryService } from '../../pull-requests/pr-query-service';
@@ -212,10 +214,6 @@ export async function createTask(
     }
   }
 
-  const task = mapTaskRowToTask(taskRow, prs);
-
-  taskEvents._emit('task:created', task);
-
   const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
     if (params.workspaceProvider === 'byoi') return 'byoi';
     if (project.defaultWorkspaceType.kind === 'ssh') return 'project-ssh';
@@ -224,6 +222,13 @@ export async function createTask(
   const workspaceId = crypto.randomUUID();
   await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
   await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
+  const task = {
+    ...mapTaskRowToTask(taskRow, prs),
+    automationId: params.automationId,
+    workspaceId,
+  };
+
+  taskEvents._emit('task:created', task);
 
   const provisionResult = await taskManager.provisionTask(project, task, [], [], {
     id: workspaceId,
@@ -236,7 +241,6 @@ export async function createTask(
     project_id: params.projectId,
     task_id: params.id,
   });
-
   if (params.initialConversation) {
     await createConversation({
       ...params.initialConversation,
@@ -248,6 +252,8 @@ export async function createTask(
       ),
     });
   }
+
+  events.emit(taskCreatedChannel, { task });
 
   const taskCreatedStrategy = (() => {
     if (strategy.kind === 'from-pull-request') return 'pr';
@@ -272,5 +278,5 @@ export async function createTask(
     });
   }
 
-  return ok({ task: { ...task, workspaceId }, warning });
+  return ok({ task, warning });
 }

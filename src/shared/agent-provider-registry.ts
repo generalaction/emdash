@@ -51,6 +51,10 @@ export type AgentProviderDefinition = {
    * Use for agents whose CLI has no flag for interactive-mode prompt delivery.
    */
   useKeystrokeInjection?: boolean;
+  /** Input sequence sent after keystroke-injected prompt text. Defaults to Enter. */
+  keystrokeSubmitSequence?: string;
+  /** Delay between injected prompt text and submit, for TUIs that need paste settling time. */
+  keystrokeSubmitDelayMs?: number;
   resumeFlag?: string;
   /**
    * CLI flag to assign a unique session ID per chat instance.
@@ -228,6 +232,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
     useKeystrokeInjection: true,
+    keystrokeSubmitSequence: '\x0A',
+    keystrokeSubmitDelayMs: 100,
     icon: 'ampcode.png',
     alt: 'Amp CLI',
     terminalOnly: true,

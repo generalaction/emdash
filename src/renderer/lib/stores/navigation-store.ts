@@ -20,8 +20,10 @@ export const viewEvents: Record<
   | 'library_viewed'
   | 'skills_viewed'
   | 'mcp_viewed'
+  | 'automations_viewed'
 > = {
   home: 'home_viewed',
+  automations: 'automations_viewed',
   library: 'library_viewed',
   project: 'project_viewed',
   task: 'task_viewed',
