@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
+import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@renderer/lib/ui/dialog';
@@ -95,6 +96,17 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     setForm((prev) => ({
       ...prev,
       envEntries: prev.envEntries.filter((_, i) => i !== index),
+    }));
+  }, []);
+
+  const handleEnvPaste = useCallback((index: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = parseEnvAssignmentPaste(e.clipboardData.getData('text'));
+    if (pasted.length === 0) return;
+
+    e.preventDefault();
+    setForm((prev) => ({
+      ...prev,
+      envEntries: replaceEnvEntryWithPaste(prev.envEntries, index, pasted),
     }));
   }, []);
 
@@ -281,6 +293,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                         onChange={(e) => setEnvEntry(i, { key: e.target.value })}
                         placeholder="KEY"
                         className="min-w-0 flex-1 font-mono text-sm"
+                        onPaste={(e) => handleEnvPaste(i, e)}
                       />
                       <Input
                         value={entry.value}
