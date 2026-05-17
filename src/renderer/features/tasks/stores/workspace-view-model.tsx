@@ -1,13 +1,16 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import type { Task } from '@shared/tasks';
-import type { DiffViewSnapshot, TaskViewSnapshot } from '@shared/view-state';
+import type {
+  DiffViewSnapshot,
+  TaskViewSnapshot,
+  TerminalDrawerActiveItem,
+} from '@shared/view-state';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
 import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
 import { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
-import type { TerminalPanelActiveItem } from '@renderer/features/tasks/terminals/terminal-panel-selection';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -29,7 +32,7 @@ export class WorkspaceViewModel implements ILifecycle {
   isSidebarCollapsed: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen: boolean;
-  terminalDrawerActiveItem: TerminalPanelActiveItem | undefined;
+  terminalDrawerActiveItem: TerminalDrawerActiveItem | undefined;
 
   /** Stable sub-stores — live for the full WorkspaceViewModel lifetime. */
   readonly tabGroupManager: TabGroupManagerStore;
@@ -189,6 +192,7 @@ export class WorkspaceViewModel implements ILifecycle {
       isSidebarCollapsed: this.isSidebarCollapsed,
       focusedRegion: this.focusedRegion,
       isTerminalDrawerOpen: this.isTerminalDrawerOpen,
+      terminalDrawerActiveItem: this.terminalDrawerActiveItem,
       tabGroups: this.tabGroupManager.snapshot,
       terminals: this.terminalTabs.snapshot,
       editor: this.editorView.snapshot,
@@ -209,6 +213,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot.isTerminalDrawerOpen ?? false;
+    this.terminalDrawerActiveItem = savedSnapshot.terminalDrawerActiveItem;
 
     if (savedSnapshot.tabGroups) {
       // Current format: multi-group snapshot.
@@ -387,7 +392,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.setFocusedRegion(open ? 'bottom' : 'main');
   }
 
-  setTerminalDrawerActiveItem(item: TerminalPanelActiveItem): void {
+  setTerminalDrawerActiveItem(item: TerminalDrawerActiveItem): void {
     this.terminalDrawerActiveItem = item;
   }
 

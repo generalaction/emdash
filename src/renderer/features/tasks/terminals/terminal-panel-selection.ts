@@ -1,6 +1,4 @@
-export type TerminalPanelActiveItem =
-  | { kind: 'terminal'; id: string }
-  | { kind: 'script'; id: string };
+import type { TerminalDrawerActiveItem } from '@shared/view-state';
 
 export function resolveTerminalPanelActiveItem({
   requestedActiveItem,
@@ -8,11 +6,11 @@ export function resolveTerminalPanelActiveItem({
   terminalIds,
   scriptIds,
 }: {
-  requestedActiveItem: TerminalPanelActiveItem | undefined;
+  requestedActiveItem: TerminalDrawerActiveItem | undefined;
   activeTerminalId: string | undefined;
   terminalIds: readonly string[];
   scriptIds: readonly string[];
-}): TerminalPanelActiveItem {
+}): TerminalDrawerActiveItem {
   if (requestedActiveItem?.kind === 'terminal' && terminalIds.includes(requestedActiveItem.id)) {
     return requestedActiveItem;
   }

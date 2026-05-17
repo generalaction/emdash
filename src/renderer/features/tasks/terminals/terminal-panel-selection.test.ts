@@ -34,4 +34,26 @@ describe('resolveTerminalPanelActiveItem', () => {
       })
     ).toEqual({ kind: 'terminal', id: 'terminal-1' });
   });
+
+  it('falls back to the active terminal when no item is requested', () => {
+    expect(
+      resolveTerminalPanelActiveItem({
+        requestedActiveItem: undefined,
+        activeTerminalId: 'terminal-1',
+        terminalIds: ['terminal-1'],
+        scriptIds: ['script-lifecycle-run'],
+      })
+    ).toEqual({ kind: 'terminal', id: 'terminal-1' });
+  });
+
+  it('falls back to the first script when no item is requested and no active terminal exists', () => {
+    expect(
+      resolveTerminalPanelActiveItem({
+        requestedActiveItem: undefined,
+        activeTerminalId: undefined,
+        terminalIds: [],
+        scriptIds: ['script-lifecycle-run'],
+      })
+    ).toEqual({ kind: 'script', id: 'script-lifecycle-run' });
+  });
 });
