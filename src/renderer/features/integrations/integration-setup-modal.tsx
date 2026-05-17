@@ -195,11 +195,11 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
+      <DialogHeader className="flex-col items-start gap-1" showCloseButton={false}>
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription className="text-xs">{subtitle}</DialogDescription>
       </DialogHeader>
-      <DialogContentArea>
+      <DialogContentArea className="pt-1">
         {integration === 'linear' && (
           <LinearSetupForm apiKey={linearKey} onChange={setLinearKey} error={error} />
         )}
