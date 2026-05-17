@@ -24,15 +24,14 @@ import { PromptActionsMenu } from './prompt-actions-menu';
 
 async function refreshLinearIssue(issue: Issue, projectId: string): Promise<Issue> {
   const result = await rpc.issues
-    .searchIssues('linear', {
-      searchTerm: issue.identifier,
-      limit: 3,
+    .getIssueContext('linear', {
+      identifier: issue.identifier,
       projectId,
     })
     .catch(() => undefined);
   if (!result?.success) return issue;
 
-  return result.issues.find((candidate) => candidate.identifier === issue.identifier) ?? issue;
+  return result.issue;
 }
 
 export const ContextBar = observer(function ContextBar() {

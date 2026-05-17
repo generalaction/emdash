@@ -19,7 +19,7 @@ function makeLinearClient(rawRequest: ReturnType<typeof vi.fn>) {
 }
 
 describe('linearIssueProvider', () => {
-  it('maps branchName and activity from listed Linear issues', async () => {
+  it('maps branchName from listed Linear issues without fetching activity', async () => {
     const rawRequest = vi.fn().mockResolvedValue({
       data: {
         issues: {
@@ -36,40 +36,6 @@ describe('linearIssueProvider', () => {
               project: { name: 'Refactor (v1)' },
               assignee: { displayName: 'Jona', name: 'jona' },
               updatedAt: '2026-04-17T12:00:00.000Z',
-              comments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
-                nodes: [
-                  {
-                    id: 'comment-1',
-                    body: 'This should match Linear copy prompt context.',
-                    createdAt: '2026-04-17T12:05:00.000Z',
-                    updatedAt: '2026-04-17T12:05:00.000Z',
-                    url: 'https://linear.app/general-action/issue/GEN-626#comment-1',
-                    user: { displayName: 'Jona', name: 'jona' },
-                  },
-                ],
-              },
-              history: {
-                pageInfo: { hasNextPage: false, endCursor: null },
-                nodes: [
-                  {
-                    id: 'history-1',
-                    createdAt: '2026-04-17T12:10:00.000Z',
-                    updatedAt: '2026-04-17T12:10:00.000Z',
-                    actor: { displayName: 'Jona', name: 'jona' },
-                    fromState: { name: 'Todo' },
-                    toState: { name: 'Backlog' },
-                  },
-                  {
-                    id: 'history-2',
-                    createdAt: '2026-04-17T12:20:00.000Z',
-                    updatedAt: '2026-04-17T12:20:00.000Z',
-                    actor: { displayName: 'Ari', name: 'ari' },
-                    fromEstimate: 1,
-                    toEstimate: 2,
-                  },
-                ],
-              },
             },
           ],
         },
@@ -83,6 +49,12 @@ describe('linearIssueProvider', () => {
     expect(rawRequest).toHaveBeenCalledWith(expect.stringContaining('branchName'), {
       limit: 10,
     });
+    expect(rawRequest).toHaveBeenCalledWith(expect.not.stringContaining('comments('), {
+      limit: 10,
+    });
+    expect(rawRequest).toHaveBeenCalledWith(expect.not.stringContaining('history('), {
+      limit: 10,
+    });
     expect(result).toEqual({
       success: true,
       issues: [
@@ -90,14 +62,10 @@ describe('linearIssueProvider', () => {
           provider: 'linear',
           identifier: 'GEN-626',
           branchName: 'jona/gen-626-linear-issue-branch-name-creation',
-          context: expect.stringContaining('This should match Linear copy prompt context.'),
+          context: undefined,
         }),
       ],
     });
-    const context = result.success ? result.issues[0]?.context : '';
-    expect(context).toContain('by Jona: This should match Linear copy prompt context.');
-    expect(context).toContain('State: Todo -> Backlog');
-    expect(context).toContain('by Ari: Estimate: 1 -> 2');
   });
 
   it('maps branchName from searched Linear issues without activity', async () => {
@@ -117,8 +85,6 @@ describe('linearIssueProvider', () => {
               project: { name: 'Refactor (v1)' },
               assignee: { displayName: 'Jona', name: 'jona' },
               updatedAt: '2026-04-17T12:00:00.000Z',
-              comments: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] },
-              history: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] },
             },
           ],
         },
@@ -134,6 +100,14 @@ describe('linearIssueProvider', () => {
     expect(rawRequest).toHaveBeenCalledTimes(1);
     expect(rawRequest).toHaveBeenCalledWith(
       expect.not.stringContaining('...IssueDetails'),
+      expect.objectContaining({ term: 'GEN-626', limit: 5 })
+    );
+    expect(rawRequest).toHaveBeenCalledWith(
+      expect.not.stringContaining('comments('),
+      expect.objectContaining({ term: 'GEN-626', limit: 5 })
+    );
+    expect(rawRequest).toHaveBeenCalledWith(
+      expect.not.stringContaining('history('),
       expect.objectContaining({ term: 'GEN-626', limit: 5 })
     );
     expect(result).toEqual({
@@ -160,12 +134,12 @@ describe('linearIssueProvider', () => {
     expect(result).toEqual({ success: false, error: '400: invalid fragment' });
   });
 
-  it('paginates Linear comments and history before building issue context', async () => {
+  it('paginates Linear comments and history only when fetching issue context', async () => {
     const rawRequest = vi
       .fn()
       .mockResolvedValueOnce({
         data: {
-          issues: {
+          searchIssues: {
             nodes: [
               {
                 id: 'issue-1',
@@ -250,9 +224,13 @@ describe('linearIssueProvider', () => {
       });
     mockGetClient.mockResolvedValue(makeLinearClient(rawRequest) as never);
 
-    const result = await linearIssueProvider.listIssues({ limit: 10 });
+    const result = await linearIssueProvider.getIssueContext?.({ identifier: 'GEN-626' });
 
     expect(rawRequest).toHaveBeenCalledTimes(3);
+    expect(rawRequest).toHaveBeenNthCalledWith(1, expect.stringContaining('IssueContext'), {
+      term: 'GEN-626',
+      limit: 3,
+    });
     expect(rawRequest).toHaveBeenNthCalledWith(2, expect.stringContaining('IssueComments'), {
       issueId: 'issue-1',
       cursor: 'comment-cursor-1',
@@ -261,14 +239,14 @@ describe('linearIssueProvider', () => {
       issueId: 'issue-1',
       cursor: 'history-cursor-1',
     });
-    const context = result.success ? result.issues[0]?.context : '';
+    const context = result?.success ? result.issue.context : '';
     expect(context).toContain('First page comment.');
     expect(context).toContain('Second page comment.');
     expect(context).toContain('State: Todo -> Backlog');
     expect(context).toContain('Estimate: 1 -> 2');
   });
 
-  it('keeps listed issues when activity pagination fails for one issue', async () => {
+  it('keeps first-page issue context when activity pagination fails', async () => {
     const rawRequest = vi.fn().mockImplementation((query: string) => {
       if (query.includes('IssueComments')) {
         return Promise.reject(new Error('Linear pagination failed'));
@@ -286,7 +264,7 @@ describe('linearIssueProvider', () => {
 
       return Promise.resolve({
         data: {
-          issues: {
+          searchIssues: {
             nodes: [
               {
                 id: 'issue-1',
@@ -325,11 +303,10 @@ describe('linearIssueProvider', () => {
     });
     mockGetClient.mockResolvedValue(makeLinearClient(rawRequest) as never);
 
-    const result = await linearIssueProvider.listIssues({ limit: 10 });
+    const result = await linearIssueProvider.getIssueContext?.({ identifier: 'GEN-626' });
 
-    expect(result.success).toBe(true);
-    expect(result.success ? result.issues : []).toHaveLength(1);
-    expect(result.success ? result.issues[0]?.context : '').toContain(
+    expect(result?.success).toBe(true);
+    expect(result?.success ? result.issue.context : '').toContain(
       'First page comment still survives.'
     );
   });

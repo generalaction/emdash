@@ -50,3 +50,7 @@ export type ConnectionStatusMap = Record<IssueProviderType, ConnectionStatus>;
 export type IssueListResult =
   | { success: true; issues: Issue[] }
   | { success: false; error: string };
+
+export type IssueContextResult =
+  | { success: true; issue: Issue }
+  | { success: false; error: string };

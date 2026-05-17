@@ -1,4 +1,8 @@
-import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
+import {
+  ISSUE_PROVIDER_CAPABILITIES,
+  type IssueContextResult,
+  type IssueListResult,
+} from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
@@ -45,7 +49,7 @@ type LinearHistoryNode = {
   toTitle?: string | null;
 };
 
-type LinearIssueNode = {
+type LinearIssueSummaryNode = {
   id: string;
   identifier: string;
   title: string;
@@ -57,30 +61,17 @@ type LinearIssueNode = {
   project: { name: string } | null;
   assignee: { displayName: string; name: string } | null;
   updatedAt: string;
+};
+
+type LinearIssueNode = LinearIssueSummaryNode & {
   comments: LinearConnection<LinearCommentNode>;
   history: LinearConnection<LinearHistoryNode>;
 };
 
-type LinearIssueSearchResultNode = {
-  id: string;
-  identifier: string;
-  title: string;
-  description: string | null;
-  url: string;
-  branchName: string | null;
-  state: { name: string; type: string; color: string } | null;
-  team: { name: string; key: string } | null;
-  project: { name: string } | null;
-  assignee: { displayName: string; name: string } | null;
-  updatedAt: string;
-  comments?: LinearConnection<LinearCommentNode>;
-  history?: LinearConnection<LinearHistoryNode>;
-};
-
 const ACTIVITY_PAGE_SIZE = 50;
 
-const ISSUE_DETAILS_FRAGMENT = `
-  fragment IssueDetails on Issue {
+const ISSUE_SUMMARY_FRAGMENT = `
+  fragment IssueSummary on Issue {
     id
     identifier
     title
@@ -92,40 +83,6 @@ const ISSUE_DETAILS_FRAGMENT = `
     project { name }
     assignee { displayName name }
     updatedAt
-    comments(first: ${ACTIVITY_PAGE_SIZE}, orderBy: createdAt) {
-      pageInfo { hasNextPage endCursor }
-      nodes {
-        id
-        body
-        createdAt
-        updatedAt
-        url
-        user { displayName name }
-      }
-    }
-    history(first: ${ACTIVITY_PAGE_SIZE}, orderBy: createdAt) {
-      pageInfo { hasNextPage endCursor }
-      nodes {
-        id
-        createdAt
-        updatedAt
-        actor { ... on User { displayName name } }
-        fromState { name }
-        toState { name }
-        fromAssignee { displayName name }
-        toAssignee { displayName name }
-        fromProject { name }
-        toProject { name }
-        fromCycle { name }
-        toCycle { name }
-        fromPriority
-        toPriority
-        fromEstimate
-        toEstimate
-        fromTitle
-        toTitle
-      }
-    }
   }
 `;
 
@@ -178,7 +135,7 @@ const ISSUE_HISTORY_QUERY = `
 `;
 
 const ISSUES_QUERY = `
-  ${ISSUE_DETAILS_FRAGMENT}
+  ${ISSUE_SUMMARY_FRAGMENT}
 
   query ListIssues($limit: Int!) {
     issues(
@@ -187,7 +144,7 @@ const ISSUES_QUERY = `
       filter: { state: { type: { nin: ["completed", "cancelled"] } } }
     ) {
       nodes {
-        ...IssueDetails
+        ...IssueSummary
       }
     }
   }
@@ -195,6 +152,26 @@ const ISSUES_QUERY = `
 
 const SEARCH_QUERY = `
   query SearchIssues($term: String!, $limit: Int!) {
+    searchIssues(term: $term, first: $limit) {
+      nodes {
+        id
+        identifier
+        title
+        description
+        url
+        branchName
+        state { name type color }
+        team { name key }
+        project { name }
+        assignee { displayName name }
+        updatedAt
+      }
+    }
+  }
+`;
+
+const ISSUE_CONTEXT_QUERY = `
+  query IssueContext($term: String!, $limit: Int!) {
     searchIssues(term: $term, first: $limit) {
       nodes {
         id
@@ -398,34 +375,14 @@ async function hydrateIssueActivity(
   };
 }
 
-async function hydrateIssuesActivity(
-  client: LinearRawClient,
-  issues: LinearIssueNode[]
-): Promise<LinearIssueNode[]> {
-  return Promise.all(
-    issues.map(async (issue) => {
-      try {
-        return await hydrateIssueActivity(client, issue);
-      } catch (error) {
-        log.warn('[Linear] failed to hydrate issue activity:', {
-          issueId: issue.id,
-          identifier: issue.identifier,
-          error,
-        });
-        return issue;
-      }
-    })
-  );
-}
-
-function toIssue(raw: LinearIssueNode): Issue {
+function toIssue(raw: LinearIssueSummaryNode, context?: string): Issue {
   return {
     provider: 'linear',
     identifier: raw.identifier,
     title: raw.title,
     url: raw.url ?? '',
     description: raw.description ?? undefined,
-    context: formatLinearContext(raw),
+    context,
     branchName: raw.branchName ?? undefined,
     status: raw.state?.name ?? undefined,
     assignees: raw.assignee
@@ -447,14 +404,13 @@ async function listIssues(limit = 50): Promise<IssueListResult> {
 
   try {
     const { data } = await client.client.rawRequest<
-      { issues: { nodes: LinearIssueNode[] } },
+      { issues: { nodes: LinearIssueSummaryNode[] } },
       { limit: number }
     >(ISSUES_QUERY, { limit: sanitizedLimit });
-    const issues = await hydrateIssuesActivity(client, data?.issues?.nodes ?? []);
 
     return {
       success: true,
-      issues: issues.map(toIssue),
+      issues: (data?.issues?.nodes ?? []).map((issue) => toIssue(issue)),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch Linear issues.';
@@ -477,28 +433,68 @@ async function searchIssues(searchTerm: string, limit = 20): Promise<IssueListRe
 
   try {
     const { data } = await client.client.rawRequest<
-      { searchIssues: { nodes: LinearIssueSearchResultNode[] } },
+      { searchIssues: { nodes: LinearIssueSummaryNode[] } },
       { term: string; limit: number }
     >(SEARCH_QUERY, {
       term,
       limit: sanitizedLimit,
     });
-    const issues = await hydrateIssuesActivity(
-      client,
-      (data?.searchIssues?.nodes ?? []).map((issue) => ({
-        ...issue,
-        comments: issue.comments ?? { nodes: [] },
-        history: issue.history ?? { nodes: [] },
-      }))
-    );
 
     return {
       success: true,
-      issues: issues.map(toIssue),
+      issues: (data?.searchIssues?.nodes ?? []).map((issue) => toIssue(issue)),
     };
   } catch (error) {
     log.error('[Linear] searchIssues error:', error);
     const message = error instanceof Error ? error.message : 'Unable to search Linear issues.';
+    return { success: false, error: message };
+  }
+}
+
+async function getIssueContext(identifier: string): Promise<IssueContextResult> {
+  const term = normalizeSearchTerm(identifier);
+  if (!term) {
+    return { success: false, error: 'Linear issue identifier is required.' };
+  }
+
+  const client = await linearConnectionService.getClient();
+  if (!client) {
+    return { success: false, error: 'Linear token not set. Connect Linear in settings first.' };
+  }
+
+  try {
+    const { data } = await client.client.rawRequest<
+      { searchIssues: { nodes: LinearIssueNode[] } },
+      { term: string; limit: number }
+    >(ISSUE_CONTEXT_QUERY, {
+      term,
+      limit: 3,
+    });
+    const exactIssue = (data?.searchIssues?.nodes ?? []).find((issue) => issue.identifier === term);
+
+    if (!exactIssue) {
+      return { success: false, error: `Linear issue not found: ${term}` };
+    }
+
+    let hydratedIssue = exactIssue;
+    try {
+      hydratedIssue = await hydrateIssueActivity(client, exactIssue);
+    } catch (error) {
+      log.warn('[Linear] failed to hydrate issue activity:', {
+        issueId: exactIssue.id,
+        identifier: exactIssue.identifier,
+        error,
+      });
+    }
+
+    return {
+      success: true,
+      issue: toIssue(hydratedIssue, formatLinearContext(hydratedIssue)),
+    };
+  } catch (error) {
+    log.error('[Linear] getIssueContext error:', error);
+    const message =
+      error instanceof Error ? error.message : 'Unable to fetch Linear issue context.';
     return { success: false, error: message };
   }
 }
@@ -512,4 +508,6 @@ export const linearIssueProvider: IssueProvider = {
   listIssues: async (opts) => listIssues(opts.limit ?? 50),
 
   searchIssues: async (opts) => searchIssues(opts.searchTerm, opts.limit ?? 20),
+
+  getIssueContext: async (opts) => getIssueContext(opts.identifier),
 };
