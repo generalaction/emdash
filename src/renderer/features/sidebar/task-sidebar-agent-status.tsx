@@ -45,7 +45,7 @@ export const TaskSidebarAgentStatus = observer(function TaskSidebarAgentStatus({
     return <AgentStatusIndicator status={status} />;
   }
 
-  const sortKind = sidebarStore.taskSortBy === 'created-at' ? 'created' : 'updated';
+  const sortKind = sidebarStore.lastTaskSortBy === 'created-at' ? 'created' : 'updated';
 
   return (
     <RelativeTime
