@@ -98,6 +98,10 @@ export class SshExecutionContext implements IExecutionContext {
     });
   }
 
+  async refreshShellEnv(): Promise<void> {
+    await this.proxy.refreshRemoteShellProfile();
+  }
+
   async execStreaming(
     command: string,
     args: string[],

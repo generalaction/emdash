@@ -58,6 +58,16 @@ export class SshClientProxy {
     return promise;
   }
 
+  async refreshRemoteShellProfile(): Promise<RemoteShellProfile> {
+    const client = this.client;
+    this._remoteShellProfileState = { kind: 'empty' };
+    const profile = await captureRemoteShellProfile(this);
+    if (this._client === client) {
+      this._remoteShellProfileState = { kind: 'ready', client, profile };
+    }
+    return profile;
+  }
+
   exec(command: string, callback: ClientCallback): void;
   exec(command: string, options: ExecOptions, callback: ClientCallback): void;
   exec(

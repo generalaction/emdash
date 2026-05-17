@@ -199,6 +199,8 @@ export class DependencyManager implements IInitializable {
       return err(installResult.error);
     }
 
+    await this.ctx.refreshShellEnv?.();
+
     const state = await this.probe(id);
     if (state.status !== 'available') {
       return err({ type: 'not-detected-after-install', id });

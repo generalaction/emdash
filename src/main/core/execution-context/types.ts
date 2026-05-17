@@ -28,6 +28,13 @@ export interface IExecutionContext {
   exec(command: string, args?: string[], opts?: ExecOptions): Promise<ExecResult>;
 
   /**
+   * Refresh any cached shell environment for this context. Installers often
+   * write shell startup files or install into paths that become visible only
+   * after recapturing the user's shell environment.
+   */
+  refreshShellEnv?(): Promise<void>;
+
+  /**
    * Run a command and stream stdout chunks to `onChunk`.
    * Return false from `onChunk` to abort the process early (resolves normally).
    * Passing `signal` rejects with an AbortError when the signal fires.
