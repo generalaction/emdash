@@ -19,6 +19,7 @@ export const TabItemShell = observer(function TabItemShell({
   title,
   onSelect,
   onPin,
+  onClose,
   className,
   innerPaddingRight = 'pr-2',
   children,
@@ -28,6 +29,7 @@ export const TabItemShell = observer(function TabItemShell({
   title: string;
   onSelect: () => void;
   onPin: () => void;
+  onClose: () => void;
   className?: string;
   activeClassName?: string;
   innerPaddingRight?: string;
@@ -42,6 +44,15 @@ export const TabItemShell = observer(function TabItemShell({
       <button
         onClick={onSelect}
         onDoubleClick={onPin}
+        onMouseDown={(e) => {
+          if (e.button === 1) e.preventDefault();
+        }}
+        onAuxClick={(e) => {
+          if (e.button === 1) {
+            e.preventDefault();
+            onClose();
+          }
+        }}
         title={title}
         data-tabid={tabId}
         className={cn(

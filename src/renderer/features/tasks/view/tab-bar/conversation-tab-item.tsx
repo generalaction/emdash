@@ -29,6 +29,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
       title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
       onSelect={onSelect}
       onPin={onPin}
+      onClose={onClose}
     >
       {config ? (
         <AgentLogo
