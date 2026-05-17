@@ -1,3 +1,4 @@
+import { LinearGraphQLClient, type LinearClient, type LinearRawResponse } from '@linear/sdk';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
@@ -63,6 +64,16 @@ const SEARCH_QUERY = `
   }
 `;
 
+type RawRequest = <Data, Variables extends Record<string, unknown>>(
+  query: string,
+  variables?: Variables
+) => Promise<LinearRawResponse<Data>>;
+
+function createRawRequest(client: LinearClient): RawRequest {
+  const rawClient = new LinearGraphQLClient(client.options.apiUrl, client.options);
+  return rawClient.rawRequest.bind(rawClient);
+}
+
 function toIssue(raw: LinearIssueNode): Issue {
   return {
     provider: 'linear',
@@ -90,7 +101,7 @@ async function listIssues(limit = 50): Promise<IssueListResult> {
   const sanitizedLimit = clampIssueLimit(limit, 50, 200);
 
   try {
-    const { data } = await client.client.rawRequest<
+    const { data } = await createRawRequest(client)<
       { issues: { nodes: LinearIssueNode[] } },
       { limit: number }
     >(ISSUES_QUERY, { limit: sanitizedLimit });
@@ -119,7 +130,7 @@ async function searchIssues(searchTerm: string, limit = 20): Promise<IssueListRe
   const sanitizedLimit = clampIssueLimit(limit, 20, 200);
 
   try {
-    const { data } = await client.client.rawRequest<
+    const { data } = await createRawRequest(client)<
       { searchIssues: { nodes: LinearIssueNode[] } },
       { term: string; limit: number }
     >(SEARCH_QUERY, {
