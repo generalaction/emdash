@@ -1,16 +1,11 @@
 import { CheckCircle, Github, LogIn, User } from 'lucide-react';
 import { useRef, useState } from 'react';
-import {
-  useAccountSession,
-  useAccountSignIn,
-  useAccountSignOut,
-} from '@renderer/lib/hooks/useAccount';
+import { useAccountSession, useAccountSignIn } from '@renderer/lib/hooks/useAccount';
 import { Button } from '@renderer/lib/ui/button';
 
 export function SignInStep({ onComplete }: { onComplete: () => void }) {
   const { data: session, isLoading: sessionLoading } = useAccountSession();
   const signInMutation = useAccountSignIn();
-  const signOutMutation = useAccountSignOut();
   const skippedSignInRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +20,6 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
         return;
       }
       if (skippedSignInRef.current) {
-        await signOutMutation.mutateAsync();
         return;
       }
       onComplete();
