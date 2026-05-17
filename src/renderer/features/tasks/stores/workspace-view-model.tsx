@@ -303,7 +303,7 @@ export class WorkspaceViewModel implements ILifecycle {
         );
       },
       (shouldCreate) => {
-        if (shouldCreate) void terminalRegistry.get(this.taskId)?.createDefaultTerminal();
+        if (shouldCreate) void this._createDefaultTerminal();
       }
     );
     this._sessionDisposers.push(terminalsDisposer);
@@ -386,16 +386,22 @@ export class WorkspaceViewModel implements ILifecycle {
 
   /** Opens the terminal drawer and always creates a new terminal session. */
   async openNewTerminal(): Promise<string | undefined> {
-    if (this._isCreatingTerminal) return undefined;
-
-    this._isCreatingTerminal = true;
     this.isTerminalDrawerOpen = true;
     this.setFocusedRegion('bottom');
 
+    const terminalId = await this._createDefaultTerminal();
+    if (!terminalId) return undefined;
+    runInAction(() => this.terminalTabs.setActiveTab(terminalId));
+    return terminalId;
+  }
+
+  private async _createDefaultTerminal(): Promise<string | undefined> {
+    if (this._isCreatingTerminal) return undefined;
+
+    this._isCreatingTerminal = true;
     try {
       const terminal = await terminalRegistry.get(this.taskId)?.createDefaultTerminal();
       if (!terminal) return undefined;
-      runInAction(() => this.terminalTabs.setActiveTab(terminal.id));
       return terminal.id;
     } catch (error) {
       log.error('Failed to create terminal:', error);
