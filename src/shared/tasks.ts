@@ -6,7 +6,7 @@ import type { PullRequest } from '@shared/pull-requests';
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
 
 export type Issue = {
-  provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase';
+  provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
   url: string;
   title: string;
   identifier: string;

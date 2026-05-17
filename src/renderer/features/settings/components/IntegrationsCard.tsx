@@ -1,5 +1,6 @@
 import { Check, Loader2, Plus } from 'lucide-react';
 import React, { useEffect } from 'react';
+import asanaSvg from '@/assets/images/Asana.svg?raw';
 import featurebaseSvg from '@/assets/images/Featurebase.svg?raw';
 import forgejoSvg from '@/assets/images/Forgejo.svg?raw';
 import githubSvg from '@/assets/images/Github.svg?raw';
@@ -64,6 +65,9 @@ const IntegrationsCard: React.FC = () => {
     isFeaturebaseConnected,
     isFeaturebaseLoading,
     disconnectFeaturebase,
+    isAsanaConnected,
+    isAsanaLoading,
+    disconnectAsana,
   } = useIntegrationsContext();
 
   const showIntegrationSetup = useShowModal('integrationSetupModal');
@@ -207,6 +211,24 @@ const IntegrationsCard: React.FC = () => {
       loading: isFeaturebaseLoading,
       onConnect: () => showIntegrationSetup({ integration: 'featurebase' }),
       onDisconnect: disconnectFeaturebase,
+    },
+    {
+      id: 'asana',
+      name: 'Asana',
+      description:
+        isAsanaConnected && connectionStatus.asana.displayName
+          ? connectionStatus.asana.displayName
+          : 'Work on Asana tasks',
+      logoSvg: asanaSvg,
+      connected: !!isAsanaConnected,
+      loading: isAsanaLoading,
+      onConnect: () => showIntegrationSetup({ integration: 'asana' }),
+      onDisconnect: () =>
+        confirmDisconnect({
+          name: 'Asana',
+          credential: 'access token',
+          onDisconnect: disconnectAsana,
+        }),
     },
   ];
 
