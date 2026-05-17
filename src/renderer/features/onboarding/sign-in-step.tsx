@@ -1,25 +1,37 @@
 import { CheckCircle, Github, LogIn, User } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAccountSession, useAccountSignIn } from '@renderer/lib/hooks/useAccount';
 import { Button } from '@renderer/lib/ui/button';
 
 export function SignInStep({ onComplete }: { onComplete: () => void }) {
   const { data: session, isLoading: sessionLoading } = useAccountSession();
   const signInMutation = useAccountSignIn();
+  const skippedSignInRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSignIn = async () => {
+    skippedSignInRef.current = false;
     setError(null);
     try {
       const result = await signInMutation.mutateAsync(undefined);
       if (!result.success) {
+        if (skippedSignInRef.current) return;
         setError(result.error || 'Sign in failed');
+        return;
+      }
+      if (skippedSignInRef.current) {
         return;
       }
       onComplete();
     } catch (err) {
+      if (skippedSignInRef.current) return;
       setError(err instanceof Error ? err.message : 'Sign in failed');
     }
+  };
+
+  const handleSkip = () => {
+    skippedSignInRef.current = true;
+    onComplete();
   };
 
   if (sessionLoading) {
@@ -80,7 +92,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
           <LogIn className="h-4 w-4" />
           {signInMutation.isPending ? 'Signing in...' : 'Sign in with GitHub'}
         </Button>
-        <Button variant="ghost" onClick={onComplete} disabled={signInMutation.isPending}>
+        <Button variant="ghost" onClick={handleSkip}>
           Skip
         </Button>
       </div>
