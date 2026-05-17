@@ -234,6 +234,7 @@ export const McpModal: React.FC<McpModalProps> = ({
                 addLabel="+ Add env var"
                 makeId={makeId}
                 credentialKeys={credentialKeys}
+                splitEnvPaste
               />
             )}
           </form.Field>
