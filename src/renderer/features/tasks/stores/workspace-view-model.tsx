@@ -7,6 +7,7 @@ import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/
 import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
 import { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
+import type { TerminalPanelActiveItem } from '@renderer/features/tasks/terminals/terminal-panel-selection';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -28,6 +29,7 @@ export class WorkspaceViewModel implements ILifecycle {
   isSidebarCollapsed: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen: boolean;
+  terminalDrawerActiveItem: TerminalPanelActiveItem | undefined;
 
   /** Stable sub-stores — live for the full WorkspaceViewModel lifetime. */
   readonly tabGroupManager: TabGroupManagerStore;
@@ -74,6 +76,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.isSidebarCollapsed = true;
     this.focusedRegion = 'main';
     this.isTerminalDrawerOpen = false;
+    this.terminalDrawerActiveItem = undefined;
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
 
@@ -384,6 +387,10 @@ export class WorkspaceViewModel implements ILifecycle {
     this.setFocusedRegion(open ? 'bottom' : 'main');
   }
 
+  setTerminalDrawerActiveItem(item: TerminalPanelActiveItem): void {
+    this.terminalDrawerActiveItem = item;
+  }
+
   /** Opens the terminal drawer and always creates a new terminal session. */
   async openNewTerminal(): Promise<string | undefined> {
     this.isTerminalDrawerOpen = true;
@@ -391,7 +398,10 @@ export class WorkspaceViewModel implements ILifecycle {
 
     const terminalId = await this._createDefaultTerminal();
     if (!terminalId) return undefined;
-    runInAction(() => this.terminalTabs.setActiveTab(terminalId));
+    runInAction(() => {
+      this.terminalTabs.setActiveTab(terminalId);
+      this.terminalDrawerActiveItem = { kind: 'terminal', id: terminalId };
+    });
     return terminalId;
   }
 
