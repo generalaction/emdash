@@ -317,7 +317,7 @@ export function CommandPaletteModal({
             {rankedDb.map((item) => {
               if (item.kind === 'command') {
                 const live = commandRegistry.findById(item.id);
-                if (!live || live.enabled === false) return null;
+                if (!live || live.enabled === false || live.hideFromPalette) return null;
                 const def = ALL_COMMAND_DEFS.find((d) => d.id === item.id) as
                   | CommandDef
                   | undefined;

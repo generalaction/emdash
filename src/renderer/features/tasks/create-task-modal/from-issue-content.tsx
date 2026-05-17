@@ -74,6 +74,7 @@ export function FromIssueContent({
       <InitialConversationField
         state={initialConversation}
         linkedIssue={state.linkedIssue ?? undefined}
+        projectId={projectId}
       />
     </div>
   );

@@ -46,12 +46,15 @@ function issueInjectionText(issue: Issue): string {
       : undefined,
     issue.project ? `Project: ${normalizeWhitespace(issue.project)}` : undefined,
   ].filter(Boolean);
+  const context = issue.context?.trim();
 
-  if (parts.length === 0) {
+  if (parts.length === 0 && !context) {
     return 'Linked issue context';
   }
 
-  return parts.join(' | ');
+  return [parts.join(' | '), context ? `Context:\n${context}` : undefined]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | null {
