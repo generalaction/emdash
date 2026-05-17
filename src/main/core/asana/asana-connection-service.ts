@@ -47,6 +47,7 @@ export class AsanaConnectionService {
   private readonly ASANA_TOKEN_SECRET_KEY = 'emdash-asana-token';
 
   private cachedToken: string | null | undefined = undefined;
+  private cachedWorkspaceGid: string | null | undefined = undefined;
   private client: AsanaClient | null = null;
   private clientToken: string | null = null;
 
@@ -62,6 +63,7 @@ export class AsanaConnectionService {
       const client = this.getClientForToken(clean);
       const user = await this.fetchUser(client);
       await this.storeToken(clean);
+      this.cachedWorkspaceGid = user.workspaces?.[0]?.gid ?? null;
       telemetryService.capture('integration_connected', { provider: 'asana' });
 
       return {
@@ -80,6 +82,7 @@ export class AsanaConnectionService {
     try {
       await encryptedAppSecretsStore.deleteSecret(this.ASANA_TOKEN_SECRET_KEY);
       this.cachedToken = null;
+      this.cachedWorkspaceGid = undefined;
       this.client = null;
       this.clientToken = null;
       telemetryService.capture('integration_disconnected', { provider: 'asana' });
@@ -131,13 +134,11 @@ export class AsanaConnectionService {
   async getPrimaryWorkspaceGid(): Promise<string | null> {
     const client = await this.getClient();
     if (!client) return null;
-    try {
-      const user = await this.fetchUser(client);
-      return user.workspaces?.[0]?.gid ?? null;
-    } catch (error) {
-      log.error('[Asana] Failed to resolve primary workspace:', error);
-      return null;
-    }
+    if (this.cachedWorkspaceGid !== undefined) return this.cachedWorkspaceGid;
+
+    const user = await this.fetchUser(client);
+    this.cachedWorkspaceGid = user.workspaces?.[0]?.gid ?? null;
+    return this.cachedWorkspaceGid;
   }
 
   private async fetchUser(client: AsanaClient): Promise<{
@@ -146,7 +147,7 @@ export class AsanaConnectionService {
     workspaces?: AsanaWorkspace[];
   }> {
     const response = await client.get<AsanaUserResponse>('/users/me', {
-      opt_fields: 'name,workspaces.name',
+      opt_fields: 'name,workspaces.gid,workspaces.name',
     });
     return response.data ?? {};
   }
@@ -155,6 +156,7 @@ export class AsanaConnectionService {
     if (!this.client || this.clientToken !== token) {
       this.client = new AsanaClient(token);
       this.clientToken = token;
+      this.cachedWorkspaceGid = undefined;
     }
     return this.client;
   }

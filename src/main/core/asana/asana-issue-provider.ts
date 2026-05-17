@@ -60,7 +60,16 @@ async function getClientAndWorkspace(): Promise<
     return { success: false, error: NOT_CONFIGURED_ERROR };
   }
 
-  const workspaceGid = await asanaConnectionService.getPrimaryWorkspaceGid();
+  let workspaceGid: string | null;
+  try {
+    workspaceGid = await asanaConnectionService.getPrimaryWorkspaceGid();
+  } catch (error) {
+    return {
+      success: false,
+      error: toAsanaErrorMessage(error, 'Failed to resolve Asana workspace.'),
+    };
+  }
+
   if (!workspaceGid) {
     return {
       success: false,
@@ -119,6 +128,7 @@ async function searchIssues(searchTerm: string, limit: number): Promise<IssueLis
       {
         text: term,
         resource_subtype: 'default_task',
+        'completed.not': true,
         limit: sanitizedLimit,
         opt_fields: TASK_OPT_FIELDS,
       }
