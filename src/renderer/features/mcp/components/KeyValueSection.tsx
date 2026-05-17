@@ -78,7 +78,6 @@ export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
                     : ''
                 }`}
                 placeholder={isCredential ? (isRequired ? 'Required' : 'Optional') : 'value'}
-                onPaste={(e) => handlePaste(i, e)}
               />
               <Button
                 type="button"

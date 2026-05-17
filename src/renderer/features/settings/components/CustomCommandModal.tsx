@@ -300,7 +300,6 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                         onChange={(e) => setEnvEntry(i, { value: e.target.value })}
                         placeholder="value"
                         className="min-w-0 flex-1 font-mono text-sm"
-                        onPaste={(e) => handleEnvPaste(i, e)}
                       />
                       <Button
                         type="button"

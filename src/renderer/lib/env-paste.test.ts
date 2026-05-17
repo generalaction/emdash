@@ -8,11 +8,15 @@ describe('parseEnvAssignmentPaste', () => {
         # ignored
         FOO=bar
         export API_KEY="secret=value"
+        WITH_COMMENT=value # comment
+        QUOTED_HASH="value # not a comment"
         EMPTY=
       `)
     ).toEqual([
       { key: 'FOO', value: 'bar' },
       { key: 'API_KEY', value: 'secret=value' },
+      { key: 'WITH_COMMENT', value: 'value' },
+      { key: 'QUOTED_HASH', value: 'value # not a comment' },
       { key: 'EMPTY', value: '' },
     ]);
   });
