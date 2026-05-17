@@ -10,7 +10,7 @@ import { getAllIssueProviders, getIssueProvider } from './registry';
 
 const DEFAULT_CAPABILITIES = {
   requiresProjectPath: false,
-  requiresNameWithOwner: false,
+  requiresRepositoryUrl: false,
 } as const;
 
 const CONNECTION_CHECK_TIMEOUT_MS = 8_000;
@@ -57,7 +57,7 @@ async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T>
   const project = projectManager.getProject(opts.projectId);
   if (!project) return opts;
 
-  const remote = await project.repository.getConfiguredRemote().catch(() => undefined);
+  const remote = await project.repository.getBaseRemote().catch(() => undefined);
   return { ...opts, remote };
 }
 

@@ -3,7 +3,7 @@ import type { PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { computeCheckRunsSummary, type CheckRun } from '@renderer/utils/github';
 
-export function useCheckRuns(pr: PullRequest) {
+export function useSyncCheckRuns(pr: PullRequest) {
   const checks = useMemo(() => pr.checks as CheckRun[], [pr.checks]);
   const summary = useMemo(() => computeCheckRunsSummary(checks), [checks]);
 

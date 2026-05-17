@@ -2,7 +2,11 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import type { Commit } from '@shared/git';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
@@ -12,18 +16,18 @@ const ITEM_HEIGHT = 43;
 
 export const PrCommitsList = observer(function PrCommitsList() {
   const { projectId } = useTaskViewContext();
-  const task = useProvisionedTask();
-  const pr = task.workspace.pr.currentPr;
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const pr = taskView.prStore?.currentPr;
   const { data, isFetchingNextPage, hasNextPage, fetchNextPage } = usePrCommits(
     projectId,
-    task.workspaceId,
+    workspaceId,
     pr
   );
 
   const commits = data?.pages.flat() ?? [];
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: commits.length,
     getScrollElement: () => parentRef.current,

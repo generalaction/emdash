@@ -1,7 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
+import { toast } from 'sonner';
+import type { RenameTaskError } from '@shared/tasks';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
-import { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -25,6 +27,19 @@ type RenameTaskModalArgs = {
 };
 
 type Props = BaseModalProps<void> & RenameTaskModalArgs;
+
+function formatRenameTaskError(error: RenameTaskError): string {
+  switch (error.type) {
+    case 'task-not-found':
+      return 'Task not found.';
+    case 'project-not-found':
+      return 'Project not found.';
+    case 'branch-already-exists':
+      return `Branch "${error.branch}" already exists. Try a different task name.`;
+    case 'branch-rename-failed':
+      return `Could not rename branch "${error.branch}": ${error.message}`;
+  }
+}
 
 export const RenameTaskModal = observer(function RenameTaskModal({
   projectId,
@@ -68,7 +83,17 @@ export const RenameTaskModal = observer(function RenameTaskModal({
     setIsSubmitting(true);
     setError(null);
     try {
-      await task.rename(normalizedName);
+      const result = await task.rename(normalizedName);
+      if (!result.success) {
+        setError(formatRenameTaskError(result.error));
+        setIsSubmitting(false);
+        return;
+      }
+      if (result.data.warning) {
+        toast.error(
+          `Branch was renamed locally to "${result.data.warning.branch}", but could not be pushed to the remote: ${result.data.warning.message}`
+        );
+      }
       onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rename task');

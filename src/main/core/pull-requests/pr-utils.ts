@@ -8,11 +8,11 @@ import type {
   PullRequestUser,
 } from '@shared/pull-requests';
 import {
-  pullRequestAssignees,
-  pullRequestChecks,
-  pullRequestLabels,
-  pullRequests,
-  pullRequestUsers,
+  type pullRequestAssignees,
+  type pullRequestChecks,
+  type pullRequestLabels,
+  type pullRequests,
+  type pullRequestUsers,
 } from '@main/db/schema';
 
 export type PrRow = typeof pullRequests.$inferSelect;

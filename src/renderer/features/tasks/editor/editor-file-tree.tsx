@@ -1,10 +1,11 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import React, { useRef } from 'react';
 import type { FileNode } from '@shared/fs';
 import { buildVisibleRows } from '@renderer/features/tasks/editor/stores/files-store-utils';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspace, useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { cn } from '@renderer/utils/utils';
 
@@ -15,31 +16,28 @@ const FileTreeRow = observer(function FileTreeRow({
   node: FileNode;
   style: React.CSSProperties;
 }) {
-  const taskState = useProvisionedTask();
-  const { taskView } = taskState;
+  const taskView = useWorkspaceViewModel();
+  const workspace = useWorkspace();
   const editorView = taskView.editorView;
 
   const isExpanded = editorView.expandedPaths.has(node.path);
-  const isSelected = taskView.view === 'editor' && editorView.activeFilePath === node.path;
-  const fileStatus = taskState.workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
+  const isSelected = taskView.tabManager.activeFilePath === node.path;
+  const fileStatus = workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
   const paddingLeft = node.depth * 12 + 4;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (taskView.view !== 'editor') {
-      taskView.setView('editor');
-    }
     if (node.type === 'directory') {
       toggleExpand();
     } else {
-      editorView.openFilePreview(node.path);
+      taskView.tabManager.openFilePreview(node.path);
     }
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (node.type === 'file') {
-      editorView.openFile(node.path);
+      taskView.tabManager.openFile(node.path);
     }
   };
 
@@ -49,20 +47,22 @@ const FileTreeRow = observer(function FileTreeRow({
       if (node.type === 'directory') {
         toggleExpand();
       } else {
-        editorView.openFilePreview(node.path);
+        taskView.tabManager.openFilePreview(node.path);
       }
     }
   };
 
   const toggleExpand = () => {
-    if (editorView.expandedPaths.has(node.path)) {
-      editorView.expandedPaths.delete(node.path);
-    } else {
-      editorView.expandedPaths.add(node.path);
-      if (!taskState.workspace.files.loadedPaths.has(node.path)) {
-        void taskState.workspace.files.loadDir(node.path);
+    runInAction(() => {
+      if (editorView.expandedPaths.has(node.path)) {
+        editorView.expandedPaths.delete(node.path);
+      } else {
+        editorView.expandedPaths.add(node.path);
+        if (!workspace.files.loadedPaths.has(node.path)) {
+          void workspace.files.loadDir(node.path);
+        }
       }
-    }
+    });
   };
 
   return (
@@ -121,9 +121,10 @@ const FileTreeRow = observer(function FileTreeRow({
 });
 
 export const EditorFileTree = observer(function EditorFileTree() {
-  const taskState = useProvisionedTask();
-  const files = taskState.workspace.files;
-  const editorView = taskState.taskView.editorView;
+  const workspace = useWorkspace();
+  const taskView = useWorkspaceViewModel();
+  const files = workspace.files;
+  const editorView = taskView.editorView;
 
   const visibleRows = files
     ? buildVisibleRows(files.nodes, files.childIndex, editorView.expandedPaths)
@@ -164,7 +165,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div ref={parentRef} className="flex-1 overflow-y-auto px-1 py-1" role="tree">
+      <div ref={parentRef} className="flex-1 overflow-y-auto px-2 py-2" role="tree">
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((vItem) => {
             const node = visibleRows[vItem.index] as FileNode;

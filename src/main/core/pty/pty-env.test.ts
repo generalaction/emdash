@@ -57,4 +57,23 @@ describe('pty env Windows shell handling', () => {
 
     expect(env.SHELL).toBe('/bin/bash');
   });
+
+  it('adds provider vars while keeping hook variables authoritative', async () => {
+    const { buildAgentEnv } = await loadPtyEnv();
+    const env = buildAgentEnv({
+      agentApiVars: false,
+      hook: { port: 1234, ptyId: 'claude:conv-1', token: 'real-token' },
+      providerVars: {
+        ANTHROPIC_BASE_URL: 'https://example.test',
+        EMDASH_HOOK_PORT: '9999',
+        EMDASH_PTY_ID: 'wrong',
+        EMDASH_HOOK_TOKEN: 'wrong-token',
+      },
+    });
+
+    expect(env.ANTHROPIC_BASE_URL).toBe('https://example.test');
+    expect(env.EMDASH_HOOK_PORT).toBe('1234');
+    expect(env.EMDASH_PTY_ID).toBe('claude:conv-1');
+    expect(env.EMDASH_HOOK_TOKEN).toBe('real-token');
+  });
 });

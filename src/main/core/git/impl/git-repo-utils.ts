@@ -9,7 +9,6 @@
 
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import { GIT_EXECUTABLE } from '@main/core/utils/exec';
 
 // ---------------------------------------------------------------------------
 // cloneRepository
@@ -26,7 +25,7 @@ export async function cloneRepository(
   ctx: IExecutionContext
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await ctx.exec(GIT_EXECUTABLE, ['clone', repoUrl, localPath]);
+    await ctx.exec('git', ['clone', repoUrl, localPath]);
     return { success: true };
   } catch (error) {
     return {
@@ -72,14 +71,14 @@ export async function initializeNewProject(
   const readmeContent = description ? `# ${name}\n\n${description}\n` : `# ${name}\n`;
   await fs.write('README.md', readmeContent);
 
-  await ctx.exec(GIT_EXECUTABLE, ['add', 'README.md']);
-  await ctx.exec(GIT_EXECUTABLE, ['commit', '-m', 'Initial commit']);
+  await ctx.exec('git', ['add', 'README.md']);
+  await ctx.exec('git', ['commit', '-m', 'Initial commit']);
 
   try {
-    await ctx.exec(GIT_EXECUTABLE, ['push', '-u', 'origin', 'main']);
+    await ctx.exec('git', ['push', '-u', 'origin', 'main']);
   } catch {
     try {
-      await ctx.exec(GIT_EXECUTABLE, ['push', '-u', 'origin', 'master']);
+      await ctx.exec('git', ['push', '-u', 'origin', 'master']);
     } catch {
       throw new Error('Failed to push to remote repository');
     }

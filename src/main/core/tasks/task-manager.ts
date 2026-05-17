@@ -5,11 +5,11 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
+import type { WorkspaceType as SharedWorkspaceType } from '@shared/workspaces';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { provisionBYOITask } from '@main/core/workspaces/byoi/provision-byoi-task';
-import { localWorkspaceId, sshWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
@@ -26,6 +26,12 @@ import {
   type TeardownTaskError,
 } from './provision-task-error';
 import { provisionLocalTask } from './task-builder';
+
+export type WorkspaceHint = {
+  id: string;
+  type: SharedWorkspaceType;
+  path?: string;
+};
 
 type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
 
@@ -48,9 +54,13 @@ async function executeProvision(
   provider: ProjectProvider,
   task: Task,
   conversations: Conversation[],
-  terminals: Terminal[]
+  terminals: Terminal[],
+  hint: WorkspaceHint
 ): Promise<ProvisionResult> {
-  if (task.workspaceProvider === 'byoi') {
+  const workspaceId = hint.id;
+
+  const isByoi = hint.type === 'byoi';
+  if (isByoi) {
     const projectSettings = await provider.settings.get();
     if (projectSettings.workspaceProvider?.type !== 'script') {
       throw new Error(
@@ -67,13 +77,9 @@ async function executeProvision(
       projectPath: provider.repoPath,
       settings: provider.settings,
       logPrefix: `${provider.type}ProjectProvider[byoi]`,
+      workspaceId,
     });
   }
-
-  const workspaceId =
-    provider.defaultWorkspaceType.kind === 'local'
-      ? localWorkspaceId(provider.projectId, task.taskBranch)
-      : sshWorkspaceId(provider.projectId, task.taskBranch);
 
   const { provisionResult, workspace } = await provisionLocalTask({
     task,
@@ -88,6 +94,7 @@ async function executeProvision(
     fetchService: provider.gitFetchService,
     repository: provider.repository,
     logPrefix: `${provider.type}ProjectProvider`,
+    workDir: hint.path,
   });
 
   if (provider.defaultWorkspaceType.kind === 'local') {
@@ -138,11 +145,20 @@ async function cleanupDetachedSessions(
 }
 
 class TaskManager {
-  private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError>();
-  private readonly _tasksByProject = new Map<string, Set<string>>();
   private readonly _hooks = new HookCore<TaskManagerHooks>((name, e) =>
     log.error(`TaskManager: ${String(name)} hook error`, e)
   );
+  private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError>({
+    postTeardown: (taskId, stored) => {
+      this._tasksByProject.get(stored.projectId)?.delete(taskId);
+      this._hooks.callHookBackground('task:torn-down', {
+        projectId: stored.projectId,
+        taskId,
+        workspaceId: stored.persistData.workspaceId,
+      });
+    },
+  });
+  private readonly _tasksByProject = new Map<string, Set<string>>();
 
   readonly hooks: Hookable<TaskManagerHooks> = this._hooks;
 
@@ -150,7 +166,8 @@ class TaskManager {
     provider: ProjectProvider,
     task: Task,
     conversations: Conversation[],
-    terminals: Terminal[]
+    terminals: Terminal[],
+    hint: WorkspaceHint
   ): Promise<Result<ProvisionResult, ProvisionTaskError>> {
     return this._lifecycle.provision(task.id, async () => {
       let lastStep: ProvisionStep | null = null;
@@ -159,7 +176,7 @@ class TaskManager {
       });
       try {
         const result = await withTimeout(
-          executeProvision(provider, task, conversations, terminals),
+          executeProvision(provider, task, conversations, terminals, hint),
           TASK_TIMEOUT_MS
         );
         const stored: StoredTask = {
@@ -199,9 +216,6 @@ class TaskManager {
     taskId: string,
     mode: TeardownMode = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
-    // Pre-capture stored task so the onFinally closure has access to hook data.
-    const stored = this._lifecycle.get(taskId);
-
     const result = this._lifecycle.teardown(
       taskId,
       async ({ taskProvider, persistData, projectId, ctx }) => {
@@ -221,15 +235,6 @@ class TaskManager {
           });
           return err<TeardownTaskError>(toTeardownError(e));
         }
-      },
-      () => {
-        if (!stored) return;
-        this._tasksByProject.get(stored.projectId)?.delete(taskId);
-        this._hooks.callHookBackground('task:torn-down', {
-          projectId: stored.projectId,
-          taskId,
-          workspaceId: stored.persistData.workspaceId,
-        });
       }
     );
 
@@ -268,6 +273,10 @@ class TaskManager {
 
   getWorkspaceId(taskId: string): string | undefined {
     return this._lifecycle.get(taskId)?.persistData.workspaceId;
+  }
+
+  getPersistData(taskId: string): ProvisionResult['persistData'] | undefined {
+    return this._lifecycle.get(taskId)?.persistData;
   }
 
   getBootstrapStatus(taskId: string): TaskBootstrapStatus {

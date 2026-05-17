@@ -1,7 +1,12 @@
 import type { LocalProject, SshProject } from '@shared/projects';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { PrSyncStore } from './pr-sync-store';
-import { isUnmountedProject, isUnregisteredProject, MountedProject, ProjectStore } from './project';
+import {
+  isUnmountedProject,
+  isUnregisteredProject,
+  type MountedProject,
+  type ProjectStore,
+} from './project';
 import type { ProjectManagerStore } from './project-manager';
 import type { ProjectSettingsStore } from './project-settings-store';
 import type { RepositoryStore } from './repository-store';
@@ -51,6 +56,12 @@ export function mountedProjectData(
   store: ProjectStore | undefined
 ): LocalProject | SshProject | null {
   return store?.mountedProject?.data ?? null;
+}
+
+/** Returns the SSH connection id for a mounted SSH project, otherwise undefined. */
+export function getProjectSshConnectionId(projectId: string): string | undefined {
+  const data = mountedProjectData(getProjectStore(projectId));
+  return data?.type === 'ssh' ? data.connectionId : undefined;
 }
 
 /** Returns the display name from any project store variant. */

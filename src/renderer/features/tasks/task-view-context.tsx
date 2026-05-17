@@ -1,49 +1,26 @@
 import { observer } from 'mobx-react-lite';
-import { createContext, ReactNode, useContext } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { ProjectViewWrapper } from '@renderer/features/projects/components/project-view-wrapper';
-import { type ProvisionedTask } from '@renderer/features/tasks/stores/task';
+import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
+import type { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
 import {
-  asProvisioned,
+  getConversationsForTask,
+  getRegisteredTaskData,
   getTaskStore,
+  getTerminalsForTask,
+  getWorkspaceForTask,
   taskViewKind,
   type TaskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { ViewLayoutOverrideContext } from '@renderer/lib/layout/navigation-provider';
-
-const ProvisionedTaskContext = createContext<ProvisionedTask | null>(null);
-
-export const ProvisionedTaskProvider = observer(function ProvisionedTaskProvider({
-  projectId,
-  taskId,
-  children,
-}: {
-  projectId: string;
-  taskId: string;
-  children: ReactNode;
-}) {
-  const provisioned = asProvisioned(getTaskStore(projectId, taskId));
-  if (!provisioned) return null;
-  return (
-    <ProvisionedTaskContext.Provider value={provisioned}>
-      {children}
-    </ProvisionedTaskContext.Provider>
-  );
-});
-
-/** Non-nullable. Only call inside a ProvisionedTaskProvider subtree (kind === 'ready'). */
-export function useProvisionedTask(): ProvisionedTask {
-  const ctx = useContext(ProvisionedTaskContext);
-  if (!ctx) {
-    throw new Error(
-      'useProvisionedTask must be used inside ProvisionedTaskProvider (kind === "ready")'
-    );
-  }
-  return ctx;
-}
+import type { WorkspaceStore } from '@renderer/features/tasks/stores/workspace';
+import type { WorkspaceViewModel } from '@renderer/features/tasks/stores/workspace-view-model';
+import type { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 
 interface TaskViewContext {
   projectId: string;
   taskId: string;
+  /** The workspace ID for this task, or null when not yet registered. */
+  workspaceId: string | null;
 }
 
 const TaskViewContext = createContext<TaskViewContext | null>(null);
@@ -57,18 +34,13 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
   projectId: string;
   taskId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId);
-  const kind = taskViewKind(taskStore, projectId);
-  const hideRightPanel = kind !== 'ready';
-
+  const workspaceId = getRegisteredTaskData(projectId, taskId)?.workspaceId ?? null;
   return (
-    <ViewLayoutOverrideContext.Provider value={{ hideRightPanel }}>
-      <ProjectViewWrapper projectId={projectId}>
-        <TaskViewContext.Provider value={{ projectId, taskId }}>
-          {children}
-        </TaskViewContext.Provider>
-      </ProjectViewWrapper>
-    </ViewLayoutOverrideContext.Provider>
+    <ProjectViewWrapper projectId={projectId}>
+      <TaskViewContext.Provider value={{ projectId, taskId, workspaceId }}>
+        {children}
+      </TaskViewContext.Provider>
+    </ProjectViewWrapper>
   );
 });
 
@@ -83,4 +55,63 @@ export function useTaskViewContext(): TaskViewContext {
 export function useTaskViewKind(): TaskViewKind {
   const { projectId, taskId } = useTaskViewContext();
   return taskViewKind(getTaskStore(projectId, taskId), projectId);
+}
+
+// ---------------------------------------------------------------------------
+// Focused hooks (Phase 4)
+// ---------------------------------------------------------------------------
+
+/** Returns the active WorkspaceStore. Throws if the task is not provisioned. */
+export function useWorkspace(): WorkspaceStore {
+  const { projectId, taskId } = useTaskViewContext();
+  const workspace = getWorkspaceForTask(projectId, taskId);
+  if (!workspace) {
+    throw new Error('useWorkspace: task is not provisioned (no workspace)');
+  }
+  return workspace;
+}
+
+/** Returns the workspace ID. Throws if the task has no workspace yet. */
+export function useWorkspaceId(): string {
+  const { workspaceId } = useTaskViewContext();
+  if (!workspaceId) throw new Error('useWorkspaceId: task has no workspace');
+  return workspaceId;
+}
+
+/** Returns the DevServerStore. Throws if the task is not provisioned. */
+export function useDevServers(): DevServerStore {
+  const { projectId, taskId } = useTaskViewContext();
+  const devServers = getTaskStore(projectId, taskId)?.viewModel?.devServers;
+  if (!devServers) throw new Error('useDevServers: task is not provisioned');
+  return devServers;
+}
+
+/** Returns the WorkspaceViewModel. Throws if the task is not registered. */
+export function useWorkspaceViewModel(): WorkspaceViewModel {
+  const { projectId, taskId } = useTaskViewContext();
+  const viewModel = getTaskStore(projectId, taskId)?.viewModel;
+  if (!viewModel) {
+    throw new Error('useWorkspaceViewModel: task is not registered (no view model)');
+  }
+  return viewModel;
+}
+
+/** Returns the ConversationManagerStore for the task. Throws if not registered. */
+export function useConversations(): ConversationManagerStore {
+  const { taskId } = useTaskViewContext();
+  const mgr = getConversationsForTask(taskId);
+  if (!mgr) {
+    throw new Error('useConversations: task is not registered (no conversation manager)');
+  }
+  return mgr;
+}
+
+/** Returns the TerminalManagerStore for the task. Throws if not registered. */
+export function useTerminals(): TerminalManagerStore {
+  const { taskId } = useTaskViewContext();
+  const mgr = getTerminalsForTask(taskId);
+  if (!mgr) {
+    throw new Error('useTerminals: task is not registered (no terminal manager)');
+  }
+  return mgr;
 }

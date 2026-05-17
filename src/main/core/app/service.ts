@@ -1,6 +1,6 @@
 import { exec } from 'node:child_process';
 import { eq } from 'drizzle-orm';
-import { clipboard, dialog, shell } from 'electron';
+import { app, clipboard, dialog, shell } from 'electron';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
 import {
   getAppById,
@@ -26,6 +26,7 @@ import {
   checkCommand,
   checkMacApp,
   checkMacAppByName,
+  checkMacMdfindQuery,
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
@@ -141,6 +142,9 @@ class AppService implements IInitializable, IDisposable {
             }
           }
         }
+        if (!isAvailable && platformConfig?.mdfindQuery && platform === 'darwin') {
+          isAvailable = await checkMacMdfindQuery(platformConfig.mdfindQuery);
+        }
         availability[openInApp.id] = isAvailable;
       } catch (error) {
         log.error(`Error checking installed app ${openInApp.id}:`, error);
@@ -170,6 +174,10 @@ class AppService implements IInitializable, IDisposable {
   clipboardWriteText(text: string): void {
     if (typeof text !== 'string') throw new Error('Invalid clipboard text');
     clipboard.writeText(text);
+  }
+
+  quit(): void {
+    app.quit();
   }
 
   async openIn(args: {
@@ -223,7 +231,7 @@ class AppService implements IInitializable, IDisposable {
 
     const { host, username, port } = connection;
 
-    if (appId === 'vscode' || appId === 'cursor') {
+    if (appId === 'vscode' || appId === 'vscodium' || appId === 'cursor') {
       await shell.openExternal(buildRemoteEditorUrl(appId, host, username, target));
       return;
     }

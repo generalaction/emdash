@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { BrowserWindow } from 'electron';
 import appIcon from '@/assets/images/emdash/emdash_logo.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
-import { capture, checkAndReportDailyActiveUser } from '@main/lib/telemetry';
+import { telemetryService } from '@main/lib/telemetry';
 import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
 import { APP_ORIGIN } from './protocol';
 
@@ -39,9 +39,9 @@ export function createMainWindow(): BrowserWindow {
   });
 
   if (import.meta.env.DEV) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
+    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL!);
   } else {
-    mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
+    void mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
   }
 
   // Route external links to the user’s default browser
@@ -54,15 +54,15 @@ export function createMainWindow(): BrowserWindow {
 
   // Track window focus for telemetry
   mainWindow.on('focus', () => {
-    capture('app_window_focused');
+    telemetryService.capture('app_window_focused');
     if (typeof mainWindow?.setWindowButtonVisibility === 'function') {
       mainWindow.setWindowButtonVisibility(true);
     }
-    checkAndReportDailyActiveUser();
+    void telemetryService.checkAndReportDailyActiveUser();
   });
 
   mainWindow.on('blur', () => {
-    capture('app_window_unfocused');
+    telemetryService.capture('app_window_unfocused');
   });
 
   // Cleanup reference on close

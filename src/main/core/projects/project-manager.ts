@@ -1,4 +1,4 @@
-import type { LocalProject, ProjectBootstrapStatus, SshProject } from '@shared/projects';
+import type { LocalProject, SshProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IDisposable } from '@main/lib/lifecycle';
@@ -32,10 +32,13 @@ function toTeardownError(e: unknown): ProviderLifecycleError {
 }
 
 class ProjectManager implements Hookable<ProjectManagerHooks>, IDisposable {
-  private readonly _lifecycle = new LifecycleMap<ProjectProvider, ProviderLifecycleError>();
   private readonly _hooks = new HookCore<ProjectManagerHooks>((name, e) =>
     log.error(`ProjectManager: ${String(name)} hook error`, e)
   );
+  private readonly _lifecycle = new LifecycleMap<ProjectProvider, ProviderLifecycleError>({
+    postProvision: (id, provider) => this._hooks.callHookBackground('projectOpened', id, provider),
+    postTeardown: (id) => this._hooks.callHookBackground('projectClosed', id),
+  });
 
   on<K extends keyof ProjectManagerHooks>(name: K, handler: ProjectManagerHooks[K]) {
     return this._hooks.on(name, handler);
@@ -50,7 +53,6 @@ class ProjectManager implements Hookable<ProjectManagerHooks>, IDisposable {
           createProvider(project),
           project.type === 'ssh' ? SSH_PROVIDER_TIMEOUT_MS : LOCAL_PROVIDER_TIMEOUT_MS
         );
-        this._hooks.callHookBackground('projectOpened', project.id, provider);
         return ok(provider);
       } catch (e) {
         const initError = toInitError(e);
@@ -65,29 +67,21 @@ class ProjectManager implements Hookable<ProjectManagerHooks>, IDisposable {
 
   async closeProject(projectId: string): Promise<Result<void, ProviderLifecycleError>> {
     return (
-      this._lifecycle.teardown(
-        projectId,
-        async (provider) => {
-          try {
-            await withTimeout(provider.dispose(), TEARDOWN_PROVIDER_TIMEOUT_MS);
-            return ok();
-          } catch (e) {
-            const error = toTeardownError(e);
-            log.error('ProjectManager: error during project teardown', { projectId, ...error });
-            return err(error);
-          }
-        },
-        () => this._hooks.callHookBackground('projectClosed', projectId)
-      ) ?? ok()
+      this._lifecycle.teardown(projectId, async (provider) => {
+        try {
+          await withTimeout(provider.dispose(), TEARDOWN_PROVIDER_TIMEOUT_MS);
+          return ok();
+        } catch (e) {
+          const error = toTeardownError(e);
+          log.error('ProjectManager: error during project teardown', { projectId, ...error });
+          return err(error);
+        }
+      }) ?? ok()
     );
   }
 
   getProject(projectId: string): ProjectProvider | undefined {
     return this._lifecycle.get(projectId);
-  }
-
-  getProjectBootstrapStatus(projectId: string): ProjectBootstrapStatus {
-    return this._lifecycle.bootstrapStatus(projectId, (e) => e.message);
   }
 
   async dispose(): Promise<void> {

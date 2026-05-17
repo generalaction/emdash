@@ -1,20 +1,27 @@
-const INITIAL_COMMIT_TOOLTIP = 'Create an initial commit first.';
-
-export function getBranchTooltipText(branchName: string | null | undefined): string {
-  return branchName ? branchName : INITIAL_COMMIT_TOOLTIP;
+export function getBranchTooltipText(
+  headDisplay: string | null,
+  headKind: 'branch' | 'detached' | 'unborn'
+): string {
+  if (headKind === 'detached') return `Detached HEAD at ${headDisplay ?? 'unknown'}`;
+  if (headKind === 'unborn') return 'Create an initial commit first';
+  return headDisplay ?? '';
 }
 
 export function getPublishTooltipText({
   isPublishing,
-  branchName,
+  headDisplay,
+  headKind,
   shouldOfferAddRemote,
 }: {
   isPublishing: boolean;
-  branchName: string | null | undefined;
+  headDisplay: string | null;
+  headKind: 'branch' | 'detached' | 'unborn';
   shouldOfferAddRemote: boolean;
 }): string {
   if (isPublishing) return 'Publishing...';
-  if (!branchName) return INITIAL_COMMIT_TOOLTIP;
+  if (headKind === 'detached') return 'Cannot publish: HEAD is detached';
+  if (headKind === 'unborn') return 'Create an initial commit first';
+  if (!headDisplay) return 'Create an initial commit first';
   if (shouldOfferAddRemote) return 'Create or link a remote, then publish this branch';
   return 'Publish branch';
 }

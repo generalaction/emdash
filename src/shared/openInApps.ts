@@ -8,6 +8,10 @@ export type PlatformConfig = {
   checkCommands?: string[];
   bundleIds?: string[];
   appNames?: string[];
+  // Free-form mdfind query (darwin only). App is considered installed if the
+  // query returns any results. Use when bundleIds/appNames can't distinguish
+  // the app (e.g., stable and Canary share a bundle ID but differ in display name).
+  mdfindQuery?: string;
   label?: string;
   iconPath?: string;
 };
@@ -30,6 +34,7 @@ const ICON_PATHS = {
   files: 'files.svg',
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
+  vscodium: 'vscodium.png',
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
   terminal: 'terminal.png',
@@ -38,9 +43,13 @@ const ICON_PATHS = {
   ghostty: 'ghostty.png',
   kitty: 'kitty.png',
   zed: 'zed.png',
+  trae: 'trae.png',
   'intellij-idea': 'intellij-idea.svg',
+  'android-studio': 'android-studio.svg',
+  'android-studio-canary': 'android-studio-canary.svg',
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
+  rubymine: 'rubymine.svg',
   rustrover: 'rustrover.svg',
   kiro: 'kiro.png',
   antigravity: 'antigravity.png',
@@ -113,6 +122,33 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['code {{path}}', 'code-insiders {{path}}'],
         checkCommands: ['code', 'code-insiders'],
+      },
+    },
+  },
+  vscodium: {
+    id: 'vscodium',
+    label: 'VSCodium',
+    iconPath: ICON_PATHS.vscodium,
+    autoInstall: true,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v codium >/dev/null 2>&1 && codium {{path}}',
+          'open -n -b com.vscodium --args {{path}}',
+          'open -n -a "VSCodium" {{path}}',
+        ],
+        checkCommands: ['codium'],
+        bundleIds: ['com.vscodium'],
+        appNames: ['VSCodium'],
+      },
+      win32: {
+        openCommands: ['start "" codium {{path}}'],
+        checkCommands: ['codium'],
+      },
+      linux: {
+        openCommands: ['codium {{path}}'],
+        checkCommands: ['codium'],
       },
     },
   },
@@ -314,6 +350,54 @@ const _OPEN_IN_APPS = {
       },
     },
   },
+  trae: {
+    id: 'trae',
+    label: 'Trae',
+    iconPath: ICON_PATHS.trae,
+    autoInstall: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v trae >/dev/null 2>&1 && trae {{path}}',
+          'open -a "Trae" {{path}}',
+        ],
+        checkCommands: ['trae'],
+        appNames: ['Trae'],
+      },
+      win32: {
+        openCommands: ['start "" trae "{{path_raw}}"'],
+        checkCommands: ['trae'],
+      },
+      linux: {
+        openCommands: ['trae {{path}}'],
+        checkCommands: ['trae'],
+      },
+    },
+  },
+  'trae-solo': {
+    id: 'trae-solo',
+    label: 'Trae Solo',
+    iconPath: ICON_PATHS.trae,
+    autoInstall: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v trae-solo >/dev/null 2>&1 && trae-solo {{path}}',
+          'open -a "Trae Solo" {{path}}',
+        ],
+        checkCommands: ['trae-solo'],
+        appNames: ['Trae Solo'],
+      },
+      win32: {
+        openCommands: ['start "" trae-solo "{{path_raw}}"'],
+        checkCommands: ['trae-solo'],
+      },
+      linux: {
+        openCommands: ['trae-solo {{path}}'],
+        checkCommands: ['trae-solo'],
+      },
+    },
+  },
   'intellij-idea': {
     id: 'intellij-idea',
     label: 'IntelliJ IDEA',
@@ -332,6 +416,55 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['idea {{path}}'],
         checkCommands: ['idea'],
+      },
+    },
+  },
+  'android-studio': {
+    id: 'android-studio',
+    label: 'Android Studio',
+    iconPath: ICON_PATHS['android-studio'],
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "Android Studio" {{path}}'],
+        bundleIds: ['com.google.android.studio'],
+        appNames: ['Android Studio'],
+      },
+      win32: {
+        openCommands: ['studio64 {{path}}', 'studio {{path}}'],
+        checkCommands: ['studio64', 'studio'],
+      },
+      linux: {
+        openCommands: ['studio {{path}}'],
+        checkCommands: ['studio'],
+      },
+    },
+  },
+  'android-studio-canary': {
+    id: 'android-studio-canary',
+    label: 'Android Studio Canary',
+    iconPath: ICON_PATHS['android-studio-canary'],
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        // Canary shares bundle ID com.google.android.studio with stable, so we
+        // search by display name containing "Canary" (e.g. "Android Studio Otter
+        // 3 Feature Drop 2025.2.3 Canary 3.app" or "Android Studio Canary X.Y").
+        mdfindQuery:
+          'kMDItemCFBundleIdentifier == "com.google.android.studio" && kMDItemDisplayName == "*Canary*"cd',
+        openCommands: [
+          'CANARY=$(mdfind \'kMDItemCFBundleIdentifier == "com.google.android.studio" && kMDItemDisplayName == "*Canary*"cd\' | head -n 1) && [ -n "$CANARY" ] && open -a "$CANARY" {{path}}',
+          'open -a "Android Studio Preview" {{path}}',
+        ],
+        appNames: ['Android Studio Preview'],
+      },
+      win32: {
+        openCommands: ['studio-preview {{path}}'],
+        checkCommands: ['studio-preview'],
+      },
+      linux: {
+        openCommands: ['studio-preview {{path}}'],
+        checkCommands: ['studio-preview'],
       },
     },
   },
@@ -374,6 +507,27 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['pycharm {{path}}'],
         checkCommands: ['pycharm'],
+      },
+    },
+  },
+  rubymine: {
+    id: 'rubymine',
+    label: 'RubyMine',
+    iconPath: ICON_PATHS.rubymine,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "RubyMine" {{path}}'],
+        bundleIds: ['com.jetbrains.rubymine'],
+        appNames: ['RubyMine'],
+      },
+      win32: {
+        openCommands: ['rubymine64 {{path}}', 'rubymine {{path}}'],
+        checkCommands: ['rubymine64', 'rubymine'],
+      },
+      linux: {
+        openCommands: ['rubymine {{path}}'],
+        checkCommands: ['rubymine'],
       },
     },
   },

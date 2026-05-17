@@ -6,7 +6,7 @@ import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
-import { BranchSelectionState } from './use-branch-selection';
+import { type BranchSelectionState } from './use-branch-selection';
 
 interface BranchPickerFieldProps {
   state: BranchSelectionState;
@@ -36,6 +36,7 @@ export function BranchPickerField({
           projectId={projectId}
           value={state.selectedBranch}
           onValueChange={state.setSelectedBranch}
+          showRemoteSelectorFooter
           trigger={
             <ComboboxTrigger className="flex w-full items-center gap-2 justify-between hover:bg-background-1 data-popup-open:bg-background-1 p-2 outline-none">
               <div className="flex flex-col text-left text-sm gap-0.5">

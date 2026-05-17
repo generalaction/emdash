@@ -1,4 +1,4 @@
-import { normalizeGitHubUrl } from '@main/core/github/services/utils';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { normalizeLocalPath, normalizeRemotePath } from './normalize';
 
 export function localProjectIdentityKey(projectPath: string): string {
@@ -10,7 +10,8 @@ export function sshProjectIdentityKey(fingerprint: string, projectPath: string):
 }
 
 function gitRemoteIdentityKey(remote: string): string | null {
-  const normalized = normalizeGitHubUrl(remote.trim())
+  const input = remote.trim();
+  const normalized = (parseGitHubRepository(input)?.repositoryUrl ?? input)
     .replace(/\.git$/i, '')
     .replace(/\/+$/g, '');
   if (!normalized) return null;

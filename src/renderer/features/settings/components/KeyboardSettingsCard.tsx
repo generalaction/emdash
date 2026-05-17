@@ -6,6 +6,7 @@ import { toast } from '@renderer/lib/hooks/use-toast';
 import {
   APP_SHORTCUTS,
   getEffectiveHotkey,
+  resolveDefaultHotkey,
   type ShortcutSettingsKey,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { Button } from '@renderer/lib/ui/button';
@@ -101,7 +102,8 @@ const KeyboardSettingsCard: React.FC = () => {
                 const capturing = editingKey === key && recorder.isRecording;
                 const cleared = keyboard?.[key] === null;
                 const showClear = !cleared;
-                const showReset = effectiveHotkey !== def.defaultHotkey;
+                const defaultHotkey = resolveDefaultHotkey(def);
+                const showReset = defaultHotkey != null && effectiveHotkey !== defaultHotkey;
                 const showActions = showClear || showReset;
                 const displayHotkey = effectiveHotkey ? formatForDisplay(effectiveHotkey) : '';
 

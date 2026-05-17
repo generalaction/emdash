@@ -3,7 +3,7 @@ import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { ReorderList } from '@renderer/lib/components/reorder-list';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
-import { EditorTab } from '@renderer/lib/editor/types';
+import { type EditorTab } from '@renderer/lib/editor/types';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { useModelStatus } from '@renderer/lib/monaco/use-model';
 import { Separator } from '@renderer/lib/ui/separator';
@@ -57,7 +57,7 @@ export const FileTabs: React.FC<FileTabsProps> = ({
   );
 
   return (
-    <div className="flex h-[41px] shrink-0 border-b border-border bg-background-secondary">
+    <div className="task-tab-bar flex h-[41px] shrink-0 border-b border-border bg-[var(--task-tab-background)]">
       {onReorder ? (
         <ReorderList
           items={tabs}
@@ -102,7 +102,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
         className={cn(
           'group relative flex flex-col h-full text-sm hover:bg-muted',
           isActive &&
-            'bg-background-secondary-1 opacity-100 [box-shadow:inset_0_1px_0_var(--primary)]'
+            'bg-[var(--task-tab-active-background)] opacity-100 hover:bg-[var(--task-tab-active-background)]'
         )}
         onClick={onClick}
         onDoubleClick={onDoubleClick}

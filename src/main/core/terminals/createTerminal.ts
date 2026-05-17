@@ -1,8 +1,10 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { CreateTerminalParams, Terminal } from '@shared/terminals';
+import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { terminals } from '@main/db/schema';
-import { capture } from '@main/lib/telemetry';
+import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
 import { resolveTask } from '../projects/utils';
 import { mapTerminalRowToTerminal } from './core';
 
@@ -26,12 +28,25 @@ export async function createTerminal(params: CreateTerminalParams): Promise<Term
     throw new Error('Task not found');
   }
 
-  await task.terminals.spawnTerminal(mapTerminalRowToTerminal(row), initialSize);
-  capture('terminal_created', {
+  const terminal = mapTerminalRowToTerminal(row);
+  await withCompensation({
+    action: () => task.terminals.spawnTerminal(terminal, initialSize),
+    compensate: async () => {
+      await db.delete(terminals).where(eq(terminals.id, row.id)).execute();
+    },
+    onCompensationError: (error) => {
+      log.error('createTerminal: failed to roll back terminal row after spawn failure', {
+        terminalId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    },
+  });
+
+  telemetryService.capture('terminal_created', {
     terminal_id: terminalId,
     project_id: params.projectId,
     task_id: params.taskId,
   });
 
-  return mapTerminalRowToTerminal(row);
+  return terminal;
 }

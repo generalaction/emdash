@@ -1,6 +1,6 @@
 import { AlertCircle, CheckCircle2, Loader2, RotateCcw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { Button } from '@renderer/lib/ui/button';
@@ -133,7 +133,7 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
           </Button>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             onClick={() => prSync?.clear(repositoryUrl)}
             aria-label="Dismiss"
           >

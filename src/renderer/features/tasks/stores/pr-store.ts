@@ -1,13 +1,19 @@
-import { makeAutoObservable, type IObservableArray } from 'mobx';
+import { makeAutoObservable } from 'mobx';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
 import { commitRef, mergeBaseRange, refsEqual, remoteRef, type GitChange } from '@shared/git';
-import { isForkPr, ownerFromUrl, selectCurrentPr, type PullRequest } from '@shared/pull-requests';
+import { parseGitHubRepository } from '@shared/github-repository';
+import {
+  isForkPr,
+  pullRequestErrorMessage,
+  selectCurrentPr,
+  type PullRequest,
+} from '@shared/pull-requests';
 import type { Task } from '@shared/tasks';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { isRegistered, type TaskStore } from './task';
+import { isRegistered, type TaskStore } from './task-store';
 
 type MergeMode = 'merge' | 'squash' | 'rebase';
 export type MergeResult = { success: true } | { success: false; error: string };
@@ -29,15 +35,14 @@ export class PrStore {
     private readonly projectId: string,
     private readonly workspaceId: string,
     private readonly repositoryStore: RepositoryStore,
-    private readonly tasks: IObservableArray<TaskStore>
+    private readonly taskStore: TaskStore
   ) {
     makeAutoObservable(this);
   }
 
   get pullRequests(): PullRequest[] {
-    const task = this.tasks[0];
-    if (!task || !isRegistered(task)) return [];
-    return (task.data as Task).prs ?? [];
+    if (!isRegistered(this.taskStore)) return [];
+    return (this.taskStore.data as Task).prs ?? [];
   }
 
   get currentPr(): PullRequest | undefined {
@@ -64,18 +69,15 @@ export class PrStore {
               });
               const unsubBaseRef = events.on(gitRefChangedChannel, (p) => {
                 if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
-                const baseRef = remoteRef(this.repositoryStore.configuredRemote, pr.baseRefName);
+                const baseRef = remoteRef(this.repositoryStore.baseRemote, pr.baseRefName);
                 const relevant = !p.changedRefs || p.changedRefs.some((r) => refsEqual(r, baseRef));
                 if (relevant) handler();
               });
               const unsubPrHead = events.on(gitRefChangedChannel, (p) => {
                 if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
-                const sameRepoRef = remoteRef(
-                  this.repositoryStore.configuredRemote,
-                  pr.headRefName
-                );
+                const sameRepoRef = remoteRef(this.repositoryStore.baseRemote, pr.headRefName);
                 const forkOwner = isForkPr(pr)
-                  ? (ownerFromUrl(pr.headRepositoryUrl) ?? null)
+                  ? (parseGitHubRepository(pr.headRepositoryUrl)?.owner ?? null)
                   : null;
                 const forkRef = forkOwner ? remoteRef(forkOwner, pr.headRefName) : null;
                 const relevant =
@@ -139,7 +141,7 @@ export class PrStore {
       project_id: this.projectId,
       task_id: this.workspaceId,
     });
-    return { success: false, error: result.error ?? 'Merge failed' };
+    return { success: false, error: pullRequestErrorMessage(result.error) };
   }
 
   async markReadyForReview(id: string): Promise<void> {
@@ -173,7 +175,7 @@ export class PrStore {
   }
 
   private async _fetchPrFiles(pr: PullRequest): Promise<GitChange[]> {
-    const remote = this.repositoryStore.configuredRemote;
+    const remote = this.repositoryStore.baseRemote;
     // Dereference the MobX-observable Remote into a plain object — MobX proxies
     // cannot be structured-cloned by Electron IPC and will throw.
     const plainRemote = { name: remote.name, url: remote.url };

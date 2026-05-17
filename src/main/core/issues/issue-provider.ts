@@ -10,7 +10,7 @@ export type IssueQueryOpts = {
   projectId?: string;
   projectPath?: string;
   remote?: string;
-  nameWithOwner?: string;
+  repositoryUrl?: string;
 };
 
 export type IssueSearchOpts = IssueQueryOpts & {

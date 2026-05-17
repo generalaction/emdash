@@ -1,13 +1,16 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import { LocalProject, SshProject } from '@shared/projects';
+import { type LocalProject, type SshProject } from '@shared/projects';
 import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
-import { ProjectStore, UnregisteredProject } from '@renderer/features/projects/stores/project';
+import {
+  type ProjectStore,
+  type UnregisteredProject,
+} from '@renderer/features/projects/stores/project';
 import type { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
 import {
   registeredTaskData,
   unregisteredTaskData,
   type TaskStore,
-} from '@renderer/features/tasks/stores/task';
+} from '@renderer/features/tasks/stores/task-store';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 
 function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
@@ -129,6 +132,26 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     }
     pairs.sort((a, b) => this.compareSidebarTasks(a.task, b.task));
     return pairs.map(({ projectId, task }) => ({ projectId, taskId: task.data.id }));
+  }
+
+  /**
+   * Visible unpinned task IDs for a project in sidebar order. Archived tasks are
+   * excluded. Independent of expand state so Next/Previous Task navigation works
+   * even when the project is collapsed.
+   */
+  visibleTaskIdsForProject(projectId: string): string[] {
+    const project = this.projectManager.projects.get(projectId);
+    if (!project?.mountedProject) return [];
+    const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
+      (t) =>
+        !t.data.isPinned &&
+        (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
+    );
+    const manualOrder = this.taskOrderByProject[projectId];
+    const ordered = manualOrder?.length
+      ? this.mergeTaskOrder(projectId, tasks)
+      : this.sortTasksForSidebar(tasks);
+    return ordered.map((t) => t.data.id);
   }
 
   get isEmpty(): boolean {

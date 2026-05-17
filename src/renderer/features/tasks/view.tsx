@@ -1,18 +1,14 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
-import { ViewDefinition } from '@renderer/app/view-registry';
+import { type ViewDefinition } from '@renderer/app/view-registry';
 import {
   getTaskManagerStore,
   getTaskStore,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import {
-  ProvisionedTaskProvider,
-  TaskViewWrapper,
-} from '@renderer/features/tasks/task-view-context';
-import { EditorProvider } from './editor/editor-provider';
+import { TaskViewWrapper } from '@renderer/features/tasks/task-view-context';
+import { createTaskCommandProvider } from './commands';
 import { TaskMainPanel } from './main-panel';
-import { TaskRightSidebar } from './right-panel';
 import { TaskTitlebar } from './task-titlebar';
 
 const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProviders({
@@ -49,11 +45,7 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
 
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      <ProvisionedTaskProvider projectId={projectId} taskId={taskId}>
-        <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
-          {children}
-        </EditorProvider>
-      </ProvisionedTaskProvider>
+      {children}
     </TaskViewWrapper>
   );
 });
@@ -62,5 +54,6 @@ export const taskView = {
   WrapView: TaskViewWrapperWithProviders,
   TitlebarSlot: TaskTitlebar,
   MainPanel: TaskMainPanel,
-  RightPanel: TaskRightSidebar,
+  commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
+    createTaskCommandProvider(projectId, taskId),
 } satisfies ViewDefinition<{ projectId: string; taskId: string }>;

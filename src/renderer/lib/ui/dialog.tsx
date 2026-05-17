@@ -50,7 +50,7 @@ function DialogContent({
           }
         }}
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 flex flex-col w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 bg-background text-sm ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out rounded-xl overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95',
+          'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-background text-sm ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 sm:max-w-lg',
           className
         )}
         {...props}
@@ -143,12 +143,21 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
 export function DialogContentArea({
   className,
   children,
+  ...props
 }: {
   className?: string;
   children: React.ReactNode;
-}) {
+} & React.ComponentProps<'div'>) {
   return (
-    <div className={cn('flex flex-col gap-2 w-full min-h-0 p-6 pt-0', className)}>{children}</div>
+    <div
+      className={cn(
+        'flex flex-col gap-2 w-full min-h-0 overflow-y-auto p-6 pt-0 focus-visible:outline-none',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
   );
 }
 

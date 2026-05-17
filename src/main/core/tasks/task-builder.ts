@@ -11,7 +11,7 @@ import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import type { ProvisionResult, TaskProvider } from '../projects/project-provider';
-import type { ProjectSettingsProvider } from '../projects/settings/schema';
+import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { resolveTaskWorkDir } from '../projects/worktrees/utils';
 import type { WorktreeService } from '../projects/worktrees/worktree-service';
 import {
@@ -40,6 +40,7 @@ export type ProvisionLocalTaskParams = {
   fetchService: GitFetchService;
   repository: GitRepositoryService;
   logPrefix: string;
+  workDir?: string;
 };
 
 export type ProvisionLocalTaskResult = {
@@ -81,7 +82,7 @@ export async function provisionLocalTask(
     step: 'resolving-worktree',
     message: 'Resolving worktree…',
   });
-  const workDir = await resolveTaskWorkDir(task, projectPath, worktreeService);
+  const workDir = params.workDir ?? (await resolveTaskWorkDir(task, projectPath, worktreeService));
 
   events.emit(taskProvisionProgressChannel, {
     taskId: task.id,

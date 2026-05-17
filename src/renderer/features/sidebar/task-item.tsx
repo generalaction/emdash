@@ -3,12 +3,13 @@ import { selectCurrentPr } from '@shared/pull-requests';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
-import { type TaskStore } from '@renderer/features/tasks/stores/task';
 import {
-  asProvisioned,
+  getTaskGitStore,
   getTaskManagerStore,
   getTaskStore,
+  getWorkspaceForTask,
 } from '@renderer/features/tasks/stores/task-selectors';
+import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import {
   useNavigate,
   useParams,
@@ -52,7 +53,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const handleProvision = () => {
     if (task.state !== 'unprovisioned' || task.phase !== 'idle') return;
-    taskManager?.provisionTask(taskId);
+    void taskManager?.provisionTask(taskId);
   };
 
   const handleArchive = () => {
@@ -75,15 +76,19 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const canPin = task.state !== 'unregistered';
 
-  const workspace = asProvisioned(task)?.workspace;
+  const workspaceStore = getWorkspaceForTask(projectId, taskId);
+  const git = getTaskGitStore(projectId, taskId);
+  const branchName =
+    git?.branchName ?? ('taskBranch' in task.data ? task.data.taskBranch : undefined);
   const handleReconnect =
-    workspace?.connectionState != null ? () => workspace.reconnect() : undefined;
+    workspaceStore?.connectionState != null ? () => workspaceStore.reconnect() : undefined;
 
   return (
     <TaskContextMenu
       isPinned={task.data.isPinned}
       canPin={canPin}
       isArchived={false}
+      branchName={branchName}
       onPin={() => void task.setPinned(true)}
       onUnpin={() => void task.setPinned(false)}
       onRename={handleRename}
@@ -112,7 +117,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           >
             {taskName}
           </span>
-          <TaskGitDiffStats task={task} className="h-full shrink-0 flex items-center pr-1" />
+          <TaskGitDiffStats task={task} className="h-full shrink-0 flex items-center pl-1 pr-1" />
           <RenderPrBadge task={task} />
         </div>
         <TaskSidebarAgentStatus task={task} />
@@ -124,5 +129,5 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
   if (!('prs' in task.data)) return null;
   const pr = selectCurrentPr(task.data.prs);
-  return pr ? <PrBadge variant="compact" pr={pr} /> : null;
+  return pr ? <PrBadge variant="compact" pr={pr} hoverDelay={100} /> : null;
 });

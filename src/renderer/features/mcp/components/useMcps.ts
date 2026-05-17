@@ -50,7 +50,7 @@ export function useMcps() {
       if (payload.source) {
         captureTelemetry('mcp_server_added', { source: payload.source });
       }
-      queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
     },
     onError: (error) => {
       toast({
@@ -75,7 +75,7 @@ export function useMcps() {
     },
     onSuccess: () => {
       captureTelemetry('mcp_server_removed');
-      queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
     },
     onError: (error) => {
       toast({
@@ -101,7 +101,7 @@ export function useMcps() {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(PROVIDERS_QUERY_KEY, data);
-      queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: MCP_QUERY_KEY });
     },
     onError: () => {
       toast({ title: 'Failed to refresh MCP data', variant: 'destructive' });

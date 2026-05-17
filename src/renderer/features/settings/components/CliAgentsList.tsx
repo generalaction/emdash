@@ -7,7 +7,7 @@ import {
   type AgentProviderId,
 } from '@shared/agent-provider-registry';
 import type { DependencyState } from '@shared/dependencies';
-import { CliAgentStatus } from '@renderer/features/settings/components/connections';
+import { type CliAgentStatus } from '@renderer/features/settings/components/connections';
 import CustomCommandModal from '@renderer/features/settings/components/CustomCommandModal';
 import IntegrationRow from '@renderer/features/settings/components/IntegrationRow';
 import { getAgentInstallErrorMessage } from '@renderer/lib/components/agent-selector/agent-install';

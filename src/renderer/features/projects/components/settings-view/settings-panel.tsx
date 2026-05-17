@@ -10,8 +10,12 @@ export const SettingsPanel = observer(function SettingsPanel() {
   } = useParams('project');
   const store = getProjectSettingsStore(projectId);
   const settings = store?.settings;
+  const defaults = store?.defaults;
+  const writeTargets = store?.writeTargets;
+  const overrideState = store?.overrideState;
+  const configMigrations = store?.configMigrations;
 
-  if (!store || store.settingsData.loading || !settings) {
+  if (!store || !settings || !defaults || !writeTargets || !overrideState || !configMigrations) {
     return (
       <div className="flex items-center justify-center py-10">
         <Spinner />
@@ -24,8 +28,14 @@ export const SettingsPanel = observer(function SettingsPanel() {
       key={projectId}
       projectId={projectId}
       initial={settings}
+      defaults={defaults}
+      writeTargets={writeTargets}
+      overrideState={overrideState}
+      configMigrations={configMigrations}
       onSuccess={() => {}}
       save={(s) => store.save(s)}
+      writeConfigToRepo={(request) => store.writeConfigToRepo(request)}
+      migrateProjectConfig={(request) => store.migrateProjectConfig(request)}
     />
   );
 });

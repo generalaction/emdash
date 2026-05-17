@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type PullRequest } from '@shared/pull-requests';
+import { pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@renderer/lib/ui/input-group';
+import { Kbd } from '@renderer/lib/ui/kbd';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { cn } from '@renderer/utils/utils';
 
 type StatusFilter = 'open' | 'not-open';
@@ -61,9 +61,14 @@ export function InlinePrSelector({
         limit: 50,
         offset: 0,
         filters: { status: statusFilter },
+        repositoryUrl,
       });
-      if (!response?.success) throw new Error(response?.error ?? 'Failed to load pull requests');
-      return (response.prs ?? []) as PullRequest[];
+      if (!response?.success) {
+        throw new Error(
+          response ? pullRequestErrorMessage(response.error) : 'Failed to load pull requests'
+        );
+      }
+      return response.data.prs;
     },
     enabled: !!projectId && !!repositoryUrl,
     staleTime: 30_000,
@@ -210,7 +215,7 @@ export function InlinePrSelector({
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
           <button className="flex items-center gap-2">
-            Select PR <ShortcutHint settingsKey="confirm" />
+            Select PR <Kbd>↵</Kbd>
           </button>
         </div>
       </div>

@@ -5,11 +5,11 @@
 
 import type { SFTPWrapper } from 'ssh2';
 import type { FileWatchEvent } from '@shared/fs';
+import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import {
-  DEFAULT_EMDASH_CONFIG,
   FileSystemError,
   FileSystemErrorCodes,
   type FileEntry,
@@ -18,6 +18,7 @@ import {
   type FileWatcher,
   type ListOptions,
   type ReadResult,
+  type SearchMatch,
   type SearchOptions,
   type SearchResult,
   type WriteResult,
@@ -48,6 +49,15 @@ const MAX_READ_SIZE = 100 * 1024 * 1024;
  */
 const DEFAULT_MAX_BYTES = 200 * 1024;
 
+function fileEntryMetadataChanged(prev: FileEntry, next: FileEntry): boolean {
+  return (
+    prev.type !== next.type ||
+    prev.size !== next.size ||
+    prev.mode !== next.mode ||
+    prev.mtime?.getTime() !== next.mtime?.getTime()
+  );
+}
+
 /**
  * SshFileSystem implements IFileSystem using SFTP over SSH.
  * Provides path traversal protection and proper error handling.
@@ -71,7 +81,7 @@ export class SshFileSystem implements FileSystemProvider {
   private getSftp(): Promise<SFTPWrapper> {
     if (this.cachedSftp) return Promise.resolve(this.cachedSftp);
     return new Promise((resolve, reject) => {
-      this.proxy.client.sftp((err, sftp) => {
+      this.proxy.sftp((err, sftp) => {
         if (err) return reject(err);
         this.cachedSftp = sftp;
         sftp.on('close', () => {
@@ -82,10 +92,13 @@ export class SshFileSystem implements FileSystemProvider {
     });
   }
 
-  private exec(command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    const full = `bash -l -c ${quoteShellArg(command)}`;
+  private async exec(
+    command: string
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const profile = await this.proxy.getRemoteShellProfile();
+    const full = buildRemoteShellCommand(profile, command);
     return new Promise((resolve, reject) => {
-      this.proxy.client.exec(full, (err, stream) => {
+      this.proxy.exec(full, (err, stream) => {
         if (err) return reject(err);
         let stdout = '';
         let stderr = '';
@@ -569,7 +582,7 @@ export class SshFileSystem implements FileSystemProvider {
         return { matches: [], total: 0, filesSearched: 0 };
       }
 
-      const matches: import('../types').SearchMatch[] = [];
+      const matches: SearchMatch[] = [];
       const lines = result.stdout.split('\n').filter((line) => line.trim());
       const seenFiles = new Set<string>();
 
@@ -766,45 +779,6 @@ export class SshFileSystem implements FileSystemProvider {
         });
       });
     });
-  }
-
-  /**
-   * Read (or auto-create) the project's .emdash.json config file via SFTP
-   */
-  async getProjectConfig(): Promise<{ success: boolean; content?: string; error?: string }> {
-    try {
-      const result = await this.read('.emdash.json').catch(async (err: unknown) => {
-        const code = (err as FileSystemError).code;
-        if (code !== FileSystemErrorCodes.NOT_FOUND) throw err;
-        // File doesn't exist — create with defaults then return defaults
-        await this.write('.emdash.json', DEFAULT_EMDASH_CONFIG);
-        return {
-          content: DEFAULT_EMDASH_CONFIG,
-          truncated: false,
-          totalSize: Buffer.byteLength(DEFAULT_EMDASH_CONFIG),
-        };
-      });
-      return { success: true, content: result.content };
-    } catch (err: unknown) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
-  /**
-   * Write the project's .emdash.json config file via SFTP after validating JSON
-   */
-  async saveProjectConfig(content: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      JSON.parse(content);
-    } catch {
-      return { success: false, error: 'Invalid JSON format' };
-    }
-    try {
-      await this.write('.emdash.json', content);
-      return { success: true };
-    } catch (err: unknown) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
   }
 
   // ─── Private utilities ────────────────────────────────────────────────────
@@ -1013,9 +987,16 @@ export class SshFileSystem implements FileSystemProvider {
 
         const evts: FileWatchEvent[] = [];
         for (const [p, e] of currMap) {
-          if (!prevMap.has(p))
+          const prev = prevMap.get(p);
+          if (!prev)
             evts.push({
               type: 'create',
+              entryType: e.type === 'dir' ? 'directory' : 'file',
+              path: p,
+            });
+          else if (fileEntryMetadataChanged(prev, e))
+            evts.push({
+              type: 'modify',
               entryType: e.type === 'dir' ? 'directory' : 'file',
               path: p,
             });

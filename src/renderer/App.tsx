@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { AppMenuEvents } from './app/app-menu-events';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
@@ -8,9 +9,9 @@ import { useAccountSession } from './lib/hooks/useAccount';
 import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
-import { ModalProvider } from './lib/modal/modal-provider';
+import { ModalRenderer } from './lib/modal/modal-renderer';
+import { FeatureFlagProvider } from './lib/providers/feature-flag-override-context';
 import { GithubContextProvider } from './lib/providers/github-context-provider';
-import { PostHogFeatureFlagsProvider } from './lib/providers/posthog-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
 import { TerminalPoolProvider } from './lib/pty/pty-pool-provider';
 import { queryClient } from './lib/query-client';
@@ -43,8 +44,7 @@ function AppContent() {
       if (!session?.isSignedIn) computed.push('sign-in');
       const needsImport = legacyStatus?.hasImportSources && !legacyStatus.portStatus;
       if (needsImport) computed.push('import');
-      // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
-      setFrozenSteps(computed);
+      setFrozenSteps(computed); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [view, isLoading, frozenSteps, session, legacyStatus]);
 
@@ -54,6 +54,12 @@ function AppContent() {
     localStorage.setItem(HAS_SEEN_ONBOARDING, 'true');
     setView('welcome');
   };
+
+  const handleOpenSettingsFromMenu = useCallback(() => {
+    if (view === 'onboarding' && stepsNeeded.length > 0) return false;
+    setView('workspace');
+    return true;
+  }, [view, stepsNeeded.length]);
 
   const renderContent = () => {
     if (isLoading || (view === 'onboarding' && frozenSteps === null)) {
@@ -72,21 +78,23 @@ function AppContent() {
 
   return (
     <TooltipProvider delay={300}>
-      <ModalProvider>
-        <WorkspaceLayoutContextProvider>
-          <TerminalPoolProvider>
-            <GithubContextProvider>
-              <IntegrationsProvider>
-                <WorkspaceViewProvider>
-                  <RightSidebarProvider>
-                    <ThemeProvider>{renderContent()}</ThemeProvider>
-                  </RightSidebarProvider>
-                </WorkspaceViewProvider>
-              </IntegrationsProvider>
-            </GithubContextProvider>
-          </TerminalPoolProvider>
-        </WorkspaceLayoutContextProvider>
-      </ModalProvider>
+      <WorkspaceLayoutContextProvider>
+        <TerminalPoolProvider>
+          <GithubContextProvider>
+            <IntegrationsProvider>
+              <WorkspaceViewProvider>
+                <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
+                <RightSidebarProvider>
+                  <ThemeProvider>
+                    <ModalRenderer />
+                    {renderContent()}
+                  </ThemeProvider>
+                </RightSidebarProvider>
+              </WorkspaceViewProvider>
+            </IntegrationsProvider>
+          </GithubContextProvider>
+        </TerminalPoolProvider>
+      </WorkspaceLayoutContextProvider>
     </TooltipProvider>
   );
 }
@@ -94,9 +102,9 @@ function AppContent() {
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <PostHogFeatureFlagsProvider>
+      <FeatureFlagProvider>
         <AppContent />
-      </PostHogFeatureFlagsProvider>
+      </FeatureFlagProvider>
     </QueryClientProvider>
   );
 }

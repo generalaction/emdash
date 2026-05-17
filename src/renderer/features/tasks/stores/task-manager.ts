@@ -14,6 +14,9 @@ import { getProjectManagerStore } from '@renderer/features/projects/stores/proje
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
+import { log } from '@renderer/utils/logger';
+import { conversationRegistry } from './conversation-registry';
 import {
   createUnprovisionedTask,
   createUnregisteredTask,
@@ -22,7 +25,27 @@ import {
   isUnprovisioned,
   isUnregistered,
   type TaskStore,
-} from './task';
+} from './task-store';
+import { terminalRegistry } from './terminal-registry';
+import { workspaceRegistry } from './workspace-registry';
+
+export async function markInitialConversationWorkingAfterProvision(
+  task: TaskStore | undefined,
+  initialConversation: CreateTaskParams['initialConversation']
+): Promise<void> {
+  if (!initialConversation?.initialPrompt?.trim()) return;
+  if (!task || !isProvisioned(task)) return;
+  try {
+    const mgr = conversationRegistry.get(task.data.id);
+    await mgr?.markConversationWorking(initialConversation.id);
+  } catch (error) {
+    log.warn('TaskManagerStore: failed to mark initial conversation as working', {
+      conversationId: initialConversation.id,
+      taskId: initialConversation.taskId,
+      error,
+    });
+  }
+}
 
 function formatCreateTaskError(error: CreateTaskError): string {
   switch (error.type) {
@@ -192,7 +215,7 @@ export class TaskManagerStore {
     if (!isRegistered(store)) return;
     const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, store.data.id);
     if (!result.success) return;
-    const prs = result.prs ?? [];
+    const prs = result.data.prs;
     runInAction(() => {
       if (isRegistered(store)) {
         (store.data as Task).prs = prs;
@@ -208,6 +231,9 @@ export class TaskManagerStore {
           runInAction(() => {
             for (const t of tasks) {
               this.tasks.set(t.id, createUnprovisionedTask(t));
+              // Acquire conversation and terminal managers for each registered task.
+              conversationRegistry.acquire(t.id, this.projectId);
+              terminalRegistry.acquire(t.id, this.projectId);
             }
           });
           const reloadPromises = tasks.flatMap((t) => {
@@ -242,7 +268,6 @@ export class TaskManagerStore {
     const sourceBranch = structuredClone(toJS(params.sourceBranch));
 
     const result = await rpc.tasks.createTask({ ...params, sourceBranch }).catch((e: unknown) => {
-      // Network/IPC-level failure — surface as a generic error.
       const message = e instanceof Error ? e.message : String(e);
       runInAction(() => {
         const current = this.tasks.get(params.id);
@@ -270,14 +295,23 @@ export class TaskManagerStore {
       const current = this.tasks.get(params.id);
       if (current && isUnregistered(current)) {
         current.transitionToUnprovisioned(result.data.task, 'provision');
+        // Acquire conversation and terminal managers on first registration.
+        conversationRegistry.acquire(params.id, this.projectId);
+        terminalRegistry.acquire(params.id, this.projectId);
       }
     });
+
+    this._settingsStore.pageData.invalidate();
 
     if (result.data.warning) {
       toast.error(formatCreateTaskWarning(result.data.warning));
     }
 
     await this.provisionTask(params.id);
+    await markInitialConversationWorkingAfterProvision(
+      this.tasks.get(params.id),
+      params.initialConversation
+    );
   }
 
   async provisionTask(taskId: string): Promise<void> {
@@ -294,28 +328,71 @@ export class TaskManagerStore {
       task.phase = 'provision';
     });
 
-    const promise = Promise.all([
-      rpc.tasks.provisionTask(taskId),
-      rpc.viewState.get(`task:${taskId}`),
-    ])
-      .then(([result, savedSnapshot]) => {
-        runInAction(() => {
-          const current = this.tasks.get(taskId);
-          if (current && isUnprovisioned(current)) {
-            current.transitionToProvisioned(
-              { ...current.data, lastInteractedAt: new Date().toISOString() },
-              result.path,
-              result.workspaceId,
-              this._settingsStore,
-              this._baseRef,
-              savedSnapshot as TaskViewSnapshot | undefined,
-              result.sshConnectionId ?? undefined
-            );
-            current.activate();
+    const promise = this._doProvision(taskId).finally(() => {
+      this._provisionPromises.delete(taskId);
+    });
+
+    this._provisionPromises.set(taskId, promise);
+    return promise;
+  }
+
+  private async _doProvision(taskId: string): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task || !isUnprovisioned(task)) return;
+
+    let resolution: Awaited<ReturnType<typeof rpc.workspaces.resolveBootstrap>>;
+
+    runInAction(() => {
+      const current = this.tasks.get(taskId);
+      if (current && isUnprovisioned(current)) {
+        const wsId = (current.data as Task).workspaceId;
+        if (wsId) {
+          workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
+        }
+      }
+    });
+
+    try {
+      resolution = await rpc.workspaces.resolveBootstrap({ projectId: this.projectId, taskId });
+    } catch (err) {
+      runInAction(() => {
+        const current = this.tasks.get(taskId);
+        if (current && isUnprovisioned(current)) {
+          current.phase = 'provision-error';
+          current.errorMessage = err instanceof Error ? err.message : String(err);
+          const wsId = (current.data as Task).workspaceId;
+          if (wsId) {
+            workspaceRegistry.setBootstrapState(this.projectId, wsId, {
+              kind: 'error',
+              message: current.errorMessage,
+            });
           }
-        });
-      })
-      .catch((err: unknown) => {
+        }
+      });
+      throw err;
+    }
+
+    if (resolution.kind === 'branch_elsewhere' || resolution.kind === 'path_missing') {
+      runInAction(() => {
+        const current = this.tasks.get(taskId);
+        if (current && isUnprovisioned(current)) {
+          const wsId = (current.data as Task).workspaceId;
+          if (wsId) {
+            workspaceRegistry.setBootstrapState(this.projectId, wsId, {
+              kind: 'needs-resolution',
+              resolution,
+            });
+          }
+          // phase stays 'provision' — the registry holds the resolution details
+        }
+      });
+      return;
+    }
+
+    if (resolution.kind === 'needs_create') {
+      try {
+        await rpc.workspaces.createWorktree({ projectId: this.projectId, taskId });
+      } catch (err) {
         runInAction(() => {
           const current = this.tasks.get(taskId);
           if (current && isUnprovisioned(current)) {
@@ -324,13 +401,101 @@ export class TaskManagerStore {
           }
         });
         throw err;
-      })
-      .finally(() => {
-        this._provisionPromises.delete(taskId);
-      });
+      }
+    }
 
-    this._provisionPromises.set(taskId, promise);
-    return promise;
+    await this._finishProvision(taskId);
+  }
+
+  async continueProvision(
+    taskId: string,
+    action: 'adopt' | 'create' | 'cancel',
+    candidatePath?: string
+  ): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task || !isUnprovisioned(task)) return;
+
+    const wsId = (task.data as Task).workspaceId;
+
+    if (action === 'cancel') {
+      runInAction(() => {
+        const current = this.tasks.get(taskId);
+        if (current && isUnprovisioned(current)) {
+          current.phase = 'idle';
+          if (wsId) {
+            workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'pending' });
+          }
+        }
+      });
+      return;
+    }
+
+    runInAction(() => {
+      const current = this.tasks.get(taskId);
+      if (current && isUnprovisioned(current)) {
+        current.phase = 'provision';
+        if (wsId) {
+          workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
+        }
+      }
+    });
+
+    try {
+      if (action === 'adopt') {
+        if (!candidatePath) {
+          throw new Error('adoptWorktree called without a candidatePath');
+        }
+        await rpc.workspaces.adoptWorktree({ projectId: this.projectId, taskId, candidatePath });
+      } else if (action === 'create') {
+        await rpc.workspaces.createWorktree({ projectId: this.projectId, taskId });
+      }
+    } catch (err) {
+      runInAction(() => {
+        const current = this.tasks.get(taskId);
+        if (current && isUnprovisioned(current)) {
+          current.phase = 'provision-error';
+          current.errorMessage = err instanceof Error ? err.message : String(err);
+        }
+      });
+      throw err;
+    }
+
+    await this._finishProvision(taskId);
+  }
+
+  private async _finishProvision(taskId: string): Promise<void> {
+    const result = await rpc.tasks.provisionTask(taskId).catch((err: unknown) => {
+      runInAction(() => {
+        const current = this.tasks.get(taskId);
+        if (current && isUnprovisioned(current)) {
+          current.phase = 'provision-error';
+          current.errorMessage = err instanceof Error ? err.message : String(err);
+        }
+      });
+      throw err;
+    });
+
+    const savedSnapshot = (await viewStateCache.get(`task:${taskId}`)) as
+      | TaskViewSnapshot
+      | undefined;
+
+    runInAction(() => {
+      const current = this.tasks.get(taskId);
+      if (current && isUnprovisioned(current)) {
+        if (savedSnapshot && current.viewModel) {
+          current.viewModel.restoreSnapshot(savedSnapshot);
+        }
+        current.transitionToProvisioned(
+          { ...current.data, lastInteractedAt: new Date().toISOString() },
+          result.path,
+          result.workspaceId,
+          this._settingsStore,
+          this._baseRef,
+          result.sshConnectionId ?? undefined
+        );
+        current.activate();
+      }
+    });
   }
 
   async teardownTask(taskId: string): Promise<void> {
@@ -441,6 +606,9 @@ export class TaskManagerStore {
     });
 
     try {
+      // Release conversation and terminal registries before disposing the task.
+      conversationRegistry.release(taskId);
+      terminalRegistry.release(taskId);
       task.dispose();
       await rpc.tasks.deleteTask(this.projectId, taskId);
     } catch (e) {

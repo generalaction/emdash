@@ -1,5 +1,6 @@
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { parseGitHubRepository } from '@shared/github-repository';
 import {
   asMounted,
   getProjectManagerStore,
@@ -34,14 +35,13 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
 
   const repo = getRepositoryStore(projectId);
-  const configuredRemote = repo?.configuredRemote;
-  const remoteUrl = configuredRemote?.url;
+  const baseRemote = repo?.baseRemote;
+  const remoteUrl = baseRemote?.url;
   const repositoryUrl = repo?.repositoryUrl;
+  const repository = parseGitHubRepository(repositoryUrl);
 
-  const isGithubUrl = repositoryUrl?.includes('github.com');
-  const repoLabel = repositoryUrl
-    ? repositoryUrl.replace(/^https?:\/\/(www\.)?github\.com\//, '')
-    : remoteUrl?.replace(/^https?:\/\//, '');
+  const isGithubUrl = Boolean(repository);
+  const repoLabel = repository?.nameWithOwner ?? remoteUrl?.replace(/^https?:\/\//, '');
 
   return (
     <div className="flex items-center px-2 gap-2 h-full">
@@ -127,21 +127,13 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
   if (!mounted) return <Titlebar leftSlot={<ProjectTitlebarLeft projectId={projectId} />} />;
 
   const isRemote = mounted.data.type === 'ssh';
-  const sshConnectionId = mounted.data.type === 'ssh' ? mounted.data.connectionId : null;
 
   return (
     <Titlebar
       leftSlot={<MountedProjectTitlebarLeft projectId={projectId} />}
       rightSlot={
         <div className="flex items-center gap-2 mr-2">
-          {!isRemote && (
-            <OpenInMenu
-              path={mounted.data.path}
-              isRemote={isRemote}
-              sshConnectionId={sshConnectionId}
-              className="h-7 bg-background"
-            />
-          )}
+          {!isRemote && <OpenInMenu path={mounted.data.path} className="h-7 bg-background" />}
           <ToggleGroup
             variant="outline"
             size="sm"

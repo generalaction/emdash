@@ -36,6 +36,13 @@ export function createPiClassifier() {
       };
     }
 
+    if (/"type"\s*:\s*"agent_end"/i.test(text)) {
+      return {
+        type: 'stop',
+        message: 'Task completed',
+      };
+    }
+
     // Error detection
     if (/error:|fatal:|exception|failed/i.test(text)) {
       return {

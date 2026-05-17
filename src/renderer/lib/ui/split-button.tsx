@@ -2,7 +2,7 @@ import type { VariantProps } from 'class-variance-authority';
 import { ChevronDown } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { cn } from '@renderer/utils/utils';
-import { Button, buttonVariants } from './button';
+import { Button, type buttonVariants } from './button';
 import {
   DropdownMenu,
   DropdownMenuContent,

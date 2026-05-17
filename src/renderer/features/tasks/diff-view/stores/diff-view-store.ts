@@ -3,10 +3,12 @@ import { commitRef, type GitObjectRef } from '@shared/git';
 import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { Snapshottable } from '@renderer/lib/stores/snapshottable';
-import { GitStore } from './git-store';
+import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
+import { type GitStore } from './git-store';
 
 export const MAX_STACKED_FILES = 8;
+
+type CommitAction = 'commit' | 'commit-push' | 'commit-pr';
 
 const VALID_OBJECT_REF_KINDS = new Set(['branch', 'commit', 'tag']);
 
@@ -22,7 +24,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   activeFileOverride: ActiveFile | null = null;
   diffStyle: 'unified' | 'split' = 'unified';
   readonly viewMode = 'file' as const;
-  commitAction: 'commit' | 'commit-push' | null = null;
+  commitAction: CommitAction | null = null;
   prTab: 'files' | 'commits' | 'checks' = 'files';
 
   readonly changesView: ChangesViewStore;
@@ -158,12 +160,12 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     if (snapshot.prTab) this.prTab = snapshot.prTab;
   }
 
-  get effectiveCommitAction(): 'commit' | 'commit-push' {
+  get effectiveCommitAction(): CommitAction {
     if (this.commitAction !== null) return this.commitAction;
     return this.git.isBranchPublished ? 'commit-push' : 'commit';
   }
 
-  setCommitAction(action: 'commit' | 'commit-push' | null): void {
+  setCommitAction(action: CommitAction | null): void {
     this.commitAction = action;
   }
 

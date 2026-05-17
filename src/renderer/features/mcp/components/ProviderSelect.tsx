@@ -1,5 +1,5 @@
 import React from 'react';
-import { AgentProviderId } from '@shared/agent-provider-registry';
+import { type AgentProviderId } from '@shared/agent-provider-registry';
 import type { McpProvidersResponse } from '@shared/mcp/types';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { Button } from '@renderer/lib/ui/button';

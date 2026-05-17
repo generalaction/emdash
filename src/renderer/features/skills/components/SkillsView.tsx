@@ -27,7 +27,7 @@ const SkillsView: React.FC = () => {
   const showCreateSkillModal = useShowModal('createSkillModal');
 
   const handleOpenTerminal = (skillPath: string) => {
-    rpc.app.openIn({ app: 'terminal', path: skillPath });
+    void rpc.app.openIn({ app: 'terminal', path: skillPath });
   };
 
   if (isLoading) {
