@@ -46,6 +46,7 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   qwen: { name: 'Qwen Code', logo: qwenLogo, alt: 'Qwen Code' },
   droid: { name: 'Droid', logo: factoryLogoSvg, alt: 'Factory Droid', isSvg: true },
   pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
+  'oh-my-pi': { name: 'Oh My Pi', logo: piLogo, alt: 'Oh My Pi CLI' },
   autohand: { name: 'Autohand Code', logo: autohandLogoSvg, alt: 'Autohand Code CLI', isSvg: true },
   opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode', invertInDark: true },
   hermes: { name: 'Hermes Agent', logo: hermesLogo, alt: 'Hermes Agent CLI' },

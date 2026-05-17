@@ -25,6 +25,7 @@ export const AGENT_PROVIDER_IDS = [
   'jules',
   'junie',
   'pi',
+  'oh-my-pi',
   'letta',
   'autohand',
 ] as const;
@@ -517,6 +518,22 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '-c',
     icon: 'pi.png',
     alt: 'Pi CLI',
+    terminalOnly: true,
+  },
+  {
+    id: 'oh-my-pi',
+    name: 'Oh My Pi',
+    description:
+      'Oh My Pi coding agent CLI with Pi-compatible terminal UX plus LSP, browser, subagents, and extensions.',
+    docUrl: 'https://github.com/can1357/oh-my-pi',
+    installCommand: 'bun install -g @oh-my-pi/pi-coding-agent',
+    commands: ['omp'],
+    versionArgs: ['--version'],
+    cli: 'omp',
+    initialPromptFlag: '',
+    resumeFlag: '-c',
+    icon: 'pi.png',
+    alt: 'Oh My Pi CLI',
     terminalOnly: true,
   },
   {

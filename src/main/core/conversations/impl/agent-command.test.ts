@@ -138,6 +138,7 @@ describe('buildAgentCommand', () => {
     { providerId: 'codebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
+    { providerId: 'oh-my-pi', freshArgs: ['Fix the bug'], resumeArgs: ['-c'] },
   ])('builds fresh and resume args for $providerId', ({ providerId, freshArgs, resumeArgs }) => {
     const fresh = buildAgentCommand({
       providerId,

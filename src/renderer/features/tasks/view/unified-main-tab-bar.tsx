@@ -533,8 +533,6 @@ export const UnifiedMainTabBar = observer(function UnifiedMainTabBar() {
                 );
               });
             })()}
-              });
-            })()}
           </div>
         </SortableContext>
       </DndContext>
