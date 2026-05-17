@@ -13,6 +13,7 @@ import { appState } from '@renderer/lib/stores/app-state';
 import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
+import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
@@ -60,6 +61,7 @@ export class WorkspaceViewModel implements ILifecycle {
   private _snapshotDisposer: (() => void) | null = null;
   /** Saved whenever suspend() is called, restored in next initialize(). */
   private _savedDiffViewSnapshot: DiffViewSnapshot | undefined;
+  private _isCreatingTerminal = false;
 
   readonly taskId: string;
 
@@ -295,12 +297,13 @@ export class WorkspaceViewModel implements ILifecycle {
         const terminals = terminalRegistry.get(this.taskId);
         return (
           this.isTerminalDrawerOpen &&
+          !this._isCreatingTerminal &&
           (terminals?.isLoaded ?? false) &&
           this.terminalTabs.tabs.length === 0
         );
       },
       (shouldCreate) => {
-        if (shouldCreate) void terminalRegistry.get(this.taskId)?.createDefaultTerminal();
+        if (shouldCreate) void this._createDefaultTerminal();
       }
     );
     this._sessionDisposers.push(terminalsDisposer);
@@ -382,9 +385,31 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   /** Opens the terminal drawer and always creates a new terminal session. */
-  openNewTerminal(): void {
+  async openNewTerminal(): Promise<string | undefined> {
     this.isTerminalDrawerOpen = true;
     this.setFocusedRegion('bottom');
-    void terminalRegistry.get(this.taskId)?.createDefaultTerminal();
+
+    const terminalId = await this._createDefaultTerminal();
+    if (!terminalId) return undefined;
+    runInAction(() => this.terminalTabs.setActiveTab(terminalId));
+    return terminalId;
+  }
+
+  private async _createDefaultTerminal(): Promise<string | undefined> {
+    if (this._isCreatingTerminal) return undefined;
+
+    this._isCreatingTerminal = true;
+    try {
+      const terminal = await terminalRegistry.get(this.taskId)?.createDefaultTerminal();
+      if (!terminal) return undefined;
+      return terminal.id;
+    } catch (error) {
+      log.error('Failed to create terminal:', error);
+      return undefined;
+    } finally {
+      runInAction(() => {
+        this._isCreatingTerminal = false;
+      });
+    }
   }
 }

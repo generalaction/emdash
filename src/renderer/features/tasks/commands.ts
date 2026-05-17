@@ -148,7 +148,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: newTerminalDef.shortcutKey,
           group: newTerminalDef.group,
           execute() {
-            taskView?.openNewTerminal();
+            void taskView?.openNewTerminal();
           },
         },
 
