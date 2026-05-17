@@ -14,13 +14,9 @@ import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { CommentsPopover } from './comments-popover';
-import {
-  buildLinkedIssueContextAction,
-  buildTaskContextActions,
-  type ContextAction,
-} from './context-actions';
+import { buildTaskContextActions, type ContextAction } from './context-actions';
 import { PromptActionsMenu } from './prompt-actions-menu';
-import { refreshLinkedIssueContext } from './refresh-linked-issue-context';
+import { resolveContextActionText } from './resolve-context-action-text';
 
 export const ContextBar = observer(function ContextBar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -64,13 +60,8 @@ export const ContextBar = observer(function ContextBar() {
   const applyContext = async (action: ContextAction) => {
     if (!activeSessionId) return;
 
-    let text = action.text;
     const linkedIssue = task?.linkedIssue;
-    if (action.kind === 'linked-issue' && linkedIssue?.provider === 'linear') {
-      const refreshedIssue = await refreshLinkedIssueContext(linkedIssue, projectId);
-      const refreshedAction = buildLinkedIssueContextAction(refreshedIssue);
-      text = refreshedAction?.text ?? text;
-    }
+    const text = await resolveContextActionText({ action, linkedIssue, projectId });
 
     if (!text) return;
 

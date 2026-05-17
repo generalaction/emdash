@@ -4,11 +4,10 @@ import type { Issue } from '@shared/tasks';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import {
-  buildLinkedIssueContextAction,
   buildTaskContextActions,
   type ContextAction,
 } from '@renderer/features/tasks/conversations/context-actions';
-import { refreshLinkedIssueContext } from '@renderer/features/tasks/conversations/refresh-linked-issue-context';
+import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
@@ -58,12 +57,7 @@ export function InitialConversationField({
   );
 
   const handleActionClick = async (action: ContextAction) => {
-    let text = action.text;
-    if (action.kind === 'linked-issue' && linkedIssue?.provider === 'linear') {
-      const refreshedIssue = await refreshLinkedIssueContext(linkedIssue, projectId);
-      const refreshedAction = buildLinkedIssueContextAction(refreshedIssue);
-      text = refreshedAction?.text ?? text;
-    }
+    const text = await resolveContextActionText({ action, linkedIssue, projectId });
 
     state.setPrompt((current) => appendInitialConversationText(current, text));
   };
