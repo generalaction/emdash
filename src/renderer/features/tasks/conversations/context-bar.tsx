@@ -1,7 +1,6 @@
 import { ArrowUp } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import type { Issue } from '@shared/tasks';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import {
   getRegisteredTaskData,
@@ -21,18 +20,7 @@ import {
   type ContextAction,
 } from './context-actions';
 import { PromptActionsMenu } from './prompt-actions-menu';
-
-async function refreshLinearIssue(issue: Issue, projectId: string): Promise<Issue> {
-  const result = await rpc.issues
-    .getIssueContext('linear', {
-      identifier: issue.identifier,
-      projectId,
-    })
-    .catch(() => undefined);
-  if (!result?.success) return issue;
-
-  return result.issue;
-}
+import { refreshLinkedIssueContext } from './refresh-linked-issue-context';
 
 export const ContextBar = observer(function ContextBar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -79,7 +67,7 @@ export const ContextBar = observer(function ContextBar() {
     let text = action.text;
     const linkedIssue = task?.linkedIssue;
     if (action.kind === 'linked-issue' && linkedIssue?.provider === 'linear') {
-      const refreshedIssue = await refreshLinearIssue(linkedIssue, projectId);
+      const refreshedIssue = await refreshLinkedIssueContext(linkedIssue, projectId);
       const refreshedAction = buildLinkedIssueContextAction(refreshedIssue);
       text = refreshedAction?.text ?? text;
     }
