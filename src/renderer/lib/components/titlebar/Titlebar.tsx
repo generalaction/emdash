@@ -2,8 +2,8 @@ import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { NavButtons } from '@renderer/lib/components/nav-buttons';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
+import { Button } from '@renderer/lib/ui/button';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
-import { Toggle } from '@renderer/lib/ui/toggle';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 
@@ -21,18 +21,17 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
             {!isLeftOpen && (
-              <>
+              <div className="ml-2 flex items-center gap-0.5 [-webkit-app-region:no-drag]">
                 <Tooltip>
                   <TooltipTrigger>
-                    <Toggle
-                      pressed={isLeftOpen}
-                      variant="outline"
+                    <Button
+                      variant="ghost"
                       size="sm"
-                      className="ml-2 size-7 border-none"
-                      onPressedChange={() => setCollapsed('left', isLeftOpen)}
+                      className="size-7 p-0"
+                      onClick={() => setCollapsed('left', isLeftOpen)}
                     >
                       <PanelLeft className="h-4 w-4" />
-                    </Toggle>
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent>
                     Toggle left sidebar
@@ -40,7 +39,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                   </TooltipContent>
                 </Tooltip>
                 <NavButtons />
-              </>
+              </div>
             )}
             {leftSlot}
           </div>

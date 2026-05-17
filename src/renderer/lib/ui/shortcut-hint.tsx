@@ -37,11 +37,7 @@ export const ShortcutHint: React.FC<ShortcutHintProps> = ({ settingsKey, classNa
           const glyph = IS_MAC
             ? (MAC_MODIFIER_SYMBOLS[modifier] ?? modifier)
             : (STANDARD_MODIFIER_LABELS[modifier] ?? modifier);
-          return (
-            <Kbd key={modifier}>
-              {IS_MAC ? <span className="translate-y-px">{glyph}</span> : glyph}
-            </Kbd>
-          );
+          return <Kbd key={modifier}>{glyph}</Kbd>;
         })}
         <Kbd>{KEY_DISPLAY_SYMBOLS[parsed.key] ?? parsed.key}</Kbd>
       </KbdGroup>
