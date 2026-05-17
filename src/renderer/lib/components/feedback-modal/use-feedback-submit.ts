@@ -162,6 +162,6 @@ export function useFeedbackSubmit({ githubUser, appVersion, onSuccess }: Feedbac
     clearContactEmailError,
     reset,
     handleSubmit,
-    canSubmit: feedbackDetails.trim().length > 0 && !submitting,
+    canSubmit: feedbackDetails.trim().length > 0 && !submitting && !contactEmailError,
   };
 }
