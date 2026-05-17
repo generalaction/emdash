@@ -101,7 +101,15 @@ export type TelemetryEventProperties = {
   integration_connected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
   integration_disconnected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
   issue_linked_to_task: {
-    provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
+    provider:
+      | 'github'
+      | 'linear'
+      | 'jira'
+      | 'gitlab'
+      | 'plain'
+      | 'forgejo'
+      | 'featurebase'
+      | 'asana';
   };
 
   open_in_external: { app: OpenInAppId | 'browser' };
