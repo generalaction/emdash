@@ -54,17 +54,19 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
           </DropdownMenuContent>
         </DropdownMenu>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              className="hover:bg-transparent text-foreground-muted hover:text-foreground"
-              aria-label="Add Project"
-              onClick={() => showAddProjectModal({})}
-            >
-              <Plus />
-            </Button>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                className="hover:bg-transparent text-foreground-muted hover:text-foreground"
+                aria-label="Add Project"
+                onClick={() => showAddProjectModal({})}
+              >
+                <Plus />
+              </Button>
+            }
+          />
           <TooltipContent className="flex items-center gap-2">
             Add Project
             <ShortcutHint settingsKey="newProject" />
