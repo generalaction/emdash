@@ -89,6 +89,7 @@ export const ContextBar = observer(function ContextBar() {
     await pastePromptInjection({
       providerId: activeConversation?.data.providerId,
       text,
+      forceBracketedPaste: true,
       sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
     });
 
