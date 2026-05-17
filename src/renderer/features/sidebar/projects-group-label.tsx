@@ -1,5 +1,6 @@
-import { ListFilter } from 'lucide-react';
+import { ListFilter, Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -12,41 +13,66 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
+  const showAddProjectModal = useShowModal('addProjectModal');
+
   return (
     <div className="flex items-center justify-between pl-5 pr-2.5 h-[40px]">
       <MicroLabel className="text-foreground-tertiary-passive">Projects</MicroLabel>
-      <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            className="hover:bg-transparent text-foreground-muted hover:text-foreground"
-          >
-            <ListFilter />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="min-w-48">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={sidebarStore.taskSortBy}>
-              <DropdownMenuRadioItem
-                value="created-at"
-                onClick={() => sidebarStore.applySort('created-at')}
+      <div className="flex items-center">
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              className="hover:bg-transparent text-foreground-muted hover:text-foreground"
+            >
+              <ListFilter />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="min-w-48">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={sidebarStore.taskSortBy}>
+                <DropdownMenuRadioItem
+                  value="created-at"
+                  onClick={() => sidebarStore.applySort('created-at')}
+                >
+                  Created at
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem
+                  value="updated-at"
+                  onClick={() => sidebarStore.applySort('updated-at')}
+                >
+                  Last used
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                className="hover:bg-transparent text-foreground-muted hover:text-foreground"
+                aria-label="Add Project"
+                onClick={() => showAddProjectModal({})}
               >
-                Created at
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem
-                value="updated-at"
-                onClick={() => sidebarStore.applySort('updated-at')}
-              >
-                Last used
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+                <Plus />
+              </Button>
+            }
+          />
+          <TooltipContent className="flex items-center gap-2">
+            Add Project
+            <ShortcutHint settingsKey="newProject" />
+          </TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 });
