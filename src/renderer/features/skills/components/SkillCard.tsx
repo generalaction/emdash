@@ -52,5 +52,3 @@ export const SkillCard: React.FC<SkillCardProps> = ({
     </CardGridItem>
   );
 };
-
-
