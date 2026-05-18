@@ -15,7 +15,7 @@ export interface CatalogSkill {
   /** Short description */
   description: string;
   /** Catalog source */
-  source: 'openai' | 'anthropic' | 'local';
+  source: 'skillssh' | 'openai' | 'anthropic' | 'local';
   /** GitHub URL */
   sourceUrl?: string;
   /** Icon URL (OpenAI skills have SVG/PNG) */
@@ -32,6 +32,10 @@ export interface CatalogSkill {
   installed: boolean;
   /** Filesystem path if installed */
   localPath?: string;
+  /** Number of installs (skills.sh popularity signal) */
+  installs?: number;
+  /** "owner/repo" slug on skills.sh (e.g. "anthropics/skills") */
+  repoSlug?: string;
 }
 
 export interface CatalogIndex {

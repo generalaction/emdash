@@ -23,6 +23,16 @@ export const skillsController = createRPCController({
     }
   },
 
+  searchCatalog: async (args: { query: string }) => {
+    try {
+      const catalog = await skillsService.searchCatalog(args.query);
+      return { success: true, data: catalog };
+    } catch (error) {
+      log.error('Failed to search skills catalog:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+
   install: async (args: { skillId: string }) => {
     try {
       const skill = await skillsService.installSkill(args.skillId);

@@ -1,4 +1,4 @@
-import { FolderOpen, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, FolderOpen, Trash2, X } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import type { CatalogSkill } from '@shared/skills/types';
 import { parseFrontmatter } from '@shared/skills/validation';
@@ -6,6 +6,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogContentArea,
   DialogFooter,
@@ -17,6 +18,7 @@ import SkillIconRenderer from './SkillIconRenderer';
 
 interface SkillDetailModalProps {
   skill: CatalogSkill | null;
+  isLoading: boolean;
   isOpen: boolean;
   onClose: () => void;
   onInstall: (skillId: string) => Promise<boolean>;
@@ -24,8 +26,36 @@ interface SkillDetailModalProps {
   onOpenTerminal?: (skillPath: string) => void;
 }
 
+function getSourceLabel(source: CatalogSkill['source']): string {
+  if (source === 'skillssh') return 'skills.sh';
+  if (source === 'openai') return 'OpenAI';
+  return 'Anthropic';
+}
+
+function getSourceIconUrl(skill: CatalogSkill): string {
+  if (skill.repoSlug) {
+    const owner = skill.repoSlug.split('/')[0];
+    if (owner) return `https://github.com/${owner}.png`;
+  }
+  if (skill.source === 'skillssh') return 'https://github.com/skills-sh.png';
+  if (skill.source === 'openai') return 'https://github.com/openai.png';
+  return 'https://github.com/anthropics.png';
+}
+
+function SkillDetailLoadingText() {
+  return (
+    <div className="space-y-2 rounded-md bg-muted/20 px-3 py-3" aria-label="Loading skill details">
+      <div className="h-3 w-4/5 animate-pulse rounded bg-gradient-to-r from-muted/40 via-muted/70 to-muted/40" />
+      <div className="h-3 w-full animate-pulse rounded bg-gradient-to-r from-muted/40 via-muted/70 to-muted/40" />
+      <div className="h-3 w-11/12 animate-pulse rounded bg-gradient-to-r from-muted/40 via-muted/70 to-muted/40" />
+      <div className="h-3 w-2/3 animate-pulse rounded bg-gradient-to-r from-muted/40 via-muted/70 to-muted/40" />
+    </div>
+  );
+}
+
 const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   skill,
+  isLoading,
   isOpen,
   onClose,
   onInstall,
@@ -65,36 +95,75 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   if (!skill) return null;
 
   const body = skill.skillMdContent ? parseFrontmatter(skill.skillMdContent).body.trim() : '';
+  const description = skill.description?.trim() || skill.frontmatter.description?.trim() || '';
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isProcessing && onClose()}>
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
+        <DialogHeader showCloseButton={false} className="min-w-0 flex-1 pr-10">
+          <div className="flex items-start gap-3">
             <SkillIconRenderer skill={skill} size="md" />
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-base font-sans normal-case tracking-normal text-foreground">
                 {skill.displayName}
               </DialogTitle>
               {skill.source !== 'local' && (
-                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <img
-                    src={
-                      skill.source === 'openai'
-                        ? 'https://github.com/openai.png'
-                        : 'https://github.com/anthropics.png'
-                    }
-                    alt=""
-                    className="h-4 w-4 rounded-sm"
-                  />
-                  <span>
-                    From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <img src={getSourceIconUrl(skill)} alt="" className="h-3.5 w-3.5 rounded-sm" />
+                    {getSourceLabel(skill.source)}
                   </span>
+                  {skill.repoSlug && (
+                    <>
+                      <span aria-hidden className="text-muted-foreground/40">
+                        ·
+                      </span>
+                      {skill.sourceUrl ? (
+                        <a
+                          href={`https://github.com/${skill.repoSlug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 hover:text-foreground"
+                        >
+                          {skill.repoSlug}
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      ) : (
+                        <span>{skill.repoSlug}</span>
+                      )}
+                    </>
+                  )}
+                  {skill.installs !== undefined && (
+                    <>
+                      <span aria-hidden className="text-muted-foreground/40">
+                        ·
+                      </span>
+                      <span className="inline-flex items-center gap-0.5">
+                        <Download className="h-3 w-3" />
+                        {skill.installs.toLocaleString()} installs
+                      </span>
+                    </>
+                  )}
                 </div>
+              )}
+              {description && (
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{description}</p>
               )}
             </div>
           </div>
         </DialogHeader>
+        <DialogClose
+          render={
+            <button
+              type="button"
+              disabled={isProcessing}
+              className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-md bg-background/80 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+              aria-label="Close"
+            />
+          }
+        >
+          <X aria-hidden className="h-4 w-4" />
+        </DialogClose>
         <DialogContentArea>
           {skill.defaultPrompt && (
             <div className="space-y-1 rounded-md bg-muted/40 pb-2">
@@ -105,12 +174,14 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             </div>
           )}
 
-          {body && (
+          {body ? (
             <MarkdownRenderer
               content={body}
               variant="compact"
               className="rounded-md bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
             />
+          ) : (
+            isLoading && <SkillDetailLoadingText />
           )}
         </DialogContentArea>
 

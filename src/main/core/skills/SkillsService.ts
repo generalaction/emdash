@@ -3,6 +3,13 @@ import * as https from 'node:https';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { agentTargets, skillScanPaths } from '@shared/skills/agentTargets';
+import {
+  mergeCatalogSkills,
+  SKILLSSH_BASE,
+  toSkillsshCatalogSkill,
+  type SkillsshDetailResponse,
+  type SkillsshSearchResponse,
+} from '@shared/skills/skillssh';
 import type { CatalogIndex, CatalogSkill, DetectedAgent } from '@shared/skills/types';
 import { generateSkillMd, isValidSkillName, parseFrontmatter } from '@shared/skills/validation';
 import { log } from '@main/lib/logger';
@@ -14,6 +21,56 @@ const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 
 const MAX_REDIRECTS = 5;
 
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function editDistanceWithin(a: string, b: string, maxDistance: number): boolean {
+  if (Math.abs(a.length - b.length) > maxDistance) return false;
+  if (a === b) return true;
+
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    let rowMin = current[0];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      const value = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost);
+      current[j] = value;
+      rowMin = Math.min(rowMin, value);
+    }
+    if (rowMin > maxDistance) return false;
+    previous = current;
+  }
+
+  return previous[b.length] <= maxDistance;
+}
+
+function skillMatchesCatalogSearch(skill: CatalogSkill, query: string): boolean {
+  const lower = query.toLowerCase();
+  if (
+    skill.id.toLowerCase().includes(lower) ||
+    skill.displayName.toLowerCase().includes(lower) ||
+    skill.description.toLowerCase().includes(lower)
+  ) {
+    return true;
+  }
+
+  if (!skill.repoSlug) return false;
+
+  const [owner] = skill.repoSlug.split('/');
+  const normalizedQuery = normalizeSearchText(query);
+  const normalizedOwner = normalizeSearchText(owner ?? '');
+  const normalizedRepoSlug = normalizeSearchText(skill.repoSlug);
+  if (!normalizedQuery) return false;
+
+  return (
+    normalizedOwner.includes(normalizedQuery) ||
+    normalizedRepoSlug.includes(normalizedQuery) ||
+    (normalizedQuery.length >= 4 && editDistanceWithin(normalizedQuery, normalizedOwner, 2))
+  );
+}
+
 function httpsGet(url: string, redirectCount = 0): Promise<string> {
   return new Promise((resolve, reject) => {
     if (redirectCount >= MAX_REDIRECTS) {
@@ -22,18 +79,18 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
     }
     const req = https.get(
       url,
-      { headers: { 'User-Agent': 'emdash-skills', Accept: 'application/vnd.github.v3+json' } },
+      { headers: { 'User-Agent': 'emdash-skills', Accept: 'application/json, text/html, */*' } },
       (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          const location = res.headers.location;
-          if (location) {
-            const resolved = new URL(location, url).href;
-            httpsGet(resolved, redirectCount + 1).then(resolve, reject);
-            return;
-          }
+        const status = res.statusCode ?? 0;
+        // Follow any 3xx redirect (skills.sh uses 307, GitHub uses 301/302)
+        if (status >= 300 && status < 400 && res.headers.location) {
+          const resolved = new URL(res.headers.location, url).href;
+          res.resume();
+          httpsGet(resolved, redirectCount + 1).then(resolve, reject);
+          return;
         }
-        if (res.statusCode && res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        if (status >= 400) {
+          reject(new Error(`HTTP ${status} for ${url}`));
           return;
         }
         let data = '';
@@ -50,8 +107,9 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
 }
 
 export class SkillsService {
-  private static readonly CATALOG_VERSION = 2;
+  private static readonly CATALOG_VERSION = 4;
   private catalogCache: CatalogIndex | null = null;
+  private searchSkillCache = new Map<string, CatalogSkill>();
 
   async initialize(): Promise<void> {
     await fs.promises.mkdir(SKILLS_ROOT, { recursive: true });
@@ -63,7 +121,8 @@ export class SkillsService {
       return this.mergeInstalledState(this.catalogCache);
     }
 
-    // Try disk cache — only use if its version matches current
+    // Prefer the disk cache on cold start so the Skills view is not blocked by
+    // a slow network request. Refresh explicitly fetches skills.sh.
     try {
       const data = await fs.promises.readFile(CATALOG_INDEX_PATH, 'utf-8');
       const diskCache = JSON.parse(data) as CatalogIndex;
@@ -71,9 +130,17 @@ export class SkillsService {
         this.catalogCache = diskCache;
         return this.mergeInstalledState(this.catalogCache);
       }
-      // Stale disk cache — fall through to bundled
+      // Stale disk cache — fall through to remote/bundled
     } catch {
-      // No disk cache — fall back to bundled catalog
+      // No disk cache — fall back to remote/bundled catalog
+    }
+
+    try {
+      const catalog = await this.fetchRemoteCatalog();
+      this.catalogCache = catalog;
+      return this.mergeInstalledState(catalog);
+    } catch (error) {
+      log.warn('Failed to load remote skills catalog, using bundled catalog', error);
     }
 
     const bundled = this.loadBundledCatalog();
@@ -83,44 +150,87 @@ export class SkillsService {
 
   async refreshCatalog(): Promise<CatalogIndex> {
     try {
-      const [openaiSkills, anthropicSkills] = await Promise.allSettled([
-        this.fetchOpenAICatalog(),
-        this.fetchAnthropicCatalog(),
-      ]);
-
-      const allSkills: CatalogSkill[] = [];
-      if (openaiSkills.status === 'fulfilled') {
-        allSkills.push(...openaiSkills.value);
-      }
-      if (anthropicSkills.status === 'fulfilled') {
-        allSkills.push(...anthropicSkills.value);
-      }
-
-      // Deduplicate by id — first occurrence wins
-      const seen = new Set<string>();
-      const skills = allSkills.filter((s) => {
-        if (seen.has(s.id)) return false;
-        seen.add(s.id);
-        return true;
-      });
-
-      // If both failed, fall back to bundled
-      if (skills.length === 0) {
-        log.warn('Failed to fetch any remote catalogs, using bundled');
-        return this.getCatalogIndex();
-      }
-
-      const catalog: CatalogIndex = {
-        version: SkillsService.CATALOG_VERSION,
-        lastUpdated: new Date().toISOString(),
-        skills,
-      };
-
+      const catalog = await this.fetchRemoteCatalog();
       this.catalogCache = catalog;
-      await fs.promises.writeFile(CATALOG_INDEX_PATH, JSON.stringify(catalog, null, 2));
       return this.mergeInstalledState(catalog);
     } catch (error) {
       log.error('Failed to refresh catalog:', error);
+      return this.getCatalogIndex();
+    }
+  }
+
+  async searchCatalog(query: string): Promise<CatalogIndex> {
+    const q = query.trim();
+    if (q.length < 2) {
+      return this.getCatalogIndex();
+    }
+
+    const installed = await this.getInstalledSkills().catch(() => [] as CatalogSkill[]);
+    const installedById = new Map(installed.map((s) => [s.id, s]));
+
+    try {
+      const searchSkills = await this.fetchSkillsshSearch(q);
+      for (const skill of searchSkills) {
+        this.searchSkillCache.set(skill.id, skill);
+      }
+      const catalog = this.catalogCache ?? (await this.getCatalogIndex().catch(() => null));
+      const catalogById = catalog
+        ? new Map(catalog.skills.map((s) => [s.id, s]))
+        : new Map<string, CatalogSkill>();
+
+      // Hydrate search hits with richer metadata (sourceUrl/icons/etc.) from the cached
+      // catalog when available, and mark installed if locally present.
+      const hydrated = searchSkills.map<CatalogSkill>((hit) => {
+        const local = installedById.get(hit.id);
+        const fromCatalog = catalogById.get(hit.id);
+        const base = fromCatalog ? { ...fromCatalog, ...hit } : hit;
+        if (local) {
+          return {
+            ...base,
+            installed: true,
+            localPath: local.localPath,
+            skillMdContent: local.skillMdContent,
+          };
+        }
+        return { ...base, installed: false };
+      });
+
+      // Include catalog/installed skills that match locally, including skills.sh author slugs.
+      const seenIds = new Set(hydrated.map((s) => s.id));
+      for (const catalogSkill of catalog?.skills ?? []) {
+        if (seenIds.has(catalogSkill.id)) continue;
+        if (skillMatchesCatalogSearch(catalogSkill, q)) {
+          const local = installedById.get(catalogSkill.id);
+          hydrated.push(
+            local
+              ? {
+                  ...catalogSkill,
+                  installed: true,
+                  localPath: local.localPath,
+                  skillMdContent: local.skillMdContent,
+                }
+              : { ...catalogSkill, installed: false }
+          );
+          seenIds.add(catalogSkill.id);
+        }
+      }
+      for (const local of installed) {
+        if (seenIds.has(local.id)) continue;
+        if (skillMatchesCatalogSearch(local, q)) {
+          hydrated.unshift(local);
+          seenIds.add(local.id);
+        }
+      }
+
+      log.info(`skills.sh search "${q}" returned ${hydrated.length} hits`);
+
+      return {
+        version: SkillsService.CATALOG_VERSION,
+        lastUpdated: new Date().toISOString(),
+        skills: hydrated,
+      };
+    } catch (error) {
+      log.warn('Failed to search skills.sh catalog:', error);
       return this.getCatalogIndex();
     }
   }
@@ -184,8 +294,7 @@ export class SkillsService {
   }
 
   async getSkillDetail(skillId: string): Promise<CatalogSkill | null> {
-    const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    const skill = await this.findCatalogSkill(skillId);
     if (!skill) return null;
 
     // If installed, load the full SKILL.md from disk
@@ -201,10 +310,23 @@ export class SkillsService {
     // For uninstalled catalog skills, fetch SKILL.md from GitHub
     if (!skill.installed && !skill.skillMdContent) {
       try {
-        const mdUrl = this.getSkillMdUrl(skill);
-        if (mdUrl) {
-          const content = await httpsGet(mdUrl);
-          return { ...skill, skillMdContent: content };
+        let content: string | null = null;
+        if (skill.source === 'skillssh') {
+          content = await this.fetchSkillsshSkillMd(skill);
+        } else {
+          const mdUrl = this.getSkillMdUrl(skill);
+          if (mdUrl) {
+            content = await httpsGet(mdUrl);
+          }
+        }
+        if (content) {
+          const { frontmatter } = parseFrontmatter(content);
+          return {
+            ...skill,
+            skillMdContent: content,
+            description: frontmatter.description || skill.description,
+            frontmatter: { ...skill.frontmatter, ...frontmatter },
+          };
         }
       } catch {
         // Return what we have
@@ -212,6 +334,12 @@ export class SkillsService {
     }
 
     return skill;
+  }
+
+  private async fetchSkillsshSkillMd(skill: CatalogSkill): Promise<string | null> {
+    const detail = await this.fetchSkillsshDetail(skill);
+    const skillMd = detail?.files?.find((file) => file.path.toLowerCase() === 'skill.md');
+    return skillMd?.contents ?? null;
   }
 
   private getSkillMdUrl(skill: CatalogSkill): string | null {
@@ -234,8 +362,7 @@ export class SkillsService {
 
   async installSkill(skillId: string): Promise<CatalogSkill> {
     await this.initialize();
-    const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    const skill = await this.findCatalogSkill(skillId);
     if (!skill) throw new Error(`Skill "${skillId}" not found in catalog`);
     if (skill.installed) throw new Error(`Skill "${skillId}" is already installed`);
 
@@ -244,19 +371,27 @@ export class SkillsService {
     try {
       await fs.promises.mkdir(tmpDir, { recursive: true });
 
-      // Try to download the real SKILL.md from GitHub; fall back to generated stub
+      // Try to download the real skill files; fall back to a generated SKILL.md stub.
       let content: string;
       try {
-        const mdUrl = this.getSkillMdUrl(skill);
-        if (mdUrl) {
-          content = await httpsGet(mdUrl);
+        if (skill.source === 'skillssh') {
+          content = await this.writeSkillsshFiles(skill, tmpDir);
         } else {
-          content = generateSkillMd(skill.displayName, skill.description);
+          const mdUrl = this.getSkillMdUrl(skill);
+          if (mdUrl) {
+            content = await httpsGet(mdUrl);
+          } else {
+            content = generateSkillMd(skill.displayName, skill.description);
+          }
+          await fs.promises.writeFile(path.join(tmpDir, 'SKILL.md'), content);
         }
       } catch {
+        // writeSkillsshFiles may have left partial files in tmpDir — start fresh
+        await fs.promises.rm(tmpDir, { recursive: true, force: true });
+        await fs.promises.mkdir(tmpDir, { recursive: true });
         content = generateSkillMd(skill.displayName, skill.description);
+        await fs.promises.writeFile(path.join(tmpDir, 'SKILL.md'), content);
       }
-      await fs.promises.writeFile(path.join(tmpDir, 'SKILL.md'), content);
 
       // Remove stale target dir if present (e.g. from a previous failed install)
       await fs.promises.rm(skillDir, { recursive: true, force: true }).catch(() => {});
@@ -269,6 +404,7 @@ export class SkillsService {
 
       // Invalidate cache
       this.catalogCache = null;
+      this.searchSkillCache.delete(skillId);
 
       return {
         ...skill,
@@ -364,11 +500,15 @@ export class SkillsService {
         const parentDir = path.dirname(targetDir);
         await fs.promises.mkdir(parentDir, { recursive: true });
 
-        // Remove existing symlink/dir if present
+        // Remove existing Emdash-managed symlink if present. Do not delete real
+        // agent skill directories; those may be user-managed.
         try {
           const stat = await fs.promises.lstat(targetDir);
-          if (stat.isSymbolicLink() || stat.isDirectory()) {
-            await fs.promises.rm(targetDir, { recursive: true, force: true });
+          if (stat.isSymbolicLink()) {
+            await fs.promises.unlink(targetDir);
+          } else {
+            log.warn(`Skipping sync of skill "${skillId}" to ${target.name}: target exists`);
+            continue;
           }
         } catch {
           // Doesn't exist, that's fine
@@ -440,6 +580,32 @@ export class SkillsService {
     return bundledCatalog as CatalogIndex;
   }
 
+  private async findCatalogSkill(skillId: string): Promise<CatalogSkill | undefined> {
+    const cachedSearchSkill = this.searchSkillCache.get(skillId);
+    if (cachedSearchSkill) return cachedSearchSkill;
+    const catalog = await this.getCatalogIndex();
+    return catalog.skills.find((s) => s.id === skillId);
+  }
+
+  private async fetchRemoteCatalog(): Promise<CatalogIndex> {
+    const bundledSkills = this.loadBundledCatalog().skills;
+    const skillsshSkills = await this.fetchSkillsshCatalog();
+    const skills = mergeCatalogSkills(bundledSkills, skillsshSkills);
+
+    if (skills.length === 0) {
+      throw new Error('skills.sh catalog returned no skills');
+    }
+
+    const catalog: CatalogIndex = {
+      version: SkillsService.CATALOG_VERSION,
+      lastUpdated: new Date().toISOString(),
+      skills,
+    };
+
+    await fs.promises.writeFile(CATALOG_INDEX_PATH, JSON.stringify(catalog, null, 2));
+    return catalog;
+  }
+
   private async mergeInstalledState(catalog: CatalogIndex): Promise<CatalogIndex> {
     const installed = await this.getInstalledSkills();
     const installedMap = new Map(installed.map((s) => [s.id, s]));
@@ -474,155 +640,92 @@ export class SkillsService {
     return { ...catalog, skills: mergedSkills };
   }
 
-  private async fetchOpenAICatalog(): Promise<CatalogSkill[]> {
-    const baseUrl = 'https://api.github.com/repos/openai/skills/contents/skills';
-    const rawBase = 'https://raw.githubusercontent.com/openai/skills/main/skills';
+  private async fetchSkillsshCatalog(): Promise<CatalogSkill[]> {
+    const catalogQueries = ['skill', 'ai', 'agent', 'code', 'docs', 'github', 'react', 'cloud'];
+    const results = await Promise.allSettled(
+      catalogQueries.map((query) => this.fetchSkillsshSearch(query, 100))
+    );
+    const skillGroups = results
+      .filter(
+        (result): result is PromiseFulfilledResult<CatalogSkill[]> => result.status === 'fulfilled'
+      )
+      .map((result) => result.value);
 
-    // Fetch both curated and system skills
-    const [curatedData, systemData] = await Promise.all([
-      httpsGet(`${baseUrl}/.curated`),
-      httpsGet(`${baseUrl}/.system`).catch(() => '[]'),
-    ]);
+    if (skillGroups.length === 0) {
+      throw new Error('All skills.sh catalog queries failed');
+    }
 
-    const curatedEntries = JSON.parse(curatedData) as Array<{
-      name: string;
-      type: string;
-      html_url?: string;
-    }>;
-    const systemEntries = JSON.parse(systemData) as Array<{
-      name: string;
-      type: string;
-      html_url?: string;
-    }>;
+    return mergeCatalogSkills(...skillGroups);
+  }
 
-    const allEntries = [
-      ...curatedEntries.map((e) => ({ ...e, category: '.curated' as const })),
-      ...systemEntries.map((e) => ({ ...e, category: '.system' as const })),
-    ].filter((e) => e.type === 'dir');
+  private async fetchSkillsshSearch(query: string, limit = 50): Promise<CatalogSkill[]> {
+    const data = await httpsGet(
+      `${SKILLSSH_BASE}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`
+    );
+    const response = JSON.parse(data) as SkillsshSearchResponse;
 
-    // Fetch openai.yaml for each skill in parallel (with fallback)
-    const skills = await Promise.all(
-      allEntries.map(async (entry) => {
-        const fallbackName = entry.name
-          .split('-')
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(' ');
-
-        let displayName = fallbackName;
-        let description = '';
-        let iconUrl: string | undefined;
-        let brandColor: string | undefined;
-        let defaultPrompt: string | undefined;
-
-        try {
-          const yamlUrl = `${rawBase}/${entry.category}/${entry.name}/agents/openai.yaml`;
-          const yamlContent = await httpsGet(yamlUrl);
-          const parsed = this.parseSimpleYaml(yamlContent);
-          displayName = parsed['display_name'] || fallbackName;
-          description = parsed['short_description'] || '';
-          defaultPrompt = parsed['default_prompt'];
-          brandColor = parsed['brand_color'];
-
-          // Resolve icon URL from relative path
-          const iconPath = parsed['icon_small'] || parsed['icon_large'];
-          if (iconPath) {
-            const cleanPath = iconPath.replace(/^\.\//, '');
-            iconUrl = `${rawBase}/${entry.category}/${entry.name}/${cleanPath}`;
-          }
-        } catch {
-          // No openai.yaml — use fallback
-        }
-
-        // If still no description, try fetching SKILL.md frontmatter
-        if (!description) {
-          try {
-            const mdUrl = `${rawBase}/${entry.category}/${entry.name}/SKILL.md`;
-            const md = await httpsGet(mdUrl);
-            const { frontmatter: fm } = parseFrontmatter(md);
-            if (fm.description) description = fm.description;
-          } catch {
-            // Use empty string
-          }
-        }
-
-        if (!description) {
-          description = `${entry.name.replace(/-/g, ' ')}`;
-        }
-
-        const skill: CatalogSkill = {
-          id: entry.name,
-          displayName,
-          description,
-          source: 'openai',
-          sourceUrl: entry.html_url,
-          iconUrl,
-          brandColor: brandColor || '#10a37f',
-          defaultPrompt,
-          frontmatter: { name: entry.name, description },
-          installed: false,
-        };
-        return skill;
+    return response.skills.map((entry) =>
+      toSkillsshCatalogSkill({
+        name: entry.name,
+        skillId: entry.skillId,
+        source: entry.source,
+        installs: entry.installs,
       })
     );
-
-    return skills;
   }
 
-  private async fetchAnthropicCatalog(): Promise<CatalogSkill[]> {
-    const url = 'https://api.github.com/repos/anthropics/skills/contents/skills';
-    const rawBase = 'https://raw.githubusercontent.com/anthropics/skills/main/skills';
-    const data = await httpsGet(url);
-    const entries = JSON.parse(data) as Array<{ name: string; type: string; html_url?: string }>;
-    const skills: CatalogSkill[] = [];
-
-    for (const entry of entries) {
-      if (entry.type !== 'dir') continue;
-      const fallbackName = entry.name
-        .split('-')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
-
-      let description = '';
-
-      // Try to get description from SKILL.md frontmatter
-      try {
-        const mdUrl = `${rawBase}/${entry.name}/SKILL.md`;
-        const md = await httpsGet(mdUrl);
-        const { frontmatter: fm } = parseFrontmatter(md);
-        if (fm.description) description = fm.description;
-      } catch {
-        // Use fallback
-      }
-
-      if (!description) {
-        description = `${entry.name.replace(/-/g, ' ')}`;
-      }
-
-      skills.push({
-        id: entry.name,
-        displayName: fallbackName,
-        description,
-        source: 'anthropic',
-        sourceUrl: entry.html_url,
-        brandColor: '#d4a574',
-        frontmatter: { name: entry.name, description },
-        installed: false,
-      });
+  private getSkillsshPath(skill: CatalogSkill): string | null {
+    if (!skill.sourceUrl) return null;
+    try {
+      const url = new URL(skill.sourceUrl);
+      if (url.hostname !== 'skills.sh' && url.hostname !== 'www.skills.sh') return null;
+      const skillPath = url.pathname.replace(/^\/+/, '');
+      return skillPath.length > 0 ? skillPath : null;
+    } catch {
+      return null;
     }
-
-    return skills;
   }
 
-  /** Minimal YAML parser for openai.yaml interface block */
-  private parseSimpleYaml(content: string): Record<string, string> {
-    const result: Record<string, string> = {};
-    for (const line of content.split('\n')) {
-      const match = line.match(/^\s+(\w+):\s*"?([^"]*)"?\s*$/);
-      if (match) {
-        result[match[1]] = match[2].trim();
+  private async fetchSkillsshDetail(skill: CatalogSkill): Promise<SkillsshDetailResponse | null> {
+    const skillPath = this.getSkillsshPath(skill);
+    if (!skillPath) return null;
+
+    const data = await httpsGet(`${SKILLSSH_BASE}/api/download/${skillPath}`);
+    return JSON.parse(data) as SkillsshDetailResponse;
+  }
+
+  private async writeSkillsshFiles(skill: CatalogSkill, targetDir: string): Promise<string> {
+    const detail = await this.fetchSkillsshDetail(skill);
+    const files = detail?.files;
+    if (!files || files.length === 0) {
+      throw new Error(`No files available for ${skill.id}`);
+    }
+
+    let skillMdContent: string | null = null;
+    for (const file of files) {
+      const targetPath = path.resolve(targetDir, file.path);
+      if (!this.isPathInside(targetDir, targetPath)) {
+        throw new Error(`Unsafe skill file path: ${file.path}`);
+      }
+
+      await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+      await fs.promises.writeFile(targetPath, file.contents);
+
+      if (file.path.toLowerCase() === 'skill.md') {
+        skillMdContent = file.contents;
       }
     }
-    return result;
+
+    if (!skillMdContent) {
+      throw new Error(`Skill ${skill.id} did not include SKILL.md`);
+    }
+
+    return skillMdContent;
+  }
+
+  private isPathInside(parentDir: string, childPath: string): boolean {
+    const relative = path.relative(path.resolve(parentDir), childPath);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
   }
 }
 
