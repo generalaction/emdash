@@ -33,7 +33,10 @@ export const CreateConversationModal = observer(function CreateConversationModal
   taskId: string;
 }) {
   const connectionId = getProjectSshConnectionId(projectId);
-  const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
+  const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(
+    projectId,
+    connectionId
+  );
   const conversationMgr = conversationRegistry.get(taskId);
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -35,6 +35,10 @@ export const agentAutoApproveDefaultsSchema = z
   .partialRecord(z.enum(AGENT_PROVIDER_IDS), z.boolean())
   .default({});
 
+export const lastAgentByProjectSchema = z
+  .record(z.string(), z.enum(AGENT_PROVIDER_IDS))
+  .default({});
+
 export const terminalSettingsSchema = z.object({
   fontFamily: z.string().optional(),
   fontSize: z.number().min(TERMINAL_FONT_SIZE_MIN).max(TERMINAL_FONT_SIZE_MAX).optional(),
@@ -108,6 +112,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
+  lastAgentByProject: lastAgentByProjectSchema,
   defaultAgent: defaultAgentSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
@@ -124,6 +129,7 @@ export const appSettingsSchema = z.object({
   project: projectSettingsSchema,
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
+  lastAgentByProject: lastAgentByProjectSchema,
   defaultAgent: defaultAgentSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,

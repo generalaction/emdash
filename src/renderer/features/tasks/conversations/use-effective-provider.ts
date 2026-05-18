@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback } from 'react';
 import {
   AGENT_PROVIDER_IDS,
   isValidProviderId,
@@ -14,8 +14,32 @@ export type EffectiveProvider = {
   createDisabled: boolean;
 };
 
-export function useEffectiveProvider(connectionId?: string): EffectiveProvider {
-  const [providerOverride, setProviderOverride] = useState<AgentProviderId | null>(null);
+export function useEffectiveProvider(
+  projectId: string | undefined,
+  connectionId?: string
+): EffectiveProvider {
+  const {
+    value: lastAgentByProject,
+    update: updateLastAgentByProject,
+    resetField: resetLastAgentForProject,
+  } = useAppSettingsKey('lastAgentByProject');
+  const persistedProviderId = projectId ? lastAgentByProject?.[projectId] : undefined;
+  const providerOverride: AgentProviderId | null = isValidProviderId(persistedProviderId)
+    ? persistedProviderId
+    : null;
+
+  const setProviderOverride = useCallback(
+    (id: AgentProviderId | null) => {
+      if (!projectId) return;
+
+      if (id) {
+        updateLastAgentByProject({ [projectId]: id });
+      } else {
+        resetLastAgentForProject(projectId);
+      }
+    },
+    [projectId, resetLastAgentForProject, updateLastAgentByProject]
+  );
 
   const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
   const defaultProviderId: AgentProviderId = isValidProviderId(defaultAgentValue)

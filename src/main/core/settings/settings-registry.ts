@@ -29,6 +29,7 @@ export const SETTINGS_DEFAULTS = {
     createBranchAndWorktree: true,
   },
   agentAutoApproveDefaults: {},
+  lastAgentByProject: {},
   notifications: {
     enabled: true,
     sound: true,

@@ -27,7 +27,7 @@ export type InitialConversationState = {
 
 export function useInitialConversationState(projectId?: string): InitialConversationState {
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
-  const { providerId, setProviderOverride } = useEffectiveProvider(connectionId);
+  const { providerId, setProviderOverride } = useEffectiveProvider(projectId, connectionId);
   const [prompt, setPrompt] = useState('');
   return {
     provider: providerId,
