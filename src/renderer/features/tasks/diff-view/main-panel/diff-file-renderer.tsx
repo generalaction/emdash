@@ -130,7 +130,21 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     if (tab.diffGroup === 'disk') {
       const diskUri = modelRegistry.toDiskUri(uri);
       void (async () => {
-        await modelRegistry.registerModel(projectId, workspaceId, root, tab.path, language, 'disk');
+        // Disk read fails for deleted files (ENOENT). Swallow so the buffer
+        // still registers with an empty seed; the diff editor needs both
+        // sides 'ready' to render, otherwise it shows a blank page.
+        try {
+          await modelRegistry.registerModel(
+            projectId,
+            workspaceId,
+            root,
+            tab.path,
+            language,
+            'disk'
+          );
+        } catch (err) {
+          if (!isMissingFileError(err)) throw err;
+        }
         if (disposed) {
           modelRegistry.unregisterModel(diskUri);
           return;
@@ -223,4 +237,9 @@ function tabToActiveFile(tab: DiffTabStore): ActiveFile {
     modifiedRef: tab.modifiedRef,
     prNumber: tab.prNumber,
   };
+}
+
+function isMissingFileError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /\b(ENOENT|File not found)\b/i.test(message);
 }
