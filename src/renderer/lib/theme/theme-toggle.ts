@@ -5,8 +5,6 @@ import { getNextTheme } from './theme-toggle-model';
 
 type ThemeMeta = {
   value: Theme;
-  defaults: Theme;
-  overrides: Partial<Theme>;
 };
 
 export async function toggleAppTheme(): Promise<void> {
