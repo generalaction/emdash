@@ -196,14 +196,20 @@ const StackedFileSlot = observer(function StackedFileSlot({
     } else {
       const diskUri = modelRegistry.toDiskUri(modifiedUri);
       void (async () => {
-        await modelRegistry.registerModel(
-          projectId,
-          workspaceId,
-          root,
-          file.path,
-          language,
-          'disk'
-        );
+        if (file.status !== 'deleted') {
+          try {
+            await modelRegistry.registerModel(
+              projectId,
+              workspaceId,
+              root,
+              file.path,
+              language,
+              'disk'
+            );
+          } catch (err) {
+            if (!isMissingFileError(err)) throw err;
+          }
+        }
         if (disposed) {
           modelRegistry.unregisterModel(diskUri);
           return;
@@ -221,7 +227,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
         }
       })().catch(() => {});
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
+        .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
         .catch(() => {});
     }
     return () => {
@@ -323,3 +329,8 @@ const StackedFileSlot = observer(function StackedFileSlot({
     </div>
   );
 });
+
+function isMissingFileError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /\b(ENOENT|File not found)\b/i.test(message);
+}

@@ -107,6 +107,9 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
   const language = getLanguageFromPath(tab.path);
 
   const originalUri = (() => {
+    if (tab.diffGroup === 'disk') {
+      return modelRegistry.toGitUri(uri, STAGED_REF);
+    }
     if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
       return modelRegistry.toGitUri(uri, tab.originalRef);
     }
@@ -130,20 +133,19 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     if (tab.diffGroup === 'disk') {
       const diskUri = modelRegistry.toDiskUri(uri);
       void (async () => {
-        // Disk read fails for deleted files (ENOENT). Swallow so the buffer
-        // still registers with an empty seed; the diff editor needs both
-        // sides 'ready' to render, otherwise it shows a blank page.
-        try {
-          await modelRegistry.registerModel(
-            projectId,
-            workspaceId,
-            root,
-            tab.path,
-            language,
-            'disk'
-          );
-        } catch (err) {
-          if (!isMissingFileError(err)) throw err;
+        if (tab.status !== 'deleted') {
+          try {
+            await modelRegistry.registerModel(
+              projectId,
+              workspaceId,
+              root,
+              tab.path,
+              language,
+              'disk'
+            );
+          } catch (err) {
+            if (!isMissingFileError(err)) throw err;
+          }
         }
         if (disposed) {
           modelRegistry.unregisterModel(diskUri);
@@ -162,7 +164,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
         }
       })().catch(() => {});
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
+        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', STAGED_REF)
         .catch(() => {});
     } else if (tab.diffGroup === 'staged') {
       void modelRegistry
@@ -206,6 +208,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     tab.diffGroup,
     tab.originalRef,
     tab.modifiedRef,
+    tab.status,
     projectId,
     workspaceId,
     root,
