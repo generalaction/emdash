@@ -29,7 +29,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const showCreateConversationModal = useShowModal('createConversationModal');
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
-  const shouldSetWorkingOnEnter = !remoteConnectionId;
 
   const autoFocus = isActive && taskView.focusedRegion === 'main';
 
@@ -97,13 +96,12 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     }
   }, [sessionStatus]);
 
-  const onEnterPress =
-    shouldSetWorkingOnEnter && activeConversation
-      ? () => {
-          activeConversation.setWorking();
-          void conversations.touchConversation(activeConversation.data.id);
-        }
-      : undefined;
+  const onEnterPress = activeConversation
+    ? () => {
+        activeConversation.setWorking();
+        void conversations.touchConversation(activeConversation.data.id);
+      }
+    : undefined;
 
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
 
