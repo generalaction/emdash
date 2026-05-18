@@ -16,7 +16,7 @@ const PROJECT_ACTIONS = [
     modalArgs: { strategy: 'local', mode: 'pick' },
   },
   {
-    label: 'Create Repository',
+    label: 'Create repository',
     description: 'Create a project by creating a new repository on GitHub',
     icon: Plus,
     modalArgs: { strategy: 'local', mode: 'new' },
@@ -28,7 +28,7 @@ const PROJECT_ACTIONS = [
     modalArgs: { strategy: 'local', mode: 'clone' },
   },
   {
-    label: 'Add Remote Project',
+    label: 'Add remote project',
     description: 'Create a project on a remote SSH server',
     icon: Server,
     modalArgs: { strategy: 'ssh', mode: 'pick' },
