@@ -3,7 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { SidebarMenuButton } from './sidebar-primitives';
 
 export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
@@ -42,7 +42,7 @@ export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
         <Search className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" />
         <span className="truncate">Search…</span>
       </span>
-      <ShortcutHint settingsKey="commandPalette" />
+      <BoundShortcut settingsKey="commandPalette" />
     </SidebarMenuButton>
   );
 });

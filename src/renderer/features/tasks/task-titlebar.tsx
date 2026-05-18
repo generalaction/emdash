@@ -38,7 +38,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Separator } from '@renderer/lib/ui/separator';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -320,7 +320,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               </Toggle>
             </TooltipTrigger>
             <TooltipContent>
-              Toggle terminal <ShortcutHint settingsKey="toggleTerminalDrawer" />
+              Toggle terminal <BoundShortcut settingsKey="toggleTerminalDrawer" variant="badge" />
             </TooltipContent>
           </Tooltip>
           <Separator orientation="vertical" className="h-5 self-center!" />
