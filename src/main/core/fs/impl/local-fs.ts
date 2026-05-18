@@ -721,11 +721,12 @@ export class LocalFileSystem implements FileSystemProvider {
     size?: number;
     error?: string;
   }> {
-    const fullPath = this.resolvePath(path);
     const ext = extname(path).toLowerCase();
     if (ext !== '.pdf') {
       return { success: false, error: `Unsupported PDF format: ${ext}` };
     }
+
+    const fullPath = this.resolvePath(path);
 
     let stat;
     try {

@@ -242,11 +242,16 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     const kind = getFileKind(filePath);
 
     if (kind === 'image' || kind === 'pdf') {
-      const result =
-        kind === 'image'
-          ? await rpc.fs.readImage(this.projectId, this.workspaceId, filePath)
-          : await rpc.fs.readPdf(this.projectId, this.workspaceId, filePath);
-      const content = result.success ? (result.data?.dataUrl ?? '') : '';
+      let content = '';
+      try {
+        const result =
+          kind === 'image'
+            ? await rpc.fs.readImage(this.projectId, this.workspaceId, filePath)
+            : await rpc.fs.readPdf(this.projectId, this.workspaceId, filePath);
+        content = result.success ? (result.data?.dataUrl ?? '') : '';
+      } catch (error) {
+        log.warn(`[FileModelLifecycleStore] Failed to load ${kind} preview:`, error);
+      }
       runInAction(() => {
         for (const { tabManager } of this.tabGroupManager.groups) {
           tabManager.setImageContent(filePath, content);
