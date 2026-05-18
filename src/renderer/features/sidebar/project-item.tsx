@@ -10,7 +10,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   isUnregisteredProject,
   type UnregisteredProject,
@@ -22,6 +22,8 @@ import {
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
+import { useToast } from '@renderer/lib/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
 import {
   useNavigate,
   useParams,
@@ -84,10 +86,44 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
 
   const isExpanded = sidebarStore.expandedProjectIds.has(projectId);
 
+  const [isRelocating, setIsRelocating] = useState(false);
+  const { toast } = useToast();
+
   if (!project) return null;
 
   const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
   const isSshProject = sshConnectionId !== null;
+  const isLocalProject = project.data?.type === 'local';
+  const isPathNotFound = projectViewKind(project) === 'path_not_found';
+
+  const handleRelocate = async () => {
+    if (isRelocating) return;
+    const dialogTitle = project.name ? `Relocate ${project.name}` : 'Relocate Project';
+    const newPath = await rpc.app.openSelectDirectoryDialog({
+      title: dialogTitle,
+      message: 'Select the new location of this project',
+    });
+    if (!newPath) return;
+    setIsRelocating(true);
+    try {
+      await getProjectManagerStore().relocateLocalProject(projectId, newPath);
+      toast({
+        title: 'Project relocated',
+        description: project.name
+          ? `Moved "${project.name}" to ${newPath}.`
+          : `Moved to ${newPath}.`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({
+        title: 'Failed to relocate project',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRelocating(false);
+    }
+  };
   const sshConnectionState = sshConnectionId
     ? appState.sshConnections.stateFor(sshConnectionId)
     : null;
@@ -203,6 +239,20 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             >
               <CableIcon className="size-4" />
               Change SSH Connection
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+        {isLocalProject && isPathNotFound && (
+          <>
+            <ContextMenuItem
+              disabled={isRelocating}
+              onClick={() => {
+                void handleRelocate();
+              }}
+            >
+              <FolderInput className="size-4" />
+              Relocate Project
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>

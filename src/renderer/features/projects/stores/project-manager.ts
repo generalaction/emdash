@@ -358,6 +358,32 @@ export class ProjectManagerStore {
     }
   }
 
+  async relocateLocalProject(projectId: string, newPath: string): Promise<void> {
+    const result = await rpc.projects.relocateLocalProject(projectId, newPath);
+    if (!result.success) {
+      throw new Error(result.error.message);
+    }
+    const newData: LocalProject = result.data;
+
+    runInAction(() => {
+      const current = this.projects.get(projectId);
+      if (!current) return;
+      if (isMountedProject(current)) {
+        current.transitionToUnmounted(newData, 'opening');
+      } else if (isUnmountedProject(current)) {
+        current.data = newData;
+        current.phase = 'opening';
+        current.error = undefined;
+        current.errorCode = undefined;
+      }
+    });
+
+    const inFlight = this._projectMountPromises.get(projectId);
+    if (inFlight) await inFlight.catch(() => {});
+
+    await this.mountProject(projectId);
+  }
+
   async updateProjectConnection(projectId: string, newConnectionId: string): Promise<void> {
     await rpc.projects.updateProjectConnection(projectId, newConnectionId);
 
