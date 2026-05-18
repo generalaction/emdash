@@ -1,18 +1,9 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { parseSshConfigFile } from '@main/core/ssh/sshConfigParser';
+import { resolveSshConfigHost } from '@main/core/ssh/sshConfigParser';
 
 export async function resolveIdentityAgent(hostname: string): Promise<string | undefined> {
-  try {
-    const hosts = await parseSshConfigFile();
-    const match = hosts.find(
-      (h) =>
-        h.host.toLowerCase() === hostname.toLowerCase() ||
-        h.hostname?.toLowerCase() === hostname.toLowerCase()
-    );
-    return match?.identityAgent;
-  } catch {
-    return undefined;
-  }
+  const match = await resolveSshConfigHost(hostname, { allowHostNameMatch: true });
+  return match?.identityAgent;
 }
 
 export async function resolveRemoteHome(ctx: IExecutionContext): Promise<string> {
