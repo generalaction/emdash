@@ -1,5 +1,5 @@
 import { exec } from 'node:child_process';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { extname, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
@@ -419,7 +419,7 @@ class AppService implements IInitializable, IDisposable {
   async readAudioFileDataUrl(filePath: string): Promise<string> {
     if (!filePath || typeof filePath !== 'string') throw new Error('Invalid audio path');
 
-    const resolvedPath = resolve(filePath);
+    const resolvedPath = await realpath(resolve(filePath));
     const resolvedHome = resolve(homedir());
     const homePrefix = resolvedHome.endsWith(sep) ? resolvedHome : `${resolvedHome}${sep}`;
     if (!resolvedPath.startsWith(homePrefix) && resolvedPath !== resolvedHome) {
